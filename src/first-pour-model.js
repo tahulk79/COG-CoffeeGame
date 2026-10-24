@@ -14,7 +14,7 @@ export const firstPourBeans=[
 ];
 export function firstPourPreset(bean='ethiopia'){const entry=firstPourBeans.find(b=>b.id===bean);if(!entry)throw Error('Unknown bean');return {bean,...(entry.target||{dose:20,ratio:15,grind:20,temp:93,time:180})};}
 export const firstPourLimits={dose:[12,30],ratio:[12,20],grind:[1,40],temp:[80,100],time:[90,360]};
-export function validFirstRecipe(recipe){return Boolean((recipe?.referenceId===undefined||Boolean(recipeReference(recipe.referenceId)))&&firstPourBeans.some(b=>b.id===recipe?.bean)&&Object.entries(firstPourLimits).every(([k,[min,max]])=>Number.isFinite(recipe[k])&&recipe[k]>=min&&recipe[k]<=max));}
+export function validFirstRecipe(recipe){return Boolean((recipe?.referenceId===undefined||Boolean(recipeReference(recipe.referenceId)?.practiceSupported))&&firstPourBeans.some(b=>b.id===recipe?.bean)&&Object.entries(firstPourLimits).every(([k,[min,max]])=>Number.isFinite(recipe[k])&&recipe[k]>=min&&recipe[k]<=max));}
 export function firstPourPlan(recipe){if(!validFirstRecipe(recipe))throw Error('Invalid first-pour recipe');if(recipe.referenceId)return recipeReferencePlan(recipe);const total=Math.round(recipe.dose*recipe.ratio);return [Math.round(total*.2),Math.round(total*.7),total];}
 export function firstPourScore(recipe){
  if(!validFirstRecipe(recipe))throw Error('Invalid first-pour recipe');
