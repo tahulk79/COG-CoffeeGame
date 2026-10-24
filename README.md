@@ -124,3 +124,11 @@ The home screen now opens on an illustrated, staged conversation rather than a d
 ## Recipe provenance · v0.8.1
 
 James Hoffmann’s Ultimate V60 example (30 g coffee / 500 g input water) now has a reference notebook with creator, original-video link, pinned corroborating transcriptions, steps and explicit practice adaptations. Reference practice uses cumulative 60/300/500 targets, retains the player’s unsourced game settings and has no invented taste score. Four preexisting recipe examples remain game-authored. The catalog now has thirteen entries; older visit discoveries are preserved. [Sources, verification limits and checks](docs/RECIPE-PROVENANCE.md).
+
+### v0.8.2 · three attributed recipe guides
+
+The source notebook includes Ultimate V60, A Better 1 Cup V60 and Kasuya 4:6,
+with user-supplied verification summaries explicitly distinguished from direct
+video review. Each has a real-time cue timer. Five-pour methods are guides rather
+than forced adaptations of the three-stage practice station. See
+[provenance and timing ambiguity](docs/RECIPE-PROVENANCE.md).

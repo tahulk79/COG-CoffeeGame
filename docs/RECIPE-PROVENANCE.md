@@ -88,3 +88,40 @@ Original day, chapter, cup, actual-brew and bookmark keys are retained.
 [Desktop notebook](review/recipe-provenance/1440-book.png).
 Captures and checks are synthetic. Direct primary-video review, actual Safari/mobile
 hardware and measured educational outcomes remain outstanding.
+
+## v0.8.2 · user-supplied verification summary
+
+On 2026-10-24 the user supplied a source-verification summary of all three
+videos. Registry status now distinguishes this from direct primary review by
+this implementation team. No transcript or video file was received. Preserve the
+original pinned secondary links as additional evidence for Ultimate V60.
+
+Add Hoffmann's A Better 1 Cup V60 Technique (15/250, five 50 g pours) and
+Kasuya's 4:6 Method (20/300, five 60 g pours), with author, original video,
+user-reported equipment/grind/temperature, cumulative water targets and timing.
+Drawdown times are approximate reference points, never taste scores. Kasuya's
+40/60 guidance is attributed to that method, not treated as universal chemistry.
+
+The 1 Cup summary contains a timing ambiguity: starting four 10-second pours
+with 10-second waits at 0:45 ends the final pour at 1:55, while the summary says
+all water by 2:00. Display the arithmetic schedule and explicitly disclose the
+ambiguity pending an original transcript. Do not silently stretch a pour.
+Kasuya's 45-second intervals are start-to-start; individual pour durations are
+not established by the summary.
+
+All three cards have a real-time guide clock with start, pause/resume, reset
+and current-step cues. Monotonic elapsed time avoids background interval drift.
+State survives language rerenders within this page; a page reload resets it.
+The clock measures elapsed time only: a separate scale is required, and it cannot
+confirm a pour or measure water mass, extraction or sensory outcomes.
+
+The two five-pour references remain reading/timer guides and are explicitly
+blocked from the legacy three-stage practice model. Only Ultimate V60 retains
+the existing accelerated three-stage amount practice. No old memory protocol,
+score, catalog rotation, daily story or animation is changed. This is an additive
+reference feature, not a claim that five-pour graphics or recipes have been
+physically validated.
+
+Validation: 103 automated tests, Pages/Vite builds; Chromium timer checks at
+320/390/820/1440 cover cues, pause/resume/reset, language continuity, safety and
+horizontal overflow. Existing attributed-practice smoke checks remain applicable.
