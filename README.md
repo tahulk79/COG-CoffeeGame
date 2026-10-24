@@ -150,3 +150,12 @@ water and a brew clock that continues while waiting. Active pour time stays
 separate. The g* display is explicitly a game-unit convention; recipes, graphics,
 scores and existing memories retain their previous meaning. See
 [digital-scale behavior and validation](docs/BREW-SCALE.md).
+
+### v0.10.0 · brew with the owner
+
+Every story now offers brewing its exact find, watching the owner demonstrate,
+or listening only. Preparation and rest-time questions are part of the brew;
+wrong answers never block progress. ORIGAMI and AeroPress have distinct drawings
+and interactions; both five-pour recipes retain all five water targets. Completed
+players can practice from their cabinet without resetting or changing old cards.
+See [experience, factual limits and validation](docs/CAFE-TASTING.md).

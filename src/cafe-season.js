@@ -1,3 +1,4 @@
+import {newTasting,validTasting} from './cafe-tasting.js';
 import {cafeSeasonId,cafeSeasonEpisodes} from './cafe-season-data.js';
 export const cafeSeasonKey='c6s.cafe-season.v1';
 export function seasonLocalDate(date){return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;}
@@ -16,8 +17,9 @@ export function seasonAct(store,action){
  const v=store.visits.at(-1);if(!v||v.closed)return store;const episode=cafeSeasonEpisodes[store.visits.length-1];let patch=null;
  if(action.type==='next'&&v.beat>=1&&v.beat<=4)patch={beat:v.beat+1};
  if(action.type==='inspect'&&v.beat===4&&Number.isInteger(action.index)&&action.index>=0&&action.index<3&&!v.inspected.includes(action.index))patch={inspected:[...v.inspected,action.index]};
+ if(action.type==='experience-start'&&[5,6].includes(v.beat)&&['self','watch'].includes(action.role))patch={beat:6,activity:'playing',experience:newTasting(episode.id,action.role)};
  if(action.type==='accept'&&v.beat===5)patch={beat:6,activity:'playing'};
- if(action.type==='skip'&&(v.beat===5||v.beat===6))patch={beat:7,activity:v.activity==='done'?'done':'declined'};
+ if(action.type==='skip'&&(v.beat===5||v.beat===6))patch={beat:7,activity:v.experience?(v.experience.phase==='finished'?'done':'declined'):v.activity==='done'?'done':'declined'};
  if(action.type==='goodbye'&&v.beat===7)patch={beat:8,closed:true};
  if(action.type==='replay-game'&&v.beat===6&&v.activity==='done')patch={activity:'playing',progress:seasonGameProgress()};
  if(v.beat===6&&v.activity==='playing'){
@@ -42,7 +44,10 @@ export function validSeasonVisit(v,index){
  if(!e||!v||v.episodeId!==e.id||typeof v.enteredAt!=='string'||!Number.isFinite(Date.parse(v.enteredAt))||!seasonValidDate(v.localDate)||!Number.isInteger(v.beat)||v.beat<1||v.beat>8||typeof v.closed!=='boolean'||v.closed!==(v.beat===8)||!e.modes.includes(v.mode)||!['offered','playing','done','declined'].includes(v.activity)||!seasonUniqueRange(v.inspected,3)||!Array.isArray(v.faces)||v.faces.length!==6||![0,1,2].every(face=>v.faces.filter(x=>x===face).length===2)||!seasonUniqueRange(v.orderChoices,3)||v.orderChoices.length!==3||!p)return false;
  if(!seasonUniqueRange(p.flipped,6)||p.flipped.length>2||!seasonUniqueRange(p.matched,3)||!Array.isArray(p.ordered)||p.ordered.length>3||!p.ordered.every((x,i)=>x===i)||!(p.quizAnswer===null||Number.isInteger(p.quizAnswer)&&p.quizAnswer>=0&&p.quizAnswer<e.quiz.choices.length)||typeof p.wrongOrder!=='boolean'||!['window','lamp'].includes(p.light)||!['cream','pine'].includes(p.frame)||typeof p.postcardKept!=='boolean'||typeof p.brewOpened!=='boolean')return false;
  if(v.beat<6&&v.activity!=='offered'||v.beat===6&&!['playing','done'].includes(v.activity)||v.beat>=7&&!['done','declined'].includes(v.activity))return false;
- if(v.activity==='done'&&!({memory:p.matched.length===3,order:p.ordered.length===3,clue:p.quizAnswer===e.quiz.correct,postcard:p.postcardKept,brew:p.brewOpened}[v.mode]))return false;
+ if(v.experience!==undefined&&!validTasting(v.experience,e.id))return false;
+ if(v.experience!==undefined&&v.beat<6)return false;
+ if(v.activity==='done'&&v.experience!==undefined&&v.experience.phase!=='finished')return false;
+ if(v.activity==='done'&&v.experience===undefined&&!({memory:p.matched.length===3,order:p.ordered.length===3,clue:p.quizAnswer===e.quiz.correct,postcard:p.postcardKept,brew:p.brewOpened}[v.mode]))return false;
  return true;
 }
 export function loadCafeSeason(raw){
@@ -50,3 +55,5 @@ export function loadCafeSeason(raw){
  try{const s=JSON.parse(raw);if(s.version!==1||s.seasonId!==cafeSeasonId||!Array.isArray(s.visits)||s.visits.length>cafeSeasonEpisodes.length||!s.visits.every((v,i)=>validSeasonVisit(v,i)&&(i===s.visits.length-1||v.closed)))throw Error('Invalid season');return {store:s,writable:true};}
  catch{return {store:newSeasonStore(),writable:false,raw};}
 }
+
+export function saveSeasonTasting(store,experience){const v=store.visits.at(-1);if(!v||v.closed||v.beat!==6||!v.experience||v.experience.role!==experience?.role||!validTasting(experience,v.episodeId))return store;return {...store,visits:[...store.visits.slice(0,-1),{...v,experience,activity:experience.phase==='finished'?'done':'playing'}]};}
