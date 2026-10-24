@@ -132,3 +132,13 @@ with user-supplied verification summaries explicitly distinguished from direct
 video review. Each has a real-time cue timer. Five-pour methods are guides rather
 than forced adaptations of the three-stage practice station. See
 [provenance and timing ambiguity](docs/RECIPE-PROVENANCE.md).
+
+### v0.9.0 · the owner's fourteen-drawer cabinet
+
+The primary café now has fourteen authored bilingual visits. The owner tells how
+he collected eight coffees, three tools and three attributed recipes, with a
+new guest, concrete discovery and optional contextual game each visit. Stories
+advance by visits, not calendar dates; listening alone keeps the episode card.
+The cabinet preserves completed stories and ends honestly after fourteen.
+Previous notebooks and practice remain accessible. See
+[season content, factual scope and validation](docs/CAFE-SEASON.md).
