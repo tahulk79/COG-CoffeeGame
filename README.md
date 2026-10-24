@@ -142,3 +142,11 @@ advance by visits, not calendar dates; listening alone keeps the episode card.
 The cabinet preserves completed stories and ends honestly after fourteen.
 Previous notebooks and practice remain accessible. See
 [season content, factual scope and validation](docs/CAFE-SEASON.md).
+
+### v0.9.1 · digital brew scale
+
+The practice station now has a code-drawn scale under the brewer, with cumulative
+water and a brew clock that continues while waiting. Active pour time stays
+separate. The g* display is explicitly a game-unit convention; recipes, graphics,
+scores and existing memories retain their previous meaning. See
+[digital-scale behavior and validation](docs/BREW-SCALE.md).
