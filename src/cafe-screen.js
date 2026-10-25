@@ -26,7 +26,7 @@ export function frameCafeScene(host, lang='vi') {
  }
  for(const el of [...dialogue.children])if(el.matches('.season-guest-aside,.season-facts,.season-discovery-object,.season-souvenir,.season-invitation,.season-side-games,.ct-served,blockquote,#season-reference'))body.append(el);
  for(const [id,short] of Object.entries(vi?{'season-next':'Kể tiếp','season-try':'Tôi pha thử','season-watch':'Xem chú pha','season-skip':'Nghe đoạn kết','season-enter':'Vào quán','season-continue':'Ghé lượt tiếp','season-revisit':'Pha lại','season-read-current':'Đọc lại','season-goodbye':'Hẹn lần sau'}:{'season-next':'Continue','season-try':'Let me brew','season-watch':'Watch brewing','season-skip':'Hear the ending','season-enter':'Enter café','season-continue':'Next visit','season-revisit':'Brew again','season-read-current':'Read again','season-goodbye':'Until next time'})){const b=card.querySelector('#'+id);if(b){b.setAttribute('aria-label',b.textContent);b.textContent=short;}}
- const footer=card.querySelector('.season-footer');if(footer){const status=footer.querySelector('#season-status');if(status)card.querySelector('.scene-today-item').after(status);body.append(footer);}
+ const footer=card.querySelector('.season-footer');if(footer){const status=footer.querySelector('#season-status');if(status){card.querySelector('.scene-today-item').after(status);const retry=footer.querySelector('#season-retry');if(retry)status.after(retry);}body.append(footer);}
  // Keep the scene visible while the workbench occupies the same stage.
  if(host.dataset.screenNotebook==='open')book.showModal();
  card.classList.toggle('screen-brewing',!!card.querySelector('#cafe-tasting-host'));
