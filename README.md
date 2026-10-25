@@ -1,6 +1,6 @@
 # The Coffee Six Sense
 
-## Product planning — v0.16.0 (strategy baseline v0.12)
+## Product planning — v0.17.0 (strategy baseline v0.12)
 
 For product-planning handoffs, start with these documents. They distinguish shipped behavior from proposals awaiting implementation approval:
 
@@ -27,6 +27,10 @@ Try the optional scale mystery while preparing the Yemen cup: predict, choose wh
 ## Three-clue postcard trail — v0.14.0
 
 An additional linked trail is approved for release: an immediate owner invitation, the existing Yemen scale case, a playable AeroPress scale-placement comparison, and an Ethiopia label/parcel task with a persistent café postcard. Map interaction and old-player access are also refined. See [scope, compatibility and test evidence](docs/POSTCARD_TRAIL.md). Publication and public-artifact verification are recorded in [shared status](docs/SYNC_STATUS.md).
+
+## Rebirth · Hanoi — v0.17.0 three-shift pilot
+
+An absurd accident leads to employee Hà Nội's first three shifts at a fictional C6S café: choose tools, clarify and actually brew a guest's order, then dispatch a busy counter with limited beans. Earn one-time XP and evidence-based game stamps; recover from a comic alpaca branch without losing progress. Fresh players enter the pilot; existing players use the first item in the Book. The classic café and journals remain available. This is **three shifts**, not the full seven-day return campaign. See [scope, controls, compatibility and checks](docs/REBIRTH_HANOI.md).
 
 ## Cozy listening and automatic rest — v0.16.0
 
