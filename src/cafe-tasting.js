@@ -10,21 +10,24 @@ export function tastingProfile(episodeId){
  if(method==='aeropress'){water=225;targets=[225];}
  return {episodeId,method,dose,water,targets,referenceId:reference?.id||null,protocol:reference?.id||(method==='aeropress'?'c6s-aeropress-15-225-v1':'c6s-pourover-15-240-v1'),title:e.item,prepare:e.quiz};
 }
-export function tastingWaitQuestion(episodeId){
+export function tastingWaitQuestion(episodeId,focus){
  const p=tastingProfile(episodeId);if(!p)return null;
  if(p.method==='aeropress')return {question:['Khi ép, nước chuyển từ buồng xuống cốc. Cả bộ vẫn trên cân: số cân phải thế nào?','While plunging, water moves from chamber to cup. The whole setup stays on the scale: what should the reading do?'],choices:[['Giảm về 0','Fall to zero'],['Giữ tổng nước đã rót','Keep the cumulative water input'],['Tăng gấp đôi','Double']],correct:1,explanation:['Đúng: chuyển nước trong cùng bộ pha không phải thêm hay lấy nước ra khỏi cân. Game không đo áp suất hoặc lượng nước bột giữ lại.','Moving water within the same setup does not add or remove mass from the scale. The game does not measure pressure or water retained by grounds.']};
+ if(focus==='flow')return {question:['Vừa ngừng rót mà cà phê vẫn nhỏ xuống. Bạn muốn nhìn điều gì trên cân?','You stopped pouring but coffee still drips. What would you watch on the scale?'],choices:[['Số cân phải giảm theo giọt','The reading must fall with each drop'],['Tổng nước giữ nguyên trong cùng bộ pha','Input stays unchanged within the setup'],['Số cân phải tăng dù không thêm nước','The reading must rise without more water']],correct:1,explanation:['Giọt đang chuyển từ phễu xuống bình; cả bộ vẫn trên cân. Thả tay đổi dòng nước, không lấy nước khỏi bộ pha.','The drops move from filter to server; both remain on the scale. Releasing changes the flow without removing water from the setup.']};
  const start=p.targets[0],next=p.targets[1],added=next-start;
  return {question:[`Cân đang ở ${start} g*. Muốn đạt tổng ${next} g*, bạn rót thêm bao nhiêu?`,`The scale reads ${start} g*. To reach ${next} g* total, how much more do you add?`],choices:[[`${next} g*`,`${next} g*`],[`${added} g*`,`${added} g*`],[`${p.water} g*`,`${p.water} g*`]],correct:1,explanation:[`${next} − ${start} = ${added} g*. Mốc trên cân là tổng tích lũy, không phải lượng rót thêm.`,`${next} − ${start} = ${added} g*. A scale target is cumulative, not the amount to add.`]};
 }
 export function newTasting(episodeId,role='self'){
  if(!tastingProfile(episodeId)||!['self','watch'].includes(role))throw Error('Unknown café tasting');
- return {version:1,protocol:tastingProfile(episodeId).protocol,episodeId,role,sample:episodeId==='s1-yirgacheffe'?'washed':'default',phase:'prepare',stage:0,water:0,collected:0,elapsed:0,pourSeconds:0,waitSeconds:0,plunge:0,answers:{prepare:null,wait:null},assisted:{prepare:false,wait:false}};
+ return {ritualVersion:2,focus:'flow',manualPauses:0,version:1,protocol:tastingProfile(episodeId).protocol,episodeId,role,sample:episodeId==='s1-yirgacheffe'?'washed':'default',phase:'prepare',stage:0,water:0,collected:0,elapsed:0,pourSeconds:0,waitSeconds:0,plunge:0,answers:{prepare:null,wait:null},assisted:{prepare:false,wait:false}};
 }
 export function tastingAct(s,action){
  const p=tastingProfile(s.episodeId);if(!p||s.phase==='finished')return s;
+ if(action.type==='focus'&&s.ritualVersion===2&&s.phase==='prepare'&&['flow','scale','quiet'].includes(action.value))return {...s,focus:action.value};
+ if(action.type==='rest'&&s.ritualVersion===2&&s.role==='self'&&['pour','press'].includes(s.phase)&&s.water>0)return {...s,manualPauses:Math.min(999,s.manualPauses+1)};
  if(action.type==='sample'&&s.phase==='prepare'&&s.episodeId==='s1-yirgacheffe'&&['washed','natural'].includes(action.value))return {...s,sample:action.value};
  if(action.type==='answer'){
-  const key=action.key,q=key==='prepare'?p.prepare:key==='wait'?tastingWaitQuestion(s.episodeId):null;
+  const key=action.key,q=key==='prepare'?p.prepare:key==='wait'?tastingWaitQuestion(s.episodeId,s.focus):null;
   const permitted=key==='prepare'&&s.phase==='prepare'||key==='wait'&&['pause','immerse'].includes(s.phase)&&s.stage===0;
   if(!q||!permitted||s.role!=='self'||!Number.isInteger(action.index)||action.index<0||action.index>=q.choices.length)return s;
   return {...s,answers:{...s.answers,[key]:action.index}};
@@ -34,8 +37,8 @@ export function tastingAct(s,action){
   return {...s,assisted:{...s.assisted,[key]:true}};
  }
  if(action.type==='start'&&s.phase==='prepare')return {...s,phase:'pour',assisted:{...s.assisted,prepare:s.role==='watch'||s.answers.prepare!==p.prepare.correct||s.assisted.prepare}};
- if(action.type==='next'&&s.phase==='pause')return {...s,phase:'pour',stage:s.stage+1,waitSeconds:0,assisted:{...s.assisted,wait:s.assisted.wait||s.stage===0&&(s.role==='watch'||s.answers.wait!==tastingWaitQuestion(s.episodeId).correct)}};
- if(action.type==='next'&&s.phase==='immerse'&&s.waitSeconds>=3)return {...s,phase:'press',waitSeconds:0,assisted:{...s.assisted,wait:s.assisted.wait||s.role==='watch'||s.answers.wait!==tastingWaitQuestion(s.episodeId).correct}};
+ if(action.type==='next'&&s.phase==='pause')return {...s,phase:'pour',stage:s.stage+1,waitSeconds:0,assisted:{...s.assisted,wait:s.assisted.wait||s.stage===0&&(s.role==='watch'||s.answers.wait!==tastingWaitQuestion(s.episodeId,s.focus).correct)}};
+ if(action.type==='next'&&s.phase==='immerse'&&s.waitSeconds>=3)return {...s,phase:'press',waitSeconds:0,assisted:{...s.assisted,wait:s.assisted.wait||s.role==='watch'||s.answers.wait!==tastingWaitQuestion(s.episodeId,s.focus).correct}};
  return s;
 }
 export function tickTasting(s,flow,dt){
@@ -58,6 +61,8 @@ export function tickTasting(s,flow,dt){
 }
 export function validTasting(s,episodeId){
  const p=tastingProfile(episodeId);if(!p||!s||s.version!==1||s.protocol!==p.protocol||s.episodeId!==episodeId||!['self','watch'].includes(s.role)||!['prepare','pour','pause','immerse','press','drain','finished'].includes(s.phase)||!Number.isInteger(s.stage)||s.stage<0||s.stage>=p.targets.length)return false;
+ if(s.ritualVersion!==undefined&&(s.ritualVersion!==2||!['flow','scale','quiet'].includes(s.focus)||!Number.isInteger(s.manualPauses)||s.manualPauses<0||s.manualPauses>999))return false;
+ if(s.ritualVersion===undefined&&(s.focus!==undefined||s.manualPauses!==undefined))return false;
  if(!(episodeId==='s1-yirgacheffe'?['washed','natural'].includes(s.sample):s.sample==='default'))return false;
  for(const k of ['water','collected','elapsed','pourSeconds','waitSeconds','plunge'])if(!Number.isFinite(s[k])||s[k]<0||s[k]>1e7)return false;
  if(s.water>p.targets[s.stage]+.000001||s.water<(p.targets[s.stage-1]||0)-.000001||s.collected>s.water+.000001||s.pourSeconds>s.elapsed+.000001||s.plunge>1)return false;
