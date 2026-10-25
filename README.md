@@ -4,6 +4,7 @@
 
 For product-planning handoffs, start with these documents. They distinguish shipped behavior from proposals awaiting implementation approval:
 
+- [ChatGPT–Codex coordination](docs/WORK_SYNC.md) — read-only connector workflow, shared status and task handoff template.
 - [Strategic handoff](docs/STRATEGIC_HANDOFF.md) — confirmed direction, conflicts and proposed AGENTS instructions.
 - [Current state](docs/CURRENT_STATE.md) — inspected systems and KEEP/REFINE/EXTEND/DEPRECATE classifications.
 - [Gap analysis](docs/GAP_ANALYSIS.md) — missing capabilities, reuse and architectural risks.
