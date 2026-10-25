@@ -1,6 +1,8 @@
 # ChatGPT ↔ Codex working agreement
 
-Status: shared handoff procedure, not an installed autonomous integration.
+Status: optional cross-conversation handoff procedure, not an installed autonomous integration.
+
+**Current owner preference:** use one Codex conversation for product planning, design and development. In that mode there is no cross-chat transfer step: discuss and approve tasks here, and use GitHub documents/PRs as durable project history. The procedure below is a fallback only if a separate planning conversation is used again.
 
 The owner reports that the product-planning ChatGPT conversation has **read access to this GitHub repository**. This allows that conversation to consult repository documents when asked, subject to its connector's access and freshness. It does not grant write access, establish a background watcher, transfer conversation history or automatically start a Codex task.
 
@@ -14,7 +16,7 @@ The owner reports that the product-planning ChatGPT conversation has **read acce
 
 If a connector cannot establish the latest SHA or fetch a referenced file, say which observation is stale/unavailable. Do not describe an indexed snapshot as verified latest main. Repository documents carry decisions/results; they are not a copy of private chat histories.
 
-## Current practical loop
+## Optional cross-conversation loop
 
 | Step | Actor | Action / result |
 | --- | --- | --- |
