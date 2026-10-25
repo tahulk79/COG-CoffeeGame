@@ -159,3 +159,12 @@ wrong answers never block progress. ORIGAMI and AeroPress have distinct drawings
 and interactions; both five-pour recipes retain all five water targets. Completed
 players can practice from their cabinet without resetting or changing old cards.
 See [experience, factual limits and validation](docs/CAFE-TASTING.md).
+
+### v0.11.0 · a cup of your own
+
+Fresh visitors encounter Mocha discovery, AeroPress and separate Ethiopian samples
+in their first three visits. Existing notebooks keep their order. Try an object
+and brew early, choose flow/scale/quiet instead of a repeated preparation quiz,
+and receive a personal cup with an owner response grounded in the recorded visit.
+Music is reachable at the door and remains opt-in. See
+[curiosity-loop changes, compatibility and validation](docs/CURIOSITY-LOOP.md).
