@@ -4,6 +4,10 @@
 
 A web-first specialty coffee learning game where players practice brewing, evaluate sensory qualities, compare past sessions, and record personal discoveries. **Discover Your Sixth Taste · From Coffee to Consciousness.** “Sixth Taste” is a metaphor for personal discovery, not a scientifically established sixth basic taste. The six sensory attributes are separate descriptors.
 
+## One café screen — v0.12.0
+
+The fourteen-visit story and tasting workbench share one viewport. Short, paginated dialogue replaces the scrolling main page; full passages, object facts, recipes, cabinet and older tools remain in explicit notebooks. Pour controls keep their position across stages. Optional rest questions open separately and pause the cup while reading. Existing local notebooks and recipe targets remain unchanged. See [play-screen notes](docs/PLAY-SCREEN.md).
+
 ## Daily café discoveries — v0.5.1
 
 **What’s at the café today?** rotates a bean, tool or recipe introduction each

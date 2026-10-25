@@ -1,0 +1,25 @@
+import fs from 'node:fs/promises';import assert from 'node:assert/strict';
+import {newSeasonStore,beginSeasonVisit,seasonAct} from '../src/cafe-season.js';
+const {chromium}=await import(process.env.PLAYWRIGHT_MODULE||'playwright');
+const browser=await chromium.launch({executablePath:'/usr/bin/chromium',args:['--no-sandbox']});
+const body=await fs.readFile(new URL('../docs/index.html',import.meta.url),'utf8');
+function prefix(count){let s=newSeasonStore();for(let i=0;i<count;i++){s=beginSeasonVisit(s,()=>0);for(let n=0;n<4;n++)s=seasonAct(s,{type:'next'});s=seasonAct(s,{type:'skip'});s=seasonAct(s,{type:'goodbye'});}return s;}
+async function open(width,height,lang='vi',index=null){const p=await browser.newPage({viewport:{width,height},reducedMotion:'reduce'});const errors=[];p.on('pageerror',e=>errors.push(e.message));await p.addInitScript(({raw,lang})=>{localStorage.setItem('c6s.language',lang);if(raw)localStorage.setItem('c6s.cafe-season.v1',raw);},{raw:index===null?null:JSON.stringify(prefix(index)),lang});await p.route('https://coffee.test/',r=>r.fulfill({body,contentType:'text/html'}));await p.clock.install({time:new Date('2026-10-25T10:00:00Z')});await p.clock.pauseAt(new Date('2026-10-25T10:00:01Z'));await p.goto('https://coffee.test/');return {p,errors};}
+async function fit(p,selectors=[]){assert.ok(await p.evaluate(()=>document.documentElement.scrollHeight<=innerHeight+1&&document.documentElement.scrollWidth<=innerWidth+1),'document must fit');for(const sel of selectors){const e=p.locator(sel);if(await e.isVisible()){const box=await e.boundingBox(),v=p.viewportSize();assert.ok(box.y>=0&&box.y+box.height<=v.height+1,`${sel} outside screen: ${JSON.stringify(box)}`);}}}
+async function advance(p){for(let n=0;n<80;n++){if(await p.locator('#season-watch').count())return;const id=await p.locator('#season-next').count()?'#season-next':await p.locator('#season-enter').count()?'#season-enter':'#season-continue';await p.locator(id).click();await fit(p,[id]);}throw Error('invitation missing');}
+if(!process.env.C6S_SCREEN_SKIP_MATRIX)for(const [width,height] of [[320,568],[360,640],[390,844],[820,1024],[1440,900],[844,390]])for(const lang of ['vi','en']){
+ const {p,errors}=await open(width,height,lang);await fit(p,['#season-touch-map']);await p.locator('#cafe-notebook').click();assert.ok(await p.locator('.screen-library').evaluate(e=>e.open));await p.keyboard.press('Escape');assert.equal(await p.locator('#cafe-notebook').evaluate(e=>e===document.activeElement),true);
+ await p.locator('#season-touch-map').click();await p.locator('#season-try').click();await fit(p,['#ct-start','#season-skip']);const rig=await p.locator('.ct-art .brew-apparatus').boundingBox();assert.ok(rig&&Math.abs(rig.width/rig.height-360/430)<.01,'apparatus ratio changed');await p.locator('#ct-start').click();await p.locator('#ct-toggle').click();const anchor=await p.locator('#ct-hold').boundingBox();
+ await p.clock.runFor(2000);await fit(p,['#ct-hold','#ct-next','#ct-session','#season-skip']);const after=await p.locator('#ct-hold').boundingBox();assert.ok(Math.abs(after.y-anchor.y)<1,`pour control moved: ${JSON.stringify({anchor,after,scroll:await p.evaluate(()=>scrollY)})}`);
+ await p.locator('#cafe-notebook').click();const water=await p.locator('#ct-weight').textContent();await p.clock.runFor(1000);assert.equal(await p.locator('#ct-weight').textContent(),water);await p.keyboard.press('Escape');await p.locator('#ct-session').click();
+ assert.deepEqual(errors,[]);await p.close();console.log(`fit, controls, pause and Escape ${width}×${height} ${lang}`);
+}
+if(!process.env.C6S_SCREEN_SKIP_VISITS)for(let index=0;index<14;index++)for(const role of ['self','watch']){
+ const {p,errors}=await open(320,568,index%2?'en':'vi',index);await advance(p);await fit(p,['#season-watch','#season-try','#season-skip']);await p.locator(role==='self'?'#season-try':'#season-watch').click();await p.locator('#ct-start').click();let anchor=null;
+ for(let n=0;n<65;n++){const phase=await p.locator('.ct-experience').getAttribute('data-phase');if(phase==='finished')break;
+  if(role==='self'){if(['pour','press'].includes(phase)&&await p.locator('#ct-toggle').getAttribute('aria-pressed')!=='true')await p.locator('#ct-toggle').click();if(['pause','immerse'].includes(phase)&&await p.locator('#ct-next').isEnabled())await p.locator('#ct-next').click();}
+  await p.clock.runFor(1000);await fit(p,['#ct-toggle','#ct-next','#ct-session','#season-skip']);const rect=await p.locator('#ct-hold').boundingBox();if(rect&&await p.locator('#ct-hold').isVisible()){if(anchor)assert.ok(Math.abs(rect.y-anchor.y)<1);anchor=rect;}
+ }
+ assert.equal(await p.locator('.ct-experience').getAttribute('data-phase'),'finished');await fit(p,['#season-skip']);await p.locator('#season-skip').click();for(let n=0;n<20&&await p.locator('#season-goodbye').count();n++)await p.locator('#season-goodbye').click();await fit(p,['#season-continue']);assert.deepEqual(errors,[]);await p.close();console.log(`visit ${index+1} ${role} fits and completes`);
+}
+await browser.close();
