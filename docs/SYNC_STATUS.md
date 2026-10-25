@@ -103,3 +103,7 @@ The lounge also offers an unchecked-by-default “On idle, restart my chosen mus
 - Separate local welcome/first-pour/preview and notebook/save-retry/source regressions passed. YouTube responses remain stubbed for these tests; actual provider audio/ads/embedding are not inferred.
 - Suggested genres are labeled external YouTube searches, not fabricated curated playlist IDs. Only the supplied Rico Latino video is preselected for direct playback; user-pasted valid playlists are supported.
 - Owner storytelling/opening pacing is the next discussion; no additional story rewrite is claimed. Documentation-only records may follow the deployed source without changing the app artifact.
+
+## Approved prototype — Rebirth · Hanoi · first three shifts
+
+The owner approved the proposed one-city/three-shift prototype following the reincarnation concept discussion. Implemented the comic accident/assignment, fictional employee Hà Nội, functional tool mini game, clarified-order plus actual V60 model brewing, resource-aware ticket dispatch, one-time XP/best-evidence stamps and recoverable alpaca branch. Fresh-player entry and explicit old-player opt-in preserve classic progress. Seven-day final return and other cities remain outside this pilot. See [REBIRTH_HANOI.md](REBIRTH_HANOI.md). 155 unit/model checks and the documented browser/build paths pass. Exact publication evidence follows release verification.
