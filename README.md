@@ -1,6 +1,6 @@
 # The Coffee Six Sense
 
-## Product planning — current baseline v0.12.0
+## Product planning — v0.13.0 (strategy baseline v0.12)
 
 For product-planning handoffs, start with these documents. They distinguish shipped behavior from proposals awaiting implementation approval:
 
@@ -10,7 +10,7 @@ For product-planning handoffs, start with these documents. They distinguish ship
 - [Gap analysis](docs/GAP_ANALYSIS.md) — missing capabilities, reuse and architectural risks.
 - [Roadmap based on v0.12](docs/ROADMAP_V012.md) — minimal proposed mystery/discovery pilot and acceptance criteria.
 
-The application release baseline is v0.12.0; these planning documents do not imply that proposed features are implemented. [ROADMAP_V011.md](docs/ROADMAP_V011.md) is a compatibility pointer from the older handoff. Historical version sections below remain release history. Current hosting remains GitHub Pages; no VPS migration is part of this documentation update.
+The strategic audit/roadmap baseline is v0.12.0. The v0.13.0 scale mystery implements one approved pilot from that roadmap; other proposed systems are not implied to be implemented. [ROADMAP_V011.md](docs/ROADMAP_V011.md) is a compatibility pointer from the older handoff. Historical version sections below remain release history. Current hosting remains GitHub Pages; no VPS migration is part of this documentation update.
 
 **Brew → Taste → Compare → Discover → Improve**
 
@@ -19,6 +19,10 @@ A web-first specialty coffee learning game where players practice brewing, evalu
 ## One café screen — v0.12.0
 
 The fourteen-visit story and tasting workbench share one viewport. Short, paginated dialogue replaces the scrolling main page; full passages, object facts, recipes, cabinet and older tools remain in explicit notebooks. Pour controls keep their position across stages. Optional rest questions open separately and pause the cup while reading. Existing local notebooks and recipe targets remain unchanged. See [play-screen notes](docs/PLAY-SCREEN.md).
+
+## Scale mystery — v0.13.0
+
+Try the optional scale mystery while preparing the Yemen cup: predict, choose when to look, compare observed water transfer and unlock an inspection lens for later cups. Old visits and journals are preserved; game evidence stays separate from real brewing. Existing players can open the Yemen cabinet drawer and practice again. See [scope and verification](docs/DISCOVERY_CASE.md); deployment evidence is recorded in [shared status](docs/SYNC_STATUS.md).
 
 ## Daily café discoveries — v0.5.1
 
