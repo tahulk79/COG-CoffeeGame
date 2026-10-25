@@ -1,3 +1,4 @@
+import {validDiscoveryTrail} from './discovery-trail.js';
 // A bounded observation case, not a new extraction or sensory model.
 export const discoveryCaseKey='c6s.discovery-lab.v1';
 export const scaleCaseId='still-scale-v1';
@@ -19,6 +20,7 @@ export function loadDiscoveryLab(raw){
  if(raw===null)return {store:emptyDiscoveryLab(),writable:true};
  try{const s=JSON.parse(raw);if(s?.version!==1||!(s.attempt===null||validAttempt(s.attempt)))throw Error('Invalid case');
   const d=s.discovery;if(d!==null&&(!validAttempt(d)||d.step!=='solved'||d.reward!=='inspection-lens-v1'||!Number.isFinite(Date.parse(d.completedAt))))throw Error('Invalid discovery');
+  if(s.trail!==undefined&&!validDiscoveryTrail(s.trail,!!s.discovery))throw Error('Invalid discovery trail');
   return {store:s,writable:true};
  }catch{return {store:emptyDiscoveryLab(),writable:false,raw};}
 }
