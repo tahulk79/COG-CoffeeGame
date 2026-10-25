@@ -7,13 +7,13 @@ Observation date: 25 October 2026. This is a dated handoff snapshot, not a backg
 | Item | Observation / evidence |
 | --- | --- |
 | Repository / branch | `tahulk79/TheCoffeeSixSense` / `main`; public repository. |
-| Application version | **v0.13.0**, merged and published through the approved scale-mystery release. Exact source/deployment/runtime evidence is below. |
-| Current application source | `f18babeddbd1057dbfb66bf3df055b6f86c1b5be`, [PR #36](https://github.com/tahulk79/TheCoffeeSixSense/pull/36): optional scale mystery, evidence journal and inspection-lens unlock. |
-| Previous application source commit | `39f4b1caa41f10e550fdbf1d7e9775827b3d89ca`, [PR #34](https://github.com/tahulk79/TheCoffeeSixSense/pull/34): exposed save retry during café brewing and added the MVP audit. |
+| Application version | **v0.15.0**, merged and published: fourteen varied comic greetings, progress-preserving preview and owner-selected radio. Exact evidence is below. |
+| Current application source | `0c63ba0cec65c67faf42853abe19b88e7bf41d82`, [PR #40](https://github.com/tahulk79/TheCoffeeSixSense/pull/40). |
+| Previous application source commit | `ac83bc4d8d68c63aa57eac4b08b262a473599891`, [PR #38](https://github.com/tahulk79/TheCoffeeSixSense/pull/38): three-clue postcard trail. Earlier recovery and scale-case releases remain recorded below. |
 | Earlier product-doc publication | [PR #33](https://github.com/tahulk79/TheCoffeeSixSense/pull/33), `d9f32ac6d8353d98a8e9c719d93a2339858f6066`. The original v0.12 release/audit baseline is `0ae226764d6248501ec576b343e14c369cba9eec`; it is not the latest source revision. |
-| Source validation | GitHub reports [validation run 40184227626](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40184227626) successful for `39f4b1c…`. |
-| Previous Pages publication | GitHub reports [deployment run 40184439924](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40184439924) successful for `39f4b1c…`. This synchronization task did not dispatch that deployment or re-test the live site. |
-| Application entry | https://tahulk79.github.io/TheCoffeeSixSense/?v=0.13.0 — the version query alone does not identify a source commit or prove live availability. |
+| Source validation | [Validation run 40199320773](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40199320773) passed for the PR #40 head before merge. |
+| Current Pages publication | [Deployment run 40199365295](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40199365295) succeeded for the exact current application source above. |
+| Application entry | https://tahulk79.github.io/TheCoffeeSixSense/?v=0.15.0 — downloaded artifact verification is recorded below. |
 | Preferred working mode | Product planning and development continue in this single Codex conversation, as requested by the owner. No cross-chat copy/paste is required for this workflow. The read-only cross-conversation agreement is an optional fallback. |
 | Planning ChatGPT connection | Owner reports GitHub **read access only**. No write access, background refresh or task execution capability is inferred. |
 | Automated conversation synchronization | **Not installed.** No shared chat-history service or AI runner has been configured. |
@@ -28,7 +28,7 @@ The latest [MVP audit](MVP_AUDIT_2026-10-25.md) records model/build checks and a
 | Four current planning documents and README index | Published | [CURRENT_STATE.md](CURRENT_STATE.md), [GAP_ANALYSIS.md](GAP_ANALYSIS.md), [ROADMAP_V012.md](ROADMAP_V012.md) and the strategic handoff are on main. Their dates/source baselines remain relevant. |
 | Read-only ChatGPT ↔ Codex coordination | Procedure prepared | Follow [WORK_SYNC.md](WORK_SYNC.md). The owner still transfers the proposed/approved handoff from ChatGPT into Codex. |
 | Optional mystery + useful unlock + linked evidence journal | MERGED / DEPLOYED / ARTIFACT VERIFIED | PR #36 and deployment/runtime evidence below confirm this bounded pilot. Wider roadmap work remains a proposal. |
-| Release number | v0.13.0 | Minor version for the approved scale-mystery pilot; historical v0.12 strategy/audit baselines are preserved. |
+| Release number | v0.15.0 | Approved varied-welcome/radio release; earlier v0.12 strategy/audit and v0.13/v0.14 release baselines remain historical. |
 | Fully autonomous cross-conversation work | BLOCKED on capabilities/design | Read-only GitHub cannot write plans or trigger a runner. A write/API path and explicit execution/approval/cost design would be needed. No credentials should be sent in chat. |
 | Hosting migration, payments, marketing | Outside synchronization scope | Keep Pages. No VPS setup, premium currency, payment system or campaign is authorized by this procedure. |
 
@@ -66,3 +66,12 @@ Following the pure-gamer review and the owner’s instruction to continue, a lin
 ## Approved v0.15 release — rotating playful welcomes and selected radio
 
 The owner requested a humorous, low-stakes approach before deeper stories and supplied Rico Latino video `m95-M7a59MI` for Vietnamese radio. Implemented locally: tactile owner/cat cold open, three distinct responses, direct first pour, early comic callbacks and a progress-preserving notebook preview; official click-loaded visible YouTube player with exclusive cozy/radio sources. See [PLAYFUL_WELCOME.md](PLAYFUL_WELCOME.md) and [CAFE-RADIO.md](CAFE-RADIO.md). No divine-owner campaign has been implemented. The owner subsequently requested varied openings and explicitly approved publishing/deploying all these additions as v0.15. Fourteen distinct visit greetings and a separate protected dismissal store are now included. Actual release evidence will follow verification. Actual YouTube playback remains unverified because this workspace cannot access the provider.
+
+### Verified v0.15 publication — 25 October 2026
+
+- [PR #40](https://github.com/tahulk79/TheCoffeeSixSense/pull/40), merged source `0c63ba0cec65c67faf42853abe19b88e7bf41d82`.
+- [Pages run 40199365295](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40199365295) succeeded for that exact source.
+- https://tahulk79.github.io/TheCoffeeSixSense/?v=0.15.0 was downloaded and matched the reviewed standalone HTML byte for byte. SHA-256: `d832b21716e75978fe0bec40d677da297b6e4759daae5d738512d57334e7f537`.
+- 145 unit/model checks, standalone/Vite builds and the local notebook/save-retry/legacy discovery regressions passed. The downloaded public artifact passed Chromium replay at the Pages base path: all fourteen greetings at 320×568 VI, 390×844 EN and 844×390 VI; distinct reactions, viewport fit, stable reload, remembered dismissal, optional story traversal, rotating previews and unchanged completed books. The six size/language first-pour/reload/preview paths and two-size radio UI checks also passed. These are controlled replays of the downloaded artifact, not physical-device or real-provider audio tests.
+- No human-retention, Safari or physical-device claims. YouTube provider playback remains unverified: the browser checks substitute a provider placeholder and verify only player UI, source exclusion and lifecycle. Real playback depends on the supplied video's embedding/region settings and browser autoplay policy.
+- Documentation-only release records may follow this deployed source; they do not change the application artifact.
