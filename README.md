@@ -1,6 +1,6 @@
 # The Coffee Six Sense
 
-## Product planning — v0.15.0 (strategy baseline v0.12)
+## Product planning — v0.15.1 (strategy baseline v0.12)
 
 For product-planning handoffs, start with these documents. They distinguish shipped behavior from proposals awaiting implementation approval:
 
@@ -27,6 +27,10 @@ Try the optional scale mystery while preparing the Yemen cup: predict, choose wh
 ## Three-clue postcard trail — v0.14.0
 
 An additional linked trail is approved for release: an immediate owner invitation, the existing Yemen scale case, a playable AeroPress scale-placement comparison, and an Ethiopia label/parcel task with a persistent café postcard. Map interaction and old-player access are also refined. See [scope, compatibility and test evidence](docs/POSTCARD_TRAIL.md). Publication and public-artifact verification are recorded in [shared status](docs/SYNC_STATUS.md).
+
+## Radio layout fix — v0.15.1
+
+YouTube radio occupies a separate side rail or bottom row rather than a floating popup. The game remains playable beside it; short mobile game panes scroll independently. The official video player stays visible; the cozy loop remains available without video. See [radio notes](docs/CAFE-RADIO.md).
 
 ## Fourteen playful welcomes and radio — v0.15.0
 
