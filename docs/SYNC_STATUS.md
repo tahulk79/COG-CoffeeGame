@@ -7,13 +7,13 @@ Observation date: 25 October 2026. This is a dated handoff snapshot, not a backg
 | Item | Observation / evidence |
 | --- | --- |
 | Repository / branch | `tahulk79/TheCoffeeSixSense` / `main`; public repository. |
-| Application version | **v0.15.1**, merged and published: docked radio layout correction; fourteen comic greetings and progress-preserving preview retained. Exact evidence is below. |
-| Current application source | `c1d7a1f42a69e79fc79bfe83f46987e67c811887`, [PR #42](https://github.com/tahulk79/TheCoffeeSixSense/pull/42). |
-| Previous application source commit | `0c63ba0cec65c67faf42853abe19b88e7bf41d82`, [PR #40](https://github.com/tahulk79/TheCoffeeSixSense/pull/40): rotating welcomes and radio. Earlier releases remain recorded below. |
+| Application version | **v0.16.0**, merged and published: separate cozy listening scene and automatic idle rest; fourteen comic greetings retained. Exact evidence is below. |
+| Current application source | `a9a77baddd73c0eea1a449fe020024e365de65e4`, [PR #44](https://github.com/tahulk79/TheCoffeeSixSense/pull/44). |
+| Previous application source commit | `c1d7a1f42a69e79fc79bfe83f46987e67c811887`, [PR #42](https://github.com/tahulk79/TheCoffeeSixSense/pull/42): docked radio patch, superseded by the dedicated listening scene. Earlier releases remain below. |
 | Earlier product-doc publication | [PR #33](https://github.com/tahulk79/TheCoffeeSixSense/pull/33), `d9f32ac6d8353d98a8e9c719d93a2339858f6066`. The original v0.12 release/audit baseline is `0ae226764d6248501ec576b343e14c369cba9eec`; it is not the latest source revision. |
-| Source validation | [Validation run 40201385681](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40201385681) passed for the PR #42 head before merge. |
-| Current Pages publication | [Deployment run 40201455129](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40201455129) succeeded for the exact current application source above. |
-| Application entry | https://tahulk79.github.io/TheCoffeeSixSense/?v=0.15.1 — downloaded artifact verification is recorded below. |
+| Source validation | [Validation run 40203242127](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40203242127) passed for the PR #44 head before merge. |
+| Current Pages publication | [Deployment run 40203305409](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40203305409) succeeded for the exact current application source above. |
+| Application entry | https://tahulk79.github.io/TheCoffeeSixSense/?v=0.16.0 — downloaded artifact verification is recorded below. |
 | Preferred working mode | Product planning and development continue in this single Codex conversation, as requested by the owner. No cross-chat copy/paste is required for this workflow. The read-only cross-conversation agreement is an optional fallback. |
 | Planning ChatGPT connection | Owner reports GitHub **read access only**. No write access, background refresh or task execution capability is inferred. |
 | Automated conversation synchronization | **Not installed.** No shared chat-history service or AI runner has been configured. |
@@ -28,7 +28,7 @@ The latest [MVP audit](MVP_AUDIT_2026-10-25.md) records model/build checks and a
 | Four current planning documents and README index | Published | [CURRENT_STATE.md](CURRENT_STATE.md), [GAP_ANALYSIS.md](GAP_ANALYSIS.md), [ROADMAP_V012.md](ROADMAP_V012.md) and the strategic handoff are on main. Their dates/source baselines remain relevant. |
 | Read-only ChatGPT ↔ Codex coordination | Procedure prepared | Follow [WORK_SYNC.md](WORK_SYNC.md). The owner still transfers the proposed/approved handoff from ChatGPT into Codex. |
 | Optional mystery + useful unlock + linked evidence journal | MERGED / DEPLOYED / ARTIFACT VERIFIED | PR #36 and deployment/runtime evidence below confirm this bounded pilot. Wider roadmap work remains a proposal. |
-| Release number | v0.15.1 | Approved varied-welcome/radio release; earlier v0.12 strategy/audit and v0.13/v0.14 release baselines remain historical. |
+| Release number | v0.16.0 | Approved varied-welcome/radio release; earlier v0.12 strategy/audit and v0.13/v0.14 release baselines remain historical. |
 | Fully autonomous cross-conversation work | BLOCKED on capabilities/design | Read-only GitHub cannot write plans or trigger a runner. A write/API path and explicit execution/approval/cost design would be needed. No credentials should be sent in chat. |
 | Hosting migration, payments, marketing | Outside synchronization scope | Keep Pages. No VPS setup, premium currency, payment system or campaign is authorized by this procedure. |
 
@@ -93,3 +93,13 @@ The owner reported that the v0.15 floating radio obscured play. Replace the popu
 The owner requested continued YouTube support, suggested music lists and an automatic cozy café idle scene, with the owner-story pacing discussion deferred until afterward. Implemented: separate listening scene instead of docked video occupying gameplay space; directly selectable supplied Rico Latino video; clearly labeled YouTube search suggestions; safe video/playlist link input and recent-source recall; 90-second idle pause with 30s/90s/3m/Off settings; explicit return preserving checkpoint, notebook and focus. No owner-story rewrite is included. Actual release/source/run evidence follows publication.
 
 The lounge also offers an unchecked-by-default “On idle, restart my chosen music” preference. With explicit opt-in and a valid previous source, automatic rest loads that source; otherwise idle opens silently until a source is clicked. Provider autoplay restrictions may still require Play in the frame.
+
+### Verified cozy/idle publication — 25 October 2026
+
+- [PR #44](https://github.com/tahulk79/TheCoffeeSixSense/pull/44), merged source `a9a77baddd73c0eea1a449fe020024e365de65e4`.
+- [Pages run 40203305409](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40203305409) succeeded for that source.
+- https://tahulk79.github.io/TheCoffeeSixSense/?v=0.16.0 downloaded byte-identical to the reviewed standalone. SHA-256 `1e81a2f9842597dabc05a670527f6e0ceafa941aa2e6c450509c1d729fb30e24`.
+- 148 unit/model checks and standalone/Vite builds pass. Downloaded-public-artifact Chromium replay at 320×568 VI, 390×844 EN, 844×390 VI and 1280×800 VI passes: full gameplay viewport, preserved paused checkpoint, video/playlist input, wrong-link rejection, no unsolicited idle autoplay, explicit idle-source restart, continued lounge playback without iframe replacement, recent source, idle Off, notebook/focus restoration and exclusive audio sources.
+- Separate local welcome/first-pour/preview and notebook/save-retry/source regressions passed. YouTube responses remain stubbed for these tests; actual provider audio/ads/embedding are not inferred.
+- Suggested genres are labeled external YouTube searches, not fabricated curated playlist IDs. Only the supplied Rico Latino video is preselected for direct playback; user-pasted valid playlists are supported.
+- Owner storytelling/opening pacing is the next discussion; no additional story rewrite is claimed. Documentation-only records may follow the deployed source without changing the app artifact.
