@@ -7,13 +7,13 @@ Observation date: 25 October 2026. This is a dated handoff snapshot, not a backg
 | Item | Observation / evidence |
 | --- | --- |
 | Repository / branch | `tahulk79/TheCoffeeSixSense` / `main`; public repository. |
-| Application version | **v0.16.0**, merged and published: separate cozy listening scene and automatic idle rest; fourteen comic greetings retained. Exact evidence is below. |
-| Current application source | `a9a77baddd73c0eea1a449fe020024e365de65e4`, [PR #44](https://github.com/tahulk79/TheCoffeeSixSense/pull/44). |
-| Previous application source commit | `c1d7a1f42a69e79fc79bfe83f46987e67c811887`, [PR #42](https://github.com/tahulk79/TheCoffeeSixSense/pull/42): docked radio patch, superseded by the dedicated listening scene. Earlier releases remain below. |
+| Application version | **v0.17.0**, public artifact verified: Hanoi three-shift reincarnation pilot; classic café and cozy/idle retained. Exact evidence is below. |
+| Current application source | `c7b5f88518dd212e21f252612c11c282b4a7f7e7`, [PR #46](https://github.com/tahulk79/TheCoffeeSixSense/pull/46). Source SHA observed in the dispatched Pages run; public artifact matched the reviewed build. |
+| Previous application source commit | `a9a77baddd73c0eea1a449fe020024e365de65e4`, [PR #44](https://github.com/tahulk79/TheCoffeeSixSense/pull/44): cozy listening and idle rest. Earlier releases remain below. |
 | Earlier product-doc publication | [PR #33](https://github.com/tahulk79/TheCoffeeSixSense/pull/33), `d9f32ac6d8353d98a8e9c719d93a2339858f6066`. The original v0.12 release/audit baseline is `0ae226764d6248501ec576b343e14c369cba9eec`; it is not the latest source revision. |
-| Source validation | [Validation run 40203242127](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40203242127) passed for the PR #44 head before merge. |
-| Current Pages publication | [Deployment run 40203305409](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40203305409) succeeded for the exact current application source above. |
-| Application entry | https://tahulk79.github.io/TheCoffeeSixSense/?v=0.16.0 — downloaded artifact verification is recorded below. |
+| Source validation | [Validation run 40207337766](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40207337766) passed for the PR #46 head before merge. |
+| Current Pages publication | [Deployment run 40207434143](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40207434143) showed deployment steps complete; new public artifact verified. Final API conclusion unavailable due subsequent HTTP 401. |
+| Application entry | https://tahulk79.github.io/TheCoffeeSixSense/?v=0.17.0 — downloaded artifact verification is recorded below. |
 | Preferred working mode | Product planning and development continue in this single Codex conversation, as requested by the owner. No cross-chat copy/paste is required for this workflow. The read-only cross-conversation agreement is an optional fallback. |
 | Planning ChatGPT connection | Owner reports GitHub **read access only**. No write access, background refresh or task execution capability is inferred. |
 | Automated conversation synchronization | **Not installed.** No shared chat-history service or AI runner has been configured. |
@@ -28,7 +28,7 @@ The latest [MVP audit](MVP_AUDIT_2026-10-25.md) records model/build checks and a
 | Four current planning documents and README index | Published | [CURRENT_STATE.md](CURRENT_STATE.md), [GAP_ANALYSIS.md](GAP_ANALYSIS.md), [ROADMAP_V012.md](ROADMAP_V012.md) and the strategic handoff are on main. Their dates/source baselines remain relevant. |
 | Read-only ChatGPT ↔ Codex coordination | Procedure prepared | Follow [WORK_SYNC.md](WORK_SYNC.md). The owner still transfers the proposed/approved handoff from ChatGPT into Codex. |
 | Optional mystery + useful unlock + linked evidence journal | MERGED / DEPLOYED / ARTIFACT VERIFIED | PR #36 and deployment/runtime evidence below confirm this bounded pilot. Wider roadmap work remains a proposal. |
-| Release number | v0.16.0 | Approved varied-welcome/radio release; earlier v0.12 strategy/audit and v0.13/v0.14 release baselines remain historical. |
+| Release number | v0.17.0 | Approved Hanoi three-shift pilot; earlier strategy audits and releases remain historical. |
 | Fully autonomous cross-conversation work | BLOCKED on capabilities/design | Read-only GitHub cannot write plans or trigger a runner. A write/API path and explicit execution/approval/cost design would be needed. No credentials should be sent in chat. |
 | Hosting migration, payments, marketing | Outside synchronization scope | Keep Pages. No VPS setup, premium currency, payment system or campaign is authorized by this procedure. |
 
@@ -107,3 +107,19 @@ The lounge also offers an unchecked-by-default “On idle, restart my chosen mus
 ## Approved prototype — Rebirth · Hanoi · first three shifts
 
 The owner approved the proposed one-city/three-shift prototype following the reincarnation concept discussion. Implemented the comic accident/assignment, fictional employee Hà Nội, functional tool mini game, clarified-order plus actual V60 model brewing, resource-aware ticket dispatch, one-time XP/best-evidence stamps and recoverable alpaca branch. Fresh-player entry and explicit old-player opt-in preserve classic progress. Seven-day final return and other cities remain outside this pilot. See [REBIRTH_HANOI.md](REBIRTH_HANOI.md). 155 unit/model checks and the documented browser/build paths pass. Exact publication evidence follows release verification.
+
+### Public v0.17 verification — 25 October 2026 (release record pending GitHub write)
+
+- [PR #46](https://github.com/tahulk79/TheCoffeeSixSense/pull/46) validation [run 40207337766](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40207337766) passed for head `6c28c5a0c900be213159380ec6fcaa623bcb39ec`; the authorized merge and Pages dispatch commands completed.
+- Dispatched Pages [run 40207434143](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40207434143) reported source `c7b5f88518dd212e21f252612c11c282b4a7f7e7`. The watcher showed all deployment steps completed, then GitHub API authentication began failing with HTTP 401. Final workflow conclusion could not be independently queried afterward. Do not misreport the watcher error as an observed application failure or as a successfully queried run conclusion.
+- https://tahulk79.github.io/TheCoffeeSixSense/?v=0.17.0 served the new artifact. Downloaded HTML matched the reviewed standalone byte for byte; SHA-256 `30c6f7d9d74333f32eceaf12dc387773ef871babab55a5793c9d7aa402277916`.
+- Downloaded-public-artifact Chromium replay passed at 320×568 VI, 390×844 EN, 844×390 VI and 1280×800 VI for the complete three-shift route, real simulated self-pour/manual pause, fixed control positions, no rig/status overlap, XP cap, reload/replay, classic return, alpaca/recovery, cozy/automatic AFK/language, quota/retry, protected corrupt originals and unchanged classic mid-brew data. These are controlled replays, not human-retention or physical-device measurements.
+- 155 unit/model checks and standalone/Vite builds passed. The requested prototype source and scope docs are already in PR #46/main; this additional exact release record is saved locally and has not been pushed because subsequent GitHub API reads returned 401. Authentication must be restored before a documentation-only follow-up can be published. No credentials should be sent in chat.
+
+### Authentication and v0.17 confirmation recovered
+
+A subsequent authenticated API query confirmed Pages run `40207434143` as completed/success for `c7b5f88518dd212e21f252612c11c282b4a7f7e7`. The earlier 401 was a post-deployment verification/recording interruption, not a failed deployment. The locally saved v0.17 evidence above is included in the entry-fix publication.
+
+## Rebirth entry correction — v0.17.1
+
+The owner could not find the deployed concept because existing players stayed in classic mode and the entry was only in the Book. Add a prominent main-screen button in classic mode and explicit `?mode=rebirth` deep-link support, resuming the existing profile. Choosing classic removes the override. Four Chromium sizes verify entry visibility, preserved classic/campaign bytes, reload and direct-link behavior; 155 unit/model checks and builds pass. Actual patch deployment evidence follows verification.
