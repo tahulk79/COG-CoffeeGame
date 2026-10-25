@@ -1,5 +1,16 @@
 # The Coffee Six Sense
 
+## Product planning — current baseline v0.12.0
+
+For product-planning handoffs, start with these documents. They distinguish shipped behavior from proposals awaiting implementation approval:
+
+- [Strategic handoff](docs/STRATEGIC_HANDOFF.md) — confirmed direction, conflicts and proposed AGENTS instructions.
+- [Current state](docs/CURRENT_STATE.md) — inspected systems and KEEP/REFINE/EXTEND/DEPRECATE classifications.
+- [Gap analysis](docs/GAP_ANALYSIS.md) — missing capabilities, reuse and architectural risks.
+- [Roadmap based on v0.12](docs/ROADMAP_V012.md) — minimal proposed mystery/discovery pilot and acceptance criteria.
+
+The application release baseline is v0.12.0; these planning documents do not imply that proposed features are implemented. [ROADMAP_V011.md](docs/ROADMAP_V011.md) is a compatibility pointer from the older handoff. Historical version sections below remain release history. Current hosting remains GitHub Pages; no VPS migration is part of this documentation update.
+
 **Brew → Taste → Compare → Discover → Improve**
 
 A web-first specialty coffee learning game where players practice brewing, evaluate sensory qualities, compare past sessions, and record personal discoveries. **Discover Your Sixth Taste · From Coffee to Consciousness.** “Sixth Taste” is a metaphor for personal discovery, not a scientifically established sixth basic taste. The six sensory attributes are separate descriptors.
