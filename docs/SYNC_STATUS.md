@@ -7,13 +7,13 @@ Observation date: 25 October 2026. This is a dated handoff snapshot, not a backg
 | Item | Observation / evidence |
 | --- | --- |
 | Repository / branch | `tahulk79/TheCoffeeSixSense` / `main`; public repository. |
-| Application version | **v0.17.0**, public artifact verified: Hanoi three-shift reincarnation pilot; classic café and cozy/idle retained. Exact evidence is below. |
-| Current application source | `c7b5f88518dd212e21f252612c11c282b4a7f7e7`, [PR #46](https://github.com/tahulk79/TheCoffeeSixSense/pull/46). Source SHA observed in the dispatched Pages run; public artifact matched the reviewed build. |
+| Application version | **v0.17.1**, public artifact verified: visible Rebirth entry and direct link; Hanoi pilot, classic café and cozy/idle retained. Exact evidence is below. |
+| Current application source | `322ff7df8a32fb568761a6041061eeddceea59de`, [PR #47](https://github.com/tahulk79/TheCoffeeSixSense/pull/47): visible entry and deep link. |
 | Previous application source commit | `a9a77baddd73c0eea1a449fe020024e365de65e4`, [PR #44](https://github.com/tahulk79/TheCoffeeSixSense/pull/44): cozy listening and idle rest. Earlier releases remain below. |
 | Earlier product-doc publication | [PR #33](https://github.com/tahulk79/TheCoffeeSixSense/pull/33), `d9f32ac6d8353d98a8e9c719d93a2339858f6066`. The original v0.12 release/audit baseline is `0ae226764d6248501ec576b343e14c369cba9eec`; it is not the latest source revision. |
-| Source validation | [Validation run 40207337766](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40207337766) passed for the PR #46 head before merge. |
-| Current Pages publication | [Deployment run 40207434143](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40207434143) showed deployment steps complete; new public artifact verified. Final API conclusion unavailable due subsequent HTTP 401. |
-| Application entry | https://tahulk79.github.io/TheCoffeeSixSense/?v=0.17.0 — downloaded artifact verification is recorded below. |
+| Source validation | [Validation run 40208172019](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40208172019) passed for the PR #47 head before merge. |
+| Current Pages publication | [Deployment run 40208266448](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40208266448) completed successfully for the current patch source. |
+| Application entry | https://tahulk79.github.io/TheCoffeeSixSense/?mode=rebirth&v=0.17.1 — downloaded artifact verification is recorded below. |
 | Preferred working mode | Product planning and development continue in this single Codex conversation, as requested by the owner. No cross-chat copy/paste is required for this workflow. The read-only cross-conversation agreement is an optional fallback. |
 | Planning ChatGPT connection | Owner reports GitHub **read access only**. No write access, background refresh or task execution capability is inferred. |
 | Automated conversation synchronization | **Not installed.** No shared chat-history service or AI runner has been configured. |
@@ -28,7 +28,7 @@ The latest [MVP audit](MVP_AUDIT_2026-10-25.md) records model/build checks and a
 | Four current planning documents and README index | Published | [CURRENT_STATE.md](CURRENT_STATE.md), [GAP_ANALYSIS.md](GAP_ANALYSIS.md), [ROADMAP_V012.md](ROADMAP_V012.md) and the strategic handoff are on main. Their dates/source baselines remain relevant. |
 | Read-only ChatGPT ↔ Codex coordination | Procedure prepared | Follow [WORK_SYNC.md](WORK_SYNC.md). The owner still transfers the proposed/approved handoff from ChatGPT into Codex. |
 | Optional mystery + useful unlock + linked evidence journal | MERGED / DEPLOYED / ARTIFACT VERIFIED | PR #36 and deployment/runtime evidence below confirm this bounded pilot. Wider roadmap work remains a proposal. |
-| Release number | v0.17.0 | Approved Hanoi three-shift pilot; earlier strategy audits and releases remain historical. |
+| Release number | v0.17.1 | Approved Hanoi three-shift pilot; earlier strategy audits and releases remain historical. |
 | Fully autonomous cross-conversation work | BLOCKED on capabilities/design | Read-only GitHub cannot write plans or trigger a runner. A write/API path and explicit execution/approval/cost design would be needed. No credentials should be sent in chat. |
 | Hosting migration, payments, marketing | Outside synchronization scope | Keep Pages. No VPS setup, premium currency, payment system or campaign is authorized by this procedure. |
 
@@ -123,3 +123,11 @@ A subsequent authenticated API query confirmed Pages run `40207434143` as comple
 ## Rebirth entry correction — v0.17.1
 
 The owner could not find the deployed concept because existing players stayed in classic mode and the entry was only in the Book. Add a prominent main-screen button in classic mode and explicit `?mode=rebirth` deep-link support, resuming the existing profile. Choosing classic removes the override. Four Chromium sizes verify entry visibility, preserved classic/campaign bytes, reload and direct-link behavior; 155 unit/model checks and builds pass. Actual patch deployment evidence follows verification.
+
+### Verified visible-entry patch — v0.17.1
+
+- [PR #47](https://github.com/tahulk79/TheCoffeeSixSense/pull/47), source `322ff7df8a32fb568761a6041061eeddceea59de`.
+- [Pages run 40208266448](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40208266448) succeeded for that source.
+- Direct entry: https://tahulk79.github.io/TheCoffeeSixSense/?mode=rebirth&v=0.17.1. Downloaded HTML matched the reviewed standalone byte for byte; SHA-256 `dce36ed97fd49a824676bf01b6f3f3135646f3217f5c35e2a8018af01e9ce898`.
+- Four-size Chromium replay of the downloaded artifact verifies visible main-screen CTA, explicit deep-link override of remembered classic mode, retained campaign progress, unchanged classic profile, explicit classic return and reload. 155 unit/model checks and builds pass.
+- This patch addresses discoverability; no account reset or new gameplay is involved. Earlier authentication interruptions are resolved as recorded above. Documentation-only records can follow this deployed source without changing the application artifact.
