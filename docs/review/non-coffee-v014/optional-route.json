@@ -1,0 +1,324 @@
+[
+  {
+    "speech": "“Khách để quên một tấm bưu thiếp. Bạn giúp tôi tìm đúng gói hạt để gửi cùng nó nhé? Manh mối đầu tiên ở chiếc cân.”",
+    "buttons": [
+      {
+        "id": "cafe-music-shortcut",
+        "text": "Bật nhạc"
+      },
+      {
+        "id": "cafe-notebook",
+        "text": "Sổ"
+      },
+      {
+        "id": "",
+        "text": "Mở sổ món"
+      },
+      {
+        "id": "",
+        "text": "←"
+      },
+      {
+        "id": "",
+        "text": "→"
+      },
+      {
+        "id": "season-investigate",
+        "text": "Giúp chú tìm manh mối"
+      },
+      {
+        "id": "season-next",
+        "text": "Kể tiếp"
+      },
+      {
+        "id": "season-try",
+        "text": "Tôi pha thử"
+      }
+    ]
+  },
+  {
+    "speech": "“Mocha từng là một cảng gắn với việc buôn bán cà phê của Yemen.",
+    "buttons": [
+      {
+        "id": "cafe-music-shortcut",
+        "text": "Bật nhạc"
+      },
+      {
+        "id": "cafe-notebook",
+        "text": "Sổ"
+      },
+      {
+        "id": "",
+        "text": "Mở sổ món"
+      },
+      {
+        "id": "",
+        "text": "←"
+      },
+      {
+        "id": "",
+        "text": "→"
+      },
+      {
+        "id": "season-investigate",
+        "text": "Giúp chú tìm manh mối"
+      },
+      {
+        "id": "season-next",
+        "text": "Kể tiếp"
+      }
+    ]
+  },
+  {
+    "speech": "Một cái tên trên thực đơn có thể mang theo dấu vết của một nơi chốn rất xa.",
+    "buttons": [
+      {
+        "id": "cafe-music-shortcut",
+        "text": "Bật nhạc"
+      },
+      {
+        "id": "cafe-notebook",
+        "text": "Sổ"
+      },
+      {
+        "id": "",
+        "text": "Mở sổ món"
+      },
+      {
+        "id": "",
+        "text": "←"
+      },
+      {
+        "id": "",
+        "text": "→"
+      },
+      {
+        "id": "season-investigate",
+        "text": "Giúp chú tìm manh mối"
+      },
+      {
+        "id": "season-next",
+        "text": "Kể tiếp"
+      }
+    ]
+  },
+  {
+    "speech": "Tôi thích nghĩ túi hạt là lời mời mở bản đồ, trước khi nó là lời hứa về hương vị.”",
+    "buttons": [
+      {
+        "id": "cafe-music-shortcut",
+        "text": "Bật nhạc"
+      },
+      {
+        "id": "cafe-notebook",
+        "text": "Sổ"
+      },
+      {
+        "id": "",
+        "text": "Mở sổ món"
+      },
+      {
+        "id": "",
+        "text": "←"
+      },
+      {
+        "id": "",
+        "text": "→"
+      },
+      {
+        "id": "season-investigate",
+        "text": "Giúp chú tìm manh mối"
+      },
+      {
+        "id": "season-next",
+        "text": "Kể tiếp"
+      }
+    ]
+  },
+  {
+    "speech": "“Mocha trên túi này có nghĩa là đã thêm sôcôla à?”",
+    "buttons": [
+      {
+        "id": "cafe-music-shortcut",
+        "text": "Bật nhạc"
+      },
+      {
+        "id": "cafe-notebook",
+        "text": "Sổ"
+      },
+      {
+        "id": "",
+        "text": "Mở sổ món"
+      },
+      {
+        "id": "",
+        "text": "←"
+      },
+      {
+        "id": "",
+        "text": "→"
+      },
+      {
+        "id": "season-next",
+        "text": "Kể tiếp"
+      }
+    ]
+  },
+  {
+    "speech": "Chủ quán trả lời“Không. Tên cảng Mocha trong câu chuyện này khác với món mocha có cà phê và sôcôla.",
+    "buttons": [
+      {
+        "id": "cafe-music-shortcut",
+        "text": "Bật nhạc"
+      },
+      {
+        "id": "cafe-notebook",
+        "text": "Sổ"
+      },
+      {
+        "id": "",
+        "text": "Mở sổ món"
+      },
+      {
+        "id": "",
+        "text": "←"
+      },
+      {
+        "id": "",
+        "text": "→"
+      },
+      {
+        "id": "season-next",
+        "text": "Kể tiếp"
+      }
+    ]
+  },
+  {
+    "speech": "Nhìn tên thôi chưa biết có phụ gia gì; mình phải đọc thông tin thành phần.”",
+    "buttons": [
+      {
+        "id": "cafe-music-shortcut",
+        "text": "Bật nhạc"
+      },
+      {
+        "id": "cafe-notebook",
+        "text": "Sổ"
+      },
+      {
+        "id": "",
+        "text": "Mở sổ món"
+      },
+      {
+        "id": "",
+        "text": "←"
+      },
+      {
+        "id": "",
+        "text": "→"
+      },
+      {
+        "id": "season-next",
+        "text": "Kể tiếp"
+      }
+    ]
+  },
+  {
+    "speech": "“Nhưng tôi không có đủ hồ sơ để kể tên nông trại hay giống của túi hạt minh họa này. Chỗ nào chưa biết thì để trống.",
+    "buttons": [
+      {
+        "id": "cafe-music-shortcut",
+        "text": "Bật nhạc"
+      },
+      {
+        "id": "cafe-notebook",
+        "text": "Sổ"
+      },
+      {
+        "id": "",
+        "text": "Mở sổ món"
+      },
+      {
+        "id": "",
+        "text": "←"
+      },
+      {
+        "id": "",
+        "text": "→"
+      },
+      {
+        "id": "season-next",
+        "text": "Kể tiếp"
+      }
+    ]
+  },
+  {
+    "speech": "Ngăn đầu tiên của C6S sẽ giữ cả sự tò mò lẫn thói quen hỏi thêm, thay vì một huyền thoại quá đẹp.”",
+    "buttons": [
+      {
+        "id": "cafe-music-shortcut",
+        "text": "Bật nhạc"
+      },
+      {
+        "id": "cafe-notebook",
+        "text": "Sổ"
+      },
+      {
+        "id": "",
+        "text": "Mở sổ món"
+      },
+      {
+        "id": "",
+        "text": "←"
+      },
+      {
+        "id": "",
+        "text": "→"
+      },
+      {
+        "id": "season-next",
+        "text": "Kể tiếp"
+      }
+    ]
+  },
+  {
+    "speech": "“Nghe chuyện rồi, bạn muốn tự pha thử hạt hôm nay không? Tôi đứng cạnh chỉ cho.”",
+    "buttons": [
+      {
+        "id": "cafe-music-shortcut",
+        "text": "Bật nhạc"
+      },
+      {
+        "id": "cafe-notebook",
+        "text": "Sổ"
+      },
+      {
+        "id": "",
+        "text": "Mở sổ món"
+      },
+      {
+        "id": "",
+        "text": "←"
+      },
+      {
+        "id": "",
+        "text": "→"
+      },
+      {
+        "id": "season-investigate",
+        "text": "Giúp chú tìm manh mối"
+      },
+      {
+        "id": "season-try",
+        "text": "Tôi pha thử"
+      },
+      {
+        "id": "season-watch",
+        "text": "Xem chú pha"
+      },
+      {
+        "id": "season-skip",
+        "text": "Nghe đoạn kết"
+      }
+    ]
+  }
+]
