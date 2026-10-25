@@ -53,3 +53,12 @@ The pilot is documented in [DISCOVERY_CASE.md](DISCOVERY_CASE.md): optional pred
 ## Approved release — C6S-POSTCARD-TRAIL-01
 
 Following the pure-gamer review and the owner’s instruction to continue, a linked three-clue postcard trail is implemented locally on main `d6b0936faed60bac65baef9ec36a40b16e47cf10`. It adds a direct first invitation, two playable lens follow-ups, a window keepsake, immediate map display and route-aware old-player links. See [POSTCARD_TRAIL.md](POSTCARD_TRAIL.md). 142 unit checks and focused Chromium/build checks pass. The owner has explicitly approved publication, merge and Pages deployment as v0.14.0, then a non-coffee-player appeal review. The v0.13 verification above is historical; new release evidence will be recorded after completion.
+
+### Verified v0.14 publication — 25 October 2026
+
+- [PR #38](https://github.com/tahulk79/TheCoffeeSixSense/pull/38), merged source `ac83bc4d8d68c63aa57eac4b08b262a473599891`.
+- [Pages run 40192516952](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40192516952) succeeded for that source.
+- Public entry: https://tahulk79.github.io/TheCoffeeSixSense/?v=0.14.0. Downloaded HTML matched the reviewed standalone byte for byte; SHA-256 `ba22c3ec06466adf3b2181631da55c5eea86ed26ffc2a0f63dd5259510e0f156`.
+- 142 unit/model checks and standalone/Vite builds passed. See [non-coffee-player review](review/non-coffee-v014/REVIEW.md), walkthrough and screenshots for the actual public-artifact design assessment.
+- Findings: stronger approachable three-task opening, useful lens and persistent visible reward; shallow puzzle choices and a coffee-focused fourth-visit teaser still limit the case for sustained non-coffee-player appeal. No human emotions or retention measured. A further redesign is a recommendation, not implemented work.
+- Documentation-only release/evaluation records may follow the deployed source; they do not change the application artifact. Hosting remains GitHub Pages.

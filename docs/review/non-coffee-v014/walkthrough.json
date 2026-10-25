@@ -1,0 +1,2487 @@
+{
+  "version": "0.14.0",
+  "method": "scripted walkthrough of downloaded public artifact, accelerated clock; no human subjects",
+  "records": [
+    {
+      "label": "entry",
+      "speech": "“Khách để quên một tấm bưu thiếp. Bạn giúp tôi tìm đúng gói hạt để gửi cùng nó nhé? Manh mối đầu tiên ở chiếc cân.”",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "",
+          "text": "←"
+        },
+        {
+          "id": "",
+          "text": "→"
+        },
+        {
+          "id": "season-investigate",
+          "text": "Giúp chú tìm manh mối"
+        },
+        {
+          "id": "season-touch-map",
+          "text": "Cầm bản đồ lên xem"
+        },
+        {
+          "id": "season-enter",
+          "text": "Vào quán"
+        }
+      ],
+      "episode": "s1-yemen"
+    },
+    {
+      "label": "#season-investigate",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-start",
+          "text": "Sẵn sàng, bắt đầu pha"
+        },
+        {
+          "id": "ct-case-begin",
+          "text": "Bí ẩn chiếc cân"
+        },
+        {
+          "id": "case-close",
+          "text": "Về ly đang pha"
+        },
+        {
+          "id": "",
+          "text": "Tăng"
+        },
+        {
+          "id": "",
+          "text": "Giảm"
+        },
+        {
+          "id": "",
+          "text": "Giữ nguyên"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-yemen",
+      "phase": "prepare"
+    },
+    {
+      "label": "[data-case-predict=fall]",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-start",
+          "text": "Sẵn sàng, bắt đầu pha"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Bí ẩn chiếc cân"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-yemen",
+      "phase": "prepare"
+    },
+    {
+      "label": "#ct-start",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-hold",
+          "text": "Nhấn giữ để rót"
+        },
+        {
+          "id": "ct-toggle",
+          "text": "Rót tự động"
+        },
+        {
+          "id": "ct-next",
+          "text": "Sang lần rót tiếp"
+        },
+        {
+          "id": "ct-session",
+          "text": "Tạm dừng lượt"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Bí ẩn chiếc cân"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-yemen",
+      "phase": "pour"
+    },
+    {
+      "label": "#ct-toggle",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-hold",
+          "text": "Nhấn giữ để rót"
+        },
+        {
+          "id": "ct-toggle",
+          "text": "Dừng rót"
+        },
+        {
+          "id": "ct-next",
+          "text": "Sang lần rót tiếp"
+        },
+        {
+          "id": "ct-session",
+          "text": "Tạm dừng lượt"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Bí ẩn chiếc cân"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-yemen",
+      "phase": "pour"
+    },
+    {
+      "label": "#ct-case-open",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-hold",
+          "text": "Nhấn giữ để rót"
+        },
+        {
+          "id": "ct-toggle",
+          "text": "Rót tự động"
+        },
+        {
+          "id": "ct-next",
+          "text": "Sang lần rót tiếp"
+        },
+        {
+          "id": "ct-session",
+          "text": "Chọn thí nghiệm bên trên"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Chọn lúc nhìn lại"
+        },
+        {
+          "id": "case-close",
+          "text": "Về ly đang pha"
+        },
+        {
+          "id": "",
+          "text": "Nhìn sớm"
+        },
+        {
+          "id": "",
+          "text": "Chờ 1 giây game"
+        },
+        {
+          "id": "case-leave",
+          "text": "Bỏ điều tra · pha tiếp"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-yemen",
+      "phase": "pause"
+    },
+    {
+      "label": "[data-case-wait=\"0.25\"]",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-hold",
+          "text": "Nhấn giữ để rót"
+        },
+        {
+          "id": "ct-toggle",
+          "text": "Rót tự động"
+        },
+        {
+          "id": "ct-next",
+          "text": "Sang lần rót tiếp"
+        },
+        {
+          "id": "ct-session",
+          "text": "Tạm dừng lượt"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Bí ẩn chiếc cân"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-yemen",
+      "phase": "pause"
+    },
+    {
+      "label": "#ct-case-open",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-hold",
+          "text": "Nhấn giữ để rót"
+        },
+        {
+          "id": "ct-toggle",
+          "text": "Rót tự động"
+        },
+        {
+          "id": "ct-next",
+          "text": "Sang lần rót tiếp"
+        },
+        {
+          "id": "ct-session",
+          "text": "Chọn thí nghiệm bên trên"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Đối chiếu dấu vết"
+        },
+        {
+          "id": "case-close",
+          "text": "Về ly đang pha"
+        },
+        {
+          "id": "",
+          "text": "Tăng"
+        },
+        {
+          "id": "",
+          "text": "Giảm"
+        },
+        {
+          "id": "",
+          "text": "Giữ nguyên"
+        },
+        {
+          "id": "case-leave",
+          "text": "Bỏ điều tra · pha tiếp"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-yemen",
+      "phase": "pause"
+    },
+    {
+      "label": "[data-case-conclude=steady]",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-lens-toggle",
+          "text": "Kính"
+        },
+        {
+          "id": "ct-hold",
+          "text": "Nhấn giữ để rót"
+        },
+        {
+          "id": "ct-toggle",
+          "text": "Rót tự động"
+        },
+        {
+          "id": "ct-next",
+          "text": "Sang lần rót tiếp"
+        },
+        {
+          "id": "ct-session",
+          "text": "Tiếp tục lượt"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Khám phá của bạn"
+        },
+        {
+          "id": "case-close",
+          "text": "Về ly đang pha"
+        },
+        {
+          "id": "case-use-lens",
+          "text": "Nhìn qua kính"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-yemen",
+      "phase": "pause"
+    },
+    {
+      "label": "#case-use-lens",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-lens-toggle",
+          "text": "Cất kính"
+        },
+        {
+          "id": "ct-hold",
+          "text": "Nhấn giữ để rót"
+        },
+        {
+          "id": "ct-toggle",
+          "text": "Rót tự động"
+        },
+        {
+          "id": "ct-next",
+          "text": "Sang lần rót tiếp"
+        },
+        {
+          "id": "ct-session",
+          "text": "Tiếp tục lượt"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Đầu vào30.0 g*Đã xuống bình23.5 g*Còn trong bộ6.5 g*MÔ PHỎNG · CHẠM XEM DẤU VẾT"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-yemen",
+      "phase": "pause"
+    },
+    {
+      "label": "#ct-next",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-lens-toggle",
+          "text": "Cất kính"
+        },
+        {
+          "id": "ct-hold",
+          "text": "Nhấn giữ để rót"
+        },
+        {
+          "id": "ct-toggle",
+          "text": "Rót tự động"
+        },
+        {
+          "id": "ct-next",
+          "text": "Sang lần rót tiếp"
+        },
+        {
+          "id": "ct-session",
+          "text": "Tạm dừng lượt"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Đầu vào30.0 g*Đã xuống bình23.5 g*Còn trong bộ6.5 g*MÔ PHỎNG · CHẠM XEM DẤU VẾT"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-yemen",
+      "phase": "pour"
+    },
+    {
+      "label": "#ct-toggle",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-lens-toggle",
+          "text": "Cất kính"
+        },
+        {
+          "id": "ct-hold",
+          "text": "Nhấn giữ để rót"
+        },
+        {
+          "id": "ct-toggle",
+          "text": "Dừng rót"
+        },
+        {
+          "id": "ct-next",
+          "text": "Sang lần rót tiếp"
+        },
+        {
+          "id": "ct-session",
+          "text": "Tạm dừng lượt"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Đầu vào30.0 g*Đã xuống bình30.0 g*Còn trong bộ0.0 g*MÔ PHỎNG · CHẠM XEM DẤU VẾT"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-yemen",
+      "phase": "pour"
+    },
+    {
+      "label": "#ct-next",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-lens-toggle",
+          "text": "Cất kính"
+        },
+        {
+          "id": "ct-hold",
+          "text": "Nhấn giữ để rót"
+        },
+        {
+          "id": "ct-toggle",
+          "text": "Rót tự động"
+        },
+        {
+          "id": "ct-next",
+          "text": "Sang lần rót tiếp"
+        },
+        {
+          "id": "ct-session",
+          "text": "Tạm dừng lượt"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Đầu vào150.0 g*Đã xuống bình110.0 g*Còn trong bộ40.0 g*MÔ PHỎNG · CHẠM XEM DẤU VẾT"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-yemen",
+      "phase": "pour"
+    },
+    {
+      "label": "#ct-toggle",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-lens-toggle",
+          "text": "Cất kính"
+        },
+        {
+          "id": "ct-hold",
+          "text": "Nhấn giữ để rót"
+        },
+        {
+          "id": "ct-toggle",
+          "text": "Dừng rót"
+        },
+        {
+          "id": "ct-next",
+          "text": "Sang lần rót tiếp"
+        },
+        {
+          "id": "ct-session",
+          "text": "Tạm dừng lượt"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Đầu vào150.0 g*Đã xuống bình123.2 g*Còn trong bộ26.8 g*MÔ PHỎNG · CHẠM XEM DẤU VẾT"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-yemen",
+      "phase": "pour"
+    },
+    {
+      "label": "#season-skip",
+      "speech": "“Ngăn thứ nhất có tên rồi: Đừng để một cái tên kể thay cả câu chuyện.” Chủ quán đặt tấm thẻ Mocha vào tủ.",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "",
+          "text": "←"
+        },
+        {
+          "id": "",
+          "text": "→"
+        },
+        {
+          "id": "season-goodbye",
+          "text": "Hẹn lần sau"
+        }
+      ],
+      "episode": "s1-yemen"
+    },
+    {
+      "label": "#season-goodbye",
+      "speech": "“Chiếc ghế cạnh cửa sẽ còn đây cho lần bạn ghé tiếp.”",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "",
+          "text": "←"
+        },
+        {
+          "id": "",
+          "text": "→"
+        },
+        {
+          "id": "season-goodbye",
+          "text": "Hẹn lần sau"
+        }
+      ],
+      "episode": "s1-yemen"
+    },
+    {
+      "label": "#season-goodbye",
+      "speech": "Lần tới tôi sẽ mở món này: AeroPress · chiếc ống pha nhỏ. Hôm nào bạn rảnh, cứ ghé nhé.",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "",
+          "text": "←"
+        },
+        {
+          "id": "",
+          "text": "→"
+        },
+        {
+          "id": "season-continue",
+          "text": "Ghé lượt tiếp"
+        },
+        {
+          "id": "season-revisit",
+          "text": "Pha lại"
+        },
+        {
+          "id": "season-read-current",
+          "text": "Đọc lại"
+        }
+      ],
+      "episode": "s1-yemen"
+    },
+    {
+      "label": "#season-continue",
+      "speech": "“Kính đã sẵn sàng. Mảnh bưu thiếp tiếp theo hỏi về nước trong cốc. Mình thử đặt cân ở hai chỗ nhé?”",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "",
+          "text": "←"
+        },
+        {
+          "id": "",
+          "text": "→"
+        },
+        {
+          "id": "season-investigate",
+          "text": "Tìm tiếp manh mối bưu thiếp"
+        },
+        {
+          "id": "season-next",
+          "text": "Kể tiếp"
+        },
+        {
+          "id": "season-try",
+          "text": "Tôi pha thử"
+        }
+      ],
+      "episode": "s1-aeropress"
+    },
+    {
+      "label": "#season-investigate",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-lens-toggle",
+          "text": "Cất kính"
+        },
+        {
+          "id": "ct-start",
+          "text": "Sẵn sàng, bắt đầu pha"
+        },
+        {
+          "id": "ct-case-begin",
+          "text": "Manh mối bưu thiếp"
+        },
+        {
+          "id": "case-close",
+          "text": "Về ly đang pha"
+        },
+        {
+          "id": "trail-start",
+          "text": "Dùng kính tìm manh mối"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-aeropress",
+      "phase": "prepare"
+    },
+    {
+      "label": "#trail-start",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-lens-toggle",
+          "text": "Cất kính"
+        },
+        {
+          "id": "ct-start",
+          "text": "Sẵn sàng, bắt đầu pha"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Manh mối đang chờ"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-aeropress",
+      "phase": "prepare"
+    },
+    {
+      "label": "#ct-start",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-lens-toggle",
+          "text": "Cất kính"
+        },
+        {
+          "id": "ct-hold",
+          "text": "Nhấn giữ để rót"
+        },
+        {
+          "id": "ct-toggle",
+          "text": "Rót tự động"
+        },
+        {
+          "id": "ct-next",
+          "text": "Sang lần rót tiếp"
+        },
+        {
+          "id": "ct-session",
+          "text": "Tạm dừng lượt"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Manh mối đang chờ"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-aeropress",
+      "phase": "pour"
+    },
+    {
+      "label": "#ct-toggle",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-lens-toggle",
+          "text": "Cất kính"
+        },
+        {
+          "id": "ct-hold",
+          "text": "Nhấn giữ để rót"
+        },
+        {
+          "id": "ct-toggle",
+          "text": "Dừng rót"
+        },
+        {
+          "id": "ct-next",
+          "text": "Sang lần rót tiếp"
+        },
+        {
+          "id": "ct-session",
+          "text": "Tạm dừng lượt"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Manh mối đang chờ"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-aeropress",
+      "phase": "pour"
+    },
+    {
+      "label": "#ct-next",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-lens-toggle",
+          "text": "Cất kính"
+        },
+        {
+          "id": "ct-hold",
+          "text": "Nhấn giữ để ép"
+        },
+        {
+          "id": "ct-toggle",
+          "text": "Ép tự động"
+        },
+        {
+          "id": "ct-next",
+          "text": "Sang lần rót tiếp"
+        },
+        {
+          "id": "ct-session",
+          "text": "Tạm dừng lượt"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Manh mối đang chờ"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-aeropress",
+      "phase": "press"
+    },
+    {
+      "label": "#ct-toggle",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-lens-toggle",
+          "text": "Cất kính"
+        },
+        {
+          "id": "ct-hold",
+          "text": "Nhấn giữ để ép"
+        },
+        {
+          "id": "ct-toggle",
+          "text": "Dừng ép"
+        },
+        {
+          "id": "ct-next",
+          "text": "Sang lần rót tiếp"
+        },
+        {
+          "id": "ct-session",
+          "text": "Tạm dừng lượt"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Manh mối đang chờ"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-aeropress",
+      "phase": "press"
+    },
+    {
+      "label": "#ct-case-open",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-lens-toggle",
+          "text": "Cất kính"
+        },
+        {
+          "id": "ct-hold",
+          "text": "Nhấn giữ để ép"
+        },
+        {
+          "id": "ct-toggle",
+          "text": "Ép tự động"
+        },
+        {
+          "id": "ct-next",
+          "text": "Sang lần rót tiếp"
+        },
+        {
+          "id": "ct-session",
+          "text": "Chọn thí nghiệm bên trên"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Dùng kính tìm manh mối"
+        },
+        {
+          "id": "case-close",
+          "text": "Về ly đang pha"
+        },
+        {
+          "id": "",
+          "text": "Cả bộ"
+        },
+        {
+          "id": "",
+          "text": "Chỉ cốc"
+        },
+        {
+          "id": "trail-confirm",
+          "text": "Chọn vị trí này"
+        },
+        {
+          "id": "case-leave",
+          "text": "Bỏ điều tra · pha tiếp"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-aeropress",
+      "phase": "press"
+    },
+    {
+      "label": "[data-trail-position=whole]",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-lens-toggle",
+          "text": "Cất kính"
+        },
+        {
+          "id": "ct-hold",
+          "text": "Nhấn giữ để ép"
+        },
+        {
+          "id": "ct-toggle",
+          "text": "Ép tự động"
+        },
+        {
+          "id": "ct-next",
+          "text": "Sang lần rót tiếp"
+        },
+        {
+          "id": "ct-session",
+          "text": "Chọn thí nghiệm bên trên"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Dùng kính tìm manh mối"
+        },
+        {
+          "id": "case-close",
+          "text": "Về ly đang pha"
+        },
+        {
+          "id": "",
+          "text": "Cả bộ ✓"
+        },
+        {
+          "id": "",
+          "text": "Chỉ cốc"
+        },
+        {
+          "id": "trail-confirm",
+          "text": "Chọn vị trí này"
+        },
+        {
+          "id": "case-leave",
+          "text": "Bỏ điều tra · pha tiếp"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-aeropress",
+      "phase": "press"
+    },
+    {
+      "label": "[data-trail-position=server]",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-lens-toggle",
+          "text": "Cất kính"
+        },
+        {
+          "id": "ct-hold",
+          "text": "Nhấn giữ để ép"
+        },
+        {
+          "id": "ct-toggle",
+          "text": "Ép tự động"
+        },
+        {
+          "id": "ct-next",
+          "text": "Sang lần rót tiếp"
+        },
+        {
+          "id": "ct-session",
+          "text": "Chọn thí nghiệm bên trên"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Dùng kính tìm manh mối"
+        },
+        {
+          "id": "case-close",
+          "text": "Về ly đang pha"
+        },
+        {
+          "id": "",
+          "text": "Cả bộ ✓"
+        },
+        {
+          "id": "",
+          "text": "Chỉ cốc ✓"
+        },
+        {
+          "id": "trail-confirm",
+          "text": "Chọn vị trí này"
+        },
+        {
+          "id": "case-leave",
+          "text": "Bỏ điều tra · pha tiếp"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-aeropress",
+      "phase": "press"
+    },
+    {
+      "label": "#trail-confirm",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-lens-toggle",
+          "text": "Cất kính"
+        },
+        {
+          "id": "ct-hold",
+          "text": "Nhấn giữ để ép"
+        },
+        {
+          "id": "ct-toggle",
+          "text": "Ép tự động"
+        },
+        {
+          "id": "ct-next",
+          "text": "Sang lần rót tiếp"
+        },
+        {
+          "id": "ct-session",
+          "text": "Tiếp tục lượt"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Manh mối đã tìm được"
+        },
+        {
+          "id": "case-close",
+          "text": "Về ly đang pha"
+        },
+        {
+          "id": "trail-done",
+          "text": "Giữ mảnh này · pha tiếp"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-aeropress",
+      "phase": "press"
+    },
+    {
+      "label": "#trail-done",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-lens-toggle",
+          "text": "Cất kính"
+        },
+        {
+          "id": "ct-hold",
+          "text": "Nhấn giữ để ép"
+        },
+        {
+          "id": "ct-toggle",
+          "text": "Ép tự động"
+        },
+        {
+          "id": "ct-next",
+          "text": "Sang lần rót tiếp"
+        },
+        {
+          "id": "ct-session",
+          "text": "Tiếp tục lượt"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Manh mối đã tìm được"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-aeropress",
+      "phase": "press"
+    },
+    {
+      "label": "#ct-toggle",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-lens-toggle",
+          "text": "Cất kính"
+        },
+        {
+          "id": "ct-hold",
+          "text": "Nhấn giữ để ép"
+        },
+        {
+          "id": "ct-toggle",
+          "text": "Dừng ép"
+        },
+        {
+          "id": "ct-next",
+          "text": "Sang lần rót tiếp"
+        },
+        {
+          "id": "ct-session",
+          "text": "Tạm dừng lượt"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Manh mối đã tìm được"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-aeropress",
+      "phase": "press"
+    },
+    {
+      "label": "#season-skip",
+      "speech": "Chủ quán đặt chiếc vé tàu dưới dụng cụ trong tủ.",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "",
+          "text": "←"
+        },
+        {
+          "id": "",
+          "text": "→"
+        },
+        {
+          "id": "season-goodbye",
+          "text": "Hẹn lần sau"
+        }
+      ],
+      "episode": "s1-aeropress"
+    },
+    {
+      "label": "#season-goodbye",
+      "speech": "“Một món sưu tầm đáng giữ vì nó từng giải quyết được một nhu cầu, chứ không chỉ vì nó mới.”",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "",
+          "text": "←"
+        },
+        {
+          "id": "",
+          "text": "→"
+        },
+        {
+          "id": "season-goodbye",
+          "text": "Hẹn lần sau"
+        }
+      ],
+      "episode": "s1-aeropress"
+    },
+    {
+      "label": "#season-goodbye",
+      "speech": "Mateo kéo ba lô khỏi lối đi, nhường chỗ cho chiếc ghế khác.",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "",
+          "text": "←"
+        },
+        {
+          "id": "",
+          "text": "→"
+        },
+        {
+          "id": "season-goodbye",
+          "text": "Hẹn lần sau"
+        }
+      ],
+      "episode": "s1-aeropress"
+    },
+    {
+      "label": "#season-goodbye",
+      "speech": "Lần tới tôi sẽ mở món này: Ethiopia · Yirgacheffe, Washed & Natural. Hôm nào bạn rảnh, cứ ghé nhé.",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "",
+          "text": "←"
+        },
+        {
+          "id": "",
+          "text": "→"
+        },
+        {
+          "id": "season-continue",
+          "text": "Ghé lượt tiếp"
+        },
+        {
+          "id": "season-revisit",
+          "text": "Pha lại"
+        },
+        {
+          "id": "season-read-current",
+          "text": "Đọc lại"
+        }
+      ],
+      "episode": "s1-aeropress"
+    },
+    {
+      "label": "#season-continue",
+      "speech": "“Đã có địa chỉ, còn thiếu đúng gói hạt. Hai túi cùng từ Ethiopia; mình soi nhãn để tìm túi theo lời nhắn nhé.”",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "",
+          "text": "←"
+        },
+        {
+          "id": "",
+          "text": "→"
+        },
+        {
+          "id": "season-investigate",
+          "text": "Tìm tiếp manh mối bưu thiếp"
+        },
+        {
+          "id": "season-next",
+          "text": "Kể tiếp"
+        },
+        {
+          "id": "season-try",
+          "text": "Tôi pha thử"
+        }
+      ],
+      "episode": "s1-yirgacheffe"
+    },
+    {
+      "label": "#season-investigate",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-lens-toggle",
+          "text": "Cất kính"
+        },
+        {
+          "id": "ct-start",
+          "text": "Sẵn sàng, bắt đầu pha"
+        },
+        {
+          "id": "ct-case-begin",
+          "text": "Manh mối bưu thiếp"
+        },
+        {
+          "id": "case-close",
+          "text": "Về ly đang pha"
+        },
+        {
+          "id": "trail-start",
+          "text": "Xem hai túi hạt"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-yirgacheffe",
+      "phase": "prepare"
+    },
+    {
+      "label": "#trail-start",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-lens-toggle",
+          "text": "Cất kính"
+        },
+        {
+          "id": "ct-start",
+          "text": "Sẵn sàng, bắt đầu pha"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Dùng kính tìm manh mối"
+        },
+        {
+          "id": "case-close",
+          "text": "Về ly đang pha"
+        },
+        {
+          "id": "",
+          "text": "Soi túi 1"
+        },
+        {
+          "id": "",
+          "text": "Soi túi 2"
+        },
+        {
+          "id": "case-leave",
+          "text": "Bỏ điều tra · pha tiếp"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-yirgacheffe",
+      "phase": "prepare"
+    },
+    {
+      "label": "[data-trail-bag=natural]",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-lens-toggle",
+          "text": "Cất kính"
+        },
+        {
+          "id": "ct-start",
+          "text": "Sẵn sàng, bắt đầu pha"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Dùng kính tìm manh mối"
+        },
+        {
+          "id": "case-close",
+          "text": "Về ly đang pha"
+        },
+        {
+          "id": "",
+          "text": "Soi túi 1"
+        },
+        {
+          "id": "",
+          "text": "Ethiopia · NATURAL"
+        },
+        {
+          "id": "trail-confirm",
+          "text": "Gửi túi này cùng bưu thiếp"
+        },
+        {
+          "id": "case-leave",
+          "text": "Bỏ điều tra · pha tiếp"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-yirgacheffe",
+      "phase": "prepare"
+    },
+    {
+      "label": "#trail-confirm",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-lens-toggle",
+          "text": "Cất kính"
+        },
+        {
+          "id": "ct-start",
+          "text": "Sẵn sàng, bắt đầu pha"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Dùng kính tìm manh mối"
+        },
+        {
+          "id": "case-close",
+          "text": "Về ly đang pha"
+        },
+        {
+          "id": "",
+          "text": "Soi túi 1"
+        },
+        {
+          "id": "",
+          "text": "Ethiopia · NATURAL"
+        },
+        {
+          "id": "trail-confirm",
+          "text": "Gửi túi này cùng bưu thiếp"
+        },
+        {
+          "id": "case-leave",
+          "text": "Bỏ điều tra · pha tiếp"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-yirgacheffe",
+      "phase": "prepare"
+    },
+    {
+      "label": "[data-trail-bag=washed]",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-lens-toggle",
+          "text": "Cất kính"
+        },
+        {
+          "id": "ct-start",
+          "text": "Sẵn sàng, bắt đầu pha"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Dùng kính tìm manh mối"
+        },
+        {
+          "id": "case-close",
+          "text": "Về ly đang pha"
+        },
+        {
+          "id": "",
+          "text": "Ethiopia · WASHED"
+        },
+        {
+          "id": "",
+          "text": "Ethiopia · NATURAL"
+        },
+        {
+          "id": "trail-confirm",
+          "text": "Gửi túi này cùng bưu thiếp"
+        },
+        {
+          "id": "case-leave",
+          "text": "Bỏ điều tra · pha tiếp"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-yirgacheffe",
+      "phase": "prepare"
+    },
+    {
+      "label": "#trail-confirm",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-lens-toggle",
+          "text": "Cất kính"
+        },
+        {
+          "id": "ct-start",
+          "text": "Sẵn sàng, bắt đầu pha"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Manh mối đã tìm được"
+        },
+        {
+          "id": "case-close",
+          "text": "Về ly đang pha"
+        },
+        {
+          "id": "trail-done",
+          "text": "Ghim bưu thiếp · pha tiếp"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-yirgacheffe",
+      "phase": "prepare"
+    },
+    {
+      "label": "#trail-done",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-lens-toggle",
+          "text": "Cất kính"
+        },
+        {
+          "id": "ct-start",
+          "text": "Sẵn sàng, bắt đầu pha"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Manh mối đã tìm được"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-yirgacheffe",
+      "phase": "prepare"
+    },
+    {
+      "label": "#ct-start",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-lens-toggle",
+          "text": "Cất kính"
+        },
+        {
+          "id": "ct-hold",
+          "text": "Nhấn giữ để rót"
+        },
+        {
+          "id": "ct-toggle",
+          "text": "Rót tự động"
+        },
+        {
+          "id": "ct-next",
+          "text": "Sang lần rót tiếp"
+        },
+        {
+          "id": "ct-session",
+          "text": "Tạm dừng lượt"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Manh mối đã tìm được"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-yirgacheffe",
+      "phase": "pour"
+    },
+    {
+      "label": "#ct-toggle",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-lens-toggle",
+          "text": "Cất kính"
+        },
+        {
+          "id": "ct-hold",
+          "text": "Nhấn giữ để rót"
+        },
+        {
+          "id": "ct-toggle",
+          "text": "Dừng rót"
+        },
+        {
+          "id": "ct-next",
+          "text": "Sang lần rót tiếp"
+        },
+        {
+          "id": "ct-session",
+          "text": "Tạm dừng lượt"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Manh mối đã tìm được"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-yirgacheffe",
+      "phase": "pour"
+    },
+    {
+      "label": "#ct-next",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-lens-toggle",
+          "text": "Cất kính"
+        },
+        {
+          "id": "ct-hold",
+          "text": "Nhấn giữ để rót"
+        },
+        {
+          "id": "ct-toggle",
+          "text": "Rót tự động"
+        },
+        {
+          "id": "ct-next",
+          "text": "Sang lần rót tiếp"
+        },
+        {
+          "id": "ct-session",
+          "text": "Tạm dừng lượt"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Manh mối đã tìm được"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-yirgacheffe",
+      "phase": "pour"
+    },
+    {
+      "label": "#ct-toggle",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-lens-toggle",
+          "text": "Cất kính"
+        },
+        {
+          "id": "ct-hold",
+          "text": "Nhấn giữ để rót"
+        },
+        {
+          "id": "ct-toggle",
+          "text": "Dừng rót"
+        },
+        {
+          "id": "ct-next",
+          "text": "Sang lần rót tiếp"
+        },
+        {
+          "id": "ct-session",
+          "text": "Tạm dừng lượt"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Manh mối đã tìm được"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-yirgacheffe",
+      "phase": "pour"
+    },
+    {
+      "label": "#ct-next",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-lens-toggle",
+          "text": "Cất kính"
+        },
+        {
+          "id": "ct-hold",
+          "text": "Nhấn giữ để rót"
+        },
+        {
+          "id": "ct-toggle",
+          "text": "Rót tự động"
+        },
+        {
+          "id": "ct-next",
+          "text": "Sang lần rót tiếp"
+        },
+        {
+          "id": "ct-session",
+          "text": "Tạm dừng lượt"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Manh mối đã tìm được"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-yirgacheffe",
+      "phase": "pour"
+    },
+    {
+      "label": "#ct-toggle",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "ct-lens-toggle",
+          "text": "Cất kính"
+        },
+        {
+          "id": "ct-hold",
+          "text": "Nhấn giữ để rót"
+        },
+        {
+          "id": "ct-toggle",
+          "text": "Dừng rót"
+        },
+        {
+          "id": "ct-next",
+          "text": "Sang lần rót tiếp"
+        },
+        {
+          "id": "ct-session",
+          "text": "Tạm dừng lượt"
+        },
+        {
+          "id": "ct-case-open",
+          "text": "Manh mối đã tìm được"
+        },
+        {
+          "id": "season-skip",
+          "text": "Nghe đoạn kết"
+        }
+      ],
+      "episode": "s1-yirgacheffe",
+      "phase": "pour"
+    },
+    {
+      "label": "#season-skip",
+      "speech": "Hai túi hạt được đặt cạnh nhau, nhưng không trộn. Chủ quán viết hai dòng nhãn rõ ràng. “Hôm nay điều mới không nằm trong một lời khen.",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "",
+          "text": "←"
+        },
+        {
+          "id": "",
+          "text": "→"
+        },
+        {
+          "id": "season-goodbye",
+          "text": "Hẹn lần sau"
+        }
+      ],
+      "episode": "s1-yirgacheffe"
+    },
+    {
+      "label": "#season-goodbye",
+      "speech": "Nó nằm trong một câu hỏi chính xác hơn.”",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "",
+          "text": "←"
+        },
+        {
+          "id": "",
+          "text": "→"
+        },
+        {
+          "id": "season-goodbye",
+          "text": "Hẹn lần sau"
+        }
+      ],
+      "episode": "s1-yirgacheffe"
+    },
+    {
+      "label": "#season-goodbye",
+      "speech": "Lần tới tôi sẽ mở món này: James Hoffmann · Ultimate V60. Hôm nào bạn rảnh, cứ ghé nhé.",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "",
+          "text": "←"
+        },
+        {
+          "id": "",
+          "text": "→"
+        },
+        {
+          "id": "season-continue",
+          "text": "Ghé lượt tiếp"
+        },
+        {
+          "id": "season-revisit",
+          "text": "Pha lại"
+        },
+        {
+          "id": "season-read-current",
+          "text": "Đọc lại"
+        }
+      ],
+      "episode": "s1-yirgacheffe"
+    },
+    {
+      "label": "#cafe-notebook",
+      "speech": "Lần tới tôi sẽ mở món này: James Hoffmann · Ultimate V60. Hôm nào bạn rảnh, cứ ghé nhé.",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "",
+          "text": "←"
+        },
+        {
+          "id": "",
+          "text": "→"
+        },
+        {
+          "id": "season-continue",
+          "text": "Ghé lượt tiếp"
+        },
+        {
+          "id": "season-revisit",
+          "text": "Pha lại"
+        },
+        {
+          "id": "season-read-current",
+          "text": "Đọc lại"
+        },
+        {
+          "id": "",
+          "text": "Về quán"
+        },
+        {
+          "id": "",
+          "text": "Tủ 14 lượt ghé & món hôm nay"
+        },
+        {
+          "id": "open-seven-visits",
+          "text": "Ghé quán hôm nay"
+        },
+        {
+          "id": "open-first-pour",
+          "text": "The First Pour · v0.14.0"
+        },
+        {
+          "id": "counter-play-nav",
+          "text": "Quầy luyện rót"
+        },
+        {
+          "id": "open-real-brew",
+          "text": "Ghi lượt pha thật"
+        },
+        {
+          "id": "studio-toggle",
+          "text": "Hồ sơ hạt & nhật ký · tùy chọn"
+        }
+      ],
+      "episode": "s1-yirgacheffe"
+    },
+    {
+      "label": "return-after-postcard",
+      "speech": "Lần tới tôi sẽ mở món này: James Hoffmann · Ultimate V60. Hôm nào bạn rảnh, cứ ghé nhé.",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "",
+          "text": "←"
+        },
+        {
+          "id": "",
+          "text": "→"
+        },
+        {
+          "id": "season-continue",
+          "text": "Ghé lượt tiếp"
+        },
+        {
+          "id": "season-revisit",
+          "text": "Pha lại"
+        },
+        {
+          "id": "season-read-current",
+          "text": "Đọc lại"
+        }
+      ],
+      "episode": "s1-yirgacheffe"
+    },
+    {
+      "label": "#season-continue",
+      "speech": "“Tôi nhớ tách bạn tự pha lần trước. Hôm nay có một món khác để cùng thử.”",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "",
+          "text": "←"
+        },
+        {
+          "id": "",
+          "text": "→"
+        },
+        {
+          "id": "season-next",
+          "text": "Kể tiếp"
+        },
+        {
+          "id": "season-try",
+          "text": "Tôi pha thử"
+        }
+      ],
+      "episode": "s1-hoffmann"
+    },
+    {
+      "label": "visit-four",
+      "speech": "“Tôi nhớ tách bạn tự pha lần trước. Hôm nay có một món khác để cùng thử.”",
+      "buttons": [
+        {
+          "id": "cafe-music-shortcut",
+          "text": "Bật nhạc"
+        },
+        {
+          "id": "cafe-notebook",
+          "text": "Sổ"
+        },
+        {
+          "id": "",
+          "text": "Mở sổ món"
+        },
+        {
+          "id": "",
+          "text": "←"
+        },
+        {
+          "id": "",
+          "text": "→"
+        },
+        {
+          "id": "season-next",
+          "text": "Kể tiếp"
+        },
+        {
+          "id": "season-try",
+          "text": "Tôi pha thử"
+        }
+      ],
+      "episode": "s1-hoffmann"
+    }
+  ]
+}
