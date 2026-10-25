@@ -1,6 +1,6 @@
 # The Coffee Six Sense
 
-## Product planning — v0.15.1 (strategy baseline v0.12)
+## Product planning — v0.16.0 (strategy baseline v0.12)
 
 For product-planning handoffs, start with these documents. They distinguish shipped behavior from proposals awaiting implementation approval:
 
@@ -27,6 +27,10 @@ Try the optional scale mystery while preparing the Yemen cup: predict, choose wh
 ## Three-clue postcard trail — v0.14.0
 
 An additional linked trail is approved for release: an immediate owner invitation, the existing Yemen scale case, a playable AeroPress scale-placement comparison, and an Ethiopia label/parcel task with a persistent café postcard. Map interaction and old-player access are also refined. See [scope, compatibility and test evidence](docs/POSTCARD_TRAIL.md). Publication and public-artifact verification are recorded in [shared status](docs/SYNC_STATUS.md).
+
+## Cozy listening and automatic rest — v0.16.0
+
+The game keeps its full screen. “Ngồi chill” opens a separate café scene with the owner-selected YouTube source, music search suggestions and support for pasted video/playlist links. After 90 seconds of inactivity, existing game checkpoints are paused and the café rest scene opens automatically; settings include other delays and Off. Resume returns to the existing visit and notebook. New YouTube playback still requires a click. See [behavior and verification](docs/CAFE-RADIO.md).
 
 ## Radio layout fix — v0.15.1
 

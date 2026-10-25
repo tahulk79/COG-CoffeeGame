@@ -87,3 +87,7 @@ The owner reported that the v0.15 floating radio obscured play. Replace the popu
 - Public entry https://tahulk79.github.io/TheCoffeeSixSense/?v=0.15.1 downloaded byte-identical to the reviewed standalone. SHA-256 `9c21284bd1a78f6a8177027ab8a54b189632fd34b41f16d9934d0bc3ff979389`.
 - 145 unit/model checks and standalone/Vite builds pass. Downloaded-public-artifact Chromium replay passes at 320×568, 390×844, 844×390 and 1280×800: non-overlapping game/radio rectangles, reachable pour controls, model water increase while the same iframe stays mounted, source exclusion and notebook/language/stop/Escape paths.
 - YouTube is stubbed for UI verification; actual audio/provider behavior is not inferred. The official player remains visible. Short mobile screens trade a full-height game viewport for an independently scrolling game pane beside the visible player; no floating popup or hidden YouTube playback.
+
+## Cozy listening and AFK update — v0.16
+
+The owner requested continued YouTube support, suggested music lists and an automatic cozy café idle scene, with the owner-story pacing discussion deferred until afterward. Implemented: separate listening scene instead of docked video occupying gameplay space; directly selectable supplied Rico Latino video; clearly labeled YouTube search suggestions; safe video/playlist link input and recent-source recall; 90-second idle pause with 30s/90s/3m/Off settings; explicit return preserving checkpoint, notebook and focus. No owner-story rewrite is included. Actual release/source/run evidence follows publication.
