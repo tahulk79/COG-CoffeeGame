@@ -7,12 +7,14 @@ Observation date: 25 October 2026. This is a dated handoff snapshot, not a backg
 | Item | Observation / evidence |
 | --- | --- |
 | Repository / branch | `tahulk79/TheCoffeeSixSense` / `main`; public repository. |
-| Application version | **v0.13.0** for the owner-approved scale-mystery release. Publication and runtime evidence are recorded in the release section below. |
+| Application version | **v0.13.0**, merged and published through the approved scale-mystery release. Exact source/deployment/runtime evidence is below. |
+| Current application source | `f18babeddbd1057dbfb66bf3df055b6f86c1b5be`, [PR #36](https://github.com/tahulk79/TheCoffeeSixSense/pull/36): optional scale mystery, evidence journal and inspection-lens unlock. |
 | Previous application source commit | `39f4b1caa41f10e550fdbf1d7e9775827b3d89ca`, [PR #34](https://github.com/tahulk79/TheCoffeeSixSense/pull/34): exposed save retry during café brewing and added the MVP audit. |
 | Earlier product-doc publication | [PR #33](https://github.com/tahulk79/TheCoffeeSixSense/pull/33), `d9f32ac6d8353d98a8e9c719d93a2339858f6066`. The original v0.12 release/audit baseline is `0ae226764d6248501ec576b343e14c369cba9eec`; it is not the latest source revision. |
 | Source validation | GitHub reports [validation run 40184227626](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40184227626) successful for `39f4b1c…`. |
 | Previous Pages publication | GitHub reports [deployment run 40184439924](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40184439924) successful for `39f4b1c…`. This synchronization task did not dispatch that deployment or re-test the live site. |
 | Application entry | https://tahulk79.github.io/TheCoffeeSixSense/?v=0.13.0 — the version query alone does not identify a source commit or prove live availability. |
+| Preferred working mode | Product planning and development continue in this single Codex conversation, as requested by the owner. No cross-chat copy/paste is required for this workflow. The read-only cross-conversation agreement is an optional fallback. |
 | Planning ChatGPT connection | Owner reports GitHub **read access only**. No write access, background refresh or task execution capability is inferred. |
 | Automated conversation synchronization | **Not installed.** No shared chat-history service or AI runner has been configured. |
 
@@ -25,7 +27,7 @@ The latest [MVP audit](MVP_AUDIT_2026-10-25.md) records model/build checks and a
 | Game First / Hybrid Discovery / Persistent Discovery | Product direction recorded | Use [STRATEGIC_HANDOFF.md](STRATEGIC_HANDOFF.md) and the newer audit. This is not approval to implement every proposed system. |
 | Four current planning documents and README index | Published | [CURRENT_STATE.md](CURRENT_STATE.md), [GAP_ANALYSIS.md](GAP_ANALYSIS.md), [ROADMAP_V012.md](ROADMAP_V012.md) and the strategic handoff are on main. Their dates/source baselines remain relevant. |
 | Read-only ChatGPT ↔ Codex coordination | Procedure prepared | Follow [WORK_SYNC.md](WORK_SYNC.md). The owner still transfers the proposed/approved handoff from ChatGPT into Codex. |
-| Optional mystery + useful unlock + linked evidence journal | APPROVED FOR RELEASE | The owner approved publishing, merging and deploying the reviewed pilot. See DISCOVERY_CASE.md and release evidence below. Wider roadmap work remains a proposal. |
+| Optional mystery + useful unlock + linked evidence journal | MERGED / DEPLOYED / ARTIFACT VERIFIED | PR #36 and deployment/runtime evidence below confirm this bounded pilot. Wider roadmap work remains a proposal. |
 | Release number | v0.13.0 | Minor version for the approved scale-mystery pilot; historical v0.12 strategy/audit baselines are preserved. |
 | Fully autonomous cross-conversation work | BLOCKED on capabilities/design | Read-only GitHub cannot write plans or trigger a runner. A write/API path and explicit execution/approval/cost design would be needed. No credentials should be sent in chat. |
 | Hosting migration, payments, marketing | Outside synchronization scope | Keep Pages. No VPS setup, premium currency, payment system or campaign is authorized by this procedure. |
@@ -38,4 +40,12 @@ The earlier coordination update installed no automation. The later owner approva
 
 ## Approved release — C6S-SCALE-MYSTERY-01
 
-The pilot is documented in [DISCOVERY_CASE.md](DISCOVERY_CASE.md): optional prediction/observation/conclusion, an inspection-lens unlock and separate game-evidence journal. 135 unit checks, build checks and focused Chromium flows pass. The owner approved GitHub publication, merge and Pages deployment. Deployment and downloaded-public-artifact verification will be recorded here after the workflow completes; approval alone is not evidence of deployment. No human retention study has been performed.
+The pilot is documented in [DISCOVERY_CASE.md](DISCOVERY_CASE.md): optional prediction/observation/conclusion, an inspection-lens unlock and separate game-evidence journal. 135 unit checks, build checks and focused Chromium flows pass. The owner approved GitHub publication, merge and Pages deployment. The approved release is merged and deployed, with downloaded-public-artifact verification recorded below. No human retention study has been performed.
+
+### Verified publication — 25 October 2026, 11:02 UTC
+
+- Source: [PR #36](https://github.com/tahulk79/TheCoffeeSixSense/pull/36), merged commit `f18babeddbd1057dbfb66bf3df055b6f86c1b5be`.
+- GitHub Pages: [run 40187012470](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40187012470), successful for that exact source commit.
+- Public entry: https://tahulk79.github.io/TheCoffeeSixSense/?v=0.13.0. The response was downloaded and matched the local standalone artifact byte for byte. SHA-256: `91eece34f67edb073c83125608faf75844b385acd3db327663a3a9db5b77c23e`.
+- The downloaded public HTML was replayed in Chromium at the Pages base path, using isolated browser storage: the five-size VI/EN case matrix plus checkpoint/language, optional-watch exit, quota/retry/corrupt data, immutable completed books and next-AeroPress/quiet/lens paths all passed. This verifies that downloaded artifact under the tested browser conditions; it is not physical-device/Safari testing or a human-retention study.
+- No VPS, analytics service, payments or broader progression system was introduced. Later documentation-only commits may follow the deployed source without changing the application artifact.
