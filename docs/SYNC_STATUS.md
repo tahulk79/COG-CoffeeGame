@@ -91,3 +91,5 @@ The owner reported that the v0.15 floating radio obscured play. Replace the popu
 ## Cozy listening and AFK update — v0.16
 
 The owner requested continued YouTube support, suggested music lists and an automatic cozy café idle scene, with the owner-story pacing discussion deferred until afterward. Implemented: separate listening scene instead of docked video occupying gameplay space; directly selectable supplied Rico Latino video; clearly labeled YouTube search suggestions; safe video/playlist link input and recent-source recall; 90-second idle pause with 30s/90s/3m/Off settings; explicit return preserving checkpoint, notebook and focus. No owner-story rewrite is included. Actual release/source/run evidence follows publication.
+
+The lounge also offers an unchecked-by-default “On idle, restart my chosen music” preference. With explicit opt-in and a valid previous source, automatic rest loads that source; otherwise idle opens silently until a source is clicked. Provider autoplay restrictions may still require Play in the frame.

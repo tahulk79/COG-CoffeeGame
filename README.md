@@ -30,7 +30,7 @@ An additional linked trail is approved for release: an immediate owner invitatio
 
 ## Cozy listening and automatic rest — v0.16.0
 
-The game keeps its full screen. “Ngồi chill” opens a separate café scene with the owner-selected YouTube source, music search suggestions and support for pasted video/playlist links. After 90 seconds of inactivity, existing game checkpoints are paused and the café rest scene opens automatically; settings include other delays and Off. Resume returns to the existing visit and notebook. New YouTube playback still requires a click. See [behavior and verification](docs/CAFE-RADIO.md).
+The game keeps its full screen. “Ngồi chill” opens a separate café scene with the owner-selected YouTube source, music search suggestions and support for pasted video/playlist links. After 90 seconds of inactivity, existing game checkpoints are paused and the café rest scene opens automatically; settings include other delays and Off. Resume returns to the existing visit and notebook. YouTube starts after a source click, or on idle only when the player explicitly enables restarting their chosen source. See [behavior and verification](docs/CAFE-RADIO.md).
 
 ## Radio layout fix — v0.15.1
 
