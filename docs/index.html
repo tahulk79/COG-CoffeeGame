@@ -181,6 +181,12 @@ body{background:radial-gradient(ellipse at 12% 0,#3b3027 0,transparent 48%),radi
 @media(max-width:600px){#cafe .scene-actions:has(#season-investigate){display:grid;grid-template-columns:1fr 1fr}#cafe #season-investigate{grid-column:1/-1}#cafe .scene-kept-postcard{width:58px}#cafe .trail-bags svg{max-height:100px}}
 #cafe .scene-window .scene-kept-postcard{right:6px;top:18px;width:70px}@media(max-width:600px){#cafe .scene-window .scene-kept-postcard{width:52px;right:4px;top:16px}}
 #cafe .ct-experience[data-case-hold=true] .ct-qa{visibility:visible}
+
+.cafe-radio{position:fixed;inset:64px 12px auto auto;margin:0;width:min(340px,calc(100vw - 24px));max-height:calc(100dvh - 80px);overflow:auto;box-sizing:border-box;padding:12px;background:#26382f;color:#f1e3c6;border:1px solid #b59c72;border-radius:14px;z-index:30;box-shadow:0 10px 35px #0008}.cafe-radio header{display:flex;align-items:center;justify-content:space-between;gap:8px}.cafe-radio header button{font-size:.7rem;padding:8px;min-height:44px}.cafe-radio p{font-size:.75rem;margin:8px 0}.cafe-radio a{color:#f0c486;font-size:.8rem}.radio-player iframe{display:block;width:100%;height:200px;border:0}.cafe-radio .help{line-height:1.4}
+
+.welcome-cup{position:absolute;left:calc(50% - 55px);bottom:4px;width:110px;height:100px;min-height:44px;margin:0;padding:0;border:0;background:transparent!important;z-index:3}.welcome-cup .scene-prop{position:static;width:110px;filter:drop-shadow(0 5px 6px #1118);transition:transform .2s}.welcome-cat{position:absolute;right:5%;bottom:34px;width:85px;height:85px;min-height:44px;padding:0;margin:0;border:0;background:transparent!important;z-index:3}.welcome-cat svg{display:block;width:100%;transition:transform .2s}.welcome-touch-hint{position:absolute;top:8px;left:8px;right:8px;text-align:center;font-size:.7rem;color:#f5e5c4;background:#24382dcc;padding:5px;border-radius:6px}.welcome-stage[data-reaction=lift] .welcome-cup .scene-prop{transform:translateY(-22px) rotate(-7deg)}.welcome-stage[data-reaction=tap] .welcome-cup .scene-prop{transform:rotate(9deg)}.welcome-stage[data-reaction=offer] .welcome-cup .scene-prop{transform:translateX(35px)}.welcome-stage[data-reaction=offer] .welcome-cat svg{transform:scaleX(-1)}.welcome-cup:focus-visible,.welcome-cat:focus-visible{outline:3px solid #edc57e;outline-offset:3px;border-radius:10px}@media(prefers-reduced-motion:reduce){.welcome-cup .scene-prop,.welcome-cat svg{transition:none}}
+
+.welcome-stage .scene-guest{display:none}
 </style><script type="module">
 function cafeDialoguePages(text,limit=135){
  const sentences=String(text).trim().match(/[^.!?…]+[.!?…]+[”’"]?|[^.!?…]+$/gu)||[];
@@ -1271,6 +1277,599 @@ function loadCafeSeason(raw){
 
 function saveSeasonTasting(store,experience){const v=store.visits.at(-1);if(!v||v.closed||v.beat!==6||!v.experience||v.experience.role!==experience?.role||!validTasting(experience,v.episodeId))return store;return {...store,visits:[...store.visits.slice(0,-1),{...v,experience,activity:experience.phase==='finished'?'done':'playing'}]};}
 
+// A finite fourteen-visit comic repertoire; stable within a visit, no coffee science claims.
+const welcomeSeenKey='c6s.welcome-seen.v1';
+const welcomeScenes=[
+ {
+  "id": "cup",
+  "title": [
+   "Hội đồng thẩm định chiếc cốc",
+   "The cup inspection committee"
+  ],
+  "hello": [
+   "May quá, có người phân xử. Đây là cốc cà phê, đúng không? Con mèo khăng khăng bảo là bể bơi.",
+   "Finally, a referee. This is a coffee cup, right? The cat insists it’s a swimming pool."
+  ],
+  "labels": {
+   "lift": [
+    "Nhấc cốc",
+    "Lift cup"
+   ],
+   "tap": [
+    "Gõ thử cốc",
+    "Tap cup"
+   ],
+   "offer": [
+    "Cho mèo xem",
+    "Show cat"
+   ]
+  },
+  "lines": {
+   "lift": [
+    "Bạn nhấc cốc rỗng. Mèo tìm giấy phép xây bể bơi ở đáy. Chủ quán bảo hồ sơ đang được bổ sung.",
+    "You lift the empty cup. The cat checks underneath for a pool permit. The owner says paperwork is pending."
+   ],
+   "tap": [
+    "Cốc kêu “cốc”. “Đã tự giới thiệu luôn,” chủ quán gật đầu. Mèo chưa ký duyệt.",
+    "The cup goes clink. “An excellent introduction,” says the owner. The cat withholds approval."
+   ],
+   "offer": [
+    "Mèo quay lưng với cốc rỗng. “Bể bơi không có nước: một sao.”",
+    "The cat turns away from the empty cup. “Waterless pool: one star.”"
+   ]
+  },
+  "cat": true
+ },
+ {
+  "id": "bell",
+  "title": [
+   "Chuông xin nghỉ phép",
+   "The bell takes a day off"
+  ],
+  "hello": [
+   "Chuông cửa gửi đơn xin nghỉ. Tôi chưa duyệt vì nó chưa ký tên. Bạn gọi nó dậy giúp nhé?",
+   "The doorbell requested a day off. No signature, so I can’t approve it. Can you wake it?"
+  ],
+  "labels": {
+   "lift": [
+    "Nhấc chuông",
+    "Lift bell"
+   ],
+   "tap": [
+    "Bấm chuông",
+    "Ring bell"
+   ],
+   "offer": [
+    "Hỏi chủ quán",
+    "Ask owner"
+   ]
+  },
+  "lines": {
+   "lift": [
+    "Bạn nhấc chuông. Dưới đế có mảnh giấy: “Vẫn đang làm việc, chỉ không muốn nói chuyện.”",
+    "Under the bell: “Still working. Just not feeling conversational.”"
+   ],
+   "tap": [
+    "Keng! “Được rồi, đơn xin nghỉ chuyển sang tuần sau,” chủ quán nói.",
+    "Ding! “Right. Holiday postponed until next week,” says the owner."
+   ],
+   "offer": [
+    "Chủ quán thử gọi “chuông ơi”. Không ai trả lời. “Chắc đang họp.”",
+    "The owner calls its name. No reply. “Must be in a meeting.”"
+   ]
+  },
+  "cat": false
+ },
+ {
+  "id": "spoon",
+  "title": [
+   "Thìa dẫn đường",
+   "The navigation spoon"
+  ],
+  "hello": [
+   "Mất la bàn rồi. Tôi dùng thìa thay tạm, nhưng nó cứ chỉ về phía bánh. Bạn kiểm tra giúp?",
+   "Lost my compass. This spoon only points toward cake. Can you check it?"
+  ],
+  "labels": {
+   "lift": [
+    "Xoay thìa",
+    "Turn spoon"
+   ],
+   "tap": [
+    "Gõ nhịp",
+    "Tap a beat"
+   ],
+   "offer": [
+    "Đưa mèo soi",
+    "Cat inspection"
+   ]
+  },
+  "lines": {
+   "lift": [
+    "Bạn xoay thìa. “Hướng Bắc đã chuyển về phía bạn. Chắc bạn có bánh?”",
+    "You turn the spoon. “North moved toward you. Carrying cake?”"
+   ],
+   "tap": [
+    "Ting ting. Chủ quán gật gù: “Chức năng phụ: ban nhạc một người.”",
+    "Ting ting. “Bonus feature: a one-person band.”"
+   ],
+   "offer": [
+    "Mèo ngửi thìa rồi bỏ đi. “Thiết bị không hỗ trợ định vị mèo.”",
+    "The cat sniffs it and leaves. “Cat navigation not supported.”"
+   ]
+  },
+  "cat": true
+ },
+ {
+  "id": "napkin",
+  "title": [
+   "Khăn giấy đi làm mẫu",
+   "The napkin models"
+  ],
+  "hello": [
+   "Tôi gấp thiên nga. Mèo bảo là bánh bao. Bạn xem giúp trước khi tôi mở triển lãm nhé.",
+   "I folded a swan. The cat says it’s a dumpling. A second opinion before the exhibition?"
+  ],
+  "labels": {
+   "lift": [
+    "Lật khăn",
+    "Turn napkin"
+   ],
+   "tap": [
+    "Ấn nếp gấp",
+    "Press fold"
+   ],
+   "offer": [
+    "Mời mèo chấm",
+    "Ask cat"
+   ]
+  },
+  "lines": {
+   "lift": [
+    "Bạn lật khăn. Mặt sau giống chiếc thuyền. “Nghệ thuật đa ngành,” chủ quán kết luận.",
+    "The back looks like a boat. “An interdisciplinary work,” declares the owner."
+   ],
+   "tap": [
+    "Bạn ấn một nếp. Thiên nga nằm xuống. “Nó chuyển sang chế độ tiết kiệm năng lượng.”",
+    "You press a fold. The swan lies down. “Power-saving mode.”"
+   ],
+   "offer": [
+    "Mèo đặt một chân lên khăn. “Ban giám khảo đã chọn: chăn cá nhân.”",
+    "The cat puts a paw on it. “The jury has chosen: personal blanket.”"
+   ]
+  },
+  "cat": true
+ },
+ {
+  "id": "ticket",
+  "title": [
+   "Vé xếp hàng số không",
+   "Queue ticket zero"
+  ],
+  "hello": [
+   "Máy phát vé vừa cho tôi số 0. Quán chưa mở mà tôi đã đứng cuối hàng của chính mình.",
+   "The ticket machine gave me number zero. Somehow I’m last in my own empty café."
+  ],
+  "labels": {
+   "lift": [
+    "Lật vé",
+    "Flip ticket"
+   ],
+   "tap": [
+    "Đóng dấu",
+    "Stamp ticket"
+   ],
+   "offer": [
+    "Gọi số",
+    "Call number"
+   ]
+  },
+  "lines": {
+   "lift": [
+    "Mặt sau ghi “khách đầu tiên”. Chủ quán thở phào: “Chưa bị máy sa thải.”",
+    "The back says “first guest”. “Good. The machine hasn’t fired me.”"
+   ],
+   "tap": [
+    "Cộp. Bạn xác nhận số 0. “Một con số nhỏ, thủ tục rất đầy đủ.”",
+    "Thunk. Zero is officially stamped. “A small number with excellent paperwork.”"
+   ],
+   "offer": [
+    "Bạn gọi số 0. Chủ quán giơ tay: “Có mặt! Cho tôi một phút tìm chỗ ngồi.”",
+    "You call zero. The owner raises a hand. “Here! Give me a minute to find a seat.”"
+   ]
+  },
+  "cat": false
+ },
+ {
+  "id": "sign",
+  "title": [
+   "Biển mở cửa hướng nội",
+   "The introverted open sign"
+  ],
+  "hello": [
+   "Tấm biển ghi MỞ nhưng cứ quay vào tường. Hôm nay nó hơi hướng nội. Bạn giúp nó giao tiếp nhé.",
+   "The OPEN sign keeps facing the wall. Feeling introverted today. Help it socialize?"
+  ],
+  "labels": {
+   "lift": [
+    "Xoay biển",
+    "Turn sign"
+   ],
+   "tap": [
+    "Gõ biển",
+    "Knock sign"
+   ],
+   "offer": [
+    "Hỏi chủ quán",
+    "Ask owner"
+   ]
+  },
+  "lines": {
+   "lift": [
+    "Bạn xoay biển ra ngoài. “Một bước tiến lớn cho ngành biển hiệu.”",
+    "You turn it outward. “A giant leap for signkind.”"
+   ],
+   "tap": [
+    "Cộc cộc. Chủ quán đáp “mời vào” rồi nhận ra mình đang đứng trong quán.",
+    "Knock knock. The owner says “come in” then remembers he’s already inside."
+   ],
+   "offer": [
+    "“Nếu đóng cửa thì nó quay ra ngoài rất nhanh. Tôi cũng muốn có động lực như thế.”",
+    "“It faces outward instantly at closing time. I envy that motivation.”"
+   ]
+  },
+  "cat": false
+ },
+ {
+  "id": "clock",
+  "title": [
+   "Đồng hồ làm bán thời gian",
+   "The part-time clock"
+  ],
+  "hello": [
+   "Đồng hồ chỉ đúng hai lần mỗi ngày. Nó vừa đề nghị tăng lương vì độ chính xác tuyệt đối ở hai lần đó.",
+   "This clock is right twice a day. It wants a raise for those two perfect performances."
+  ],
+  "labels": {
+   "lift": [
+    "Xoay đồng hồ",
+    "Turn clock"
+   ],
+   "tap": [
+    "Gõ nhẹ",
+    "Tap gently"
+   ],
+   "offer": [
+    "Hỏi giờ",
+    "Ask the time"
+   ]
+  },
+  "lines": {
+   "lift": [
+    "Bạn xoay đồng hồ. “Không sửa thời gian, nhưng thay đổi góc nhìn. Cũng có công.”",
+    "You turn it. “Time unchanged. Perspective improved. Counts as work.”"
+   ],
+   "tap": [
+    "Tích. Rồi im. Chủ quán ghi chú: “Đã hoàn thành một chỉ tiêu.”",
+    "Tick. Silence. The owner notes: “One target achieved.”"
+   ],
+   "offer": [
+    "Chủ quán nhìn ấm nước: “Giờ có khách. Tạm thời thông tin đó đáng tin hơn.”",
+    "The owner checks the kettle. “Guest o’clock. More reliable for now.”"
+   ]
+  },
+  "cat": false
+ },
+ {
+  "id": "plant",
+  "title": [
+   "Tư vấn nghề cho cây",
+   "Career advice for a plant"
+  ],
+  "hello": [
+   "Tôi bảo cây chọn hướng phát triển. Nó nghiêng về cửa sổ. Rất quyết đoán, không cần họp thêm.",
+   "I asked the plant about its career direction. It leaned toward the window. No further meetings needed."
+  ],
+  "labels": {
+   "lift": [
+    "Xoay chậu",
+    "Turn pot"
+   ],
+   "tap": [
+    "Xem thẻ cây",
+    "Read plant tag"
+   ],
+   "offer": [
+    "Hỏi chủ quán",
+    "Ask owner"
+   ]
+  },
+  "lines": {
+   "lift": [
+    "Bạn xoay chậu. “Đổi phòng ban, vẫn hướng ánh sáng. Hồ sơ nhất quán.”",
+    "You turn the pot. “Different department, same light. Consistent résumé.”"
+   ],
+   "tap": [
+    "Thẻ ghi “đừng tưới bằng cà phê”. Chủ quán cất cốc của mình ra xa. “Tôi chỉ định ngồi cạnh thôi.”",
+    "The tag says “no coffee watering”. The owner moves his cup away. “Just keeping it company.”"
+   ],
+   "offer": [
+    "“Nó không trả lời email, nhưng tăng trưởng đều. Nhân viên xuất sắc tháng này.”",
+    "“Never answers email. Steady growth, though. Employee of the month.”"
+   ]
+  },
+  "cat": false
+ },
+ {
+  "id": "bag",
+  "title": [
+   "Túi giấy tuyển mèo",
+   "A bag recruits a cat"
+  ],
+  "hello": [
+   "Tôi mua túi để đựng hạt. Mèo thấy tin tuyển nhà ở. Hai bên đang thương lượng diện tích.",
+   "I bought a bag for beans. The cat saw a property listing. Floor-space negotiations are ongoing."
+  ],
+  "labels": {
+   "lift": [
+    "Mở túi rỗng",
+    "Open empty bag"
+   ],
+   "tap": [
+    "Vuốt túi",
+    "Smooth bag"
+   ],
+   "offer": [
+    "Cho mèo xem",
+    "Show cat"
+   ]
+  },
+  "lines": {
+   "lift": [
+    "Bạn mở túi rỗng. Mèo tiến một bước. Chủ quán: “Khách đã đặt cọc bằng ánh mắt.”",
+    "You open the empty bag. The cat approaches. “Deposit paid in eye contact.”"
+   ],
+   "tap": [
+    "Sột soạt. Mèo quay lại ngay. “Âm thanh thông báo bất động sản rất hiệu quả.”",
+    "Rustle. Instant cat attention. “Highly effective property notifications.”"
+   ],
+   "offer": [
+    "Mèo ngồi cạnh túi, không vào. “Đang chờ giá giảm.”",
+    "The cat sits beside the bag, not inside. “Waiting for a price drop.”"
+   ]
+  },
+  "cat": true
+ },
+ {
+  "id": "scale",
+  "title": [
+   "Cân đang cân nhắc",
+   "The scale considers its options"
+  ],
+  "hello": [
+   "Cân chưa bật. Tôi hỏi vì sao, nó không đáp. Có lẽ vẫn đang cân nhắc. Bạn xem giúp nhé.",
+   "The scale is off. Asked why; no answer. Perhaps it’s weighing its options. Take a look?"
+  ],
+  "labels": {
+   "lift": [
+    "Nhấc cân tắt",
+    "Lift idle scale"
+   ],
+   "tap": [
+    "Chạm nút",
+    "Touch button"
+   ],
+   "offer": [
+    "Hỏi chủ quán",
+    "Ask owner"
+   ]
+  },
+  "lines": {
+   "lift": [
+    "Bạn kiểm tra dưới cân. Có công tắc. Chủ quán gật đầu: “Tìm được nút khởi nghiệp.”",
+    "There’s a switch underneath. “Found the startup button,” says the owner."
+   ],
+   "tap": [
+    "Màn hình chào 0. “Rất khiêm tốn. Chưa làm gì đã biết bắt đầu từ đâu.”",
+    "The display greets you with zero. “Knows exactly where to start.”"
+   ],
+   "offer": [
+    "“Cân thật ở bàn pha vẫn làm việc bình thường. Đây là cái tôi đang sửa.”",
+    "“The brewing scale works normally. This is the one I’m fixing.”"
+   ]
+  },
+  "cat": false
+ },
+ {
+  "id": "umbrella",
+  "title": [
+   "Ô dự báo trong nhà",
+   "An indoor weather forecast"
+  ],
+  "hello": [
+   "Chiếc ô đi làm đúng giờ. Nhưng quán có mái rồi. Tôi đang tìm việc khác cho nó.",
+   "The umbrella arrived on time. Unfortunately, we have a roof. Finding it another role."
+  ],
+  "labels": {
+   "lift": [
+    "Xoay ô gấp",
+    "Turn folded umbrella"
+   ],
+   "tap": [
+    "Xem nhãn ô",
+    "Check umbrella tag"
+   ],
+   "offer": [
+    "Hỏi chủ quán",
+    "Ask owner"
+   ]
+  },
+  "lines": {
+   "lift": [
+    "Bạn xoay ô gấp. “Ứng viên có khả năng thích nghi với mọi góc quầy.”",
+    "You turn the folded umbrella. “Adapts to every corner of the counter.”"
+   ],
+   "tap": [
+    "Nhãn ghi “chống nước”. Chủ quán nhìn cốc: “Không nên thử bằng cách nhúng.”",
+    "“Water-resistant,” says the tag. “No need to dunk it in a drink.”"
+   ],
+   "offer": [
+    "“Trời tạnh rồi. Cho nó nghỉ cũng được. Không phải đồ gì cũng cần bận cả ngày.”",
+    "“Rain stopped. It can rest. Not everything needs to be busy all day.”"
+   ]
+  },
+  "cat": false
+ },
+ {
+  "id": "notebook",
+  "title": [
+   "Sổ tay quên ghi tên",
+   "The anonymous notebook"
+  ],
+  "hello": [
+   "Tôi mở sổ để ghi mình đang tìm gì. Nhưng quên mang bút. Giờ tôi đang tìm hai thứ.",
+   "Opened my notebook to list what I’d lost. Forgot my pen. Now I’m looking for two things."
+  ],
+  "labels": {
+   "lift": [
+    "Lật sổ",
+    "Open notebook"
+   ],
+   "tap": [
+    "Chỉ vào bìa",
+    "Point at cover"
+   ],
+   "offer": [
+    "Hỏi chủ quán",
+    "Ask owner"
+   ]
+  },
+  "lines": {
+   "lift": [
+    "Trang đầu ghi “bút ở sau tai”. Chủ quán kiểm tra. Tìm thấy. “Tôi của hôm qua rất có năng lực.”",
+    "Page one: “Pen behind ear.” Found it. “Yesterday’s me was highly competent.”"
+   ],
+   "tap": [
+    "Bìa ghi “đừng quên mở sổ”. “Hệ thống nhắc việc nhiều tầng,” chủ quán giải thích.",
+    "Cover: “Remember to open this.” “A multilayer reminder system,” explains the owner."
+   ],
+   "offer": [
+    "“Có khi ghi một việc thôi cũng được. Hôm nay: đón khách. Xong rồi này.”",
+    "“One item is enough sometimes. Today: welcome a guest. Done.”"
+   ]
+  },
+  "cat": false
+ },
+ {
+  "id": "jar",
+  "title": [
+   "Lọ đường bị hiểu nhầm",
+   "The misunderstood sugar jar"
+  ],
+  "hello": [
+   "Tôi dán chữ ĐƯỜNG. Có người hỏi đường ra ga. Tôi chỉ được tuyến từ đây đến chiếc thìa.",
+   "The sugar jar says SUGAR ROAD. Someone asked for directions. I only know the route to the spoon."
+  ],
+  "labels": {
+   "lift": [
+    "Xoay lọ đóng",
+    "Turn closed jar"
+   ],
+   "tap": [
+    "Đọc nhãn",
+    "Read label"
+   ],
+   "offer": [
+    "Đưa mèo xem",
+    "Show cat"
+   ]
+  },
+  "lines": {
+   "lift": [
+    "Mặt kia ghi “không phải bản đồ”. Chủ quán thở phào: “Bản cập nhật đã có tác dụng.”",
+    "The back says “not a map”. “The update is working,” says the owner."
+   ],
+   "tap": [
+    "Bạn đọc hết nhãn. Dòng cuối: “Xin đừng hỏi giờ tàu chạy.”",
+    "At the bottom: “Please don’t ask for train times.”"
+   ],
+   "offer": [
+    "Mèo không quan tâm lọ đường đóng kín. “Khách này dùng định vị bằng chỗ nắng.”",
+    "The cat ignores the closed jar. “This guest navigates by sunny spots.”"
+   ]
+  },
+  "cat": true
+ },
+ {
+  "id": "key",
+  "title": [
+   "Chìa khóa không nhận việc",
+   "The key declines the job"
+  ],
+  "hello": [
+   "Tôi tìm thấy chìa khóa, nhưng không biết của ổ nào. Nó có vẻ rất hài lòng với chế độ làm việc từ xa.",
+   "Found a key. No idea which lock it fits. It seems happy working remotely."
+  ],
+  "labels": {
+   "lift": [
+    "Lật thẻ chìa",
+    "Flip key tag"
+   ],
+   "tap": [
+    "Xoay chìa",
+    "Turn key"
+   ],
+   "offer": [
+    "Hỏi chủ quán",
+    "Ask owner"
+   ]
+  },
+  "lines": {
+   "lift": [
+    "Thẻ ghi “ngăn kéo dự phòng”. “À, dự phòng cho trí nhớ của tôi.”",
+    "Tag: “spare drawer”. “Ah. A backup for my memory.”"
+   ],
+   "tap": [
+    "Bạn xoay chìa trong không khí. Không có gì mở. Chủ quán: “Kiểm thử rất trung thực.”",
+    "You turn it in the air. Nothing opens. “An honest test,” says the owner."
+   ],
+   "offer": [
+    "“Chưa biết thì cất lại, đừng thử vào mọi ổ. Mình còn cà phê để pha mà.”",
+    "“We can put it away without solving every lock. There’s still coffee to make.”"
+   ]
+  },
+  "cat": false
+ }
+];
+function welcomeScenario(index=0){return welcomeScenes[((Number.isInteger(index)?index:0)%welcomeScenes.length+welcomeScenes.length)%welcomeScenes.length];}
+function welcomeLine(choice,lang='vi',index=0){const s=welcomeScenario(index);return (s.lines[choice]||s.hello)[lang==='vi'?0:1];}
+function loadWelcomeSeen(raw){if(raw===null)return {seen:[],writable:true};try{const x=JSON.parse(raw);if(x.version!==1||!Array.isArray(x.seen)||x.seen.length>14||new Set(x.seen).size!==x.seen.length||!x.seen.every(s=>typeof s==='string'&&s.length>0&&s.length<150))throw Error();return {seen:x.seen,writable:true};}catch{return {seen:[],writable:false};}}
+function welcomeObjectArt(index=0){const id=welcomeScenario(index).id;const paths={
+ cup:'<path d="M40 45h75l-9 45H49zM115 51q38-2 20 25h-25"/>',
+ bell:'<path d="M42 80q0-48 38-48t38 48zM32 87h96M73 25h14M80 25v8"/>',
+ spoon:'<ellipse cx="80" cy="28" rx="16" ry="22"/><path d="M75 50h10l5 54H70z"/>',
+ napkin:'<path d="m28 82 55-62 50 67-62 12zM28 82l62-10-7-52M90 72l43 15"/>',
+ ticket:'<path d="M27 30h106v65H27zM44 30v65"/><text x="90" y="77" text-anchor="middle" font-size="40" fill="#563e2c" stroke="none">0</text>',
+ sign:'<path d="m40 34 40-26 40 26M23 35h114v61H23z"/><text x="80" y="73" text-anchor="middle" font-size="18" fill="#563e2c" stroke="none">OPEN</text>',
+ clock:'<circle cx="80" cy="60" r="42"/><path d="M80 28v32l24 12M45 98l-8 12m78-12 8 12"/>',
+ plant:'<path d="M51 75h58l-9 34H60zM80 75V29M80 55Q33 14 45 50q9 18 35 5M80 43q42-43 35-9-5 15-35 9"/>',
+ bag:'<path d="M39 22h82l10 87H29zM48 25v17m64-17v17M54 63h52M54 78h38"/>',
+ scale:'<path d="M30 46h100v60H30zM40 31h80v15H40zM48 65h64v23H48z"/><text x="80" y="83" text-anchor="middle" font-size="19" fill="#563e2c" stroke="none">0</text>',
+ umbrella:'<path d="m78 12-17 68h38zM80 80v17q0 25 19 12M70 81l8-69"/>',
+ notebook:'<path d="M36 16h88v94H36zM49 16v94M60 39h48M60 56h48M60 73h29"/>',
+ jar:'<path d="M48 17h64v15H48zM43 35h74v73H43zM50 51h60v38H50z"/><text x="80" y="76" text-anchor="middle" font-size="12" fill="#563e2c" stroke="none">SUGAR</text>',
+ key:'<circle cx="50" cy="39" r="22"/><circle cx="50" cy="39" r="7"/><path d="m66 55 52 49 10-11-12-10 7-7-12-12-8 8-23-25"/>'};return `<svg viewBox="0 0 160 120" aria-hidden="true"><g fill="#e3c48f" stroke="#735439" stroke-width="4" stroke-linejoin="round">${paths[id]}</g></svg>`;}
+function welcomeCatArt(){return `<svg viewBox="0 0 120 110" aria-hidden="true"><path d="M24 47 18 10l29 19q15-7 29 0l28-19-5 40q16 43-17 49H38Q5 94 24 47" fill="#c99964" stroke="#553e30" stroke-width="3"/><path d="m25 21 5 22 12-12m39 0 13-10-4 23" fill="#e9bc91"/><path d="M35 54h17m23 0h17" stroke="#332b25" stroke-width="4" stroke-linecap="round"/><path d="m58 65 7 0-4 5z" fill="#704e43"/><path d="m45 72-28-5m29 11-29 4m59-10 28-5m-28 11 29 4M61 70v9l-7 4m7-4 7 4" fill="none" stroke="#553e30" stroke-width="2"/></svg>`;}
+function frameWelcome(host,lang,onChoice,index=0){
+ const stage=host.querySelector('.scene-stage'),prop=stage?.querySelector('.scene-prop');if(!stage||!prop)return;
+ const vi=lang==='vi',s=welcomeScenario(index);stage.classList.add('welcome-stage');stage.dataset.welcomeScene=s.id;
+ prop.innerHTML=welcomeObjectArt(index);
+ const cup=document.createElement('button');cup.type='button';cup.className='welcome-cup';cup.dataset.welcomeChoice='lift';cup.setAttribute('aria-label',s.labels.lift[vi?0:1]);prop.before(cup);cup.append(prop);
+ const partner=document.createElement('button');partner.type='button';partner.className='welcome-cat';partner.dataset.welcomeChoice='offer';partner.setAttribute('aria-label',s.labels.offer[vi?0:1]);partner.innerHTML=s.cat?welcomeCatArt():'<svg viewBox="0 0 120 110" aria-hidden="true"><path d="M15 110q0-38 45-38t45 38" fill="#67836b"/><ellipse cx="60" cy="44" rx="30" ry="36" fill="#d9b48b"/><path d="M30 34q0-45 60-10l-12 11-22-12-16 15" fill="#5e4936"/><path d="M44 49h5m22 0h5M49 65q11 10 22 0" fill="none" stroke="#493b2d" stroke-width="3"/></svg>';stage.append(partner);
+ const note=document.createElement('span');note.className='welcome-touch-hint';note.textContent=vi?'Chạm đồ vật hoặc nhân vật để thử':'Tap an object or character to try';stage.append(note);
+ host.querySelectorAll('[data-welcome-choice]').forEach(b=>b.onclick=()=>onChoice(b.dataset.welcomeChoice));
+}
+
 function seasonItemArt(e){
  const label=e.place[0],tool=e.tool;
  let drawing;
@@ -1284,7 +1883,12 @@ function seasonSceneArt(e,beat){const item={kind:e.kind,tool:e.tool};const revea
 function createCafeSeason(){
  let loaded;try{const raw=localStorage.getItem(cafeSeasonKey);loaded=loadCafeSeason(raw);if(raw===null)loaded.store=newCuriousSeason();}catch{loaded={...loadCafeSeason(null),writable:false};}
  const tasting=createCafeTasting();
- let store=loaded.store,root,lang='vi',archive=null,notice='',dirty=false,reviewInvitation=false,reviewExperience=null,reviewPracticeId='';
+ let store=loaded.store,root,lang='vi',archive=null,notice='',dirty=false,reviewInvitation=false,reviewExperience=null,reviewPracticeId='',welcomeChoice='hello',welcomePreview=false,previewNumber=-1;
+ let greetingBook;try{greetingBook=loadWelcomeSeen(localStorage.getItem(welcomeSeenKey));}catch{greetingBook={seen:[],writable:false};}
+ const welcomeContext=()=>{const v=store.visits.at(-1);return v?`${v.episodeId}:${v.enteredAt}`:null;};
+ const needsWelcome=()=>welcomePreview||archive===null&&(!store.visits.length||store.visits.at(-1).beat===1&&!greetingBook.seen.includes(welcomeContext()));
+ const welcomeIndex=()=>welcomePreview?previewNumber:Math.max(0,store.visits.length-1);
+ function dismissWelcome(){const context=welcomeContext();if(!context||greetingBook.seen.includes(context))return;greetingBook.seen=[...greetingBook.seen,context].slice(-14);if(greetingBook.writable)try{localStorage.setItem(welcomeSeenKey,JSON.stringify({version:1,seen:greetingBook.seen}));}catch{/* Session-only dismissal; never overwrite original season. */}}
  const tx=(vi,en)=>lang==='vi'?vi:en,at=value=>value[lang==='vi'?0:1];
  const episodes=()=>seasonEpisodesFor(store);
  const current=()=>store.visits.at(-1),episodeIndex=()=>Math.max(0,store.visits.length-1);
@@ -1305,7 +1909,7 @@ function createCafeSeason(){
  function evidence(e){return `<details class="season-evidence"><summary>${tx('Nguồn kiến thức & phần hư cấu','Knowledge sources & fiction')}</summary><p>${tx('Chủ quán, khách, kiện hàng và hành trình sưu tầm là hư cấu do C6S viết. Túi hạt là minh họa theo vùng/giống, không phải hồ sơ lô thương mại đã xác minh hay hàng thật của quán.','The owner, guests, parcels and collecting journeys are C6S fiction. Bags illustrate regions/varieties, not verified commercial lots or actual café stock.')}</p><ul>${e.sources.map(key=>{const source=cafeSeasonSources[key];return `<li><a href="${source.url}" target="_blank" rel="noopener noreferrer">${source.title} ↗</a><small>${source.status==='user-provided-source-summary'?tx(' · theo bản tóm tắt xác minh người dùng cung cấp; nhóm làm game chưa trực tiếp xem video.',' · based on the user-supplied verification summary; the game team has not directly reviewed the video.'):tx(' · nguồn tham khảo nền; chưa kiểm tra trực tiếp nội dung nguồn trong lần cập nhật này.',' · background reference; source content has not been directly reviewed for this update.')}</small></li>`;}).join('')}</ul><p class="help">${tx('Không suy ra chất lượng hay vị chính xác chỉ từ xuất xứ, giống hoặc sơ chế. Không hàm ý nhà sản xuất hay barista bảo chứng cho C6S.','Origin, variety and processing do not establish exact flavor or quality. No maker or barista endorsement of C6S is implied.')}</p></details>`;}
  function cabinet(){return `<details class="season-cabinet"><summary>${tx('Chiếc tủ của chủ quán','The owner’s cabinet')} · ${store.visits.filter(v=>v.closed).length}/14</summary><div class="season-drawers">${episodes().map((e,i)=>{const v=store.visits[i];return `<button type="button" class="secondary ${v?.closed?'collected':''}" data-season-archive="${i}" ${!v?.closed?'disabled':''}><span>${String(i+1).padStart(2,'0')}</span><strong>${v?.closed?at(e.item):v?tx('Đang mở','Open now'):tx('Một món chờ được kể','A story waiting')}</strong>${v?.closed?`<small>${v.localDate}</small>`:''}</button>`;}).join('')}</div><p class="help">${tx('Nghe trọn câu chuyện là có thẻ. Không cần thắng trò chơi, ghé liên tục hay chờ đến ngày mai. Sổ chỉ lưu trên trình duyệt này.','Finish the story to keep its card. No game win, attendance streak or wait until tomorrow is required. The notebook is local to this browser.')}</p>${store.visits.length?actionButton('export','Tải sổ & câu chuyện','Download notebook & stories',true):''}</details>`;}
  function markup(){
-  const index=archive??episodeIndex(),e=episodes()[index],v=store.visits[index],beat=archive!==null?8:v?.beat||0;
+  const index=welcomePreview?0:archive??episodeIndex(),e=episodes()[index],v=store.visits[index],beat=needsWelcome()?0:archive!==null?8:v?.beat||0;
   let speaker=tx('Một buổi ghé C6S','A visit to C6S'),speech=at(e.arrival),extra='',actions=actionButton('enter','Đẩy cửa bước vào','Step inside');
   if(beat===0&&e.id==='s1-yemen'&&archive===null)actions=actionButton('touch-map','Cầm bản đồ lên xem','Pick up the map')+actionButton('enter','Đẩy cửa, ngồi nghe chuyện','Step inside and hear the story',true);
   if(beat===1){speaker=tx('Chủ quán · Six Sense','The owner · Six Sense');speech=at(e.acquisition);extra=e.id==='s1-yemen'?`<div class="season-discovery-choices"><button type="button" data-season-discover="map">${tx('Mở bản đồ Mocha','Open the Mocha map')}</button><button type="button" data-season-discover="seed" class="secondary">${tx('Nhìn hạt và quả','Look at seed and cherry')}</button><button type="button" data-season-discover="label" class="secondary">${tx('Đọc nhãn túi','Read the bag')}</button></div>${v.discovery?cafeDiscovery(v.discovery,lang):''}`:'';actions=actionButton('next','Nghe chủ quán kể tiếp','Listen to the owner')+actionButton('try','Tôi muốn thử trước, nghe kể tiếp sau','Try first; hear more afterward',true);}
@@ -1322,21 +1926,26 @@ function createCafeSeason(){
   const caseAvailable=e.id==='s1-yemen'||discoveryBook&&followCaseFor(e.id,discoveryBook);
   if(archive===null&&caseAvailable&&[0,1,2,5].includes(beat)){
    actions=actionButton('investigate',e.id==='s1-yemen'?'Giúp chú tìm manh mối':'Tìm tiếp manh mối bưu thiếp',e.id==='s1-yemen'?'Help find the clue':'Follow the postcard clue')+actions;
-   if(e.id==='s1-yemen'&&beat<=1){extra+=`<div class="season-invitation"><p>${speech}</p></div>`;speech=tx('“Khách để quên một tấm bưu thiếp. Bạn giúp tôi tìm đúng gói hạt để gửi cùng nó nhé? Manh mối đầu tiên ở chiếc cân.”','“A guest left a postcard behind. Help me find the right coffee parcel to send with it? The first clue is by the scale.”');}
-   else if(beat===1){extra+=`<div class="season-invitation"><p>${speech}</p></div>`;speech=e.id==='s1-aeropress'?tx('“Kính đã sẵn sàng. Mảnh bưu thiếp tiếp theo hỏi về nước trong cốc. Mình thử đặt cân ở hai chỗ nhé?”','“Your lens is ready. The next postcard fragment asks about water in the cup. Shall we compare two scale positions?”'):tx('“Đã có địa chỉ, còn thiếu đúng gói hạt. Hai túi cùng từ Ethiopia; mình soi nhãn để tìm túi theo lời nhắn nhé.”','“We found the address; now we need the right parcel. Both bags come from Ethiopia. Let’s inspect the labels to match the note.”');}
+   if(e.id==='s1-yemen'&&beat<=1){extra+=`<div class="season-invitation"><p>${speech}</p></div>`;speech=tx('“Có khách quên bưu thiếp. Tôi nhờ mèo tìm hộ, nó nằm lên luôn. Bạn thử chiếc cân giúp tôi nhé?”','“A guest left a postcard. I asked the cat to investigate; it sat on the evidence. Can you try the scale?”');}
+   else if(beat===1){extra+=`<div class="season-invitation"><p>${speech}</p></div>`;speech=e.id==='s1-aeropress'?tx('“Kính đã sẵn sàng. Hôm nay cân cả bộ hay chỉ cốc? Mèo bỏ phiếu cân nó trước. Mình thử hai chỗ nhé?”','“Your lens is ready. Weigh everything or just the cup? The cat votes for itself. Let’s try two positions.”'):tx('“Đã có địa chỉ, còn thiếu đúng gói hạt. Hai túi cùng từ Ethiopia; mình soi nhãn để tìm túi theo lời nhắn nhé.”','“We found the address; now we need the right parcel. Both bags come from Ethiopia. Let’s inspect the labels to match the note.”');}
   }
-  return `<section class="scene-card season-card" aria-labelledby="season-title" data-episode="${e.id}" data-beat="${beat}"><div class="scene-topline"><span>${tx('CHIẾC TỦ 14 NGĂN · MÙA 1','THE FOURTEEN-DRAWER CABINET · SEASON 1')}</span><small>${tx('LƯỢT','VISIT')} ${index+1}/14${archive!==null?' · '+tx('ĐỌC LẠI','REVISIT'):''}</small></div><h1 id="season-title" tabindex="-1">${at(e.title)}</h1><p class="scene-today-item">${tx('Món chủ quán sưu tầm','The owner’s find')} · <strong>${at(e.item)}</strong></p>${seasonSceneArt(e,beat)}<div class="scene-dialogue"><div class="scene-speaker"><span></span><strong tabindex="-1">${speaker}</strong><small>${tx('Khách cùng bàn','At your table')}: ${e.guest.name} · ${at(e.guest.origin)}</small></div>${!archive&&beat<=1&&cafeOwnerMemory(store,lang)?`<p class="season-owner-memory">${cafeOwnerMemory(store,lang)}</p>`:''}${speech?`<p class="scene-speech">${speech}</p>`:''}${extra}<div class="scene-actions">${actions}</div>${e.referenceId?actionButton('reference','Mở công thức gốc & đồng hồ hướng dẫn','Open source recipe & guided timer',true):''}</div><div class="season-footer"><p id="season-status" role="status">${notice}</p>${actionButton('retry','Thử lưu lại','Retry saving',true,!dirty||!loaded.writable)}${!loaded.writable?`<p class="warning">${tx('Chưa đọc được sổ mùa này. Bạn vẫn nghe trong phiên này; dữ liệu gốc được giữ nguyên.','This season’s notebook could not be read. Listen in this session; original data is preserved.')}</p>${loaded.raw!==undefined?actionButton('recovery','Tải dữ liệu gốc để phục hồi','Download original data for recovery',true):''}`:''}${cabinet()}${evidence(e)}<p class="help season-pacing">${tx('Bạn ghé lúc nào cũng được. Món chưa mở vẫn đợi trong tủ.','Drop by whenever you like. The unopened finds will be waiting.')}</p></div></section>`;
+  if(archive===null&&beat===7&&store.route==='curiosity-v1'&&index<3){extra+=`<div class="season-invitation"><p>${speech}</p></div>`;speech=index===0?tx('Mèo đã duyệt chiếc cốc. Bạn thì chưa bị tuyển dụng đâu. “Cảm ơn đã phụ một tay. Chuyện túi hạt cứ để lúc nào bạn tò mò rồi kể.”','The cat has approved the cup. You haven’t been hired. “Thanks for lending a hand. The bean story can wait until you’re curious.”'):index===1?tx('“Tôi cất dụng cụ vào ba lô nhé.” Mèo đã ngồi trong đó. Chủ quán thở dài: “Hành lý xách tay tự tăng cân.”','“Back into the backpack it goes.” The cat is already inside. The owner sighs. “My carry-on gained weight by itself.”'):tx('Chủ quán cất hai túi hạt. Mèo chiếm chiếc hộp rỗng. “Mỗi người một món yêu thích. Hôm nay cũng khá công bằng.”','The owner puts away the bags. The cat claims the empty box. “Everyone found a favorite. Fair enough for today.”');}
+  const welcome=needsWelcome(),greeting=welcomeScenario(welcomeIndex());
+  if(welcome){speaker=tx('Chủ quán · đang cần trọng tài','The owner · referee needed');speech=welcomeLine(welcomeChoice,lang,welcomeIndex());extra='';actions=actionButton('welcome-pour','Rót giúp chú một tay','Help with a pour')+`<button type="button" class="secondary" data-welcome-choice="tap">${at(greeting.labels.tap)}</button>`+actionButton('enter',welcomePreview?'Về lượt đang chơi':'Vào quán nghe chuyện',welcomePreview?'Return to current visit':'Come in for a story',true);}
+  return `<section class="scene-card season-card" aria-labelledby="season-title" data-episode="${e.id}" data-beat="${beat}"><div class="scene-topline"><span>${tx('CHIẾC TỦ 14 NGĂN · MÙA 1','THE FOURTEEN-DRAWER CABINET · SEASON 1')}</span><small>${tx('LƯỢT','VISIT')} ${index+1}/14${archive!==null?' · '+tx('ĐỌC LẠI','REVISIT'):''}</small></div><h1 id="season-title" tabindex="-1">${welcome?at(greeting.title):at(e.title)}</h1><p class="scene-today-item">${welcome?tx('Một vụ tranh chấp rất nhỏ','A very small dispute'):tx('Món chủ quán sưu tầm','The owner’s find')} · <strong>${welcome?tx('chạm để thử · không có đáp án sai','tap to try · no wrong answer'):at(e.item)}</strong></p>${seasonSceneArt(e,beat)}<div class="scene-dialogue"><div class="scene-speaker"><span></span><strong tabindex="-1">${speaker}</strong><small>${tx('Khách cùng bàn','At your table')}: ${e.guest.name} · ${at(e.guest.origin)}</small></div>${!archive&&beat<=1&&cafeOwnerMemory(store,lang)?`<p class="season-owner-memory">${cafeOwnerMemory(store,lang)}</p>`:''}${speech?`<p class="scene-speech">${speech}</p>`:''}${extra}<div class="scene-actions">${actions}</div>${e.referenceId?actionButton('reference','Mở công thức gốc & đồng hồ hướng dẫn','Open source recipe & guided timer',true):''}</div><div class="season-footer"><p id="season-status" role="status">${notice}</p>${actionButton('retry','Thử lưu lại','Retry saving',true,!dirty||!loaded.writable)}${!loaded.writable?`<p class="warning">${tx('Chưa đọc được sổ mùa này. Bạn vẫn nghe trong phiên này; dữ liệu gốc được giữ nguyên.','This season’s notebook could not be read. Listen in this session; original data is preserved.')}</p>${loaded.raw!==undefined?actionButton('recovery','Tải dữ liệu gốc để phục hồi','Download original data for recovery',true):''}`:''}${cabinet()}${evidence(e)}<p class="help season-pacing">${tx('Bạn ghé lúc nào cũng được. Món chưa mở vẫn đợi trong tủ.','Drop by whenever you like. The unopened finds will be waiting.')}</p></div></section>`;
  }
  function download(value,name){const url=URL.createObjectURL(new Blob([value],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
- function draw(){const host=root?.querySelector('#cafe-season');if(!host)return;const old=host.querySelector('.season-card'),previousEpisode=old?.dataset.episode,previousBeat=old?.dataset.beat,active=host.contains(document.activeElement)?document.activeElement:null,id=active?.id,card=active?.dataset.seasonCard,inspect=active?.dataset.seasonInspect;const cabinetOpen=host.querySelector('.season-cabinet')?.open,evidenceOpen=host.querySelector('.season-evidence')?.open;host.innerHTML=markup();bindControls(host);frameCafeScene(host,lang);if(cabinetOpen&&host.querySelector('.season-cabinet'))host.querySelector('.season-cabinet').open=true;if(evidenceOpen)host.querySelector('.season-evidence').open=true;const next=host.querySelector('.season-card');if(previousEpisode!==next.dataset.episode){host.querySelector('#season-title').focus({preventScroll:true});host.scrollIntoView({behavior:'smooth',block:'start'});}else if(previousBeat!==next.dataset.beat)host.querySelector('.scene-speaker strong').focus({preventScroll:true});else if(id&&host.querySelector('#'+id))host.querySelector('#'+id).focus({preventScroll:true});else if(card!==undefined)(host.querySelector(`[data-season-card="${card}"]:not(:disabled)`)||host.querySelector('[data-season-card]:not(:disabled)')||host.querySelector('#season-skip'))?.focus({preventScroll:true});else if(inspect!==undefined){const facts=host.querySelector('.season-facts');facts?.setAttribute('tabindex','-1');facts?.focus({preventScroll:true});}else{const attribute=['data-season-order','data-season-quiz'].find(name=>active?.hasAttribute(name));if(attribute)(host.querySelector(`[${attribute}="${active.getAttribute(attribute)}"]:not(:disabled)`)||host.querySelector(`[${attribute}]:not(:disabled)`)||host.querySelector('#season-skip'))?.focus({preventScroll:true});else if(id)host.querySelector('#season-skip')?.focus({preventScroll:true});}}
+ function draw(){const host=root?.querySelector('#cafe-season');if(!host)return;const old=host.querySelector('.season-card'),previousEpisode=old?.dataset.episode,previousBeat=old?.dataset.beat,active=host.contains(document.activeElement)?document.activeElement:null,id=active?.id,card=active?.dataset.seasonCard,inspect=active?.dataset.seasonInspect;const cabinetOpen=host.querySelector('.season-cabinet')?.open,evidenceOpen=host.querySelector('.season-evidence')?.open;host.innerHTML=markup();bindControls(host);frameCafeScene(host,lang);bindWelcome(host);if(cabinetOpen&&host.querySelector('.season-cabinet'))host.querySelector('.season-cabinet').open=true;if(evidenceOpen)host.querySelector('.season-evidence').open=true;const next=host.querySelector('.season-card');if(previousEpisode!==next.dataset.episode){host.querySelector('#season-title').focus({preventScroll:true});host.scrollIntoView({behavior:'smooth',block:'start'});}else if(previousBeat!==next.dataset.beat)host.querySelector('.scene-speaker strong').focus({preventScroll:true});else if(id&&host.querySelector('#'+id))host.querySelector('#'+id).focus({preventScroll:true});else if(card!==undefined)(host.querySelector(`[data-season-card="${card}"]:not(:disabled)`)||host.querySelector('[data-season-card]:not(:disabled)')||host.querySelector('#season-skip'))?.focus({preventScroll:true});else if(inspect!==undefined){const facts=host.querySelector('.season-facts');facts?.setAttribute('tabindex','-1');facts?.focus({preventScroll:true});}else{const attribute=['data-season-order','data-season-quiz'].find(name=>active?.hasAttribute(name));if(attribute)(host.querySelector(`[${attribute}="${active.getAttribute(attribute)}"]:not(:disabled)`)||host.querySelector(`[${attribute}]:not(:disabled)`)||host.querySelector('#season-skip'))?.focus({preventScroll:true});else if(id)host.querySelector('#season-skip')?.focus({preventScroll:true});}}
+ function bindWelcome(host){if(!needsWelcome())return;const speech=host.querySelector('.screen-speech');if(speech)speech.textContent=welcomeLine(welcomeChoice,lang,welcomeIndex());host.querySelector('.screen-pages')?.setAttribute('hidden','');frameWelcome(host,lang,choice=>{welcomeChoice=choice;const speech=host.querySelector('.screen-speech');if(speech)speech.textContent=welcomeLine(choice,lang,welcomeIndex());host.querySelector('.welcome-stage')?.setAttribute('data-reaction',choice);host.querySelector('.screen-pages')?.setAttribute('hidden','');},welcomeIndex());}
  function bindControls(host){if(!host)return;const on=(id,fn)=>host.querySelector('#season-'+id)?.addEventListener('click',fn);
   const experience=archive!==null?reviewExperience:current()?.experience;
   const tastingHost=host.querySelector('#cafe-tasting-host');if(tastingHost&&experience){const review=archive!==null,episode=episodes()[archive??episodeIndex()];tasting.bind(tastingHost,episode,experience,lang,next=>{if(review){if(reviewExperience?.episodeId===next.episodeId)reviewExperience=next;}else{const updated=saveSeasonTasting(store,next);if(updated!==store){store=updated;persist();const status=host.querySelector('#season-status');if(status)status.textContent=notice;const exit=host.querySelector('#season-skip');if(exit&&next.phase==='finished')exit.textContent=tx('Nghe đoạn kết','Hear the ending');}}},{contextId:review?reviewPracticeId:'visit:'+current().enteredAt});}
+  on('welcome-pour',()=>{if(welcomePreview){welcomePreview=false;archive=0;startExperience('self');return;}if(!needsWelcome())return;store=beginSeasonVisit(store);dismissWelcome();welcomeChoice='hello';startExperience('self');});
   function startExperience(role){window.dispatchEvent(new Event('c6s-pause-practice'));tasting.flush();if(archive!==null){reviewInvitation=false;reviewPracticeId='review:'+crypto.randomUUID();reviewExperience=newTasting(episodes()[archive].id,role);draw();}else act('experience-start',{role});const title=root.querySelector('#ct-title');title?.focus({preventScroll:true});root.querySelector('#cafe-tasting-host')?.scrollIntoView({behavior:'instant',block:'start'});}
   on('investigate',()=>{if(archive===null&&!current())write(beginSeasonVisit(store));startExperience('self');tasting.openCase();});on('try',()=>startExperience('self'));on('watch',()=>startExperience('watch'));
   on('revisit',()=>{tasting.flush();archive=episodeIndex();reviewInvitation=true;reviewExperience=null;draw();});on('review-offer',()=>{reviewInvitation=true;reviewExperience=null;draw();});on('review-close',()=>{tasting.flush();reviewInvitation=false;reviewExperience=null;draw();});
   on('touch-map',()=>{write(beginSeasonVisit(store));act('discover',{value:'map'});root.querySelector('#cafe-season .screen-details')?.click();root.querySelector('#cafe-season .season-discovery-object')?.scrollIntoView({behavior:'instant',block:'start'});});host.querySelectorAll('[data-season-discover]').forEach(b=>b.onclick=()=>act('discover',{value:b.dataset.seasonDiscover}));
-  on('enter',()=>write(beginSeasonVisit(store)));on('continue',()=>{if(archive===null)write(beginSeasonVisit(store));});
+  on('enter',()=>{if(welcomePreview){welcomePreview=false;draw();return;}if(needsWelcome()){store=beginSeasonVisit(store);dismissWelcome();welcomeChoice='hello';persist();draw();}else write(beginSeasonVisit(store));});on('continue',()=>{if(archive===null){welcomeChoice='hello';write(beginSeasonVisit(store));}});
   for(const type of ['next','accept','skip','goodbye','replay-game','keep-postcard','brew-return'])on(type,()=>act(type));
   host.querySelectorAll('[data-season-inspect]').forEach(b=>b.onclick=()=>act('inspect',{index:Number(b.dataset.seasonInspect)}));
   host.querySelectorAll('[data-season-card]').forEach(b=>b.onclick=()=>act('flip',{index:Number(b.dataset.seasonCard)}));
@@ -1349,8 +1958,9 @@ function createCafeSeason(){
   host.querySelectorAll('[data-season-archive]').forEach(b=>b.onclick=()=>{const index=Number(b.dataset.seasonArchive);if(!store.visits[index]?.closed)return;tasting.flush();archive=index;reviewInvitation=false;reviewExperience=null;draw();host.querySelector('#season-title').focus({preventScroll:true});host.scrollIntoView({behavior:'smooth',block:'start'});});
   on('read-current',()=>{tasting.flush();archive=episodeIndex();reviewInvitation=false;reviewExperience=null;draw();host.querySelector('#season-title').focus({preventScroll:true});host.scrollIntoView({behavior:'smooth',block:'start'});});on('back',()=>{tasting.flush();archive=null;reviewInvitation=false;reviewExperience=null;draw();host.querySelector('#season-title').focus({preventScroll:true});host.scrollIntoView({behavior:'smooth',block:'start'});});
  }
+ window.addEventListener('c6s-preview-welcome',()=>{if(!root)return;window.dispatchEvent(new Event('c6s-pause-cafe-tasting'));tasting.flush();root.querySelectorAll('dialog[open]').forEach(d=>d.close());welcomePreview=store.visits.length>0;previewNumber=(previewNumber<0?Math.max(0,store.visits.length-1)+1:previewNumber+1)%welcomeScenes.length;welcomeChoice='hello';draw();});
  window.addEventListener('c6s-open-discovery-episode',event=>{const index=episodes().findIndex(e=>e.id===event.detail?.id);if(index<0||!store.visits[index]?.closed||!root)return;tasting.flush();root.querySelectorAll('dialog[open]').forEach(d=>d.close());archive=index;reviewInvitation=true;reviewExperience=null;draw();root.querySelector('#season-title')?.focus({preventScroll:true});root.querySelector('#cafe-season')?.scrollIntoView({behavior:'instant',block:'start'});});
- return {markup(language){tasting.flush();lang=language;return `<div id="cafe-season">${markup()}</div>`;},bind(element){root=element;bindControls(root.querySelector('#cafe-season'));frameCafeScene(root.querySelector('#cafe-season'),lang);}};
+ return {markup(language){tasting.flush();lang=language;return `<div id="cafe-season">${markup()}</div>`;},bind(element){root=element;bindControls(root.querySelector('#cafe-season'));frameCafeScene(root.querySelector('#cafe-season'),lang);bindWelcome(root.querySelector('#cafe-season'));}};
 }
 
 const firstExperimentFields=['grind','temp','ratio','time'];
@@ -1598,7 +2208,7 @@ function mountFirstPour(initialLanguage='vi'){
 }
 
 // Original illustration and a locally synthesized, original 72 BPM café loop.
-// No recordings, remote requests, or autoplay. Only volume is persisted.
+// Original loop remains local. Optional YouTube radio loads only on user request.
 function cafeRoom(){return `<div class="cafe-room" aria-hidden="true"><svg viewBox="0 0 760 210" xmlns="http://www.w3.org/2000/svg" focusable="false">
 <defs><linearGradient id="room-wall" x2="0" y2="1"><stop stop-color="#363b39"/><stop offset="1" stop-color="#202b2b"/></linearGradient><linearGradient id="room-sky" x2="0" y2="1"><stop stop-color="#445b74"/><stop offset="1" stop-color="#bd8e87"/></linearGradient><radialGradient id="room-light"><stop stop-color="#f8d493" stop-opacity=".32"/><stop offset="1" stop-color="#f8d493" stop-opacity="0"/></radialGradient><pattern id="room-rain" width="42" height="52" patternUnits="userSpaceOnUse"><path d="m13 3-5 17m31 9-3 10" stroke="#d2e5e7" stroke-opacity=".28" stroke-linecap="round"/></pattern></defs>
 <path fill="url(#room-wall)" d="M0 0h760v210H0z"/><path fill="#674b39" d="M54 17h312v161H54z"/><path fill="url(#room-sky)" d="M64 25h292v143H64z"/>
@@ -1610,7 +2220,7 @@ function cafeRoom(){return `<div class="cafe-room" aria-hidden="true"><svg viewB
 </svg><span class="room-caption">SIX SENSE <span>·</span> SLOW COFFEE CLUB</span></div>`;}
 
 function createCafeMusic(){
- let context=null,master=null,timer=null,wanted=false,busy=false,error=false,step=0,next=0,volume=25,root=null,lang='vi';
+ let context=null,master=null,timer=null,wanted=false,busy=false,error=false,step=0,next=0,volume=25,root=null,lang='vi',radio=null;
  try{const stored=localStorage.getItem('c6s.music.volume');if(stored!==null&&Number.isFinite(Number(stored)))volume=Math.max(0,Math.min(100,Number(stored)));}catch{}
  const text=(vi,en)=>lang==='vi'?vi:en;
  const chords=[[48,55,59,62,64],[45,52,55,59,62],[50,57,60,64,65],[43,50,53,57,62]];
@@ -1622,13 +2232,23 @@ function createCafeMusic(){
   setTimeout(()=>envelope.disconnect(),(when-context.currentTime+duration+.1)*1000);
  }
  function schedule(){if(!context||context.state!=='running'||!wanted)return;while(next<context.currentTime+.35){const chord=chords[Math.floor(step/8)%4];if(step%8===0){chord.slice(1).forEach((n,i)=>note(n,next+i*.025,3.1,.035));note(chord[0]-12,next,2.8,.065);}if(step%2===0)note(chord[1+(step/2)%4],next,1.2,.025);const tune=melody[step%32];if(tune!==null)note(tune,next+.03,1.1,.045);step=(step+1)%32;next+=60/72/2;}}
- function paint(){if(!root)return;const shortcut=root.querySelector('#cafe-music-shortcut');if(shortcut){shortcut.disabled=busy;shortcut.setAttribute('aria-pressed',String(wanted));shortcut.textContent=wanted?text('Tắt nhạc','Turn music off'):text('Bật nhạc','Turn music on');}const button=root.querySelector('#cafe-music'),status=root.querySelector('#music-status');if(!button)return;button.disabled=busy;button.setAttribute('aria-pressed',String(wanted));button.textContent=wanted?text('Tắt nhạc','Turn music off'):text('Bật nhạc','Turn music on');button.dataset.state=context?.state||'idle';status.textContent=error?text('Không phát được âm thanh. Thử bật lại.','Audio unavailable. Try again.'):wanted?text('Đang bật · tự tạm dừng khi ẩn trang','On · pauses when the page is hidden'):text('Piano êm · hòa âm nguyên bản · 72 BPM','Soft keys · original harmony · 72 BPM');}
+ function paint(){if(!root)return;const shortcut=root.querySelector('#cafe-music-shortcut');if(shortcut){shortcut.disabled=busy;shortcut.setAttribute('aria-pressed',String(wanted||!!radio?.open));shortcut.textContent=radio?.open?text('Tắt radio','Stop radio'):wanted?text('Tắt nhạc','Turn music off'):text('Radio ♫','Turn music on');}const button=root.querySelector('#cafe-music'),status=root.querySelector('#music-status');if(!button)return;button.disabled=busy;button.setAttribute('aria-pressed',String(wanted));button.textContent=wanted?text('Tắt nhạc','Turn music off'):text('Bật nhạc','Turn music on');button.dataset.state=context?.state||'idle';status.textContent=error?text('Không phát được âm thanh. Thử bật lại.','Audio unavailable. Try again.'):wanted?text('Đang bật · tự tạm dừng khi ẩn trang','On · pauses when the page is hidden'):text('Piano êm · hòa âm nguyên bản · 72 BPM','Soft keys · original harmony · 72 BPM');}
  async function sync(){if(!context)return;try{if(wanted&&!document.hidden){await context.resume();if(!timer){next=context.currentTime+.08;schedule();timer=setInterval(schedule,150);}}else{clearInterval(timer);timer=null;await context.suspend();}}catch{error=true;wanted=false;clearInterval(timer);timer=null;}paint();}
- async function toggle(){if(busy)return;busy=true;error=false;wanted=!wanted;try{if(wanted&&!context){const Audio=window.AudioContext||window.webkitAudioContext;if(!Audio)throw Error('Unavailable');context=new Audio();master=context.createGain();master.gain.value=volume/100*.65;const compressor=context.createDynamicsCompressor();master.connect(compressor);compressor.connect(context.destination);}await sync();}catch{error=true;wanted=false;}finally{busy=false;paint();}}
+ async function toggle(){stopRadio();if(busy)return;busy=true;error=false;wanted=!wanted;try{if(wanted&&!context){const Audio=window.AudioContext||window.webkitAudioContext;if(!Audio)throw Error('Unavailable');context=new Audio();master=context.createGain();master.gain.value=volume/100*.65;const compressor=context.createDynamicsCompressor();master.connect(compressor);compressor.connect(context.destination);}await sync();}catch{error=true;wanted=false;}finally{busy=false;paint();}}
+ function stopRadio(){if(!radio)return;radio.querySelector('iframe')?.remove();radio.close();radio.remove();radio=null;paint();}
+ async function openRadio(){
+  if(radio?.open){stopRadio();return;}
+  if(busy)return;
+  busy=true;wanted=false;await sync();busy=false;
+  radio=document.createElement('dialog');radio.className='cafe-radio';radio.setAttribute('aria-label',text('Radio của chủ quán · Rico Latino','Owner’s radio · Rico Latino'));
+  radio.innerHTML=`<header><strong>${text('Radio của chủ quán','Owner’s radio')}</strong><button type="button" class="secondary" data-radio-close>${text('Đóng · dừng nhạc','Close · stop music')}</button></header><p>Rico Latino · YouTube</p><div class="radio-player"></div><p class="help">${text('Nếu chưa phát, bấm Play trong video. Quảng cáo hoặc giới hạn nhúng do YouTube quyết định. Đóng radio sẽ dừng nhạc.','If playback has not started, press Play in the video. YouTube controls ads and embedding availability. Closing the radio stops music.')}</p><a href="https://www.youtube.com/watch?v=m95-M7a59MI" target="_blank" rel="noopener noreferrer">${text('Mở bài trên YouTube','Open on YouTube')}</a>`;
+  const frame=document.createElement('iframe');frame.title='Rico Latino · YouTube player';frame.src='https://www.youtube-nocookie.com/embed/m95-M7a59MI?autoplay=1&playsinline=1';frame.allow='autoplay; encrypted-media; picture-in-picture; fullscreen';frame.referrerPolicy='strict-origin-when-cross-origin';frame.allowFullscreen=true;radio.querySelector('.radio-player').append(frame);
+  root.querySelector('.screen-library[open]')?.close();root.append(radio);radio.show();radio.querySelector('[data-radio-close]').onclick=stopRadio;radio.addEventListener('cancel',e=>{e.preventDefault();stopRadio();});radio.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();stopRadio();}});paint();
+ }
  function serveCup(){if(!wanted||!context||context.state!=='running'||document.hidden||volume===0)return;const now=context.currentTime,env=context.createGain();env.gain.setValueAtTime(.0001,now);env.gain.linearRampToValueAtTime(.032,now+.005);env.gain.exponentialRampToValueAtTime(.0001,now+.32);env.connect(master);for(const [frequency,level] of [[1520,1],[2730,.22]]){const osc=context.createOscillator(),gain=context.createGain();osc.type='sine';osc.frequency.value=frequency;gain.gain.value=level;osc.connect(gain);gain.connect(env);osc.start(now);osc.stop(now+.35);osc.onended=()=>{osc.disconnect();gain.disconnect();};}setTimeout(()=>env.disconnect(),400);}
  window.addEventListener('c6s-cup-served',serveCup);
- document.addEventListener('visibilitychange',()=>{void sync();});
- return {markup(language){lang=language;return `<section class="cafe-sound" aria-label="${text('Nhạc nền quán cà phê','Café background music')}"><div><span class="sound-title">${text('Một góc bình yên','A quiet corner')}</span><small id="music-status" role="status"></small></div><button id="cafe-music" class="secondary" type="button" aria-pressed="false"></button><label class="music-volume">${text('Âm lượng','Volume')}<input id="cafe-volume" type="range" min="0" max="100" value="${volume}"/></label></section>`;},bind(element){root=element;const shortcut=root.querySelector('#cafe-music-shortcut');if(shortcut)shortcut.onclick=toggle;root.querySelector('#cafe-music').onclick=toggle;root.querySelector('#cafe-volume').oninput=e=>{volume=Number(e.target.value);if(master)master.gain.setTargetAtTime(volume/100*.65,context.currentTime,.05);try{localStorage.setItem('c6s.music.volume',String(volume));}catch{}};paint();}};
+ document.addEventListener('visibilitychange',()=>{if(document.hidden)stopRadio();void sync();});
+ return {markup(language){lang=language;return `<section class="cafe-sound" aria-label="${text('Nhạc nền quán cà phê','Café background music')}"><button type="button" id="cafe-radio-open" class="secondary">${text('Radio Rico Latino · YouTube','Rico Latino radio · YouTube')}</button><div><span class="sound-title">${text('Một góc bình yên','A quiet corner')}</span><small id="music-status" role="status"></small></div><button id="cafe-music" class="secondary" type="button" aria-pressed="false"></button><label class="music-volume">${text('Âm lượng cozy','Cozy volume')}<input id="cafe-volume" type="range" min="0" max="100" value="${volume}"/></label></section>`;},bind(element){if(radio&&!radio.isConnected){radio=null;}root=element;const shortcut=root.querySelector('#cafe-music-shortcut');if(shortcut)shortcut.onclick=()=>lang==='vi'&&!wanted?openRadio():toggle();root.querySelector('#cafe-radio-open').onclick=openRadio;root.querySelector('#cafe-music').onclick=toggle;root.querySelector('#cafe-volume').oninput=e=>{volume=Number(e.target.value);if(master)master.gain.setTargetAtTime(volume/100*.65,context.currentTime,.05);try{localStorage.setItem('c6s.music.volume',String(volume));}catch{}};paint();}};
 }
 
 const counterKey = 'c6s.counter.v1';
@@ -1991,11 +2611,12 @@ function mountCafe({getJournalSessions=()=>[]}={}){
   const note=root.querySelector('#cafe-note');if(note&&result)result={...result,note:note.value};
   document.documentElement.lang=lang;
   const realBrew=document.querySelector('#real-brew');if(realBrew&&root.contains(realBrew))root.after(realBrew);
-  root.innerHTML=`<main class="cafe-main"><header class="cafe-header"><span class="eyebrow">SIX SENSE <small class="release-badge">v0.14.0</small></span><button type="button" id="cafe-music-shortcut" class="secondary" aria-pressed="false">${tx('Bật nhạc','Turn music on')}</button><label>${tx('Ngôn ngữ','Language')}<select id="cafe-language"><option value="vi" ${lang==='vi'?'selected':''}>Tiếng Việt</option><option value="en" ${lang==='en'?'selected':''}>English</option></select></label></header>${season.markup(lang)}${discoveryJournalMarkup(lang)}<details id="recipe-source-book" class="cafe-optional"><summary>${tx('Sổ công thức có xuất xứ · Hoffmann & Kasuya','Recipe provenance notebook · Hoffmann & Kasuya')}</summary>${renderRecipeBook(lang)}</details><details id="cafe-sound-panel" class="cafe-optional scene-sound"><summary>${tx('Nhạc & không gian quán','Café music & atmosphere')}</summary>${music.markup(lang)}</details><nav class="brew-modes"><button type="button" id="open-seven-visits">${tx('Ghé quán hôm nay','Visit the café today')}</button><button type="button" id="open-first-pour" class="secondary">${tx('The First Pour · v0.14.0','The First Pour · v0.14.0')}</button><button id="counter-play-nav" class="secondary">${tx('Quầy luyện rót','Pouring practice counter')}</button><button id="open-real-brew" class="secondary">${tx('Ghi lượt pha thật','Record a real brew')}</button></nav><details id="daily-catalog" class="cafe-optional"><summary>${tx('Kệ hạt, dụng cụ & công thức','Beans, tools & recipes shelf')}</summary>${daily.markup(lang)}</details><details id="old-seven-chapter" class="cafe-optional"><summary>${tx('Xem lại chương 7 buổi trước','Revisit the earlier seven-visit chapter')}</summary>${seven.markup(lang)}<details id="old-daily-stories"><summary>${tx('Sổ chuyện theo lịch của bản trước','Earlier calendar-story notebook')}</summary>${dayVisit.markup(lang)}</details></details><details id="practice-counter" class="cafe-optional"><summary>${tx('Quầy luyện pha tự do','Free practice counter')}</summary><p class="help recipe-origin">${tx('Quầy này dùng mẫu do game thiết kế. Sổ công thức có xuất xứ nằm ở mục riêng phía trên.','This counter uses game-authored examples. Attributed recipes are in the notebook above.')}</p><div id="counter-progress">${renderProgress()}</div>${renderWelcome()}${lessonPicker()}<section class="guest-card"><span class="guest-avatar" aria-hidden="true">${cafeGuests[guest].name[0]}</span><div><small>${tx('Khách tại quầy','At the counter')} · ${guest+1}/3</small><h2>${cafeGuests[guest].name}</h2><p>${at(cafeGuests[guest].request)}</p><details><summary>${tx('Khẩu vị khách','Guest’s taste')}</summary>${meters(cafeGuests[guest].target)}</details></div></section>${saveError||!loaded.writable?`<div class="warning" role="status">${tx('Chưa lưu được tiến độ. Không cộng XP cho lượt chưa lưu; bạn có thể thử lưu lại hoặc tải bản sao.','Progress is not saved. Unsaved cups earn no XP; retry saving or download a backup.')}<div class="actions"><button id="counter-export" class="secondary">${tx('Tải bản sao','Download backup')}</button>${loaded.raw&&!loaded.writable?`<button id="counter-recovery" class="secondary">${tx('Tải dữ liệu gốc để phục hồi','Download original for recovery')}</button>`:''}</div></div>`:''}<section class="panel cafe-play" id="cafe-play" tabindex="-1">${screen==='setup'?setup():screen==='pour'?pour():outcome()}</section><p class="help model-note">${tx('Hương vị được tạo bởi mô hình trò chơi, không dự đoán chất lượng hay vị của cà phê thật.','Flavors come from a game model, not a prediction of real coffee taste or quality.')}</p>${sciencePanel(lang)}</details><button id="studio-toggle" class="secondary">${tx('Hồ sơ hạt & nhật ký · tùy chọn','Bean library & journal · optional')}</button><p class="help">${tx('Tiến độ quầy được lưu trên trình duyệt này khi có thể.','Counter progress is saved in this browser when available.')} ${rounds.length} ${tx('ly đã pha','cups brewed')}.</p></main>`;
+  root.innerHTML=`<main class="cafe-main"><header class="cafe-header"><span class="eyebrow">SIX SENSE <small class="release-badge">v0.15.0</small></span><button type="button" id="cafe-music-shortcut" class="secondary" aria-pressed="false">${tx('Bật nhạc','Turn music on')}</button><label>${tx('Ngôn ngữ','Language')}<select id="cafe-language"><option value="vi" ${lang==='vi'?'selected':''}>Tiếng Việt</option><option value="en" ${lang==='en'?'selected':''}>English</option></select></label></header>${season.markup(lang)}${discoveryJournalMarkup(lang)}<details id="recipe-source-book" class="cafe-optional"><summary>${tx('Sổ công thức có xuất xứ · Hoffmann & Kasuya','Recipe provenance notebook · Hoffmann & Kasuya')}</summary>${renderRecipeBook(lang)}</details><details id="cafe-sound-panel" class="cafe-optional scene-sound"><summary>${tx('Nhạc & không gian quán','Café music & atmosphere')}</summary>${music.markup(lang)}</details><nav class="brew-modes"><button type="button" id="preview-playful-welcome" class="secondary">${tx('Thử màn chào vui · giữ tiến độ','Try the playful welcome · keep progress')}</button><button type="button" id="open-seven-visits">${tx('Ghé quán hôm nay','Visit the café today')}</button><button type="button" id="open-first-pour" class="secondary">${tx('The First Pour · v0.15.0','The First Pour · v0.15.0')}</button><button id="counter-play-nav" class="secondary">${tx('Quầy luyện rót','Pouring practice counter')}</button><button id="open-real-brew" class="secondary">${tx('Ghi lượt pha thật','Record a real brew')}</button></nav><details id="daily-catalog" class="cafe-optional"><summary>${tx('Kệ hạt, dụng cụ & công thức','Beans, tools & recipes shelf')}</summary>${daily.markup(lang)}</details><details id="old-seven-chapter" class="cafe-optional"><summary>${tx('Xem lại chương 7 buổi trước','Revisit the earlier seven-visit chapter')}</summary>${seven.markup(lang)}<details id="old-daily-stories"><summary>${tx('Sổ chuyện theo lịch của bản trước','Earlier calendar-story notebook')}</summary>${dayVisit.markup(lang)}</details></details><details id="practice-counter" class="cafe-optional"><summary>${tx('Quầy luyện pha tự do','Free practice counter')}</summary><p class="help recipe-origin">${tx('Quầy này dùng mẫu do game thiết kế. Sổ công thức có xuất xứ nằm ở mục riêng phía trên.','This counter uses game-authored examples. Attributed recipes are in the notebook above.')}</p><div id="counter-progress">${renderProgress()}</div>${renderWelcome()}${lessonPicker()}<section class="guest-card"><span class="guest-avatar" aria-hidden="true">${cafeGuests[guest].name[0]}</span><div><small>${tx('Khách tại quầy','At the counter')} · ${guest+1}/3</small><h2>${cafeGuests[guest].name}</h2><p>${at(cafeGuests[guest].request)}</p><details><summary>${tx('Khẩu vị khách','Guest’s taste')}</summary>${meters(cafeGuests[guest].target)}</details></div></section>${saveError||!loaded.writable?`<div class="warning" role="status">${tx('Chưa lưu được tiến độ. Không cộng XP cho lượt chưa lưu; bạn có thể thử lưu lại hoặc tải bản sao.','Progress is not saved. Unsaved cups earn no XP; retry saving or download a backup.')}<div class="actions"><button id="counter-export" class="secondary">${tx('Tải bản sao','Download backup')}</button>${loaded.raw&&!loaded.writable?`<button id="counter-recovery" class="secondary">${tx('Tải dữ liệu gốc để phục hồi','Download original for recovery')}</button>`:''}</div></div>`:''}<section class="panel cafe-play" id="cafe-play" tabindex="-1">${screen==='setup'?setup():screen==='pour'?pour():outcome()}</section><p class="help model-note">${tx('Hương vị được tạo bởi mô hình trò chơi, không dự đoán chất lượng hay vị của cà phê thật.','Flavors come from a game model, not a prediction of real coffee taste or quality.')}</p>${sciencePanel(lang)}</details><button id="studio-toggle" class="secondary">${tx('Hồ sơ hạt & nhật ký · tùy chọn','Bean library & journal · optional')}</button><p class="help">${tx('Tiến độ quầy được lưu trên trình duyệt này khi có thể.','Counter progress is saved in this browser when available.')} ${rounds.length} ${tx('ly đã pha','cups brewed')}.</p></main>`;
   for(const [id,open] of optionalOpen)root.querySelector('#'+id).open=open;
   music.bind(root);daily.bind(root);seven.bind(root);dayVisit.bind(root);season.bind(root);bindRecipeReferenceButtons(root,lang);frameCafeNotebook(root,lang);bindDiscoveryJournal(root,lang);if(realBrew)root.querySelector('.screen-library .screen-book-body').append(realBrew);if(notebookWasOpen)root.querySelector('.screen-library').showModal();
   root.querySelector('#cafe-language').onchange=e=>{stopHolding();lang=e.target.value;try{localStorage.setItem('c6s.language',lang);}catch{}render();window.dispatchEvent(new CustomEvent('c6s-language',{detail:lang}));};
   root.querySelector('#counter-play-nav').onclick=()=>{window.dispatchEvent(new Event('c6s-pause-cafe-tasting'));window.dispatchEvent(new Event('c6s-pause-practice'));if(screen==='pour'){last=null;frame=requestAnimationFrame(tick);}root.querySelector('#practice-counter').open=true;if(screen==='setup'&&!rounds.length)startCup();else root.querySelector('#cafe-play').scrollIntoView({behavior:'smooth',block:'start'});};
+  root.querySelector('#preview-playful-welcome').onclick=()=>window.dispatchEvent(new Event('c6s-preview-welcome'));
   root.querySelector('#open-seven-visits').onclick=()=>{root.querySelector('#season-title').focus({preventScroll:true});root.querySelector('#cafe-season').scrollIntoView({behavior:'smooth',block:'start'});};
   root.querySelector('#open-first-pour').onclick=()=>{stopHolding();window.dispatchEvent(new Event('c6s-open-first-pour'));};
   root.querySelector('#open-real-brew').onclick=()=>{const section=document.querySelector('#real-brew');section.querySelector('details').open=true;section.scrollIntoView({behavior:'smooth',block:'start'});};

@@ -1,6 +1,6 @@
 # The Coffee Six Sense
 
-## Product planning — v0.14.0 (strategy baseline v0.12)
+## Product planning — v0.15.0 (strategy baseline v0.12)
 
 For product-planning handoffs, start with these documents. They distinguish shipped behavior from proposals awaiting implementation approval:
 
@@ -27,6 +27,10 @@ Try the optional scale mystery while preparing the Yemen cup: predict, choose wh
 ## Three-clue postcard trail — v0.14.0
 
 An additional linked trail is approved for release: an immediate owner invitation, the existing Yemen scale case, a playable AeroPress scale-placement comparison, and an Ethiopia label/parcel task with a persistent café postcard. Map interaction and old-player access are also refined. See [scope, compatibility and test evidence](docs/POSTCARD_TRAIL.md). Publication and public-artifact verification are recorded in [shared status](docs/SYNC_STATUS.md).
+
+## Fourteen playful welcomes and radio — v0.15.0
+
+Fourteen distinct comic situations now introduce the fourteen visits, with illustrated objects, tactile reactions and a direct first pour. Greetings are stable across reloads and dismissal is remembered separately from existing season records. Existing players can preview it from the Book without resetting their visit. The original stories and optional discoveries remain. See [scope and checks](docs/PLAYFUL_WELCOME.md) and [owner-selected radio](docs/CAFE-RADIO.md). The owner approved merge and Pages deployment; exact release evidence is recorded in [shared status](docs/SYNC_STATUS.md).
 
 ## Daily café discoveries — v0.5.1
 
