@@ -1,4 +1,7 @@
-# Webtoon cold open — v0.19.0
+# Webtoon cold open — original v0.19.0 design
+
+**Superseded pacing in v0.21:** the owner rejected the abrupt early-pour approach. The current flow establishes C6S and Bảy, adds playful curiosity and offers Try / Watch / Sit longer before any new cup. See [WELCOME_PACING.md](WELCOME_PACING.md). The original artwork, model limits and preservation principles below remain relevant; the three-interaction target is historical.
+
 
 The owner approved the opening review's recommendations and requested actual webtoon illustrations. This release adds a short visual prologue before the existing seven-shift Hanoi campaign. It does not rebuild the campaign, migrate profiles or replace the pouring model.
 
