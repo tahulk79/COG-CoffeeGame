@@ -170,3 +170,7 @@ Local refinement after the owner requested continuing game development: original
 - Existing webtoon, first-three-shift/full-cup/profile-preservation, seven-shift, notebook/save-retry and cozy/radio regressions pass; YouTube provider is stubbed in browser tests. Seven underlying model/recipe source files were also verified unchanged against the prior main.
 - This is pre-rendered art and UI feedback, not runtime 3D or a new extraction model. Physical iPad/Safari, constrained-bandwidth behavior and human retention have not been measured. No dependencies, backend, migration or hosting changes. [Scope and authoring source](COZY_COUNTER.md).
 - This documentation-only record may follow the deployed app source without a second application deployment.
+
+## v0.21 welcoming pace — 26 October 2026
+
+Owner feedback supersedes the earlier three-interaction pour target: players need a playful welcome and context before brewing. Local implementation adds Bảy's greeting/optional conversation, bell/apron/stool curiosity and an explicit Try / Watch / Sit longer invitation. It preserves old checkpoints and seven-shift proof rules. See [WELCOME_PACING.md](WELCOME_PACING.md). 172 model/unit checks, builds and focused browser checks pass. Publication evidence will be appended after successful Pages release and public-artifact verification.
