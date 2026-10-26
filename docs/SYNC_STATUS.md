@@ -1,19 +1,19 @@
 # Shared synchronization status
 
-Observation date: 25 October 2026. This is a dated handoff snapshot, not a background synchronization service. Recheck GitHub before acting; documentation commits may follow the source SHA below without changing application behavior.
+Observation date: 26 October 2026. This is a dated handoff snapshot, not a background synchronization service. Recheck GitHub before acting; documentation commits may follow the source SHA below without changing application behavior.
 
 ## Verified repository observations
 
 | Item | Observation / evidence |
 | --- | --- |
 | Repository / branch | `tahulk79/TheCoffeeSixSense` / `main`; public repository. |
-| Application version | **v0.17.1**, public artifact verified: visible Rebirth entry and direct link; Hanoi pilot, classic café and cozy/idle retained. Exact evidence is below. |
-| Current application source | `322ff7df8a32fb568761a6041061eeddceea59de`, [PR #47](https://github.com/tahulk79/TheCoffeeSixSense/pull/47): visible entry and deep link. |
-| Previous application source commit | `a9a77baddd73c0eea1a449fe020024e365de65e4`, [PR #44](https://github.com/tahulk79/TheCoffeeSixSense/pull/44): cozy listening and idle rest. Earlier releases remain below. |
+| Application version | **v0.18.0**, deployed and public artifact verified: seven-shift Hanoi Rebirth continuation; classic café/cozy retained. |
+| Current application source | `1b7ba8898a803766b4d8a27b288cb7bec42aae0e`, [PR #49](https://github.com/tahulk79/TheCoffeeSixSense/pull/49): seven-shift continuation. |
+| Previous application source commit | `322ff7df8a32fb568761a6041061eeddceea59de`, [PR #47](https://github.com/tahulk79/TheCoffeeSixSense/pull/47): visible Rebirth entry. |
 | Earlier product-doc publication | [PR #33](https://github.com/tahulk79/TheCoffeeSixSense/pull/33), `d9f32ac6d8353d98a8e9c719d93a2339858f6066`. The original v0.12 release/audit baseline is `0ae226764d6248501ec576b343e14c369cba9eec`; it is not the latest source revision. |
-| Source validation | [Validation run 40208172019](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40208172019) passed for the PR #47 head before merge. |
-| Current Pages publication | [Deployment run 40208266448](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40208266448) completed successfully for the current patch source. |
-| Application entry | https://tahulk79.github.io/TheCoffeeSixSense/?mode=rebirth&v=0.17.1 — downloaded artifact verification is recorded below. |
+| Source validation | [Run 40249706453](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40249706453) passed for PR #49 head `c83bf75ed6d48a6a31a2e99bb77a0b4298e1c5b2`. |
+| Current Pages publication | [Run 40249755567](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40249755567) succeeded for the exact current application source. |
+| Application entry | https://tahulk79.github.io/TheCoffeeSixSense/?mode=rebirth&v=0.18.0 |
 | Preferred working mode | Product planning and development continue in this single Codex conversation, as requested by the owner. No cross-chat copy/paste is required for this workflow. The read-only cross-conversation agreement is an optional fallback. |
 | Planning ChatGPT connection | Owner reports GitHub **read access only**. No write access, background refresh or task execution capability is inferred. |
 | Automated conversation synchronization | **Not installed.** No shared chat-history service or AI runner has been configured. |
@@ -28,7 +28,7 @@ The latest [MVP audit](MVP_AUDIT_2026-10-25.md) records model/build checks and a
 | Four current planning documents and README index | Published | [CURRENT_STATE.md](CURRENT_STATE.md), [GAP_ANALYSIS.md](GAP_ANALYSIS.md), [ROADMAP_V012.md](ROADMAP_V012.md) and the strategic handoff are on main. Their dates/source baselines remain relevant. |
 | Read-only ChatGPT ↔ Codex coordination | Procedure prepared | Follow [WORK_SYNC.md](WORK_SYNC.md). The owner still transfers the proposed/approved handoff from ChatGPT into Codex. |
 | Optional mystery + useful unlock + linked evidence journal | MERGED / DEPLOYED / ARTIFACT VERIFIED | PR #36 and deployment/runtime evidence below confirm this bounded pilot. Wider roadmap work remains a proposal. |
-| Release number | v0.17.1 | Approved Hanoi three-shift pilot; earlier strategy audits and releases remain historical. |
+| Release number | v0.18.0 | Seven story shifts in one Hanoi café, including two recoverable outcomes; earlier audits/releases remain historical. |
 | Fully autonomous cross-conversation work | BLOCKED on capabilities/design | Read-only GitHub cannot write plans or trigger a runner. A write/API path and explicit execution/approval/cost design would be needed. No credentials should be sent in chat. |
 | Hosting migration, payments, marketing | Outside synchronization scope | Keep Pages. No VPS setup, premium currency, payment system or campaign is authorized by this procedure. |
 
@@ -135,3 +135,11 @@ The owner could not find the deployed concept because existing players stayed in
 ## v0.18 seven-shift continuation — 26 October 2026
 
 Local implementation continues the approved Rebirth concept after v0.17.1. Four additional decision/resource challenges, a day-seven return threshold and recoverable capybara ending are implemented without migrating old profiles. See [REBIRTH_HANOI.md](REBIRTH_HANOI.md). 162 unit/model checks, standalone/Vite builds and the continuation browser matrix pass. Publication evidence will follow the source PR and successful Pages run; this entry alone is not a deployment claim.
+
+### Verified v0.18 publication — 26 October 2026
+
+- Source [PR #49](https://github.com/tahulk79/TheCoffeeSixSense/pull/49), merged commit `1b7ba8898a803766b4d8a27b288cb7bec42aae0e`.
+- [Pages run 40249755567](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40249755567) succeeded for that exact source. The public HTML downloaded from the versioned Rebirth link is byte-identical to the reviewed standalone artifact; SHA-256 `ac559d540d486458d29be035af5b3ec09a24c27c06f69f5a58900b6d109ce882`.
+- 162 unit/model checks, standalone/Vite builds, original three-shift and entry browser regressions pass. Downloaded-public-artifact continuation replay at the Pages base path passes all four viewport sizes, language/checkpoint reload, both endings, replay-to-return, capped XP, original campaign preservation, classic exit/return, corrupt-original export and quota/retry.
+- One fictional Hanoi café only. New shifts are decision/resource puzzles, not additional calibrated pouring simulations. Human enjoyment/retention, Safari and physical devices have not been measured. No VPS/backend, dependencies, payments or automatic cross-chat synchronization introduced.
+- This documentation-only record may follow the deployed app source without another application deployment.
