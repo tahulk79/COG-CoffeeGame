@@ -1,6 +1,6 @@
 # The Coffee Six Sense
 
-## Product planning — v0.18.0 (strategy baseline v0.12)
+## Product planning — v0.19.0 (strategy baseline v0.12)
 
 For product-planning handoffs, start with these documents. They distinguish shipped behavior from proposals awaiting implementation approval:
 
@@ -27,6 +27,10 @@ Try the optional scale mystery while preparing the Yemen cup: predict, choose wh
 ## Three-clue postcard trail — v0.14.0
 
 An additional linked trail is approved for release: an immediate owner invitation, the existing Yemen scale case, a playable AeroPress scale-placement comparison, and an Ethiopia label/parcel task with a persistent café postcard. Map interaction and old-player access are also refined. See [scope, compatibility and test evidence](docs/POSTCARD_TRAIL.md). Publication and public-artifact verification are recorded in [shared status](docs/SYNC_STATUS.md).
+
+## Webtoon cold open — v0.19.0
+
+An original nine-panel illustrated opening lets new players dodge an absurd accident, arrive at Bảy’s café and help pour the first 30 g pulse before hearing the seven-shift mission. Hold/release, a live scale and dripping animation provide the first interaction. Existing campaign and journal records remain; returning players can preview through the Book without resetting progress. [Play](https://tahulk79.github.io/TheCoffeeSixSense/?mode=rebirth&v=0.19.0) · [Scope, art and verification](docs/WEBTOON_OPENING.md).
 
 ## Seven-shift Rebirth · Hanoi — v0.18.0
 
