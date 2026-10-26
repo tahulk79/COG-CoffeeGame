@@ -7,13 +7,13 @@ Observation date: 26 October 2026. This is a dated handoff snapshot, not a backg
 | Item | Observation / evidence |
 | --- | --- |
 | Repository / branch | `tahulk79/TheCoffeeSixSense` / `main`; public repository. |
-| Application version | **v0.20.0**, deployed and public HTML/art verified: cozy worktop, Blender tool portraits, contextual coaching and optional Book kit; live pouring retained. |
-| Current application source | `f5d1606b988120ceb6e985fc8b372ad234f506f6`, [PR #53](https://github.com/tahulk79/TheCoffeeSixSense/pull/53): cozy counter and tool discovery. |
-| Previous application source commit | `4315d51bf60d743e72c7f822f1365311f262ada7`, [PR #51](https://github.com/tahulk79/TheCoffeeSixSense/pull/51): webtoon cold open. |
+| Application version | **v0.21.0**, deployed and public artifact verified: warm welcome, playful curiosity and optional Try / Watch / Sit longer invitation before brewing. |
+| Current application source | `b5d36652c0bcf7b968e579ec819c928cffd7a2fd`, [PR #55](https://github.com/tahulk79/TheCoffeeSixSense/pull/55): welcome before brewing. |
+| Previous application source commit | `f5d1606b988120ceb6e985fc8b372ad234f506f6`, [PR #53](https://github.com/tahulk79/TheCoffeeSixSense/pull/53): cozy counter and tool kit. |
 | Earlier product-doc publication | [PR #33](https://github.com/tahulk79/TheCoffeeSixSense/pull/33), `d9f32ac6d8353d98a8e9c719d93a2339858f6066`. The original v0.12 release/audit baseline is `0ae226764d6248501ec576b343e14c369cba9eec`; it is not the latest source revision. |
-| Source validation | [Run 40259675629](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40259675629) passed for PR #53 head `1080eee79cec4d15afe0e8cc683b33cd4cd4daeb`. |
-| Current Pages publication | [Run 40259899309](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40259899309) succeeded for the exact current source. |
-| Application entry | https://tahulk79.github.io/TheCoffeeSixSense/?mode=rebirth&v=0.20.0 — Book → Bảy’s brewing kit is available without resetting progress. |
+| Source validation | [Run 40264279398](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40264279398) passed for PR #55 head `99e4f704281a60aaf2d9b28cf84e6cf718cda40c`. |
+| Current Pages publication | [Run 40264611741](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40264611741) succeeded for the exact current source. |
+| Application entry | https://tahulk79.github.io/TheCoffeeSixSense/?mode=rebirth&v=0.21.0 — add `opening=preview` or use Book to view the revised opening without resetting records. |
 | Preferred working mode | Product planning and development continue in this single Codex conversation, as requested by the owner. No cross-chat copy/paste is required for this workflow. The read-only cross-conversation agreement is an optional fallback. |
 | Planning ChatGPT connection | Owner reports GitHub **read access only**. No write access, background refresh or task execution capability is inferred. |
 | Automated conversation synchronization | **Not installed.** No shared chat-history service or AI runner has been configured. |
@@ -28,7 +28,7 @@ The latest [MVP audit](MVP_AUDIT_2026-10-25.md) records model/build checks and a
 | Four current planning documents and README index | Published | [CURRENT_STATE.md](CURRENT_STATE.md), [GAP_ANALYSIS.md](GAP_ANALYSIS.md), [ROADMAP_V012.md](ROADMAP_V012.md) and the strategic handoff are on main. Their dates/source baselines remain relevant. |
 | Read-only ChatGPT ↔ Codex coordination | Procedure prepared | Follow [WORK_SYNC.md](WORK_SYNC.md). The owner still transfers the proposed/approved handoff from ChatGPT into Codex. |
 | Optional mystery + useful unlock + linked evidence journal | MERGED / DEPLOYED / ARTIFACT VERIFIED | PR #36 and deployment/runtime evidence below confirm this bounded pilot. Wider roadmap work remains a proposal. |
-| Release number | v0.20.0 | Cozy first counter and tool-kit refinement of the existing seven-shift Hanoi campaign; earlier audits/releases remain historical. |
+| Release number | v0.21.0 | Welcoming story pace and genuine optional first interaction; the seven-shift campaign remains intact. |
 | Fully autonomous cross-conversation work | BLOCKED on capabilities/design | Read-only GitHub cannot write plans or trigger a runner. A write/API path and explicit execution/approval/cost design would be needed. No credentials should be sent in chat. |
 | Hosting migration, payments, marketing | Outside synchronization scope | Keep Pages. No VPS setup, premium currency, payment system or campaign is authorized by this procedure. |
 
@@ -173,4 +173,13 @@ Local refinement after the owner requested continuing game development: original
 
 ## v0.21 welcoming pace — 26 October 2026
 
-Owner feedback supersedes the earlier three-interaction pour target: players need a playful welcome and context before brewing. Local implementation adds Bảy's greeting/optional conversation, bell/apron/stool curiosity and an explicit Try / Watch / Sit longer invitation. It preserves old checkpoints and seven-shift proof rules. See [WELCOME_PACING.md](WELCOME_PACING.md). 172 model/unit checks, builds and focused browser checks pass. Publication evidence will be appended after successful Pages release and public-artifact verification.
+Owner feedback supersedes the earlier three-interaction pour target: players need a playful welcome and context before brewing. Local implementation adds Bảy's greeting/optional conversation, bell/apron/stool curiosity and an explicit Try / Watch / Sit longer invitation. It preserves old checkpoints and seven-shift proof rules. See [WELCOME_PACING.md](WELCOME_PACING.md). 172 model/unit checks, builds and focused browser checks pass. Publication is now verified below; earlier release entries remain historical.
+
+### Verified v0.21 publication — 26 October 2026
+
+- Source [PR #55](https://github.com/tahulk79/TheCoffeeSixSense/pull/55), merged commit `b5d36652c0bcf7b968e579ec819c928cffd7a2fd`.
+- [Pages run 40264611741](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40264611741) succeeded for that exact source. Downloaded public HTML, webtoon sheet, counter PNGs and manifest all match the reviewed files byte for byte. HTML SHA-256: `28e9f978224918e1b88b497da1e6e0e338e61d739be0e5d3ba4f74e1c48ca2b6`; existing artwork hashes remain unchanged from v0.20.
+- 172 unit/model checks, standalone/Vite builds and local opening/counter/full-cup/legacy-profile/seven-shift regressions pass. The downloaded public artifact was replayed in Chromium at the Pages base path in four VI/EN viewport configurations: greeting and conversation before any cup, curiosity persistence, invitation/decline/reentry, voluntary self pouring, delayed mission, checkpoint/language/cozy, preview byte preservation and quota/corrupt recovery all pass. Additional watch-only pause/reload/resume/exit checks verify ownership and no hidden continued flow.
+- [Preview the revised beginning](https://tahulk79.github.io/TheCoffeeSixSense/?mode=rebirth&opening=preview&v=0.21.0). Existing completed/mid-pour players retain their position; preview is the explicit way to review the new start without resetting.
+- The earlier three-interaction pour target is intentionally superseded by context and player choice. No forced timer, new XP award, dependency, backend or change to scientific brewing/recipe models. Human enjoyment/retention and physical iPad/Safari behavior remain unmeasured. See [WELCOME_PACING.md](WELCOME_PACING.md).
+- This documentation-only record may follow the deployed app source without another application deployment.
