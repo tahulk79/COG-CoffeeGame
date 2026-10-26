@@ -198,3 +198,6 @@ body{background:radial-gradient(ellipse at 12% 0,#3b3027 0,transparent 48%),radi
 .rb-heading{padding:0}.rb-bench{grid-template-rows:minmax(0,1fr);min-height:0;overflow:hidden}.rb-scale{max-height:100%}.rb-scale>div{gap:3px;margin:5px 0;font-size:1.2rem}.rb-scale>span{font-size:.52rem}.rb-scale small{font-size:.53rem;line-height:1.4;margin:2px 0}
 
 #cafe .cafe-main:has(>#rebirth-campaign[hidden]){grid-template-rows:48px 44px minmax(0,1fr)}#rebirth-entry-banner{margin:0;min-height:44px;padding:8px;font-size:.76rem;line-height:1.3;width:100%;border:1px solid #e9cc91;background:#dca66b;color:#293b2c}
+
+/* Continuation uses the same compact, internally scrolling campaign stage. */
+.rw-station{display:flex;justify-content:center;gap:14px;padding:20px;background:#d8bf8022;border-radius:12px}.rw-evidence{padding:9px;border:1px solid #b7ab79;border-radius:8px;color:#f1deb2}.rw-digital{font-family:monospace;font-size:2rem;text-align:center;background:#182d22;color:#d5e8a6;padding:14px;border:3px solid #9aa873;border-radius:10px}.rw-ending{text-align:center;font-size:3rem;padding:20px}.rw-save:empty{display:none}#rebirth-campaign [data-rw-play][aria-pressed=true]{background:#c7b57e;color:#243e2e;outline:2px solid #e2cc8d}

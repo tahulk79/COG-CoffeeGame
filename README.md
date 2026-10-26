@@ -1,6 +1,6 @@
 # The Coffee Six Sense
 
-## Product planning — v0.17.1 (strategy baseline v0.12)
+## Product planning — v0.18.0 (strategy baseline v0.12)
 
 For product-planning handoffs, start with these documents. They distinguish shipped behavior from proposals awaiting implementation approval:
 
@@ -28,9 +28,13 @@ Try the optional scale mystery while preparing the Yemen cup: predict, choose wh
 
 An additional linked trail is approved for release: an immediate owner invitation, the existing Yemen scale case, a playable AeroPress scale-placement comparison, and an Ethiopia label/parcel task with a persistent café postcard. Map interaction and old-player access are also refined. See [scope, compatibility and test evidence](docs/POSTCARD_TRAIL.md). Publication and public-artifact verification are recorded in [shared status](docs/SYNC_STATUS.md).
 
+## Seven-shift Rebirth · Hanoi — v0.18.0
+
+Continue the original three shifts through four new challenges: confirm a decaf request, pack supplies within a budget, investigate an untared scale, and dispatch a four-guest final counter with separate bean stocks. Complete seven shifts with at least five game skill stamps to earn the return ending; otherwise receive a recoverable comic capybara assignment. Replay improves evidence without farming XP. [Play Rebirth](https://tahulk79.github.io/TheCoffeeSixSense/?mode=rebirth&v=0.18.0). Existing campaign and classic records remain intact. See [scope and limitations](docs/REBIRTH_HANOI.md).
+
 ## Rebirth · Hanoi — v0.17.0 three-shift pilot
 
-An absurd accident leads to employee Hà Nội's first three shifts at a fictional C6S café: choose tools, clarify and actually brew a guest's order, then dispatch a busy counter with limited beans. Earn one-time XP and evidence-based game stamps; recover from a comic alpaca branch without losing progress. Fresh players enter the pilot; existing players have a prominent “Play Rebirth” button on the main café screen as well as the first item in the Book. Open directly with [mode=rebirth](https://tahulk79.github.io/TheCoffeeSixSense/?mode=rebirth&v=0.17.1); the link resumes the same stored campaign instead of resetting it. The classic café and journals remain available. This is **three shifts**, not the full seven-day return campaign. See [scope, controls, compatibility and checks](docs/REBIRTH_HANOI.md).
+An absurd accident leads to employee Hà Nội's first three shifts at a fictional C6S café: choose tools, clarify and actually brew a guest's order, then dispatch a busy counter with limited beans. Earn one-time XP and evidence-based game stamps; recover from a comic alpaca branch without losing progress. Fresh players enter the pilot; existing players have a prominent “Play Rebirth” button on the main café screen as well as the first item in the Book. Open directly with [mode=rebirth](https://tahulk79.github.io/TheCoffeeSixSense/?mode=rebirth&v=0.17.1); the link resumes the same stored campaign instead of resetting it. The classic café and journals remain available. This original three-shift pilot is extended by v0.18.0 above. See [scope, controls, compatibility and checks](docs/REBIRTH_HANOI.md).
 
 ## Cozy listening and automatic rest — v0.16.0
 

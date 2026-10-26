@@ -131,3 +131,7 @@ The owner could not find the deployed concept because existing players stayed in
 - Direct entry: https://tahulk79.github.io/TheCoffeeSixSense/?mode=rebirth&v=0.17.1. Downloaded HTML matched the reviewed standalone byte for byte; SHA-256 `dce36ed97fd49a824676bf01b6f3f3135646f3217f5c35e2a8018af01e9ce898`.
 - Four-size Chromium replay of the downloaded artifact verifies visible main-screen CTA, explicit deep-link override of remembered classic mode, retained campaign progress, unchanged classic profile, explicit classic return and reload. 155 unit/model checks and builds pass.
 - This patch addresses discoverability; no account reset or new gameplay is involved. Earlier authentication interruptions are resolved as recorded above. Documentation-only records can follow this deployed source without changing the application artifact.
+
+## v0.18 seven-shift continuation — 26 October 2026
+
+Local implementation continues the approved Rebirth concept after v0.17.1. Four additional decision/resource challenges, a day-seven return threshold and recoverable capybara ending are implemented without migrating old profiles. See [REBIRTH_HANOI.md](REBIRTH_HANOI.md). 162 unit/model checks, standalone/Vite builds and the continuation browser matrix pass. Publication evidence will follow the source PR and successful Pages run; this entry alone is not a deployment claim.
