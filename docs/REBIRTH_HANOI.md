@@ -1,4 +1,34 @@
-# Rebirth · Hanoi — three-shift pilot, v0.17
+# Rebirth · Hanoi — seven-shift campaign, v0.18.0
+
+The owner asked to continue after the deployed v0.17.1 entry fix. The original three-shift pilot below remains as historical implementation detail. v0.18 adds a bounded four-shift continuation and both day-seven story outcomes, preserving the original campaign, classic café, animations, cozy listening and journals. One fictional Hanoi café remains the only city; this is not a professional simulator or barista credential.
+
+## New playable continuation
+
+| Shift | Player interaction | Stamp requirement |
+| --- | --- | --- |
+| 4 · Particular request | Confirm that Mai accepts decaf's residual caffeine; inspect the DECAF bag before selecting it | Ask, read and select correctly without mistakes |
+| 5 · Supply shortage | Toggle a supply cart containing bean portions, papers and a tempting cat poster; meet two-order needs within five fictional tokens | Confirm an adequate cart within budget on the first attempt |
+| 6 · Untared scale | Measure empty server (120 g) and server plus water (360 g), then infer the 240 g difference | Inspect both readings and select the supported inference, without taring the loaded server or discarding it |
+| 7 · Final counter | Route four tickets using one regular and one decaf portion and a single reusable server | Deliver the ready tray, water, confirmed decaf and regular cup without duplicate or mistaken actions |
+
+There are multiple valid inspection/service orders. Each challenge provides recoverable feedback. Resetting a station preserves prior XP but disqualifies that attempt's stamp. Replays retain the best proof and cannot downgrade existing stamps. New rewards are 90/100/110/120 XP, capped at 420; combined campaign cap is 600 XP and eight game levels. The early three-shift view retains its original local 180 XP scale until the continuation starts; the combined scale then displays all seven shifts.
+
+Complete all seven shifts with **at least five excellent stamps out of seven** for the return ending and a fictional C6S spoon keepsake in the ending narrative. Otherwise become a temporary **capybara stool tester**; replay missing stamps to return. Review/replay of the first three shifts stays available from the ending. There is no real-world deadline, account deletion, XP loss, payment, permanent failure or second city. No separate collectible inventory or equipment shop is claimed.
+
+## Scientific and gameplay limits
+
+Decaf is not guaranteed caffeine-free. The guest explicitly accepts that distinction; the game does not advise that decaf is medically suitable for everyone avoiding caffeine. Roast color is not treated as a caffeine measurement. The scale puzzle weighs water separately without grounds; it does not equate real collected beverage mass with water input, or infer extraction/flavor. Supply tokens and single-click counter brewing are abstract game actions, not a new calibrated brewing simulation. Actual interactive pouring and stream/drip animation remain in shift 2 and the original practice mode. The other shifts are compact decision/resource puzzles, not four new pouring minigames.
+
+## Additive persistence and verification
+
+`src/rebirth-week.js` owns separate `c6s.rebirth.week.v1` storage. It validates bounded action histories, reconstructs resource/evidence states and rejects invented or skipped-day completion. No migration or writes to `c6s.rebirth.hanoi.v1` occur from continuation actions. Corrupt/future originals remain protected with export; quota failure keeps the previous checkpoint and offers retry/session export. Stored completion is local convenience, not anti-cheat.
+
+162 unit/model tests and standalone/Vite builds pass. `scripts/smoke-rebirth-week.mjs` covers four viewport sizes (320×568, 390×844, 844×390, 1280×800), full continuation, reload, language change, both endings, replay improvement, XP cap, classic return, byte-identical original campaign, corrupt data and quota/retry. Earlier three-shift and entry regressions remain applicable. These checks do not measure human enjoyment, D1 retention, actual professional skill or physical-device/Safari behavior. Release publication evidence belongs in SYNC_STATUS.md.
+
+---
+
+## Historical v0.17 three-shift pilot
+
 
 The owner approved prototyping one city, one café and the first three shifts before expanding the seven-day reincarnation concept. This is an additive game mode, not a replacement of the existing fourteen visits, science, creator recipes, real-brew notebook or user records.
 
