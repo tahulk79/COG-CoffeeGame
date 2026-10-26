@@ -7,13 +7,13 @@ Observation date: 26 October 2026. This is a dated handoff snapshot, not a backg
 | Item | Observation / evidence |
 | --- | --- |
 | Repository / branch | `tahulk79/TheCoffeeSixSense` / `main`; public repository. |
-| Application version | **v0.18.0**, deployed and public artifact verified: seven-shift Hanoi Rebirth continuation; classic café/cozy retained. |
-| Current application source | `1b7ba8898a803766b4d8a27b288cb7bec42aae0e`, [PR #49](https://github.com/tahulk79/TheCoffeeSixSense/pull/49): seven-shift continuation. |
-| Previous application source commit | `322ff7df8a32fb568761a6041061eeddceea59de`, [PR #47](https://github.com/tahulk79/TheCoffeeSixSense/pull/47): visible Rebirth entry. |
+| Application version | **v0.19.0**, deployed and public HTML/art verified: illustrated interactive webtoon opening, whole seven-shift HUD, preserved campaign/classic/cozy. |
+| Current application source | `4315d51bf60d743e72c7f822f1365311f262ada7`, [PR #51](https://github.com/tahulk79/TheCoffeeSixSense/pull/51): playable webtoon cold open. |
+| Previous application source commit | `1b7ba8898a803766b4d8a27b288cb7bec42aae0e`, [PR #49](https://github.com/tahulk79/TheCoffeeSixSense/pull/49): seven-shift continuation. |
 | Earlier product-doc publication | [PR #33](https://github.com/tahulk79/TheCoffeeSixSense/pull/33), `d9f32ac6d8353d98a8e9c719d93a2339858f6066`. The original v0.12 release/audit baseline is `0ae226764d6248501ec576b343e14c369cba9eec`; it is not the latest source revision. |
-| Source validation | [Run 40249706453](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40249706453) passed for PR #49 head `c83bf75ed6d48a6a31a2e99bb77a0b4298e1c5b2`. |
-| Current Pages publication | [Run 40249755567](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40249755567) succeeded for the exact current application source. |
-| Application entry | https://tahulk79.github.io/TheCoffeeSixSense/?mode=rebirth&v=0.18.0 |
+| Source validation | [Run 40252703386](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40252703386) passed for PR #51 head `5217be0921b20484d22eba12fdfe73c147e981d2`. |
+| Current Pages publication | [Run 40252756116](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40252756116) succeeded for the exact current source. |
+| Application entry | https://tahulk79.github.io/TheCoffeeSixSense/?mode=rebirth&v=0.19.0 — existing players can add `opening=preview` or use the first Book entry. |
 | Preferred working mode | Product planning and development continue in this single Codex conversation, as requested by the owner. No cross-chat copy/paste is required for this workflow. The read-only cross-conversation agreement is an optional fallback. |
 | Planning ChatGPT connection | Owner reports GitHub **read access only**. No write access, background refresh or task execution capability is inferred. |
 | Automated conversation synchronization | **Not installed.** No shared chat-history service or AI runner has been configured. |
@@ -28,7 +28,7 @@ The latest [MVP audit](MVP_AUDIT_2026-10-25.md) records model/build checks and a
 | Four current planning documents and README index | Published | [CURRENT_STATE.md](CURRENT_STATE.md), [GAP_ANALYSIS.md](GAP_ANALYSIS.md), [ROADMAP_V012.md](ROADMAP_V012.md) and the strategic handoff are on main. Their dates/source baselines remain relevant. |
 | Read-only ChatGPT ↔ Codex coordination | Procedure prepared | Follow [WORK_SYNC.md](WORK_SYNC.md). The owner still transfers the proposed/approved handoff from ChatGPT into Codex. |
 | Optional mystery + useful unlock + linked evidence journal | MERGED / DEPLOYED / ARTIFACT VERIFIED | PR #36 and deployment/runtime evidence below confirm this bounded pilot. Wider roadmap work remains a proposal. |
-| Release number | v0.18.0 | Seven story shifts in one Hanoi café, including two recoverable outcomes; earlier audits/releases remain historical. |
+| Release number | v0.19.0 | Playable webtoon opening before the existing seven-shift Hanoi campaign; earlier audits/releases remain historical. |
 | Fully autonomous cross-conversation work | BLOCKED on capabilities/design | Read-only GitHub cannot write plans or trigger a runner. A write/API path and explicit execution/approval/cost design would be needed. No credentials should be sent in chat. |
 | Hosting migration, payments, marketing | Outside synchronization scope | Keep Pages. No VPS setup, premium currency, payment system or campaign is authorized by this procedure. |
 
@@ -146,4 +146,13 @@ Local implementation continues the approved Rebirth concept after v0.17.1. Four 
 
 ## v0.19 webtoon opening — 26 October 2026
 
-The owner approved improving the early experience and adding generated webtoon art. The local update adds nine original illustrated story views, a comic dodge, a first-30-g hands-on pulse before mission exposition, tool placement and progress-preserving old-player preview. See [WEBTOON_OPENING.md](WEBTOON_OPENING.md). 168 unit/model checks, builds and focused browser verification pass. Current deployment pointers above remain v0.18 until the new source, Pages run and public-artifact verification are recorded.
+The owner approved improving the early experience and adding generated webtoon art. The local update adds nine original illustrated story views, a comic dodge, a first-30-g hands-on pulse before mission exposition, tool placement and progress-preserving old-player preview. See [WEBTOON_OPENING.md](WEBTOON_OPENING.md). 168 unit/model checks, builds and focused browser verification pass. Publication is now verified below; earlier release entries remain historical.
+
+### Verified v0.19 publication — 26 October 2026
+
+- Source [PR #51](https://github.com/tahulk79/TheCoffeeSixSense/pull/51), merged commit `4315d51bf60d743e72c7f822f1365311f262ada7`.
+- [Pages run 40252756116](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40252756116) succeeded for that source. Downloaded public HTML and art both match the reviewed files byte for byte. HTML SHA-256: `737e59806e7fa6fa8a9010c23bf15d0835fdbd3cd67e5399f1fcfd7ea89b5870`; nine-panel PNG: `76a08e9f533def74017288db86cd75c5f83d37c4e4bbf42b4f472f6ac309e2a6`.
+- 168 unit/model checks, standalone/Vite builds, original three-shift/full-pour, main-entry and week-continuation regressions pass. Downloaded-public-HTML/art replay at the Pages base path passes the four-size VI/EN opening matrix, real image loading, visible controls, first-pulse flow/drips, delayed mission, checkpoint/language/cozy handling, preview from URL and Book without profile reset, quota/corrupt data and paused-drain recovery.
+- Returning-player preview: https://tahulk79.github.io/TheCoffeeSixSense/?mode=rebirth&opening=preview&v=0.19.0 . Regular entry preserves existing progress; fresh profiles automatically get the new opening.
+- Original generated art is included in both public/build inputs. No dependencies, backend, profile migration, premium currency or deployment architecture changes. Low-bandwidth timing, human enjoyment/retention and physical-device/Safari behavior remain unmeasured. See [WEBTOON_OPENING.md](WEBTOON_OPENING.md).
+- This documentation-only record may follow the deployed application source without a second app deployment.
