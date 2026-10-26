@@ -1,6 +1,6 @@
 # The Coffee Six Sense
 
-## Product planning — v0.19.0 (strategy baseline v0.12)
+## Product planning — v0.20.0 (strategy baseline v0.12)
 
 For product-planning handoffs, start with these documents. They distinguish shipped behavior from proposals awaiting implementation approval:
 
@@ -27,6 +27,10 @@ Try the optional scale mystery while preparing the Yemen cup: predict, choose wh
 ## Three-clue postcard trail — v0.14.0
 
 An additional linked trail is approved for release: an immediate owner invitation, the existing Yemen scale case, a playable AeroPress scale-placement comparison, and an Ethiopia label/parcel task with a persistent café postcard. Map interaction and old-player access are also refined. See [scope, compatibility and test evidence](docs/POSTCARD_TRAIL.md). Publication and public-artifact verification are recorded in [shared status](docs/SYNC_STATUS.md).
+
+## Cozy counter and tool discovery — v0.20.0
+
+Set up a cozy brewing counter with original Blender/MCP-rendered equipment. Correct choices appear on the worktop; short feedback explains mismatches, and an optional illustrated kit is available from the Book for all players. The opening and full-cup bench gain the new room while retaining live pouring, drips and scale/time. [Play v0.20](https://tahulk79.github.io/TheCoffeeSixSense/?mode=rebirth&v=0.20.0) · [Scope, graphics source and checks](docs/COZY_COUNTER.md). Existing campaign and journal records remain intact.
 
 ## Webtoon cold open — v0.19.0
 
