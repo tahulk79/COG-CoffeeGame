@@ -7,13 +7,13 @@ Observation date: 26 October 2026. This is a dated handoff snapshot, not a backg
 | Item | Observation / evidence |
 | --- | --- |
 | Repository / branch | `tahulk79/TheCoffeeSixSense` / `main`; public repository. |
-| Application version | **v0.19.0**, deployed and public HTML/art verified: illustrated interactive webtoon opening, whole seven-shift HUD, preserved campaign/classic/cozy. |
-| Current application source | `4315d51bf60d743e72c7f822f1365311f262ada7`, [PR #51](https://github.com/tahulk79/TheCoffeeSixSense/pull/51): playable webtoon cold open. |
-| Previous application source commit | `1b7ba8898a803766b4d8a27b288cb7bec42aae0e`, [PR #49](https://github.com/tahulk79/TheCoffeeSixSense/pull/49): seven-shift continuation. |
+| Application version | **v0.20.0**, deployed and public HTML/art verified: cozy worktop, Blender tool portraits, contextual coaching and optional Book kit; live pouring retained. |
+| Current application source | `f5d1606b988120ceb6e985fc8b372ad234f506f6`, [PR #53](https://github.com/tahulk79/TheCoffeeSixSense/pull/53): cozy counter and tool discovery. |
+| Previous application source commit | `4315d51bf60d743e72c7f822f1365311f262ada7`, [PR #51](https://github.com/tahulk79/TheCoffeeSixSense/pull/51): webtoon cold open. |
 | Earlier product-doc publication | [PR #33](https://github.com/tahulk79/TheCoffeeSixSense/pull/33), `d9f32ac6d8353d98a8e9c719d93a2339858f6066`. The original v0.12 release/audit baseline is `0ae226764d6248501ec576b343e14c369cba9eec`; it is not the latest source revision. |
-| Source validation | [Run 40252703386](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40252703386) passed for PR #51 head `5217be0921b20484d22eba12fdfe73c147e981d2`. |
-| Current Pages publication | [Run 40252756116](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40252756116) succeeded for the exact current source. |
-| Application entry | https://tahulk79.github.io/TheCoffeeSixSense/?mode=rebirth&v=0.19.0 — existing players can add `opening=preview` or use the first Book entry. |
+| Source validation | [Run 40259675629](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40259675629) passed for PR #53 head `1080eee79cec4d15afe0e8cc683b33cd4cd4daeb`. |
+| Current Pages publication | [Run 40259899309](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40259899309) succeeded for the exact current source. |
+| Application entry | https://tahulk79.github.io/TheCoffeeSixSense/?mode=rebirth&v=0.20.0 — Book → Bảy’s brewing kit is available without resetting progress. |
 | Preferred working mode | Product planning and development continue in this single Codex conversation, as requested by the owner. No cross-chat copy/paste is required for this workflow. The read-only cross-conversation agreement is an optional fallback. |
 | Planning ChatGPT connection | Owner reports GitHub **read access only**. No write access, background refresh or task execution capability is inferred. |
 | Automated conversation synchronization | **Not installed.** No shared chat-history service or AI runner has been configured. |
@@ -28,7 +28,7 @@ The latest [MVP audit](MVP_AUDIT_2026-10-25.md) records model/build checks and a
 | Four current planning documents and README index | Published | [CURRENT_STATE.md](CURRENT_STATE.md), [GAP_ANALYSIS.md](GAP_ANALYSIS.md), [ROADMAP_V012.md](ROADMAP_V012.md) and the strategic handoff are on main. Their dates/source baselines remain relevant. |
 | Read-only ChatGPT ↔ Codex coordination | Procedure prepared | Follow [WORK_SYNC.md](WORK_SYNC.md). The owner still transfers the proposed/approved handoff from ChatGPT into Codex. |
 | Optional mystery + useful unlock + linked evidence journal | MERGED / DEPLOYED / ARTIFACT VERIFIED | PR #36 and deployment/runtime evidence below confirm this bounded pilot. Wider roadmap work remains a proposal. |
-| Release number | v0.19.0 | Playable webtoon opening before the existing seven-shift Hanoi campaign; earlier audits/releases remain historical. |
+| Release number | v0.20.0 | Cozy first counter and tool-kit refinement of the existing seven-shift Hanoi campaign; earlier audits/releases remain historical. |
 | Fully autonomous cross-conversation work | BLOCKED on capabilities/design | Read-only GitHub cannot write plans or trigger a runner. A write/API path and explicit execution/approval/cost design would be needed. No credentials should be sent in chat. |
 | Hosting migration, payments, marketing | Outside synchronization scope | Keep Pages. No VPS setup, premium currency, payment system or campaign is authorized by this procedure. |
 
@@ -159,4 +159,14 @@ The owner approved improving the early experience and adding generated webtoon a
 
 ## v0.20 cozy counter — 26 October 2026
 
-Local refinement after the owner requested continuing game development: original Blender 5.1.2/MCP-rendered café stage and four tool portraits, Image Gen artwork reused as a framed print, physical tool placement, contextual coaching, a completed-counter reward and optional all-player kit. The live water/drip/scale models and all progress profiles remain intact. See [COZY_COUNTER.md](COZY_COUNTER.md). 168 unit/model checks, builds and focused browser verification pass. Publication is not established by this local implementation entry; verified source/Pages/public assets will be recorded after release.
+Local refinement after the owner requested continuing game development: original Blender 5.1.2/MCP-rendered café stage and four tool portraits, Image Gen artwork reused as a framed print, physical tool placement, contextual coaching, a completed-counter reward and optional all-player kit. The live water/drip/scale models and all progress profiles remain intact. See [COZY_COUNTER.md](COZY_COUNTER.md). 168 unit/model checks, builds and focused browser verification pass. Publication is now verified below; this implementation entry precedes the release record.
+
+### Verified v0.20 publication — 26 October 2026
+
+- Source [PR #53](https://github.com/tahulk79/TheCoffeeSixSense/pull/53), merged commit `f5d1606b988120ceb6e985fc8b372ad234f506f6`.
+- [Pages run 40259899309](https://github.com/tahulk79/TheCoffeeSixSense/actions/runs/40259899309) succeeded for that source. Downloaded public HTML, original webtoon sheet, five new PNGs and the art manifest all match the reviewed files byte for byte.
+- HTML SHA-256: `7802c9fb3375c0870d7eb72722c466ee821d5378ba400d679046581b6c7b3b36`. New room PNG: `894d1c501fbf0705950e80e4cd8f8dec97767ec4e63bd3bf0c620ebc9a3631a9`. Art manifest: `d2f24128adc9ffccdcac97dd910bd281c4dfc6d73290dbca79ce03d3f4151258`.
+- 168 unit/model checks and standalone/Vite builds pass. Focused local and downloaded-public-artifact Chromium replays at the Pages base path pass all four viewport sizes, real sprite loading, placed tools/keyboard, guide/Escape/Book, stable controls, VI/EN/reload, full-counter feedback, live stream/drips and cozy preservation. Failed-image playback retains working SVG choices and correct stamp rules.
+- Existing webtoon, first-three-shift/full-cup/profile-preservation, seven-shift, notebook/save-retry and cozy/radio regressions pass; YouTube provider is stubbed in browser tests. Seven underlying model/recipe source files were also verified unchanged against the prior main.
+- This is pre-rendered art and UI feedback, not runtime 3D or a new extraction model. Physical iPad/Safari, constrained-bandwidth behavior and human retention have not been measured. No dependencies, backend, migration or hosting changes. [Scope and authoring source](COZY_COUNTER.md).
+- This documentation-only record may follow the deployed app source without a second application deployment.
