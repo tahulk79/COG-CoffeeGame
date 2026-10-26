@@ -156,3 +156,7 @@ The owner approved improving the early experience and adding generated webtoon a
 - Returning-player preview: https://tahulk79.github.io/TheCoffeeSixSense/?mode=rebirth&opening=preview&v=0.19.0 . Regular entry preserves existing progress; fresh profiles automatically get the new opening.
 - Original generated art is included in both public/build inputs. No dependencies, backend, profile migration, premium currency or deployment architecture changes. Low-bandwidth timing, human enjoyment/retention and physical-device/Safari behavior remain unmeasured. See [WEBTOON_OPENING.md](WEBTOON_OPENING.md).
 - This documentation-only record may follow the deployed application source without a second app deployment.
+
+## v0.20 cozy counter — 26 October 2026
+
+Local refinement after the owner requested continuing game development: original Blender 5.1.2/MCP-rendered café stage and four tool portraits, Image Gen artwork reused as a framed print, physical tool placement, contextual coaching, a completed-counter reward and optional all-player kit. The live water/drip/scale models and all progress profiles remain intact. See [COZY_COUNTER.md](COZY_COUNTER.md). 168 unit/model checks, builds and focused browser verification pass. Publication is not established by this local implementation entry; verified source/Pages/public assets will be recorded after release.
