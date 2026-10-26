@@ -143,3 +143,7 @@ Local implementation continues the approved Rebirth concept after v0.17.1. Four 
 - 162 unit/model checks, standalone/Vite builds, original three-shift and entry browser regressions pass. Downloaded-public-artifact continuation replay at the Pages base path passes all four viewport sizes, language/checkpoint reload, both endings, replay-to-return, capped XP, original campaign preservation, classic exit/return, corrupt-original export and quota/retry.
 - One fictional Hanoi café only. New shifts are decision/resource puzzles, not additional calibrated pouring simulations. Human enjoyment/retention, Safari and physical devices have not been measured. No VPS/backend, dependencies, payments or automatic cross-chat synchronization introduced.
 - This documentation-only record may follow the deployed app source without another application deployment.
+
+## v0.19 webtoon opening — 26 October 2026
+
+The owner approved improving the early experience and adding generated webtoon art. The local update adds nine original illustrated story views, a comic dodge, a first-30-g hands-on pulse before mission exposition, tool placement and progress-preserving old-player preview. See [WEBTOON_OPENING.md](WEBTOON_OPENING.md). 168 unit/model checks, builds and focused browser verification pass. Current deployment pointers above remain v0.18 until the new source, Pages run and public-artifact verification are recorded.

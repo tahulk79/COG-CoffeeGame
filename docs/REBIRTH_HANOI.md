@@ -1,4 +1,7 @@
-# Rebirth · Hanoi — seven-shift campaign, v0.18.0
+# Rebirth · Hanoi — seven-shift campaign
+
+**v0.19 opening update:** fresh players first encounter an illustrated, interactive webtoon prologue. They help with the first 30 g pulse before hearing the seven-shift mission, then enter the original tool challenge. Existing players have a progress-preserving Book preview. See [WEBTOON_OPENING.md](WEBTOON_OPENING.md) for current entry, art, persistence and validation. The HUD now uses seven shifts / 600 XP from the beginning, superseding the v0.18 early 180 XP display described below. The other v0.18 campaign details and original v0.17 history remain applicable.
+
 
 The owner asked to continue after the deployed v0.17.1 entry fix. The original three-shift pilot below remains as historical implementation detail. v0.18 adds a bounded four-shift continuation and both day-seven story outcomes, preserving the original campaign, classic café, animations, cozy listening and journals. One fictional Hanoi café remains the only city; this is not a professional simulator or barista credential.
 
