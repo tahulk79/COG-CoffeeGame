@@ -1,8 +1,9 @@
 node_modules/
 dist/
-.env
+coverage/
+test-results/
+playwright-report/
+.vite/
+*.log
 .DS_Store
-
-# Reproducible, pinned OCR runtime assets generated during build
-public/ocr/engine/
-docs/ocr/
+Thumbs.db

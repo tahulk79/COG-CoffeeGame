@@ -1,0 +1,81 @@
+{
+  "generator": "Built-in image_gen",
+  "style": "Cozy premium hand-painted H5 coffee adventure; espresso, caramel, brass, teal",
+  "assets": [
+    {"name":"terrain","path":"/assets/h5/terrain.png","source":"/Users/macos/.codex/generated_images/01a179dd-5973-7143-8a1b-a73ebc52951e/exec-51be69c7-c9b4-4c31-929f-8d786db47aa3.png","prompt":"Use case: stylized-concept. A precise game GROUND TILE ATLAS on transparent alpha, square 1024x1024, EXACT 4 columns and 4 rows, no grid lines or words. Each cell contains ONE flat 2:1 isometric diamond tile, NO EXTRUSION, NO raised side faces. In each equal square cell the diamond's left and right vertices touch the cell's left and right midpoints; top vertex is at 25% of cell height, bottom at 75%. All pixels outside the diamond transparent. Tiles are seen orthographically and are intended to connect without seams. Detailed subtle hand-painted cozy 3D H5 coffee adventure ground, no hard dark tile outlines, no objects. Row1 four compatible warm walnut/oak parquet floor variations. Row2 four compatible rainy dark blue asphalt variations with subtle mottled wet sheen, no road markings. Row3 four compatible muted blue-gray cobblestone sidewalk variations with irregular stones and wet flecks. Row4 first two cells mossy ancient sandstone path variants, third cell lush small-leaf grass texture, fourth cell deep forest earth and low grass. Flat lighting, no directional cast shadows, no scene, no landscape background. Every diamond stays exactly inside its own cell.","grid":{"cols":4,"rows":4},"normalization":"Opaque diamond bounds are normalized to the existing 128x64 isometric ground footprint at runtime."},
+    {
+      "name": "panel",
+      "path": "/assets/h5/panel.png",
+      "source": "/Users/macos/.codex/generated_images/01a179dd-5973-7143-8a1b-a73ebc52951e/exec-a681524c-954e-4d2d-9839-9cefcd2f9adb.png",
+      "prompt": "Use case: stylized-concept. A single game UI nine-slice panel skin, square 1024x1024, straight-on front view. Rich espresso brown leather/wood interior, refined warm golden brass rim, rounded corners radius about 5% of width, subtle hand-painted bevel and inset shadow. The center 80% is very quiet uniform dark brown with just fine grain so dynamic text stays readable. Symmetrical, simple clean perimeter, no flourishes protruding into the content, no words, no icons, no badges, no illustration. Exact same cozy premium H5 coffee adventure art direction: hand-painted 3D-looking, warm caramel highlights, dark chocolate shadows. Panel occupies entire image from edge to edge, transparency only outside rounded corners. Usable as a reusable resizable nine-slice texture."
+    },
+    {
+      "name": "button",
+      "path": "/assets/h5/button.png",
+      "source": "/Users/macos/.codex/generated_images/01a179dd-5973-7143-8a1b-a73ebc52951e/exec-73883fba-e7c8-49ba-bfb7-33045bdec676.png",
+      "prompt": "Use case: stylized-concept. ONE isolated blank premium H5 game button skin on actual transparent alpha. Square 1024x1024 nine-slice source, rounded rectangle with modest 5% corner radius. Golden caramel and honey surface, subtle glossy top edge, rich coffee-brown thick bevel rim, warm dark bottom shadow integrated within the square. Quiet clean center with no words, symbols or objects. Entire button extends almost to all four image edges, only corners transparent. Front facing UI, not isometric. Cozy hand-painted 3D coffee adventure style consistent with a dark espresso and gold game UI. Designed to stretch horizontally into wide buttons."
+    },
+    {
+      "name": "icons",
+      "path": "/assets/h5/icons.png",
+      "source": "/Users/macos/.codex/generated_images/01a179dd-5973-7143-8a1b-a73ebc52951e/exec-a866ba78-37cc-43ec-8a94-39eece4d4195.png",
+      "prompt": "Use case: stylized-concept. One precise game UI ICON ATLAS, 1024 square transparent alpha, EXACT 4 columns by 4 rows of equal square cells. Each icon centered inside its cell with generous transparent padding and no overlap. No grid lines, no lettering. All share cozy premium hand-painted 3D H5 coffee game style, warm gold brass caramel and cream palette, soft studio lighting, readable clean silhouette. Cell contents in strict row-major order: row1 gold coin, gold five-point star, red heart, golden gear. row2 white ceramic coffee cup, brown inventory chest, open map parchment with route, open recipe book. row3 wooden chair, farmer's green sprout, two friendly worker portraits together, paintbrush. row4 wrapped gift, antique stopwatch, padlock, golden checkmark badge. Cell boundaries invisible; each object contained within central 75% of its 256 square cell.",
+      "grid": {
+        "cols": 4,
+        "rows": 4
+      }
+    },
+    {
+      "name": "cafe",
+      "path": "/assets/h5/cafe.png",
+      "source": "/Users/macos/.codex/generated_images/01a179dd-5973-7143-8a1b-a73ebc52951e/exec-f5ee997f-dbad-45f8-a34e-2a2ff0e785d0.png",
+      "prompt": "Use case: stylized-concept. One precise modular isometric CAFE PROP ATLAS for a playable game. True transparent background. Exact 4x4 equal cell grid in a square 1024 image, no dividers, no text, no labels, no backgrounds. Each prop isolated in its cell with 15% padding, base aligned at 88% of cell height, no overlap. Orthographic 2:1 isometric camera, cozy detailed hand-painted 3D H5 style, walnut wood, warm brass, cream ceramics and muted teal. Strict row-major contents: row1 espresso coffee machine, coffee bean grinder, milk steaming station, wooden order counter. row2 small round cafe table, long rectangular cafe table, wooden cafe chair, upholstered burgundy armchair. row3 supply shelf with jars, tall bookshelf, potted fern, warm standing floor lamp. row4 coffee pickup counter, ceramic espresso cup on saucer, vintage exit sign on a post, short decorative wooden pillar. These are replaceable individual gameplay sprites, never a complete scene.",
+      "grid": {
+        "cols": 4,
+        "rows": 4
+      }
+    },
+    {
+      "name": "farm",
+      "path": "/assets/h5/farm.png",
+      "source": "/Users/macos/.codex/generated_images/01a179dd-5973-7143-8a1b-a73ebc52951e/exec-a8869156-cfea-4683-a035-7310183d85f7.png",
+      "prompt": "Use case: stylized-concept. One precise modular isometric FARM PROP ATLAS for a playable game. True transparent background. Exact 4x4 equal cell grid in a square 1024 image, no dividers, no text, no labels or backgrounds. Each prop isolated inside its cell with 15% padding, base aligned at 88% cell height, no overlap. Orthographic 2:1 isometric camera, cozy detailed hand-painted 3D H5 coffee farming style, moss green, rich soil, warm wood and copper. Strict row-major contents: row1 empty tilled soil plot, soil plot with small green coffee seedlings, mature coffee shrub with red cherries, watered dark soil plot. row2 stone well with wooden roof, seed market stall, small cozy farmhouse, lush small tree. row3 coffee bean drying rack, copper coffee roasting machine, produce market stall, wooden crate. row4 ripe arabica shrub plot, dry thirsty shrub plot, sack of coffee beans, wooden fence post. All are independent cutout sprites, never a single scenery illustration.",
+      "grid": {
+        "cols": 4,
+        "rows": 4
+      }
+    },
+    {
+      "name": "portrait",
+      "path": "/assets/h5/portrait.png",
+      "source": "/Users/macos/.codex/generated_images/01a179dd-5973-7143-8a1b-a73ebc52951e/exec-661632e9-ac03-454c-b0b7-05a6b46b89d1.png",
+      "prompt": "Use case: stylized-concept. ONE chibi hero dialogue/avatar portrait cutout on true transparent background, square. Friendly young adult Vietnamese coffee adventurer, warm brown tousled hair, large expressive brown eyes, yellow hooded raincoat over cream shirt, small brown backpack straps. Head and shoulders/upper chest only, facing slightly right but eyes toward viewer. Premium cozy hand-painted 3D H5 adventure game illustration, warm soft light, refined edges, expressive kind curious face. No circle, no frame, no text, no scenery. Entire head and shoulders inside image with 8% padding."
+    },
+    {
+      "name": "hero",
+      "path": "/assets/h5/hero.png",
+      "source": "/Users/macos/.codex/generated_images/01a179dd-5973-7143-8a1b-a73ebc52951e/exec-74324205-7461-4d53-87a4-4e84dfaa21f6.png",
+      "prompt": "Use case: stylized-concept. ONE precise directional character SPRITE ATLAS, square 1024x1024, transparent alpha, EXACT 4x4 equal cells, no labels, no grid lines. Same chibi young adult Vietnamese hero in every cell: tousled brown hair, yellow hooded jacket, dark trousers, brown shoes, small brown backpack, large kind eyes. Full body orthographic 2:1 isometric game view, consistent scale, feet baseline at 90% of each cell, character fills central 65% width and 80% height, no shadows baked outside each cell. Rows contain eight directions with two alternating subtle walking poses each, strict row-major order: row1 north back pose A, north back pose B, northeast pose A, northeast pose B. row2 east pose A, east pose B, southeast pose A, southeast pose B. row3 south front pose A, south front pose B, southwest pose A, southwest pose B. row4 west pose A, west pose B, northwest pose A, northwest pose B. Cozy premium hand-painted 3D H5 coffee adventure style, no props in hands and no scenery.",
+      "grid": {
+        "cols": 4,
+        "rows": 4
+      }
+    },
+    {
+      "name": "extra",
+      "path": "/assets/h5/extra.png",
+      "source": "/Users/macos/.codex/generated_images/01a179dd-5973-7143-8a1b-a73ebc52951e/exec-090e1227-5b86-45f1-95fd-f52664cf3aec.png",
+      "prompt": "Use case: stylized-concept. ONE precise 4x4 equal-cell square transparent game sprite atlas, no text, no grid, no background. Same premium cozy hand-painted 3D H5 coffee adventure style as warm walnut, brass, ochre and teal assets. Each cutout centered in its equal cell with 12% transparent padding, base aligned to 88% cell height, no overlap. Objects strictly in row-major order: row1 cleaning broom, cluster of red coffee cherries with green leaves, pile of roasted coffee beans, clear glass milk bottle. row2 cute orange-and-white kitten full body, teal compact parked car isometric view, orange-white striped construction barrier isometric, slender moss-covered ancient stone pillar. row3 golden notification bell, golden experience leaf badge, tiny coffee memory crystal, full-body friendly elderly coffee master in brown robe with white beard. row4 small wooden garden footbridge isometric, glowing green coffee-leaf rune, glowing blue spiral rune, glowing purple wind rune. UI object icons readable at small sizes; world props in matching 2:1 isometric view. Transparent alpha, no scenery, not an illustration of a whole scene.",
+      "grid": {
+        "cols": 4,
+        "rows": 4
+      }
+    }
+  ],
+  "blender": "Deferred at user's explicit request. No .blend or rig generated.",
+  "notes": [
+    "All PNG alpha is preserved.",
+    "Buttons and panels are resampled to reusable 64px nine-slice sources at runtime.",
+    "Dynamic text, state, HUD and interaction geometry remain code-driven."
+  ]
+}

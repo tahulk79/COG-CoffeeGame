@@ -1,0 +1,277 @@
+{
+  "regions": {
+    "farm": {
+      "label": "Nông trại cà phê",
+      "map": "farm",
+      "unlockLevel": 1,
+      "pos": {
+        "x": 120,
+        "y": 300
+      }
+    },
+    "cafe": {
+      "label": "Quán của bạn",
+      "map": "cafe",
+      "unlockLevel": 1,
+      "pos": {
+        "x": 300,
+        "y": 220
+      }
+    },
+    "old_town": {
+      "label": "Phố cổ",
+      "map": null,
+      "unlockLevel": 3,
+      "pos": {
+        "x": 250,
+        "y": 90
+      },
+      "landCost": 800,
+      "cafeCost": 600,
+      "farmCost": 400
+    },
+    "night_market": {
+      "label": "Chợ đêm",
+      "map": null,
+      "unlockLevel": 5,
+      "pos": {
+        "x": 450,
+        "y": 130
+      },
+      "landCost": 2000,
+      "cafeCost": 1400,
+      "farmCost": 900
+    },
+    "riverside": {
+      "label": "Bờ sông",
+      "map": null,
+      "unlockLevel": 8,
+      "pos": {
+        "x": 520,
+        "y": 290
+      },
+      "landCost": 4500,
+      "cafeCost": 3000,
+      "farmCost": 1800
+    }
+  },
+  "quests": [
+    {
+      "id": "q_harvest",
+      "label": "Thu hoạch 10 quả cà phê",
+      "counter": "harvest",
+      "target": 10,
+      "reward": {
+        "coins": 60,
+        "exp": 20,
+        "items": [
+          {
+            "itemId": "seed_arabica",
+            "qty": 3
+          }
+        ]
+      }
+    },
+    {
+      "id": "q_serve5",
+      "label": "Phục vụ 5 khách",
+      "counter": "served",
+      "target": 5,
+      "reward": {
+        "coins": 120,
+        "exp": 40
+      }
+    },
+    {
+      "id": "q_sell",
+      "label": "Bán nông sản được 300 xu",
+      "counter": "sold",
+      "target": 300,
+      "reward": {
+        "coins": 100,
+        "exp": 30
+      }
+    },
+    {
+      "id": "q_decor",
+      "label": "Đặt 3 món nội thất",
+      "counter": "placed",
+      "target": 3,
+      "reward": {
+        "coins": 150,
+        "exp": 30
+      }
+    },
+    {
+      "id": "q_hire",
+      "label": "Thuê nhân viên đầu tiên",
+      "counter": "hired",
+      "target": 1,
+      "reward": {
+        "coins": 100,
+        "exp": 40
+      }
+    },
+    {
+      "id": "q_stars",
+      "label": "Nhận 3 đánh giá 5 sao",
+      "counter": "fiveStar",
+      "target": 3,
+      "requires": "q_serve5",
+      "reward": {
+        "coins": 250,
+        "exp": 80
+      }
+    },
+    {
+      "id": "q_serve25",
+      "label": "Phục vụ 25 khách",
+      "counter": "served",
+      "target": 25,
+      "requires": "q_serve5",
+      "reward": {
+        "coins": 400,
+        "exp": 120
+      }
+    },
+    {
+      "id": "q_level5",
+      "label": "Đạt cấp 5",
+      "counter": "level",
+      "target": 5,
+      "reward": {
+        "coins": 300,
+        "exp": 0
+      }
+    }
+  ],
+  "achievements": [
+    {
+      "id": "a_first_harvest",
+      "label": "Vụ mùa đầu tiên",
+      "counter": "harvest",
+      "target": 1,
+      "reward": {
+        "coins": 20,
+        "exp": 10
+      }
+    },
+    {
+      "id": "a_barista",
+      "label": "Barista chăm chỉ (pha 10 ly)",
+      "counter": "brewed",
+      "target": 10,
+      "reward": {
+        "coins": 80,
+        "exp": 30
+      }
+    },
+    {
+      "id": "a_busy",
+      "label": "Quán đông khách (phục vụ 50)",
+      "counter": "served",
+      "target": 50,
+      "reward": {
+        "coins": 300,
+        "exp": 100
+      }
+    },
+    {
+      "id": "a_trader",
+      "label": "Thương lái (bán 2000 xu nông sản)",
+      "counter": "sold",
+      "target": 2000,
+      "reward": {
+        "coins": 200,
+        "exp": 60
+      }
+    },
+    {
+      "id": "a_team",
+      "label": "Đội ngũ vững mạnh (thuê 4 người)",
+      "counter": "hired",
+      "target": 4,
+      "reward": {
+        "coins": 250,
+        "exp": 80
+      }
+    },
+    {
+      "id": "a_story",
+      "label": "Người được chọn (xong cốt truyện)",
+      "counter": "storyDone",
+      "target": 1,
+      "reward": {
+        "coins": 100,
+        "exp": 50
+      }
+    },
+    {
+      "id": "a_level10",
+      "label": "Bậc thầy (cấp 10)",
+      "counter": "level",
+      "target": 10,
+      "reward": {
+        "coins": 500,
+        "exp": 0
+      }
+    }
+  ],
+  "skills": {
+    "tip_master": {
+      "label": "Khéo léo",
+      "desc": "+10% tiền tip mỗi cấp",
+      "effect": "tip",
+      "perLevel": 0.1,
+      "max": 3,
+      "cost": 1
+    },
+    "regulars": {
+      "label": "Khách quen",
+      "desc": "+8% lượng khách mỗi cấp",
+      "effect": "traffic",
+      "perLevel": 0.08,
+      "max": 3,
+      "cost": 1
+    },
+    "frugal": {
+      "label": "Quản lý chi tiêu",
+      "desc": "-10% lương nhân viên mỗi cấp",
+      "effect": "wage",
+      "perLevel": 0.1,
+      "max": 3,
+      "cost": 1
+    },
+    "trader": {
+      "label": "Mặc cả",
+      "desc": "+5% giá bán ở chợ mỗi cấp",
+      "effect": "market",
+      "perLevel": 0.05,
+      "max": 3,
+      "cost": 1
+    }
+  },
+  "branches": {
+    "branch_old_town": {
+      "label": "Chi nhánh Phố cổ",
+      "region": "old_town",
+      "cost": 1500,
+      "revenuePerHour": 120,
+      "maxStoredHours": 6
+    },
+    "branch_night_market": {
+      "label": "Chi nhánh Chợ đêm",
+      "region": "night_market",
+      "cost": 4000,
+      "revenuePerHour": 320,
+      "maxStoredHours": 6
+    },
+    "branch_riverside": {
+      "label": "Chi nhánh Bờ sông",
+      "region": "riverside",
+      "cost": 9000,
+      "revenuePerHour": 700,
+      "maxStoredHours": 6
+    }
+  }
+}
