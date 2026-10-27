@@ -1,6 +1,6 @@
 # Asset Manifest & Production Checklist
 
-> **Project:** TheCoffeeSixSense · **Status:** Draft v0.1 (2026-10-26) · **Branch:** `dev`
+> **Project:** COG-CoffeeGame · **Status:** Draft v0.1 (2026-10-26) · **Branch:** `dev`
 > **Rules:** [ART_BIBLE](ART_BIBLE.md) §9–10 · **Status values:** `missing` → `placeholder` → `wip` → `review` → `final`
 > **Milestone column** = the first milestone that needs the asset (see [MILESTONES_AND_BACKLOG](../production/MILESTONES_AND_BACKLOG.md)).
 

@@ -1,6 +1,6 @@
 # Game Design Document
 
-> **Project:** TheCoffeeSixSense · **Status:** Draft v0.2 (2026-10-27; owner direction synchronized) · **Branch:** `dev`
+> **Project:** COG-CoffeeGame · **Status:** Draft v0.2 (2026-10-27; owner direction synchronized) · **Branch:** `dev`
 > **Related:** [SCREEN_SPECS](SCREEN_SPECS.md) · [GAMEPLAY_FLOW](GAMEPLAY_FLOW.md) · [ART_BIBLE](ART_BIBLE.md) · [TECHNICAL_ARCHITECTURE](../architecture/TECHNICAL_ARCHITECTURE.md)
 > **Tags:** `[CONCEPT]` shown in concept art · `[PROPOSAL]` design proposal · `[OPEN]` needs a decision
 
@@ -8,6 +8,8 @@ All numbers in this document are **initial tuning values**. They live in data fi
 
 ---
 
+
+> **Official identity (2026-10-27):** game name **COG-CoffeeGame**; canonical repository **https://github.com/tahulk79/COG-CoffeeGame**. This supersedes the former project name. Existing save keys and internal IDs are unchanged by this documentation update.
 
 ## 0. Product Owner synchronization — 27 October 2026
 

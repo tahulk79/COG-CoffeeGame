@@ -1,4 +1,4 @@
-# TheCoffeeSixSense
+# COG-CoffeeGame
 
 2.5D isometric coffee farming + café management game (Phaser 4, TypeScript, Vite).
 Current phase: **gameplay first, placeholder art**. See [docs/GAMEPLAY_ROADMAP.md](docs/GAMEPLAY_ROADMAP.md).

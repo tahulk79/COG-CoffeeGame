@@ -1,6 +1,6 @@
 # Acceptance Tests
 
-> **Project:** TheCoffeeSixSense · **Status:** Draft v0.1 (2026-10-26) · **Branch:** `dev`
+> **Project:** COG-CoffeeGame · **Status:** Draft v0.1 (2026-10-26) · **Branch:** `dev`
 > **Related:** [SCREEN_SPECS](SCREEN_SPECS.md) · [MILESTONES_AND_BACKLOG](../production/MILESTONES_AND_BACKLOG.md) · [TECHNICAL_ARCHITECTURE §8](../architecture/TECHNICAL_ARCHITECTURE.md)
 
 ---

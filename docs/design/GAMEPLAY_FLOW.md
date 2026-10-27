@@ -1,6 +1,6 @@
 # Gameplay Flow, Scene Transitions & Shared Save State
 
-> **Project:** TheCoffeeSixSense · **Status:** Draft v0.1 (2026-10-26) · **Branch:** `dev`
+> **Project:** COG-CoffeeGame · **Status:** Draft v0.1 (2026-10-26) · **Branch:** `dev`
 > **Related:** [GAME_DESIGN](GAME_DESIGN.md) · [SCREEN_SPECS](SCREEN_SPECS.md) · [TECHNICAL_ARCHITECTURE](../architecture/TECHNICAL_ARCHITECTURE.md)
 
 ---

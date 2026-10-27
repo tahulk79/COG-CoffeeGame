@@ -1,6 +1,6 @@
 # Screen Specifications & Visual Reference Registry
 
-> **Project:** TheCoffeeSixSense · **Status:** Draft v0.1 (2026-10-26) · **Branch:** `dev`
+> **Project:** COG-CoffeeGame · **Status:** Draft v0.1 (2026-10-26) · **Branch:** `dev`
 > **Visual source of truth:** [reference/concept-sheet-29-screens.jpg](reference/concept-sheet-29-screens.jpg)
 > **Tags:** `[CONCEPT]` = visible in the concept tile · `[PROPOSAL]` = design proposal, not shown in concept · `[OPEN]` = needs a decision · `(?)` = label partly illegible at reference resolution
 

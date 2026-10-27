@@ -1,6 +1,6 @@
 # Technical Architecture
 
-> **Project:** TheCoffeeSixSense · **Status:** Draft v0.1 (2026-10-26) · **Branch:** `dev`
+> **Project:** COG-CoffeeGame · **Status:** Draft v0.1 (2026-10-26) · **Branch:** `dev`
 > **Related:** [GAMEPLAY_FLOW](../design/GAMEPLAY_FLOW.md) (scenes, save schema) · [GAME_DESIGN](../design/GAME_DESIGN.md) · [MILESTONES_AND_BACKLOG](../production/MILESTONES_AND_BACKLOG.md)
 
 ---
@@ -9,7 +9,7 @@
 
 | Check | Finding |
 |---|---|
-| Existing codebase | **None.** `D:\NewGame` was empty and not a git repository. No TheCoffeeSixSense project was found on local drives or in VS Code's recent workspaces. There is no prior architecture to analyze or migrate. |
+| Existing codebase | **None.** `D:\NewGame` was empty and not a git repository. No COG-CoffeeGame project was found on local drives or in VS Code's recent workspaces. There is no prior architecture to analyze or migrate. |
 | Git | Repository created 2026-10-26. `main` = one baseline commit (README + concept sheet), kept as the untouched reference. All work happens on `dev`. Nothing is pushed; there is no remote. |
 | Uncommitted work to preserve | None existed. |
 | Design references | One composite concept sheet (29 screens, 1536×1024). See [SCREEN_SPECS §1](../design/SCREEN_SPECS.md). |
