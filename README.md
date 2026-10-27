@@ -2,6 +2,7 @@
 
 2.5D isometric coffee farming + café management game (Phaser 4, TypeScript, Vite).
 Current phase: **gameplay first, placeholder art**. See [docs/GAMEPLAY_ROADMAP.md](docs/GAMEPLAY_ROADMAP.md).
+Task tracking: [docs/task-list/TASK_LIST.md](docs/task-list/TASK_LIST.md) (update it whenever you change docs, see its README).
 
 ## Run
 ```

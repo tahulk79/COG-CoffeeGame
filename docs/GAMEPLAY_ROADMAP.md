@@ -2,6 +2,7 @@
 
 > **Status:** v1.0 · 2026-10-26 · branch `dev`
 > **Supersedes** the milestone list in [production/MILESTONES_AND_BACKLOG.md](production/MILESTONES_AND_BACKLOG.md). The art track there still applies, but it runs *after* gameplay ("gameplay first, art later").
+> Tasks: [task-list/TASK_LIST.md](task-list/TASK_LIST.md) (update it with every docs change)
 > Systems: [GAMEPLAY_SYSTEMS.md](GAMEPLAY_SYSTEMS.md) · Tests: [GAMEPLAY_TEST_PLAN.md](GAMEPLAY_TEST_PLAN.md) · Art swap: [ASSET_REPLACEMENT_GUIDE.md](ASSET_REPLACEMENT_GUIDE.md)
 
 ## Rules
