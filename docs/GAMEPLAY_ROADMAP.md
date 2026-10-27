@@ -5,6 +5,12 @@
 > Tasks: [task-list/TASK_LIST.md](task-list/TASK_LIST.md) (update it with every docs change)
 > Systems: [GAMEPLAY_SYSTEMS.md](GAMEPLAY_SYSTEMS.md) · Tests: [GAMEPLAY_TEST_PLAN.md](GAMEPLAY_TEST_PLAN.md) · Art swap: [ASSET_REPLACEMENT_GUIDE.md](ASSET_REPLACEMENT_GUIDE.md)
 
+## Product direction update — 27 October 2026
+
+See [GAME_DESIGN §0](design/GAME_DESIGN.md) for the latest owner-approved two-core, farm-first and dual-travel direction. Existing milestone completion reports below describe historical technical delivery, not acceptance of the new journey. Do not restart M1–M12.
+
+Next: T-019 specifies and validates one complete farm → bean sale/allocation → café → replenishment loop using current systems. T-020 then designs international growing-region and famous-city tracks. T-012/T-013 remain recorded test issues; T-015 tracks missing CI/deploy workflows. No deployment or new test execution is claimed by this documentation update.
+
 ## Rules
 - All rendering is placeholder (shapes, labels, debug panels) until M12 is done.
 - A milestone is **done** only when: `npm run typecheck`, `npm run build`, `npm test` and `npm run e2e` all pass; the playable flow has been demonstrated; this file is updated.

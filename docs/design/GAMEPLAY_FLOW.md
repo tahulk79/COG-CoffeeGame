@@ -1,9 +1,13 @@
 # Gameplay Flow, Scene Transitions & Shared Save State
 
-> **Project:** TheCoffeeSixSense · **Status:** Draft v0.1 (2026-10-26) · **Branch:** `dev`
+> **Project:** COG-CoffeeGame · **Status:** Draft v0.1 (2026-10-26) · **Branch:** `dev`
 > **Related:** [GAME_DESIGN](GAME_DESIGN.md) · [SCREEN_SPECS](SCREEN_SPECS.md) · [TECHNICAL_ARCHITECTURE](../architecture/TECHNICAL_ARCHITECTURE.md)
 
 ---
+
+## Direction override — 27 October 2026
+
+The graph below records the earlier draft and has not been changed in code by this update. It does **not** yet satisfy the latest farm-first journey. [GAME_DESIGN §0](GAME_DESIGN.md) takes precedence: farmer → harvest → sell/retain beans → city café → consume stock → farm replenishment. T-019 must specify transition gates and reconcile story placement, employee/owner choice, depletion and recovery before replacing the scene graph. Do not assume the earlier IndexedDB/save interface below matches the implemented rewrite; GAMEPLAY_ROADMAP records later schema changes.
 
 ## 1. Scene graph
 

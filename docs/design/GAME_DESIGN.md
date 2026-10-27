@@ -1,10 +1,55 @@
 # Game Design Document
 
-> **Project:** TheCoffeeSixSense · **Status:** Draft v0.1 (2026-10-26) · **Branch:** `dev`
+> **Project:** COG-CoffeeGame · **Status:** Draft v0.2 (2026-10-27; owner direction synchronized) · **Branch:** `dev`
 > **Related:** [SCREEN_SPECS](SCREEN_SPECS.md) · [GAMEPLAY_FLOW](GAMEPLAY_FLOW.md) · [ART_BIBLE](ART_BIBLE.md) · [TECHNICAL_ARCHITECTURE](../architecture/TECHNICAL_ARCHITECTURE.md)
 > **Tags:** `[CONCEPT]` shown in concept art · `[PROPOSAL]` design proposal · `[OPEN]` needs a decision
 
 All numbers in this document are **initial tuning values**. They live in data files (`src/data/*.json`), not in code, and are expected to change during playtests.
+
+---
+
+
+> **Official identity (2026-10-27):** game name **COG-CoffeeGame**; canonical repository **https://github.com/tahulk79/COG-CoffeeGame**. This supersedes the former project name. Existing save keys and internal IDs are unchanged by this documentation update.
+
+## 0. Product Owner synchronization — 27 October 2026
+
+This section records the Product Owner's latest direction and takes precedence over conflicting draft flow below. It changes design documentation only, not the running game. The remainder retains earlier tuning proposals until reconciled. Baseline reviewed: main `11a5c49`.
+
+### APPROVED — direction explicitly stated by the Product Owner
+
+- Two equally important core loops: a coffee farming game and a café operations / sales management game.
+- The opening playable business journey starts as a farmer: grow coffee, harvest, and sell beans. The next stage puts the player in a major city as an employee or owner developing a café.
+- Café operations consume coffee stock. Running out of beans sends the player back to farming and harvesting; the recurring farm–café supply cycle is central.
+- Travel has two distinct tracks: visit coffee-growing farms around the world, and develop cafés in famous cities around the world.
+- Preserve the established Game-first, Hybrid Discovery and Persistent Discovery principles: fun for non-coffee players, honest boundaries between science and game abstraction, and persistent comparisons / optional personal discoveries.
+
+The choice between employee-first and owner-first is OPEN. This direction does not approve a particular city list, economy, timetable, premium currency, compulsory real-time waiting or new engine rewrite.
+
+### PROPOSED — implementation choices, not owner approval
+
+- Split a harvest into market sales for cash and a retained share for café use; show that allocation clearly.
+- Warn at low stock and offer a return trip before inventory reaches zero. A supplier or bounded emergency stock could prevent deadlock; the exact fallback remains OPEN.
+- After the first guided round trip, allow voluntary travel rather than forcing a scene switch in the middle of an order. Define pending-order / staff behavior before implementation.
+- A farm with an almost-ripe introductory plot could shorten the first wait. No starting stock, growth speed or unlock number is approved here.
+- Use one farm and one city café to validate the complete cycle before producing international content.
+
+### GAP — current design and inspected source
+
+| Requirement | Current baseline | Remaining work |
+|---|---|---|
+| Farm-first journey | Draft §3 and GAMEPLAY_FLOW route through a brewing lesson and café hub first; guide supports harvest / serve / sell quests | Specify farm-first onboarding and transition gates; decide where rebirth/master scenes belong |
+| Farm → café → restock | FarmService implements planting / watering / harvest with transactions; guide.ts sends a bean-less café player back to processing | Validate one complete player-visible cycle; define sale/retention and recoverable zero-stock states |
+| Two travel tracks | RegionService supports land purchase, independent farm/café construction, entry gates and shared economy | Existing districts are not proof of international travel; define growing-region and famous-city content separately |
+| Persistent discovery | Earlier versions had journal tools; current rewrite was not audited for equivalent discovery history | Audit current batch/session records before claiming preservation or choosing a new journal schema |
+| Scientific boundary | Draft uses annual-style replanting and labels Culi a variety with a premium flavor role | Review before teaching these as facts: coffee is perennial; peaberry is a seed form, not a species/cultivar or guaranteed quality tier. Keep accelerated production and timing scores explicitly abstract |
+
+Source inspection here covered FarmService.ts, RegionService.ts and guide.ts; it is not a full code audit, browser playtest or a new test-suite run. Reports in GAMEPLAY_ROADMAP and REGIONAL_WORLD_UPGRADE are historical evidence with their own limits.
+
+### Next design gate
+
+Write the first-session specification: farm actions → first harvest → sale/retained stock → first café shift → depletion/restock → second harvest. Include player choices, travel rules, inventory/currency changes and recovery from no cash/no beans/no seeds. Decide employee versus owner, story placement, and whether return triggers at zero stock or is prompted earlier. Then implement the smallest missing connection using existing services.
+
+International expansion follows that gate: first define separate growing-region and city nodes, their connections, distinct gameplay, and unlock criteria. Do not call existing district construction the completed global travel experience.
 
 ---
 

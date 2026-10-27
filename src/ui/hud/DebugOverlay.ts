@@ -69,7 +69,7 @@ export class DebugOverlay {
     const cur = s.interaction.current;
     this.text.setText(
       [
-        `TheCoffeeSixSense · ${t('debug.map')}: ${s.map}`,
+        `COG-CoffeeGame · ${t('debug.map')}: ${s.map}`,
         this.measure(fps),
         t('debug.help'),
         `${t('debug.player')}  ${t(`state.${p.state}`)}  ${t('debug.tile')} ${p.tile.x},${p.tile.y}  pos ${p.pos.x.toFixed(2)},${p.pos.y.toFixed(2)}  ${t('debug.facing')} ${p.facing}`,

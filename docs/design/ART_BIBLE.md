@@ -1,6 +1,6 @@
 # Art Bible
 
-> **Project:** TheCoffeeSixSense · **Status:** Draft v0.1 (2026-10-26) · **Branch:** `dev`
+> **Project:** COG-CoffeeGame · **Status:** Draft v0.1 (2026-10-26) · **Branch:** `dev`
 > **Visual source of truth:** [reference/concept-sheet-29-screens.jpg](reference/concept-sheet-29-screens.jpg)
 > **Lock level:** items marked 🔒 are locked from the concept sheet. Items marked ⏳ are **provisional**: the reference is too small (≈ 250 px tiles) to measure them, and they lock once full-resolution frames arrive.
 

@@ -1,6 +1,6 @@
 # Asset Manifest & Production Checklist
 
-> **Project:** TheCoffeeSixSense · **Status:** Draft v0.1 (2026-10-26) · **Branch:** `dev`
+> **Project:** COG-CoffeeGame · **Status:** Draft v0.1 (2026-10-26) · **Branch:** `dev`
 > **Rules:** [ART_BIBLE](ART_BIBLE.md) §9–10 · **Status values:** `missing` → `placeholder` → `wip` → `review` → `final`
 > **Milestone column** = the first milestone that needs the asset (see [MILESTONES_AND_BACKLOG](../production/MILESTONES_AND_BACKLOG.md)).
 
@@ -79,7 +79,7 @@
 | U-03 | HUD: portrait ring, resource pill, round action button, quest panel | missing | M2 |
 | U-04 | Speech bubbles (order, reaction, review), stars, reward chips | missing | M1 (order bubble), M2 |
 | U-05 | Virtual joystick base/knob, context action button + icons | missing | M1 (mobile input), M4 |
-| U-06 | Logo "The Coffee SixSense" (vector source) | missing | M6 |
+| U-06 | Logo "COG-CoffeeGame" (vector source) | missing | M6 |
 | U-07 | Cursor/hand pointer hints (S09) | missing | M2 |
 
 ## 7. VFX (sprite sheets / particles)
