@@ -5,6 +5,10 @@
 
 ---
 
+## Direction override — 27 October 2026
+
+The graph below records the earlier draft and has not been changed in code by this update. It does **not** yet satisfy the latest farm-first journey. [GAME_DESIGN §0](GAME_DESIGN.md) takes precedence: farmer → harvest → sell/retain beans → city café → consume stock → farm replenishment. T-019 must specify transition gates and reconcile story placement, employee/owner choice, depletion and recovery before replacing the scene graph. Do not assume the earlier IndexedDB/save interface below matches the implemented rewrite; GAMEPLAY_ROADMAP records later schema changes.
+
 ## 1. Scene graph
 
 Phaser scenes are of two kinds: **world scenes** (one active at a time) and **overlay scenes** (UI that runs on top of a world scene).

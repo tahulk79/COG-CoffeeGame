@@ -24,8 +24,15 @@
 | T-016 | Chuỗi hướng dẫn học tiếp sau 3 nhiệm vụ đầu (rang, bán, nhân viên, trang trí…) | Todo | | `src/gameplay/guide/guide.ts` | |
 | T-017 | Màn nhỏ (<760px): bảng Nông trại vẫn mở sẵn che đất, cân nhắc thu gọn mặc định | Todo | | `src/ui/FarmHud.ts`, `src/scenes/HudScene.ts` | |
 
+| T-018 | Đồng bộ định hướng hai lõi, nông trại trước và hai tuyến du lịch vào GDD | Review | Codex | [GDD](../design/GAME_DESIGN.md), [flow](../design/GAMEPLAY_FLOW.md), [roadmap](../GAMEPLAY_ROADMAP.md) | Docs-only; phân biệt APPROVED / PROPOSED / GAP; chưa đổi gameplay |
+| T-019 | Đặc tả phiên đầu và vòng nông trại → bán/giữ hạt → quán → tái cung ứng | Todo | | [GDD §0](../design/GAME_DESIGN.md) | Chốt vai nhân viên/chủ, vị trí cốt truyện, ngưỡng quay lại và chống kẹt vốn/hạt/giống |
+| T-020 | Thiết kế riêng du lịch vùng trồng và mở quán tại thành phố nổi tiếng | Todo | | [GDD §0](../design/GAME_DESIGN.md) | Tận dụng RegionService; district hiện tại chưa là nội dung quốc tế |
+| T-021 | Rà ranh giới khoa học và khả năng giữ lịch sử khám phá sau rewrite | Todo | | [GDD §0](../design/GAME_DESIGN.md) | Cây lâu năm, Culi/peaberry, đơn vị nguyên liệu, điểm timing; kiểm tra batch/session trước đổi schema |
+
 ## Nhật ký cập nhật
 | Ngày | Người | Thay đổi |
 |---|---|---|
 | 2026-10-27 | Claude (theo yêu cầu) | Tạo task list; ghi T-001…T-017 từ đợt rà UI, sửa chương thầy, nông trại và đẩy PR |
 | 2026-10-27 | Claude (theo yêu cầu) | T-011 chuyển sang Done: PR #57 đã merge vào `main` |
+
+| 2026-10-27 | Codex | T-018…T-021: đồng bộ hướng Product Owner, xác định khoảng cách và bước đặc tả kế tiếp; không xác nhận lại kiểm thử lịch sử |
