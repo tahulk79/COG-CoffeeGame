@@ -1,0 +1,837 @@
+{
+  "order_counter": {
+    "label": "Quầy gọi món",
+    "footprint": {
+      "w": 2,
+      "h": 1
+    },
+    "blocking": true,
+    "interaction": {
+      "radius": 1,
+      "sides": [
+        "N"
+      ],
+      "actions": [
+        {
+          "id": "take_order",
+          "label": "Nhận order",
+          "durationMs": 500,
+          "handler": "cafe.takeOrder",
+          "params": {}
+        },
+        {
+          "id": "pickup",
+          "label": "Lấy đồ uống",
+          "durationMs": 400,
+          "handler": "cafe.pickup",
+          "params": {}
+        }
+      ]
+    }
+  },
+  "cafe_table": {
+    "label": "Bàn",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true
+  },
+  "chair": {
+    "label": "Ghế",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": false,
+    "interaction": {
+      "radius": 1,
+      "actions": [
+        {
+          "id": "serve",
+          "label": "Phục vụ",
+          "durationMs": 400,
+          "handler": "cafe.serve",
+          "params": {}
+        },
+        {
+          "id": "collect_payment",
+          "label": "Thu tiền",
+          "durationMs": 400,
+          "handler": "cafe.collectPayment",
+          "params": {}
+        },
+        {
+          "id": "clean_seat",
+          "label": "Dọn bàn",
+          "durationMs": 4000,
+          "handler": "cafe.clean",
+          "params": {}
+        }
+      ]
+    }
+  },
+  "travel_sign": {
+    "label": "Di chuyển",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true,
+    "interaction": {
+      "radius": 1,
+      "actions": [
+        {
+          "id": "travel",
+          "label": "Di chuyển",
+          "durationMs": 300,
+          "handler": "travel.go",
+          "params": {}
+        }
+      ]
+    }
+  },
+  "wall_post": {
+    "label": "Cột",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true
+  },
+  "plant": {
+    "label": "Chậu cây",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true
+  },
+  "counter": {
+    "label": "Quầy",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true
+  },
+  "espresso_machine": {
+    "label": "Máy pha cà phê",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true,
+    "interaction": {
+      "radius": 1,
+      "sides": [
+        "S"
+      ],
+      "actions": [
+        {
+          "id": "brew_test",
+          "label": "Pha cốc thử",
+          "durationMs": 1500,
+          "handler": "held.take",
+          "params": {
+            "item": "test_cup"
+          }
+        }
+      ]
+    }
+  },
+  "table_2": {
+    "label": "Bàn",
+    "footprint": {
+      "w": 2,
+      "h": 1
+    },
+    "blocking": true,
+    "interaction": {
+      "radius": 1,
+      "actions": [
+        {
+          "id": "place_cup",
+          "label": "Đặt cốc",
+          "durationMs": 400,
+          "handler": "held.deliver",
+          "params": {
+            "item": "test_cup",
+            "counter": "cupsPlaced"
+          }
+        }
+      ]
+    }
+  },
+  "crate": {
+    "label": "Thùng gỗ",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true,
+    "interaction": {
+      "radius": 1,
+      "actions": [
+        {
+          "id": "pick_box",
+          "label": "Nhặt hộp",
+          "durationMs": 800,
+          "handler": "held.take",
+          "params": {
+            "item": "box"
+          }
+        }
+      ]
+    }
+  },
+  "shelf": {
+    "label": "Kệ",
+    "footprint": {
+      "w": 1,
+      "h": 2
+    },
+    "blocking": true,
+    "interaction": {
+      "radius": 1,
+      "sides": [
+        "E"
+      ],
+      "actions": [
+        {
+          "id": "store_box",
+          "label": "Cất hộp",
+          "durationMs": 600,
+          "handler": "held.deliver",
+          "params": {
+            "item": "box",
+            "counter": "boxesStored"
+          }
+        }
+      ]
+    }
+  },
+  "statue": {
+    "label": "Tượng có rào",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true,
+    "interaction": {
+      "radius": 1,
+      "actions": [
+        {
+          "id": "inspect",
+          "label": "Quan sát",
+          "durationMs": 0,
+          "handler": "inspect",
+          "params": {}
+        }
+      ]
+    }
+  },
+  "sign": {
+    "label": "Biển báo",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true,
+    "interaction": {
+      "radius": 1,
+      "actions": [
+        {
+          "id": "read",
+          "label": "Đọc biển",
+          "durationMs": 0,
+          "handler": "inspect",
+          "params": {}
+        }
+      ]
+    }
+  },
+  "farm_plot": {
+    "label": "Ô đất",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true,
+    "interaction": {
+      "radius": 1,
+      "actions": [
+        {
+          "id": "harvest",
+          "label": "Thu hoạch",
+          "durationMs": 1200,
+          "handler": "farm.harvest",
+          "params": {}
+        },
+        {
+          "id": "water",
+          "label": "Tưới nước",
+          "durationMs": 600,
+          "handler": "farm.water",
+          "params": {}
+        },
+        {
+          "id": "plant",
+          "label": "Gieo hạt",
+          "durationMs": 700,
+          "handler": "farm.plant",
+          "params": {}
+        },
+        {
+          "id": "prepare",
+          "label": "Làm đất",
+          "durationMs": 1000,
+          "handler": "farm.prepare",
+          "params": {}
+        }
+      ]
+    }
+  },
+  "well": {
+    "label": "Giếng nước",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true,
+    "interaction": {
+      "radius": 1,
+      "actions": [
+        {
+          "id": "refill",
+          "label": "Đổ đầy bình",
+          "durationMs": 800,
+          "handler": "farm.refill",
+          "params": {}
+        }
+      ]
+    }
+  },
+  "seed_stall": {
+    "label": "Quầy hạt giống",
+    "footprint": {
+      "w": 2,
+      "h": 1
+    },
+    "blocking": true,
+    "interaction": {
+      "radius": 1,
+      "sides": [
+        "S"
+      ],
+      "actions": [
+        {
+          "id": "open_shop",
+          "label": "Mở quầy hạt giống",
+          "durationMs": 0,
+          "handler": "shop.open",
+          "params": {
+            "shopId": "seeds"
+          }
+        }
+      ]
+    }
+  },
+  "drying_rack": {
+    "label": "Giàn phơi",
+    "footprint": {
+      "w": 2,
+      "h": 1
+    },
+    "blocking": true,
+    "interaction": {
+      "radius": 1,
+      "actions": [
+        {
+          "id": "collect",
+          "label": "Lấy thành phẩm",
+          "durationMs": 600,
+          "handler": "process.collect",
+          "params": {}
+        },
+        {
+          "id": "load",
+          "label": "Nạp mẻ mới",
+          "durationMs": 900,
+          "handler": "process.load",
+          "params": {}
+        }
+      ]
+    }
+  },
+  "roaster": {
+    "label": "Máy rang",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true,
+    "interaction": {
+      "radius": 1,
+      "actions": [
+        {
+          "id": "collect",
+          "label": "Lấy thành phẩm",
+          "durationMs": 600,
+          "handler": "process.collect",
+          "params": {}
+        },
+        {
+          "id": "load",
+          "label": "Nạp mẻ mới",
+          "durationMs": 900,
+          "handler": "process.load",
+          "params": {}
+        }
+      ]
+    }
+  },
+  "market_stall": {
+    "label": "Hội chợ",
+    "footprint": {
+      "w": 2,
+      "h": 1
+    },
+    "blocking": true,
+    "interaction": {
+      "radius": 1,
+      "sides": [
+        "N"
+      ],
+      "actions": [
+        {
+          "id": "open_market",
+          "label": "Mở chợ",
+          "durationMs": 0,
+          "handler": "shop.open",
+          "params": {
+            "shopId": "market"
+          }
+        }
+      ]
+    }
+  },
+  "farmhouse": {
+    "label": "Nhà nông trại",
+    "footprint": {
+      "w": 3,
+      "h": 2
+    },
+    "blocking": true
+  },
+  "tree": {
+    "label": "Cây",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true
+  },
+  "grinder": {
+    "label": "Máy xay",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true,
+    "interaction": {
+      "radius": 1,
+      "sides": [
+        "S"
+      ],
+      "actions": [
+        {
+          "id": "brew_step",
+          "label": "Dùng trạm",
+          "durationMs": 300,
+          "handler": "brew.station",
+          "params": {}
+        }
+      ]
+    }
+  },
+  "cafe_espresso": {
+    "label": "Máy espresso",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true,
+    "interaction": {
+      "radius": 1,
+      "sides": [
+        "S"
+      ],
+      "actions": [
+        {
+          "id": "brew_step",
+          "label": "Dùng trạm",
+          "durationMs": 300,
+          "handler": "brew.station",
+          "params": {}
+        }
+      ]
+    }
+  },
+  "milk_station": {
+    "label": "Trạm sữa",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true,
+    "interaction": {
+      "radius": 1,
+      "sides": [
+        "S"
+      ],
+      "actions": [
+        {
+          "id": "brew_step",
+          "label": "Dùng trạm",
+          "durationMs": 300,
+          "handler": "brew.station",
+          "params": {}
+        }
+      ]
+    }
+  },
+  "supply_shelf": {
+    "label": "Kệ nguyên liệu",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true,
+    "interaction": {
+      "radius": 1,
+      "sides": [
+        "S"
+      ],
+      "actions": [
+        {
+          "id": "open_supplies",
+          "label": "Mở kệ nguyên liệu",
+          "durationMs": 0,
+          "handler": "shop.open",
+          "params": {
+            "shopId": "supplies"
+          }
+        }
+      ]
+    }
+  },
+  "standing_spot": {
+    "label": "Chỗ đứng",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": false,
+    "interaction": {
+      "radius": 1,
+      "actions": [
+        {
+          "id": "serve",
+          "label": "Phục vụ",
+          "durationMs": 400,
+          "handler": "cafe.serve",
+          "params": {}
+        },
+        {
+          "id": "collect_payment",
+          "label": "Thu tiền",
+          "durationMs": 400,
+          "handler": "cafe.collectPayment",
+          "params": {}
+        }
+      ]
+    }
+  },
+  "armchair": {
+    "label": "Ghế bành",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": false,
+    "interaction": {
+      "radius": 1,
+      "actions": [
+        {
+          "id": "serve",
+          "label": "Phục vụ",
+          "durationMs": 400,
+          "handler": "cafe.serve",
+          "params": {}
+        },
+        {
+          "id": "collect_payment",
+          "label": "Thu tiền",
+          "durationMs": 400,
+          "handler": "cafe.collectPayment",
+          "params": {}
+        },
+        {
+          "id": "clean_seat",
+          "label": "Dọn bàn",
+          "durationMs": 4000,
+          "handler": "cafe.clean",
+          "params": {}
+        }
+      ]
+    }
+  },
+  "cafe_table_long": {
+    "label": "Bàn dài",
+    "footprint": {
+      "w": 2,
+      "h": 1
+    },
+    "blocking": true
+  },
+  "floor_lamp": {
+    "label": "Đèn cây",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true
+  },
+  "bookshelf": {
+    "label": "Kệ sách",
+    "footprint": {
+      "w": 2,
+      "h": 1
+    },
+    "blocking": true
+  },
+  "barrier": {
+    "label": "Rào chắn",
+    "footprint": {
+      "w": 2,
+      "h": 1
+    },
+    "blocking": true
+  },
+  "car": {
+    "label": "Xe đỗ",
+    "footprint": {
+      "w": 2,
+      "h": 1
+    },
+    "blocking": true
+  },
+  "kitten": {
+    "label": "Chú mèo con",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true,
+    "interaction": {
+      "radius": 1,
+      "actions": [
+        {
+          "id": "rescue",
+          "label": "Ôm mèo",
+          "durationMs": 800,
+          "handler": "story.rescue",
+          "params": {}
+        }
+      ]
+    }
+  },
+  "sense_stone": {
+    "label": "Đá giác quan",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true,
+    "interaction": {
+      "radius": 1,
+      "actions": [
+        {
+          "id": "activate",
+          "label": "Chạm vào đá",
+          "durationMs": 1000,
+          "handler": "story.activate",
+          "params": {}
+        }
+      ]
+    }
+  },
+  "portal": {
+    "label": "Cánh cổng",
+    "footprint": {
+      "w": 2,
+      "h": 2
+    },
+    "blocking": true,
+    "interaction": {
+      "radius": 1,
+      "actions": [
+        {
+          "id": "enter",
+          "label": "Bước vào cánh cổng",
+          "durationMs": 600,
+          "handler": "story.enterPortal",
+          "params": {}
+        }
+      ]
+    }
+  },
+  "hidden_cherry": {
+    "label": "Quả cà phê lạ",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true,
+    "interaction": {
+      "radius": 1,
+      "actions": [
+        {
+          "id": "pick_cherry",
+          "label": "Nhặt quả",
+          "durationMs": 600,
+          "handler": "story.pickCherry",
+          "params": {}
+        }
+      ]
+    }
+  },
+  "master": {
+    "label": "Bậc thầy",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true,
+    "interaction": {
+      "radius": 1,
+      "actions": [
+        {
+          "id": "talk",
+          "label": "Trò chuyện",
+          "durationMs": 400,
+          "handler": "story.talk",
+          "params": {}
+        }
+      ]
+    }
+  },
+  "pickup_point": {
+    "label": "Điểm nhận mang đi",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": false,
+    "interaction": {
+      "radius": 1,
+      "actions": [
+        {
+          "id": "serve",
+          "label": "Phục vụ",
+          "durationMs": 400,
+          "handler": "cafe.serve",
+          "params": {}
+        },
+        {
+          "id": "collect_payment",
+          "label": "Thu tiền",
+          "durationMs": 400,
+          "handler": "cafe.collectPayment",
+          "params": {}
+        }
+      ]
+    }
+  },
+  "grinder_pro": {
+    "label": "Máy xay (mới)",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true,
+    "interaction": {
+      "radius": 1,
+      "sides": [
+        "S"
+      ],
+      "actions": [
+        {
+          "id": "brew_step",
+          "label": "Dùng trạm",
+          "durationMs": 300,
+          "handler": "brew.station",
+          "params": {}
+        }
+      ]
+    },
+    "station": "grinder"
+  },
+  "espresso_pro": {
+    "label": "Máy espresso (mới)",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true,
+    "interaction": {
+      "radius": 1,
+      "sides": [
+        "S"
+      ],
+      "actions": [
+        {
+          "id": "brew_step",
+          "label": "Dùng trạm",
+          "durationMs": 300,
+          "handler": "brew.station",
+          "params": {}
+        }
+      ]
+    },
+    "station": "cafe_espresso"
+  },
+  "milk_station_pro": {
+    "label": "Trạm sữa (mới)",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true,
+    "interaction": {
+      "radius": 1,
+      "sides": [
+        "S"
+      ],
+      "actions": [
+        {
+          "id": "brew_step",
+          "label": "Dùng trạm",
+          "durationMs": 300,
+          "handler": "brew.station",
+          "params": {}
+        }
+      ]
+    },
+    "station": "milk_station"
+  },
+  "ancient_pillar": {
+    "label": "Trụ đá cổ",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true
+  }
+}

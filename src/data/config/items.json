@@ -1,0 +1,106 @@
+{
+  "seed_robusta": {
+    "label": "Hạt giống Robusta",
+    "category": "seed"
+  },
+  "seed_arabica": {
+    "label": "Hạt giống Arabica",
+    "category": "seed"
+  },
+  "seed_culi": {
+    "label": "Hạt giống Culi",
+    "category": "seed"
+  },
+  "cherry_robusta": {
+    "label": "Quả cà phê Robusta",
+    "category": "cherry"
+  },
+  "cherry_arabica": {
+    "label": "Quả cà phê Arabica",
+    "category": "cherry"
+  },
+  "cherry_culi": {
+    "label": "Quả cà phê Culi",
+    "category": "cherry"
+  },
+  "green_robusta": {
+    "label": "Nhân xanh Robusta",
+    "category": "green"
+  },
+  "green_arabica": {
+    "label": "Nhân xanh Arabica",
+    "category": "green"
+  },
+  "green_culi": {
+    "label": "Nhân xanh Culi",
+    "category": "green"
+  },
+  "roasted_robusta": {
+    "label": "Hạt rang Robusta",
+    "category": "roasted"
+  },
+  "roasted_arabica": {
+    "label": "Hạt rang Arabica",
+    "category": "roasted"
+  },
+  "roasted_culi": {
+    "label": "Hạt rang Culi",
+    "category": "roasted"
+  },
+  "milk": {
+    "label": "Sữa tươi",
+    "category": "ingredient"
+  },
+  "condensed_milk": {
+    "label": "Sữa đặc",
+    "category": "ingredient"
+  },
+  "test_cup": {
+    "label": "Cốc thử",
+    "category": "debug"
+  },
+  "box": {
+    "label": "Hộp",
+    "category": "debug"
+  },
+  "furn_chair": {
+    "label": "Ghế gỗ",
+    "category": "furniture"
+  },
+  "furn_armchair": {
+    "label": "Ghế bành",
+    "category": "furniture"
+  },
+  "furn_table": {
+    "label": "Bàn tròn",
+    "category": "furniture"
+  },
+  "furn_table_long": {
+    "label": "Bàn dài",
+    "category": "furniture"
+  },
+  "furn_plant": {
+    "label": "Chậu cây",
+    "category": "furniture"
+  },
+  "furn_lamp": {
+    "label": "Đèn cây",
+    "category": "furniture"
+  },
+  "furn_bookshelf": {
+    "label": "Kệ sách",
+    "category": "furniture"
+  },
+  "furn_grinder_pro": {
+    "label": "Máy xay (mới)",
+    "category": "furniture"
+  },
+  "furn_espresso_pro": {
+    "label": "Máy espresso (mới)",
+    "category": "furniture"
+  },
+  "furn_milk_station_pro": {
+    "label": "Trạm sữa (mới)",
+    "category": "furniture"
+  }
+}

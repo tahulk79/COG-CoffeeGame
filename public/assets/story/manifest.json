@@ -1,0 +1,81 @@
+{
+  "generatedWith": "Built-in image_gen",
+  "created": "2026-10-27",
+  "assets": [
+    {
+      "key": "story.cafe-facade",
+      "path": "/assets/story/cafe-facade.png",
+      "layer": "building",
+      "origin": [
+        0.5,
+        0.97
+      ],
+      "size": [
+        430,
+        430
+      ],
+      "flipX": true,
+      "prompt": "Use case: stylized-concept. Create ONE isolated production game sprite, transparent alpha background, no scenery plate, no UI, no characters, no ground plane. A cozy two-storey Vietnamese coffee shop building facade, 2:1 orthographic isometric view from southeast. Long main shopfront face runs down-right, shorter side face runs down-left. Warm glowing amber glass doors and windows showing tables inside, dark walnut trim, weathered ochre brick, cream-and-coffee striped awning, wrought iron upstairs balcony, potted trailing plants, elegant small coffee cup sign without lettering. Rainy nighttime palette of deep teal shadows and warm golden light. Premium hand-painted 3D storybook mobile game, richly textured, matching a cozy rainy coffee street game. Entire building fully inside frame, roof included, clean cutout silhouette, no baked ground shadow or rain. 1024 square composition, object occupies 85 percent of frame. Ground contact points aligned along isometric building base. This is a modular sprite to layer into a playable Phaser game, not a complete scene."
+    },
+    {
+      "key": "story.trees",
+      "path": "/assets/story/trees.png",
+      "layer": "vegetation",
+      "origin": [
+        0.5,
+        0.88
+      ],
+      "size": [
+        340,
+        195
+      ],
+      "prompt": "Use case: stylized-concept. Create ONE isolated game scenery sprite on true transparent alpha background: a dense clump of three leafy small urban trees with understory shrubs, slender dark trunks, lush layered irregular leaves, a few trailing vines. 2:1 orthographic isometric view, night palette midnight teal, forest green and muted blue with a little soft golden rim light from a nearby streetlamp. Premium hand-painted 3D storybook mobile game asset, detailed organic foliage with readable silhouette, cozy rainy Vietnamese city street. Entire clump fully inside 1024 square frame, no floor, no sky, no buildings, no interface, no text, no rain, no opaque background, no baked rectangle or ground shadow. Object fills 85 percent frame. A modular transparent vegetation sprite to repeat and depth-sort in a playable game."
+    },
+    {
+      "key": "story.portal",
+      "path": "/assets/story/portal.png",
+      "layer": "interactive object",
+      "origin": [
+        0.5,
+        0.94
+      ],
+      "size": [
+        300,
+        300
+      ],
+      "prompt": "Use case: stylized-concept. ONE isolated modular fantasy game sprite, actual transparent alpha background. An ancient circular sandstone gateway on a short two-step plinth, moss and ivy, tiny white flowers, carved coffee bean motifs and runes, two small warm lanterns at its feet. Premium cozy hand-painted 3D isometric mobile game, orthographic 2:1 camera from southeast, golden warm rim light and teal forest shadows. The CENTER of the arch must be EMPTY TRANSPARENT, to render live magical energy behind it in the game. No scenery, no ground plane, no characters, no UI, no words. Entire stone arch and steps fully visible with padding in square frame; width roughly 80% of frame, height 90%. Replaceable portal-object sprite, not a background illustration."
+    },
+    {
+      "key": "story.stone",
+      "path": "/assets/story/sensory-stone.png",
+      "layer": "interactive object",
+      "origin": [
+        0.5,
+        0.94
+      ],
+      "size": [
+        145,
+        145
+      ],
+      "prompt": "Use case: stylized-concept. ONE isolated magical standing stone game sprite on genuine transparent alpha. A rounded irregular ancient slate monolith on a circular layered stone pedestal, delicate moss, small white flowers, premium cozy fantasy hand-painted 3D isometric mobile game, orthographic 2:1 camera from southeast. The front face has a smooth EMPTY dark-blue oval inset to render a live glowing rune in game. Subtle neutral moonlight, no colored energy, no baked particles. No scenery, no floor plane, no characters, no text, no interface. Entire rock and base visible inside square frame with 10% padding. A replaceable independent gameplay prop."
+    }
+  ],
+  "proceduralLayers": [
+    "walkable ground and nonwalkable stream",
+    "bridges and ruins",
+    "player and kitten",
+    "rain and splashes",
+    "stone runes and activation particles",
+    "portal live swirl and activation wave",
+    "lantern glows and reflections",
+    "screen-space HUD"
+  ],
+  "requiredFutureArt": [
+    "player directional walk/interact/carry animation atlas",
+    "kitten idle/rescue atlas",
+    "ruin and pillar variants",
+    "ground and flowing-water atlas",
+    "dialogue portrait expression atlas"
+  ],
+  "note": "Independent sprites; never use these assets as collision or navigation data. See map JSON for footprints."
+}

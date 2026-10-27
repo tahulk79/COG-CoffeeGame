@@ -1,0 +1,71 @@
+{
+  "id": "incident",
+  "name": "Đường phố đêm mưa (Chương 1)",
+  "legend": {
+    "#": {
+      "kind": "city_edge",
+      "walkable": false
+    },
+    ".": {
+      "kind": "sidewalk",
+      "walkable": true
+    },
+    ",": {
+      "kind": "street",
+      "walkable": true
+    }
+  },
+  "terrain": [
+    "####################",
+    "#..................#",
+    "#..................#",
+    "#,,,,,,,,,,,,,,,,,,#",
+    "#,,,,,,,,,,,,,,,,,,#",
+    "#,,,,,,,,,,,,,,,,,,#",
+    "#..................#",
+    "#..................#",
+    "####################"
+  ],
+  "playerStart": {
+    "x": 1,
+    "y": 7
+  },
+  "objects": [
+    {
+      "id": "barrier_1",
+      "type": "barrier",
+      "x": 5,
+      "y": 3
+    },
+    {
+      "id": "barrier_2",
+      "type": "barrier",
+      "x": 9,
+      "y": 5
+    },
+    {
+      "id": "barrier_3",
+      "type": "barrier",
+      "x": 13,
+      "y": 3
+    },
+    {
+      "id": "car_1",
+      "type": "car",
+      "x": 7,
+      "y": 4
+    },
+    {
+      "id": "car_2",
+      "type": "car",
+      "x": 11,
+      "y": 4
+    },
+    {
+      "id": "kitten",
+      "type": "kitten",
+      "x": 17,
+      "y": 4
+    }
+  ]
+}

@@ -1,21 +1,24 @@
 {
-  "name": "the-coffee-six-sense",
-  "version": "0.21.0",
+  "name": "the-coffee-sixsense",
   "private": true,
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
-    "build": "npm run prepare:ocr && vite build",
+    "dev": "vite",
+    "build": "vite build",
     "preview": "vite preview",
-    "test": "node --check src/main.js && node scripts/validate.mjs && node --test tests/*.test.mjs",
-    "prepare:ocr": "node scripts/prepare-ocr.mjs",
-    "build:pages": "npm run prepare:ocr && node scripts/build-standalone.mjs --write"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "e2e": "playwright test"
   },
   "dependencies": {
-    "vite": "^6.3.0"
+    "phaser": "~4.2.1"
   },
   "devDependencies": {
-    "tesseract.js": "6.0.1",
-    "tesseract.js-core": "6.0.0"
+    "@playwright/test": "1.64.1",
+    "typescript": "7.0.2",
+    "vite": "8.3.5",
+    "vitest": "5.0.5"
   }
 }
