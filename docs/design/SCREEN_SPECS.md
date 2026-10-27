@@ -59,13 +59,13 @@ Tile boxes are approximate pixel ranges on the concept sheet (x0–x1, y0–y1),
 Each spec lists: **Seen in concept** (only what the tile shows), **Gameplay spec** (what the screen must do), **Not allowed**, and **Depends on**. Acceptance criteria live in [ACCEPTANCE_TESTS.md](ACCEPTANCE_TESTS.md) under the same ID.
 
 ### S01 — Splash / loading
-- **Seen in concept:** "The Coffee SixSense" logo with a coffee-cup emblem, over a daytime European-style hillside town with towers and a river; a horizontal loading bar about 75% filled with a percentage on the right; a loading caption above the bar and a one-line tip along the bottom (text illegible).
+- **Seen in concept:** "COG-CoffeeGame" logo with a coffee-cup emblem, over a daytime European-style hillside town with towers and a river; a horizontal loading bar about 75% filled with a percentage on the right; a loading caption above the bar and a one-line tip along the bottom (text illegible).
 - **Gameplay spec:** real asset-loading progress (not a fake timer); rotating tips from the locale file; tap/click to continue only once loading is done.
 - **Not allowed:** fake progress; browser default fonts.
 - **Depends on:** Preload pipeline, logo asset, splash painting.
 
 ### S02 — Main menu
-- **Seen in concept:** chibi barista (brown hair, white shirt, dark apron) holding a cup, in front of a café storefront with a "Coffee SixSense" sign; three stacked caramel buttons on the right: **Tiếp tục**, **Chơi mới**, **Cài đặt**; a bottom bar with 4 icon buttons with captions (illegible).
+- **Seen in concept:** chibi barista (brown hair, white shirt, dark apron) holding a cup, in front of a café storefront with a "COG-CoffeeGame" sign; three stacked caramel buttons on the right: **Tiếp tục**, **Chơi mới**, **Cài đặt**; a bottom bar with 4 icon buttons with captions (illegible).
 - **Gameplay spec:** Continue (latest save, disabled if none), New Game (slot select → S03), Settings (S27). The barista has an idle animation loop. `[OPEN]` what the 4 bottom icons are.
 - **Depends on:** SaveService, character idle animation, storefront background.
 
@@ -77,7 +77,7 @@ Each spec lists: **Seen in concept** (only what the tile shows), **Gameplay spec
 
 ### S04 — Ch.2 The Portal (Cánh cổng)
 - **Seen in concept:** a dark blue forest/ruin with stone pillars; a large glowing cyan-blue ring portal at the center; the player running toward it; the same objective box, joystick and action button as S03.
-- **Gameplay spec `[PROPOSAL]`:** a small explorable area. The player finds and activates 3 "Sense Stones" (Sight, Hearing, Touch; this ties to the *SixSense* title) by walking to them and pressing the action button. Each activation adds one ring to the portal's glow. When all 3 are active, the portal opens and walking into it moves to S05. Optional collectible: one hidden coffee cherry that grants a starting seed.
+- **Gameplay spec `[PROPOSAL]`:** a small explorable area. The player finds and activates 3 "Sense Stones" (Sight, Hearing, Touch; this supports the six-senses story theme) by walking to them and pressing the action button. Each activation adds one ring to the portal's glow. When all 3 are active, the portal opens and walking into it moves to S05. Optional collectible: one hidden coffee cherry that grants a starting seed.
 - **Not allowed:** auto-walk, or a portal that opens with no player action.
 - **Depends on:** interactables, light/VFX layering, objective tracker.
 

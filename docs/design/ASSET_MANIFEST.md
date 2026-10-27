@@ -79,7 +79,7 @@
 | U-03 | HUD: portrait ring, resource pill, round action button, quest panel | missing | M2 |
 | U-04 | Speech bubbles (order, reaction, review), stars, reward chips | missing | M1 (order bubble), M2 |
 | U-05 | Virtual joystick base/knob, context action button + icons | missing | M1 (mobile input), M4 |
-| U-06 | Logo "The Coffee SixSense" (vector source) | missing | M6 |
+| U-06 | Logo "COG-CoffeeGame" (vector source) | missing | M6 |
 | U-07 | Cursor/hand pointer hints (S09) | missing | M2 |
 
 ## 7. VFX (sprite sheets / particles)

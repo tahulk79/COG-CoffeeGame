@@ -31,6 +31,8 @@
 
 | T-022 | Đồng bộ tên game và repository thành COG-CoffeeGame | Review | Codex | README và bộ tài liệu docs | Repo đổi tên đã xác minh; không đổi save keys hoặc gameplay |
 
+| T-023 | Thay toàn bộ tên game cũ còn sót bằng COG-CoffeeGame | Done 2026-10-27 | Codex | `index.html`, `DebugOverlay.ts`, package manifests, asset/screen specs | Tên npm dùng `cog-coffeegame` theo quy tắc chữ thường; giữ tương thích save keys và test bridge |
+
 ## Nhật ký cập nhật
 | Ngày | Người | Thay đổi |
 |---|---|---|
@@ -40,3 +42,5 @@
 | 2026-10-27 | Codex | T-018…T-021: đồng bộ hướng Product Owner, xác định khoảng cách và bước đặc tả kế tiếp; không xác nhận lại kiểm thử lịch sử |
 
 | 2026-10-27 | Codex | T-022: cập nhật tên chính thức và URL repository trong tài liệu |
+
+| 2026-10-27 | Codex | T-023: đồng bộ tên game trong tiêu đề web, debug HUD, npm manifests và mô tả logo; rà toàn bộ 203 tệp văn bản, không còn tên đầy đủ cũ hoặc biến thể viết cách/gạch nối |
