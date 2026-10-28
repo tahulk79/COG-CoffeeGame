@@ -46,6 +46,8 @@ export const PLACEHOLDER_STYLES: Record<string, PlaceholderStyle> = {
   barrier: { color: 0xe0762a, height: 40 },
   car: { color: 0x4b6a8a, height: 70 },
   kitten: { color: 0xf0c27a, height: 64 },
+  /** Chapter-1 street props: tall enough for the stalls and carts some of them draw. */
+  street_prop: { color: 0xf0c27a, height: 110 },
   ancient_pillar: { color: 0x899481, height: 92 },
   sense_stone: { color: 0x5a6b7a, height: 100 },
   portal: { color: 0x2b3f55, height: 230 },
@@ -91,11 +93,11 @@ export const TERRAIN_COLORS: Record<string, { top: number; height: number }> = {
   forest_path: { top: 0x788867, height: 0 },
   stream: { top: 0x285e6a, height: 0 },
   bridge: { top: 0x967448, height: 0 },
-  city_edge: { top: 0x263442, height: 0 },
-  sidewalk: { top: 0x49616e, height: 0 },
+  city_edge: { top: 0xb6dc96, height: 0 },
+  sidewalk: { top: 0xf3e7d3, height: 0 },
   floor: { top: 0xd9c3a0, height: 0 },
   grass: { top: 0xa9c47f, height: 0 },
-  street: { top: 0x55575c, height: 0 },
+  street: { top: 0x9aa7b5, height: 0 },
   wall: { top: 0x8b6a47, height: 110 },
 };
 

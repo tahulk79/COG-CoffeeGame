@@ -52,11 +52,9 @@ export class GlowPresenter {
       else if (p.needsWater && s.farm.can.water > 0) glows[p.id] = COLORS.water;
       else if (p.phase === 'PREPARED' && s.farm.seedToPlant) glows[p.id] = COLORS.leaf;
     }
-    if (s.story.active && s.story.chapter === 'S03' && !s.story.locked) glows.kitten = COLORS.gold;
     this.renderer.setGlows(glows);
     // World indicators: money waiting to be collected and seats that need cleaning (real game state).
     const items: Array<{ id: string; objectId: string; icon: string }> = [];
-    if (s.story.active && s.story.chapter === 'S03' && !s.story.locked) items.push({ id: 'story:kitten', objectId: 'kitten', icon: 'heart' });
     for (const p of cafe?.payments ?? []) items.push({ id: `pay:${p.id}`, objectId: p.objectId, icon: 'coin' });
     for (const st of cafe?.seats ?? []) if (st.state === 'DIRTY' || st.state === 'CLEANING') items.push({ id: `dirty:${st.objectId}`, objectId: st.objectId, icon: 'broom' });
     this.renderer.setIndicators(items);

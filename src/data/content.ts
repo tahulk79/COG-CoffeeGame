@@ -180,7 +180,7 @@ export const CONTENT: GameContent = {
   maps: { farm: farmMap as MapData, cafe: cafeMap as MapData, sandbox: sandboxMap as MapData, incident: incidentMap as MapData, portal: portalMap as MapData, master: masterMap as MapData },
   furniture: furniture as FurnitureConfig,
   employees: employees as EmployeeConfig,
-  story: story as StoryConfig,
+  story: story as unknown as StoryConfig,
   meta: meta as unknown as MetaConfig,
   neighbors: neighbors as unknown as NeighborConfig,
   cafeUpgrades: cafeUpgrades as unknown as CafeUpgradeConfig,

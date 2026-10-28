@@ -833,5 +833,25 @@
       "h": 1
     },
     "blocking": true
+  },
+  "street_prop": {
+    "label": "Đồ trên phố",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true,
+    "interaction": {
+      "radius": 1,
+      "actions": [
+        {
+          "id": "visit",
+          "label": "Ghé xem",
+          "durationMs": 700,
+          "handler": "story.prop",
+          "params": {}
+        }
+      ]
+    }
   }
 }

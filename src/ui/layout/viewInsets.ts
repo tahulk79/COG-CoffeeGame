@@ -20,13 +20,13 @@ export function hudScale(w: number, h: number): number {
 /**
  * Camera zoom for the world. The world always fills the whole screen (no side
  * panels reserved for the HUD, which floats on top) and the camera follows the
- * player, clamped to the map. How much of the map is visible depends on the
- * screen: a close-up on phones, the whole map on PC and tablet.
+ * player, clamped to the map. There is no manual zoom: phones get a close-up,
+ * PC and tablet the zoom at which the whole map fits on screen.
  */
 export function worldZoom(w: number, h: number, mapW = 14, mapH = 14): number {
   // Phones: a close-up that follows the player (a whole map would be unreadably small).
   if (isCompact(w, h)) return w / ((h > w ? 5.5 : 6) * 128);
-  // PC / tablet: the WHOLE map is visible; the ground continues to the screen edges so nothing is black.
+  // PC / tablet: the whole map is visible; the ground continues to the screen edges so nothing is black.
   const pxW = (mapW + mapH) * 64;
   const pxH = (mapW + mapH) * 32 + 160;
   return Math.min(w / pxW, h / pxH);

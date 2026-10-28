@@ -16,7 +16,7 @@ describe('map-specific UI and table upgrades',()=>{
   it('keeps story presentation active during chapter travel so menus cannot flash',()=>{
     const sim=new GameSimulation(structuredClone(CONTENT.maps.incident!),CONTENT);
     while(sim.story.view().dialog) sim.story.advanceDialog();
-    sim.clickObject('kitten'); runUntil(sim,()=>!!sim.state.story.flags.rescued);
+    sim.story.rescue();
     while(sim.story.view().dialog) sim.story.advanceDialog();
     expect(sim.story.view()).toMatchObject({active:true,locked:true,chapter:'S04'});
   });

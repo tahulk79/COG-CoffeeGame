@@ -1,6 +1,12 @@
 import Phaser from 'phaser';
-import { H5_ASSETS, registerH5Frames } from '../components/render/h5Assets';
-import { ForestEffects } from '../components/render/forestArt';
+import { ART_READY, H5_ASSETS, registerH5Frames } from '../components/render/h5Assets';
+import { dur, MOTION } from '../ui/theme/tokens';
+import { GardenEffects } from '../components/render/gardenArt';
+import { GardenAudio } from '../components/audio/GardenAudio';
+import { deathPose, IncidentRunView } from '../components/render/incidentArt';
+import { RunAudio } from '../components/audio/RunAudio';
+import { TRANSITION_SCENE, type TransitionScene } from './TransitionScene';
+import { toggleMute } from '../core/audioPrefs';
 import { STORY_ASSETS } from '../components/render/storyAssets';
 import { t } from '../core/i18n';
 import { CONTENT } from '../data/content';
@@ -41,7 +47,14 @@ export class WorldScene extends Phaser.Scene {
   session!: GameSession;
   autosave!: Autosave;
   private worldRenderer!: PlaceholderRenderer;
-  private forestEffects: ForestEffects | null = null;
+  private gardenFx: GardenEffects | null = null;
+  private gardenAudio: GardenAudio | null = null;
+  /** Chapter-1 run: hazards on screen, extra movement keys and the touch joystick. */
+  private runView: IncidentRunView | null = null;
+  private runAudio: RunAudio | null = null;
+  private moveKeys: Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key> | null = null;
+  private stick: { x: number; y: number; cx: number; cy: number; on: boolean; id: number } | null = null;
+  private stickGfx: Phaser.GameObjects.Graphics | null = null;
   private playerView!: ActorView;
   private feedback!: FeedbackPresenter;
   private plots!: PlotPresenter;
@@ -71,8 +84,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   preload(): void {
-    for (const a of Object.values(H5_ASSETS)) if (!this.textures.exists(a.key)) this.load.image(a.key, a.url);
-    for (const a of Object.values(STORY_ASSETS)) if (!this.textures.exists(a.key)) this.load.image(a.key, a.url);
+    for (const a of [...Object.values(H5_ASSETS), ...Object.values(STORY_ASSETS)]) if (ART_READY.has(a.key) && !this.textures.exists(a.key)) this.load.image(a.key, a.url);
   }
 
   create(): void {
@@ -104,7 +116,6 @@ export class WorldScene extends Phaser.Scene {
     this.frameCamera();
     this.scale.on(Phaser.Scale.Events.RESIZE, () => this.frameCamera());
 
-    this.forestEffects = this.sim.map.id === 'portal' ? new ForestEffects(this, world) : null;
     this.playerView = this.worldRenderer.createActor('player', 'player');
     this.feedback = new FeedbackPresenter(this.sim.bus, world, this.worldRenderer, () => this.sim.player.pos, (id) => this.sim.cafe?.customer(id)?.actor.pos);
     this.plots = new PlotPresenter(this.worldRenderer, CONTENT.seeds);
@@ -122,6 +133,30 @@ export class WorldScene extends Phaser.Scene {
       (ms, fn) => void (ms > 0 ? this.time.delayedCall(ms, fn) : fn()),
     );
     this.storyView = new StoryPresenter(this.worldRenderer, world, CONTENT.story.stones);
+    // Chapters 1 and 2 share one control scheme: WASD / arrows, drag joystick, tap to walk, Shift / button to dash.
+    if (this.sim.run) {
+      this.runView = new IncidentRunView(this);
+      this.runAudio = new RunAudio(this);
+    }
+    if (this.sim.garden) {
+      this.gardenFx = new GardenEffects(this, (id) => { const o = world.getObject(id); return o ? { x: o.footprint.x + o.footprint.w / 2, y: o.footprint.y + o.footprint.h / 2 } : null; });
+      this.gardenAudio = new GardenAudio(this);
+    }
+    if (this.sim.run || this.sim.garden) {
+      this.input.keyboard?.on('keydown-M', () => toggleMute(this.sound));
+      this.stickGfx = this.add.graphics().setDepth(1e6 + 5);
+      this.moveKeys = (this.input.keyboard?.addKeys('W,A,S,D') as Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>) ?? null;
+      this.input.keyboard?.on('keydown-SHIFT', () => this.sim.dash());
+      // Press and drag anywhere = joystick (a plain tap still walks there).
+      this.input.on('pointerdown', (p: Phaser.Input.Pointer) => { if (!this.stick && !p.rightButtonDown()) this.stick = { x: p.x, y: p.y, cx: p.x, cy: p.y, on: false, id: p.id }; });
+      this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
+        const st = this.stick;
+        if (!st || st.id !== p.id || !p.isDown) return;
+        st.cx = p.x; st.cy = p.y;
+        if (Math.hypot(p.x - st.x, p.y - st.y) > 14) st.on = true;
+      });
+      this.input.on('pointerup', (p: Phaser.Input.Pointer) => { if (this.stick?.id === p.id) this.stick = null; });
+    }
     this.sim.bus.on('meta:achievement', ({ label }) => this.worldRenderer.showFeedback(this.sim.player.pos, t('meta.achievement', { name: label }), 'ok'));
 
     this.decor = this.sim.decor.available
@@ -133,6 +168,19 @@ export class WorldScene extends Phaser.Scene {
       : null;
 
     // Travel: commit state with the destination, then rebuild the world from the save.
+    // Chapter 1: the fate strikes out of the blue.
+    this.sim.bus.on('story:shock', ({ ms }) => {
+      if (dur(MOTION.base) === 0) return;
+      this.cameras.main.shake(ms, 0.012);
+      this.cameras.main.flash(ms * 0.6, 255, 246, 229);
+    });
+    // A chapter ends: heavenly doors close over the screen while the next map loads (they open in create()).
+    this.sim.bus.on('story:chapterChanged', ({ chapter }) => {
+      const label = CONTENT.story.chapters[chapter]?.title ?? '';
+      const ms = Math.min(800, CONTENT.story.whiteoutMs - 150);
+      if (this.scene.isActive(TRANSITION_SCENE)) (this.scene.get(TRANSITION_SCENE) as TransitionScene).close(ms, label);
+      else this.scene.launch(TRANSITION_SCENE, { close: { ms, label } });
+    });
     this.sim.bus.on('world:travelRequested', ({ map }) => {
       if (!this.travelling && this.session.saves) this.pendingTravel = map;
     });
@@ -142,7 +190,7 @@ export class WorldScene extends Phaser.Scene {
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       if (p.middleButtonDown()) return; // middle button drags the camera
       if (p.rightButtonDown()) return this.sim.cancel();
-      // A second finger is a camera gesture (pinch / two-finger pan), not a click.
+      // A second finger is a camera gesture (two-finger pan), not a click.
       if (this.input.pointer1.isDown && this.input.pointer2.isDown) return;
       this.worldRenderer.resetPan(); // a click on the world brings the camera back to the player
       const target = this.pointerTarget(p);
@@ -162,11 +210,6 @@ export class WorldScene extends Phaser.Scene {
     });
     this.cursors = this.input.keyboard?.createCursorKeys() ?? null;
     this.input.keyboard?.on('keydown-ESC', () => this.sim.cancel());
-    this.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, dy: number) => {
-      if (!(this.scene.get('HudScene') as { modalOpen?: boolean }).modalOpen) this.setUserZoom(this.userZoom * (dy > 0 ? 0.9 : 1.1));
-    });
-    this.input.keyboard?.on('keydown-PLUS', () => this.setUserZoom(this.userZoom * 1.15));
-    this.input.keyboard?.on('keydown-MINUS', () => this.setUserZoom(this.userZoom / 1.15));
     this.input.keyboard?.on('keydown-R', () => this.sim.decor.isActive && this.sim.decor.rotate());
 
     // Persist when the tab is hidden or closed (best effort; autosave covers the rest).
@@ -176,6 +219,8 @@ export class WorldScene extends Phaser.Scene {
     window.addEventListener('pagehide', flush);
 
     this.scene.launch('HudScene', { session: this.session });
+    // Arriving through the story doors: they swing open on this map.
+    if (this.scene.isActive(TRANSITION_SCENE)) (this.scene.get(TRANSITION_SCENE) as TransitionScene).open();
     installTestBridge(this);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -187,7 +232,17 @@ export class WorldScene extends Phaser.Scene {
       this.employees?.destroy();
       this.employees = null;
       this.storyView = null;
-      this.forestEffects = null;
+      this.gardenFx?.destroy();
+      this.gardenFx = null;
+      this.gardenAudio?.destroy();
+      this.gardenAudio = null;
+      this.runView?.destroy();
+      this.runView = null;
+      this.runAudio?.destroy();
+      this.runAudio = null;
+      this.stickGfx = null;
+      this.moveKeys = null;
+      this.stick = null;
       this.glows = null;
       this.rewards?.destroy();
       this.rewards = null;
@@ -203,6 +258,7 @@ export class WorldScene extends Phaser.Scene {
   override update(time: number, delta: number): void {
     if (this.travelling) return;
     if (this.pendingTravel) return this.travel(this.pendingTravel);
+    this.runControls();
     this.sim.tick(delta);
     this.cameraGestures(delta);
     // Decorating: follow the pointer every frame (Phaser can drop the first move after a HUD click).
@@ -225,9 +281,18 @@ export class WorldScene extends Phaser.Scene {
       state: s.player.state,
       facing: s.player.facing,
       // A drink shows as its recipe name rather than its internal id.
-      heldItem: s.story.rescued && s.story.chapter === 'S03' ? 'Mèo con' : s.cafe?.heldDrink ? (CONTENT.recipes[s.cafe.heldDrink.recipeId]?.label ?? s.player.heldItem) : s.player.heldItem,
+      heldItem: s.cafe?.heldDrink ? (CONTENT.recipes[s.cafe.heldDrink.recipeId]?.label ?? s.player.heldItem) : s.player.heldItem,
       progress: cur?.phase === 'work' ? cur.progress : null,
     });
+    // Chapter-1 run: the death plays on the hero's figure (sink, fly off, spin…).
+    if (this.runView) {
+      const pose = s.story.run?.death ? deathPose(s.story.run.death) : { sx: 1, sy: 1, dy: 0, angle: 0, alpha: 1 };
+      this.playerView.setPose?.(pose.sx, pose.sy, pose.dy, pose.angle);
+      this.playerView.setAlpha?.(pose.alpha);
+    }
+    this.runView?.sync(s.story.run);
+    this.runAudio?.sync(s.story.run);
+    this.drawStick();
     this.worldRenderer.setPathPreview(s.player.waypoints.length ? [s.player.pos, ...s.player.waypoints] : null);
     this.plots.sync(s.farm.plots);
     this.equipment.sync(s.processing.equipment);
@@ -236,7 +301,8 @@ export class WorldScene extends Phaser.Scene {
     this.decor?.sync(s.decor);
     this.employees?.sync(s.employees.hired);
     this.storyView?.sync(s);
-    this.forestEffects?.sync(s);
+    this.gardenFx?.sync(s.story.garden);
+    this.gardenAudio?.sync(s.story.garden);
     this.autosave.update(time);
   }
 
@@ -252,21 +318,8 @@ export class WorldScene extends Phaser.Scene {
 
   /** While decorating, the furniture panel covers the right edge: the map is re-fitted into the space left of it. */
   private decorInset = 0;
-  /** Player zoom preference (mouse wheel, + / -), remembered between sessions. */
-  private userZoom = readUserZoom();
   private cursors: Phaser.Types.Input.Keyboard.CursorKeys | null = null;
-  private pinchDist = 0;
-  private pinchMid = { x: 0, y: 0 };
-
-  private setUserZoom(z: number): void {
-    this.userZoom = Math.max(0.6, Math.min(2.4, z));
-    try {
-      window.localStorage.setItem('tcss.ui.zoom', String(this.userZoom));
-    } catch {
-      /* storage blocked: the preference lasts for this session only */
-    }
-    this.frameCamera();
-  }
+  private dragMid: { x: number; y: number } | null = null;
 
   private frameCamera(): void {
     const w = this.scale.width;
@@ -278,33 +331,65 @@ export class WorldScene extends Phaser.Scene {
     if (fitWholeMap()) {
       // Dev / automated browsers: show the whole map (E2E suites click tiles anywhere on it).
       const zoom = Math.min((w - inset) / ((world.width + world.height) * 64), (h - bottom) / ((world.width + world.height) * 32 + 80)) * 0.94;
-      this.worldRenderer.frame(world.width, world.height, none, zoom * this.userZoom);
+      this.worldRenderer.frame(world.width, world.height, none, zoom);
       return;
     }
     const base = worldViewInsets(w, h);
     const zoom = worldZoom(w - inset, h, world.width, world.height);
-    this.worldRenderer.frame(world.width, world.height, { ...base, right: base.right + inset + (this.sim.map.id === 'incident' && h > w ? w * .45 : 0) }, zoom * this.userZoom);
+    this.worldRenderer.frame(world.width, world.height, { ...base, right: base.right + inset + (this.sim.map.id === 'incident' && h > w ? w * .45 : 0) }, zoom);
   }
 
-  /** Arrow keys pan; two fingers pinch to zoom and drag to pan. Zoom stays within the preference limits. */
+  /**
+   * Chapter-1 run: WASD / arrows or the drag joystick steer the hero directly.
+   * Directions are on screen (up = up the screen), turned into map directions
+   * through the isometric projection.
+   */
+  private runControls(): void {
+    if (!this.sim.run && !this.sim.garden) return;
+    const k = this.moveKeys, c = this.cursors;
+    const down = (a?: Phaser.Input.Keyboard.Key, b?: Phaser.Input.Keyboard.Key) => (a?.isDown || b?.isDown ? 1 : 0);
+    let sx = down(k?.D, c?.right) - down(k?.A, c?.left);
+    let sy = down(k?.S, c?.down) - down(k?.W, c?.up);
+    const st = this.stick;
+    if (sx === 0 && sy === 0 && st?.on && !(this.input.pointer1.isDown && this.input.pointer2.isDown)) {
+      sx = st.cx - st.x;
+      sy = st.cy - st.y;
+    }
+    const modal = (this.scene.get('HudScene') as { modalOpen?: boolean }).modalOpen;
+    if (modal || (sx === 0 && sy === 0)) return this.sim.steer(0, 0);
+    const a = sx / 64, b = sy / 32;
+    this.sim.steer((a + b) / 2, (b - a) / 2);
+  }
+
+  /** Joystick ring and knob under the finger while dragging. */
+  private drawStick(): void {
+    const g = this.stickGfx, st = this.stick;
+    if (!g) return;
+    g.clear();
+    if (!st?.on) return;
+    const cam = this.cameras.main, z = cam.zoom;
+    const o = cam.getWorldPoint(st.x, st.y);
+    const len = Math.min(48, Math.hypot(st.cx - st.x, st.cy - st.y));
+    const ang = Math.atan2(st.cy - st.y, st.cx - st.x);
+    const kx = o.x + (Math.cos(ang) * len) / z, ky = o.y + (Math.sin(ang) * len) / z;
+    g.fillStyle(0xfff6e5, .35).fillCircle(o.x, o.y, 56 / z).lineStyle(3 / z, 0x5a3825, .6).strokeCircle(o.x, o.y, 56 / z);
+    g.fillStyle(0xff7f6b, .9).fillCircle(kx, ky, 22 / z).lineStyle(3 / z, 0x5a3825).strokeCircle(kx, ky, 22 / z);
+  }
+
+  /** Arrow keys pan (except in the chapter-1 run, where they move the hero); two-finger drag pans. Zoom is fixed by the screen size. */
   private cameraGestures(delta: number): void {
     const c = this.cursors;
-    if (c && (c.left.isDown || c.right.isDown || c.up.isDown || c.down.isDown) && !(this.scene.get('HudScene') as { modalOpen?: boolean }).modalOpen) {
+    if (c && !this.sim.run && !this.sim.garden && (c.left.isDown || c.right.isDown || c.up.isDown || c.down.isDown) && !(this.scene.get('HudScene') as { modalOpen?: boolean }).modalOpen) {
       const v = 0.6 * delta;
       this.worldRenderer.panBy((c.right.isDown ? v : 0) - (c.left.isDown ? v : 0), (c.down.isDown ? v : 0) - (c.up.isDown ? v : 0));
     }
     const a = this.input.pointer1;
     const b = this.input.pointer2;
     if (a.isDown && b.isDown) {
-      const dist = Math.hypot(a.x - b.x, a.y - b.y);
       const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-      if (this.pinchDist > 0) {
-        this.setUserZoom(this.userZoom * (dist / this.pinchDist));
-        this.worldRenderer.panBy(-(mid.x - this.pinchMid.x), -(mid.y - this.pinchMid.y));
-      }
-      this.pinchDist = dist;
-      this.pinchMid = mid;
-    } else this.pinchDist = 0;
+      if (this.dragMid) this.worldRenderer.panBy(-(mid.x - this.dragMid.x), -(mid.y - this.dragMid.y));
+      this.dragMid = mid;
+    } else this.dragMid = null;
   }
 
   /** Pointer → tile, using the camera's own inverse transform. */
@@ -369,15 +454,6 @@ function fitWholeMap(): boolean {
   if (import.meta.env.PROD) return false;
   const q = new URLSearchParams(window.location.search);
   return q.has('fit') || (navigator.webdriver === true && !q.has('close'));
-}
-
-function readUserZoom(): number {
-  try {
-    const v = Number(window.localStorage.getItem('tcss.ui.zoom') ?? 1);
-    return Number.isFinite(v) && v >= 0.6 && v <= 2.4 ? v : 1;
-  } catch {
-    return 1;
-  }
 }
 
 function skipStory(): boolean {

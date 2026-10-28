@@ -76,6 +76,8 @@ export interface GameEvents {
   'story:chapterChanged': { chapter: string };
   'story:whiteout': { ms: number };
   'story:retry': { chapter: string };
+  /** Chapter 1: the fate strikes (screen shake). */
+  'story:shock': { ms: number };
   'employee:hired': { employeeId: string; role: string };
   'employee:fired': { employeeId: string; role: string };
   'employee:paid': { employeeId: string; coins: number };

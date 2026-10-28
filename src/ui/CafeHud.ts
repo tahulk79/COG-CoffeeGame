@@ -202,11 +202,11 @@ export class CafeHud {
 
   private drawNeedle(step: Extract<BrewStep, { kind: 'timing' }>, needle: number): void {
     const y = BAR_Y;
-    this.bar.fillStyle(0x3a2a20, 1).fillRoundedRect(10, y, BAR_W, 16, 8);
+    this.bar.fillStyle(COLORS.espressoSoft, 1).fillRoundedRect(10, y, BAR_W, 16, 8);
     const lo = Math.max(0, step.target - step.tolerance);
     const hi = Math.min(1, step.target + step.tolerance);
-    this.bar.fillStyle(0x6fa86c, 1).fillRoundedRect(10 + lo * BAR_W, y, Math.max(6, (hi - lo) * BAR_W), 16, 8);
-    this.bar.fillStyle(0xfff1d8, 1).fillRoundedRect(10 + needle * BAR_W - 3, y - 4, 6, 24, 3);
+    this.bar.fillStyle(COLORS.leaf, 1).fillRoundedRect(10 + lo * BAR_W, y, Math.max(6, (hi - lo) * BAR_W), 16, 8);
+    this.bar.fillStyle(COLORS.cream, 1).fillRoundedRect(10 + needle * BAR_W - 3, y - 4, 6, 24, 3);
   }
 
   /** Hidden while the decorate panel is open. */

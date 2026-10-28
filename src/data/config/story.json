@@ -29,31 +29,130 @@
     "S03": {
       "map": "incident",
       "next": "S04",
-      "title": "Chương 1 · Biến cố",
-      "timeLimitMs": 45000,
-      "objective": "Chạy tới chú mèo con giữa đường! Còn {t} giây",
-      "intro": [
-        "Một đêm mưa. Bạn vội vã trên đường về nhà...",
-        "Kia! Một chú mèo con đang kẹt giữa đường. Bấm vào mặt đất để chạy, vòng qua rào chắn, bấm vào chú mèo để ôm nó."
-      ],
-      "outro": [
-        "Bạn ôm được chú mèo. Nhưng ánh đèn xe buýt quét ngang qua mắt bạn...",
-        "Tất cả chìm trong màu trắng."
+      "title": "Phố cổ Hà Nội",
+      "objective": "Sống sót trên phố Hà Nội! Chạm vào là chết.",
+      "intro": [],
+      "outro": [],
+      "run": {
+        "runSpeed": 4.6,
+        "dashSpeed": 13,
+        "dashMs": 240,
+        "dashCooldownMs": 1000,
+        "deathMs": 1400,
+        "unlockSec": {
+          "dog": 0,
+          "durian": 2,
+          "cat": 4,
+          "sinkhole": 6,
+          "banana": 8,
+          "motorbike": 10,
+          "pigeons": 12
+        },
+        "spawnStartMs": 2200,
+        "spawnMinMs": 650,
+        "rampSec": 60,
+        "maxHazards": 8,
+        "roadRows": [
+          3,
+          5
+        ],
+        "rushSec": 45,
+        "minWarnScale": 0.65,
+        "roadCols": [
+          15,
+          17
+        ]
+      },
+      "hazards": {
+        "dog": {
+          "death": "Bị chó nhà hàng xóm cắn cho chết",
+          "absurdity": 3
+        },
+        "cat": {
+          "death": "Bị mèo hoang cào cho tới chết",
+          "absurdity": 3
+        },
+        "sinkhole": {
+          "death": "Tụt xuống \"ổ voi\" giữa phố",
+          "absurdity": 5
+        },
+        "durian": {
+          "death": "Sầu riêng 5 ký rơi trúng đầu",
+          "absurdity": 4
+        },
+        "motorbike": {
+          "death": "Bị đoàn xe máy giờ tan tầm cuốn đi",
+          "absurdity": 4
+        },
+        "pigeons": {
+          "death": "Bị bồ câu Hồ Gươm khiêng lên trời",
+          "absurdity": 5
+        },
+        "banana": {
+          "death": "Giẫm vỏ chuối, bay ba vòng",
+          "absurdity": 4
+        }
+      },
+      "props": [
+        {
+          "id": "bubble_tea",
+          "target": "Xe trà sữa",
+          "action": "Mua trà sữa",
+          "done": "Xe trà sữa · đã ghé",
+          "safe": "Một ly trà sữa trân châu mát lạnh. Ngon nhức nách!"
+        },
+        {
+          "id": "coffee",
+          "target": "Xe cà phê",
+          "action": "Uống cà phê",
+          "done": "Xe cà phê · đã ghé",
+          "safe": "Một ly cà phê sữa đá đậm đà. Tỉnh cả người!"
+        },
+        {
+          "id": "spicy",
+          "target": "Xe bánh tráng trộn",
+          "action": "Ăn bánh tráng",
+          "done": "Xe bánh tráng · đã ghé",
+          "safe": "Bánh tráng trộn cấp 1. Cay vừa đủ, ngon hết sảy!"
+        },
+        {
+          "id": "selfie",
+          "target": "Điểm check-in",
+          "action": "Chụp ảnh",
+          "done": "Điểm check-in · đã ghé",
+          "safe": "Tách! Ảnh đẹp xuất sắc. Lên mạng được 12 like."
+        },
+        {
+          "id": "durian",
+          "target": "Sạp sầu riêng",
+          "action": "Ăn thử",
+          "done": "Sạp sầu riêng · đã ghé",
+          "safe": "Miếng sầu riêng béo ngậy. Người bán còn cho thêm miếng nữa!"
+        },
+        {
+          "id": "lottery",
+          "target": "Bà bán vé số",
+          "action": "Mua vé số",
+          "done": "Bà bán vé số · đã ghé",
+          "safe": "Bạn mua một tờ vé số ủng hộ bà. Bà cười móm mém chúc bạn may mắn."
+        },
+        {
+          "id": "wifi",
+          "target": "Biển wifi miễn phí",
+          "action": "Bắt wifi",
+          "done": "Biển wifi · đã ghé",
+          "safe": "Kết nối thành công! Bạn lướt mạng 5 phút rồi cất máy."
+        }
       ]
     },
     "S04": {
       "map": "portal",
       "next": "S05",
-      "title": "Chương 2 · Cánh cổng",
-      "objective": "Chạm vào 3 viên đá giác quan ({n}/3)",
-      "objectiveReady": "Cánh cổng đã mở, hãy bước vào!",
-      "intro": [
-        "Bạn tỉnh dậy trong khu rừng chạng vạng, giữa hai thế giới.",
-        "Ba viên đá Hương thơm, Vị giác và Cảm xúc nằm quanh khu vườn. Chạm vào từng viên để đánh thức cánh cổng."
-      ],
-      "outro": [
-        "Cánh cổng rực sáng. Bạn bước qua..."
-      ]
+      "title": "Chương 2 · Vườn mây",
+      "objective": "Bắt đốm sáng quanh 3 viên đá giác quan ({n}/3)",
+      "objectiveReady": "Cổng thiên đàng đã mở, chạy vào cổng!",
+      "intro": [],
+      "outro": []
     },
     "S05": {
       "map": "master",

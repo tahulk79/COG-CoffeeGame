@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
 import { H5_ASSETS, HERO_FACINGS, plotAnchorY, worldSprite, terrainFrame, addTerrainTile, terrainRepeat } from './h5Assets';
 import { STORY_ASSETS } from './storyAssets';
-import { drawForestEnvironment, STONE_COLORS } from './forestArt';
-import { drawIncidentEnvironment, drawIncidentObject, IncidentActorView, addIncidentRain } from './incidentArt';
+import { bakeGardenObject, drawGardenEnvironment, GARDEN_BACKGROUND, STONE_COLOR } from './gardenArt';
+import { bakeIncidentObject, drawIncidentEnvironment, drawIncidentObject, IncidentActorView, STREET_BACKGROUND } from './incidentArt';
 import { actorDepth, floorDepth, footprintDepth, worldToScreen, type ScreenPos } from '../../utils/iso';
 import type { Footprint, TilePos, WorldPos } from '../../utils/tile';
 import { DEFAULT_STYLE, FEEDBACK_COLORS, PLACEHOLDER_STYLES, PLACEHOLDER_VARIANTS, PLAYER_COLOR, TERRAIN_COLORS } from './placeholderStyles';
@@ -44,6 +44,8 @@ const visualKey = (v: ObjectVisual): string =>
 
 interface ObjectEntry {
   sprite?: Phaser.GameObjects.Image;
+  /** Chapter-1 street objects: drawn once into an image (a Graphics would be re-drawn every frame). */
+  baked?: Phaser.GameObjects.Image | null;
   /** Padlock on a plot that is not bought yet. */
   lock?: Phaser.GameObjects.Image;
   data: ObjectViewData;
@@ -239,10 +241,10 @@ export class PlaceholderRenderer implements WorldRenderer {
   private buildBackdrop(floor: FloorTileView[]): void {
     if (this.streetScene || this.forestScene) {
       this.indoor = false;
-      this.scene.cameras.main.setBackgroundColor(0x142735);
+      this.scene.cameras.main.setBackgroundColor(this.streetScene ? STREET_BACKGROUND : GARDEN_BACKGROUND);
       const background=terrainRepeat(this.scene,this.forestScene?14:4);
-      if(background)this.scene.add.tileSprite(-6400,-3200,12800,6400,background).setOrigin(0).setTilePosition(64,0).setDepth(floorDepth-1).setTint(this.forestScene?0x8da189:0x9caeba);
-      else this.scene.add.graphics().setDepth(floorDepth - 1).fillStyle(0x142735).fillRect(-6400, -3200, 12800, 6400);
+      if(background&&this.forestScene)this.scene.add.tileSprite(-6400,-3200,12800,6400,background).setOrigin(0).setTilePosition(64,0).setDepth(floorDepth-1).setTint(this.forestScene?0x8da189:0x9caeba);
+      else this.scene.add.graphics().setDepth(floorDepth - 1).fillStyle(this.streetScene ? STREET_BACKGROUND : GARDEN_BACKGROUND).fillRect(-6400, -3200, 12800, 6400);
       return;
     }
     const count = new Map<string, number>();
@@ -308,16 +310,14 @@ export class PlaceholderRenderer implements WorldRenderer {
           const frame=terrainFrame(t.kind,t.tile.x,t.tile.y);
           if(frame!==null){addTerrainTile(this.scene,t.tile.x,t.tile.y,frame,floorDepth+.01);continue;}
         }
+        // The street's and the garden's floors are part of their baked ground layers.
+        if (this.streetScene || this.forestScene) continue;
         const checker = (t.tile.x + t.tile.y) % 2 === 0 ? 1 : 0.94;
-        if (this.streetScene) {
-          const pts = [{x:f.x,y:f.y},{x:f.x+1,y:f.y},{x:f.x+1,y:f.y+1},{x:f.x,y:f.y+1}].map((p) => v(worldToScreen(p)));
-          ground.fillStyle(shade(style.top, checker === 1 ? 1 : .98)).fillPoints(pts, true);
-          if (t.kind === 'sidewalk') ground.lineStyle(1, 0x344959, .2).strokePoints(pts, true);
-        } else drawBox(ground, f, shade(style.top, checker), 0);
+        drawBox(ground, f, shade(style.top, checker), 0);
       }
     }
-    if (this.streetScene) { drawIncidentEnvironment(this.scene, floor); if (dur(MOTION.slow) > 0) addIncidentRain(this.scene); }
-    if (this.forestScene) drawForestEnvironment(this.scene);
+    if (this.streetScene) drawIncidentEnvironment(this.scene, floor);
+    if (this.forestScene) drawGardenEnvironment(this.scene, floor);
     for (const o of objects) this.addObject(o);
   }
 
@@ -378,18 +378,22 @@ export class PlaceholderRenderer implements WorldRenderer {
       e.sprite.setAlpha(visual.variant === 'rescued' || visual.variant === 'away' ? 0 : visual.variant === 'taken' ? .25 : visual.variant === 'locked' ? .55 : 1);
       e.sprite.setOrigin(.5, this.forestScene ? .94 : o.type === 'farm_plot' ? plotAnchorY(this.scene) : .88).setDisplaySize(size, this.forestScene && o.type === 'tree' ? 126 : size).setFlipX(o.rotation%2===1).setTint(visual.variant === 'locked' ? 0x8c8c8c : !this.forestScene || visual.variant === 'open' || visual.variant === 'ACTIVATED' ? 0xffffff : o.type === 'portal' ? 0x889ba6 : 0xb6c4ba);
       if(o.type === 'sense_stone') {
-        const color=STONE_COLORS[o.id] ?? 0xb8ddc4;
+        const color=STONE_COLOR[o.id] ?? 0xb8ddc4;
         const bright=visual.variant === 'ACTIVATED' || visual.variant === 'ACTIVATING' || visual.variant === 'PLAYER_NEARBY';
         e.box.lineStyle(3,color,bright?1:.4);
         if(o.id==='stone_sight') {e.box.strokeEllipse(p.x-3,p.y-72,17,26).lineBetween(p.x-3,p.y-58,p.x-3,p.y-87).lineBetween(p.x-3,p.y-70,p.x+8,p.y-79);}
         else {e.box.beginPath();for(let i=0;i<=40;i++){const a=i/40*Math.PI*4,r=i/40*16;const x=p.x+Math.cos(a)*r,y=p.y-74+Math.sin(a)*r;if(i===0)e.box.moveTo(x,y);else e.box.lineTo(x,y);}e.box.strokePath();}
       }
+    } else if (this.forestScene && (e.baked?.destroy(), (e.baked = bakeGardenObject(this.scene, o.id, o.type, f, visual.variant, e.depth)))) {
+      // Baked garden object.
     } else if (o.type === 'ancient_pillar') {
       drawBox(e.box, {x:f.x+.18,y:f.y+.18,w:.64,h:.64},0x7c8774,16);
       drawBox(e.box, {x:f.x+.32,y:f.y+.32,w:.36,h:.36},0x919980,h);
       const p=worldToScreen({x:f.x+.5,y:f.y+.5});
       e.box.fillStyle(0x57744a).fillEllipse(p.x,p.y-h,40,17);
-    } else if (!drawIncidentObject(e.box, o.type, f, visual.variant === 'rescued')) drawBox(e.box, f, style.color, h);
+    } else if (this.streetScene && (e.baked?.destroy(), (e.baked = bakeIncidentObject(this.scene, o.id, o.type, f, visual.variant === 'default' ? o.id : visual.variant, e.depth)))) {
+      // Baked: nothing to redraw per frame.
+    } else if (!drawIncidentObject(e.box, o.type, f, visual.variant === 'default' ? o.id : visual.variant)) drawBox(e.box, f, style.color, h);
     const c = worldToScreen({ x: f.x + f.w / 2, y: f.y + f.h / 2 });
     // Only states that call for action (progress, ready, thirsty, done) stay on screen; names show when near/hovered.
     const lockedPlot = o.type === 'farm_plot' && visual.variant === 'locked';
@@ -451,6 +455,7 @@ export class PlaceholderRenderer implements WorldRenderer {
     const g = this.objectGfx.get(id);
     if (!g) return;
     g.sprite?.destroy();
+    g.baked?.destroy();
     g.lock?.destroy();
     g.box.destroy();
     g.label.destroy();
@@ -616,7 +621,7 @@ export class PlaceholderRenderer implements WorldRenderer {
       if (!e) continue;
       e.glowed = true;
       const f = e.data.footprint;
-      if (e.data.type === 'kitten') {
+      if (e.data.type === 'kitten' || e.data.type === 'street_prop') {
         const p = worldToScreen({ x: f.x + .5, y: f.y + .5 });
         g.fillStyle(color, .15).fillEllipse(p.x, p.y, 90, 42).lineStyle(3, color, .9).strokeEllipse(p.x, p.y, 90, 42);
         continue;

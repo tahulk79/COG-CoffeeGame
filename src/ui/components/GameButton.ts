@@ -60,7 +60,7 @@ export class GameButton {
     this.text = scene.add.container(x, y);
     this.visual = scene.add.container(0, 0);
     this.shadow = new Panel(scene, { fill: COLORS.shadow, alpha: 0.28, radius: RADIUS.md, borderWidth: 0 }, 40, 26);
-    this.bg = new Panel(scene, { radius: RADIUS.md, skin: opts.variant === 'ghost' ? 'panel' : 'button' });
+    this.bg = new Panel(scene, { radius: RADIUS.md });
     this.lift = new Panel(scene, { fill: COLORS.white, alpha: 0.12, radius: RADIUS.md, borderWidth: 0 });
     this.lift.object.setVisible(false);
     this.label = scene.add
@@ -123,7 +123,7 @@ export class GameButton {
     const bg = !this.enabled ? COLORS.disabled : this.selected ? COLORS.gold : f.bg;
     this.shadow.set(this.w, this.h);
     this.shadow.object.setPosition(-this.w / 2 + 1, -this.h / 2 + 3);
-    this.bg.set(this.w, this.h, { fill: bg, alpha: 1, border: f.border, radius: RADIUS.md, skin: this.opts.variant === 'ghost' ? 'panel' : 'button' });
+    this.bg.set(this.w, this.h, { fill: bg, alpha: 1, border: f.border, radius: RADIUS.md });
     this.bg.object.setPosition(-this.w / 2, -this.h / 2);
     this.lift.set(this.w, this.h);
     this.lift.object.setPosition(-this.w / 2, -this.h / 2).setVisible(this.hovered && this.enabled);

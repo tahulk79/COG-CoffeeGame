@@ -187,8 +187,11 @@ export interface GameState {
   decor: { layouts: Record<string, PlacedFurniture[]>; nextId: number };
   /** v5 (M8): hired employees (they work only while the player is on their map). */
   employees: { list: EmployeeState[]; nextId: number };
-  /** v6 (M9): story progress. `chapter` is S03 | S04 | S05 | done; `flags` are that chapter's progress markers. */
-  story: { chapter: string; flags: Record<string, boolean> };
+  /**
+   * v6 (M9): story progress. `chapter` is S03 | S04 | S05 | done; `flags` are that chapter's progress markers.
+   * Chapter 1: `scenario` is the hazard that killed the hero (a reload shows that ending again).
+   */
+  story: { chapter: string; flags: Record<string, boolean>; scenario?: string };
   /**
    * v7 (M10): world progression. `counters` count gameplay facts for quests and
    * achievements; `quests`/`achievements` map id → claim/unlock time (epoch ms);

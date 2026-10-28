@@ -43,8 +43,12 @@ export function createSession(o: SessionOptions): GameSession {
   const state = loaded.status === 'ok' ? loaded.state : undefined;
   // A new game starts with the story; a save resumes where it was.
   const newGameMap = o.skipStory ? 'farm' : o.content.story.chapters[o.content.story.start]?.map ?? 'farm';
+  // Opening the game while the story is not finished starts it over from chapter 1: it is short and its
+  // opening is the hook. Travelling between chapters passes `mapId` and carries on where it was.
+  const restartStory = !!state && !o.mapId && !o.skipStory && state.story.chapter !== 'done';
+  if (restartStory) state!.story = { chapter: o.content.story.start, flags: {} };
   const usable = (id: string) => { const m = o.content.maps[id]; return m && (!m.regionId || (m.businessKind === 'cafe' ? state?.regions[m.regionId]?.cafeBuilt : state?.regions[m.regionId]?.farmBuilt)); };
-  const savedMap = state && usable(state.player.map) && state.player.map !== 'sandbox' ? state.player.map : newGameMap;
+  const savedMap = !restartStory && state && usable(state.player.map) && state.player.map !== 'sandbox' ? state.player.map : newGameMap;
   const sim = new GameSimulation(mapOf(o.mapId && usable(o.mapId) ? o.mapId : savedMap), o.content, { clock, ...(state ? { state } : {}), ...(o.skipStory ? { skipStory: true } : {}) });
   const loadProblem = loaded.status === 'ok' || loaded.status === 'empty' ? null : loaded;
   return { sim, saves, loadProblem, recoveredFromBackup: loaded.status === 'ok' && !!loaded.recoveredFromBackup, saveBlocked: loaded.status === 'unsupported', frame: null };
