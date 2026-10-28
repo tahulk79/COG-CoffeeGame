@@ -27,7 +27,7 @@ export class CurrencyHUD {
     this.bg = new Panel(scene);
     this.coinIcon = createIcon(scene, 'coin', 24);
     this.coins = scene.add.text(0, 0, '', { fontFamily: FONT.family, fontSize: `${FONT.size.lg}px`, color: css(COLORS.gold), fontStyle: 'bold' }).setOrigin(0, 0.5).setResolution(2);
-    this.settings = new GameButton(scene, 0, 0, 'Cài đặt', openSettings, 'settings.open', { icon: 'gear', iconOnly: true, variant: 'ghost', w: 34, h: 34 });
+    this.settings = new GameButton(scene, 0, 0, '•••', openSettings, 'settings.open', { variant: 'secondary', w: 34, h: 34 });
     this.root.add([this.bg.object, this.coinIcon, this.coins, this.settings.text]);
   }
 
@@ -51,6 +51,10 @@ export class CurrencyHUD {
   }
 
   update(s: SimulationSnapshot): void {
+    // Story chapters: no economy yet, only the settings button stays.
+    const story = s.story.active;
+    this.bg.object.setVisible(!story);
+    this.coins.setVisible(!story);
     if (s.economy.coins !== this.shown) {
       this.shown = s.economy.coins;
       const compact = this.lastFrame?.mode === 'compact' && this.shown >= 1_000_000;

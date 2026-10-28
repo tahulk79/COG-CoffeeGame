@@ -1,10 +1,8 @@
 import type Phaser from 'phaser';
-import { H5_ASSETS } from '../../components/render/h5Assets';
 import { bakeTexture } from '../theme/bake';
 import { COLORS, RADIUS } from '../theme/tokens';
 
 export interface PanelStyle {
-  skin?: 'panel' | 'button';
   fill?: number;
   alpha?: number;
   border?: number;
@@ -17,22 +15,11 @@ const DEFAULT_SLICE = 22;
 
 /** Texture key for a panel style (baked on first use, shared by every panel with that style). */
 function panelTexture(scene: Phaser.Scene, s: PanelStyle, TEX: number, SLICE: number): string {
-  const light = s.fill === COLORS.cream || s.fill === COLORS.creamDim || s.fill === COLORS.white;
-  const imageKey = s.skin === 'button' || light ? H5_ASSETS.button.key : H5_ASSETS.panel.key;
-  if (s.borderWidth !== 0 && scene.textures.exists(imageKey)) {
-    const baked = `${imageKey}:nine-slice64`;
-    if (!scene.textures.exists(baked)) {
-      const canvas = scene.textures.createCanvas(baked, 64, 64)!;
-      canvas.context.drawImage(scene.textures.get(imageKey).getSourceImage() as HTMLImageElement, 0, 0, 64, 64);
-      canvas.refresh();
-    }
-    return baked;
-  }
   const r = Math.min(s.radius ?? RADIUS.lg, SLICE);
   const fill = s.fill ?? COLORS.espresso;
   const alpha = s.alpha ?? 0.92;
   const border = s.border ?? COLORS.caramel;
-  const bw = s.borderWidth ?? 2;
+  const bw = s.borderWidth ?? 3;
   const key = `ui-panel:${TEX}:${fill}:${Math.round(alpha * 100)}:${border}:${r}:${bw}`;
   return bakeTexture(scene, key, TEX, TEX, (g) => {
     g.fillStyle(fill, alpha).fillRoundedRect(0, 0, TEX, TEX, r);
@@ -60,7 +47,7 @@ export class Panel {
     private readonly slice = DEFAULT_SLICE,
   ) {
     const fit = Math.max(1, Math.min(slice, Math.floor(w / 2), Math.floor(h / 2)));
-    this.object = scene.add.nineslice(0, 0, panelTexture(scene, style, tex, slice), undefined, w, h, fit, fit, fit, fit).setOrigin(0, 0).setAlpha(this.scene.textures.exists(H5_ASSETS.panel.key) ? style.alpha ?? 1 : 1);
+    this.object = scene.add.nineslice(0, 0, panelTexture(scene, style, tex, slice), undefined, w, h, fit, fit, fit, fit).setOrigin(0, 0);
     this.w = w;
     this.h = h;
   }
@@ -70,7 +57,6 @@ export class Panel {
     if (style) {
       const key = panelTexture(this.scene, style, this.tex, this.slice);
       if (this.object.texture.key !== key) this.object.setTexture(key);
-      this.object.setAlpha(key.startsWith('h5.') ? style.alpha ?? 1 : 1);
     }
     if (w !== this.w || h !== this.h) {
       this.w = w;

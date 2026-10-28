@@ -56,6 +56,10 @@ export interface ActorView {
   hitTest(px: number, py: number): boolean;
   /** Painter depth, so the front-most character wins a click. */
   readonly depth: number;
+  /** Optional: fade the character. */
+  setAlpha?(a: number): void;
+  /** Optional: scale, lift (screen px) and spin the figure (death animations). */
+  setPose?(sx: number, sy: number, dy: number, angle: number): void;
   destroy(): void;
 }
 

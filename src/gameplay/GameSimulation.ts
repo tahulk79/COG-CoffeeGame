@@ -30,6 +30,8 @@ import { NeighborService, type CafeProfile } from './social/NeighborService';
 import { MetaService, type MetaView } from './meta/MetaService';
 import { StoryService, type StoryView } from './story/StoryService';
 import { registerStoryHandlers } from './story/storyHandlers';
+import { RunService } from './story/RunService';
+import { GardenService } from './story/GardenService';
 import { EmployeeService, type EmployeeView, type EmployeeView2 } from './employees/EmployeeService';
 import { FurnitureService, type DecorView } from './decor/FurnitureService';
 import { createNewGameState, type GameState, type ItemStack, type TxRecord } from './state/GameState';
@@ -200,7 +202,11 @@ export class GameSimulation {
     registerShopHandlers(this.actions, this.shops);
     registerFarmHandlers(this.actions, this.farm);
     registerProcessingHandlers(this.actions, this.processing);
-    this.player = new Actor('player', tileCenter(this.startTile()), this.config.player, () => this.timeMs);
+    // Story chapters 1–2 move faster than everyday walking, and the same whether steered or tapped to walk.
+    const storyRun = content.story.chapters.S03?.run;
+    const storyMap = [content.story.chapters.S03?.map, content.story.chapters.S04?.map].includes(map.id);
+    const playerCfg = storyRun && storyMap ? { ...this.config.player, speedTilesPerSec: storyRun.runSpeed } : this.config.player;
+    this.player = new Actor('player', tileCenter(this.startTile()), playerCfg, () => this.timeMs);
     this.player.fsm.onTransition((from, to) => this.bus.emit('actor:stateChanged', { actorId: this.player.id, from, to }));
     this.playerInteraction = new InteractionService(this.player, this.world, this.nav, this.actions, this.bus, this.config.player);
     this.orders = new OrderService(content.recipes, this.bus, () => this.timeMs);
@@ -237,6 +243,29 @@ export class GameSimulation {
       },
     });
     registerStoryHandlers(this.actions, this.story);
+    // Chapter 1 is a survival run on its own map: direct control and street hazards.
+    const runCfg = content.story.chapters.S03?.run;
+    if (runCfg && content.story.chapters.S03!.map === map.id) {
+      const rng = new Rng(opts.rngSeed ?? Date.now());
+      this.run = new RunService(runCfg, this.world.grid, this.player, () => rng.next(), { w: this.world.width, h: this.world.height },
+        (kind, ms) => { this.playerInteraction.cancelAll('superseded'); this.story.onDeath(kind, ms); });
+      this.story.attachRun(this.run);
+    }
+    // Chapter 2 is the cloud garden: direct control, sparks to catch, the heaven door.
+    if (content.story.chapters.S04?.map === map.id && this.story.active && this.story.chapterId === 'S04') {
+      const centreOf = (id: string) => { const o = this.world.getObject(id); return o ? { x: o.footprint.x + o.footprint.w / 2, y: o.footprint.y + o.footprint.h / 2 } : null; };
+      this.garden = new GardenService(this.world.grid, this.player, content.story.chapters.S03!.run!, {
+        stones: content.story.stones,
+        isLit: (id) => !!this.state.story.flags[id],
+        light: (id) => void this.story.activate(id),
+        portalOpen: () => this.story.portalOpen,
+        enterPortal: () => { this.playerInteraction.cancelAll('superseded'); void this.story.enterPortal(); },
+        cherryTaken: () => !!this.state.story.flags.cherry,
+        pickCherry: () => void this.story.pickCherry(),
+        centreOf,
+      });
+      this.story.attachGarden(this.garden);
+    }
 
     // M7: furniture feeds the café's bonuses; any change rebuilds seats and paths.
     this.cafe?.setDecorBonuses(() => this.decor.bonuses());
@@ -272,7 +301,12 @@ export class GameSimulation {
     while (remaining > 0) {
       const dt = Math.min(step, remaining);
       this.timeMs += dt;
-      this.playerInteraction.tick(dt);
+      // The run pauses with the story (dialogue, transitions).
+      if (this.run && !this.story.locked) this.run.tick(dt, this.config.player.speedTilesPerSec);
+      // Caught (bitten, scratched, falling…): the hero is held in place until the ending card.
+      if (this.run?.dying) this.playerInteraction.cancelAll('superseded', false);
+      else this.playerInteraction.tick(dt);
+      if (this.garden && !this.story.locked) this.garden.tick(dt);
       this.cafe?.tick(dt);
       this.employees.tick(dt);
       this.story.tick(dt);
@@ -283,9 +317,43 @@ export class GameSimulation {
     this.shops.checkDistance(this.player.tile);
   }
 
+  /** Chapter-1 run, or null on other maps. */
+  run: RunService | null = null;
+  /** Chapter-2 cloud garden, or null on other maps. */
+  garden: GardenService | null = null;
+
+  /** Direct control (keys / joystick) in world directions; (0, 0) releases it. Chapter-1 run and chapter-2 garden. */
+  steer(x: number, y: number): void {
+    const r = this.run ?? this.garden;
+    if (!r) return;
+    const was = r.steering;
+    if (x !== 0 || y !== 0) this.startRun();
+    r.setSteer(this.story.locked ? 0 : x, this.story.locked ? 0 : y);
+    if (r.steering && !was) {
+      this.playerInteraction.cancelAll('superseded');
+      if (this.player.fsm.can('MOVING')) this.player.fsm.transition('MOVING');
+    } else if (!r.steering && was && this.player.fsm.is('MOVING')) this.player.fsm.transition(this.player.restState());
+  }
+
+  /**
+   * The chapter-1 run waits, without any start screen, for the player's first move (key, joystick,
+   * click or dash): hazards only come once they are playing, and that first input is also the
+   * gesture that lets the browser play sound.
+   */
+  startRun(): void {
+    if (this.run && !this.story.locked) this.run.paused = false;
+  }
+
+  /** Quick dodge in the running direction (cooldown). */
+  dash(): boolean {
+    this.startRun();
+    return !this.story.locked && !!(this.run ?? this.garden)?.dash();
+  }
+
   /** Player input → command. A click on an object interacts; a click on floor moves. */
   clickTile(tile: TilePos): void {
-    if (this.story.locked) return;
+    if (this.story.locked || this.run?.dying) return;
+    this.startRun();
     if (this.decor.isActive) return void this.decor.click(tile, null);
     const obj = this.world.objectAt(tile);
     if (obj) this.clickObject(obj.id);
@@ -294,7 +362,8 @@ export class GameSimulation {
 
   /** Player clicked an object's visible shape. Non-interactive objects behave like a click on their tile. */
   clickObject(id: string): void {
-    if (this.story.locked) return;
+    if (this.story.locked || this.run?.dying) return;
+    this.startRun();
     const obj = this.world.getObject(id);
     if (!obj) return;
     if (this.decor.isActive) return void this.decor.click({ x: obj.footprint.x, y: obj.footprint.y }, id);
@@ -311,7 +380,8 @@ export class GameSimulation {
 
   /** Clicking a customer: serve them at their seat, or take their order at the counter. */
   clickCustomer(id: string): void {
-    if (this.story.locked) return;
+    if (this.story.locked || this.run?.dying) return;
+    this.startRun();
     if (this.decor.isActive) return;
     const c = this.cafe?.customer(id);
     if (!c) return;

@@ -10,6 +10,11 @@ export const H5_ASSETS = {
   portrait: { key: 'h5.portrait', url: '/assets/h5/portrait.png' },
   hero: { key: 'h5.hero', url: '/assets/h5/hero.png' },
 } as const;
+/**
+ * Texture keys whose PNG is actually in public/assets. Empty while the art is
+ * being regenerated: the game draws code placeholders. Add a key when its file lands.
+ */
+export const ART_READY: ReadonlySet<string> = new Set<string>([]);
 const TERRAIN_BOUNDS: Record<string,{x:number;y:number;w:number;h:number}> = {};
 
 /** Cell geometry is independent of the generated image's pixel resolution. */
@@ -32,7 +37,6 @@ export function registerH5Frames(scene: Phaser.Scene): void {
 
   }
 }
-export const H5_ICON_FRAMES: Record<string, number> = { coin: 0, star: 1, starEmpty: 1, heart: 2, gear: 3, cup: 4, cupDark: 4, box: 5, bag: 5, map: 6, book: 7, scroll: 7, clipboard: 7, chair: 8, farm: 9, sprout: 9, people: 10, customer: 10, brush: 11, gift: 12, timer: 13, lock: 14, check: 15, exp: 1, bell: 12 };
 const CAFE: Record<string, number> = { espresso_machine: 0, cafe_espresso: 0, espresso_pro: 0, grinder: 1, grinder_pro: 1, milk_station: 2, milk_station_pro: 2, counter: 3, order_counter: 3, table_2: 4, cafe_table: 4, cafe_table_long: 5, chair: 6, armchair: 7, supply_shelf: 8, shelf: 8, bookshelf: 9, plant: 10, floor_lamp: 11, pickup_point: 13, standing_spot: 13, travel_sign: 14, sign: 14, wall_post: 15 };
 const FARM: Record<string, number> = { well: 4, seed_stall: 5, farmhouse: 6, tree: 7, drying_rack: 8, roaster: 9, market_stall: 10, crate: 11 };
 export function worldSprite(type: string, variant: string): { key: string; frame: string } | null {
@@ -62,7 +66,6 @@ export function plotAnchorY(scene: Phaser.Scene): number {
   if (bottom > top) plotCenterY = (top + bottom) / 2 / f.height;
   return plotCenterY;
 }
-export const H5_EXTRA_ICONS: Record<string,number> = {broom:0,cherry:1,bean:2,bottle:3,bell:8,exp:9};
 export const HERO_FACINGS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 
 export function terrainFrame(kind:string,x:number,y:number):number|null {

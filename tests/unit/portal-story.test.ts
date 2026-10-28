@@ -32,10 +32,10 @@ describe('magical portal gameplay',()=>{
     expect(sim.story.portalOpen).toBe(true);
     const start=sim.player.tile;
     sim.clickObject('portal');
-    expect(runUntil(sim,()=>!!sim.story.view().dialog,30000)).toBe(true);
+    // No outro to click through: walking up to the open door goes straight on to chapter 3.
+    expect(runUntil(sim,()=>sim.story.chapterId==='S05',30000)).toBe(true);
     expect(sim.player.tile).not.toEqual(start);
-    while(sim.story.view().dialog)sim.story.advanceDialog();
-    expect(sim.story.chapterId).toBe('S05');
+    expect(sim.story.view().dialog).toBeNull();
     expect(sim.story.view().locked).toBe(true);
   });
   it('keeps the optional memory discovery as a real one-time inventory reward',()=>{
@@ -44,4 +44,24 @@ describe('magical portal gameplay',()=>{
     expect(sim.tx.count(CONTENT.story.cherryReward.itemId)).toBe(CONTENT.story.cherryReward.qty);
     expect(sim.story.pickCherry().ok).toBe(false);
   });
+  it('cloud garden: catching a stone\'s three sparks wakes it, all three open the door, walking into it goes on',()=>{
+    const sim=portal();
+    expect(sim.garden).not.toBeNull();
+    expect(sim.story.view().dialog).toBeNull();
+    sim.tick(16);
+    expect(sim.story.view().garden?.say).toBeTruthy();
+    for(const id of CONTENT.story.stones) {
+      // Stand on each spark of this stone in turn.
+      for(let k=0;k<3;k++) {
+        const s=sim.story.view().garden!.sparks.find((x)=>x.stone===id&&!x.caught)!;
+        sim.player.pos={x:s.x,y:s.y}; sim.tick(16);
+      }
+      expect(sim.state.story.flags[id],id).toBe(true);
+    }
+    expect(sim.story.portalOpen).toBe(true);
+    const door=sim.world.getObject('portal')!.footprint;
+    sim.player.pos={x:door.x+1,y:door.y+2.6}; sim.tick(16);
+    expect(sim.story.chapterId).toBe('S05');
+  });
 });
+

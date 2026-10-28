@@ -28,6 +28,7 @@ import { WorldMapHud } from '../ui/WorldMapHud';
 import { MetaHud } from '../ui/MetaHud';
 import { TableUpgradeModal } from '../ui/panels/TableUpgradeModal';
 import { StoryHud } from '../ui/StoryHud';
+import { toggleMute } from '../core/audioPrefs';
 import type { Button } from '../ui/widgets/Button';
 
 /** UI overlay with its own un-zoomed camera, running on top of a world scene. */
@@ -167,7 +168,7 @@ export class HudScene extends Phaser.Scene {
       this.decorHud = new DecorHud(this, decor, CONTENT.furniture, CONTENT.items);
     }
 
-    if (sim.story.active) this.storyHud = new StoryHud(this, () => sim.story.advanceDialog(), (id) => sim.clickObject(id));
+    if (sim.story.active) this.storyHud = new StoryHud(this, () => sim.story.advanceDialog(), () => sim.dash(), () => sim.story.retryRun(), () => toggleMute(this.sound));
 
     this.metaHud = new MetaHud(this, {
       replayStory: () => sim.replayStory(),

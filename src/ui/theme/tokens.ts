@@ -1,24 +1,35 @@
 /**
  * Design tokens: the single source of truth for the HUD's look.
  * Components import from here; no colour, size or duration is hardcoded elsewhere.
+ * Bright cozy palette (pastel diorama look): warm chocolate ink and outlines,
+ * cream paper cards, sunny / coral / mint accents.
  */
 export const COLORS = {
-  coffeeBrown: 0x5b3523,
-  espresso: 0x291b17,
-  caramel: 0xc88d47,
-  cream: 0xfff1d8,
-  leaf: 0x6fa86c,
-  gold: 0xf5c451,
-  error: 0xd96b5f,
+  coffeeBrown: 0x6b4226,
+  espresso: 0x4a2e1f,
+  caramel: 0xf2a65a,
+  cream: 0xfff6e5,
+  leaf: 0x7cc47f,
+  gold: 0xffc94a,
+  error: 0xf26b5b,
   // Derived tones
-  espressoSoft: 0x3a2820,
-  woodLight: 0x8a5a3a,
-  creamDim: 0xe8d4b0,
+  espressoSoft: 0x5c3a28,
+  woodLight: 0xc08552,
+  creamDim: 0xf3dfc1,
   shadow: 0x000000,
-  disabled: 0x8a7a68,
+  disabled: 0xb8a796,
   white: 0xffffff,
   /** Watering / water-related indicators. */
-  water: 0x6ec6ff,
+  water: 0x5ec8f2,
+  // Cozy card look (story / redesigned screens)
+  /** Outlines and dark text on light cards. */
+  ink: 0x5a3825,
+  /** Light card background. */
+  paper: 0xfffaf0,
+  coral: 0xff7f6b,
+  mint: 0x6fd3c0,
+  sky: 0xbfe6f5,
+  sun: 0xffd25e,
 } as const;
 
 export type ColorToken = keyof typeof COLORS;
@@ -27,11 +38,11 @@ export type ColorToken = keyof typeof COLORS;
 export const css = (c: number): string => `#${c.toString(16).padStart(6, '0')}`;
 
 export const FONT = {
-  family: "'Trebuchet MS', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif",
+  family: "'Baloo 2', 'Trebuchet MS', 'Segoe UI', Arial, sans-serif",
   size: { xs: 12, sm: 14, md: 16, lg: 19, xl: 24 },
 } as const;
 
-export const RADIUS = { sm: 6, md: 10, lg: 16, pill: 999 } as const;
+export const RADIUS = { sm: 8, md: 14, lg: 20, pill: 999 } as const;
 export const SPACING = { xs: 4, sm: 8, md: 12, lg: 16 } as const;
 
 /** Scene depths of HUD layers (the HUD scene is drawn above the world scene). */

@@ -1,4 +1,5 @@
 import type Phaser from 'phaser';
+import { setShown } from '../components/panelVisibility';
 import { t } from '../../core/i18n';
 import type { SimulationSnapshot } from '../../gameplay/GameSimulation';
 import { GameProgressBar } from '../components/GameProgressBar';
@@ -58,6 +59,8 @@ export class PlayerProfileHUD {
   }
 
   update(s: SimulationSnapshot, dtMs: number): void {
+    // Story chapters: level and XP mean nothing yet, so the profile stays out of the way.
+    setShown(this.root, !s.story.active);
     const p = s.progression;
     const need = Math.max(1, p.nextLevelExp - p.levelStartExp);
     const have = p.exp - p.levelStartExp;
