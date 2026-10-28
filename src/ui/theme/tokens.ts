@@ -34,6 +34,33 @@ export const COLORS = {
 
 export type ColorToken = keyof typeof COLORS;
 
+/**
+ * The light "cozy paper" look of chapter 1 (cream card, thick chocolate outline, soft shadow,
+ * coral labels, sunny highlight, mint switches), for screens that should match it.
+ * Re-skinning those screens later (new generated art) means changing this table only.
+ */
+export const LIGHT = {
+  panel: COLORS.paper,
+  border: COLORS.ink,
+  shadow: COLORS.ink,
+  /** Main text and titles. */
+  text: COLORS.ink,
+  /** Notes and footers. */
+  textDim: 0x8a6a55,
+  /** Small section labels. */
+  label: COLORS.coral,
+  /** Plates behind rows, and when hovered. */
+  plate: 0xf6e7cf,
+  plateHover: 0xffefd2,
+  /** Switch: on, off, and the knob. */
+  on: COLORS.mint,
+  off: 0xd9c8b0,
+  knob: COLORS.white,
+  /** The dimmed backdrop behind the panel. */
+  backdrop: COLORS.ink,
+  backdropAlpha: 0.38,
+} as const;
+
 /** `0xRRGGBB` → `#rrggbb` for Phaser text styles. */
 export const css = (c: number): string => `#${c.toString(16).padStart(6, '0')}`;
 
@@ -46,7 +73,8 @@ export const RADIUS = { sm: 8, md: 14, lg: 20, pill: 999 } as const;
 export const SPACING = { xs: 4, sm: 8, md: 12, lg: 16 } as const;
 
 /** Scene depths of HUD layers (the HUD scene is drawn above the world scene). */
-export const DEPTH = { hud: 1000, contextual: 1100, panel: 1300, modal: 1500, toast: 1700, debug: 2000 } as const;
+/** Modals sit above the story HUD (its cards and dialogue use 1500–1600) and below toasts. */
+export const DEPTH = { hud: 1000, contextual: 1100, panel: 1300, modal: 1650, toast: 1700, debug: 2000 } as const;
 
 export const MOTION = { fast: 110, base: 190, slow: 320 } as const;
 

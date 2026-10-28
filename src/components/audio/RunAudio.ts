@@ -14,7 +14,6 @@ export class RunAudio {
   private readonly music: GainNode | null = null;
   private readonly limiter: DynamicsCompressorNode | null = null;
   private readonly seen = new Map<number, string>();
-  private wasDashing = false;
   private dying = false;
   private timer: number | null = null;
   private nextNote = 0;
@@ -64,8 +63,6 @@ export class RunAudio {
       else if (h.phase === 'active' && prev === 'warn') this.activate(h.kind);
     }
     if (this.seen.size > 64) for (const id of [...this.seen.keys()].slice(0, 32)) this.seen.delete(id);
-    if (run.dashing && !this.wasDashing) this.noise(0.22, 0.25, 'highpass', 1800, 5000);
-    this.wasDashing = run.dashing;
     // A knock-out: the gag's own sound, or the fate's thud, then "wah wah wah".
     const ko = run.hit?.kind ?? (run.finale && run.finale.t > .46 ? run.finale.kind : null);
     if (ko && !this.dying) {

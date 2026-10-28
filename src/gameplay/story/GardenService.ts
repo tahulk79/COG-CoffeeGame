@@ -27,8 +27,6 @@ export interface GardenView {
   spirit: { x: number; y: number };
   /** What the spirit is saying, or null. */
   say: string | null;
-  dashReadyIn: number;
-  dashing: boolean;
   /** Bumped on every caught spark / woken stone (sound and flashes key off it). */
   events: Array<{ kind: 'spark' | 'stone' | 'open'; stone?: string; at: number }>;
 }
@@ -53,9 +51,6 @@ const SPARKS_PER_STONE = 3;
 export class GardenService {
   private sparks: GardenSpark[] = [];
   private steer = { x: 0, y: 0 };
-  private dashMs = 0;
-  private dashCd = 0;
-  private dashDir = { x: 0, y: 0 };
   private timeMs = 0;
   private spirit: WorldPos;
   private sayQueue: Array<{ text: string; ms: number }> = [];
@@ -67,8 +62,8 @@ export class GardenService {
   constructor(
     private readonly grid: NavGrid,
     private readonly player: Actor,
-    /** Speed and dash are chapter 1's, so moving feels the same in both chapters. */
-    private readonly move: Pick<RunConfig, 'runSpeed' | 'dashSpeed' | 'dashMs' | 'dashCooldownMs'>,
+    /** Speed is chapter 1's, so moving feels the same in both chapters. */
+    private readonly move: Pick<RunConfig, 'runSpeed'>,
     private readonly hooks: GardenHooks,
   ) {
     this.spirit = { x: player.pos.x - 0.8, y: player.pos.y - 0.8 };
@@ -97,22 +92,11 @@ export class GardenService {
   }
 
   get controlsPlayer(): boolean {
-    return this.steering || this.dashMs > 0;
-  }
-
-  dash(): boolean {
-    if (this.dashCd > 0) return false;
-    const f = FACING_VEC[this.player.facing] ?? [0, 1];
-    const l = Math.hypot(f[0], f[1]);
-    this.dashDir = this.steering ? { ...this.steer } : { x: f[0] / l, y: f[1] / l };
-    this.dashMs = this.move.dashMs;
-    this.dashCd = this.move.dashCooldownMs;
-    return true;
+    return this.steering;
   }
 
   tick(dt: number): void {
     this.timeMs += dt;
-    this.dashCd = Math.max(0, this.dashCd - dt);
     this.walk(dt);
     this.placeSparks();
     this.catchSparks();
@@ -145,11 +129,6 @@ export class GardenService {
   // ── movement ────────────────────────────────────────────────────────────
 
   private walk(dt: number): void {
-    if (this.dashMs > 0) {
-      this.dashMs -= dt;
-      this.moveBy((this.dashDir.x * this.move.dashSpeed * dt) / 1000, (this.dashDir.y * this.move.dashSpeed * dt) / 1000);
-      return;
-    }
     if (!this.steering) return;
     this.player.clearWaypoints();
     this.player.faceTowards({ x: this.player.pos.x + this.steer.x, y: this.player.pos.y + this.steer.y });
@@ -244,11 +223,8 @@ export class GardenService {
       lit: this.hooks.stones.filter((s) => this.hooks.isLit(s)),
       spirit: { ...this.spirit },
       say: this.say?.text ?? null,
-      dashReadyIn: this.dashCd,
-      dashing: this.dashMs > 0,
       events: this.events.map((e) => ({ ...e })),
     };
   }
 }
 
-const FACING_VEC: Record<string, [number, number]> = { N: [0, -1], NE: [1, -1], E: [1, 0], SE: [1, 1], S: [0, 1], SW: [-1, 1], W: [-1, 0], NW: [-1, -1] };

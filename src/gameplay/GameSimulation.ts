@@ -264,6 +264,7 @@ export class GameSimulation {
           hold: (on) => { run.held = on; if (on) this.playerInteraction.cancelAll('superseded'); },
           crash: (line, downMs) => run.crash('motorbike', line, downMs),
           isDown: () => run.isDown,
+          knockedOut: () => run.dying,
           walkable: (x, y) => this.world.grid.isWalkable(worldToTile({ x, y })),
           bikeHit: () => run.crash('motorbike', ch.hazards?.motorbike?.faint ?? '…', 2000),
           rescued: () => run.finishDown(),
@@ -362,17 +363,11 @@ export class GameSimulation {
 
   /**
    * The chapter-1 run waits, without any start screen, for the player's first move (key, joystick,
-   * click or dash): hazards only come once they are playing, and that first input is also the
+   * click): hazards only come once they are playing, and that first input is also the
    * gesture that lets the browser play sound.
    */
   startRun(): void {
     if (this.run && !this.story.locked) this.run.paused = false;
-  }
-
-  /** Quick dodge in the running direction (cooldown). */
-  dash(): boolean {
-    this.startRun();
-    return !this.story.locked && !!(this.run ?? this.garden)?.dash();
   }
 
   /** Chapter 1: the player tapped a person on the street. Close enough, they talk; otherwise the hero walks over first. */

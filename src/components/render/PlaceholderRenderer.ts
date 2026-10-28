@@ -485,13 +485,45 @@ export class PlaceholderRenderer implements WorldRenderer {
     return new PlaceholderActorView(this.scene, kind === 'player' ? PLAYER_COLOR : 0xd07a3a);
   }
 
+  /** The walking destination: where a click sent the hero (set while the hero follows a path), and when it was clicked. */
+  private dest: { x: number; y: number; t0: number } | null = null;
+  /** When the hero arrived (the marker fades out from then). */
+  private destArrived: number | null = null;
+
+  /**
+   * Shows where the hero is walking to: a ripple spreads out where you clicked,
+   * then a small ring pulses on the spot until the hero gets there and it fades.
+   * No line is drawn along the route.
+   */
   setPathPreview(points: WorldPos[] | null): void {
-    this.path.clear();
-    if (!points || points.length < 2) return;
-    this.path.lineStyle(3, 0x2f7fd8, 0.6);
-    this.path.strokePoints(points.map((p) => v(worldToScreen(p))), false);
-    const end = worldToScreen(points[points.length - 1]!);
-    this.path.fillStyle(0x2f7fd8, 0.8).fillCircle(end.x, end.y, 6);
+    const g = this.path.clear(), now = this.scene.time.now;
+    if (points && points.length >= 2) {
+      const end = points[points.length - 1]!;
+      // A new click: the ripple starts again.
+      if (!this.dest || Math.hypot(this.dest.x - end.x, this.dest.y - end.y) > 0.25) this.dest = { x: end.x, y: end.y, t0: now };
+      this.destArrived = null;
+      this.drawDestination(g, this.dest, now, 1);
+    } else if (this.dest) {
+      this.destArrived ??= now;
+      const k = 1 - (now - this.destArrived) / 280;
+      if (k <= 0) { this.dest = null; this.destArrived = null; } else this.drawDestination(g, this.dest, now, k);
+    }
+  }
+
+  /** The destination marker flat on the ground (the isometric ground makes circles 2:1 ellipses). */
+  private drawDestination(g: Phaser.GameObjects.Graphics, d: { x: number; y: number; t0: number }, now: number, alpha: number): void {
+    const p = worldToScreen(d), age = now - d.t0;
+    // The click ripple: a ring spreading out and fading.
+    if (age < 520) {
+      const t = age / 520, e = 1 - (1 - t) * (1 - t), r = 14 + 40 * e;
+      g.lineStyle(4, 0xff7f6b, 0.85 * (1 - t) * alpha).strokeEllipse(p.x, p.y, r * 2, r);
+    }
+    // The spot itself: a soft cream disc, a ring that breathes, and a coral dot.
+    const pulse = 1 + Math.sin(now / 200) * 0.08, r = 20 * pulse;
+    g.fillStyle(0xfff6e5, 0.35 * alpha).fillEllipse(p.x, p.y, r * 2, r);
+    g.lineStyle(3, 0xffffff, 0.95 * alpha).strokeEllipse(p.x, p.y, r * 2, r);
+    g.lineStyle(2, 0x5a3825, 0.55 * alpha).strokeEllipse(p.x, p.y, r * 2 + 5, r + 2.5);
+    g.fillStyle(0xff7f6b, alpha).fillEllipse(p.x, p.y, 11, 5.5);
   }
 
   setHoverTile(tile: TilePos | null): void {
@@ -499,7 +531,9 @@ export class PlaceholderRenderer implements WorldRenderer {
     if (!tile) return;
     const f = { x: tile.x, y: tile.y, w: 1, h: 1 };
     const pts = [worldToScreen({ x: f.x, y: f.y }), worldToScreen({ x: f.x + 1, y: f.y }), worldToScreen({ x: f.x + 1, y: f.y + 1 }), worldToScreen({ x: f.x, y: f.y + 1 })];
-    this.hover.lineStyle(2, 0xffffff, 0.9).strokePoints(pts.map((p) => v(p)), true);
+    // A soft highlight on the tile, not a hard outline.
+    this.hover.fillStyle(0xffffff, 0.16).fillPoints(pts.map((p) => v(p)), true);
+    this.hover.lineStyle(2, 0xffffff, 0.5).strokePoints(pts.map((p) => v(p)), true);
   }
 
   private readonly indicators = new Map<string, { c: Phaser.GameObjects.Container; icon: string; tween: Phaser.Tweens.Tween | null; objectId: string; x: number; y: number }>();
@@ -683,14 +717,27 @@ export class PlaceholderRenderer implements WorldRenderer {
   private pan = { x: 0, y: 0 };
 
   panBy(dxPx: number, dyPx: number): void {
-    const z = this.scene.cameras.main.zoom;
-    this.pan.x += dxPx / z;
-    this.pan.y += dyPx / z;
+    const z = this.scene.cameras.main.zoom, max = 1500;
+    this.pan.x = Math.max(-max, Math.min(max, this.pan.x + dxPx / z));
+    this.pan.y = Math.max(-max, Math.min(max, this.pan.y + dyPx / z));
   }
 
   resetPan(): void {
     this.pan = { x: 0, y: 0 };
   }
+
+  /** While the player drags to look ahead the camera stays where it is pushed; once let go it eases back to the hero. */
+  setLooking(on: boolean): void {
+    this.looking = on;
+  }
+
+  /** Extra tiles of land past the west and east edges of the map that the camera may show. */
+  setReach(west: number, east: number): void {
+    this.reach = { west, east };
+  }
+
+  private looking = false;
+  private reach = { west: 0, east: 0 };
 
   private centerOffset = { x: 0, y: 0 };
 
@@ -698,8 +745,15 @@ export class PlaceholderRenderer implements WorldRenderer {
     const cam = this.scene.cameras.main;
     const zoom = cam.zoom;
     const p = worldToScreen(pos);
+    if (!this.looking && (this.pan.x || this.pan.y)) {
+      // Let go: the look-ahead glides back to the hero.
+      const back = 1 - easeFactor(dtMs, 140);
+      this.pan.x *= back;
+      this.pan.y *= back;
+      if (Math.hypot(this.pan.x, this.pan.y) < 1) this.pan = { x: 0, y: 0 };
+    }
     const target = { x: p.x + this.centerOffset.x + this.pan.x, y: p.y - 24 + this.centerOffset.y + this.pan.y };
-    const t = clampCenter(target, cam.width / zoom, cam.height / zoom, mapRect(this.bounds.w, this.bounds.h));
+    const t = clampCenter(target, cam.width / zoom, cam.height / zoom, mapRect(this.bounds.w, this.bounds.h, this.reach));
     const mid = cam.midPoint;
     // Snaps when reduced motion is on or right after a (re)frame.
     const k = this.snapNext || dur(MOTION.base) === 0 ? 1 : easeFactor(dtMs, 120);

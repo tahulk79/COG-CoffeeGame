@@ -177,7 +177,9 @@ describe('chapter 1 playtest', () => {
     for (let i = 0; i < 400 && sim.story.chapterId === 'S03'; i++) {
       sim.tick(50);
       const st = sim.story.view().street;
-      if (st?.focus) { followed = true; expect(st.heroHidden).toBe(true); }
+      // Before the hero is in the van the camera stays near the hero (and tilts to the van); after it, it rides with the van.
+      if (st?.focus && !st.heroHidden) expect(Math.hypot(st.focus.x - sim.player.pos.x, st.focus.y - sim.player.pos.y)).toBeLessThanOrEqual(1.61);
+      if (st?.focus && st.heroHidden) followed = true;
     }
     expect(followed).toBe(true);
   });
@@ -269,5 +271,195 @@ describe('chapter 1 playtest', () => {
     const crowd = sim.street!['rescue']!.crowd as Array<{ x: number; y: number }>;
     expect(crowd.length).toBeGreaterThan(0);
     for (const n of crowd) expect(sim.world.grid.isWalkable({ x: Math.floor(n.x), y: Math.floor(n.y) }), `${n.x},${n.y}`).toBe(true);
+  });
+
+  it('the rescue: nobody ever walks through a tree, stall or car; the medics clear the crowd and scold the one filming', () => {
+    const L = CONTENT.story.chapters.S03!.street!.rescue!;
+    for (const at of [{ x: 13.5, y: 15.5 }, { x: 12, y: 6.5 }, { x: 26, y: 12.5 }]) {
+      const sim = chapter1(16, calm);
+      sim.steer(1, 0); sim.tick(50); sim.steer(0, 0);
+      sim.player.pos = { ...at };
+      sim.run!.crash('motorbike', 'Ối…', 2000);
+      const said = new Set<string>();
+      let hiddenWhileLeaving = false;
+      let bonkAt: number | null = null;
+      for (let i = 0; i < 700 && sim.story.chapterId === 'S03'; i++) {
+        sim.tick(50);
+        const st = sim.story.view().street!;
+        for (const n of st.npcs) if (n.say) said.add(n.say);
+        const r = sim.street!['rescue'] as { crowd: Array<{ x: number; y: number }>; medics: Array<{ x: number; y: number }> } | null;
+        for (const n of [...(r?.crowd ?? []), ...(r?.medics ?? [])]) expect(sim.world.grid.isWalkable({ x: Math.floor(n.x), y: Math.floor(n.y) }), `${n.x.toFixed(2)},${n.y.toFixed(2)} at ${at.x},${at.y}`).toBe(true);
+        // Once the ambulance has pulled up, the crowd keeps off its lane.
+        const rr = sim.street!['rescue'] as { ms: number; van: { y: number } | null; crowd: Array<{ y: number; goal?: unknown }> } | null;
+        if (rr?.van && rr.ms > 5500 && rr.ms < 12000) for (const n of rr.crowd) expect(Math.abs(n.y - rr.van.y), 'onlooker on the ambulance lane').toBeGreaterThan(0.9);
+        // "CỐP!" and the hero is in the van within a second.
+        if (st.bonk) bonkAt ??= i;
+        if (bonkAt !== null && i - bonkAt > 20) expect(st.heroHidden).toBe(true);
+      }
+      expect([...said]).toEqual(expect.arrayContaining([L.shoo, L.scold, L.filmer, L.noStretcher, L.handCarry, ...L.photo]));
+      // Chapter 2 is next, but until the map changes the street still shows the hero gone and follows the van.
+      const v = sim.story.view();
+      expect(v.chapter).toBe('S04');
+      hiddenWhileLeaving = !!v.street?.heroHidden;
+      expect(hiddenWhileLeaving).toBe(true);
+      expect(v.run?.down).toBeTruthy();
+    }
+  });
+
+  it('on the way into the circle the ambulance may lose a wheel and blow up (BÙM!) — chapter 2 either way', () => {
+    for (const chance of [1, 0]) {
+      const sim = chapter1(17, (c) => { calm(c); c.story.chapters.S03!.street!.rescue!.wheelOffChance = chance; });
+      sim.steer(1, 0); sim.tick(50); sim.steer(0, 0);
+      sim.player.pos = { x: 14, y: 9.5 };
+      sim.run!.crash('motorbike', 'Ối…', 2000);
+      let wheel = false, boom = false;
+      for (let i = 0; i < 800 && sim.story.chapterId === 'S03'; i++) {
+        sim.tick(50);
+        const st = sim.story.view().street!;
+        wheel ||= !!st.wheel; boom ||= !!st.boom;
+      }
+      expect([wheel, boom], `chance ${chance}`).toEqual(chance ? [true, true] : [false, false]);
+      expect(sim.story.chapterId).toBe('S04');
+    }
+  });
+
+  it('the ambulance keeps to its lane for its direction (west on the north lane, east on the south lane), never veering', () => {
+    const lanes = CONTENT.story.chapters.S03!.street!.bikeLanes;
+    // A hero on the east half makes it come from the east (heading west); on the west half, the other way.
+    for (const [x, dir] of [[40, -1], [8, 1]] as const) {
+      const sim = chapter1(18, (c) => { calm(c); c.story.chapters.S03!.street!.rescue!.wheelOffChance = 0; });
+      sim.steer(1, 0); sim.tick(50); sim.steer(0, 0);
+      sim.player.pos = { x, y: 9.5 };
+      sim.run!.crash('motorbike', 'Ối…', 2000);
+      // The bike lane, a little in from the kerb.
+      const want = lanes[dir > 0 ? lanes.length - 1 : 0]! + (dir > 0 ? -0.3 : 0.3);
+      let seen = 0;
+      for (let i = 0; i < 800 && sim.story.chapterId === 'S03'; i++) {
+        sim.tick(50);
+        const van = sim.story.view().street!.npcs.find((n) => n.look === 'ambulance');
+        if (!van) continue;
+        seen++;
+        expect(van.y, `lane at x=${van.x.toFixed(1)}`).toBeCloseTo(want, 5);
+        expect(van.dir).toBe(dir);
+      }
+      expect(seen).toBeGreaterThan(50);
+    }
+  });
+
+  it('nobody stands on or walks through the hero lying on the street (onlookers keep a tile and a half away, passers-by turn back)', () => {
+    for (const at of [{ x: 13.5, y: 9.5 }, { x: 30, y: 6.5 }, { x: 20, y: 12.5 }]) {
+      const sim = chapter1(19, (c) => { calm(c); c.story.chapters.S03!.street!.rescue!.wheelOffChance = 0; });
+      sim.steer(1, 0); sim.tick(50); sim.steer(0, 0);
+      sim.player.pos = { ...at };
+      sim.run!.crash('motorbike', 'Ối…', 2000);
+      for (let i = 0; i < 700 && sim.story.chapterId === 'S03'; i++) {
+        sim.tick(50);
+        const st = sim.story.view().street!, rr = sim.street!['rescue'] as { ms: number; carried: boolean; hidden: boolean } | null;
+        if (!rr || rr.carried || rr.hidden) continue;
+        for (const n of st.npcs) {
+          // The medics come to the hero on purpose; everyone else keeps off them.
+          if (n.id.startsWith('medic') || n.look === 'ambulance' || n.bike) continue;
+          const d = Math.hypot(n.x - sim.player.pos.x, n.y - sim.player.pos.y);
+          // Onlookers settle at a distance once they have arrived (they walk there from wherever they were).
+          if (rr.ms > 5000) expect(d, `${n.id} at ${rr.ms | 0} ms`).toBeGreaterThan(0.9);
+        }
+      }
+    }
+  });
+
+  /** A button-masher: random steering, taps on the floor and on people, door walks, shop taps, reply picks. */
+  function masher(sim: GameSimulation, seed: number, ms: number): void {
+    // Seeded by the seed and the time, so every tick of every run decides differently.
+    let r = (seed * 2654435761 + ms * 40503) >>> 0;
+    const rnd = () => ((r = (Math.imul(r, 1664525) + 1013904223) >>> 0) / 4294967296);
+    rnd(); rnd();
+    if (Math.floor(ms / 50) % 8 !== 0) return;
+    const st = sim.story.view().street;
+    const roll = rnd();
+    if (st?.shop) {
+      if (roll < 0.5) sim.shopMoveTo(rnd() * st.shop.w, rnd() * (st.shop.h + 0.3));
+      else if (roll < 0.7 && st.shop.npcs.length) sim.talkTo(st.shop.npcs[Math.floor(rnd() * st.shop.npcs.length)]!.id);
+      else sim.steer(rnd() * 2 - 1, rnd() * 2 - 1);
+    } else if (roll < 0.25) sim.steer(rnd() * 2 - 1, rnd() * 2 - 1);
+    else if (roll < 0.45) sim.clickTile({ x: Math.floor(rnd() * 47), y: Math.floor(rnd() * 17) });
+    else if (roll < 0.6 && st?.npcs.length) sim.talkTo(st.npcs[Math.floor(rnd() * st.npcs.length)]!.id);
+    else if (roll < 0.68) {
+      // Walk up to a door or a street end.
+      const targets = [...(st?.doors ?? []).map((d) => ({ x: d.x, y: d.y })), { x: 2.2, y: 9.5 }, { x: 45.8, y: 9.5 }];
+      const t = targets[Math.floor(rnd() * targets.length)]!;
+      // A jump to somewhere else drops the old walking orders, like the game does when it moves the hero itself.
+      sim.player.pos = { x: t.x, y: t.y };
+      sim.player.clearWaypoints();
+    } else if (roll < 0.8) sim.steer(0, 0);
+    if (st?.choices && rnd() < 0.5) sim.story.chooseReply(rnd() < 0.5 ? 0 : 1);
+  }
+
+  it('fuzz: a button-masher can never break the street (no stuck state, no bad numbers, always on to chapter 2)', () => {
+    const finite = (...v: number[]) => v.every((n) => Number.isFinite(n));
+    for (let seed = 1; seed <= 40; seed++) {
+      const sim = chapter1(seed);
+      let ms = 0;
+      while (sim.story.chapterId === 'S03' && ms < 600_000) {
+        masher(sim, seed, ms);
+        sim.tick(50);
+        ms += 50;
+        const v = sim.story.view(), run = v.run, st = v.street;
+        if (!run || !st) continue;
+        expect(finite(sim.player.pos.x, sim.player.pos.y), `seed ${seed} player ${ms}`).toBe(true);
+        for (const n of st.npcs) expect(finite(n.x, n.y, n.scale, n.tilt), `seed ${seed} npc ${n.id} ${ms}`).toBe(true);
+        for (const h of run.hazards) expect(finite(h.x, h.y), `seed ${seed} hazard ${h.kind} ${ms}`).toBe(true);
+        // Walking about, the hero is always on free ground (the barrier scene and the rescue walk them on purpose).
+        if (run.running && !st.shop && run.phase === 'chaos' && sim.story.chapterId === 'S03' && !sim.run!.held) {
+          expect(sim.world.grid.isWalkable(sim.player.tile) || sim.player.tile.x < 0, `seed ${seed} hero in a blocked tile at ${ms}: ${JSON.stringify(sim.player.pos)}`).toBe(true);
+        }
+      }
+      expect(sim.story.chapterId, `seed ${seed} never reached chapter 2 (${ms} ms)`).toBe('S04');
+    }
+  }, 120_000);
+
+  it('knocked out by another gag while arguing through the barrier: the barrier scene lets go of the hero', () => {
+    const sim = chapter1(21, calm);
+    sim.player.pos = { x: 2.2, y: 9.5 };
+    for (let i = 0; i < 300 && !sim.story.view().street?.choices; i++) sim.tick(50);
+    sim.story.chooseReply(0);
+    for (let i = 0; i < 60; i++) sim.tick(50);
+    // Walking out through the open barrier: a gag gets them first.
+    sim.run!.crash('durian', 'Ối…', 2000);
+    sim.tick(50);
+    const at = { ...sim.player.pos };
+    for (let i = 0; i < 20; i++) sim.tick(50);
+    expect(sim.story.view().run?.phase).toBe('faint');
+    expect(Math.hypot(sim.player.pos.x - at.x, sim.player.pos.y - at.y)).toBeLessThan(0.5);
+    expect(play(sim).chapter).toBe('S04');
+  });
+
+  it('the rescue camera keeps both the hero and the ambulance in view on a narrow phone, both ways the ambulance comes', () => {
+    // A phone in portrait shows about five tiles across (zoom 0.586 at 375 px wide): 320 render px either side of the camera.
+    const half = 320, sx = (p: { x: number; y: number }) => (p.x - p.y) * 64;
+    for (const x of [8, 40]) {
+      const sim = chapter1(22, (c) => { calm(c); c.story.chapters.S03!.street!.rescue!.wheelOffChance = 0; });
+      sim.steer(1, 0); sim.tick(50); sim.steer(0, 0);
+      sim.player.pos = { x, y: 9.5 };
+      sim.run!.crash('motorbike', 'Ối…', 2000);
+      let checked = 0;
+      for (let i = 0; i < 400 && sim.story.chapterId === 'S03'; i++) {
+        sim.tick(50);
+        const st = sim.story.view().street!, rr = sim.street!['rescue'] as { ms: number; hidden: boolean } | null;
+        const van = st.npcs.find((n) => n.look === 'ambulance');
+        if (!rr || !van || !st.focus) continue;
+        const f = st.focus;
+        if (!rr.hidden) {
+          // The camera stays close to the hero…
+          expect(Math.hypot(f.x - sim.player.pos.x, f.y - sim.player.pos.y)).toBeLessThanOrEqual(1.61);
+          // …and once the ambulance has pulled up, it is in the frame too (with half its length to spare).
+          if (rr.ms > 6000 && rr.ms < 11000) {
+            checked++;
+            expect(Math.abs(sx(van) - sx(f)) + 64, `van at ${van.x.toFixed(1)}`).toBeLessThan(half);
+            expect(Math.abs(sx(sim.player.pos) - sx(f)) + 40).toBeLessThan(half);
+          }
+        }
+      }
+      expect(checked).toBeGreaterThan(20);
+    }
   });
 });

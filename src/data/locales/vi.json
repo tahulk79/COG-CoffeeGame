@@ -460,5 +460,19 @@
   "meta.upgrades.needCoins": "(thiếu xu)",
   "meta.fail.unknownUpgrade": "Nâng cấp không tồn tại",
   "meta.fail.maxed": "Đã tối đa",
-  "meta.fail.levelTooLow": "Chưa đủ cấp"
+  "meta.fail.levelTooLow": "Chưa đủ cấp",
+  "settings.sectionAudio": "ÂM THANH & HIỂN THỊ",
+  "settings.sound": "Âm thanh",
+  "settings.motion": "Giảm hiệu ứng chuyển động",
+  "settings.fullscreen": "Toàn màn hình (F)",
+  "settings.sectionLanguage": "NGÔN NGỮ",
+  "settings.languageNote": "English: giao diện đã dịch, cốt truyện còn tiếng Việt.",
+  "settings.sectionStory": "CỐT TRUYỆN & DỮ LIỆU",
+  "settings.on": "BẬT",
+  "settings.off": "TẮT",
+  "settings.version": "COG-CoffeeGame · bản thử nghiệm",
+  "settings.langReload": "Đang đổi ngôn ngữ…",
+  "story.soundOn": "🔊 Bật",
+  "story.soundOff": "🔇 Tắt",
+  "transition.loading": "Đang mở cổng..."
 }

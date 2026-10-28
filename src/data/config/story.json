@@ -38,9 +38,6 @@
         "strollSec": 0,
         "strollVisits": 2,
         "fenceX": 34,
-        "dashSpeed": 13,
-        "dashMs": 240,
-        "dashCooldownMs": 1000,
         "hitMs": 1400,
         "downMs": 2200,
         "chaosSec": 120,
@@ -773,9 +770,22 @@
           "siren": "Tò te tí te!",
           "xeom": "Để bác chở cho nhanh, hai mươi nghìn!",
           "driver": "Bác đi ra!",
-          "lift": "Một, hai, ba… nhấc!",
           "bonk": "CỐP!",
-          "oops": "Ơ… đập đầu vào cửa xe rồi. Thôi, đi!"
+          "oops": "Ơ… đập đầu vào cửa xe rồi. Thôi, đi!",
+          "shoo": "Tránh ra, tránh ra! Cho người ta thở với!",
+          "scold": "Quay quay cái gì! Cất điện thoại đi!",
+          "filmer": "Em đang live, anh lùi ra cho em lấy góc…",
+          "noStretcher": "Ơ… quên mang cáng ở nhà rồi!",
+          "handCarry": "Thôi, hai đứa mình khiêng tay vậy. Một, hai, ba… nhấc!",
+          "photo": [
+            "Lên TikTok xu hướng luôn!",
+            "Chụp tấm nữa, góc này nghệ quá!",
+            "Chụp lẹ, đăng Facebook!",
+            "Check-in: “cấp cứu phố cổ”!"
+          ],
+          "wheelOffChance": 0.5,
+          "wheelOff": "Ơ… bánh xe đâu rồi?!",
+          "boom": "BÙM!!!"
         },
         "again": [
           "Lại là cháu à? Mua gì thì mua đi chứ!",

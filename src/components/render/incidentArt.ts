@@ -4,6 +4,7 @@ import type { HazardView, RunView } from '../../gameplay/story/RunService';
 import type { Footprint, WorldPos } from '../../utils/tile';
 import type { ActorView, ActorViewState, FloorTileView } from './WorldRenderer';
 import { TERRAIN_COLORS } from './placeholderStyles';
+import { SpeechBubble } from './speechBubble';
 
 /**
  * Chapter 1 street on a sunny afternoon, drawn in code in the cozy diorama
@@ -11,9 +12,9 @@ import { TERRAIN_COLORS } from './placeholderStyles';
  * and collisions remain owned by the map.
  */
 export const INK = 0x5a3825;
-const SKY = 0xdff1f7;
-/** Camera background beyond the drawn surroundings. */
-export const STREET_BACKGROUND = SKY;
+/** Camera background beyond the drawn surroundings: the same water as the lake, so zooming out shows sea, never bare canvas. */
+const WATER = 0x8fd0ea;
+export const STREET_BACKGROUND = WATER;
 
 export const point = (x: number, y: number, z = 0) => { const p = worldToScreen({ x, y }); return new Phaser.Math.Vector2(p.x, p.y - z); };
 export function face(g: Phaser.GameObjects.Graphics, coords: number[][], color: number, alpha = 1, outline = 2): void {
@@ -304,10 +305,17 @@ function tree(g: Phaser.GameObjects.Graphics, x: number, y: number, size = 1): v
 
 /** Chapter-1 map layout (see incident.json): the main road, a sidewalk either side, the alley going north, the lake to the south. */
 const ROAD_ROWS = [8, 10];
+/** The land ends a few tiles past the map, with a loop road round a block of houses at each end of the street. */
+const LAND_W = -18, LAND_E = 69;
+/** The loop road at each end of the street: the road goes round a block of houses and comes back (rings of asphalt around a plot). Keep in step with the path in StreetService (`LOOP`). */
+const LOOP = { y0: 6.6, y1: 12.4, plotY0: 8, plotY1: 11, w: { x0: -18, x1: -12.3, px0: -16.7, px1: -14 }, e: { x0: 62.3, x1: 69, px0: 64, px1: 66.7 } } as const;
+const ROUNDABOUT = { w: -2.8, e: 52.2, r: 2.5, island: .5 };
 const NORTH_WALK = [5, 7], SOUTH_WALK = [11, 13];
 /** The gap in the north row of houses: the alley (x 21–23) and the courtyard at its end (x 19–25). */
 const ALLEY_X0 = 19, ALLEY_X1 = 26;
 const MAP_W = 48, MAP_H = 18;
+/** Past these (the edge of the land) a vehicle that has driven off is not drawn. */
+export const STREET_ENDS = { w: LAND_W + .2, e: LAND_E - .2 };
 const inRange = (v: number, [lo, hi]: number[]) => v >= lo! && v <= hi!;
 
 /** Hoan Kiem lake along the south of the map (outside it), with a gently wavy shore. */
@@ -369,30 +377,60 @@ function redBridge(g: Phaser.GameObjects.Graphics, x0: number, y0: number, x1: n
 
 /** O Quan Chuong: the old city gate, arching over the road where it leaves the map. */
 function cityGate(g: Phaser.GameObjects.Graphics, x: number, y0: number, y1: number): void {
+  // The road covers rows y0…y1 (so up to y1 + 1): the two pillars stand on the pavements either side, never on a lane.
   block(g, { x, y: y0 - 1, w: 1.4, h: 1 }, 0, 120, 0xe6dcc6, 2.5);
-  block(g, { x, y: y1, w: 1.4, h: 1 }, 0, 120, 0xe6dcc6, 2.5);
-  block(g, { x, y: y0 - 1, w: 1.4, h: y1 - y0 + 2 }, 90, 34, 0xd9cfb7, 2.5);
-  block(g, { x: x + .2, y: y0 - .4, w: 1, h: y1 - y0 + .8 }, 124, 30, 0xf3e7d3, 2);
-  block(g, { x: x - .1, y: y0 - .6, w: 1.6, h: y1 - y0 + 1.2 }, 154, 12, 0x6b4a3a, 2);
+  block(g, { x, y: y1 + 1, w: 1.4, h: 1 }, 0, 120, 0xe6dcc6, 2.5);
+  block(g, { x, y: y0 - 1, w: 1.4, h: y1 - y0 + 3 }, 90, 34, 0xd9cfb7, 2.5);
+  block(g, { x: x + .2, y: y0 - .4, w: 1, h: y1 - y0 + 1.8 }, 124, 30, 0xf3e7d3, 2);
+  block(g, { x: x - .1, y: y0 - .6, w: 1.6, h: y1 - y0 + 2.2 }, 154, 12, 0x6b4a3a, 2);
+}
+
+/** Endless water behind the street: one small wave tile repeated far beyond any zoom, so the edge of the map is a shore, not a cut-off. */
+function drawSea(scene: Phaser.Scene): void {
+  const key = 'hn:waves', W = 256, H = 128;
+  if (!scene.textures.exists(key)) {
+    const g = scene.make.graphics({ x: 0, y: 0 }, false);
+    g.scaleCanvas(2, 2);
+    const wave = (x: number, y: number, w: number, a: number) => {
+      g.lineStyle(2.2, 0xffffff, a);
+      g.beginPath().moveTo(x - w, y);
+      for (let i = 0; i <= 12; i++) g.lineTo(x - w + (w * 2 * i) / 12, y + Math.sin((i / 12) * Math.PI * 2) * 2.4);
+      g.strokePath();
+    };
+    wave(40, 22, 22, .6); wave(150, 12, 16, .45); wave(100, 62, 26, .55); wave(210, 52, 18, .5); wave(30, 100, 18, .4); wave(170, 108, 24, .55);
+    g.generateTexture(key, W * 2, H * 2);
+    g.destroy();
+  }
+  const c = 9000;
+  scene.add.tileSprite(0, 0, c * 2, c * 2, key).setScale(1).setTileScale(.5, .5).setDepth(-1000).setOrigin(.5);
 }
 
 export function drawIncidentEnvironment(scene: Phaser.Scene, floor: FloorTileView[]): void {
+  drawSea(scene);
   // Everything flat (ground around the map, the map's own floor, markings, beds) is one baked layer.
-  bakeLayer(scene, 'hn:ground', screenBox([[-8, -4], [MAP_W + 8, -4], [-8, MAP_H + 8], [MAP_W + 8, MAP_H + 8]], 0, 0), floorDepth - .8, (g) => drawGround(g, floor), .6);
+  bakeLayer(scene, 'hn:ground', screenBox([[LAND_W - 1, -5], [LAND_E + 1, -5], [LAND_W - 1, MAP_H + 8], [LAND_E + 1, MAP_H + 8]], 0, 0), floorDepth - .8, (g) => drawGround(g, floor), .6);
   drawStanding(scene);
 }
 
 /** The flat street: around the map, the map floor itself, road markings, the zebra crossing and flower beds. */
 function drawGround(surround: Phaser.GameObjects.Graphics, floor: FloorTileView[]): void {
   // Beyond the map: the road and both sidewalks run on east and west, the lake lies south, pavement behind the houses.
-  for (let y = -4; y < MAP_H + 8; y++) for (let x = -8; x < MAP_W + 8; x++) {
+  for (let y = -4; y < MAP_H + 8; y++) for (let x = LAND_W; x < LAND_E; x++) {
     if (x >= 0 && x < MAP_W && y >= 0 && y < MAP_H) continue;
     const n = ((x * 17 + y * 31) % 7 + 7) % 7;
-    const color = inLake(x + .5, y + .5) ? [0x8fd0ea, 0x86cbe6, 0x97d4ed][n % 3]!
+    const color = inLake(x + .5, y + .5) ? WATER
       : inRange(y, ROAD_ROWS) ? 0x9aa7b5
       : inRange(y, NORTH_WALK) || inRange(y, SOUTH_WALK) || y < NORTH_WALK[0]! ? [0xf3e7d3, 0xefe1ca, 0xf6ecdb][n % 3]!
       : [0xbfe3a0, 0xb6dc96, 0xc5e7a8][n % 3]!;
     face(surround, [[x, y], [x + 1, y], [x + 1, y + 1], [x, y + 1]], color, 1, 0);
+  }
+  // Shore: a pale bank and a line of foam where the land meets the sea (north, east and west; the south is the lake itself).
+  const shore = (a: number[], b: number[], c: number[], d: number[], color: number, alpha: number) => face(surround, [a, b, c, d], color, alpha, 0);
+  const X0 = LAND_W, X1 = LAND_E, Y0 = -4;
+  for (const [pad, color, alpha] of [[.9, 0xd6f0f7, .55], [.5, 0xffffff, .8], [.18, 0xe9d9b8, 1]] as const) {
+    shore([X0 - pad, Y0 - pad], [X1 + pad, Y0 - pad], [X1 + pad, Y0], [X0 - pad, Y0], color, alpha);
+    shore([X1, Y0 - pad], [X1 + pad, Y0 - pad], [X1 + pad, MAP_H + 8], [X1, MAP_H + 8], color, alpha);
+    shore([X0 - pad, Y0 - pad], [X0, Y0 - pad], [X0, MAP_H + 8], [X0 - pad, MAP_H + 8], color, alpha);
   }
   // The map's own floor, tile by tile.
   for (const t of floor) {
@@ -407,9 +445,19 @@ function drawGround(surround: Phaser.GameObjects.Graphics, floor: FloorTileView[
   // Road markings: centre dashes, kerbs, and a zebra crossing in front of the alley.
   const road = surround;
   const mid = (ROAD_ROWS[0]! + ROAD_ROWS[1]!) / 2;
-  for (let x = -8; x < MAP_W + 8; x++) if (x % 3 === 1 && !inRange(x, [ALLEY_X0, ALLEY_X1])) face(road, [[x + .15, mid + .46], [x + .95, mid + .46], [x + .95, mid + .54], [x + .15, mid + .54]], 0xffffff, .95, 0);
-  for (const y of [ROAD_ROWS[0]!, ROAD_ROWS[1]! + 1]) face(road, [[-8, y], [MAP_W + 8, y], [MAP_W + 8, y + .08], [-8, y + .08]], 0xffffff, 1, 0);
+  for (let x = LAND_W; x < LAND_E; x++) if (x % 3 === 1 && !inRange(x, [ALLEY_X0, ALLEY_X1])) face(road, [[x + .15, mid + .46], [x + .95, mid + .46], [x + .95, mid + .54], [x + .15, mid + .54]], 0xffffff, .95, 0);
+  for (const y of [ROAD_ROWS[0]!, ROAD_ROWS[1]! + 1]) face(road, [[LAND_W, y], [LAND_E, y], [LAND_E, y + .08], [LAND_W, y + .08]], 0xffffff, 1, 0);
   for (let x = ALLEY_X0 + 1.1; x < ALLEY_X1 - 1; x += .45) face(road, [[x, ROAD_ROWS[0]! + .15], [x + .22, ROAD_ROWS[0]! + .15], [x + .22, ROAD_ROWS[1]! + .85], [x, ROAD_ROWS[1]! + .85]], 0xffffff, .9, 0);
+
+  // A loop road at each end of the street: it goes round a block of houses, and the bikes ride round it and come back the other way.
+  const rect = (x0: number, y0: number, x1: number, y1: number) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+  for (const l of [LOOP.w, LOOP.e]) {
+    face(road, rect(l.x0, LOOP.y0, l.x1, LOOP.y1), 0x9aa7b5, 1, 0);
+    road.lineStyle(2.5, 0xffffff, .95).strokePoints(rect(l.x0, LOOP.y0, l.x1, LOOP.y1).map(([x, y]) => point(x!, y!)), true);
+    // The plot in the middle: pavement with a kerb, the houses stand on it.
+    face(road, rect(l.px0 - .18, LOOP.plotY0 - .18, l.px1 + .18, LOOP.plotY1 + .18), 0xe9dfc9, 1, 2);
+    face(road, rect(l.px0, LOOP.plotY0, l.px1, LOOP.plotY1), 0xf3e7d3, 1, 0);
+  }
 
   // Lakeside flower beds on the grass (flat, never in the way).
   for (const [x, y] of [[4, 15.3], [16, 15.4], [23, 15.2], [37, 15.3], [44, 15.4]] as const) {
@@ -422,15 +470,32 @@ function drawGround(surround: Phaser.GameObjects.Graphics, floor: FloorTileView[
 /** Everything that stands up: houses, landmarks, poles and wires, street life, trees (all baked). */
 function drawStanding(scene: Phaser.Scene): void {
   // Old-quarter tube houses along the north side, with a gap for the alley; behind its courtyard, a few more houses.
-  bakeLayer(scene, 'hn:houses', screenBox([[-10, -3], [MAP_W + 8, -3], [-10, NORTH_WALK[0]!], [MAP_W + 8, NORTH_WALK[0]!]], 300), -2, (city) => {
+  bakeLayer(scene, 'hn:houses', screenBox([[LAND_W - 2, -3], [LAND_E, -3], [LAND_W - 2, NORTH_WALK[0]!], [LAND_E, NORTH_WALK[0]!]], 300), -2, (city) => {
     const walls = [0xf6d77a, 0xfff0c9, 0xc9ecd9, 0xf6c7b4, 0xf2e2a0] as const;
     const signs = [0xe2513f, 0x5ec8f2, 0xffd25e, 0x7cc47f, 0xf6a6d0] as const;
     let i = 0;
     const house = (x: number, y: number, d: number) => { tubeHouse(city, x, y, 1.6, d, 170 + ((i * 37) % 4) * 30, walls[i % 5]!, signs[(i * 3) % 5]!); i++; };
     for (let x = ALLEY_X0 + .05; x + 1.6 <= ALLEY_X1; x += 1.75) house(x, -2.6, 3.5);
-    for (let x = ALLEY_X0 - 1.6; x > -10; x -= 1.75) house(x, 1, 3.9);
-    for (let x = ALLEY_X1; x < MAP_W + 8; x += 1.75) house(x, 1, 3.9);
+    // A second row behind the first, past both ends of the map (the old quarter goes on well beyond the barriers).
+    for (let x = -1.6; x > LAND_W - 1; x -= 1.75) house(x, -3.2, 3.9);
+    for (let x = MAP_W; x + 1.6 <= LAND_E; x += 1.75) house(x, -3.2, 3.9);
+    for (let x = ALLEY_X0 - 1.6; x > LAND_W - 1; x -= 1.75) house(x, 1, 3.9);
+    for (let x = ALLEY_X1; x + 1.6 <= LAND_E; x += 1.75) house(x, 1, 3.9);
   }, .75);
+  // Lower houses along the south side of the street beyond the map ends, between the road and the lake.
+  const southWalls = [0xf2e2a0, 0xf6c7b4, 0xc9ecd9, 0xfff0c9, 0xf6d77a] as const;
+  for (const [from, to] of [[LAND_W + 1, -1.7], [MAP_W + 1.5, LAND_E - 1.7]] as const) {
+    for (let x = from, k = 0; x <= to; x += 1.75, k++) {
+      const hx = x, hh = 110 + ((k * 29) % 4) * 22;
+      bakeProp(scene, `hn:south:${hx}`, hx, 14.4, 1.6, 2.6, hx + 1.6 + 17, (g) => tubeHouse(g, hx, 14.4, 1.6, 2.6, hh, southWalls[k % 5]!, [0xe2513f, 0x5ec8f2, 0xffd25e][k % 3]!));
+    }
+  }
+  // The block of houses in the middle of each loop.
+  for (const [key, l, wall, sign] of [['w', LOOP.w, 0xf6d77a, 0xe2513f], ['e', LOOP.e, 0xc9ecd9, 0x5ec8f2]] as const) {
+    bakeLayer(scene, `hn:loophouse:${key}`, screenBox([[l.px0, LOOP.plotY0], [l.px1, LOOP.plotY0], [l.px0, LOOP.plotY1], [l.px1, LOOP.plotY1]], 230), l.px1 + LOOP.plotY1 - 1, (g) => {
+      tubeHouse(g, l.px0 + .2, LOOP.plotY0 + .2, l.px1 - l.px0 - .4, LOOP.plotY1 - LOOP.plotY0 - .4, 170, wall, sign);
+    }, .75);
+  }
   // Low garden walls along both sides of the alley, with a potted plant (tall houses there would hide the alley).
   for (const x of [ALLEY_X0 + 1.8, ALLEY_X1 - 2]) bakeProp(scene, `hn:alleywall:${x}`, x, 3, .2, 2, x + 5, (g) => {
     block(g, { x, y: 3, w: .2, h: 1.9 }, 0, 40, 0xe6dcc6, 2);
@@ -484,31 +549,67 @@ function drawStanding(scene: Phaser.Scene): void {
 
 
 /** The player in chapter 1: a small outlined figure in a coral jacket. */
-export class IncidentActorView implements ActorView {
-  depth=0;
-  private readonly g: Phaser.GameObjects.Graphics;
-  constructor(private readonly scene: Phaser.Scene) { this.g=scene.add.graphics(); }
-  update(s: ActorViewState): void {
-    const p=worldToScreen(s.pos); this.depth=actorDepth(s.pos);
-    const bob=s.state==='MOVING'?Math.sin(this.scene.time.now/85)*2:0;
-    const g=this.g.clear().setPosition(p.x,p.y+this.pose.dy).setScale(this.pose.sx,this.pose.sy).setRotation(this.pose.angle).setDepth(this.pose.dy<0?1e6-3:this.depth);
-    shadow(g,0,0,34,14);
-    g.lineStyle(2.5,INK);
-    g.fillStyle(0x4f6d8f).fillRoundedRect(-11,-18,8,19,3).strokeRoundedRect(-11,-18,8,19,3).fillRoundedRect(3,-18,8,19,3).strokeRoundedRect(3,-18,8,19,3);
-    g.fillStyle(0xff8a73).fillRoundedRect(-16,-44+bob,32,31,10).strokeRoundedRect(-16,-44+bob,32,31,10);
-    g.fillStyle(0xf6d2b0).fillCircle(-19,-28+bob,5).strokeCircle(-19,-28+bob,5).fillCircle(19,-28+bob,5).strokeCircle(19,-28+bob,5);
-    g.fillCircle(0,-52+bob,13).strokeCircle(0,-52+bob,13);
-    g.fillStyle(INK).fillEllipse(0,-61+bob,27,12).fillRoundedRect(-13,-61+bob,5,15,2);
-    g.fillCircle(5,-51+bob,2);
-    g.fillStyle(0xff9e8a,.7).fillCircle(8,-46+bob,3);
-    if (s.progress!==null) g.fillStyle(0xfff6e5).fillRoundedRect(-25,-82,50,9,4).lineStyle(2,INK).strokeRoundedRect(-25,-82,50,9,4).fillStyle(0x6fd3c0).fillRoundedRect(-23,-80,46*s.progress,5,2);
+/** Screen box (relative to the hero's feet) the baked hero frames cover. */
+const HERO_BOX = { x: -30, y: -76, w: 60, h: 90 };
+/** Baked at double size so the figure stays sharp when the camera zooms in. */
+const HERO_SS = 2;
+
+/** The chapter-1 hero, `bob` pixels up or down on the torso and head (walking). */
+function drawHero(g: Phaser.GameObjects.Graphics, bob: number): void {
+  shadow(g, 0, 0, 34, 14);
+  g.lineStyle(2.5, INK);
+  g.fillStyle(0x4f6d8f).fillRoundedRect(-11, -18, 8, 19, 3).strokeRoundedRect(-11, -18, 8, 19, 3).fillRoundedRect(3, -18, 8, 19, 3).strokeRoundedRect(3, -18, 8, 19, 3);
+  g.fillStyle(0xff8a73).fillRoundedRect(-16, -44 + bob, 32, 31, 10).strokeRoundedRect(-16, -44 + bob, 32, 31, 10);
+  g.fillStyle(0xf6d2b0).fillCircle(-19, -28 + bob, 5).strokeCircle(-19, -28 + bob, 5).fillCircle(19, -28 + bob, 5).strokeCircle(19, -28 + bob, 5);
+  g.fillCircle(0, -52 + bob, 13).strokeCircle(0, -52 + bob, 13);
+  g.fillStyle(INK).fillEllipse(0, -61 + bob, 27, 12).fillRoundedRect(-13, -61 + bob, 5, 15, 2);
+  g.fillCircle(5, -51 + bob, 2);
+  g.fillStyle(0xff9e8a, .7).fillCircle(8, -46 + bob, 3);
+}
+
+/** One baked hero frame (a Graphics would redraw its ~700 shapes on every frame of the game). */
+function heroFrame(scene: Phaser.Scene, bob: number): string {
+  const key = `hn:hero:${bob}`;
+  if (!scene.textures.exists(key)) {
+    const g = scene.make.graphics({ x: 0, y: 0 }, false);
+    g.scaleCanvas(HERO_SS, HERO_SS);
+    g.translateCanvas(-HERO_BOX.x, -HERO_BOX.y);
+    drawHero(g, bob);
+    g.generateTexture(key, HERO_BOX.w * HERO_SS, HERO_BOX.h * HERO_SS);
+    g.destroy();
   }
-  hitTest(x:number,y:number):boolean { const p=this.g; return x>=p.x-22&&x<=p.x+22&&y>=p.y-70&&y<=p.y+5; }
-  setAlpha(a:number):void { this.g.setAlpha(a); }
+  return key;
+}
+
+/** The player in chapter 1: a small outlined figure in a coral jacket, drawn from three baked walking frames. */
+export class IncidentActorView implements ActorView {
+  depth = 0;
+  private readonly img: Phaser.GameObjects.Image;
+  /** The little progress bar over the head (only while the hero is working; chapter 1 has no such work). */
+  private bar: Phaser.GameObjects.Graphics | null = null;
   private pose = { sx: 1, sy: 1, dy: 0, angle: 0 };
+  constructor(private readonly scene: Phaser.Scene) {
+    // All three walking frames up front, so none is drawn in the middle of play.
+    for (const bob of [-2, 0, 2]) heroFrame(scene, bob);
+    this.img = scene.add.image(0, 0, heroFrame(scene, 0)).setOrigin(-HERO_BOX.x / HERO_BOX.w, -HERO_BOX.y / HERO_BOX.h);
+  }
+  update(s: ActorViewState): void {
+    const p = worldToScreen(s.pos);
+    this.depth = actorDepth(s.pos);
+    // Walking bobs the torso: the nearest of three baked frames (-2, 0, +2 px).
+    const bob = s.state === 'MOVING' ? Math.round(Math.sin(this.scene.time.now / 85)) * 2 : 0;
+    const depth = this.pose.dy < 0 ? 1e6 - 3 : this.depth;
+    this.img.setTexture(heroFrame(this.scene, bob)).setPosition(p.x, p.y + this.pose.dy).setScale(this.pose.sx / HERO_SS, this.pose.sy / HERO_SS).setRotation(this.pose.angle).setDepth(depth);
+    if (s.progress !== null) {
+      const g = (this.bar ??= this.scene.add.graphics()).clear().setPosition(p.x, p.y + this.pose.dy).setScale(this.pose.sx, this.pose.sy).setRotation(this.pose.angle).setDepth(depth).setAlpha(this.img.alpha);
+      g.fillStyle(0xfff6e5).fillRoundedRect(-25, -82, 50, 9, 4).lineStyle(2, INK).strokeRoundedRect(-25, -82, 50, 9, 4).fillStyle(0x6fd3c0).fillRoundedRect(-23, -80, 46 * s.progress, 5, 2);
+    } else this.bar?.clear();
+  }
+  hitTest(x: number, y: number): boolean { const p = this.img; return x >= p.x - 22 && x <= p.x + 22 && y >= p.y - 70 && y <= p.y + 5; }
+  setAlpha(a: number): void { this.img.setAlpha(a); this.bar?.setAlpha(a); }
   /** Death animation pose (scale, lift, spin); identity when alive. */
-  setPose(sx:number,sy:number,dy:number,angle:number):void { this.pose = { sx, sy, dy, angle }; }
-  destroy():void { this.g.destroy(); }
+  setPose(sx: number, sy: number, dy: number, angle: number): void { this.pose = { sx, sy, dy, angle }; }
+  destroy(): void { this.img.destroy(); this.bar?.destroy(); }
 }
 
 
@@ -560,7 +661,7 @@ export class IncidentRunView {
   private readonly fx: Phaser.GameObjects.Graphics;
   private readonly bodies = new Map<number, Phaser.GameObjects.Graphics>();
   /** Bubbles over the gags ("Gâu gâu!", "Nắp cống!"). */
-  private readonly bubbles = new Map<number, Phaser.GameObjects.Text>();
+  private readonly bubbles = new Map<number, SpeechBubble>();
   /** The fate's sound word ("CỐC!", "BOONG!"). */
   private readonly sound: Phaser.GameObjects.Text;
   constructor(private readonly scene: Phaser.Scene) {
@@ -598,10 +699,10 @@ export class IncidentRunView {
       want.add(h.id);
       let b = this.bubbles.get(h.id);
       if (!b) {
-        b = this.scene.add.text(0, 0, '', { fontFamily: "'Baloo 2', sans-serif", fontSize: '20px', fontStyle: '800', color: '#ffffff', backgroundColor: '#ff7f6b', padding: { x: 10, y: 2 }, resolution: 2 }).setOrigin(.5, 1).setDepth(1e6 - 3);
+        b = new SpeechBubble(this.scene, 19).setDepth(1e6 - 3);
         this.bubbles.set(h.id, b);
       }
-      if (b.text !== h.label) b.setText(h.label).setBackgroundColor(h.twist || (h.kind === 'dog' && h.phase === 'active') ? '#c8463d' : '#ff7f6b');
+      b.set(h.label, h.twist || (h.kind === 'dog' && h.phase === 'active') ? 'twist' : 'alert');
       const p = point(h.x, h.y);
       const lift = h.kind === 'pigeons' || h.kind === 'shuttlecock' || h.kind === 'slipper' ? 96 : h.kind === 'dog' && h.phase === 'active' ? 78 : 64;
       // World text shrinks with the camera; keep the bubble readable on a zoomed-out PC view.
@@ -717,6 +818,8 @@ export class IncidentRunView {
         const colors = [[0xff8a73, 0xffd25e], [0x5ec8f2, 0xffffff], [0xf6a6d0, 0xff7f6b]] as const;
         colors.forEach(([body, helmet], i) => {
           const wob = i % 2 ? .18 : -.12;
+          const bx = h.x - i * 1.3 * h.dx;
+          if (h.dx && (bx < STREET_ENDS.w || bx > STREET_ENDS.e)) return;
           const q = point(h.x - i * 1.3 * h.dx + (h.dx ? 0 : wob), h.y - i * 1.3 * h.dy + (h.dx ? wob : 0));
           motorbike(g, q.x, q.y - Math.abs(Math.sin(now / 60 + i)) * 2, face, body, helmet);
           // The last bike carries a fridge and a crate of chickens.
@@ -922,12 +1025,14 @@ export function runPose(run: RunView | null): Pose {
 function hitPose(d: NonNullable<RunView['hit']>): Pose {
   const t = d.t, e = 1 - (1 - t) * (1 - t);
   switch (d.kind) {
-    case 'sinkhole': { const s = Math.sin(t * Math.PI); return { sx: 1 - s * .7, sy: 1 - s * .7, dy: s * 40, angle: e * Math.PI * 2, alpha: 1 - s * .9 }; }
+    // Loses footing and pitches into the hole: a stumble, never shrinking or fading (the fall to the ground is the `down` pose).
+    case 'sinkhole': return { sx: 1, sy: 1, dy: Math.sin(t * Math.PI) * 12, angle: Math.sin(t * Math.PI * 3) * .4 * (1 - t * .4), alpha: 1 };
     case 'motorbike': return { sx: 1, sy: 1, dy: -Math.sin(t * Math.PI) * 220, angle: t * Math.PI * 4, alpha: 1 };
     case 'pigeons': return { sx: 1, sy: 1, dy: -Math.sin(t * Math.PI) * 260, angle: Math.sin(t * 20) * .3, alpha: 1 };
     case 'banana': return { sx: 1, sy: 1, dy: -Math.sin(t * Math.PI) * 140, angle: e * Math.PI * 3, alpha: 1 };
+    // Knocked silly: a bonk and a wobble, same size throughout.
     case 'durian':
-    case 'water': return { sx: 1 + e * .25, sy: 1 - e * .45, dy: 0, angle: 0, alpha: 1 };
+    case 'water': return { sx: 1, sy: 1, dy: Math.sin(t * Math.PI) * 6, angle: Math.sin(t * 18) * .2 * (1 - t), alpha: 1 };
     default: return { sx: 1, sy: 1, dy: 0, angle: Math.sin(t * 40) * .15 * (1 - t), alpha: 1 };
   }
 }
@@ -939,9 +1044,9 @@ function finalePose(f: NonNullable<RunView['finale']>): Pose {
   const lie = { angle: LYING * fall, dy: -Math.sin(fall * Math.PI) * 12 };
   if (t >= .62) return { sx: 1, sy: 1, alpha: 1, ...lie };
   switch (f.kind) {
-    case 'sau': return { sx: 1, sy: t > .48 && t < .56 ? .85 : 1, dy: 0, angle: 0, alpha: 1 };
-    case 'coin': return { sx: 1, sy: t > .36 && t < .5 ? .78 : 1, dy: 0, angle: t > .5 ? Math.sin(t * 90) * .12 : 0, alpha: 1 };
-    case 'chair': return { sx: 1, sy: t > .3 ? .8 : 1, dy: t > .55 ? 16 : t > .3 ? 6 : 0, angle: 0, alpha: 1 };
+    case 'sau': return { sx: 1, sy: 1, dy: t > .48 && t < .56 ? 4 : 0, angle: 0, alpha: 1 };
+    case 'coin': return { sx: 1, sy: 1, dy: t > .36 && t < .5 ? 6 : 0, angle: t > .5 ? Math.sin(t * 90) * .12 : 0, alpha: 1 };
+    case 'chair': return { sx: 1, sy: 1, dy: t > .55 ? 16 : t > .3 ? 6 : 0, angle: 0, alpha: 1 };
     case 'sneeze': return { sx: 1, sy: 1, dy: -Math.sin(ev(.48, .62) * Math.PI) * 60, angle: t < .48 ? -ev(.36, .48) * .25 : -.25 - ev(.48, .62) * .5, alpha: 1 };
     case 'lick': return { sx: 1, sy: 1, dy: 0, angle: t > .44 ? Math.sin(t * 80) * .1 : 0, alpha: 1 };
     default: return STAND;

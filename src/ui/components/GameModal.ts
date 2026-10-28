@@ -1,12 +1,15 @@
 import Phaser from 'phaser';
 import type { ManagedPanel } from '../layout/ModalManager';
 import type { HudFrame } from '../layout/HudLayout';
-import { COLORS, css, DEPTH, dur, FONT, MOTION } from '../theme/tokens';
+import { COLORS, css, DEPTH, dur, FONT, LIGHT, MOTION, RADIUS } from '../theme/tokens';
 import { GameButton } from './GameButton';
 import { setShown } from './panelVisibility';
 import { Panel } from './Panel';
 
 const HEADER_H = 46;
+
+/** `dark`: the café's wooden panel (inventory, recipes…). `light`: the cream paper card of chapter 1. */
+export type ModalTheme = 'dark' | 'light';
 
 /**
  * Centred modal: dimmed backdrop (swallows clicks, click outside closes), a
@@ -21,6 +24,7 @@ export class GameModal implements ManagedPanel {
   private readonly dim: Phaser.GameObjects.Rectangle;
   private readonly panel: Phaser.GameObjects.Container;
   private readonly bg: Panel;
+  private readonly shadowPanel: Panel | null;
   private readonly swallow: Phaser.GameObjects.Rectangle;
   private readonly heading: Phaser.GameObjects.Text;
   private readonly closeBtn: GameButton;
@@ -37,19 +41,24 @@ export class GameModal implements ManagedPanel {
     private readonly maxH: number,
     readonly id: string,
     private readonly onClosed?: () => void,
+    theme: ModalTheme = 'dark',
   ) {
+    const light = theme === 'light';
     this.w = maxW;
     this.h = maxH;
     this.root = scene.add.container(0, 0).setDepth(DEPTH.modal);
-    this.dim = scene.add.rectangle(0, 0, 10, 10, COLORS.shadow, 0.55).setOrigin(0, 0).setInteractive();
+    this.dim = (light ? scene.add.rectangle(0, 0, 10, 10, LIGHT.backdrop, LIGHT.backdropAlpha) : scene.add.rectangle(0, 0, 10, 10, COLORS.shadow, 0.55)).setOrigin(0, 0).setInteractive();
     this.dim.on('pointerdown', () => this.close());
     this.panel = scene.add.container(0, 0);
-    this.bg = new Panel(scene, { alpha: 0.98 }, maxW, maxH);
+    this.bg = new Panel(scene, light ? { fill: LIGHT.panel, alpha: 1, border: LIGHT.border, radius: RADIUS.lg, borderWidth: 3 } : { alpha: 0.98 }, maxW, maxH);
+    // The paper card sits on a soft shadow, like the cards of chapter 1.
+    this.shadowPanel = light ? new Panel(scene, { fill: LIGHT.shadow, alpha: 0.18, radius: RADIUS.lg, borderWidth: 0 }, maxW, maxH) : null;
+    this.shadowPanel?.object.setPosition(0, 6);
     this.swallow = scene.add.rectangle(0, 0, maxW, maxH, 0, 0).setOrigin(0, 0).setInteractive();
     this.body = scene.add.container(14, HEADER_H);
-    this.heading = scene.add.text(16, 12, title, { fontFamily: FONT.family, fontSize: `${FONT.size.lg}px`, color: css(COLORS.gold), fontStyle: 'bold' }).setResolution(2);
-    this.closeBtn = new GameButton(scene, maxW - 44, 8, 'Đóng', () => this.close(), `${id}.close`, { icon: 'check', iconOnly: true, variant: 'ghost', w: 30, h: 30 });
-    this.panel.add([this.bg.object, this.swallow, this.heading, this.body, this.closeBtn.text]);
+    this.heading = scene.add.text(16, 10, title, { fontFamily: FONT.family, fontSize: `${light ? FONT.size.xl : FONT.size.lg}px`, color: css(light ? LIGHT.text : COLORS.gold), fontStyle: 'bold' }).setResolution(2);
+    this.closeBtn = new GameButton(scene, maxW - 44, 8, '✕', () => this.close(), `${id}.close`, { variant: light ? 'secondary' : 'ghost', w: 30, h: 30, fontSize: FONT.size.md });
+    this.panel.add([...(this.shadowPanel ? [this.shadowPanel.object] : []), this.bg.object, this.swallow, this.heading, this.body, this.closeBtn.text]);
     this.root.add([this.dim, this.panel]);
     setShown(this.root, false);
   }
@@ -80,6 +89,7 @@ export class GameModal implements ManagedPanel {
     this.dim.setSize(f.w, f.h);
     this.panel.setPosition(Math.round((f.w - this.w) / 2), Math.round((f.h - this.h) / 2 + (f.safe.top - f.safe.bottom) / 2));
     this.bg.set(this.w, this.h);
+    this.shadowPanel?.set(this.w, this.h);
     this.swallow.setSize(this.w, this.h);
     (this.swallow.input?.hitArea as Phaser.Geom.Rectangle | undefined)?.setSize(this.w, this.h);
     this.closeBtn.text.setPosition(this.w - 42, 8);

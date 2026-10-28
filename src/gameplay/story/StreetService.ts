@@ -69,10 +69,22 @@ export interface RescueLines {
   siren: string;
   xeom: string;
   driver: string;
-  lift: string;
   /** The sound word when the hero's head meets the ambulance door. */
   bonk: string;
   oops: string;
+  /** The medics clearing the crowd, scolding the one filming, and the reply. */
+  shoo: string;
+  scold: string;
+  filmer: string;
+  /** No stretcher ("left it at home"), so the two medics carry the hero by hand. */
+  noStretcher: string;
+  handCarry: string;
+  /** Onlookers snapping photos (with a flash) while the hero is carried off. */
+  photo: string[];
+  /** How often (0–1) the ambulance loses a wheel on its way into the circle and blows up instead; the driver's cry and the bang. */
+  wheelOffChance?: number;
+  wheelOff: string;
+  boom: string;
 }
 
 /** Everything said at a barrier, in order. */
@@ -110,6 +122,8 @@ export interface NpcView {
   scale: number;
   /** A bike braking hard right now ("Kíííít!"): smoke and skid marks. */
   skid: boolean;
+  /** Leaning over (radians): the ambulance on three wheels. */
+  tilt: number;
 }
 
 export interface StreetView {
@@ -125,12 +139,20 @@ export interface StreetView {
   /** Rescue: the medics are carrying the hero (lift the figure), the hero is inside the ambulance (hide it). */
   carried: boolean;
   heroHidden: boolean;
+  /** Rescue mishap: the ambulance's wheel rolling off on its own (`spin` turns it), or null. */
+  wheel: { x: number; y: number; spin: number } | null;
+  /** Rescue mishap: the ambulance blowing up (0–1) and the bang's word, or null. */
+  boom: { x: number; y: number; t: number; word: string } | null;
+  /** Rescue: onlookers whose phone flash goes off right now (their position). */
+  flashes: Array<{ x: number; y: number }>;
   /** Rescue: a sound word over the hero ("CỐP!"), or null. */
   bonk: string | null;
   /** Inside a shop: its room, or null on the street. */
   shop: ShopView | null;
   /** The shop doors on the street (open during the stroll only). */
   doors: Array<{ id: string; name: string; x: number; y: number; open: boolean }>;
+  /** The hero is knocked out and lying on the street. */
+  heroDown: boolean;
   /** Rescue: what the camera should follow instead of the hero (the ambulance, once the hero is inside), or null. */
   focus: { x: number; y: number } | null;
   /** Rescue: the magic circle the ambulance drives into (`t` 0–1 as it opens, `k` 0–1 as it swallows the van), or null. */
@@ -149,6 +171,8 @@ export interface StreetHooks {
   crash(line: string, downMs: number): void;
   /** The hero lies knocked out: the rescue plays. */
   isDown(): boolean;
+  /** The hero is being knocked out (the fall is playing) or lies down: nothing may move them about any more. */
+  knockedOut(): boolean;
   /** Free ground (no wall, stall, tree, car…) at this point. */
   walkable(x: number, y: number): boolean;
   /** Rush hour: an ordinary passing motorbike ran the hero over. */
@@ -177,9 +201,15 @@ interface Npc {
   /** Rescue: where this one walks to (a gathering onlooker, a medic). */
   goal?: { x: number; y: number };
   scale?: number;
+  /** Rescue: snapping photos (ms left of the flash). */
+  photoMs?: number;
+  /** Leaning over (radians). */
+  tilt?: number;
   /** Braking hard (ms left of smoke), and no second near miss with the hero until `skidSafeUntil`. */
   skidMs?: number;
   skidSafeUntil?: number;
+  /** A bike going round the loop road at the end of the street: the corners of its path, the leg it is on and how far along that leg it is (tiles). */
+  turn?: { path: Array<[number, number]>; i: number; at: number };
 }
 
 interface Talk {
@@ -195,6 +225,12 @@ interface Talk {
 /** Hero further than this beyond the talk radius walks out of the talk (it starts over next time). */
 const LEAVE_MARGIN = 1.6;
 const BUMP_AT = 0.75;
+/** How far in from the bike lanes the ambulance drives (tiles). */
+const AMBULANCE_INSET = 0.3;
+/** The loop road at each end of the street goes round a block of houses; the drawing in incidentArt.ts matches. x: where a bike leaves the street (west, and east past the map width) and the far side of the loop; y: the loop's two lanes, above and below the street's own lanes. */
+const LOOP = { inW: -13, inE: 15, farW: -17.35, farE: 19.35, margin: 2.2 };
+/** Onlookers never stand closer than this to the hero lying on the street (tiles). */
+const MIN_CROWD_GAP = 1.9;
 /** Tapping someone this close talks to them at once; further away, the hero walks over first. */
 const TALK_REACH = 2.6;
 
@@ -220,7 +256,9 @@ export class StreetService {
   private readonly gateOpen: Record<string, number> = {};
   private readonly gateQuietUntil: Record<string, number> = {};
   /** The rescue after a knock-out (see `tickRescue`). */
-  private rescue: { ms: number; dir: number; crowd: Npc[]; van: Npc | null; medics: Npc[]; carried: boolean; hidden: boolean; bonkMs: number; portal: { x: number; y: number; ms: number } | null; bonked: boolean; done: boolean } | null = null;
+  private rescue: { ms: number; dir: number; crowd: Npc[]; van: Npc | null; medics: Npc[]; carried: boolean; hidden: boolean; bonkMs: number; portal: { x: number; y: number; ms: number } | null; bonked: boolean; done: boolean;
+    /** The wheel-off mishap on the way to the circle: decided as the van leaves, then the wheel and the bang. */
+    mishap: { wheel: { x: number; y: number; vx: number; ms: number; spin: number } | null; boom: { x: number; y: number; ms: number } | null } | null } | null = null;
 
   constructor(
     private readonly config: StreetConfig,
@@ -288,6 +326,19 @@ export class StreetService {
     return ph === 'stroll' || ph === 'chaos';
   }
 
+  /**
+   * What the camera looks at during the rescue: once the hero is inside, the ambulance itself; before that
+   * the hero, nudged towards the ambulance so both fit on a narrow phone screen (never so far that the hero leaves it).
+   */
+  private rescueFocus(): { x: number; y: number } | null {
+    const r = this.rescue, v = r?.van;
+    if (!r || !v) return null;
+    if (r.hidden) return { x: v.x, y: v.y };
+    const p = this.player.pos, dx = v.x - p.x, dy = v.y - p.y, d = Math.hypot(dx, dy) || 1;
+    const k = Math.min(d / 2, 1.6) / d;
+    return { x: p.x + dx * k, y: p.y + dy * k };
+  }
+
   /** True while the hero is inside a shop. */
   get inside(): boolean {
     return this.shop !== null;
@@ -339,36 +390,45 @@ export class StreetService {
     if (!this.rescue) {
       if (!this.hooks.isDown()) return;
       const p0 = this.player.pos;
-      this.rescue = { ms: 0, dir: p0.x > this.size.w / 2 ? -1 : 1, crowd: [], van: null, medics: [], carried: false, hidden: false, bonkMs: 0, portal: null, bonked: false, done: false };
+      this.rescue = { ms: 0, dir: p0.x > this.size.w / 2 ? -1 : 1, crowd: [], van: null, medics: [], carried: false, hidden: false, bonkMs: 0, portal: null, bonked: false, done: false, mishap: null };
     }
     const r = this.rescue, prev = r.ms, p = this.player.pos;
     r.ms += dt;
     r.bonkMs = Math.max(0, r.bonkMs - dt);
     const at = (ms: number) => prev < ms && r.ms >= ms;
     const lanes = this.config.bikeLanes;
-    const lane = lanes.reduce((a, b) => (Math.abs(b - p.y) < Math.abs(a - p.y) ? b : a), lanes[0]!);
+    // Traffic keeps to the right, the ambulance too: heading west it takes the north lane, heading east the south one.
+    // A little in from the bike lane: the ambulance is wider than a bike and must not hang over the kerb.
+    const lane = lanes[r.dir > 0 ? lanes.length - 1 : 0]! + (r.dir > 0 ? -AMBULANCE_INSET : AMBULANCE_INSET);
     // The side of the hero away from the ambulance's lane: the crowd stands there, out of its way.
     const away = p.y >= lane ? 1 : -1;
+    // Off the van's lane: whoever stands there steps to the nearer side of the road.
+    const offLane = (g: { x: number; y: number }) => (Math.abs(g.y - lane) < 1.3 ? this.freeNear(g.x, lane + (g.y >= lane ? 1.6 : -1.6)) : g);
     // Onlookers: the nearest passers-by stop what they are doing and stand round the hero.
     if (at(600)) {
-      const spots = [[-1.1, 0.7 * away], [0.1, 1.0 * away], [1.2, 0.7 * away], [2.0, 0.3 * away]] as const;
+      // The lying hero is about a tile long on screen: onlookers stand well clear of them, on the side away from the road's traffic.
+      const spots = [[-1.6, 1.6 * away], [-0.3, 1.8 * away], [1.0, 1.7 * away], [2.2, 1.5 * away]] as const;
       const near = this.npcs.filter((n) => !n.still && !n.bike).sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y)).slice(0, spots.length);
       // Each onlooker stands on free ground near their spot (never inside a stall, a tree or a car).
-      near.forEach((n, i) => { n.still = true; n.goal = this.freeNear(p.x + spots[i]![0], p.y + spots[i]![1]); });
+      near.forEach((n, i) => { n.still = true; n.goal = this.spotAround(p, spots[i]![0], spots[i]![1]); });
       r.crowd = near;
     }
     const say = (n: Npc | undefined, text: string, ms = 2200) => { if (n) n.say = { text, ms }; };
     if (at(1500)) say(r.crowd[0], L.crowd[0] ?? '');
     if (at(2700)) say(r.crowd[1], L.crowd[1] ?? '');
     if (at(3900)) say(r.crowd[2], L.crowd[2] ?? '');
-    if (at(2200)) r.van = this.vehicle('ambulance', 'ambulance', p.x - r.dir * 12, lane, r.dir, 8, L.siren);
+    if (at(2200)) {
+      r.van = this.vehicle('ambulance', 'ambulance', p.x - r.dir * 12, lane, r.dir, 8, L.siren);
+      // The siren parts the crowd: people in the van's way step aside to both sides of the road.
+      for (const n of r.crowd) if (n.goal) n.goal = offLane(n.goal);
+    }
     if (at(4800)) say(r.crowd[3] ?? r.crowd[0], L.xeom);
     if (at(5800)) say(r.van ?? undefined, L.driver, 1600);
     if (at(6600)) say(r.crowd[0], L.crowd[3] ?? '');
     // The van pulls up short of the hero (never over them), then (later) drives off.
     const v = r.van;
-    // Its front door, on the hero's side.
-    const door = v ? { x: v.x + r.dir * 1.2, y: v.y + away * 0.45 } : null;
+    // Its side door, on the hero's side: the hero is carried up beside the van, never on top of it.
+    const door = v ? { x: v.x + r.dir * 0.3, y: v.y + away * 0.95 } : null;
     if (v && !r.hidden) {
       const left = (p.x - r.dir * 2.8 - v.x) * r.dir;
       // Slows down as it arrives instead of stopping dead.
@@ -378,37 +438,62 @@ export class StreetService {
     if (at(7200) && door) {
       r.medics = [0, 1].map((i) => { const n = this.vehicle(`medic${i}`, 'medic', door.x, door.y, -r.dir, 0, ''); n.bike = false; n.say = null; n.goal = this.freeNear(p.x + (i ? 0.6 : -0.6), p.y + 0.15); return n; });
     }
-    if (at(8100)) { say(r.medics[0], L.lift, 1500); r.carried = true; }
-    if (r.carried && !r.hidden && door && r.ms > 8300) {
-      const dx = door.x - p.x, dy = door.y - p.y, d = Math.hypot(dx, dy), step = (2.2 * dt) / 1000;
-      if (d > step) { p.x += (dx / d) * step; p.y += (dy / d) * step; }
-      else if (!r.bonked) {
+    // "Make way!": the crowd is pushed back a step or two; the one filming gets told off (and answers back).
+    if (at(7500)) {
+      say(r.medics[0], L.shoo, 1300);
+      for (const n of r.crowd) {
+        const ax = n.x - p.x, ay = n.y - p.y, d = Math.hypot(ax, ay) || 1;
+        n.goal = offLane(this.spotAround(p, (ax / d) * 2.4, (ay / d) * 2.4));
+      }
+    }
+    // One line at a time from here, so the bubbles never pile up over the hero.
+    if (at(8900)) say(r.medics[1], L.scold, 1300);
+    if (at(9700)) say(r.crowd[1], L.filmer, 1400);
+    // …and the stretcher? Left at home. Two pairs of hands will do.
+    if (at(10500)) say(r.medics[0], L.noStretcher, 1300);
+    if (at(11300)) { say(r.medics[1], L.handCarry, 1600); r.carried = true; }
+    // Everyone gets their phone out: flashes, and where it is going to be posted.
+    const snap = (i: number, t: number) => { const n = r.crowd[i % Math.max(1, r.crowd.length)]; if (at(t) && n) { n.photoMs = 700; if (i < L.photo.length) say(n, L.photo[i]!, 1100); } };
+    // All while the hero is carried (before the "CỐP!" skips ahead to the doors shutting).
+    snap(2, 12000); snap(0, 12500); snap(3, 13000); snap(1, 13500);
+    for (const n of r.crowd) if (n.photoMs) n.photoMs = Math.max(0, n.photoMs - dt);
+    if (r.carried && !r.hidden && door && r.ms > 11500) {
+      // Carried round anything in the way, not through it.
+      // At the door; the "CỐP!" waits for the last photo to be taken.
+      if (this.stepToward(p, door, 2.2, dt) && !r.bonked && r.ms >= 13900) {
         // Head, meet door.
         r.bonked = true;
         r.bonkMs = 900;
-        say(r.medics[1], L.oops, 1800);
-        r.ms = Math.max(r.ms, 9600);
+        // In the van as soon as the "CỐP!" has sounded.
+        r.ms = Math.max(r.ms, 14000);
       }
       r.medics.forEach((m, i) => { m.goal = this.freeNear(p.x + (i ? 0.6 : -0.6), p.y + 0.15); });
     }
     // Everyone in, doors shut, off it goes… and a magic circle opens on the road ahead.
-    if (at(10600) && v) {
+    if (at(14900) && v) {
       r.hidden = true;
       r.carried = false;
       for (const m of r.medics) this.npcs.splice(this.npcs.indexOf(m), 1);
       r.medics = [];
-      v.say = { text: L.siren, ms: 2000 };
+      // The driver sums it up as they pull away.
+      v.say = { text: L.oops, ms: 2200 };
       r.portal = { x: v.x + r.dir * 6, y: v.y, ms: 0 };
+      // Sometimes it never gets there in one piece.
+      if (this.random() < (L.wheelOffChance ?? 0)) r.mishap = { wheel: null, boom: null };
     }
     if (r.portal && v) {
       r.portal.ms += dt;
-      // Into the circle: the van shrinks away in a flash.
       const into = (v.x - r.portal.x) * r.dir;
-      if (into < 0) v.x += (r.dir * 6 * dt) / 1000;
-      else v.scale = Math.max(0, (v.scale ?? 1) - dt / 600);
-      if ((v.scale ?? 1) <= 0 && !r.done) {
-        r.done = true;
-        this.hooks.rescued();
+      const m = r.mishap;
+      if (m) this.tickMishap(r, v, m, into, dt);
+      else {
+        // Into the circle: the van shrinks away in a flash.
+        if (into < 0) v.x += (r.dir * 6 * dt) / 1000;
+        else v.scale = Math.max(0, (v.scale ?? 1) - dt / 600);
+        if ((v.scale ?? 1) <= 0 && !r.done) {
+          r.done = true;
+          this.hooks.rescued();
+        }
       }
     }
     // The guard raises the boom for the ambulance too.
@@ -416,10 +501,67 @@ export class StreetService {
     // Onlookers and medics walk to their spots.
     for (const n of [...r.crowd, ...r.medics]) {
       if (!n.goal) continue;
-      const dx = n.goal.x - n.x, dy = n.goal.y - n.y, d = Math.hypot(dx, dy), step = (2.2 * dt) / 1000;
-      if (d > step) { n.x += (dx / d) * step; n.y += (dy / d) * step; n.dir = dx >= 0 ? 1 : -1; }
-      else n.dir = p.x >= n.x ? 1 : -1;
+      const x0 = n.x;
+      if (this.stepToward(n, n.goal, 2.2, dt)) n.dir = p.x >= n.x ? 1 : -1;
+      else if (n.x !== x0) n.dir = n.x > x0 ? 1 : -1;
     }
+  }
+
+  /**
+   * The ambulance on its way to the circle loses a wheel: the wheel rolls on
+   * ahead by itself, the van lurches on three wheels, grinds to a halt… BÙM.
+   * The circle takes what is left, and the story moves on all the same.
+   */
+  private tickMishap(r: NonNullable<StreetService['rescue']>, v: Npc, m: NonNullable<NonNullable<StreetService['rescue']>['mishap']>, into: number, dt: number): void {
+    const L = this.config.rescue!, s = dt / 1000;
+    if (m.boom) {
+      m.boom.ms += dt;
+      if (m.boom.ms > 1500 && !r.done) {
+        r.done = true;
+        this.hooks.rescued();
+      }
+      return;
+    }
+    if (!m.wheel) {
+      v.x += r.dir * 6 * s;
+      // Halfway there, off it comes.
+      if (into > -3.4) {
+        m.wheel = { x: v.x - r.dir * 0.6, y: v.y + 0.35, vx: r.dir * 6.5, ms: 0, spin: 0 };
+        v.say = { text: L.wheelOff, ms: 1500 };
+      }
+      return;
+    }
+    const w = m.wheel;
+    w.ms += dt;
+    w.x += w.vx * s;
+    w.vx *= 0.985;
+    w.spin += w.vx * s * 3;
+    // Three wheels: leaning over, crawling, scraping along.
+    v.tilt = r.dir * 0.22 + Math.sin(w.ms / 60) * 0.04;
+    v.x += r.dir * Math.max(0, 2.4 - w.ms / 500) * s;
+    if (w.ms > 1200) {
+      m.boom = { x: v.x, y: v.y, ms: 0 };
+      m.wheel = null;
+      v.scale = 0;
+      v.say = null;
+    }
+  }
+
+  /**
+   * One step towards `goal` on free ground: straight if it can, else the
+   * nearest turn left or right that is free (round a tree, a stall, a car).
+   * True once there.
+   */
+  private stepToward(n: { x: number; y: number }, goal: { x: number; y: number }, speed: number, dt: number): boolean {
+    const dx = goal.x - n.x, dy = goal.y - n.y, d = Math.hypot(dx, dy), step = (speed * dt) / 1000;
+    if (d <= step) { n.x = goal.x; n.y = goal.y; return true; }
+    const a0 = Math.atan2(dy, dx);
+    for (const turn of [0, 0.6, -0.6, 1.2, -1.2, 1.57, -1.57]) {
+      const a = a0 + turn, nx = n.x + Math.cos(a) * step, ny = n.y + Math.sin(a) * step;
+      // Look a little ahead so nobody brushes into the edge of things.
+      if (this.hooks.walkable(nx + Math.cos(a) * 0.3, ny + Math.sin(a) * 0.3) && this.hooks.walkable(nx, ny)) { n.x = nx; n.y = ny; return false; }
+    }
+    return false;
   }
 
   // ── street ends ─────────────────────────────────────────────────────────
@@ -461,6 +603,8 @@ export class StreetService {
     const guard = this.npcs.find((n) => n.id === `gate:${g.id}`)!;
     const lane = this.config.bikeLanes[g.inward > 0 ? this.config.bikeLanes.length - 1 : 0]!;
     const ride = (n: Npc) => { n.x += (n.dir * n.speed * dt) / 1000; };
+    // Knocked out by something else on the way through: the scene stops leading the hero about (the rescue takes over).
+    if (this.hooks.knockedOut() && r.stage !== 'crash') return this.endGate();
     // Walked off before it was settled: the scene ends (and plays again later).
     if ((r.stage === 'refuse' || r.stage === 'choose') && Math.abs(p.x - g.x) > 4) return this.endGate();
     switch (r.stage) {
@@ -576,6 +720,7 @@ export class StreetService {
 
   /** A passer-by brushing past the hero says something to them. */
   private greet(): void {
+    if (this.rescue) return;
     if (this.ms < this.greetQuietUntil || this.talk || this.gateRun || this.hooks.isDown()) return;
     const p = this.player.pos;
     const n = this.npcs.find((m) => !m.still && !m.bike && !m.say && this.ms >= m.quietUntil && Math.hypot(m.x - p.x, m.y - p.y) < 1.3);
@@ -584,6 +729,16 @@ export class StreetService {
     n.say = { text: this.pick(lines), ms: 2600 };
     n.quietUntil = this.ms + 12000;
     this.greetQuietUntil = this.ms + 2500;
+  }
+
+  /** Free ground at the offset from `c`, but never closer than MIN_CROWD_GAP to it (pushed further out if need be). */
+  private spotAround(c: { x: number; y: number }, dx: number, dy: number): { x: number; y: number } {
+    let best = this.freeNear(c.x + dx, c.y + dy);
+    for (const k of [1.25, 1.5, 1.8]) {
+      if (Math.hypot(best.x - c.x, best.y - c.y) >= MIN_CROWD_GAP) break;
+      best = this.freeNear(c.x + dx * k, c.y + dy * k);
+    }
+    return best;
   }
 
   /** The nearest free ground to a point (searching outwards a little), or the point itself. */
@@ -619,6 +774,8 @@ export class StreetService {
     const ahead = (p.x - n.x) * n.dir, across = Math.abs(p.y - n.y);
     const lanes = this.config.bikeLanes;
     const chaos = this.hooks.phase() === 'chaos';
+    // Nobody walks through the hero lying on the street: passers-by turn back a little before.
+    if (!n.bike && this.hooks.isDown() && Math.abs(p.y - n.y) < 1.2 && (p.x - n.x) * n.dir > 0 && (p.x - n.x) * n.dir < 1.7) n.dir = -n.dir;
     let pace = 1;
     if (n.bike && chaos) {
       // Rush hour: bikes do not stop for anyone. A honk from afar and a little braking; still in the way, you are flat.
@@ -654,12 +811,19 @@ export class StreetService {
       n.waitMs -= dt;
       return;
     }
+    if (n.turn) return this.goRound(n, pace * dt);
     n.x += (n.dir * n.speed * pace * dt) / 1000;
     if (n.bike) {
-      // While the hero is being taken away, bikes leaving the street do not come back (the road is jammed).
-      if (n.x < -3 || n.x > this.size.w + 3) {
-        if (this.hooks.isDown()) { n.speed = 0; n.x = n.x < 0 ? -6 : this.size.w + 6; return; }
-        n.x = n.x < -3 ? this.size.w + 3 : -3;
+      // At the end of the street the bike rides round the block of houses and comes back in the other lane.
+      const xin = n.dir < 0 ? LOOP.inW : this.size.w + LOOP.inE;
+      if ((n.dir < 0 && n.x <= xin) || (n.dir > 0 && n.x >= xin)) {
+        // While the hero is being taken away, bikes leaving the street do not come back (the road is jammed).
+        if (this.hooks.isDown()) { n.speed = 0; n.scale = 0; return; }
+        n.x = xin;
+        const lanes = this.config.bikeLanes, mid = (lanes[0]! + lanes[lanes.length - 1]!) / 2;
+        const near = n.y < mid ? mid - LOOP.margin : mid + LOOP.margin, far = 2 * mid - near, back = 2 * mid - n.y;
+        const xfar = n.dir < 0 ? LOOP.farW : this.size.w + LOOP.farE;
+        n.turn = { path: [[xin, n.y], [xin, near], [xfar, near], [xfar, far], [xin, far], [xin, back]], i: 0, at: 0 };
       }
       return;
     }
@@ -667,6 +831,30 @@ export class StreetService {
     const hi = this.hooks.limitX() - 0.6;
     if (n.x < 1.4) { n.x = 1.4; n.dir = 1; }
     else if (n.x > hi) { n.x = hi; n.dir = -1; }
+  }
+
+  /** One step round the loop: along the legs of the path, the bike facing the way it is going. */
+  private goRound(n: Npc, dt: number): void {
+    const t = n.turn!;
+    let left = (n.speed * dt) / 1000;
+    while (left > 0 && t.i < t.path.length - 1) {
+      const [x0, y0] = t.path[t.i]!, [x1, y1] = t.path[t.i + 1]!, len = Math.hypot(x1 - x0, y1 - y0);
+      const step = Math.min(left, len - t.at);
+      t.at += step;
+      left -= step;
+      if (x1 !== x0) n.dir = Math.sign(x1 - x0);
+      if (t.at >= len - 1e-9) { t.i++; t.at = 0; }
+    }
+    const last = t.path[t.path.length - 1]!;
+    if (t.i >= t.path.length - 1) {
+      n.x = last[0];
+      n.y = last[1];
+      n.turn = undefined;
+      return;
+    }
+    const [x0, y0] = t.path[t.i]!, [x1, y1] = t.path[t.i + 1]!, len = Math.hypot(x1 - x0, y1 - y0), k = len ? t.at / len : 0;
+    n.x = x0 + (x1 - x0) * k;
+    n.y = y0 + (y1 - y0) * k;
   }
 
   /**
@@ -697,6 +885,8 @@ export class StreetService {
 
   /** Someone in view says something now and then. */
   private chatter(dt: number): void {
+    // Nobody chats about lottery tickets while the ambulance is here.
+    if (this.rescue) return;
     this.chatIn -= dt;
     if (this.chatIn > 0) return;
     const [a, b] = this.config.chatEveryMs;
@@ -788,7 +978,7 @@ export class StreetService {
   view(): StreetView {
     const t = this.talk;
     return {
-      npcs: this.npcs.map((n) => ({ id: n.id, look: n.look, x: n.x, y: n.y, dir: n.dir, moving: (!n.still && n.waitMs <= 0) || !!n.goal, bike: n.bike, say: n.say?.text ?? null, scale: n.scale ?? 1, skid: !!n.skidMs })),
+      npcs: this.npcs.map((n) => ({ id: n.id, look: n.look, x: n.x, y: n.y, dir: n.dir, moving: (!n.still && n.waitMs <= 0) || !!n.goal, bike: n.bike, say: n.say?.text ?? null, scale: n.scale ?? 1, skid: !!n.skidMs, tilt: n.tilt ?? 0 })),
       heroSay: this.heroSay?.text ?? null,
       choices: this.shop ? this.shop.view().choices : this.gateRun?.stage === 'choose' && this.config.gateLines ? [this.config.gateLines.argue, this.config.gateLines.back] : t?.choosing ? t.stall.choices.map((c) => c.text) : null,
       talking: t?.stall.id ?? null,
@@ -796,9 +986,13 @@ export class StreetService {
       shop: this.shop?.view() ?? null,
       doors: (this.config.shops ?? []).map((s) => ({ id: s.id, name: s.name, x: s.door.x, y: s.door.y, open: this.walking() })),
       carried: !!this.rescue?.carried,
-      focus: this.rescue?.hidden && this.rescue.van ? { x: this.rescue.van.x, y: this.rescue.van.y } : null,
+      focus: this.rescueFocus(),
+      wheel: this.rescue?.mishap?.wheel ? { x: this.rescue.mishap.wheel.x, y: this.rescue.mishap.wheel.y, spin: this.rescue.mishap.wheel.spin } : null,
+      boom: this.rescue?.mishap?.boom ? { x: this.rescue.mishap.boom.x, y: this.rescue.mishap.boom.y, t: Math.min(1, this.rescue.mishap.boom.ms / 1500), word: this.config.rescue?.boom ?? '' } : null,
       heroHidden: !!this.rescue?.hidden,
+      heroDown: this.hooks.isDown(),
       bonk: this.rescue?.bonkMs ? this.config.rescue?.bonk ?? null : null,
+      flashes: (this.rescue?.crowd ?? []).filter((n) => (n.photoMs ?? 0) > 0).map((n) => ({ x: n.x, y: n.y })),
       portal: this.rescue?.portal ? { x: this.rescue.portal.x, y: this.rescue.portal.y, t: Math.min(1, this.rescue.portal.ms / 500), k: 1 - (this.rescue.van?.scale ?? 1) } : null,
     };
   }
