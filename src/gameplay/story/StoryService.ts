@@ -2,7 +2,7 @@ import type { EventBus } from '../../core/EventBus';
 import type { GameEvents } from '../../core/events';
 import type { TransactionService } from '../../systems/economy/TransactionService';
 import type { GameState } from '../state/GameState';
-import type { FinaleKind, FinaleText, HazardKind, HazardText, RunConfig, RunPhase, RunService, RunView } from './RunService';
+import type { HazardKind, HazardText, RunConfig, RunPhase, RunService, RunView } from './RunService';
 import type { GardenService, GardenView } from './GardenService';
 import type { StallConfig, StreetConfig, StreetService, StreetView } from './StreetService';
 
@@ -23,17 +23,16 @@ export interface StoryChapter {
   timeLimitMs?: number;
   intro: string[];
   outro: string[];
-  /** Chapter 1: tuning, what each gag and each fate says, the stalls and the street life. */
+  /** Chapter 1: tuning, what each gag says, the stalls and the street life. */
   run?: RunConfig;
   hazards?: Partial<Record<HazardKind, HazardText>>;
-  finales?: Partial<Record<FinaleKind, FinaleText>>;
   stalls?: StallConfig[];
   street?: StreetConfig;
 }
 
 /** What killed the hero, for the ending card (null until it happens). */
 export interface FateView {
-  id: HazardKind | FinaleKind;
+  id: HazardKind;
   /** 1-based number in the collection ("Cái chết lãng xẹt #3"). */
   number: number;
   death: string;
@@ -225,14 +224,14 @@ export class StoryService {
     return !!this.run?.controlsPlayer;
   }
 
-  /** The gag or fate that knocked the hero out. */
+  /** The gag that knocked the hero out. */
   private get hazard(): { death: string; absurdity: number } | null {
     const k = this.state.story.scenario;
-    return (k && (this.chapter.hazards?.[k as HazardKind] ?? this.chapter.finales?.[k as FinaleKind])) || null;
+    return (k && this.chapter.hazards?.[k as HazardKind]) || null;
   }
 
-  /** The hero is down: the gag (or fate) that did it is their absurd knock-out, and the story moves on. */
-  onDeath(kind: HazardKind | FinaleKind, aliveMs: number): void {
+  /** The hero is down: the gag that did it is their absurd knock-out, and the story moves on. */
+  onDeath(kind: HazardKind, aliveMs: number): void {
     const st = this.state.story;
     st.flags.rescued = true;
     st.scenario = kind;
@@ -316,7 +315,7 @@ export class StoryService {
     if (!c.ok) return c;
     const v = this.run?.view();
     this.run?.stop();
-    this.onDeath(v?.hit?.kind ?? v?.finale?.kind ?? 'sau', v?.aliveMs ?? 0);
+    this.onDeath(v?.hit?.kind ?? 'motorbike', v?.aliveMs ?? 0);
     return OK;
   }
 
@@ -454,7 +453,7 @@ export class StoryService {
         const v = this.run?.view();
         objective = v?.phase === 'stroll'
           ? ch.objective.replace('{n}', String(this.visits)).replace('{max}', String(ch.run?.strollVisits ?? 0)).replace('{s}', String(v.strollLeftSec ?? 0))
-          : v?.phase === 'chaos' ? (ch.objectiveChaos ?? '').replace('{s}', String(v.leftSec ?? 0)) : ch.objectiveFaint ?? '';
+          : v?.phase === 'chaos' ? ch.objectiveChaos ?? '' : ch.objectiveFaint ?? '';
       }
       else objective = ch.objective.replace('{t}', String(left));
     }
@@ -485,10 +484,10 @@ export class StoryService {
   }
 
   private fateView(): FateView | null {
-    const k = this.state.story.scenario as HazardKind | FinaleKind | undefined;
+    const k = this.state.story.scenario as HazardKind | undefined;
     const h = this.active && this.state.story.flags.rescued ? this.hazard : null;
     if (!h || !k) return null;
-    const kinds = [...Object.keys(this.chapter.hazards ?? {}), ...Object.keys(this.chapter.finales ?? {})];
+    const kinds = Object.keys(this.chapter.hazards ?? {});
     return { id: k, number: kinds.indexOf(k) + 1, death: h.death, absurdity: h.absurdity, aliveSec: Math.floor(this.lastAlive / 1000) };
   }
 }

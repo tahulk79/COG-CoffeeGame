@@ -23,8 +23,9 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 844, height: 390 }
       await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
       await page.waitForTimeout(350);
       expect(await page.evaluate(() => window.__TCSS__!.snapshot().player.pos)).toEqual(initial);
+      // Chapter 1 has no map dragging (T-094): a drag neither steers nor pans; the camera stays on the hero.
       const panned = await page.evaluate(() => window.__TCSS__!.cameraInfo());
-      expect(Math.abs(panned.x - camera.x)).toBeGreaterThan(50);
+      expect(Math.abs(panned.x - camera.x)).toBeLessThan(5);
       await page.waitForTimeout(300);
       expect((await page.evaluate(() => window.__TCSS__!.cameraInfo())).x).toBeCloseTo(panned.x, 0);
       const y = viewport.height - 90;
@@ -44,13 +45,14 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 844, height: 390 }
         const s = (window as any).__PHASER_GAME__.scene.getScene('WorldScene');
         return ['medic0', 'medic1'].map(id => ({ visible: s.streetView.bodies.get(id)?.visible, texture: s.streetView.bodies.get(id)?.texture.key }));
       });
-      expect(medics).toEqual([{ visible: true, texture: 'npc:medic' }, { visible: true, texture: 'npc:medic' }]);
+      // Both medics drawn (the painted atlas, or the code-drawn fallback).
+      expect(medics).toEqual([0, 1].map(() => ({ visible: true, texture: expect.stringMatching(/medic/) })));
       await page.screenshot({ path: `/tmp/coffee-rescue-${viewport.width}.png` });
       expect(errors).toEqual([]);
     });
 
-    for (const gate of [{ id: 'west', x: 2.2 }, { id: 'east', x: 45.8 }]) {
-      test(`arguing at ${gate.id} carries the hero before travelling to chapter 2`, async ({ page }, info) => {
+    for (const gate of [{ id: 'west', x: 1.6 }, { id: 'east', x: 46.4 }]) {
+      test(`walking through ${gate.id} carries the hero before travelling to chapter 2`, async ({ page }, info) => {
         await page.goto('/?fresh=1&story=1&close=1');
         await page.waitForFunction(() => window.__TCSS__?.ready);
         await page.waitForFunction(() => !(window as any).__PHASER_GAME__.scene.isActive('TransitionScene'));
@@ -88,9 +90,6 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 844, height: 390 }
             }
           });
         }, gate.x);
-        await page.waitForFunction(() => window.__TCSS__!.buttonClient('story.choice.0')?.enabled);
-        const button = await page.evaluate(() => window.__TCSS__!.buttonClient('story.choice.0')!);
-        await page.touchscreen.tap(button.x, button.y);
         await page.waitForFunction(() => { const r = window.__TCSS__?.snapshot().story.run; return r?.down && r.down.t > 0.3; });
         await page.evaluate(() => window.__TCSS__!.setTimeScale(0));
         await page.screenshot({ path: info.outputPath(`ground-${gate.id}.png`) });

@@ -75,7 +75,8 @@ for (const viewport of viewports) {
       await press(page, 'story.mute');
       await page.reload();
       await page.waitForFunction(() => window.__TCSS__?.ready);
-      expect(await page.evaluate(() => (window as any).__PHASER_GAME__.sound.mute)).toBe(true);
+      // Phaser reports the mute through the master gain, which settles a moment after boot.
+      await expect.poll(() => page.evaluate(() => (window as any).__PHASER_GAME__.sound.mute)).toBe(true);
       expect(errors).toEqual([]);
     });
   });

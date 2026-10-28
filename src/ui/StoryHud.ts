@@ -154,6 +154,9 @@ export class StoryHud {
   private readonly retry: Button;
   // Chapter-1 stall talks: the two replies to pick from
   private readonly choiceBtns: Button[];
+  private readonly choicePanel: Phaser.GameObjects.Container;
+  private readonly choiceCard: Card;
+  private readonly choiceTitle: Phaser.GameObjects.Text;
   private choiceKey = '';
   // Chapter-1 speech bubble (hits, harmless props)
   private readonly aside: Phaser.GameObjects.Container;
@@ -227,9 +230,14 @@ export class StoryHud {
     this.tracker.add(this.gems);
     this.muteBtn = new Button(scene, 0, 0, t('story.soundOn'), () => this.toggleMute(), 'story.mute', { fontSize: 16, h: TOP_ROW.size, w: 92, variant: 'secondary' });
     this.buttons.set('story.mute', this.muteBtn);
+    this.choicePanel = scene.add.container(0, 0).setDepth(1550);
+    this.choiceCard = new Card(scene, this.choicePanel);
+    this.choiceCard.bg.swallowClicks();
+    this.choiceTitle = scene.add.text(16, 12, 'BẠN TRẢ LỜI', text(13, '800', css(COLORS.ink)));
+    this.choicePanel.add(this.choiceTitle);
     this.choiceBtns = [0, 1].map((i) => {
-      const b = new Button(scene, 0, 0, '', () => this.choose(i), `story.choice.${i}`, { fontSize: 16, h: 46, variant: 'secondary', wrap: true });
-      b.text.setDepth(1550);
+      const b = new Button(scene, 0, 0, '', () => this.choose(i), `story.choice.${i}`, { fontSize: 17, h: 48, variant: 'secondary', wrap: true });
+      this.choicePanel.add(b.text);
       this.buttons.set(`story.choice.${i}`, b);
       return b;
     });
@@ -243,7 +251,7 @@ export class StoryHud {
     scene.input.keyboard?.on('keydown-SPACE', this.keyHandler);
     scene.scale.on(Phaser.Scale.Events.RESIZE, this.layout, this);
     this.layout();
-    for (const c of [this.veil, this.chipBox, this.top, this.banner, this.box, this.card, this.aside, this.runBar, this.muteBtn.text, this.tracker, ...this.choiceBtns.map((b) => b.text)]) setShown(c, false);
+    for (const c of [this.veil, this.chipBox, this.top, this.banner, this.box, this.card, this.aside, this.runBar, this.muteBtn.text, this.tracker, this.choicePanel]) setShown(c, false);
   }
 
   private onNext(): void {
@@ -252,7 +260,8 @@ export class StoryHud {
 
   private layout(): void {
     const vw = hudViewport.w, vh = hudViewport.h;
-    const { top: safeTop, left: safeLeft, bottom: safeBottom } = hudViewport.safe;
+    const { top: safeTop, left: safeLeft, right: safeRight, bottom: safeBottom } = hudViewport.safe;
+    const usableW = vw - safeLeft - safeRight;
     this.veilRect.setSize(vw, vh);
     if (this.veilRect.input) (this.veilRect.input.hitArea as Phaser.Geom.Rectangle).setSize(vw, vh);
     // Narrow screens: the objective card goes under the chip instead of beside it.
@@ -269,14 +278,15 @@ export class StoryHud {
     this.drawTimerBar();
     this.banner.setPosition(vw / 2 - this.bannerPill.width / 2, this.top.y + this.topH + 14);
 
-    this.boxW = Math.min(680, vw - 24);
+    this.boxW = Math.min(680, usableW - 24);
     const compact = this.boxW < 480;
     for (const p of [this.heroPortrait, this.masterPortrait]) p.setScale(compact ? 0.7 : 1).setPosition(compact ? 44 : 62, compact ? 50 : 66);
     const textX = compact ? 88 : 124;
     this.line.setPosition(textX, 28).setWordWrapWidth(this.boxW - textX - 24);
     this.nameTag.root.setPosition(textX - 6, -17);
+    this.boxH = Math.max(132, Math.ceil(this.line.height) + 92);
     this.boxCard.set(this.boxW, this.boxH);
-    this.box.setPosition(vw / 2 - this.boxW / 2, vh - this.boxH - 16 - safeBottom);
+    this.box.setPosition(safeLeft + (usableW - this.boxW) / 2, vh - this.boxH - 16 - safeBottom);
     this.placeNext();
     this.aside.setPosition(vw / 2 - this.asidePill.width / 2, vh - this.asidePill.h - 24 - safeBottom);
 
@@ -303,16 +313,21 @@ export class StoryHud {
     this.tracker.setPosition(vw / 2 - 88, safeTop + 12);
     this.muteBtn.text.setPosition(safeLeft + TOP_ROW.inset, safeTop + TOP_ROW.inset);
     this.card.setPosition(vw / 2 - this.cardW / 2, Math.max(safeTop + 40, vh / 2 - this.cardH / 2));
-    // Replies stacked at the bottom centre.
-    const cw = Math.min(520, vw - 32);
-    // Stacked from the bottom up by their real heights (a long reply wraps onto two lines).
-    let y = vh - safeBottom - 24;
-    for (const b of [...this.choiceBtns].reverse()) {
-      b.setWidth(cw);
-      y -= b.height;
-      b.text.setPosition(vw < 700 ? 16 + safeLeft : vw / 2 - cw / 2, y);
-      y -= 10;
+    // Portrait: above the joystick; landscape: beside it, leaving its left corner free.
+    const landscape = vw > vh && usableW >= 600;
+    const panelW = Math.min(landscape ? 380 : 520, usableW - (landscape ? 180 : 24));
+    let choiceY = 38;
+    for (const button of this.choiceBtns) {
+      button.setWidth(panelW - 24);
+      button.text.setPosition(12, choiceY);
+      if (button.text.visible) choiceY += button.height + 10;
     }
+    const panelH = choiceY + 4;
+    this.choiceCard.set(panelW, panelH);
+    this.choicePanel.setPosition(
+      landscape ? vw - safeRight - panelW - 12 : safeLeft + (usableW - panelW) / 2,
+      vh - safeBottom - panelH - (landscape ? 16 : 148),
+    );
   }
 
   private placeNext(): void {
@@ -378,6 +393,7 @@ export class StoryHud {
     // Stall talk waiting for a reply: two buttons (also keys 1 and 2).
     const choices = d === null && !between ? st.street?.choices ?? null : null;
     const choicesKey = choices?.join('|') ?? '';
+    setShown(this.choicePanel, choices !== null);
     if (choicesKey !== this.choiceKey) {
       this.choiceKey = choicesKey;
       this.choiceBtns.forEach((b, i) => {
@@ -399,7 +415,7 @@ export class StoryHud {
       popIn(this.scene, this.aside, this.asidePill.width, this.asidePill.h);
     }
     this.lastAside = aside;
-    setShown(this.aside, aside !== null && !between);
+    setShown(this.aside, aside !== null && !between && choices === null);
 
     const objective = (st.chapter === 'S05' && !d && masterStep(s)) || st.objective;
     if (this.objective.text !== objective) {
@@ -486,6 +502,6 @@ export class StoryHud {
     this.scene.input.keyboard?.off('keydown-ENTER', this.keyHandler);
     this.scene.input.keyboard?.off('keydown-SPACE', this.keyHandler);
     this.scene.scale.off(Phaser.Scale.Events.RESIZE, this.layout, this);
-    for (const c of [this.veil, this.chipBox, this.top, this.banner, this.box, this.card, this.aside, this.runBar, this.muteBtn.text, this.tracker, ...this.choiceBtns.map((b) => b.text)]) c.destroy();
+    for (const c of [this.veil, this.chipBox, this.top, this.banner, this.box, this.card, this.aside, this.runBar, this.muteBtn.text, this.tracker, this.choicePanel]) c.destroy();
   }
 }

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { H5_ASSETS, HERO_FACINGS, plotAnchorY, worldSprite, terrainFrame, addTerrainTile, terrainRepeat } from './h5Assets';
+import { treeAppearance, SLICE_TREE_NAMES } from './sliceAssets';
 import { STORY_ASSETS } from './storyAssets';
 import { bakeGardenObject, drawGardenEnvironment, GARDEN_BACKGROUND, STONE_COLOR } from './gardenArt';
 import { bakeIncidentObject, drawIncidentEnvironment, drawIncidentObject, IncidentActorView, STREET_BACKGROUND } from './incidentArt';
@@ -243,6 +244,7 @@ export class PlaceholderRenderer implements WorldRenderer {
     if (this.streetScene || this.forestScene) {
       this.indoor = false;
       this.scene.cameras.main.setBackgroundColor(this.streetScene ? STREET_BACKGROUND : GARDEN_BACKGROUND);
+      if (this.streetScene) return; // Chapter 1 builds its own continuous city/lake backdrop.
       const background=terrainRepeat(this.scene,this.forestScene?14:4);
       if(background&&this.forestScene)this.scene.add.tileSprite(-6400,-3200,12800,6400,background).setOrigin(0).setTilePosition(64,0).setDepth(floorDepth-1).setTint(this.forestScene?0x8da189:0x9caeba);
       else this.scene.add.graphics().setDepth(floorDepth - 1).fillStyle(this.streetScene ? STREET_BACKGROUND : GARDEN_BACKGROUND).fillRect(-6400, -3200, 12800, 6400);
@@ -400,8 +402,8 @@ export class PlaceholderRenderer implements WorldRenderer {
     const lockedPlot = o.type === 'farm_plot' && visual.variant === 'locked';
     e.captioned = visual.progress != null || lockedPlot || ['ready', 'thirsty', 'done'].includes(visual.variant);
     // A plot's label sits on the plot itself (its sprite is a tall, mostly empty image).
-    const labelY = o.type === 'farm_plot' ? c.y + (lockedPlot ? 8 : -14) : e.sprite ? c.y - e.sprite.displayHeight * .82 - 4 : c.y - h - 4;
-    e.label.setText(visual.caption ?? o.label).setPosition(c.x, labelY).setVisible((e.focused || e.captioned) && visual.variant !== 'away');
+    const labelY = o.type === 'farm_plot' ? c.y + (lockedPlot ? 8 : -14) : e.baked?.getData('sliceProp') ? e.baked.y - e.baked.displayHeight * e.baked.originY - 6 : e.sprite ? c.y - e.sprite.displayHeight * .82 - 4 : c.y - h - 4;
+    e.label.setText(this.streetScene && o.type === 'sau_tree' ? SLICE_TREE_NAMES[treeAppearance(o.id)]! : visual.caption ?? o.label).setPosition(c.x, labelY).setVisible((e.focused || e.captioned) && visual.variant !== 'away');
     if (o.type === 'farm_plot') this.decoratePlot(e, c, lockedPlot);
     e.bar.clear();
     if (visual.progress != null) {
@@ -481,7 +483,7 @@ export class PlaceholderRenderer implements WorldRenderer {
       const npc = kind === 'player' ? undefined : NPC_TINTS[[...id].reduce((a, ch) => a + ch.charCodeAt(0), 0) % NPC_TINTS.length]!;
       return new PlaceholderActorView(this.scene, kind === 'player' ? PLAYER_COLOR : 0xd07a3a, true, npc, archetype === 'master');
     }
-    if ((this.streetScene || this.forestScene) && kind === 'player') return new IncidentActorView(this.scene);
+    if ((this.streetScene || this.forestScene) && kind === 'player') return new IncidentActorView(this.scene, this.streetScene);
     return new PlaceholderActorView(this.scene, kind === 'player' ? PLAYER_COLOR : 0xd07a3a);
   }
 
@@ -584,8 +586,14 @@ export class PlaceholderRenderer implements WorldRenderer {
     const key = `${Math.floor(playerPos.x * 2)},${Math.floor(playerPos.y * 2)},${hoveredId ?? ''},${this.glowKey}`;
     if (key === this.labelKey) return;
     this.labelKey = key;
+    const playerScreen = worldToScreen(playerPos);
     for (const [id, e] of this.objectGfx) {
       const f = e.data.footprint;
+      if (this.streetScene && e.data.type === 'sau_tree' && e.baked) {
+        const image = e.baked, bounds = image.getBounds();
+        const coversHero = playerPos.x + playerPos.y + .1 < e.depth && playerScreen.x > bounds.left && playerScreen.x < bounds.right && playerScreen.y - 40 > bounds.top && playerScreen.y - 40 < bounds.bottom;
+        image.setAlpha(coversHero ? .42 : 1);
+      }
       const near = Math.hypot(f.x + f.w / 2 - playerPos.x, f.y + f.h / 2 - playerPos.y) <= 2;
       const focused = near || id === hoveredId;
       e.focused = focused;

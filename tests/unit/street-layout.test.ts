@@ -2,8 +2,13 @@ import { expect, it } from 'vitest';
 import { streetHouses } from '../../src/components/render/streetLayout';
 
 it('keeps a single non-overlapping low frontage and leaves the courtyard and alley clear', () => {
-  const houses = streetHouses();
-  expect(houses.length).toBeLessThan(40);
+  const all = streetHouses(), houses = all.filter((h) => !h.back);
+  expect(houses.length).toBeLessThan(45);
+  // The rows behind the frontage stay behind it and off the alley's courtyard.
+  for (const h of all.filter((h) => h.back)) {
+    expect(h.y + h.d).toBeLessThan(4.9 - 2);
+    if (h.y > -2) expect(h.x + h.w <= 18.6 || h.x >= 26.4).toBe(true);
+  }
   for (const h of houses) {
     expect(h.height).toBeLessThanOrEqual(176);
     if (h.y > 0) {

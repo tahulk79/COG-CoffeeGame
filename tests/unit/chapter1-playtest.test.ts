@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { GameSimulation } from '../../src/gameplay/GameSimulation';
 import { CONTENT } from '../../src/data/content';
 import { FakeClock } from '../../src/core/Clock';
-import type { FinaleKind, HazardKind } from '../../src/gameplay/story/RunService';
+import type { HazardKind } from '../../src/gameplay/story/RunService';
 
-/** Chapter 1 played start to finish many times: every gag and every fate must end in chapter 2. */
+/** Chapter 1 played start to finish many times: every gag must end in chapter 2. */
 function chapter1(seed: number, edit?: (c: typeof CONTENT) => void) {
   const content = structuredClone(CONTENT);
   edit?.(content);
@@ -29,7 +29,7 @@ function play(sim: GameSimulation, drive: (ms: number) => [number, number] = () 
     if (!run) continue;
     if (run.phase === 'chaos' && chaosAt < 0) chaosAt = ms;
     for (const h of run.hazards) if (!seen.has(h.id)) { seen.add(h.id); kinds.push(h.kind); if (firstGag < 0) firstGag = ms; }
-    if (!ko && (run.hit || run.finale)) { ko = run.hit?.kind ?? run.finale!.kind; koAt = ms; }
+    if (!ko && run.hit) { ko = run.hit.kind; koAt = ms; }
   }
   return { ms, chaosAt, firstGag, koAt, ko, kinds, chapter: sim.story.chapterId };
 }
@@ -68,7 +68,7 @@ describe('chapter 1 playtest', () => {
     for (const kind of gags.filter((k) => k !== 'laundry')) {
       let knocked = false;
       for (let seed = 1; seed <= 15 && !knocked; seed++) {
-        const sim = chapter1(seed, (c) => { c.story.chapters.S03!.run!.unlockSec = { [kind]: 0 }; c.story.chapters.S03!.run!.chaosSec = 120; });
+        const sim = chapter1(seed, (c) => { c.story.chapters.S03!.run!.unlockSec = { [kind]: 0 }; });
         // Bikes run along the road: wait for them in the middle of it.
         sim.player.pos = kind === 'motorbike' ? { x: 14, y: 9.5 } : { x: 14, y: 6.5 };
         // Peels and holes appear ahead of where you walk: keep walking along the sidewalk.
@@ -81,7 +81,7 @@ describe('chapter 1 playtest', () => {
   });
 
   it('the shorts over the head only blind the hero for a moment: they are never a knock-out', () => {
-    const sim = chapter1(2, (c) => { c.story.chapters.S03!.run!.unlockSec = { laundry: 0 }; c.story.chapters.S03!.run!.chaosSec = 20; });
+    const sim = chapter1(2, (c) => { c.story.chapters.S03!.run!.unlockSec = { laundry: 0 }; });
     sim.player.pos = { x: 14, y: 6.5 };
     let dazed = false;
     for (let i = 0; i < 400 && sim.story.view().run?.phase !== 'faint'; i++) { sim.tick(50); dazed ||= sim.story.view().run?.dazed === 'shorts'; }
@@ -89,37 +89,14 @@ describe('chapter 1 playtest', () => {
     expect(sim.story.view().run?.hit).toBeNull();
   });
 
-  it('every fate plays out when its stall was visited', () => {
-    const fates = Object.keys(CONTENT.story.chapters.S03!.finales!) as FinaleKind[];
-    for (const kind of fates) {
-      const sim = chapter1(5, (c) => {
-        const ch = c.story.chapters.S03!;
-        ch.run!.unlockSec = {};
-        ch.run!.chaosSec = 3;
-        ch.finales = { [kind]: ch.finales![kind]! };
-      });
-      for (const id of ['tra_da', 'pho', 'bao']) sim.story.visit(id);
-      const r = play(sim);
-      expect(r.ko).toBe(kind);
-      expect(r.chapter).toBe('S04');
-    }
-  });
-
-  it('the barrier: arguing gets the hero through, a bike knocks them flat, the ambulance takes them to chapter 2; giving up does not', () => {
-    for (const reply of [0, 1]) {
-      const sim = chapter1(4, calm);
-      sim.player.pos = { x: 2.2, y: 9.5 };
-      for (let i = 0; i < 300 && !sim.story.view().street?.choices; i++) sim.tick(50);
-      expect(sim.story.view().street?.choices).toHaveLength(2);
-      sim.story.chooseReply(reply);
-      for (let i = 0; i < 120; i++) sim.tick(50);
-      if (reply === 1) {
-        expect(sim.story.view().run?.phase).toBe('chaos');
-        continue;
-      }
+  it('the barrier: walking through it knocks the hero out (a bike or the boom), no choice asked, then the ambulance takes them to chapter 2', () => {
+    for (const seed of [4, 5]) {
+      const sim = chapter1(seed, calm);
+      sim.player.pos = { x: 1.6, y: 9.5 };
+      for (let i = 0; i < 200 && sim.story.view().run?.phase !== 'faint'; i++) sim.tick(50);
+      expect(sim.story.view().street?.choices ?? null).toBeNull();
       expect(sim.story.view().run?.phase).toBe('faint');
-      const r = play(sim);
-      expect(r.chapter).toBe('S04');
+      expect(play(sim).chapter).toBe('S04');
     }
   });
 
@@ -142,7 +119,7 @@ describe('chapter 1 playtest', () => {
     sim.player.pos = { x: 2, y: 16 };
     for (let i = 0; i < 60; i++) sim.tick(50);
     expect(sim.story.view().street?.heroSay ?? null).toBeNull();
-    sim.player.pos = { x: 2.2, y: 9.5 };
+    sim.player.pos = { x: 1.6, y: 9.5 };
     sim.tick(50);
     sim.tick(50);
     expect(sim.story.view().street?.heroSay).toBe(CONTENT.story.chapters.S03!.street!.gateLines!.hero);
@@ -219,12 +196,13 @@ describe('chapter 1 playtest', () => {
   it('trees, stools and parked bikes block the way; the hero walks round people, never through them', () => {
     const sim = chapter1(14, calm);
     sim.startRun();
-    // Straight at the tree on tile (5, 16): stopped in front of it.
-    sim.player.pos = { x: 5.5, y: 15.3 };
-    sim.steer(0, 1);
-    for (let i = 0; i < 20; i++) sim.tick(50);
-    expect(sim.world.grid.isWalkable({ x: 5, y: 16 })).toBe(false);
-    expect(sim.player.pos.y).toBeLessThan(16);
+    // Straight at the street tree on tile (5, 11): stopped at its trunk (a round body, not a whole tile), then round it.
+    sim.player.pos = { x: 5.5, y: 12.6 };
+    sim.steer(0, -1);
+    for (let i = 0; i < 20; i++) {
+      sim.tick(50);
+      expect(Math.hypot(sim.player.pos.x - 5.5, sim.player.pos.y - 11.5)).toBeGreaterThan(0.5);
+    }
     sim.steer(0, 0);
     const seller = sim.story.view().street!.npcs.find((n) => n.id === 'tra_da:bay')!;
     sim.player.pos = { x: seller.x + 1.2, y: seller.y };
@@ -465,34 +443,24 @@ describe('barrier scene regressions', () => {
     c.story.chapters.S03!.street!.rescue!.wheelOffChance = 0;
   };
 
-  it('declining at a barrier does not replay until the player leaves or taps the guard', () => {
+  it('passers-by stroll past the barriers; the hero walking up is led to the boom', () => {
     const sim = chapter1(16, quiet);
-    sim.player.pos = { x: 45.8, y: 9.5 };
-    for (let i = 0; i < 220 && !sim.street!.view().choices; i++) sim.tick(50);
-    expect(sim.street!.view().choices).toHaveLength(2);
-    sim.story.chooseReply(1);
-    for (let i = 0; i < 900; i++) sim.tick(50);
+    const crossed = new Set<string>();
+    for (let i = 0; i < 2400; i++) {
+      sim.tick(50);
+      for (const n of sim.street!.view().npcs) if (n.id.startsWith('walker') && (n.x < 1 || n.x > 47)) crossed.add(n.id);
+    }
+    expect(crossed.size).toBeGreaterThan(0);
     expect(sim.street!.view().choices).toBeNull();
-    expect(sim.street!['gateRun']).toBeNull();
-    // Leaving the area lets proximity start it again.
-    sim.player.pos = { x: 39.5, y: 9.5 }; sim.tick(50);
-    sim.player.pos = { x: 45.8, y: 9.5 }; sim.tick(50);
-    expect(sim.street!['gateRun']).not.toBeNull();
-    for (let i = 0; i < 220 && !sim.street!.view().choices; i++) sim.tick(50);
-    sim.story.chooseReply(1);
-    for (let i = 0; i < 60; i++) sim.tick(50);
-    // A deliberate tap works without walking away.
-    sim.player.pos = { x: 45.8, y: 7.5 };
-    expect(sim.street!.talkTo('gate:east')).toBe(true);
+    sim.player.pos = { x: 46.4, y: 9.5 };
+    sim.tick(50);
     expect(sim.street!['gateRun']).not.toBeNull();
   });
 
-  it('arguing at either real barrier keeps the crash reachable and loads only after carrying to the van', () => {
-    for (const gate of CONTENT.story.chapters.S03!.street!.gates!) {
-      const sim = chapter1(16, quiet);
-      sim.player.pos = { x: gate.x + gate.inward * 1.2, y: 9.5 };
-      for (let i = 0; i < 220 && !sim.street!.view().choices; i++) sim.tick(50);
-      expect(sim.story.chooseReply(0).ok).toBe(true);
+  it('walking through either barrier keeps the crash reachable and loads only after carrying to the van', () => {
+    for (const [gate, seed] of CONTENT.story.chapters.S03!.street!.gates!.flatMap(g => [[g, 16], [g, 17]] as const)) {
+      const sim = chapter1(seed, quiet);
+      sim.player.pos = { x: gate.x + gate.inward * 0.6, y: 9.5 };
       let down = false, carried = false, bonked = false, loaded = false;
       for (let i = 0; i < 1000 && sim.story.chapterId === 'S03'; i++) {
         sim.tick(50);
@@ -516,27 +484,11 @@ describe('barrier scene regressions', () => {
   });
 });
 
-it('a bike admitted by either guard keeps riding after the choice appears and after the conversation ends', () => {
-  for (const gate of CONTENT.story.chapters.S03!.street!.gates!) {
-    const sim = chapter1(16, c => { calm(c); c.story.chapters.S03!.street!.bikes = 0; });
-    sim.player.pos = { x: gate.x + gate.inward * 1.2, y: 9.5 };
-    for (let i = 0; i < 220 && !sim.street!.view().choices; i++) sim.tick(50);
-    const bike = sim.street!.view().npcs.find(n => n.id.startsWith(`gatebike:${gate.id}:`))!;
-    expect(bike).toBeDefined();
-    sim.story.chooseReply(1);
-    for (let i = 0; i < 60; i++) sim.tick(50);
-    const after = sim.street!.view().npcs.find(n => n.id === bike.id)!;
-    expect(after).toBeDefined();
-    expect((after.x - bike.x) * gate.inward).toBeGreaterThan(5);
-    expect(after.scale).toBe(1);
-    expect(after.moving).toBe(true);
-  }
-});
-
 it('every outdoor stall completes either reply without restarting its full conversation', () => {
   for (const stall of CONTENT.story.chapters.S03!.stalls!) for (const reply of [0, 1]) {
     const sim = chapter1(16, c => { calm(c); c.story.chapters.S03!.street!.bikes = 0; c.story.chapters.S03!.street!.walkers = 0; });
-    sim.player.pos = { x: stall.x + 1, y: stall.y < 8 ? 6.7 : 12.3 };
+    // In front of a north stall; behind a south one, where its people stand.
+    sim.player.pos = { x: stall.x + 1, y: stall.y < 8 ? 6.7 : stall.y + 2 };
     expect(sim.street!.talkTo(`${stall.id}:${stall.people[0]!.id}`)).toBe(true);
     for (let i = 0; i < 1000 && !sim.street!.view().choices; i++) sim.tick(50);
     expect(sim.story.chooseReply(reply).ok, `${stall.id}/${reply}`).toBe(true);

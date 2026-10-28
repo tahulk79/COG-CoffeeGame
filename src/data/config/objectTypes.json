@@ -868,7 +868,7 @@
       "w": 1,
       "h": 1
     },
-    "blocking": true
+    "blocking": false
   },
   "parked_bike": {
     "label": "Xe máy đỗ",
@@ -876,7 +876,7 @@
       "w": 1,
       "h": 1
     },
-    "blocking": true
+    "blocking": false
   },
   "sau_tree": {
     "label": "Cây sấu",
@@ -884,6 +884,6 @@
       "w": 1,
       "h": 1
     },
-    "blocking": true
+    "blocking": false
   }
 }

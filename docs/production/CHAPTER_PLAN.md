@@ -1,3 +1,5 @@
+> **Cập nhật 2026-10-28:** Đã bỏ sáu cú chót và mốc ép ngất theo thời gian. Màn 1 tiếp tục khi né được; tai nạn dẫn tới cứu thương → trùng sinh/chuyển chương. Các mô tả cú chót bên dưới chỉ còn là lịch sử thiết kế.
+
 # Kế hoạch từng màn: Prototype → Vertical Slice → Production
 
 > Cập nhật: **2026-10-28** · Trạng thái: **Nháp, chờ duyệt** · Ưu tiên: hoàn thiện **Màn 1** trước.

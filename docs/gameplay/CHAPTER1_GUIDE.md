@@ -1,3 +1,5 @@
+> Cập nhật2026-10-29: Chương1 đã bỏ kéo map một/hai ngón. Camera theo nhân vật/cảnh cứu hộ; joystick, WASD/mũi tên và chạm đi tới giữ nguyên. Các mô tả kéo camera phía dưới nếu có không còn áp dụng cho Chương1. Đợt mỹ thuật sau khung mẫu11 đã hoàn tác theo yêu cầu người dùng.
+
 # Hướng dẫn chơi Màn 1: "Một ngày xui tận mạng"
 
 > Cập nhật: **2026-10-28** · Trạng thái: **Prototype** (hình vẽ bằng code, chờ thay bằng art 3D). Số liệu bên dưới lấy từ [story.json](../../src/data/config/story.json) mục `chapters.S03` và mã nguồn `RunService.ts`, `StreetService.ts`, `ShopService.ts`.
@@ -27,7 +29,7 @@ Thẻ trên đầu màn hình luôn cho biết việc cần làm ("Dạo phố c
 1. **0 đến 8 giây**: yên ổn, làm quen, đi lại, nói chuyện.
 2. **Từ giây thứ 8**: sự cố đầu tiên xuất hiện. Sự cố ra mỗi **2,6 giây**, nhanh dần xuống **1 giây** sau khoảng 90 giây. Từ giây 70 trở đi **ra hai cái một lúc**. Cùng lúc tối đa 5 sự cố.
 3. **Các loại sự cố được mở dần** theo thời gian (mục 4), và được rút như bốc bài: mỗi vòng ra đủ mọi loại rồi mới lặp lại.
-4. **Dính 1 phát là ngất** (mục 8). Hoặc **né đủ 120 giây** thì tới **cú chót lãng xẹt** (mục 5): né giỏi đến mấy cuối cùng vẫn ngất.
+4. **Dính 1 phát là ngất** (mục 8). Né được thì tiếp tục chơi, không còn mốc tự ngất sau 120 giây.
 5. **Cảnh cứu hộ** (mục 8), rồi sang Màn 2.
 
 ## 4. Mười hai sự cố
@@ -51,17 +53,8 @@ Mỗi sự cố có **báo trước** (bóng đổ, nứt đường, dấu chấ
 
 **Cách né:** đi khỏi chỗ có báo trước, đừng đứng yên giữa lòng đường, chạy xa con vật đang đuổi. Quần đùi và mùi sầu riêng không làm ngất nhưng làm bạn loạng choạng đúng lúc có sự cố khác.
 
-## 5. Cú chót lãng xẹt (khi né đủ 120 giây)
-Mỗi lượt rút một trong sáu cú. Ba cú **cần bạn đã nghe hết chuyện** ở quầy tương ứng, vì quầy đó đã "cài cắm" trò đùa:
-
-| Cú chót | Điều kiện | Diễn biến |
-|---|---|---|
-| **Quả sấu bé tí** | Không | "Phù… thoát hết rồi!" rồi một quả sấu nhỏ rơi trúng đầu ("CỐC!") |
-| **Tờ 2 nghìn** | Không | Cúi nhặt tờ tiền, đứng lên đập đầu vào cột điện ("BOONG!") |
-| **Chó Ngao liếm mặt** | Không | Chó to quay lại, không cắn mà liếm, bạn ngất vì sợ |
-| **Ghế đỏ gãy** | Đã nghe quầy **trà đá** | Ngồi nhầm ghế đỏ mà chú Tư đã dặn ("RẮC!") |
-| **Hắt hơi bật ngửa** | Đã nghe quầy **phở** | Tiêu quán phở làm hắt hơi mạnh ("HẮT XÌ!!!") |
-| **Thấy ảnh mình trên báo** | Đã nghe **sạp báo** | Ông Hai chìa tờ báo có ảnh bạn đang ngất, bạn ngất thật |
+## 5. Kết chương
+Đã bỏ sáu cú chót theo thời gian. Nhân vật chuyển sang trùng sinh qua luồng tai nạn → cứu thương → Màn 2; không có kết thúc thắng do sống sót đủ thời gian.
 
 ## 6. Quầy, quán và người trên phố
 
@@ -70,9 +63,9 @@ Mỗi lượt rút một trong sáu cú. Ba cú **cần bạn đã nghe hết ch
 
 | Quầy | Vị trí | Trò đùa | Cài cho về sau |
 |---|---|---|---|
-| Trà đá chú Tư | Vỉa hè bắc, bên trái | Ông Bảy đá bóng với "Messi bán bánh mì" | Ghế đỏ gãy |
-| Sạp báo ông Hai | Vỉa hè bắc | "Tin nóng: thanh niên dạo phố gặp sự cố lãng xẹt!" | Thấy ảnh mình trên báo |
-| Phở bà Ba | Vỉa hè bắc | "Hết tái. Ăn chín." Khách bảo quán ngon nhờ bị chửi | Hắt hơi vì tiêu; chó nhà ông Tư Mập |
+| Trà đá chú Tư | Vỉa hè bắc, bên trái | Ông Bảy đá bóng với "Messi bán bánh mì" | Hội thoại đời thường |
+| Sạp báo ông Hai | Vỉa hè bắc | "Tin nóng: thanh niên dạo phố gặp sự cố lãng xẹt!" | Hội thoại đời thường |
+| Phở bà Ba | Vỉa hè bắc | "Hết tái. Ăn chín." Khách bảo quán ngon nhờ bị chửi | Chuyện quán phở; chó nhà ông Tư Mập |
 | Bún đậu cô Sáu | Vỉa hè bắc | Chọn "nước mắm" thì cả quán im lặng nhìn | Bồ câu né mùi mắm tôm |
 | Bánh mì anh Bảy | Vỉa hè bắc, bên phải | "Cho em ổ bánh mì không có gì." | **Bồ câu đuổi theo đòi bánh mì** |
 | Cắt tóc bác Hùng | Vỉa hè bắc, phía đông | Gương treo cây, kiểu "Hàng Bạc, Hàng Gai" | |
@@ -117,10 +110,9 @@ Khi dính sự cố, cú ngã diễn ra trong khoảng 1,4 giây: nhân vật lo
 
 ## 9. Mẹo cho người chơi
 - Hầu hết sự cố nhắm vào **chỗ bạn đang đứng hoặc đang đi tới**. Đổi hướng khi thấy bóng đổ hoặc dải nhấp nháy.
-- Muốn xem **cú chót đặc biệt**, hãy nghe hết chuyện ở quầy trà đá, phở và sạp báo trước khi bắt đầu né.
 - Quán cà phê ông Tám là chỗ **tạm dừng đồng hồ**: vào đó khi đang thấy rối.
 - Muốn xem **cảnh bảo vệ**: đi tới đầu phố bên trái hoặc bên phải.
-- Muốn xem **gà sổng chuồng**: sống qua giây 46 và né đoàn xe máy chở tủ lạnh. Muốn xem **các cú chót** (kể cả chó Ngao liếm mặt): né đủ 120 giây.
+- Muốn xem **gà sổng chuồng**: sống qua giây 46 và né đoàn xe máy chở tủ lạnh.
 
 ## 10. Chỉnh độ khó và nội dung (dành cho người làm game)
 Tất cả nằm trong [story.json](../../src/data/config/story.json), mục `chapters.S03`:
@@ -128,12 +120,10 @@ Tất cả nằm trong [story.json](../../src/data/config/story.json), mục `ch
 | Muốn chỉnh | Trường |
 |---|---|
 | Khoảng yên đầu màn | `run.firstGagMs` (hiện 8000) |
-| Thời gian tối đa trước cú chót | `run.chaosSec` (hiện 120) |
 | Mỗi sự cố mở từ giây nào | `run.unlockSec` |
 | Tốc độ ra sự cố | `run.spawnStartMs`, `spawnMinMs`, `rampSec`, `rushSec`, `maxHazards` |
 | Tốc độ nhân vật | `run.runSpeed` |
 | Câu chữ từng sự cố, câu than | `hazards.<loại>` |
-| Các cú chót | `finales.<loại>` |
 | Quầy vỉa hè | `stalls` |
 | Quán cà phê | `street.shops` |
 | Số người đi bộ, xe máy nền | `street.walkers`, `street.bikes` |
@@ -141,4 +131,4 @@ Tất cả nằm trong [story.json](../../src/data/config/story.json), mục `ch
 | Hai trạm chắn và lời bảo vệ | `street.gates`, `street.gateLines` |
 | Cảnh cứu hộ, xác suất rơi bánh nổ | `street.rescue`, `street.rescue.wheelOffChance` (hiện 0,5) |
 
-Kiểm tra tự động: `tests/unit/chapter1-playtest.test.ts` (chơi thử từng sự cố, từng cú chót, cảnh rào, cảnh cứu hộ, và một bài bấm ngẫu nhiên 40 lượt).
+Kiểm tra tự động: `tests/unit/chapter1-playtest.test.ts` (chơi thử từng sự cố, cảnh rào, cảnh cứu hộ, và một bài bấm ngẫu nhiên 40 lượt).

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { ART_READY, H5_ASSETS, registerH5Frames } from '../components/render/h5Assets';
+import { SLICE_ASSETS, registerSliceFrames } from '../components/render/sliceAssets';
 import { dur, MOTION } from '../ui/theme/tokens';
 import { GardenEffects } from '../components/render/gardenArt';
 import { GardenAudio } from '../components/audio/GardenAudio';
@@ -93,6 +94,7 @@ export class WorldScene extends Phaser.Scene {
 
   preload(): void {
     for (const a of [...Object.values(H5_ASSETS), ...Object.values(STORY_ASSETS)]) if (ART_READY.has(a.key) && !this.textures.exists(a.key)) this.load.image(a.key, a.url);
+    for (const a of Object.values(SLICE_ASSETS)) if (!this.textures.exists(a.key)) this.load.image(a.key, a.url);
   }
 
   create(): void {
@@ -105,13 +107,14 @@ export class WorldScene extends Phaser.Scene {
     this.travelling = false;
     this.pendingTravel = null;
     this.hoveredObject = null; // scene instances are reused on restart
-    this.session = createSession({ ...(this.launchData.mapId ? { mapId: this.launchData.mapId } : {}), content: CONTENT, persistent: this.launchData.persistent, clock, ...(skipStory() ? { skipStory: true } : {}) });
+    this.session = createSession({ ...(this.launchData.mapId ? { mapId: this.launchData.mapId } : {}), content: playContent(), persistent: this.launchData.persistent, clock, ...(skipStory() ? { skipStory: true } : {}) });
     this.autosave = new Autosave(this.session);
     const world = this.sim.world;
     // Dev builds: `?cheat=1` opens the game fully unlocked with a large purse, for testing.
     if (!import.meta.env.PROD && new URLSearchParams(window.location.search).has('cheat')) this.sim.enableTestMode(!this.sim.story.active);
 
     registerH5Frames(this);
+    registerSliceFrames(this);
     this.worldRenderer = new PlaceholderRenderer(this);
     const floor = [];
     for (let y = 0; y < world.height; y++) {
@@ -163,14 +166,14 @@ export class WorldScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-M', () => toggleMute(this.sound));
     this.stickGfx = this.add.graphics().setDepth(1e6 + 5);
     this.moveKeys = (this.input.keyboard?.addKeys('W,A,S,D') as Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>) ?? null;
-    // The bottom-left ring steers; dragging anywhere else pans. Taps act on release.
+    // The bottom-left ring steers. Chapter 1 ignores map drags; taps act on release.
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       if (p.rightButtonDown()) return this.sim.cancel();
       if (p.middleButtonDown()) return;
       if (this.input.pointer1.isDown && this.input.pointer2.isDown) {
         this.gestureConsumed = true;
         this.stick = this.look = null;
-        this.worldRenderer.setLooking(true);
+        this.worldRenderer.setLooking(!this.sim.run);
         return;
       }
       this.gestureConsumed = false;
@@ -187,8 +190,8 @@ export class WorldScene extends Phaser.Scene {
       }
       const lk = this.look;
       if (lk && lk.id === p.id) {
-        if (!lk.on && Math.hypot(p.x - lk.x, p.y - lk.y) > 12) { lk.on = true; this.worldRenderer.setLooking(true); }
-        if (lk.on) this.worldRenderer.panBy(-(p.x - lk.px), -(p.y - lk.py));
+        if (!lk.on && Math.hypot(p.x - lk.x, p.y - lk.y) > 12) { lk.on = true; this.worldRenderer.setLooking(!this.sim.run); }
+        if (lk.on && !this.sim.run) this.worldRenderer.panBy(-(p.x - lk.px), -(p.y - lk.py));
         lk.px = p.x; lk.py = p.y;
       }
     });
@@ -319,6 +322,7 @@ export class WorldScene extends Phaser.Scene {
       pos: s.player.pos,
       state: s.player.state,
       facing: s.player.facing,
+      reaction: s.story.street?.carried ? 'carry' : s.story.run?.down ? 'down' : s.story.run?.hit ? s.story.run.hit.t < .3 ? 'stumble' : 'fall' : undefined,
       // A drink shows as its recipe name rather than its internal id.
       heldItem: s.cafe?.heldDrink ? (CONTENT.recipes[s.cafe.heldDrink.recipeId]?.label ?? s.player.heldItem) : s.player.heldItem,
       progress: cur?.phase === 'work' ? cur.progress : null,
@@ -328,7 +332,7 @@ export class WorldScene extends Phaser.Scene {
       const pose = runPose(s.story.run);
       // The rescue: lifted while the medics carry the hero, gone once inside the ambulance.
       const street = s.story.street;
-      this.playerView.setPose?.(pose.sx, pose.sy, pose.dy - (street?.carried ? 18 : 0), pose.angle);
+      this.playerView.setPose?.(pose.sx, pose.sy, pose.dy - 18 * (street?.carryLift ?? 0), pose.angle);
       this.playerView.setAlpha?.(street?.heroHidden ? 0 : pose.alpha);
     }
     this.runView?.sync(s.story.run, this.sim.player.pos, !!s.story.street?.heroHidden);
@@ -456,6 +460,12 @@ export class WorldScene extends Phaser.Scene {
 
   /** Arrow keys pan (except in the chapter-1 run, where they move the hero); two-finger drag pans. */
   private cameraGestures(delta: number): void {
+    if (this.sim.run) {
+      this.dragMid = null;
+      this.worldRenderer.resetPan();
+      this.worldRenderer.setLooking(false);
+      return;
+    }
     const c = this.cursors;
     if (c && !this.sim.run && !this.sim.garden && (c.left.isDown || c.right.isDown || c.up.isDown || c.down.isDown) && !(this.scene.get('HudScene') as { modalOpen?: boolean }).modalOpen) {
       const v = 0.6 * delta;
@@ -545,6 +555,19 @@ function fitWholeMap(): boolean {
   if (import.meta.env.PROD) return false;
   const q = new URLSearchParams(window.location.search);
   return q.has('fit') || (navigator.webdriver === true && !q.has('close'));
+}
+
+/**
+ * Temporary, while chapter 1 is being finished: after the rescue the game plays chapter 1 again instead of going
+ * on to chapter 2. `?chapter2=1` (and automated browsers) get the real story. Set to false to restore chapter 2.
+ */
+const CHAPTER1_ONLY = true;
+
+function playContent(): typeof CONTENT {
+  const real = !CHAPTER1_ONLY || navigator.webdriver === true || new URLSearchParams(window.location.search).has('chapter2');
+  const ch1 = CONTENT.story.chapters.S03;
+  if (real || !ch1) return CONTENT;
+  return { ...CONTENT, story: { ...CONTENT.story, chapters: { ...CONTENT.story.chapters, S03: { ...ch1, next: 'S03' } } } };
 }
 
 function skipStory(): boolean {

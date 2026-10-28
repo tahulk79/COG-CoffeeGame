@@ -42,14 +42,21 @@ export interface ActorConfig {
  * employees later). Holds position, path, held item and state. It knows
  * nothing about rendering or about why it is moving.
  */
+/** Blocked this close to the end of a walk (tiles), the hero counts as arrived. */
+const ARRIVE_NEAR = 0.9;
+
 export class Actor {
   pos: WorldPos;
   facing: Facing = 'S';
   canMove: ((from: WorldPos, to: WorldPos) => boolean) | null = null;
+  /** When `canMove` refuses a step: somewhere close to go instead (round a person, a corner), or null when truly stuck. */
+  slide: ((from: WorldPos, to: WorldPos) => WorldPos | null) | null = null;
   movementBlocked = false;
   heldItem: string | null = null;
   readonly fsm: StateMachine<ActorState>;
   private waypoints: WorldPos[] = [];
+  /** Steps in a row spent sliding round something: circling a person forever counts as blocked. */
+  private slides = 0;
 
   constructor(
     readonly id: string,
@@ -111,7 +118,18 @@ export class Actor {
       if (dist < 0.00001) { this.waypoints.shift(); continue; }
       const step = Math.min(dist, budget);
       const next = { x: this.pos.x + dx / dist * step, y: this.pos.y + dy / dist * step };
-      if (this.canMove && !this.canMove(this.pos, next)) { this.movementBlocked = true; return false; }
+      if (this.canMove && !this.canMove(this.pos, next)) {
+        // The spot clicked is taken (someone stands on it): close is close enough, no circling round them.
+        if (this.waypoints.length === 1 && dist < ARRIVE_NEAR) { this.waypoints = []; this.slides = 0; return true; }
+        const slid = this.slides < 90 ? this.slide?.(this.pos, next) : null;
+        if (!slid) { this.slides = 0; this.movementBlocked = true; return false; }
+        this.slides++;
+        // Still facing where they are going, not the way round the obstacle.
+        this.facing = facingFrom(dx, dy) ?? this.facing;
+        this.pos = slid;
+        return false;
+      }
+      this.slides = 0;
       this.facing = facingFrom(dx, dy) ?? this.facing;
       if (dist <= budget) {
         this.pos = { ...target };
