@@ -42,6 +42,7 @@ export class GameButton {
   private readonly lift: Panel;
   private readonly label: Phaser.GameObjects.Text;
   private icon: Phaser.GameObjects.Container | null = null;
+  private glyph: Phaser.GameObjects.Graphics | null = null;
   private readonly opts: GameButtonOptions;
   private enabled = true;
   private selected = false;
@@ -173,6 +174,16 @@ export class GameButton {
   rebind(name: string, onClick: () => void): this {
     this.name = name;
     this.onClick = onClick;
+    return this;
+  }
+
+  /** Draws a vector icon in the middle of the button (0, 0 is the centre) instead of a label. */
+  setGlyph(draw: (g: Phaser.GameObjects.Graphics) => void): this {
+    this.glyph ??= this.scene.add.graphics();
+    this.visual.add(this.glyph);
+    this.glyph.clear();
+    draw(this.glyph);
+    this.label.setVisible(false);
     return this;
   }
 

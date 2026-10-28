@@ -1,12 +1,15 @@
 import Phaser from 'phaser';
 import { bakeTexture } from '../ui/theme/bake';
-import { COLORS, dur, FONT, css } from '../ui/theme/tokens';
+import { t } from '../core/i18n';
+import { COLORS, dur, FONT, css, LIGHT } from '../ui/theme/tokens';
 
 export const TRANSITION_SCENE = 'TransitionScene';
 
 export type TransitionStyle = 'doors' | 'light';
 
 const INK = COLORS.ink;
+/** The light strip along the seam where the two doors meet. */
+const SEAM = 0xffe9a8;
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
 /**
@@ -17,7 +20,8 @@ const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v
 function doorLayout(W: number, H: number) {
   const u = Math.min(W, H / 2);
   const frame = clamp(W * 0.06, 10, 30);
-  const band = clamp(H * 0.22, 130, 200);
+  // Tall enough for the paper plate (kicker, title, bar) with the handles hanging below it.
+  const band = clamp(H * 0.28, 160, 240);
   const cy = H * 0.5;
   const cloudR = clamp(u * 0.09, 16, 44);
   const mx = frame + clamp(W * 0.08, 10, 60);
@@ -48,7 +52,13 @@ export class TransitionScene extends Phaser.Scene {
   private left!: Phaser.GameObjects.Image;
   private right!: Phaser.GameObjects.Image;
   private light!: Phaser.GameObjects.Graphics;
+  /** The name plate on the doors: a paper card (like chapter 1's cards) with a coral kicker, the title and, while loading, the bar. */
+  private plate!: Phaser.GameObjects.Container;
+  private plateG!: Phaser.GameObjects.Graphics;
+  private kicker!: Phaser.GameObjects.Text;
   private label!: Phaser.GameObjects.Text;
+  private showBar = false;
+  private barBox = { x: 0, y: 0, w: 0, h: 0 };
   /** Doors are shut and waiting for the new map. */
   closed = false;
 
@@ -78,13 +88,16 @@ export class TransitionScene extends Phaser.Scene {
     this.light = this.add.graphics();
     this.left = this.add.image(0, 0, '__WHITE').setOrigin(0, 0);
     this.right = this.add.image(0, 0, '__WHITE').setOrigin(1, 0).setFlipX(true);
-    this.label = this.add.text(0, 0, '', { fontFamily: FONT.family, fontSize: '34px', fontStyle: '800', color: css(INK), backgroundColor: css(COLORS.sun), padding: { x: 22, y: 8 }, resolution: 2 }).setOrigin(0.5);
+    this.plateG = this.add.graphics();
+    this.kicker = this.add.text(0, 0, '', { fontFamily: FONT.family, fontSize: '13px', fontStyle: '800', color: css(COLORS.coral), resolution: 2 }).setOrigin(0.5, 0);
+    this.label = this.add.text(0, 0, '', { fontFamily: FONT.family, fontSize: '30px', fontStyle: '800', color: css(LIGHT.text), align: 'center', resolution: 2 }).setOrigin(0.5, 0);
+    this.plate = this.add.container(0, 0, [this.plateG, this.kicker, this.label]);
     this.bar = this.add.graphics();
     this.scale.on(Phaser.Scale.Events.RESIZE, this.fit, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off(Phaser.Scale.Events.RESIZE, this.fit, this));
     this.fit();
     this.setDoors(0);
-    this.label.setAlpha(0);
+    this.plate.setAlpha(0);
     if (this.pending) this.close(this.pending.ms, this.pending.label, this.pending.style);
     this.pending = null;
     if (this.boot) this.runBoot(this.boot);
@@ -93,13 +106,16 @@ export class TransitionScene extends Phaser.Scene {
   /** Loading screen: shut doors, "Đang mở cổng…" and a bar that fills while the game gets ready. */
   private runBoot(gate: BootGate): void {
     this.setDoors(1);
-    this.label.setText('Đang mở cổng...').setAlpha(1);
+    this.showBar = true;
+    this.setTitle(t('transition.loading'), 'COG-CoffeeGame');
+    this.plate.setAlpha(1);
     const started = this.time.now;
     let ready = false;
     void gate.ready.then(() => {
       ready = true;
       // The game font may have just arrived: redraw the label with it.
       this.label.setFontFamily(FONT.family);
+      this.layoutPlate();
     });
     const tick = () => {
       // Creeps towards 90% while waiting, then completes; never shorter than a glance.
@@ -116,14 +132,38 @@ export class TransitionScene extends Phaser.Scene {
   }
 
   private drawBar(p: number): void {
-    const { width: w, height: h } = this.scale;
-    const L = doorLayout(Math.ceil(w / 2), h);
-    const bw = Math.min(360, w * 0.62), bh = clamp(h * 0.022, 12, 18), x = w / 2 - bw / 2, y = L.cy + 8;
     const g = this.bar.clear();
-    if (p <= 0) return;
-    g.fillStyle(COLORS.paper).fillRoundedRect(x, y, bw, bh, bh / 2);
-    g.fillStyle(COLORS.coral).fillRoundedRect(x, y, Math.max(bh, bw * Math.min(1, p)), bh, bh / 2);
-    g.lineStyle(3, INK).strokeRoundedRect(x, y, bw, bh, bh / 2);
+    if (p <= 0 || !this.showBar) return;
+    const { x, y, w, h } = this.barBox;
+    g.fillStyle(LIGHT.plate).fillRoundedRect(x, y, w, h, h / 2);
+    g.fillStyle(COLORS.coral).fillRoundedRect(x, y, Math.max(h, w * Math.min(1, p)), h, h / 2);
+    g.lineStyle(3, INK).strokeRoundedRect(x, y, w, h, h / 2);
+  }
+
+  /** "Chương 2 · Vườn mây" shows as a coral "CHƯƠNG 2" over the title "Vườn mây"; a title without "·" has no kicker. */
+  private setTitle(text: string, kicker?: string): void {
+    const [head, ...rest] = text.split(' · ');
+    this.kicker.setText(kicker ?? (rest.length ? head!.toUpperCase() : ''));
+    this.label.setText(kicker !== undefined || !rest.length ? text : rest.join(' · '));
+    this.layoutPlate();
+  }
+
+  /** Sizes the paper card to its text (and the bar while loading) and centres it on the doors' seam. */
+  private layoutPlate(): void {
+    const { width: w, height: h } = this.scale;
+    if (w < 1 || h < 1) return;
+    this.label.setFontSize(Math.round(clamp(w / 14, 20, 40))).setWordWrapWidth(Math.max(160, w - 96));
+    this.kicker.setFontSize(Math.round(clamp(w / 46, 12, 17)));
+    const hasKick = this.kicker.text.length > 0, barW = Math.min(360, w * 0.62), barH = clamp(h * 0.022, 12, 16);
+    const pw = Math.min(w - 24, Math.max(this.label.width + 56, this.showBar ? barW + 48 : 0, 220));
+    const ph = 14 + (hasKick ? this.kicker.height + 2 : 0) + this.label.height + (this.showBar ? 14 + barH : 0) + 16;
+    const cy = h * 0.5, top = -ph / 2;
+    this.plate.setPosition(w / 2, cy);
+    this.kicker.setVisible(hasKick).setPosition(0, top + 12);
+    this.label.setPosition(0, top + 12 + (hasKick ? this.kicker.height + 2 : 0));
+    this.plateG.clear().fillStyle(LIGHT.shadow, 0.18).fillRoundedRect(-pw / 2, top + 6, pw, ph, 18).fillStyle(LIGHT.panel, 1).fillRoundedRect(-pw / 2, top, pw, ph, 18).lineStyle(3.5, LIGHT.border, 1).strokeRoundedRect(-pw / 2, top, pw, ph, 18);
+    this.barBox = { x: w / 2 - barW / 2, y: cy + top + ph - 16 - barH, w: barW, h: barH };
+    if (this.progress > 0) this.drawBar(this.progress);
   }
 
   /** Door art is drawn for the current screen size (re-drawn on resize / rotation), never stretched. */
@@ -143,10 +183,8 @@ export class TransitionScene extends Phaser.Scene {
     }
     this.left.setPosition(0, 0);
     this.right.setPosition(w, 0);
-    const L = doorLayout(W, H);
-    this.label.setFontSize(Math.round(clamp(w / 15, 18, 34))).setPosition(w / 2, L.cy - clamp(L.band * 0.2, 22, 40));
+    this.layoutPlate();
     this.setDoors(this.doorT);
-    if (this.progress > 0) this.drawBar(this.progress);
   }
 
   private doorT = 0;
@@ -172,9 +210,9 @@ export class TransitionScene extends Phaser.Scene {
     for (let i = 0; i < 12; i++) {
       const a = (i / 12) * Math.PI * 2 + this.time.now / 2000;
       const r = Math.max(w, h);
-      g.fillStyle(0xffd25e, 0.25 * k).fillTriangle(w / 2, h / 2, w / 2 + Math.cos(a) * r, h / 2 + Math.sin(a) * r, w / 2 + Math.cos(a + 0.12) * r, h / 2 + Math.sin(a + 0.12) * r);
+      g.fillStyle(COLORS.sun, 0.25 * k).fillTriangle(w / 2, h / 2, w / 2 + Math.cos(a) * r, h / 2 + Math.sin(a) * r, w / 2 + Math.cos(a + 0.12) * r, h / 2 + Math.sin(a + 0.12) * r);
     }
-    for (let i = 5; i > 0; i--) g.fillStyle(0xffffff, 0.12 * k).fillCircle(w / 2, h / 2, (i / 5) * Math.min(w, h) * 0.45);
+    for (let i = 5; i > 0; i--) g.fillStyle(COLORS.white, 0.12 * k).fillCircle(w / 2, h / 2, (i / 5) * Math.min(w, h) * 0.45);
   }
 
   /** Doors swing shut over the screen; `label` (the next chapter) appears on them. */
@@ -182,7 +220,9 @@ export class TransitionScene extends Phaser.Scene {
     this.scene.bringToTop();
     this.closed = true;
     this.style = style;
-    this.label.setText(label).setAlpha(0);
+    this.showBar = false;
+    this.setTitle(label);
+    this.plate.setAlpha(0);
     this.bar.clear().setAlpha(1);
     this.drawLight(0);
     const s = { t: 0 };
@@ -193,7 +233,7 @@ export class TransitionScene extends Phaser.Scene {
       this.tweens.add({
         targets: s, t: 1, duration: time, ease: 'Cubic.easeIn',
         onUpdate: () => this.drawLight(s.t),
-        onComplete: () => { if (label) this.tweens.add({ targets: this.label, alpha: 1, duration: dur(200) || 1 }); },
+        onComplete: () => { if (label) this.tweens.add({ targets: this.plate, alpha: 1, duration: dur(200) || 1 }); },
       });
       this.chime();
       return;
@@ -203,7 +243,7 @@ export class TransitionScene extends Phaser.Scene {
       onUpdate: () => this.setDoors(s.t),
       onComplete: () => {
         this.cameras.main.shake(dur(160), 0.006);
-        if (label) this.tweens.add({ targets: this.label, alpha: 1, duration: dur(200) || 1 });
+        if (label) this.tweens.add({ targets: this.plate, alpha: 1, duration: dur(200) || 1 });
         this.thud();
       },
     });
@@ -218,7 +258,7 @@ export class TransitionScene extends Phaser.Scene {
     const s = { t: 1, k: 1 };
     if (this.style === 'light') {
       // The light fades away on the new world.
-      this.tweens.add({ targets: [this.label, this.bar], alpha: 0, duration: dur(250) || 1, delay: dur(350) });
+      this.tweens.add({ targets: [this.plate, this.bar], alpha: 0, duration: dur(250) || 1, delay: dur(350) });
       this.tweens.add({
         targets: s, k: 0, duration: dur(1200) || 1, delay: dur(450), ease: 'Cubic.easeOut',
         onUpdate: () => this.drawLight(s.k),
@@ -227,7 +267,7 @@ export class TransitionScene extends Phaser.Scene {
       return;
     }
     this.drawLight(0);
-    this.tweens.add({ targets: [this.label, this.bar], alpha: 0, duration: dur(250) || 1, delay: dur(350) });
+    this.tweens.add({ targets: [this.plate, this.bar], alpha: 0, duration: dur(250) || 1, delay: dur(350) });
     this.tweens.add({
       targets: s, t: 0, duration: dur(1100) || 1, delay: dur(450), ease: 'Cubic.easeInOut',
       onStart: () => this.chime(),
@@ -285,19 +325,19 @@ export class TransitionScene extends Phaser.Scene {
 /** One heavenly door at its real size (the right one is the same, mirrored): cream and gold, two arched panels, a ring handle. */
 function drawDoor(g: Phaser.GameObjects.Graphics, W: number, H: number): void {
   const L = doorLayout(W, H);
-  g.fillStyle(0xfff3d6).fillRect(0, 0, W, H);
+  g.fillStyle(COLORS.paper).fillRect(0, 0, W, H);
   // Gold frame on the outer edge, top and bottom; a bright strip along the seam.
-  g.fillStyle(0xf2c45a).fillRect(0, 0, L.frame, H).fillRect(0, 0, W, L.frame).fillRect(0, H - L.frame, W, L.frame);
-  g.fillStyle(0xffe9a8).fillRect(W - L.frame * 0.6, 0, L.frame * 0.6, H);
+  g.fillStyle(COLORS.sun).fillRect(0, 0, L.frame, H).fillRect(0, 0, W, L.frame).fillRect(0, H - L.frame, W, L.frame);
+  g.fillStyle(SEAM).fillRect(W - L.frame * 0.6, 0, L.frame * 0.6, H);
   g.lineStyle(L.line, INK).strokeRect(L.line / 2, L.line / 2, W - L.line, H - L.line);
   // Two arched inset panels above and below the name band.
   const panel = (y: number, h: number) => {
     if (h < 30) return;
     const r = Math.min(L.pw / 2, h * 0.45), inset = clamp(L.u * 0.03, 6, 14);
-    g.fillStyle(0xf7e4b8).fillRoundedRect(L.mx, y, L.pw, h, { tl: r, tr: r, bl: 14, br: 14 });
+    g.fillStyle(LIGHT.plate).fillRoundedRect(L.mx, y, L.pw, h, { tl: r, tr: r, bl: 14, br: 14 });
     g.lineStyle(L.line, INK).strokeRoundedRect(L.mx, y, L.pw, h, { tl: r, tr: r, bl: 14, br: 14 });
     const ri = Math.max(0, r - inset);
-    g.lineStyle(Math.max(2, L.line * 0.6), 0xf2c45a).strokeRoundedRect(L.mx + inset, y + inset, L.pw - inset * 2, h - inset * 2, { tl: ri, tr: ri, bl: 8, br: 8 });
+    g.lineStyle(Math.max(2, L.line * 0.6), COLORS.sun).strokeRoundedRect(L.mx + inset, y + inset, L.pw - inset * 2, h - inset * 2, { tl: ri, tr: ri, bl: 8, br: 8 });
   };
   panel(L.top.y, L.top.h);
   panel(L.bottom.y, L.bottom.h);
@@ -307,15 +347,15 @@ function drawDoor(g: Phaser.GameObjects.Graphics, W: number, H: number): void {
     const x = L.mx + L.pw * fx, y = L.top.y + L.top.h * fy;
     const pts: Phaser.Math.Vector2[] = [];
     for (let i = 0; i < 10; i++) { const r = i % 2 ? s * 0.42 : s, a = -Math.PI / 2 + (i * Math.PI) / 5; pts.push(new Phaser.Math.Vector2(x + Math.cos(a) * r, y + Math.sin(a) * r)); }
-    g.fillStyle(0xffd25e).fillPoints(pts, true).lineStyle(Math.max(2, L.line * 0.6), INK).strokePoints(pts, true);
+    g.fillStyle(COLORS.sun).fillPoints(pts, true).lineStyle(Math.max(2, L.line * 0.6), INK).strokePoints(pts, true);
   }
   // Cloud trim along the bottom.
   const n = Math.max(3, Math.ceil(W / (L.cloudR * 1.8)));
-  for (let i = 0; i <= n; i++) g.fillStyle(0xffffff).fillCircle((i / n) * W, H - L.cloudR * 0.55, L.cloudR).lineStyle(L.line * 0.8, INK).strokeCircle((i / n) * W, H - L.cloudR * 0.55, L.cloudR);
-  g.fillStyle(0xffffff).fillRect(0, H - L.cloudR * 0.55, W, L.cloudR * 0.55);
+  for (let i = 0; i <= n; i++) g.fillStyle(COLORS.white).fillCircle((i / n) * W, H - L.cloudR * 0.55, L.cloudR).lineStyle(L.line * 0.8, INK).strokeCircle((i / n) * W, H - L.cloudR * 0.55, L.cloudR);
+  g.fillStyle(COLORS.white).fillRect(0, H - L.cloudR * 0.55, W, L.cloudR * 0.55);
   // Ring handle hanging from the bottom of the name band, near the seam.
   const hd = L.handle;
   g.lineStyle(hd.r * 0.36, INK).strokeCircle(hd.x, hd.y, hd.r);
-  g.lineStyle(hd.r * 0.2, 0xf2c45a).strokeCircle(hd.x, hd.y, hd.r);
-  g.fillStyle(0xf2c45a).fillCircle(hd.x, hd.y - hd.r, hd.r * 0.42).lineStyle(Math.max(2, L.line * 0.6), INK).strokeCircle(hd.x, hd.y - hd.r, hd.r * 0.42);
+  g.lineStyle(hd.r * 0.2, COLORS.sun).strokeCircle(hd.x, hd.y, hd.r);
+  g.fillStyle(COLORS.sun).fillCircle(hd.x, hd.y - hd.r, hd.r * 0.42).lineStyle(Math.max(2, L.line * 0.6), INK).strokeCircle(hd.x, hd.y - hd.r, hd.r * 0.42);
 }

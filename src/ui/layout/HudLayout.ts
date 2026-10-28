@@ -25,6 +25,12 @@ export interface HudFrame {
   ui: number;
 }
 
+/**
+ * The top row of the HUD (sound button on the left, coins and settings on the right): every button in it is
+ * `size` tall and starts `inset` below the safe area, so they sit on one line.
+ */
+export const TOP_ROW = { inset: 12, size: 40 } as const;
+
 /** Size of the HUD's virtual screen (physical size divided by the HUD scale), shared by panels that position themselves. */
 export const hudViewport = { w: 0, h: 0, safe: { top: 0, right: 0, bottom: 0, left: 0 } };
 

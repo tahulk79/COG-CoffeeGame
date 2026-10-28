@@ -13,12 +13,17 @@ export function readMuted(): boolean {
   }
 }
 
-export function toggleMute(sound: { mute: boolean }): void {
-  sound.mute = !sound.mute;
+/**
+ * Flips sound on/off and returns whether it is now muted. The new value is computed first and stored as such:
+ * reading `sound.mute` straight after setting it can still return the old value, which used to store the previous state.
+ */
+export function toggleMute(sound: { mute: boolean }): boolean {
+  const next = !sound.mute;
+  sound.mute = next;
   try {
-    window.localStorage.setItem(KEY, sound.mute ? '1' : '0');
+    window.localStorage.setItem(KEY, next ? '1' : '0');
   } catch {
     /* storage blocked: the choice lasts for this session only */
   }
+  return next;
 }
-

@@ -3,7 +3,8 @@ import type { GameSimulation } from '../gameplay/GameSimulation';
 import type { ShopView } from '../gameplay/story/ShopService';
 import { actorDepth, footprintDepth, screenToWorld, worldToScreen } from '../utils/iso';
 import { block, dot, face, INK, oval, point, rr, shadow } from '../components/render/incidentArt';
-import { person } from '../components/render/streetArt';
+import { personImage, SPRITE_SS } from '../components/render/streetArt';
+import { SpeechBubble } from '../components/render/speechBubble';
 
 export const SHOP_SCENE = 'ShopScene';
 
@@ -24,8 +25,8 @@ export class ShopScene extends Phaser.Scene {
   private sim!: () => GameSimulation;
   private roomId = '';
   private readonly room: Phaser.GameObjects.GameObject[] = [];
-  private readonly bodies = new Map<string, Phaser.GameObjects.Graphics>();
-  private readonly bubbles = new Map<string, Phaser.GameObjects.Text>();
+  private readonly bodies = new Map<string, Phaser.GameObjects.Image>();
+  private readonly bubbles = new Map<string, SpeechBubble>();
   private fx!: Phaser.GameObjects.Graphics;
   private dark!: Phaser.GameObjects.Graphics;
   private word!: Phaser.GameObjects.Text;
@@ -111,11 +112,10 @@ export class ShopScene extends Phaser.Scene {
     }
   }
 
-  private body(id: string, look: string): Phaser.GameObjects.Graphics {
+  private body(id: string, look: string): Phaser.GameObjects.Image {
     let g = this.bodies.get(id);
     if (!g) {
-      g = this.add.graphics();
-      person(g, look);
+      g = personImage(this, look);
       this.bodies.set(id, g);
     }
     return g;
@@ -130,12 +130,12 @@ export class ShopScene extends Phaser.Scene {
       const g = this.body(n.id, n.look), p = worldToScreen(n);
       // In the spotlight, the whole shop turns to stare at the hero.
       const dir = spot ? (shop.hero.x - shop.hero.y >= n.x - n.y ? 1 : -1) : n.dir;
-      g.setPosition(p.x, p.y).setScale(dir < 0 ? -1 : 1, 1).setDepth(actorDepth(n));
+      g.setPosition(p.x, p.y).setScale((dir < 0 ? -1 : 1) / SPRITE_SS, 1 / SPRITE_SS).setDepth(actorDepth(n));
       if (n.say) { said.add(n.id); this.bubble(n.id, n.say, n, false); }
     }
     const hero = this.body('hero', 'hero'), hp = worldToScreen(shop.hero);
     const bob = shop.hero.moving ? -Math.abs(Math.sin(now / 90)) * 3 : 0;
-    hero.setPosition(hp.x, hp.y + bob).setScale(shop.hero.dir < 0 ? -1 : 1, 1).setDepth(spot ? 5e5 + 1 : actorDepth(shop.hero));
+    hero.setPosition(hp.x, hp.y + bob).setScale((shop.hero.dir < 0 ? -1 : 1) / SPRITE_SS, 1 / SPRITE_SS).setDepth(spot ? 5e5 + 1 : actorDepth(shop.hero));
     if (shop.heroSay) { said.add('hero'); this.bubble('hero', shop.heroSay, shop.hero, true); }
     for (const [id, b] of this.bubbles) if (!said.has(id)) { b.destroy(); this.bubbles.delete(id); }
 
@@ -171,10 +171,10 @@ export class ShopScene extends Phaser.Scene {
   private bubble(id: string, text: string, at: { x: number; y: number }, hero: boolean): void {
     let b = this.bubbles.get(id);
     if (!b) {
-      b = this.add.text(0, 0, '', { fontFamily: "'Baloo 2', sans-serif", fontSize: '17px', fontStyle: '700', color: hero ? '#ffffff' : '#5a3825', backgroundColor: hero ? '#ff7f6b' : '#fffaf0', padding: { x: 10, y: 4 }, align: 'center', wordWrap: { width: 240 }, resolution: 2 }).setOrigin(.5, 1).setDepth(1e6 - 2);
+      b = new SpeechBubble(this).setDepth(1e6 - 2);
       this.bubbles.set(id, b);
     }
-    if (b.text !== text) b.setText(text);
+    b.set(text, hero ? 'hero' : 'npc');
     const p = worldToScreen(at);
     b.setScale(Math.max(1, 1 / this.cameras.main.zoom)).setPosition(p.x, p.y - 82);
   }

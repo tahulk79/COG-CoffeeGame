@@ -187,6 +187,11 @@ export class StoryService {
     return this.config.chapters[this.chapterId]?.map === this.mapId;
   }
 
+  /** The chapter just ended on this map and the next map is loading (the doors are closing). */
+  private get leaving(): boolean {
+    return this.travelIn !== null;
+  }
+
   /** True while a dialog is open or a transition is running: the player cannot act. */
   get locked(): boolean {
     return this.dialog !== null || this.travelIn !== null;
@@ -465,10 +470,12 @@ export class StoryService {
       timeLeftSec: this.active && ch?.timeLimitMs && !f.rescued ? Math.max(0, Math.ceil((ch.timeLimitMs - this.timerMs) / 1000)) : null,
       dialog: d ? { text: d.lines[d.index]!, index: d.index, total: d.lines.length, speaker: this.chapterId === 'S05' ? 'master' : 'hero', kind: d.kind } : null,
       fate: this.fateView(),
-      run: this.active && this.chapterId === 'S03' && this.run ? this.run.view() : null,
+      // Chapter 1 stays on screen as it was (hero gone into the ambulance, the street) until the map changes,
+      // even though the story already points at chapter 2.
+      run: ((this.active && this.chapterId === 'S03') || this.leaving) && this.run ? this.run.view() : null,
       garden: this.active && this.chapterId === 'S04' && this.garden ? this.garden.view() : null,
       stalls: this.active ? (ch?.stalls ?? []).map((s) => ({ id: s.id, name: s.name, visited: !!f[`visited:${s.id}`] })) : [],
-      street: this.active && this.chapterId === 'S03' && this.street ? this.street.view() : null,
+      street: ((this.active && this.chapterId === 'S03') || this.leaving) && this.street ? this.street.view() : null,
       aside: this.aside?.text ?? null,
       retries: this.retries,
       stones: Object.fromEntries(this.config.stones.map((s) => [s, !!f[s]])),

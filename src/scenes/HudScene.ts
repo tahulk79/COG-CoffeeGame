@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { CONTENT } from '../data/content';
-import { t } from '../core/i18n';
+import { setLocale, t } from '../core/i18n';
 import type { GameSession } from '../core/session';
 import type { SimulationSnapshot } from '../gameplay/GameSimulation';
 import { DebugOverlay } from '../ui/hud/DebugOverlay';
@@ -28,7 +28,7 @@ import { WorldMapHud } from '../ui/WorldMapHud';
 import { MetaHud } from '../ui/MetaHud';
 import { TableUpgradeModal } from '../ui/panels/TableUpgradeModal';
 import { StoryHud } from '../ui/StoryHud';
-import { toggleMute } from '../core/audioPrefs';
+import { readMuted, toggleMute } from '../core/audioPrefs';
 import type { Button } from '../ui/widgets/Button';
 
 /** UI overlay with its own un-zoomed camera, running on top of a world scene. */
@@ -110,7 +110,7 @@ export class HudScene extends Phaser.Scene {
     this.modals = new ModalManager(this);
     this.profile = new PlayerProfileHUD(this);
     this.toasts = new ToastHub(this);
-    this.settings = new SettingsModal(this, { replayStory: () => sim.replayStory(), newGame: () => this.newGame(), testMode: () => { sim.enableTestMode(); if (!['cafe', 'farm'].includes(sim.map.businessKind ?? sim.map.id)) sim.bus.emit('world:travelRequested', { map: 'cafe' }); this.session.saves?.save(sim.captureState(), sim.clock.now()); }, fullscreen: { supported: () => !!document.fullscreenEnabled, isOn: () => this.scale.isFullscreen, toggle: () => this.toggleFullscreen() } });
+    this.settings = new SettingsModal(this, { replayStory: () => sim.replayStory(), newGame: () => this.newGame(), sound: { isOn: () => !readMuted(), toggle: () => void toggleMute(this.sound) }, setLanguage: (code) => this.changeLanguage(code), testMode: () => { sim.enableTestMode(); if (!['cafe', 'farm'].includes(sim.map.businessKind ?? sim.map.id)) sim.bus.emit('world:travelRequested', { map: 'cafe' }); this.session.saves?.save(sim.captureState(), sim.clock.now()); }, fullscreen: { supported: () => !!document.fullscreenEnabled, isOn: () => this.scale.isFullscreen, toggle: () => this.toggleFullscreen() } });
     this.currency = new CurrencyHUD(this, () => this.modals.toggle('settings'));
     this.guide = new GuideHud(this);
     this.quests = new QuestTracker(this, (id) => sim.meta.claimQuest(id));
@@ -168,7 +168,7 @@ export class HudScene extends Phaser.Scene {
       this.decorHud = new DecorHud(this, decor, CONTENT.furniture, CONTENT.items);
     }
 
-    if (sim.story.active) this.storyHud = new StoryHud(this, () => sim.story.advanceDialog(), () => sim.dash(), () => sim.story.retryRun(), () => toggleMute(this.sound), (i) => sim.story.chooseReply(i));
+    if (sim.story.active) this.storyHud = new StoryHud(this, () => sim.story.advanceDialog(), () => sim.story.retryRun(), () => toggleMute(this.sound), (i) => sim.story.chooseReply(i));
 
     this.metaHud = new MetaHud(this, {
       replayStory: () => sim.replayStory(),
@@ -300,6 +300,16 @@ export class HudScene extends Phaser.Scene {
   private toggleFullscreen(): void {
     if (this.scale.isFullscreen) this.scale.stopFullscreen();
     else this.scale.startFullscreen();
+  }
+
+  /** Language is remembered, the game is saved, and the page reloads (without `?fresh`, which would wipe the save) so every screen is rebuilt in the new language. */
+  private changeLanguage(code: string): void {
+    setLocale(code);
+    const sim = this.session.sim;
+    this.session.saves?.save(sim.captureState(), sim.clock.now());
+    const url = new URL(window.location.href);
+    url.searchParams.delete('fresh');
+    window.location.replace(url.toString());
   }
 
   /** Browser storage lives here, not in the simulation. */

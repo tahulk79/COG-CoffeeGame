@@ -52,9 +52,6 @@ export interface RunView {
   leftSec: number | null;
   /** Stroll time left before rush hour starts on its own (s), or null outside the stroll. */
   strollLeftSec: number | null;
-  dashReadyIn: number;
-  /** Dashing right now (a short burst of speed). */
-  dashing: boolean;
   hazards: HazardView[];
   /** The gag that got the hero, playing (0–1); then `down`. */
   hit: { kind: HazardKind; t: number; x: number; y: number } | null;
@@ -115,9 +112,6 @@ export interface RunConfig {
   strollVisits: number;
   /** The stroll keeps the player west of this column (the fence comes down with the chaos). */
   fenceX: number;
-  dashSpeed: number;
-  dashMs: number;
-  dashCooldownMs: number;
   /** The gag that got the hero plays this long, then the hero lies down for `downMs`. */
   hitMs: number;
   downMs: number;
@@ -179,9 +173,6 @@ export class RunService {
   private nextId = 1;
   private spawnIn = 2500;
   private aliveMs = 0;
-  private dashMs = 0;
-  private dashDir = { x: 0, y: 0 };
-  private dashCd = 0;
   private steer = { x: 0, y: 0 };
   private hit: { kind: HazardKind; ms: number; x: number; y: number } | null = null;
   private finale: { kind: FinaleKind; ms: number; x: number; y: number; punched: boolean } | null = null;
@@ -220,8 +211,6 @@ export class RunService {
   start(): void {
     this.hazards = [];
     this.aliveMs = 0;
-    this.dashMs = 0;
-    this.dashCd = 0;
     this.spawnIn = 2500;
     this.hit = null;
     this.finale = null;
@@ -294,15 +283,7 @@ export class RunService {
 
   /** True while the run moves the player itself: path movement must wait. */
   get controlsPlayer(): boolean {
-    return this.steering || this.dashMs > 0 || this.dying;
-  }
-
-  dash(): boolean {
-    if (!this.running || this.paused || this.held || this.dashCd > 0) return false;
-    this.dashDir = this.steering ? { ...this.steer } : facingVector(this.player);
-    this.dashMs = this.config.dashMs;
-    this.dashCd = this.config.dashCooldownMs;
-    return true;
+    return this.steering || this.dying;
   }
 
   /** `_walkSpeed` is the everyday speed; the run uses its own `runSpeed`. */
@@ -310,7 +291,6 @@ export class RunService {
     if (this.sayText && (this.sayText.ms -= dt) <= 0) this.sayText = null;
     if (this.knockOut(dt)) return;
     if (!this.running || this.paused) return;
-    this.dashCd = Math.max(0, this.dashCd - dt);
     if (this.daze && (this.daze.ms -= dt) <= 0) this.daze = null;
     this.movePlayer(dt);
     if (this.phase === 'stroll') {
@@ -401,8 +381,7 @@ export class RunService {
 
   /** Knocked out by something the street plays (the motorbike past the barrier): like a gag hit, lying longer. */
   crash(kind: HazardKind, line: string, downMs: number): void {
-    // Mid-dash the hero slips between the bikes.
-    if (this.dying || this.dashMs > 0) return;
+    if (this.dying) return;
     this.koOverride = { line, downMs };
     const p = this.player.pos;
     this.knock(kind, { ...p } as Hazard);
@@ -415,11 +394,6 @@ export class RunService {
   // ── player motion ───────────────────────────────────────────────────────
 
   private movePlayer(dt: number): void {
-    if (this.dashMs > 0) {
-      this.dashMs -= dt;
-      this.moveBy((this.dashDir.x * this.config.dashSpeed * dt) / 1000, (this.dashDir.y * this.config.dashSpeed * dt) / 1000);
-      return;
-    }
     if (!this.steering || this.held) return;
     // Shorts over the eyes: left is right. Durian smell: legs like jelly.
     const s = this.daze?.kind === 'shorts' ? -1 : 1;
@@ -461,7 +435,6 @@ export class RunService {
     this.phase = 'faint';
     this.running = false;
     this.steer = { x: 0, y: 0 };
-    this.dashMs = 0;
     this.daze = null;
     this.player.clearWaypoints();
     for (const h of this.hazards) if (h.phase !== 'gone') this.gone(h);
@@ -644,7 +617,7 @@ export class RunService {
         }
         break;
       case 'dog': {
-        // Faster than you but turns wide: sidestep or dash at the last moment.
+        // Faster than you but turns wide: sidestep at the last moment.
         const want = Math.atan2(p.y - h.y, p.x - h.x);
         let cur = h.dx || h.dy ? Math.atan2(h.dy, h.dx) : want;
         const diff = ((want - cur + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
@@ -744,9 +717,8 @@ export class RunService {
     if (line) this.say(line, this.config.dazeMs);
   }
 
-  /** A touch, unless the player is mid-dash (dashing goes straight through anything). Laundry only blinds you for a moment. */
+  /** A touch knocks the hero out; laundry only blinds them for a moment. */
   private hurt(kind: HazardKind, h: Hazard): void {
-    if (this.dashMs > 0) return;
     if (kind === 'laundry') {
       this.gone(h);
       return this.dazed('shorts', this.script.hazards.laundry?.faint);
@@ -759,7 +731,6 @@ export class RunService {
     this.running = false;
     this.phase = 'faint';
     this.steer = { x: 0, y: 0 };
-    this.dashMs = 0;
     this.daze = null;
     this.player.clearWaypoints();
     // The animal that caught you jumps on you: it is the one in the scuffle, not a second one.
@@ -784,8 +755,6 @@ export class RunService {
       aliveMs: this.aliveMs,
       leftSec: this.phase === 'chaos' ? Math.max(0, Math.ceil(c.chaosSec - this.aliveMs / 1000)) : null,
       strollLeftSec: this.phase === 'stroll' ? Math.max(0, Math.ceil(c.strollSec - this.strollMs / 1000)) : null,
-      dashReadyIn: this.dashCd,
-      dashing: this.dashMs > 0,
       hazards: this.hazards.map(({ id, kind, phase, x, y, dx, dy, t, twist, label }) => ({ id, kind, phase, x, y, dx, dy, t, twist, label })),
       hit: h ? { kind: h.kind, t: Math.min(1, h.ms / c.hitMs), x: h.x, y: h.y } : null,
       finale: f ? { kind: f.kind, t: Math.min(1, f.ms / c.finaleMs), x: f.x, y: f.y, sound: this.script.finales[f.kind]?.sound ?? '' } : null,

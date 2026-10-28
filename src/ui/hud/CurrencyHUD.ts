@@ -1,7 +1,8 @@
 import type Phaser from 'phaser';
 import type { SimulationSnapshot } from '../../gameplay/GameSimulation';
 import { GameButton } from '../components/GameButton';
-import type { HudFrame } from '../layout/HudLayout';
+import { TOP_ROW, type HudFrame } from '../layout/HudLayout';
+import { drawGear } from '../theme/glyphs';
 import { createIcon } from '../theme/assetRegistry';
 import { COLORS, css, FONT } from '../theme/tokens';
 import { Panel } from '../components/Panel';
@@ -27,7 +28,8 @@ export class CurrencyHUD {
     this.bg = new Panel(scene);
     this.coinIcon = createIcon(scene, 'coin', 24);
     this.coins = scene.add.text(0, 0, '', { fontFamily: FONT.family, fontSize: `${FONT.size.lg}px`, color: css(COLORS.gold), fontStyle: 'bold' }).setOrigin(0, 0.5).setResolution(2);
-    this.settings = new GameButton(scene, 0, 0, '•••', openSettings, 'settings.open', { variant: 'secondary', w: 34, h: 34 });
+    // A round gear button, the same height as the sound button on the other side.
+    this.settings = new GameButton(scene, 0, 0, '', openSettings, 'settings.open', { variant: 'secondary', w: TOP_ROW.size, h: TOP_ROW.size }).setGlyph((g) => drawGear(g, COLORS.coffeeBrown, COLORS.cream, 12));
     this.root.add([this.bg.object, this.coinIcon, this.coins, this.settings.text]);
   }
 
@@ -36,13 +38,13 @@ export class CurrencyHUD {
     const base = f.mode === 'wide' ? 130 : 108;
     // The chip grows with the number (millions fit).
     this.chipW = Math.max(base, Math.ceil(this.coins.width) + 52);
-    const total = this.chipW + 8 + 34;
-    this.root.setPosition(f.w - f.safe.right - f.margin - total, f.safe.top + f.margin);
-    this.bg.set(this.chipW, 34, { radius: 17 });
-    this.coinIcon.setPosition(18, 17);
-    this.coins.setPosition(36, 17);
+    const total = this.chipW + 8 + TOP_ROW.size;
+    this.root.setPosition(f.w - f.safe.right - TOP_ROW.inset - total, f.safe.top + TOP_ROW.inset);
+    this.bg.set(this.chipW, TOP_ROW.size, { radius: TOP_ROW.size / 2 });
+    this.coinIcon.setPosition(20, TOP_ROW.size / 2);
+    this.coins.setPosition(38, TOP_ROW.size / 2);
     this.settings.text.setPosition(this.chipW + 8, 0);
-    this.bottomY = f.safe.top + f.margin + 34;
+    this.bottomY = f.safe.top + TOP_ROW.inset + TOP_ROW.size;
   }
 
   /** Y just below this HUD part, for stacking things under it. */
