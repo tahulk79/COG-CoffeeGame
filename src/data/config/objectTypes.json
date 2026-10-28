@@ -853,5 +853,37 @@
         }
       ]
     }
+  },
+  "stall": {
+    "label": "Hàng quán",
+    "footprint": {
+      "w": 2,
+      "h": 1
+    },
+    "blocking": true
+  },
+  "stools": {
+    "label": "Ghế nhựa",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true
+  },
+  "parked_bike": {
+    "label": "Xe máy đỗ",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true
+  },
+  "sau_tree": {
+    "label": "Cây sấu",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true
   }
 }

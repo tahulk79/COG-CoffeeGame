@@ -18,6 +18,8 @@ export interface GameButtonOptions {
   iconOnly?: boolean;
   /** Icon above the label (toolbar tiles). */
   stack?: boolean;
+  /** With a fixed `w`: long labels wrap onto more lines and the button grows taller instead of overflowing. */
+  wrap?: boolean;
 }
 
 const FILL: Record<ButtonVariant, { bg: number; border: number; text: number }> = {
@@ -106,8 +108,9 @@ export class GameButton {
       this.label.setPosition(0, this.h * 0.27);
     } else {
       const iconW = this.icon ? (o.fontSize ?? FONT.size.sm) + 7 + 6 : 0;
+      if (o.wrap && o.w) this.label.setWordWrapWidth(o.w - pad * 2 - iconW).setAlign('center');
       const textW = o.iconOnly ? 0 : this.label.width;
-      this.h = o.h ?? Math.round((o.fontSize ?? FONT.size.sm) * 2.1);
+      this.h = Math.max(o.h ?? Math.round((o.fontSize ?? FONT.size.sm) * 2.1), o.wrap ? Math.ceil(this.label.height + 14) : 0);
       this.w = o.w ?? Math.max(this.h, Math.ceil(textW + iconW + pad * 2));
       this.visual.setPosition(this.w / 2, this.h / 2);
       const left = -(textW + iconW) / 2;

@@ -3,9 +3,11 @@ import { ART_READY, H5_ASSETS, registerH5Frames } from '../components/render/h5A
 import { dur, MOTION } from '../ui/theme/tokens';
 import { GardenEffects } from '../components/render/gardenArt';
 import { GardenAudio } from '../components/audio/GardenAudio';
-import { deathPose, IncidentRunView } from '../components/render/incidentArt';
+import { IncidentRunView, runPose } from '../components/render/incidentArt';
 import { RunAudio } from '../components/audio/RunAudio';
+import { StreetLifeView } from '../components/render/streetArt';
 import { TRANSITION_SCENE, type TransitionScene } from './TransitionScene';
+import { SHOP_SCENE } from './ShopScene';
 import { toggleMute } from '../core/audioPrefs';
 import { STORY_ASSETS } from '../components/render/storyAssets';
 import { t } from '../core/i18n';
@@ -26,6 +28,7 @@ import { DecorPresenter } from '../components/presenters/DecorPresenter';
 import { FeedbackPresenter } from '../ui/FeedbackPresenter';
 import { installTestBridge } from '../core/testBridge';
 import { hudScale, worldViewInsets, worldZoom } from '../ui/layout/viewInsets';
+import { clamp, framingZoom, mapRect, MAX_USER_ZOOM, MIN_USER_ZOOM, zoomAnchorShift, type CameraMode } from '../systems/camera/framing';
 import { screenToWorld, worldToScreen } from '../utils/iso';
 import { worldToTile, type TilePos } from '../utils/tile';
 
@@ -52,6 +55,7 @@ export class WorldScene extends Phaser.Scene {
   /** Chapter-1 run: hazards on screen, extra movement keys and the touch joystick. */
   private runView: IncidentRunView | null = null;
   private runAudio: RunAudio | null = null;
+  private streetView: StreetLifeView | null = null;
   private moveKeys: Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key> | null = null;
   private stick: { x: number; y: number; cx: number; cy: number; on: boolean; id: number } | null = null;
   private stickGfx: Phaser.GameObjects.Graphics | null = null;
@@ -138,6 +142,12 @@ export class WorldScene extends Phaser.Scene {
       this.runView = new IncidentRunView(this);
       this.runAudio = new RunAudio(this);
     }
+    if (this.sim.street) {
+      this.streetView = new StreetLifeView(this);
+      // Stall talks: 1 / 2 pick a reply (the HUD has the same two buttons).
+      this.input.keyboard?.on('keydown-ONE', () => this.sim.story.chooseReply(0));
+      this.input.keyboard?.on('keydown-TWO', () => this.sim.story.chooseReply(1));
+    }
     if (this.sim.garden) {
       this.gardenFx = new GardenEffects(this, (id) => { const o = world.getObject(id); return o ? { x: o.footprint.x + o.footprint.w / 2, y: o.footprint.y + o.footprint.h / 2 } : null; });
       this.gardenAudio = new GardenAudio(this);
@@ -178,8 +188,10 @@ export class WorldScene extends Phaser.Scene {
     this.sim.bus.on('story:chapterChanged', ({ chapter }) => {
       const label = CONTENT.story.chapters[chapter]?.title ?? '';
       const ms = Math.min(800, CONTENT.story.whiteoutMs - 150);
-      if (this.scene.isActive(TRANSITION_SCENE)) (this.scene.get(TRANSITION_SCENE) as TransitionScene).close(ms, label);
-      else this.scene.launch(TRANSITION_SCENE, { close: { ms, label } });
+      // Chapter 2 is reached through the magic circle: a burst of light instead of the doors.
+      const style = CONTENT.story.chapters[chapter]?.arrive?.style ?? 'doors';
+      if (this.scene.isActive(TRANSITION_SCENE)) (this.scene.get(TRANSITION_SCENE) as TransitionScene).close(ms, label, style);
+      else this.scene.launch(TRANSITION_SCENE, { close: { ms, label, style } });
     });
     this.sim.bus.on('world:travelRequested', ({ map }) => {
       if (!this.travelling && this.session.saves) this.pendingTravel = map;
@@ -187,12 +199,19 @@ export class WorldScene extends Phaser.Scene {
 
     this.input.mouse?.disableContextMenu();
     this.input.addPointer(1);
+    this.input.on('wheel', (p: Phaser.Input.Pointer, _over: unknown, _dx: number, dy: number) => this.zoomBy(dy > 0 ? 1 / 1.1 : 1.1, p));
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       if (p.middleButtonDown()) return; // middle button drags the camera
       if (p.rightButtonDown()) return this.sim.cancel();
       // A second finger is a camera gesture (two-finger pan), not a click.
       if (this.input.pointer1.isDown && this.input.pointer2.isDown) return;
+      // Inside a shop, taps belong to the shop's room.
+      if (this.sim.street?.inside) return;
       this.worldRenderer.resetPan(); // a click on the world brings the camera back to the player
+      // Chapter 1: tapping a person talks to them.
+      const w = this.cameras.main.getWorldPoint(p.x, p.y);
+      const npc = this.streetView?.npcAt(w.x, w.y);
+      if (npc) return this.sim.talkTo(npc);
       const target = this.pointerTarget(p);
       if (this.sim.decor.isActive) {
         // Decorating: a selected piece goes onto the floor tile under the pointer; otherwise pick up what is clicked.
@@ -225,6 +244,7 @@ export class WorldScene extends Phaser.Scene {
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       if (!this.travelling) flush(); // travel already saved with the destination map
+      this.scene.stop(SHOP_SCENE);
       this.customers?.destroy();
       this.customers = null;
       this.decor?.destroy();
@@ -240,6 +260,8 @@ export class WorldScene extends Phaser.Scene {
       this.runView = null;
       this.runAudio?.destroy();
       this.runAudio = null;
+      this.streetView?.destroy();
+      this.streetView = null;
       this.stickGfx = null;
       this.moveKeys = null;
       this.stick = null;
@@ -273,7 +295,8 @@ export class WorldScene extends Phaser.Scene {
       this.decorInset = wantInset;
       this.frameCamera();
     }
-    this.worldRenderer.follow(s.player.pos, delta);
+    // Chapter 1 rescue: once the hero is inside, the camera rides along with the ambulance into the magic circle.
+    this.worldRenderer.follow(s.story.street?.focus ?? s.player.pos, delta);
     this.worldRenderer.focusLabels(s.player.pos, this.hoveredObject);
     const cur = s.interaction.current;
     this.playerView.update({
@@ -284,13 +307,22 @@ export class WorldScene extends Phaser.Scene {
       heldItem: s.cafe?.heldDrink ? (CONTENT.recipes[s.cafe.heldDrink.recipeId]?.label ?? s.player.heldItem) : s.player.heldItem,
       progress: cur?.phase === 'work' ? cur.progress : null,
     });
-    // Chapter-1 run: the death plays on the hero's figure (sink, fly off, spin…).
+    // Chapter-1 run: the knock-out plays on the hero's figure (sink, fly off, spin… then lying flat).
     if (this.runView) {
-      const pose = s.story.run?.death ? deathPose(s.story.run.death) : { sx: 1, sy: 1, dy: 0, angle: 0, alpha: 1 };
-      this.playerView.setPose?.(pose.sx, pose.sy, pose.dy, pose.angle);
-      this.playerView.setAlpha?.(pose.alpha);
+      const pose = runPose(s.story.run);
+      // The rescue: lifted while the medics carry the hero, gone once inside the ambulance.
+      const street = s.story.street;
+      this.playerView.setPose?.(pose.sx, pose.sy, pose.dy - (street?.carried ? 18 : 0), pose.angle);
+      this.playerView.setAlpha?.(street?.heroHidden ? 0 : pose.alpha);
     }
-    this.runView?.sync(s.story.run);
+    this.runView?.sync(s.story.run, this.sim.player.pos, !!s.story.street?.heroHidden);
+    this.streetView?.sync(s.story.street, this.sim.player.pos, s.story.run?.say ?? null);
+    // Chapter 1: walking into a shop opens its room over the street; walking out closes it.
+    const inside = !!s.story.street?.shop;
+    if (inside && !this.scene.isActive(SHOP_SCENE)) {
+      this.scene.launch(SHOP_SCENE, { sim: () => this.sim });
+      this.scene.bringToTop('HudScene');
+    } else if (!inside && this.scene.isActive(SHOP_SCENE)) this.scene.stop(SHOP_SCENE);
     this.runAudio?.sync(s.story.run);
     this.drawStick();
     this.worldRenderer.setPathPreview(s.player.waypoints.length ? [s.player.pos, ...s.player.waypoints] : null);
@@ -335,8 +367,25 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
     const base = worldViewInsets(w, h);
-    const zoom = worldZoom(w - inset, h, world.width, world.height);
-    this.worldRenderer.frame(world.width, world.height, { ...base, right: base.right + inset + (this.sim.map.id === 'incident' && h > w ? w * .45 : 0) }, zoom);
+    const mode = CAMERA_MODE[this.sim.map.id];
+    const zoom = mode ? framingZoom(mode, w - inset, h, mapRect(world.width, world.height), this.userZoom) : worldZoom(w - inset, h, world.width, world.height);
+    this.worldRenderer.frame(world.width, world.height, { ...base, right: base.right + inset }, zoom);
+  }
+
+  /** Player's zoom preference (mouse wheel), on top of the framing for the map. */
+  private userZoom = 1;
+
+  /** Wheel zoom around the pointer: the spot under the cursor stays put. */
+  private zoomBy(factor: number, p: Phaser.Input.Pointer): void {
+    if (!CAMERA_MODE[this.sim.map.id] || fitWholeMap() || (this.scene.get('HudScene') as { modalOpen?: boolean }).modalOpen) return;
+    const next = clamp(this.userZoom * factor, MIN_USER_ZOOM, MAX_USER_ZOOM);
+    if (next === this.userZoom) return;
+    const z0 = this.cameras.main.zoom;
+    this.userZoom = next;
+    this.frameCamera();
+    const z1 = this.cameras.main.zoom;
+    const s = zoomAnchorShift({ x: p.x - this.scale.width / 2, y: p.y - this.scale.height / 2 }, z0, z1);
+    this.worldRenderer.panBy(s.x * z1, s.y * z1);
   }
 
   /**
@@ -376,7 +425,7 @@ export class WorldScene extends Phaser.Scene {
     g.fillStyle(0xff7f6b, .9).fillCircle(kx, ky, 22 / z).lineStyle(3 / z, 0x5a3825).strokeCircle(kx, ky, 22 / z);
   }
 
-  /** Arrow keys pan (except in the chapter-1 run, where they move the hero); two-finger drag pans. Zoom is fixed by the screen size. */
+  /** Arrow keys pan (except in the chapter-1 run, where they move the hero); two-finger drag pans. The mouse wheel zooms (see `zoomBy`). */
   private cameraGestures(delta: number): void {
     const c = this.cursors;
     if (c && !this.sim.run && !this.sim.garden && (c.left.isDown || c.right.isDown || c.up.isDown || c.down.isDown) && !(this.scene.get('HudScene') as { modalOpen?: boolean }).modalOpen) {
@@ -447,6 +496,12 @@ export class WorldScene extends Phaser.Scene {
     this.worldRenderer.setHoverTile(!obj && !ghost && this.sim.world.grid.inBounds(target.tile) ? target.tile : null);
   }
 }
+
+/**
+ * Framing per map. Maps not listed (the chapter-2 garden) keep `worldZoom`:
+ * the whole map on PC. The chapter-1 street is too long for that and follows the hero.
+ */
+const CAMERA_MODE: Partial<Record<string, CameraMode>> = { cafe: 'cafe', master: 'cafe', farm: 'farm', sandbox: 'exploration', incident: 'story' };
 
 /** Automated browsers (Playwright) skip the story unless the URL has ?story=1. Never in production builds. */
 /** `?fit=1` (or any automated browser unless `?close=1`) shows the whole map instead of following the player. Never in production. */

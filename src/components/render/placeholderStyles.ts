@@ -48,6 +48,12 @@ export const PLACEHOLDER_STYLES: Record<string, PlaceholderStyle> = {
   kitten: { color: 0xf0c27a, height: 64 },
   /** Chapter-1 street props: tall enough for the stalls and carts some of them draw. */
   street_prop: { color: 0xf0c27a, height: 110 },
+  /** Chapter-1 stalls (2×1, awning on top). */
+  stall: { color: 0xf0c27a, height: 110 },
+  /** Chapter-1 street furniture that blocks the way. */
+  sau_tree: { color: 0x86c86b, height: 120 },
+  stools: { color: 0xe2513f, height: 30 },
+  parked_bike: { color: 0xff8a73, height: 60 },
   ancient_pillar: { color: 0x899481, height: 92 },
   sense_stone: { color: 0x5a6b7a, height: 100 },
   portal: { color: 0x2b3f55, height: 230 },

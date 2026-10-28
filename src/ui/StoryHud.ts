@@ -153,6 +153,9 @@ export class StoryHud {
   private gemsKey = '-';
   private readonly dashBtn: Button;
   private readonly retry: Button;
+  // Chapter-1 stall talks: the two replies to pick from
+  private readonly choiceBtns: Button[];
+  private choiceKey = '';
   // Chapter-1 speech bubble (hits, harmless props)
   private readonly aside: Phaser.GameObjects.Container;
   private readonly asidePill: Pill;
@@ -167,6 +170,7 @@ export class StoryHud {
     private readonly dash: () => void = () => undefined,
     private readonly retryRun: () => void = () => undefined,
     private readonly toggleMute: () => void = () => undefined,
+    private readonly choose: (i: number) => void = () => undefined,
   ) {
     this.veil = scene.add.container(0, 0).setDepth(1590);
     this.veilRect = scene.add.rectangle(0, 0, 10, 10, COLORS.ink, 0.28).setOrigin(0, 0).setInteractive();
@@ -226,6 +230,12 @@ export class StoryHud {
     this.muteBtn = new Button(scene, 0, 0, '🔊 Bật', () => this.toggleMute(), 'story.mute', { fontSize: 16, h: 40, w: 92, variant: 'secondary' });
     this.dashBtn = new Button(scene, 0, 0, 'Lướt', () => this.dash(), 'story.dash', { fontSize: 20, h: 72, w: 96 });
     this.buttons.set('story.dash', this.dashBtn);
+    this.choiceBtns = [0, 1].map((i) => {
+      const b = new Button(scene, 0, 0, '', () => this.choose(i), `story.choice.${i}`, { fontSize: 16, h: 46, variant: 'secondary', wrap: true });
+      b.text.setDepth(1550);
+      this.buttons.set(`story.choice.${i}`, b);
+      return b;
+    });
 
 
     this.aside = scene.add.container(0, 0).setDepth(1500);
@@ -236,7 +246,7 @@ export class StoryHud {
     scene.input.keyboard?.on('keydown-SPACE', this.keyHandler);
     scene.scale.on(Phaser.Scale.Events.RESIZE, this.layout, this);
     this.layout();
-    for (const c of [this.veil, this.chipBox, this.top, this.banner, this.box, this.card, this.aside, this.runBar, this.muteBtn.text, this.dashBtn.text, this.tracker]) setShown(c, false);
+    for (const c of [this.veil, this.chipBox, this.top, this.banner, this.box, this.card, this.aside, this.runBar, this.muteBtn.text, this.dashBtn.text, this.tracker, ...this.choiceBtns.map((b) => b.text)]) setShown(c, false);
   }
 
   private onNext(): void {
@@ -297,6 +307,16 @@ export class StoryHud {
     this.muteBtn.text.setPosition(safeLeft + 12, safeTop + 12);
     this.dashBtn.text.setPosition(vw - 96 - 20 - hudViewport.safe.right, vh - 72 - 24 - safeBottom);
     this.card.setPosition(vw / 2 - this.cardW / 2, Math.max(safeTop + 40, vh / 2 - this.cardH / 2));
+    // Replies stacked at the bottom centre, clear of the dash button on the right.
+    const cw = Math.min(520, vw - 32 - (vw < 700 ? 116 : 0));
+    // Stacked from the bottom up by their real heights (a long reply wraps onto two lines).
+    let y = vh - safeBottom - 24;
+    for (const b of [...this.choiceBtns].reverse()) {
+      b.setWidth(cw);
+      y -= b.height;
+      b.text.setPosition(vw < 700 ? 16 + safeLeft : vw / 2 - cw / 2, y);
+      y -= 10;
+    }
   }
 
   private placeNext(): void {
@@ -342,8 +362,9 @@ export class StoryHud {
     const run = st.run;
     const running = !!run?.running && d === null;
     // The run shows only the time alive, the dash and sound buttons, and a controls hint for the first seconds.
-    setShown(this.top, st.active && !between && st.chapter !== 'S03' && !garden && d?.kind !== 'death');
-    setShown(this.runBar, running && !run!.paused);
+    // Chapter 1: the card always says which act is playing, what to do, and the seconds left.
+    setShown(this.top, st.active && !between && (st.chapter !== 'S03' || !!run) && !garden && d?.kind !== 'death');
+    setShown(this.runBar, false);
     setShown(this.dashBtn.text, (running || !!garden) && !between);
     setShown(this.muteBtn.text, (!!run || !!garden) && !between);
     setShown(this.tracker, !!garden && !between);
@@ -361,6 +382,17 @@ export class StoryHud {
       this.runTime.setText(`${Math.floor(run.aliveMs / 1000)} giây`, 44);
       if (w !== this.runTime.width) relayout = true;
       this.dashBtn.setEnabled(run.dashReadyIn <= 0).setLabel(run.dashReadyIn > 0 ? `${Math.ceil(run.dashReadyIn / 100) / 10}s` : 'Lướt');
+    }
+    // Stall talk waiting for a reply: two buttons (also keys 1 and 2).
+    const choices = d === null && !between ? st.street?.choices ?? null : null;
+    const choicesKey = choices?.join('|') ?? '';
+    if (choicesKey !== this.choiceKey) {
+      this.choiceKey = choicesKey;
+      this.choiceBtns.forEach((b, i) => {
+        setShown(b.text, !!choices?.[i]);
+        if (choices?.[i]) b.setLabel(`${i + 1} · ${choices[i]}`);
+      });
+      relayout = true;
     }
     // Says the state in words: an icon alone got muted by players trying to turn sound on.
     if (run || garden) this.muteBtn.setLabel(this.scene.sound.mute ? '🔇 Tắt' : '🔊 Bật');
@@ -382,7 +414,8 @@ export class StoryHud {
       this.objective.setText(objective);
       relayout = true;
     }
-    const label = st.chapter === 'S03' ? 'GỢI Ý' : 'MỤC TIÊU';
+    // Chapter 1 names the act ("HỒI 2/3 · GIỜ TAN TẦM"); other chapters show their objective.
+    const label = st.act ?? 'MỤC TIÊU';
     if (this.topLabel.text !== label) this.topLabel.setText(label);
     if (st.timeLeftSec !== this.timeLeft) {
       if ((this.timeLeft === null) !== (st.timeLeftSec === null)) relayout = true;
@@ -461,6 +494,6 @@ export class StoryHud {
     this.scene.input.keyboard?.off('keydown-ENTER', this.keyHandler);
     this.scene.input.keyboard?.off('keydown-SPACE', this.keyHandler);
     this.scene.scale.off(Phaser.Scale.Events.RESIZE, this.layout, this);
-    for (const c of [this.veil, this.chipBox, this.top, this.banner, this.box, this.card, this.aside, this.runBar, this.muteBtn.text, this.dashBtn.text, this.tracker]) c.destroy();
+    for (const c of [this.veil, this.chipBox, this.top, this.banner, this.box, this.card, this.aside, this.runBar, this.muteBtn.text, this.dashBtn.text, this.tracker, ...this.choiceBtns.map((b) => b.text)]) c.destroy();
   }
 }

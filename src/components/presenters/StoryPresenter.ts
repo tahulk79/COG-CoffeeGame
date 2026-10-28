@@ -10,8 +10,8 @@ export class StoryPresenter {
   constructor(private readonly renderer:Pick<WorldRenderer,'setObjectVisual'>,private readonly world:WorldModel,private readonly stoneIds:readonly string[]) {}
   sync(s:SimulationSnapshot):void {
     const story=s.story;
-    // Chapter 1: the street props (harmless; their caption says what they offer).
-    if(story.active&&story.chapter==='S03') { for(const p of story.props) this.renderer.setObjectVisual(p.id,{variant:p.id,caption:p.caption}); return; }
+    // Chapter 1: the stalls (their name shows near the hero; a tick once their talk was heard).
+    if(story.active&&story.chapter==='S03') { for(const p of story.stalls) this.renderer.setObjectVisual(p.id,{variant:p.id,caption:`${p.name}${p.visited?' ✓':''}`}); return; }
     // The teacher walks out and comes back in as the customer who orders (so there is only ever one of him).
     if(story.active&&story.chapter==='S05') { this.renderer.setObjectVisual('master',story.introDone?{variant:'away'}:{variant:'default'}); return; }
     if(!story.active||story.chapter!=='S04')return;

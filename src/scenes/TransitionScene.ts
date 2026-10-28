@@ -4,6 +4,8 @@ import { COLORS, dur, FONT, css } from '../ui/theme/tokens';
 
 export const TRANSITION_SCENE = 'TransitionScene';
 
+export type TransitionStyle = 'doors' | 'light';
+
 const INK = COLORS.ink;
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
@@ -50,7 +52,9 @@ export class TransitionScene extends Phaser.Scene {
   /** Doors are shut and waiting for the new map. */
   closed = false;
 
-  private pending: { ms: number; label: string } | null = null;
+  private pending: { ms: number; label: string; style?: TransitionStyle } | null = null;
+  /** How the current transition looks: the doors, or a burst of white light (the magic circle). */
+  private style: TransitionStyle = 'doors';
   private boot: BootGate | null = null;
   private bar!: Phaser.GameObjects.Graphics;
   private progress = 0;
@@ -60,7 +64,7 @@ export class TransitionScene extends Phaser.Scene {
   }
 
   /** Launched with `{ close: { ms, label } }`: the doors start closing as soon as the scene exists; `{ boot }`: loading screen. */
-  init(data: { close?: { ms: number; label: string }; boot?: BootGate }): void {
+  init(data: { close?: { ms: number; label: string; style?: TransitionStyle }; boot?: BootGate }): void {
     this.pending = data.close ?? null;
     this.boot = data.boot ?? null;
     this.closed = !!this.pending || !!this.boot;
@@ -81,7 +85,7 @@ export class TransitionScene extends Phaser.Scene {
     this.fit();
     this.setDoors(0);
     this.label.setAlpha(0);
-    if (this.pending) this.close(this.pending.ms, this.pending.label);
+    if (this.pending) this.close(this.pending.ms, this.pending.label, this.pending.style);
     this.pending = null;
     if (this.boot) this.runBoot(this.boot);
   }
@@ -125,6 +129,8 @@ export class TransitionScene extends Phaser.Scene {
   /** Door art is drawn for the current screen size (re-drawn on resize / rotation), never stretched. */
   private fit(): void {
     const { width: w, height: h } = this.scale;
+    // A page opened in a hidden tab or pane has no size yet: draw once it gets one (RESIZE calls back).
+    if (w < 1 || h < 1) return;
     const W = Math.ceil(w / 2) + 1, H = Math.ceil(h);
     const key = `transition:door:${W}x${H}`;
     if (key !== this.doorKey) {
@@ -172,14 +178,26 @@ export class TransitionScene extends Phaser.Scene {
   }
 
   /** Doors swing shut over the screen; `label` (the next chapter) appears on them. */
-  close(ms: number, label = ''): void {
+  close(ms: number, label = '', style: TransitionStyle = 'doors'): void {
     this.scene.bringToTop();
     this.closed = true;
+    this.style = style;
     this.label.setText(label).setAlpha(0);
     this.bar.clear().setAlpha(1);
     this.drawLight(0);
     const s = { t: 0 };
     const time = dur(ms) || 1;
+    if (style === 'light') {
+      // The magic circle's flash fills the screen; the chapter name shows on the light.
+      this.setDoors(0);
+      this.tweens.add({
+        targets: s, t: 1, duration: time, ease: 'Cubic.easeIn',
+        onUpdate: () => this.drawLight(s.t),
+        onComplete: () => { if (label) this.tweens.add({ targets: this.label, alpha: 1, duration: dur(200) || 1 }); },
+      });
+      this.chime();
+      return;
+    }
     this.tweens.add({
       targets: s, t: 1, duration: time, ease: 'Cubic.easeIn',
       onUpdate: () => this.setDoors(s.t),
@@ -198,6 +216,16 @@ export class TransitionScene extends Phaser.Scene {
     this.closed = false;
     this.scene.bringToTop();
     const s = { t: 1, k: 1 };
+    if (this.style === 'light') {
+      // The light fades away on the new world.
+      this.tweens.add({ targets: [this.label, this.bar], alpha: 0, duration: dur(250) || 1, delay: dur(350) });
+      this.tweens.add({
+        targets: s, k: 0, duration: dur(1200) || 1, delay: dur(450), ease: 'Cubic.easeOut',
+        onUpdate: () => this.drawLight(s.k),
+        onComplete: () => { this.drawLight(0); this.style = 'doors'; this.scene.stop(); },
+      });
+      return;
+    }
     this.drawLight(0);
     this.tweens.add({ targets: [this.label, this.bar], alpha: 0, duration: dur(250) || 1, delay: dur(350) });
     this.tweens.add({

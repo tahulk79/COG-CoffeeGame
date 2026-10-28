@@ -7,7 +7,7 @@ import { Actor, type ActorState, type Facing } from '../entities/Actor';
 import { TransactionService } from '../systems/economy/TransactionService';
 import { InteractionService, type InteractionSnapshot } from '../systems/interaction/InteractionService';
 import { NavigationService } from '../systems/navigation/NavigationService';
-import { tileCenter, type TilePos, type WorldPos } from '../utils/tile';
+import { tileCenter, worldToTile, type TilePos, type WorldPos } from '../utils/tile';
 import { ActionRegistry } from './actions/ActionRegistry';
 import { registerBasicHandlers } from './actions/basicHandlers';
 import { FarmService, type PlotView } from './farm/FarmService';
@@ -31,6 +31,7 @@ import { MetaService, type MetaView } from './meta/MetaService';
 import { StoryService, type StoryView } from './story/StoryService';
 import { registerStoryHandlers } from './story/storyHandlers';
 import { RunService } from './story/RunService';
+import { StreetService } from './story/StreetService';
 import { GardenService } from './story/GardenService';
 import { EmployeeService, type EmployeeView, type EmployeeView2 } from './employees/EmployeeService';
 import { FurnitureService, type DecorView } from './decor/FurnitureService';
@@ -248,8 +249,27 @@ export class GameSimulation {
     if (runCfg && content.story.chapters.S03!.map === map.id) {
       const rng = new Rng(opts.rngSeed ?? Date.now());
       this.run = new RunService(runCfg, this.world.grid, this.player, () => rng.next(), { w: this.world.width, h: this.world.height },
-        (kind, ms) => { this.playerInteraction.cancelAll('superseded'); this.story.onDeath(kind, ms); });
+        (kind, ms) => { this.playerInteraction.cancelAll('superseded'); this.story.onDeath(kind, ms); },
+        { hazards: content.story.chapters.S03!.hazards ?? {}, finales: content.story.chapters.S03!.finales ?? {}, visited: (id) => !!this.state.story.flags[`visited:${id}`], rescue: !!(content.story.chapters.S03!.street && content.story.chapters.S03!.stalls), people: () => this.street?.people() ?? [] });
       this.story.attachRun(this.run);
+      // The street around the run: passers-by, motorbikes, stalls whose sellers banter.
+      const ch = content.story.chapters.S03!;
+      if (ch.street && ch.stalls) {
+        const run = this.run;
+        this.street = new StreetService(ch.street, ch.stalls, this.player, () => rng.next(), { w: this.world.width, h: this.world.height }, {
+          phase: () => (run.running ? run.phase : null),
+          isVisited: (id) => !!this.state.story.flags[`visited:${id}`],
+          visited: (id) => void this.story.visit(id),
+          limitX: () => run.fenceX ?? this.world.width - 1,
+          hold: (on) => { run.held = on; if (on) this.playerInteraction.cancelAll('superseded'); },
+          crash: (line, downMs) => run.crash('motorbike', line, downMs),
+          isDown: () => run.isDown,
+          walkable: (x, y) => this.world.grid.isWalkable(worldToTile({ x, y })),
+          bikeHit: () => run.crash('motorbike', ch.hazards?.motorbike?.faint ?? '…', 2000),
+          rescued: () => run.finishDown(),
+        });
+        this.story.attachStreet(this.street);
+      }
     }
     // Chapter 2 is the cloud garden: direct control, sparks to catch, the heaven door.
     if (content.story.chapters.S04?.map === map.id && this.story.active && this.story.chapterId === 'S04') {
@@ -302,11 +322,13 @@ export class GameSimulation {
       const dt = Math.min(step, remaining);
       this.timeMs += dt;
       // The run pauses with the story (dialogue, transitions).
-      if (this.run && !this.story.locked) this.run.tick(dt, this.config.player.speedTilesPerSec);
+      // Inside a chapter-1 shop the street (and its clock) waits.
+      if (this.run && !this.story.locked && !this.street?.inside) this.run.tick(dt, this.config.player.speedTilesPerSec);
       // Caught (bitten, scratched, falling…): the hero is held in place until the ending card.
       if (this.run?.dying) this.playerInteraction.cancelAll('superseded', false);
       else this.playerInteraction.tick(dt);
       if (this.garden && !this.story.locked) this.garden.tick(dt);
+      if (this.street && !this.story.locked) this.street.tick(dt);
       this.cafe?.tick(dt);
       this.employees.tick(dt);
       this.story.tick(dt);
@@ -319,11 +341,14 @@ export class GameSimulation {
 
   /** Chapter-1 run, or null on other maps. */
   run: RunService | null = null;
+  /** Chapter-1 street life (passers-by, stall talks), or null on other maps. */
+  street: StreetService | null = null;
   /** Chapter-2 cloud garden, or null on other maps. */
   garden: GardenService | null = null;
 
   /** Direct control (keys / joystick) in world directions; (0, 0) releases it. Chapter-1 run and chapter-2 garden. */
   steer(x: number, y: number): void {
+    if (this.street?.inside) return this.street.shopSteer(this.story.locked ? 0 : x, this.story.locked ? 0 : y);
     const r = this.run ?? this.garden;
     if (!r) return;
     const was = r.steering;
@@ -350,9 +375,31 @@ export class GameSimulation {
     return !this.story.locked && !!(this.run ?? this.garden)?.dash();
   }
 
+  /** Chapter 1: the player tapped a person on the street. Close enough, they talk; otherwise the hero walks over first. */
+  talkTo(npcId: string): void {
+    if (this.street?.inside) return void this.street.talkTo(npcId);
+    if (this.story.locked || this.run?.dying || this.run?.held || !this.street) return;
+    this.startRun();
+    if (this.street.talkTo(npcId)) return;
+    const at = this.street.npcPos(npcId);
+    if (!at) return;
+    this.street.walkTo(npcId);
+    const t = worldToTile(at);
+    // Stall people stand behind their counter: walk to the free tile nearest them.
+    for (let r = 0; r < 3; r++) for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0], [1, 1], [-1, 1], [1, -1], [-1, -1]] as const) {
+      const tile = { x: t.x + dx * r, y: t.y + dy * r };
+      if (this.world.grid.isWalkable(tile)) return void this.playerInteraction.moveTo(tile);
+    }
+  }
+
+  /** Chapter 1, inside a shop: a tap on the floor (room coordinates) walks there. */
+  shopMoveTo(x: number, y: number): void {
+    this.street?.shopMoveTo(x, y);
+  }
+
   /** Player input → command. A click on an object interacts; a click on floor moves. */
   clickTile(tile: TilePos): void {
-    if (this.story.locked || this.run?.dying) return;
+    if (this.story.locked || this.run?.dying || this.run?.held) return;
     this.startRun();
     if (this.decor.isActive) return void this.decor.click(tile, null);
     const obj = this.world.objectAt(tile);
@@ -362,7 +409,7 @@ export class GameSimulation {
 
   /** Player clicked an object's visible shape. Non-interactive objects behave like a click on their tile. */
   clickObject(id: string): void {
-    if (this.story.locked || this.run?.dying) return;
+    if (this.story.locked || this.run?.dying || this.run?.held) return;
     this.startRun();
     const obj = this.world.getObject(id);
     if (!obj) return;
@@ -380,7 +427,7 @@ export class GameSimulation {
 
   /** Clicking a customer: serve them at their seat, or take their order at the counter. */
   clickCustomer(id: string): void {
-    if (this.story.locked || this.run?.dying) return;
+    if (this.story.locked || this.run?.dying || this.run?.held) return;
     this.startRun();
     if (this.decor.isActive) return;
     const c = this.cafe?.customer(id);

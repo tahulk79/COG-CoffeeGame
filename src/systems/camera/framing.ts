@@ -1,6 +1,8 @@
+import { worldToScreen } from '../../utils/iso';
+
 /**
- * Camera framing rules (CAMERA_SPEC.md). Pure math, no Phaser: the
- * CameraDirector applies these.
+ * Camera framing rules. Pure math, no Phaser: WorldScene picks the zoom,
+ * PlaceholderRenderer keeps the camera on the player inside the map.
  *
  * Coordinate spaces:
  * - viewport: canvas CSS pixels (what `scale.width/height` reports)
@@ -58,6 +60,16 @@ const TILES_ACROSS: Record<CameraMode, Record<ViewportClass, number>> = {
 
 export function tilesAcross(mode: CameraMode, vp: ViewportClass): number {
   return TILES_ACROSS[mode][vp];
+}
+
+/**
+ * Render-space area the camera may show for a map: walls and objects stand
+ * above their floor tile, and the ground runs a little past the edges.
+ */
+export function mapRect(widthTiles: number, heightTiles: number): Rect {
+  const x = worldToScreen({ x: 0, y: heightTiles }).x - 260;
+  const y = worldToScreen({ x: 0, y: 0 }).y - 260;
+  return { x, y, w: worldToScreen({ x: widthTiles, y: 0 }).x + 260 - x, h: worldToScreen({ x: widthTiles, y: heightTiles }).y + 200 - y };
 }
 
 /** Smallest zoom at which the view stays inside the authored environment (no blank edges). */

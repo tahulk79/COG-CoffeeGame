@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { actorDepth, floorDepth, worldToScreen } from '../../utils/iso';
 import type { HazardView, RunView } from '../../gameplay/story/RunService';
-import type { Footprint } from '../../utils/tile';
+import type { Footprint, WorldPos } from '../../utils/tile';
 import type { ActorView, ActorViewState, FloorTileView } from './WorldRenderer';
 import { TERRAIN_COLORS } from './placeholderStyles';
 
@@ -48,6 +48,26 @@ function cart(g: Phaser.GameObjects.Graphics, x: number, y: number, body: number
   dot(g, x - 28, y - 4, 9, 0x6b6b75); dot(g, x + 28, y - 4, 9, 0x6b6b75);
   g.lineStyle(3, INK).lineBetween(x - 38, y - 50, x - 38, y - 108).lineBetween(x + 38, y - 50, x + 38, y - 108);
   for (let i = 0; i < 4; i++) rr(g, x - 52 + i * 26, y - 124, 26, 18, i === 0 ? 6 : i === 3 ? 6 : 0, i % 2 ? 0xffffff : stripe);
+}
+
+/** Awning colour and stripe of each chapter-1 stall (its id). */
+const STALL_COLORS: Record<string, [number, number]> = {
+  tra_da: [0xe2513f, 0xffffff], bao: [0x5ec8f2, 0xffffff], pho: [0xffd25e, 0xe2513f], bun_dau: [0x7cc47f, 0xffffff],
+  banh_mi: [0xffa24c, 0xffffff], cat_toc: [0xf6a6d0, 0xffffff], xe_om: [0x6fd3c0, 0xffffff], xoi: [0xb39ddb, 0xffffff],
+};
+
+/** Pavement stall: a low counter with its goods under a striped awning (placeholder until the 3D art). */
+function stall(g: Phaser.GameObjects.Graphics, f: Footprint, variant: string): void {
+  const [col, stripe] = STALL_COLORS[variant] ?? [0xf0c27a, 0xffffff];
+  const c = point(f.x + f.w / 2, f.y + f.h / 2);
+  shadow(g, c.x, c.y + 4, 150, 46);
+  block(g, { x: f.x + .1, y: f.y + .2, w: f.w - .2, h: f.h - .4 }, 0, 30, 0xc98a55, 2);
+  for (let i = 0; i < 3; i++) { const q = point(f.x + .45 + i * .55, f.y + .5, 34); dot(g, q.x, q.y - 4, 7, [0xffffff, 0xffd25e, 0xff8a73][i]!); }
+  for (const x of [f.x + .15, f.x + f.w - .15]) { const a = point(x, f.y + f.h - .1), b = point(x, f.y + f.h - .1, 92); g.lineStyle(3, INK).lineBetween(a.x, a.y, b.x, b.y); }
+  for (let i = 0; i < 4; i++) {
+    const x0 = f.x + (i * f.w) / 4, x1 = x0 + f.w / 4;
+    face(g, [[x0, f.y - .1, 104], [x1, f.y - .1, 104], [x1, f.y + f.h + .15, 88], [x0, f.y + f.h + .15, 88]], i % 2 ? stripe : col, 1, 2);
+  }
 }
 
 /** The chapter-1 target, drawn for the situation the fate card dealt (`variant` is its id). */
@@ -171,6 +191,25 @@ export function drawIncidentObject(g: Phaser.GameObjects.Graphics, type: string,
     if (variant !== 'rescued') drawTarget(g, variant, c);
     return true;
   }
+  if (type === 'stall') {
+    stall(g, f, variant);
+    return true;
+  }
+  // Street furniture that blocks the way: sấu trees by the lake, iced-tea stools, parked motorbikes.
+  if (type === 'sau_tree') {
+    tree(g, f.x + .5, f.y + .5, 1.1);
+    return true;
+  }
+  if (type === 'stools') {
+    for (const [dx, dy, col] of [[.15, .2, 0xe2513f], [.55, .3, 0x5ec8f2], [.3, .6, 0xe2513f]] as const) block(g, { x: f.x + dx, y: f.y + dy, w: .22, h: .22 }, 0, 16, col, 1.5);
+    const q = point(f.x + .5, f.y + .5, 22);
+    g.fillStyle(0xf6d77a, .85).fillRect(q.x - 4, q.y - 8, 8, 10).lineStyle(1.5, INK).strokeRect(q.x - 4, q.y - 8, 8, 10);
+    return true;
+  }
+  if (type === 'parked_bike') {
+    motorbike(g, c.x, c.y + 6, 1, [0xff8a73, 0x5ec8f2, 0xf6a6d0][Math.floor(f.x) % 3]!, 0xffffff);
+    return true;
+  }
   if (type === 'car') {
     shadow(g, c.x, c.y + 4, 150, 50);
     block(g,{...f,x:f.x+.08,y:f.y+.08,w:f.w-.16,h:f.h-.16},12,26,0xff8a73);
@@ -234,7 +273,7 @@ export function bakeImage(scene: Phaser.Scene, key: string, b: { x: number; y: n
 
 /** A chapter-1 map object (street prop, parked car, barrier) as one baked image; null for types drawn elsewhere. */
 export function bakeIncidentObject(scene: Phaser.Scene, id: string, type: string, f: Footprint, variant: string, depth: number): Phaser.GameObjects.Image | null {
-  if (!['street_prop', 'kitten', 'car', 'barrier'].includes(type)) return null;
+  if (!['street_prop', 'stall', 'sau_tree', 'stools', 'parked_bike', 'kitten', 'car', 'barrier'].includes(type)) return null;
   const b = screenBox([[f.x, f.y], [f.x + f.w, f.y], [f.x, f.y + f.h], [f.x + f.w, f.y + f.h]], 170, 70);
   return bakeImage(scene, `hn:obj:${id}:${variant}`, b, depth, (g) => drawIncidentObject(g, type, f, variant));
 }
@@ -263,14 +302,16 @@ function tree(g: Phaser.GameObjects.Graphics, x: number, y: number, size = 1): v
   g.fillStyle(0xffffff, .35).fillCircle(p.x - 8 * size, p.y - 76 * size, 7 * size);
 }
 
-/** Main road rows and the side street's columns on the chapter-1 map (see incident.json). */
-const ROAD_ROWS = [3, 5];
-const SIDE_COLS = [15, 17];
-const MAP_W = 32, MAP_H = 24;
+/** Chapter-1 map layout (see incident.json): the main road, a sidewalk either side, the alley going north, the lake to the south. */
+const ROAD_ROWS = [8, 10];
+const NORTH_WALK = [5, 7], SOUTH_WALK = [11, 13];
+/** The gap in the north row of houses: the alley (x 21–23) and the courtyard at its end (x 19–25). */
+const ALLEY_X0 = 19, ALLEY_X1 = 26;
+const MAP_W = 48, MAP_H = 18;
 const inRange = (v: number, [lo, hi]: number[]) => v >= lo! && v <= hi!;
 
-/** Hoan Kiem lake around the south-west of the map (outside it), in tile units. */
-const inLake = (x: number, y: number) => ((x - 2) / 14) ** 2 + ((y - 31) / 7.5) ** 2 < 1 || ((x + 6) / 5) ** 2 + ((y - 18) / 9) ** 2 < 1;
+/** Hoan Kiem lake along the south of the map (outside it), with a gently wavy shore. */
+const inLake = (x: number, y: number) => y > MAP_H + .3 + Math.sin(x * .6) * .35;
 
 /** Floating name plate over a landmark. */
 function plate(scene: Phaser.Scene, x: number, y: number, z: number, name: string): void {
@@ -326,21 +367,6 @@ function redBridge(g: Phaser.GameObjects.Graphics, x0: number, y0: number, x1: n
   block(g, { x: t.x - .1, y: t.y - .1, w: 1.6, h: 1.4 }, 36, 12, 0x6b4a3a);
 }
 
-/** Hanoi cathedral: grey stone with two square bell towers. */
-function cathedral(g: Phaser.GameObjects.Graphics, x: number, y: number): void {
-  block(g, { x, y, w: 2.2, h: 3 }, 0, 150, 0xc9c4bb, 2.5);
-  for (const ty of [y, y + 2.2]) {
-    block(g, { x: x - .2, y: ty, w: 1.2, h: .8 }, 0, 230, 0xbab4aa, 2.5);
-    const tp = point(x + .4, ty + .4, 230);
-    tri(g, [tp.x - 26, tp.y + 8, tp.x + 26, tp.y + 8, tp.x, tp.y - 30], 0x8a8f99);
-    g.lineStyle(3, INK).lineBetween(tp.x, tp.y - 30, tp.x, tp.y - 50).lineBetween(tp.x - 8, tp.y - 42, tp.x + 8, tp.y - 42);
-  }
-  // Rose window and doorway on the street face.
-  const rw = point(x + 2.2, y + 1.5, 100);
-  g.fillStyle(0xbfe6f5).fillCircle(rw.x, rw.y, 16).lineStyle(2.5, INK).strokeCircle(rw.x, rw.y, 16);
-  face(g, [[x + 2.2, y + 1.15, 0], [x + 2.2, y + 1.85, 0], [x + 2.2, y + 1.85, 54], [x + 2.2, y + 1.15, 54]], 0x6b4a3a, 1, 2);
-}
-
 /** O Quan Chuong: the old city gate, arching over the road where it leaves the map. */
 function cityGate(g: Phaser.GameObjects.Graphics, x: number, y0: number, y1: number): void {
   block(g, { x, y: y0 - 1, w: 1.4, h: 1 }, 0, 120, 0xe6dcc6, 2.5);
@@ -352,20 +378,21 @@ function cityGate(g: Phaser.GameObjects.Graphics, x: number, y0: number, y1: num
 
 export function drawIncidentEnvironment(scene: Phaser.Scene, floor: FloorTileView[]): void {
   // Everything flat (ground around the map, the map's own floor, markings, beds) is one baked layer.
-  bakeLayer(scene, 'hn:ground', screenBox([[-6, -4], [38, -4], [-6, 30], [38, 30]], 0, 0), floorDepth - .8, (g) => drawGround(g, floor), .6);
+  bakeLayer(scene, 'hn:ground', screenBox([[-8, -4], [MAP_W + 8, -4], [-8, MAP_H + 8], [MAP_W + 8, MAP_H + 8]], 0, 0), floorDepth - .8, (g) => drawGround(g, floor), .6);
   drawStanding(scene);
 }
 
-/** The flat street: around the map, the map floor itself, road markings, flower beds and the plaza. */
+/** The flat street: around the map, the map floor itself, road markings, the zebra crossing and flower beds. */
 function drawGround(surround: Phaser.GameObjects.Graphics, floor: FloorTileView[]): void {
-  // Beyond the map: the main road and side street run on, sidewalks beside them, the lake, grass verges elsewhere.
-  for (let y = -6; y < MAP_H + 14; y++) for (let x = -14; x < MAP_W + 10; x++) {
+  // Beyond the map: the road and both sidewalks run on east and west, the lake lies south, pavement behind the houses.
+  for (let y = -4; y < MAP_H + 8; y++) for (let x = -8; x < MAP_W + 8; x++) {
     if (x >= 0 && x < MAP_W && y >= 0 && y < MAP_H) continue;
-    const lake = inLake(x + .5, y + .5);
-    const road = inRange(y, ROAD_ROWS) || (y >= MAP_H && inRange(x, SIDE_COLS));
-    const walk = inRange(y, [1, 7]) || (y >= MAP_H && inRange(x, [14, 18]));
     const n = ((x * 17 + y * 31) % 7 + 7) % 7;
-    face(surround, [[x, y], [x + 1, y], [x + 1, y + 1], [x, y + 1]], lake && !road ? [0x8fd0ea, 0x86cbe6, 0x97d4ed][n % 3]! : road ? 0x9aa7b5 : walk ? [0xf3e7d3, 0xefe1ca, 0xf6ecdb][n % 3]! : [0xbfe3a0, 0xb6dc96, 0xc5e7a8][n % 3]!, 1, 0);
+    const color = inLake(x + .5, y + .5) ? [0x8fd0ea, 0x86cbe6, 0x97d4ed][n % 3]!
+      : inRange(y, ROAD_ROWS) ? 0x9aa7b5
+      : inRange(y, NORTH_WALK) || inRange(y, SOUTH_WALK) || y < NORTH_WALK[0]! ? [0xf3e7d3, 0xefe1ca, 0xf6ecdb][n % 3]!
+      : [0xbfe3a0, 0xb6dc96, 0xc5e7a8][n % 3]!;
+    face(surround, [[x, y], [x + 1, y], [x + 1, y + 1], [x, y + 1]], color, 1, 0);
   }
   // The map's own floor, tile by tile.
   for (const t of floor) {
@@ -375,89 +402,86 @@ function drawGround(surround: Phaser.GameObjects.Graphics, floor: FloorTileView[
     if (t.kind === 'sidewalk') surround.lineStyle(1, 0xc9b392, .7).strokePoints([point(x, y), point(x + 1, y), point(x + 1, y + 1), point(x, y + 1)], true);
   }
   // Lake ripples.
-  const lakeG = surround;
-  for (let i = 0; i < 26; i++) { const x = -8 + (i * 7.3) % 22, y = 25 + (i * 3.7) % 12; if (!inLake(x, y)) continue; const q = point(x, y); lakeG.lineStyle(2, 0xffffff, .55).lineBetween(q.x - 14, q.y, q.x + 14, q.y); }
+  for (let i = 0; i < 40; i++) { const x = -6 + (i * 7.3) % (MAP_W + 12), y = MAP_H + 1.5 + (i * 3.7) % 5; if (!inLake(x, y)) continue; const q = point(x, y); surround.lineStyle(2, 0xffffff, .55).lineBetween(q.x - 14, q.y, q.x + 14, q.y); }
 
-  // Road markings from the map itself: centre dashes, kerbs and zebra crossings at the junction.
+  // Road markings: centre dashes, kerbs, and a zebra crossing in front of the alley.
   const road = surround;
-  for (const t of floor) {
-    const { x, y } = t.tile;
-    if (t.kind !== 'street') continue;
-    if (y === 4 && x % 3 === 1 && !inRange(x, [13, 19])) face(road, [[x + .15, y + .46], [x + .95, y + .46], [x + .95, y + .54], [x + .15, y + .54]], 0xffffff, .95, 0);
-    if (x === 16 && y > 9 && y % 3 === 1) face(road, [[x + .46, y + .15], [x + .54, y + .15], [x + .54, y + .95], [x + .46, y + .95]], 0xffffff, .95, 0);
-  }
-  for (const y of [3, 6]) face(road, [[0, y], [MAP_W, y], [MAP_W, y + .08], [0, y + .08]], 0xffffff, 1, 0);
-  for (let y = 3.1; y < 5.9; y += .4) for (const x0 of [13.3, 18.2]) face(road, [[x0, y], [x0 + 1.4, y], [x0 + 1.4, y + .2], [x0, y + .2]], 0xffffff, .9, 0);
-  for (let x = 15.1; x < 17.9; x += .4) face(road, [[x, 8.2], [x + .2, 8.2], [x + .2, 9.6], [x, 9.6]], 0xffffff, .9, 0);
+  const mid = (ROAD_ROWS[0]! + ROAD_ROWS[1]!) / 2;
+  for (let x = -8; x < MAP_W + 8; x++) if (x % 3 === 1 && !inRange(x, [ALLEY_X0, ALLEY_X1])) face(road, [[x + .15, mid + .46], [x + .95, mid + .46], [x + .95, mid + .54], [x + .15, mid + .54]], 0xffffff, .95, 0);
+  for (const y of [ROAD_ROWS[0]!, ROAD_ROWS[1]! + 1]) face(road, [[-8, y], [MAP_W + 8, y], [MAP_W + 8, y + .08], [-8, y + .08]], 0xffffff, 1, 0);
+  for (let x = ALLEY_X0 + 1.1; x < ALLEY_X1 - 1; x += .45) face(road, [[x, ROAD_ROWS[0]! + .15], [x + .22, ROAD_ROWS[0]! + .15], [x + .22, ROAD_ROWS[1]! + .85], [x, ROAD_ROWS[1]! + .85]], 0xffffff, .9, 0);
 
-  // Lakeside garden: flower beds on the grass (flat, never in the way).
-  const park = surround;
-  for (const [x, y] of [[3, 9.5], [11, 9.6], [3.5, 19.5], [12, 20.4], [7.5, 13.8]] as const) {
+  // Lakeside flower beds on the grass (flat, never in the way).
+  for (const [x, y] of [[4, 15.3], [16, 15.4], [23, 15.2], [37, 15.3], [44, 15.4]] as const) {
     const p = point(x, y);
-    park.fillStyle(0x9ad67c).fillEllipse(p.x, p.y, 90, 40).lineStyle(2, INK).strokeEllipse(p.x, p.y, 90, 40);
-    for (let i = 0; i < 6; i++) park.fillStyle([0xff8a73, 0xffd25e, 0xf6a6d0][i % 3]!).fillCircle(p.x - 28 + i * 11, p.y - 4 + (i % 2) * 8, 4);
+    surround.fillStyle(0x9ad67c).fillEllipse(p.x, p.y, 90, 40).lineStyle(2, INK).strokeEllipse(p.x, p.y, 90, 40);
+    for (let i = 0; i < 6; i++) surround.fillStyle([0xff8a73, 0xffd25e, 0xf6a6d0][i % 3]!).fillCircle(p.x - 28 + i * 11, p.y - 4 + (i % 2) * 8, 4);
   }
-  // Market plaza: a tiled pattern on the east side.
-  const plaza = surround;
-  for (let y = 9; y < 21; y++) for (let x = 20; x < 30; x++) if ((x + y) % 2 === 0) face(plaza, [[x + .1, y + .1], [x + .9, y + .1], [x + .9, y + .9], [x + .1, y + .9]], 0xffe8c9, .8, 0);
-
 }
 
 /** Everything that stands up: houses, landmarks, poles and wires, street life, trees (all baked). */
 function drawStanding(scene: Phaser.Scene): void {
-  // Old-quarter tube houses along the north side and down the east edge.
-  bakeLayer(scene, 'hn:houses', screenBox([[-12, -3.6], [34, -3.6], [-12, -.4], [34, -.4], [MAP_W + 3.2, 8], [MAP_W + 3.2, 19]], 300), -2, (city) => {
-  const walls = [0xf6d77a, 0xfff0c9, 0xc9ecd9, 0xf6c7b4, 0xf2e2a0] as const;
-  const signs = [0xe2513f, 0x5ec8f2, 0xffd25e, 0x7cc47f, 0xf6a6d0] as const;
-  for (let i = 0; i < 26; i++) tubeHouse(city, -12 + i * 1.75, -3.4, 1.6, 2.9, 170 + ((i * 37) % 4) * 30, walls[i % 5]!, signs[(i * 3) % 5]!);
-  for (let i = 0; i < 6; i++) tubeHouse(city, MAP_W + .4, 8.2 + i * 1.75, 2.6, 1.6, 150 + ((i * 53) % 3) * 30, walls[(i + 2) % 5]!, signs[i % 5]!);
+  // Old-quarter tube houses along the north side, with a gap for the alley; behind its courtyard, a few more houses.
+  bakeLayer(scene, 'hn:houses', screenBox([[-10, -3], [MAP_W + 8, -3], [-10, NORTH_WALK[0]!], [MAP_W + 8, NORTH_WALK[0]!]], 300), -2, (city) => {
+    const walls = [0xf6d77a, 0xfff0c9, 0xc9ecd9, 0xf6c7b4, 0xf2e2a0] as const;
+    const signs = [0xe2513f, 0x5ec8f2, 0xffd25e, 0x7cc47f, 0xf6a6d0] as const;
+    let i = 0;
+    const house = (x: number, y: number, d: number) => { tubeHouse(city, x, y, 1.6, d, 170 + ((i * 37) % 4) * 30, walls[i % 5]!, signs[(i * 3) % 5]!); i++; };
+    for (let x = ALLEY_X0 + .05; x + 1.6 <= ALLEY_X1; x += 1.75) house(x, -2.6, 3.5);
+    for (let x = ALLEY_X0 - 1.6; x > -10; x -= 1.75) house(x, 1, 3.9);
+    for (let x = ALLEY_X1; x < MAP_W + 8; x += 1.75) house(x, 1, 3.9);
   }, .75);
-
-  // Landmarks.
-  bakeLayer(scene, 'hn:lake', screenBox([[0, 28.5], [3.5, 32], [8.5, 24], [11.5, 29]], 130), 0, (lm) => {
-    turtleTower(lm, 1.5, 30);
-    redBridge(lm, 9, 24.6, 10.5, 28.5);
+  // Low garden walls along both sides of the alley, with a potted plant (tall houses there would hide the alley).
+  for (const x of [ALLEY_X0 + 1.8, ALLEY_X1 - 2]) bakeProp(scene, `hn:alleywall:${x}`, x, 3, .2, 2, x + 5, (g) => {
+    block(g, { x, y: 3, w: .2, h: 1.9 }, 0, 40, 0xe6dcc6, 2);
+    block(g, { x: x - .02, y: 2.98, w: .24, h: 1.94 }, 40, 6, 0xd9674f, 1.5);
+    const pot = point(x + .1, 4.6, 46);
+    dot(g, pot.x, pot.y - 8, 9, 0x86c86b);
   });
-  plate(scene, 2, 30.5, 150, 'Tháp Rùa');
-  plate(scene, 4, 34.5, 30, 'Hồ Gươm');
-  plate(scene, 10, 26.5, 70, 'Cầu Thê Húc');
-  bakeLayer(scene, 'hn:cathedral', screenBox([[MAP_W + .4, 18.4], [MAP_W + 3.4, 18.4], [MAP_W + .4, 21.8], [MAP_W + 3.4, 21.8]], 300), MAP_W + 18, (ch) => cathedral(ch, MAP_W + .8, 18.6));
-  plate(scene, MAP_W + 1.9, 20.1, 290, 'Nhà thờ Lớn');
-  bakeLayer(scene, 'hn:gate', screenBox([[MAP_W + 1.2, 1.6], [MAP_W + 3.4, 1.6], [MAP_W + 1.2, 7.4], [MAP_W + 3.4, 7.4]], 190), MAP_W + 6, (gate) => cityGate(gate, MAP_W + 1.6, ROAD_ROWS[0]!, ROAD_ROWS[1]!));
-  plate(scene, MAP_W + 2.3, 4, 200, 'Ô Quan Chưởng');
 
-  // Electric poles with the famous tangle of wires, along both sidewalks.
+  // Landmarks across the lake.
+  bakeLayer(scene, 'hn:lake', screenBox([[18, MAP_H + 3], [22, MAP_H + 7], [36, MAP_H - 1], [41, MAP_H + 4]], 130), 0, (lm) => {
+    turtleTower(lm, 20, MAP_H + 4.5);
+    redBridge(lm, 37.5, MAP_H - .2, 39, MAP_H + 3.6);
+  });
+  plate(scene, 20.5, MAP_H + 5, 150, 'Tháp Rùa');
+  plate(scene, 12, MAP_H + 4, 30, 'Hồ Gươm');
+  plate(scene, 38.5, MAP_H + 1.5, 70, 'Cầu Thê Húc');
+  bakeLayer(scene, 'hn:gate', screenBox([[MAP_W + .4, ROAD_ROWS[0]! - 2], [MAP_W + 2.6, ROAD_ROWS[0]! - 2], [MAP_W + .4, ROAD_ROWS[1]! + 3], [MAP_W + 2.6, ROAD_ROWS[1]! + 3]], 190), MAP_W + 12, (gate) => cityGate(gate, MAP_W + .8, ROAD_ROWS[0]!, ROAD_ROWS[1]!));
+  plate(scene, MAP_W + 1.5, (ROAD_ROWS[0]! + ROAD_ROWS[1]! + 1) / 2, 200, 'Ô Quan Chưởng');
+
+  // Electric poles with the famous tangle of wires, in front of the houses (none across the alley mouth).
   const poles: Array<[number, number]> = [];
-  for (let x = 2; x < MAP_W; x += 5) poles.push([x, 2.8]);
+  for (let x = 2; x < MAP_W; x += 5) if (!inRange(x, [ALLEY_X0, ALLEY_X1])) poles.push([x, 4.85]);
   for (const [x, y] of poles) bakeProp(scene, `hn:pole:${x}`, x, y, 0, 0, x + y, (pole) => {
     const p = point(x, y);
     shadow(pole, p.x, p.y, 24, 10);
     pole.fillStyle(0x9aa1ad).fillRoundedRect(p.x - 4, p.y - 150, 8, 150, 3).lineStyle(2, INK).strokeRoundedRect(p.x - 4, p.y - 150, 8, 150, 3);
     pole.fillStyle(0x6b6b75).fillRect(p.x - 16, p.y - 140, 32, 6).fillCircle(p.x + 10, p.y - 120, 7);
   });
-  bakeLayer(scene, 'hn:wires', screenBox([[poles[0]![0], 2.8], [poles[poles.length - 1]![0], 2.8]], 160, 80), 1e6 - 7, (wires) => {
-  for (let i = 0; i + 1 < poles.length; i++) {
-    const a = point(poles[i]![0], poles[i]![1], 140), b = point(poles[i + 1]![0], poles[i + 1]![1], 140);
-    for (let k = 0; k < 4; k++) {
-      const sag = 18 + k * 9, mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2 + sag;
-      wires.lineStyle(1.5, 0x3a3340, .85).beginPath().moveTo(a.x, a.y + k * 3);
-      for (let u = 0.1; u <= 1.001; u += .1) { const x = (1 - u) * (1 - u) * a.x + 2 * (1 - u) * u * mx + u * u * b.x, y = (1 - u) * (1 - u) * (a.y + k * 3) + 2 * (1 - u) * u * my + u * u * (b.y + k * 2); wires.lineTo(x, y); }
-      wires.strokePath();
+  bakeLayer(scene, 'hn:wires', screenBox([[poles[0]![0], 4.85], [poles[poles.length - 1]![0], 4.85]], 160, 80), 1e6 - 7, (wires) => {
+    for (let i = 0; i + 1 < poles.length; i++) {
+      const a = point(poles[i]![0], poles[i]![1], 140), b = point(poles[i + 1]![0], poles[i + 1]![1], 140);
+      for (let k = 0; k < 4; k++) {
+        const sag = 18 + k * 9, mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2 + sag;
+        wires.lineStyle(1.5, 0x3a3340, .85).beginPath().moveTo(a.x, a.y + k * 3);
+        for (let u = 0.1; u <= 1.001; u += .1) { const x = (1 - u) * (1 - u) * a.x + 2 * (1 - u) * u * mx + u * u * b.x, y = (1 - u) * (1 - u) * (a.y + k * 3) + 2 * (1 - u) * u * my + u * u * (b.y + k * 2); wires.lineTo(x, y); }
+        wires.strokePath();
+      }
     }
-  }
   });
 
-  // Street life on the edge row: plastic stools for iced tea, parked motorbikes.
-  for (const x of [3.5, 10.2, 18.6, 24.3, 28.8]) bakeProp(scene, `hn:stools:${x}`, x, .3, 1, .5, x + .6, (g) => {
-    for (const [dx, col] of [[0, 0xe2513f], [.35, 0x5ec8f2], [.7, 0xe2513f]] as const) block(g, { x: x + dx, y: .3, w: .22, h: .22 }, 0, 16, col, 1.5);
-    const q = point(x + .45, .6, 22);
-    g.fillStyle(0xf6d77a, .85).fillRect(q.x - 4, q.y - 8, 8, 10).lineStyle(1.5, INK).strokeRect(q.x - 4, q.y - 8, 8, 10);
-  });
-  for (const x of [6.5, 14.2, 21.4, 27]) bakeProp(scene, `hn:bike:${x}`, x, .55, 0, 0, x + .9, (g) => { const q = point(x, .55); motorbike(g, q.x, q.y + 6, 1, [0xff8a73, 0x5ec8f2, 0xf6a6d0][Math.floor(x) % 3]!, 0xffffff); });
+  // Plastic stools, parked motorbikes and the sấu trees are map objects (they block the way): see `drawIncidentObject`.
 
-  // Sau trees along the lake shore, framing the scene without blocking the way.
-  for (let x = -2; x < 13; x += 3.2) bakeProp(scene, `hn:tree:${x}`, x, MAP_H + .6, 0, 0, x + MAP_H + .6, (g) => tree(g, x, MAP_H + .6, 1.1));
+  // The low iron railing along the lake shore: the edge of the walkable grass, so nobody wonders why they cannot go on.
+  for (let x = 1; x < MAP_W - 1; x += 4) bakeProp(scene, `hn:rail:${x}`, x, MAP_H - 1, 4, 0, x + 2 + MAP_H - .9, (g) => {
+    const x1 = Math.min(MAP_W - 1, x + 4);
+    for (let px = x; px <= x1 + .01; px += .5) { const a = point(px, MAP_H - 1), b = point(px, MAP_H - 1, 26); g.lineStyle(3, INK).lineBetween(a.x, a.y, b.x, b.y); }
+    for (const z of [14, 26]) { const a = point(x, MAP_H - 1, z), b = point(x1, MAP_H - 1, z); g.lineStyle(5, INK).lineBetween(a.x, a.y, b.x, b.y); g.lineStyle(2.5, 0x6b8e3a).lineBetween(a.x, a.y, b.x, b.y); }
+  });
+
 }
+
 
 /** The player in chapter 1: a small outlined figure in a coral jacket. */
 export class IncidentActorView implements ActorView {
@@ -497,22 +521,23 @@ function pigeon(g: Phaser.GameObjects.Graphics, x: number, y: number, f: number,
   g.fillStyle(INK).fillCircle(x + f * 13, y - 12, 1.6);
 }
 
-/** A neighbour's dog mid-run, facing `f` (1 right, -1 left). */
-function dog(g: Phaser.GameObjects.Graphics, x: number, y: number, f: number, run: number): void {
-  shadow(g, x, y, 56, 18);
-  for (const [lx, ph] of [[-12, 0], [-4, Math.PI], [8, Math.PI / 2], [15, Math.PI * 1.5]] as const) rr(g, x + lx * f - 3, y - 16 + Math.sin(run + ph) * 3, 6, 16, 3, 0xa8683c);
-  oval(g, x, y - 22, 44, 24, 0xc98a55);
-  g.lineStyle(5, INK).lineBetween(x - 20 * f, y - 26, x - 30 * f, y - 38 - Math.sin(run * 2) * 4);
-  g.lineStyle(3, 0xc98a55).lineBetween(x - 20 * f, y - 26, x - 30 * f, y - 38 - Math.sin(run * 2) * 4);
-  dot(g, x + 22 * f, y - 34, 13, 0xd89a63);
-  oval(g, x + 32 * f, y - 30, 14, 10, 0xd89a63);
-  g.fillStyle(INK).fillCircle(x + 37 * f, y - 32, 2.6).fillCircle(x + 24 * f, y - 38, 2.4);
-  tri(g, [x + 14 * f, y - 44, x + 20 * f, y - 52, x + 24 * f, y - 42], 0x8a5a3a);
-  g.fillStyle(0xff8a8a).fillEllipse(x + 33 * f, y - 22, 6, 8);
+/** A neighbour's dog mid-run, facing `f` (1 right, -1 left), `k` times the usual size (the big one). */
+function dog(g: Phaser.GameObjects.Graphics, x: number, y: number, f: number, run: number, k = 1): void {
+  const F = f * k;
+  shadow(g, x, y, 56 * k, 18 * k);
+  for (const [lx, ph] of [[-12, 0], [-4, Math.PI], [8, Math.PI / 2], [15, Math.PI * 1.5]] as const) rr(g, x + lx * F - 3 * k, y - (16 - Math.sin(run + ph) * 3) * k, 6 * k, 16 * k, 3, 0xa8683c);
+  oval(g, x, y - 22 * k, 44 * k, 24 * k, 0xc98a55);
+  g.lineStyle(5, INK).lineBetween(x - 20 * F, y - 26 * k, x - 30 * F, y - (38 + Math.sin(run * 2) * 4) * k);
+  g.lineStyle(3, 0xc98a55).lineBetween(x - 20 * F, y - 26 * k, x - 30 * F, y - (38 + Math.sin(run * 2) * 4) * k);
+  dot(g, x + 22 * F, y - 34 * k, 13 * k, 0xd89a63);
+  oval(g, x + 32 * F, y - 30 * k, 14 * k, 10 * k, 0xd89a63);
+  g.fillStyle(INK).fillCircle(x + 37 * F, y - 32 * k, 2.6 * k).fillCircle(x + 24 * F, y - 38 * k, 2.4 * k);
+  tri(g, [x + 14 * F, y - 44 * k, x + 20 * F, y - 52 * k, x + 24 * F, y - 42 * k], 0x8a5a3a);
+  g.fillStyle(0xff8a8a).fillEllipse(x + 33 * F, y - 22 * k, 6 * k, 8 * k);
 }
 
 /** One rider on a motorbike, facing `f`. */
-function motorbike(g: Phaser.GameObjects.Graphics, x: number, y: number, f: number, color: number, helmet: number): void {
+export function motorbike(g: Phaser.GameObjects.Graphics, x: number, y: number, f: number, color: number, helmet: number): void {
   shadow(g, x, y + 2, 70, 20);
   dot(g, x - 20 * f, y - 8, 9, 0x4a4a55);
   dot(g, x + 20 * f, y - 8, 9, 0x4a4a55);
@@ -524,23 +549,28 @@ function motorbike(g: Phaser.GameObjects.Graphics, x: number, y: number, f: numb
 }
 
 /**
- * Chapter-1 run: draws each hazard every frame from the simulation's view.
+ * Chapter-1 run: draws each gag every frame from the simulation's view.
  * Telegraphs (cracks, shadows, lane strips, "!") sit on the ground so the
- * player always sees what is coming; the hazards themselves sort with the
- * actors. While a death plays, its little slapstick scene is drawn on top.
+ * player always sees what is coming; the gags themselves sort with the
+ * actors. A knock-out (the gag that got the hero, or the fate) plays its
+ * little slapstick scene on top, then the hero lies there seeing stars.
  */
 export class IncidentRunView {
   private readonly ground: Phaser.GameObjects.Graphics;
   private readonly fx: Phaser.GameObjects.Graphics;
   private readonly bodies = new Map<number, Phaser.GameObjects.Graphics>();
-  /** Speech bubbles over the chasers ("Chó đuổi!", "Mèo dại!"). */
+  /** Bubbles over the gags ("Gâu gâu!", "Nắp cống!"). */
   private readonly bubbles = new Map<number, Phaser.GameObjects.Text>();
+  /** The fate's sound word ("CỐC!", "BOONG!"). */
+  private readonly sound: Phaser.GameObjects.Text;
   constructor(private readonly scene: Phaser.Scene) {
     this.ground = scene.add.graphics().setDepth(floorDepth + .7);
     this.fx = scene.add.graphics().setDepth(1e6 - 4);
+    this.sound = scene.add.text(0, 0, '', { fontFamily: "'Baloo 2', sans-serif", fontSize: '40px', fontStyle: '800', color: '#e2513f', stroke: '#ffffff', strokeThickness: 8, resolution: 2 }).setOrigin(.5, 1).setDepth(1e6 - 1).setVisible(false);
   }
 
-  sync(run: RunView | null): void {
+  /** `heroHidden`: the hero is inside the ambulance (no stars over an empty street). */
+  sync(run: RunView | null, hero: WorldPos, heroHidden = false): void {
     this.ground.clear();
     this.fx.clear();
     const seen = new Set<number>();
@@ -553,24 +583,29 @@ export class IncidentRunView {
     }
     for (const [id, g] of this.bodies) if (!seen.has(id)) { g.destroy(); this.bodies.delete(id); }
     this.syncBubbles(run);
-    if (run?.death) this.drawDeath(run.death);
+    if (run?.hit) this.drawHit(run.hit);
+    this.drawFinale(run?.finale ?? null);
+    if (run?.down && !heroHidden) this.drawDown(run.down);
+    if (run?.dazed) this.drawDaze(run.dazed, hero);
   }
 
-  /** A chasing dog or cat says what it is up to, in a bubble that follows its head. */
+  /** Each gag with words says them in a bubble that follows it (the twist's in a darker red). */
   private syncBubbles(run: RunView | null): void {
     const want = new Set<number>();
+    const z = this.scene.cameras.main.zoom;
     for (const h of run?.hazards ?? []) {
-      if ((h.kind !== 'dog' && h.kind !== 'cat') || h.phase !== 'active' || run?.death) continue;
+      if (!h.label || h.phase === 'gone' || run?.hit || run?.finale) continue;
       want.add(h.id);
       let b = this.bubbles.get(h.id);
       if (!b) {
-        b = this.scene.add.text(0, 0, h.kind === 'dog' ? 'Chó đuổi!' : 'Mèo dại!', { fontFamily: "'Baloo 2', sans-serif", fontSize: '20px', fontStyle: '800', color: '#ffffff', backgroundColor: h.kind === 'dog' ? '#e2513f' : '#ff7f6b', padding: { x: 10, y: 2 }, resolution: 2 }).setOrigin(.5, 1).setDepth(1e6 - 3);
+        b = this.scene.add.text(0, 0, '', { fontFamily: "'Baloo 2', sans-serif", fontSize: '20px', fontStyle: '800', color: '#ffffff', backgroundColor: '#ff7f6b', padding: { x: 10, y: 2 }, resolution: 2 }).setOrigin(.5, 1).setDepth(1e6 - 3);
         this.bubbles.set(h.id, b);
       }
+      if (b.text !== h.label) b.setText(h.label).setBackgroundColor(h.twist || (h.kind === 'dog' && h.phase === 'active') ? '#c8463d' : '#ff7f6b');
       const p = point(h.x, h.y);
+      const lift = h.kind === 'pigeons' || h.kind === 'shuttlecock' || h.kind === 'slipper' ? 96 : h.kind === 'dog' && h.phase === 'active' ? 78 : 64;
       // World text shrinks with the camera; keep the bubble readable on a zoomed-out PC view.
-      const z = this.scene.cameras.main.zoom;
-      b.setScale(Math.max(1, Math.min(2.4, 1 / z))).setPosition(p.x, p.y - (h.kind === 'dog' ? 72 : 80) - Math.abs(Math.sin(this.scene.time.now / 120)) * 4).setAlpha(h.t > .85 ? (1 - h.t) / .15 : 1);
+      b.setScale(Math.max(1, Math.min(2.4, 1 / z))).setPosition(p.x, p.y - lift - Math.abs(Math.sin(this.scene.time.now / 120)) * 4);
     }
     for (const [id, b] of this.bubbles) if (!want.has(id)) { b.destroy(); this.bubbles.delete(id); }
   }
@@ -580,6 +615,19 @@ export class IncidentRunView {
     const s = .6 + Math.min(1, t * 2) * .4;
     rr(this.fx, x - 12 * s, y - 30 * s, 24 * s, 30 * s, 8, 0xff7f6b);
     this.fx.fillStyle(0xffffff).fillRect(x - 2.5 * s, y - 26 * s, 5 * s, 14 * s).fillCircle(x, y - 7 * s, 3 * s);
+  }
+
+  /** A falling thing's shadow growing on the ground where it will land. */
+  private landing(p: Phaser.Math.Vector2, t: number): void {
+    this.ground.fillStyle(INK, .15 + t * .25).fillEllipse(p.x, p.y, 40 + t * 70, 18 + t * 32);
+    this.ground.lineStyle(2, 0xff7f6b, .4 + t * .6).strokeEllipse(p.x, p.y, 40 + t * 70, 18 + t * 32);
+  }
+
+  /** A lane-wide warning strip from one side of the map to the other, along the hazard's direction. */
+  private lane(h: HazardView, width: number, alpha: number): { a: Phaser.Math.Vector2; b: Phaser.Math.Vector2 } {
+    const a = h.dx ? point(-3, h.y) : point(h.x, -3), b = h.dx ? point(MAP_W + 3, h.y) : point(h.x, MAP_H + 3);
+    this.ground.lineStyle(width, 0xff7f6b, alpha).lineBetween(a.x, a.y, b.x, b.y);
+    return { a, b };
   }
 
   private draw(h: HazardView, g: Phaser.GameObjects.Graphics): void {
@@ -595,15 +643,27 @@ export class IncidentRunView {
         return;
       }
       case 'dog':
-        dog(g, p.x, p.y, face, h.phase === 'active' ? now / 55 : 0);
-        if (h.phase === 'warn') this.alert(p.x + 20 * face, p.y - 60, h.t);
+        // The warning is a tiny yapping chihuahua; then the big one comes out of the gate.
+        if (h.phase === 'warn') chihuahua(g, p.x, p.y - Math.abs(Math.sin(now / 60)) * 4, face);
+        else dog(g, p.x, p.y, face, now / 55, 1.35);
+        return;
+      case 'chickens':
+        for (const [ox, oy, k] of [[0, 0, 0], [-.35, .3, 1], [.3, .35, 2]] as const) {
+          const q = point(h.x + ox, h.y + oy);
+          chicken(g, q.x, q.y - (h.phase === 'active' ? Math.abs(Math.sin(now / 50 + k)) * 6 : 0), face);
+        }
+        if (h.phase === 'warn') this.alert(p.x, p.y - 56, h.t);
         return;
       case 'sinkhole': {
-        // Cracks spread while the road sags, then the hole opens wide.
+        // Cracks spread while the road sags, then the hole opens wide. The twist is a manhole cover flipping over.
         const k = h.phase === 'warn' ? h.t : 1;
-        const w = 190 * (h.phase === 'warn' ? .25 + k * .55 : 1), hh = w / 2;
+        const size = h.twist ? 120 : 190;
+        const w = size * (h.phase === 'warn' ? .25 + k * .55 : 1), hh = w / 2;
         g.setDepth(floorDepth + .8);
-        if (h.phase === 'warn') {
+        if (h.phase === 'warn' && h.twist) {
+          const flip = Math.abs(Math.sin(now / 70));
+          g.fillStyle(0x6b6b75).fillEllipse(p.x, p.y - flip * 10, size, size / 2 * (.3 + flip * .7)).lineStyle(3, INK).strokeEllipse(p.x, p.y - flip * 10, size, size / 2 * (.3 + flip * .7));
+        } else if (h.phase === 'warn') {
           g.fillStyle(0x7a6a5a, .25 + k * .4).fillEllipse(p.x, p.y, w, hh);
           g.lineStyle(3, INK, .8);
           for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2 + .3; const r = w * .5 * (.7 + k * .6); g.lineBetween(p.x + Math.cos(a) * 10, p.y + Math.sin(a) * 5, p.x + Math.cos(a) * r, p.y + Math.sin(a) * r * .5); }
@@ -615,25 +675,42 @@ export class IncidentRunView {
         }
         return;
       }
-      case 'durian': {
+      case 'durian':
         if (h.phase === 'warn') {
-          this.ground.fillStyle(INK, .15 + h.t * .25).fillEllipse(p.x, p.y, 40 + h.t * 70, 18 + h.t * 32);
-          this.ground.lineStyle(2, 0xff7f6b, .4 + h.t * .6).strokeEllipse(p.x, p.y, 40 + h.t * 70, 18 + h.t * 32);
-          const fall = (1 - h.t) * (1 - h.t) * 420;
-          drawDurian(g, p.x, p.y - 20 - fall, 16);
+          this.landing(p, h.t);
+          drawDurian(g, p.x, p.y - 20 - (1 - h.t) * (1 - h.t) * 420, 16);
           g.setDepth(1e6 - 5);
         } else {
           g.fillStyle(0xf3dc8a).fillEllipse(p.x, p.y, 80, 30).lineStyle(2, INK).strokeEllipse(p.x, p.y, 80, 30);
           drawDurian(g, p.x + 10, p.y - 10, 12);
         }
         return;
+      case 'water':
+        if (h.phase === 'warn') {
+          // A basin tips over at a first-floor window; water pours once it lands.
+          this.landing(p, h.t);
+          const q = point(h.x, h.y, 190 - h.t * 20);
+          rr(g, q.x - 18, q.y - 10, 36, 14, 6, 0x5ec8f2);
+          g.setDepth(1e6 - 5);
+        } else {
+          g.fillStyle(0x8fd0ea, .8).fillEllipse(p.x, p.y, 110, 40).lineStyle(2, INK).strokeEllipse(p.x, p.y, 110, 40);
+          for (let i = 0; i < 6; i++) dot(g, p.x - 40 + i * 16, p.y - 20 - (i % 2) * 14, 5, 0x8fd0ea);
+        }
+        return;
+      case 'laundry': {
+        if (h.phase === 'warn') {
+          this.landing(p, h.t);
+          const fall = (1 - h.t) * (1 - h.t) * 320;
+          shorts(g, p.x + Math.sin(now / 160) * 18, p.y - 30 - fall);
+          g.setDepth(1e6 - 5);
+        } else shorts(g, p.x, p.y - 6);
+        return;
       }
       case 'motorbike': {
         if (h.phase === 'warn') {
           // The whole lane flashes; a "!" where the bikes will come in.
-          const a = h.dx ? point(-3, h.y) : point(h.x, -3), b = h.dx ? point(35, h.y) : point(h.x, 27);
-          this.ground.lineStyle(56, 0xff7f6b, .1 + (Math.sin(now / 90) * .5 + .5) * .18).lineBetween(a.x, a.y, b.x, b.y);
-          const side = h.dx ? point(h.dx > 0 ? 0.6 : 31.4, h.y) : point(h.x, h.dy > 0 ? 0.6 : 22.4);
+          this.lane(h, 56, .1 + (Math.sin(now / 90) * .5 + .5) * .18);
+          const side = h.dx ? point(h.dx > 0 ? 0.6 : MAP_W - .6, h.y) : point(h.x, h.dy > 0 ? 0.6 : MAP_H - .6);
           this.alert(side.x, side.y - 40, h.t);
           return;
         }
@@ -642,20 +719,19 @@ export class IncidentRunView {
           const wob = i % 2 ? .18 : -.12;
           const q = point(h.x - i * 1.3 * h.dx + (h.dx ? 0 : wob), h.y - i * 1.3 * h.dy + (h.dx ? wob : 0));
           motorbike(g, q.x, q.y - Math.abs(Math.sin(now / 60 + i)) * 2, face, body, helmet);
+          // The last bike carries a fridge and a crate of chickens.
+          if (i === 2) { rr(g, q.x - 30 * face - 14, q.y - 92, 28, 44, 4, 0xfff6e5); rr(g, q.x - 30 * face - 16, q.y - 50, 32, 18, 3, 0xd9a35c); }
         });
         g.setDepth(h.x + h.y + .6);
         return;
       }
       case 'pigeons': {
         if (h.phase === 'warn') {
-          const a = h.dx !== 0 ? { x: -3, y: h.y } : { x: h.x, y: -3 }, b = h.dx !== 0 ? { x: 35, y: h.y } : { x: h.x, y: 27 };
-          const pa = point(a.x, a.y), pb = point(b.x, b.y);
-          this.ground.lineStyle(26, 0xff7f6b, .12 + h.t * .2).lineBetween(pa.x, pa.y, pb.x, pb.y);
+          const { a, b } = this.lane(h, 26, .12 + h.t * .2);
           for (let i = 0; i < 12; i++) {
             const u = (i / 12 + now / 1600) % 1;
-            const q = point(a.x + (b.x - a.x) * u, a.y + (b.y - a.y) * u);
-            const d = point(a.x + (b.x - a.x) * u + h.dx * .3, a.y + (b.y - a.y) * u + h.dy * .3);
-            this.ground.lineStyle(3, 0xffffff, .8).lineBetween(q.x, q.y - 6, d.x, d.y).lineBetween(q.x, q.y + 6, d.x, d.y);
+            const q = new Phaser.Math.Vector2(a.x + (b.x - a.x) * u, a.y + (b.y - a.y) * u);
+            this.ground.fillStyle(0xffffff, .8).fillCircle(q.x, q.y, 3);
           }
           return;
         }
@@ -663,6 +739,27 @@ export class IncidentRunView {
           const q = point(h.x + ox, h.y + oy);
           pigeon(g, q.x, q.y - 40, face, Math.sin(now / 50 + ox * 9) * 8);
         }
+        g.setDepth(1e6 - 5);
+        return;
+      }
+      case 'shuttlecock':
+        if (h.phase === 'warn') {
+          this.lane(h, 18, .1 + h.t * .2);
+          this.alert(p.x, p.y - 50, h.t);
+          return;
+        }
+        shuttlecock(g, p.x, p.y - 46, face);
+        g.setDepth(1e6 - 5);
+        return;
+      case 'slipper': {
+        if (h.phase === 'warn') {
+          this.alert(p.x, p.y - 60, h.t);
+          return;
+        }
+        // Spinning: the sole shows, then the edge, then the sole again.
+        const spin = Math.abs(Math.sin(now / 60));
+        g.fillStyle(0xffd25e).fillEllipse(p.x, p.y - 40, 34 * (.25 + spin * .75), 16).lineStyle(2.5, INK).strokeEllipse(p.x, p.y - 40, 34 * (.25 + spin * .75), 16);
+        for (let i = -1; i <= 1; i++) g.fillStyle(0xe0b440).fillCircle(p.x + i * 8 * spin, p.y - 40, 2.5);
         g.setDepth(1e6 - 5);
         return;
       }
@@ -675,21 +772,26 @@ export class IncidentRunView {
     }
   }
 
-  /** The slapstick on top of the death pose (the pose itself is on the player, see `deathPose`). */
-  private drawDeath(d: NonNullable<RunView['death']>): void {
+  private stars(x: number, y: number): void {
+    const now = this.scene.time.now;
+    for (let i = 0; i < 3; i++) { const a = now / 160 + (i * Math.PI * 2) / 3; dot(this.fx, x + Math.cos(a) * 22, y + Math.sin(a) * 7, 5, 0xffd25e); }
+  }
+
+  /** The slapstick on top of the hit pose (the pose itself is on the player, see `runPose`). */
+  private drawHit(d: NonNullable<RunView['hit']>): void {
     const p = point(d.x, d.y), t = d.t, now = this.scene.time.now, g = this.fx;
-    const stars = (y: number) => { for (let i = 0; i < 3; i++) { const a = now / 160 + (i * Math.PI * 2) / 3; dot(g, p.x + Math.cos(a) * 22, y + Math.sin(a) * 7, 5, 0xffd25e); } };
     switch (d.kind) {
       case 'cat':
-      case 'dog': {
+      case 'dog':
+      case 'chickens': {
         // A cartoon scuffle cloud around the hero and the animal itself (the hazard, moved onto the hero).
         for (let i = 0; i < 7; i++) { const a = now / 90 + i; dot(g, p.x + Math.cos(a) * 26, p.y - 34 + Math.sin(a * 1.3) * 18, 15 + (i % 3) * 4, 0xffffff); }
         if (d.kind === 'cat') {
-          // Scratch: three red claw marks swipe across, again and again.
           const swipe = (now / 260) % 1;
           for (let i = 0; i < 3; i++) g.lineStyle(5, 0xe2513f, 1 - swipe * .6).lineBetween(p.x - 26 + i * 12, p.y - 70 + swipe * 10, p.x - 6 + i * 12, p.y - 28 + swipe * 10);
+        } else if (d.kind === 'chickens') {
+          for (let i = 0; i < 8; i++) { const a = i * .8 + now / 200; oval(g, p.x + Math.cos(a) * (20 + t * 40), p.y - 40 - Math.sin(a) * 30 - t * 30, 10, 5, 0xffffff); }
         } else {
-          // Bite: big snapping jaws on the hero's leg.
           const open = Math.abs(Math.sin(now / 90)) * 12;
           for (const s of [-1, 1]) {
             const y = p.y - 16 + s * (6 + open);
@@ -697,29 +799,103 @@ export class IncidentRunView {
             for (let i = 0; i < 4; i++) { const x = p.x - 18 + i * 12; g.fillTriangle(x, y, x + 10, y, x + 5, y - s * 10).strokeTriangle(x, y, x + 10, y, x + 5, y - s * 10); }
           }
         }
-        if (t > .5) stars(p.y - 90);
         return;
       }
       case 'durian':
         drawDurian(g, p.x, p.y - 70, 16);
-        stars(p.y - 100);
+        this.stars(p.x, p.y - 100);
+        return;
+      case 'water':
+        for (let i = 0; i < 10; i++) dot(g, p.x - 36 + (i * 8) % 72, p.y - 90 + ((now / 4 + i * 37) % 80), 4, 0x8fd0ea);
+        return;
+      case 'shuttlecock':
+        shuttlecock(g, p.x + t * 60, p.y - 70 - Math.sin(t * Math.PI) * 60, 1);
+        if (t > .3) this.stars(p.x, p.y - 80);
+        return;
+      case 'slipper':
+        g.fillStyle(0xffd25e).fillEllipse(p.x - 10 - t * 50, p.y - 60 + t * 50, 30, 14).lineStyle(2.5, INK).strokeEllipse(p.x - 10 - t * 50, p.y - 60 + t * 50, 30, 14);
+        if (t > .3) this.stars(p.x, p.y - 80);
         return;
       case 'sinkhole':
         for (let i = 0; i < 6; i++) { const a = i * 1.1 + t * 3; dot(g, p.x + Math.cos(a) * (40 + t * 50), p.y - 10 - t * 40 - (i % 2) * 10, 6 + (1 - t) * 6, 0xd8c3a5); }
         return;
       case 'pigeons':
-        for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2 + now / 300; pigeon(g, p.x + Math.cos(a) * 34, p.y - 60 - t * 260 + Math.sin(a) * 12, Math.cos(a) > 0 ? 1 : -1, Math.sin(now / 40 + i) * 8); }
+        for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2 + now / 300; pigeon(g, p.x + Math.cos(a) * 34, p.y - 60 - Math.sin(t * Math.PI) * 260 + Math.sin(a) * 12, Math.cos(a) > 0 ? 1 : -1, Math.sin(now / 40 + i) * 8); }
         return;
-      case 'motorbike':
-      case 'banana':
-        if (t > .6) stars(p.y - 80 - (1 - t) * 100);
-        return;
+      default:
+        if (t > .6) this.stars(p.x, p.y - 80 - (1 - t) * 100);
+    }
+  }
+
+  /** Knocked out: stars over the head of the hero lying on the street. */
+  private drawDown(d: NonNullable<RunView['down']>): void {
+    const p = point(d.x, d.y);
+    if (d.t > .1) this.stars(p.x - 44, p.y - 24);
+  }
+
+  /** The fate: relief, then the silly event and its sound word, then the fall. */
+  private drawFinale(f: RunView['finale']): void {
+    if (!f) return void this.sound.setVisible(false);
+    const p = point(f.x, f.y), t = f.t, g = this.fx, now = this.scene.time.now;
+    const ev = (a: number, b: number) => Math.max(0, Math.min(1, (t - a) / (b - a)));
+    switch (f.kind) {
+      case 'sau': {
+        // A tiny green fruit drops on the head and bounces off.
+        const fall = ev(.36, .48), off = ev(.48, .62);
+        if (t > .3 && t < .62) oval(g, p.x + off * 50, p.y - 64 - (1 - fall) * 320 - Math.sin(off * Math.PI) * 50, 12, 15, 0x9ccf5c);
+        break;
+      }
+      case 'coin':
+        if (t < .5) rr(g, p.x + 18, p.y - 6, 22, 11, 2, 0x8fd08a);
+        if (t > .44) { const q = p.x + 24; g.fillStyle(0x9aa1ad).fillRoundedRect(q - 5, p.y - 170, 10, 170, 3).lineStyle(2, INK).strokeRoundedRect(q - 5, p.y - 170, 10, 170, 3); }
+        break;
+      case 'chair':
+        if (t > .28) {
+          const broke = t > .55;
+          g.lineStyle(4, 0xc8463d);
+          for (const s of [-1, 1]) g.lineBetween(p.x + s * 12, p.y - 18, p.x + s * (broke ? 26 : 14), p.y);
+          rr(g, p.x - 18, p.y - (broke ? 10 : 24), 36, 8, 3, 0xe2513f);
+        }
+        break;
+      case 'sneeze':
+        if (t > .3 && t < .5) for (let i = 0; i < 5; i++) dot(g, p.x + 14 + (i * 7) % 20, p.y - 56 + Math.sin(now / 80 + i) * 4, 2, 0x3a3340);
+        if (t > .48 && t < .62) for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI - Math.PI / 2; g.lineStyle(3, 0xffffff).lineBetween(p.x + 20 + Math.cos(a) * 10, p.y - 52 + Math.sin(a) * 10, p.x + 20 + Math.cos(a) * 34, p.y - 52 + Math.sin(a) * 34); }
+        break;
+      case 'lick':
+        if (t > .2) dog(g, p.x + 70 - ev(.2, .4) * 20, p.y + 4, -1, t < .4 ? now / 55 : 0, 1.35);
+        if (t > .44 && t < .64) oval(g, p.x + 16, p.y - 52 + Math.sin(now / 50) * 6, 16, 26, 0xff8a8a);
+        break;
+      case 'news':
+        if (t > .3 && t < .66) {
+          rr(g, p.x + 16, p.y - 92, 60, 44, 3, 0xfffaf0);
+          g.fillStyle(0xe2513f).fillRect(p.x + 22, p.y - 86, 48, 6);
+          g.fillStyle(INK).fillRect(p.x + 34, p.y - 66, 26, 5).fillCircle(p.x + 30, p.y - 64, 4);
+        }
+        break;
+    }
+    // The sound word pops at the event and fades as the hero falls.
+    const s = ev(.46, .52);
+    this.sound.setVisible(t > .46 && t < .8);
+    if (this.sound.visible) this.sound.setText(f.sound).setPosition(p.x, p.y - 130).setScale((.6 + s * .6) * Math.max(1, 1 / this.scene.cameras.main.zoom)).setAlpha(t > .7 ? (.8 - t) / .1 : 1);
+    if (t > .7) this.stars(p.x - 44, p.y - 24);
+  }
+
+  /** A harmless gag on the hero: flowered shorts over the head, or the durian smell around it. */
+  private drawDaze(kind: 'smell' | 'shorts', hero: WorldPos): void {
+    const p = point(hero.x, hero.y), now = this.scene.time.now;
+    if (kind === 'shorts') shorts(this.fx, p.x, p.y - 58);
+    else for (let i = 0; i < 3; i++) {
+      const y = p.y - 70 - ((now / 12 + i * 20) % 50);
+      this.fx.lineStyle(3, 0x9ccf5c, .8).beginPath().moveTo(p.x - 20 + i * 20, y);
+      for (let k = 1; k <= 4; k++) this.fx.lineTo(p.x - 20 + i * 20 + Math.sin(k * 1.6 + now / 150) * 6, y - k * 6);
+      this.fx.strokePath();
     }
   }
 
   destroy(): void {
     this.ground.destroy();
     this.fx.destroy();
+    this.sound.destroy();
     for (const g of this.bodies.values()) g.destroy();
     this.bodies.clear();
     for (const b of this.bubbles.values()) b.destroy();
@@ -727,17 +903,83 @@ export class IncidentRunView {
   }
 }
 
-/** How the hero's figure moves while a death plays: sinks, flies off, spins or gets squashed. */
-export function deathPose(d: NonNullable<RunView['death']>): { sx: number; sy: number; dy: number; angle: number; alpha: number } {
+type Pose = { sx: number; sy: number; dy: number; angle: number; alpha: number };
+const STAND: Pose = { sx: 1, sy: 1, dy: 0, angle: 0, alpha: 1 };
+/** Lying flat on the street (the figure turns about its feet). */
+const LYING = -Math.PI / 2;
+
+/** How the hero's figure moves in the run: the gag that got them, the fate, then lying knocked out. */
+export function runPose(run: RunView | null): Pose {
+  if (!run) return STAND;
+  if (run.hit) return hitPose(run.hit);
+  if (run.finale) return finalePose(run.finale);
+  // Down: drops flat with a little bounce, then lies still.
+  if (run.down) { const k = Math.min(1, run.down.t / .12); return { sx: 1, sy: 1, dy: -Math.sin(k * Math.PI) * 10, angle: LYING * k, alpha: 1 }; }
+  return STAND;
+}
+
+/** The gag that got the hero: sinks, flies off, spins or gets squashed (and comes back into view to lie down). */
+function hitPose(d: NonNullable<RunView['hit']>): Pose {
   const t = d.t, e = 1 - (1 - t) * (1 - t);
   switch (d.kind) {
-    case 'sinkhole': return { sx: 1 - e * .7, sy: 1 - e * .7, dy: e * 40, angle: e * Math.PI * 2, alpha: 1 - e };
+    case 'sinkhole': { const s = Math.sin(t * Math.PI); return { sx: 1 - s * .7, sy: 1 - s * .7, dy: s * 40, angle: e * Math.PI * 2, alpha: 1 - s * .9 }; }
     case 'motorbike': return { sx: 1, sy: 1, dy: -Math.sin(t * Math.PI) * 220, angle: t * Math.PI * 4, alpha: 1 };
-    case 'pigeons': return { sx: 1, sy: 1, dy: -e * 260, angle: Math.sin(t * 20) * .3, alpha: 1 };
+    case 'pigeons': return { sx: 1, sy: 1, dy: -Math.sin(t * Math.PI) * 260, angle: Math.sin(t * 20) * .3, alpha: 1 };
     case 'banana': return { sx: 1, sy: 1, dy: -Math.sin(t * Math.PI) * 140, angle: e * Math.PI * 3, alpha: 1 };
-    case 'durian': return { sx: 1 + e * .25, sy: 1 - e * .45, dy: 0, angle: 0, alpha: 1 };
+    case 'durian':
+    case 'water': return { sx: 1 + e * .25, sy: 1 - e * .45, dy: 0, angle: 0, alpha: 1 };
     default: return { sx: 1, sy: 1, dy: 0, angle: Math.sin(t * 40) * .15 * (1 - t), alpha: 1 };
   }
+}
+
+function finalePose(f: NonNullable<RunView['finale']>): Pose {
+  const t = f.t;
+  const ev = (a: number, b: number) => Math.max(0, Math.min(1, (t - a) / (b - a)));
+  const fall = ev(.62, .72);
+  const lie = { angle: LYING * fall, dy: -Math.sin(fall * Math.PI) * 12 };
+  if (t >= .62) return { sx: 1, sy: 1, alpha: 1, ...lie };
+  switch (f.kind) {
+    case 'sau': return { sx: 1, sy: t > .48 && t < .56 ? .85 : 1, dy: 0, angle: 0, alpha: 1 };
+    case 'coin': return { sx: 1, sy: t > .36 && t < .5 ? .78 : 1, dy: 0, angle: t > .5 ? Math.sin(t * 90) * .12 : 0, alpha: 1 };
+    case 'chair': return { sx: 1, sy: t > .3 ? .8 : 1, dy: t > .55 ? 16 : t > .3 ? 6 : 0, angle: 0, alpha: 1 };
+    case 'sneeze': return { sx: 1, sy: 1, dy: -Math.sin(ev(.48, .62) * Math.PI) * 60, angle: t < .48 ? -ev(.36, .48) * .25 : -.25 - ev(.48, .62) * .5, alpha: 1 };
+    case 'lick': return { sx: 1, sy: 1, dy: 0, angle: t > .44 ? Math.sin(t * 80) * .1 : 0, alpha: 1 };
+    default: return STAND;
+  }
+}
+
+/** A tiny chihuahua with huge ears, yapping (the warning before the big dog). */
+function chihuahua(g: Phaser.GameObjects.Graphics, x: number, y: number, f: number): void {
+  shadow(g, x, y, 30, 10);
+  oval(g, x, y - 12, 24, 14, 0xe8c08a);
+  dot(g, x + 12 * f, y - 22, 8, 0xe8c08a);
+  tri(g, [x + 6 * f, y - 26, x + 4 * f, y - 42, x + 14 * f, y - 28], 0xe8c08a);
+  tri(g, [x + 14 * f, y - 28, x + 22 * f, y - 40, x + 20 * f, y - 24], 0xe8c08a);
+  g.fillStyle(INK).fillCircle(x + 15 * f, y - 23, 2);
+}
+
+/** A white hen with a red comb, facing `f`. */
+function chicken(g: Phaser.GameObjects.Graphics, x: number, y: number, f: number): void {
+  shadow(g, x, y, 26, 9);
+  oval(g, x, y - 14, 24, 18, 0xffffff);
+  dot(g, x + 9 * f, y - 26, 7, 0xffffff);
+  tri(g, [x + 6 * f, y - 32, x + 10 * f, y - 38, x + 13 * f, y - 32], 0xe2513f);
+  tri(g, [x + 15 * f, y - 27, x + 22 * f, y - 25, x + 15 * f, y - 23], 0xffc94a);
+  g.fillStyle(INK).fillCircle(x + 11 * f, y - 27, 1.6);
+}
+
+/** Flowered boxer shorts. */
+function shorts(g: Phaser.GameObjects.Graphics, x: number, y: number): void {
+  rr(g, x - 20, y - 14, 40, 16, 4, 0xff8a73);
+  rr(g, x - 20, y, 18, 12, 3, 0xff8a73);
+  rr(g, x + 2, y, 18, 12, 3, 0xff8a73);
+  for (const [dx, dy] of [[-12, -7], [4, -9], [12, 4], [-10, 6]] as const) g.fillStyle(0xffd25e).fillCircle(x + dx, y + dy, 2.5);
+}
+
+/** A kicked shuttlecock: feathers up, weighted end towards where it flies. */
+function shuttlecock(g: Phaser.GameObjects.Graphics, x: number, y: number, f: number): void {
+  tri(g, [x - 10 * f, y - 10, x - 10 * f, y + 10, x + 6 * f, y], 0xffffff);
+  dot(g, x + 8 * f, y, 5, 0xe2513f);
 }
 
 function drawDurian(g: Phaser.GameObjects.Graphics, x: number, y: number, r: number): void {

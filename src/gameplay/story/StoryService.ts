@@ -2,8 +2,9 @@ import type { EventBus } from '../../core/EventBus';
 import type { GameEvents } from '../../core/events';
 import type { TransactionService } from '../../systems/economy/TransactionService';
 import type { GameState } from '../state/GameState';
-import type { HazardKind, RunConfig, RunService, RunView } from './RunService';
+import type { FinaleKind, FinaleText, HazardKind, HazardText, RunConfig, RunPhase, RunService, RunView } from './RunService';
 import type { GardenService, GardenView } from './GardenService';
+import type { StallConfig, StreetConfig, StreetService, StreetView } from './StreetService';
 
 export interface StoryChapter {
   map: string;
@@ -12,40 +13,29 @@ export interface StoryChapter {
   objective: string;
   objectiveReady?: string;
   objectiveBrew?: string;
+  /** How the screen changes on the way into this chapter: heavenly doors (default) or a burst of light. */
+  arrive?: { style: 'doors' | 'light' };
+  /** Chapter 1: the objective in rush hour and once knocked out, the line announcing rush hour, and the three act names. */
+  objectiveChaos?: string;
+  objectiveFaint?: string;
+  /** Chapter 1, inside a shop ({name}). */
+  objectiveShop?: string;
+  chaosAnnounce?: string;
+  acts?: string[];
   timeLimitMs?: number;
   intro: string[];
   outro: string[];
-  /** Chapter 1 (survival run): tuning, what each hazard says and kills you with, and the harmless street props. */
+  /** Chapter 1: tuning, what each gag and each fate says, the stalls and the street life. */
   run?: RunConfig;
-  hazards?: Record<HazardKind, StoryHazard>;
-  props?: StoryProp[];
-}
-
-/** The absurd death a chapter-1 hazard gives (shown on the ending card). */
-export interface StoryHazard {
-  death: string;
-  absurdity: number;
-}
-
-/** A harmless chapter-1 street prop: a line when visited, maybe a small bonus. */
-export interface StoryProp {
-  id: string;
-  target: string;
-  action: string;
-  done: string;
-  safe: string;
-}
-
-/** A chapter-1 street prop as the world shows it. */
-export interface StoryPropView {
-  id: string;
-  caption: string;
-  visited: boolean;
+  hazards?: Partial<Record<HazardKind, HazardText>>;
+  finales?: Partial<Record<FinaleKind, FinaleText>>;
+  stalls?: StallConfig[];
+  street?: StreetConfig;
 }
 
 /** What killed the hero, for the ending card (null until it happens). */
 export interface FateView {
-  id: HazardKind;
+  id: HazardKind | FinaleKind;
   /** 1-based number in the collection ("Cái chết lãng xẹt #3"). */
   number: number;
   death: string;
@@ -74,6 +64,8 @@ export interface StoryView {
   active: boolean;
   chapter: string;
   title: string;
+  /** Chapter 1: which act is playing ("HỒI 2/3 · GIỜ TAN TẦM"), or null. */
+  act: string | null;
   objective: string;
   /** Seconds left in a timed chapter, or null. */
   timeLeftSec: number | null;
@@ -85,9 +77,11 @@ export interface StoryView {
   run: RunView | null;
   /** Chapter 2: the cloud garden (sparks, the spirit and what it says), or null outside it. */
   garden: GardenView | null;
-  /** Chapter 1: the street props and whether they were visited. */
-  props: StoryPropView[];
-  /** A short harmless line shown without stopping play (chapter-1 props), or null. */
+  /** Chapter 1: the stalls (name, whether their talk was heard). */
+  stalls: Array<{ id: string; name: string; visited: boolean }>;
+  /** Chapter 1: passers-by, stall talks and the reply to pick, or null outside it. */
+  street: StreetView | null;
+  /** A short line shown without stopping play (chapter 1: rush hour starting), or null. */
   aside: string | null;
   /** Counts timeouts this chapter (the UI shows "time's up" when it grows). */
   retries: number;
@@ -139,7 +133,12 @@ export class StoryService {
   private retries = 0;
   private aside: { text: string; ms: number } | null = null;
   private run: RunService | null = null;
+  /** The run's act last tick (rush hour is announced when it starts). */
+  private runPhase: RunPhase | null = null;
+  /** Enough stalls visited: rush hour starts once the last stall's line has been read. */
+  private chaosIn: number | null = null;
   private garden: GardenService | null = null;
+  private street: StreetService | null = null;
   private lastAlive = 0;
 
   constructor(
@@ -200,6 +199,8 @@ export class StoryService {
     this.run = run;
     const f = this.state.story.flags;
     if (this.active && f.introDone && !f.rescued && !this.dialog) run.start();
+    // Reloaded after the stalls were visited: no need to stroll all over again.
+    if (this.active && this.visits >= (this.chapter.run?.strollVisits ?? Infinity)) this.chaosIn = 3000;
   }
 
   /** Chapter 2's cloud garden, handed over by the simulation like the run. */
@@ -207,17 +208,28 @@ export class StoryService {
     this.garden = garden;
   }
 
+  /** Chapter 1's street life, handed over by the simulation like the run. */
+  attachStreet(street: StreetService): void {
+    this.street = street;
+  }
+
+  /** Chapter 1: the reply picked in a stall talk. */
+  chooseReply(i: number): StoryResult {
+    return !this.locked && this.street?.choose(i) ? OK : no('notNow', false);
+  }
+
   get runControls(): boolean {
     return !!this.run?.controlsPlayer;
   }
 
-  private get hazard(): StoryHazard | null {
-    const k = this.state.story.scenario as HazardKind | undefined;
-    return (k && this.chapter.hazards?.[k]) || null;
+  /** The gag or fate that knocked the hero out. */
+  private get hazard(): { death: string; absurdity: number } | null {
+    const k = this.state.story.scenario;
+    return (k && (this.chapter.hazards?.[k as HazardKind] ?? this.chapter.finales?.[k as FinaleKind])) || null;
   }
 
-  /** The death has played: the hazard that touched the hero is their absurd death, straight to the ending card. */
-  onDeath(kind: HazardKind, aliveMs: number): void {
+  /** The hero is down: the gag (or fate) that did it is their absurd knock-out, and the story moves on. */
+  onDeath(kind: HazardKind | FinaleKind, aliveMs: number): void {
     const st = this.state.story;
     st.flags.rescued = true;
     st.scenario = kind;
@@ -236,23 +248,24 @@ export class StoryService {
     return OK;
   }
 
-  private prop(id: string): StoryProp | undefined {
-    return this.chapter.props?.find((p) => p.id === id);
+  /** Chapter-1 stalls visited so far. */
+  private get visits(): number {
+    return [...(this.chapter.stalls ?? []), ...(this.chapter.street?.shops ?? [])].filter((s) => this.state.story.flags[`visited:${s.id}`]).length;
   }
 
-  canVisit(propId: string): StoryResult {
+  canVisit(stallId: string): StoryResult {
     const f = this.state.story.flags;
-    if (!this.active || this.chapterId !== 'S03' || f.rescued || !this.prop(propId)) return no('notNow', false);
-    return f[`visited:${propId}`] ? no('alreadyVisited', false) : OK;
+    const known = this.chapter.stalls?.some((s) => s.id === stallId) || this.chapter.street?.shops?.some((s) => s.id === stallId);
+    if (!this.active || this.chapterId !== 'S03' || f.rescued || !known) return no('notNow', false);
+    return f[`visited:${stallId}`] ? no('alreadyVisited', false) : OK;
   }
 
-  /** Street props are harmless: a line, and some give a heart back. */
-  visit(propId: string): StoryResult {
-    const c = this.canVisit(propId);
+  /** A stall's talk has played to the end: it counts towards rush hour. */
+  visit(stallId: string): StoryResult {
+    const c = this.canVisit(stallId);
     if (!c.ok) return c;
-    const pr = this.prop(propId)!;
-    this.state.story.flags[`visited:${propId}`] = true;
-    this.aside = { text: pr.safe, ms: 3000 };
+    this.state.story.flags[`visited:${stallId}`] = true;
+    if (this.visits >= (this.chapter.run?.strollVisits ?? Infinity)) this.chaosIn = 3000;
     this.bus.emit('story:changed', { chapter: this.chapterId });
     return OK;
   }
@@ -300,7 +313,7 @@ export class StoryService {
     if (!c.ok) return c;
     const v = this.run?.view();
     this.run?.stop();
-    this.onDeath(v?.death?.kind ?? 'cat', v?.aliveMs ?? 0);
+    this.onDeath(v?.hit?.kind ?? v?.finale?.kind ?? 'sau', v?.aliveMs ?? 0);
     return OK;
   }
 
@@ -385,6 +398,13 @@ export class StoryService {
     }
     if (this.aside && (this.aside.ms -= dtMs) <= 0) this.aside = null;
     if (!this.active || this.dialog) return;
+    if (this.chaosIn !== null && (this.chaosIn -= dtMs) <= 0) {
+      this.chaosIn = null;
+      this.run?.startChaos();
+    }
+    const phase = this.run?.phase ?? null;
+    if (phase === 'chaos' && this.runPhase === 'stroll' && this.chapter.chaosAnnounce) this.aside = { text: this.chapter.chaosAnnounce, ms: 3000 };
+    this.runPhase = phase;
     const limit = this.chapter.timeLimitMs;
     if (limit && !this.state.story.flags.rescued) {
       this.timerMs += dtMs;
@@ -427,19 +447,28 @@ export class StoryService {
       const left = ch.timeLimitMs ? Math.max(0, Math.ceil((ch.timeLimitMs - this.timerMs) / 1000)) : 0;
       if (this.chapterId === 'S04') objective = this.portalOpen ? ch.objectiveReady ?? '' : ch.objective.replace('{n}', String(this.config.stones.filter((s) => f[s]).length));
       else if (this.chapterId === 'S05') objective = f.introDone ? ch.objectiveBrew ?? '' : ch.objective;
+      else if (this.chapterId === 'S03') {
+        const v = this.run?.view();
+        const shop = this.street?.view().shop;
+        objective = shop ? (ch.objectiveShop ?? '').replace('{name}', shop.name) : v?.phase === 'stroll'
+          ? ch.objective.replace('{n}', String(this.visits)).replace('{max}', String(ch.run?.strollVisits ?? 0)).replace('{s}', String(v.strollLeftSec ?? 0))
+          : v?.phase === 'chaos' ? (ch.objectiveChaos ?? '').replace('{s}', String(v.leftSec ?? 0)) : ch.objectiveFaint ?? '';
+      }
       else objective = ch.objective.replace('{t}', String(left));
     }
     return {
       active: this.active || this.travelIn !== null,
       chapter: this.chapterId,
       title: ch?.title ?? '',
+      act: this.active && this.chapterId === 'S03' && this.run ? ch?.acts?.[{ stroll: 0, chaos: 1, faint: 2 }[this.run.phase]] ?? null : null,
       objective,
       timeLeftSec: this.active && ch?.timeLimitMs && !f.rescued ? Math.max(0, Math.ceil((ch.timeLimitMs - this.timerMs) / 1000)) : null,
       dialog: d ? { text: d.lines[d.index]!, index: d.index, total: d.lines.length, speaker: this.chapterId === 'S05' ? 'master' : 'hero', kind: d.kind } : null,
       fate: this.fateView(),
       run: this.active && this.chapterId === 'S03' && this.run ? this.run.view() : null,
       garden: this.active && this.chapterId === 'S04' && this.garden ? this.garden.view() : null,
-      props: this.active ? (ch?.props ?? []).map((s) => ({ id: s.id, visited: !!f[`visited:${s.id}`], caption: f[`visited:${s.id}`] ? s.done : `${s.target} · ${s.action}` })) : [],
+      stalls: this.active ? (ch?.stalls ?? []).map((s) => ({ id: s.id, name: s.name, visited: !!f[`visited:${s.id}`] })) : [],
+      street: this.active && this.chapterId === 'S03' && this.street ? this.street.view() : null,
       aside: this.aside?.text ?? null,
       retries: this.retries,
       stones: Object.fromEntries(this.config.stones.map((s) => [s, !!f[s]])),
@@ -452,10 +481,10 @@ export class StoryService {
   }
 
   private fateView(): FateView | null {
-    const k = this.state.story.scenario as HazardKind | undefined;
+    const k = this.state.story.scenario as HazardKind | FinaleKind | undefined;
     const h = this.active && this.state.story.flags.rescued ? this.hazard : null;
     if (!h || !k) return null;
-    const kinds = Object.keys(this.chapter.hazards ?? {});
+    const kinds = [...Object.keys(this.chapter.hazards ?? {}), ...Object.keys(this.chapter.finales ?? {})];
     return { id: k, number: kinds.indexOf(k) + 1, death: h.death, absurdity: h.absurdity, aliveSec: Math.floor(this.lastAlive / 1000) };
   }
 }

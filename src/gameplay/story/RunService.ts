@@ -4,14 +4,17 @@ import type { WorldPos } from '../../utils/tile';
 import { worldToTile } from '../../utils/tile';
 
 /**
- * Chapter 1 survival run on a Hanoi street: the player moves with direct
- * control (keys / joystick / click-to-move) while absurd street hazards keep
- * coming, each telegraphed before it can hurt. Touching one is death: the
- * hazard plays its death (falling into the hole, the dog pounce…) and only
- * then the story shows the ending card. Pure simulation (no Phaser):
- * positions are in tile units, time in ms.
+ * Chapter 1 on a Hanoi street: a calm stroll, then rush hour. The player moves
+ * with direct control (keys / joystick / click-to-move) while absurd street
+ * gags keep coming, each telegraphed and most with a twist when dodged (the
+ * second banana peel, the manhole next to the hole…). One touch knocks the
+ * hero out; dodging everything only ends in the run's fate, an even sillier
+ * knock-out. Either way the hero lies down, says one last line, and the story
+ * moves on. Pure simulation (no Phaser): positions in tile units, time in ms.
  */
-export type HazardKind = 'cat' | 'dog' | 'sinkhole' | 'durian' | 'motorbike' | 'pigeons' | 'banana';
+export type HazardKind = 'cat' | 'dog' | 'sinkhole' | 'durian' | 'motorbike' | 'pigeons' | 'banana' | 'water' | 'laundry' | 'shuttlecock' | 'slipper' | 'chickens';
+/** The knock-out waiting for whoever dodges everything. */
+export type FinaleKind = 'sau' | 'coin' | 'chair' | 'sneeze' | 'lick' | 'news';
 
 export interface HazardView {
   id: number;
@@ -25,31 +28,106 @@ export interface HazardView {
   dy: number;
   /** 0–1 progress through the current phase (telegraph growth, fade). */
   t: number;
+  /** The twist of a dodged gag (second peel, manhole, big dog…): drawn a little differently. */
+  twist: boolean;
+  /** Short bubble over the hazard ("Gâu gâu!", "Nắp cống!"), or null. */
+  label: string | null;
 }
+
+/**
+ * The three acts: `stroll` (a calm walk, no hazards, the far end fenced off),
+ * `chaos` (rush hour: the gags), `faint` (knocked out).
+ */
+export type RunPhase = 'stroll' | 'chaos' | 'faint';
 
 export interface RunView {
   running: boolean;
+  phase: RunPhase;
+  /** Column of the construction fence closing the street during the stroll, or null. */
+  fenceX: number | null;
   /** Waiting for "tap to start". */
   paused: boolean;
   aliveMs: number;
+  /** Rush hour time left before the fate catches up (s), or null outside rush hour. */
+  leftSec: number | null;
+  /** Stroll time left before rush hour starts on its own (s), or null outside the stroll. */
+  strollLeftSec: number | null;
   dashReadyIn: number;
   /** Dashing right now (a short burst of speed). */
   dashing: boolean;
   hazards: HazardView[];
-  /** The death being played (0–1), before the ending card. */
-  death: { kind: HazardKind; t: number; x: number; y: number } | null;
+  /** The gag that got the hero, playing (0–1); then `down`. */
+  hit: { kind: HazardKind; t: number; x: number; y: number } | null;
+  /** The fate playing out (0–1): relief, the silly event, the fall. */
+  finale: { kind: FinaleKind; t: number; x: number; y: number; sound: string } | null;
+  /** Knocked out, lying on the street (0–1) before the story moves on. */
+  down: { t: number; x: number; y: number } | null;
+  /** What the hero says (a near miss, the last words), or null. */
+  say: string | null;
+  /** A harmless gag messing with the hero: `smell` slows, `shorts` swaps the controls. */
+  dazed: 'smell' | 'shorts' | null;
+}
+
+/** Words for a gag: its bubble, its twist's bubble, and the hero's last line when it knocks them out. */
+export interface HazardText {
+  /** Ending card / collection text. */
+  death: string;
+  absurdity: number;
+  label?: string;
+  twist?: string;
+  faint: string;
+  /** Durian: said when it lands close but misses. */
+  smell?: string;
+  /** Pigeons: their bubble when the hero carries bread. */
+  bread?: string;
+}
+
+export interface FinaleText {
+  death: string;
+  absurdity: number;
+  /** Only dealt if this stall's talk was heard (it set the joke up). */
+  needs?: string;
+  /** Relief first… */
+  setup: string;
+  /** …the sound of the silly event… */
+  sound: string;
+  /** …and the last words lying down. */
+  punch: string;
+}
+
+export interface RunScript {
+  hazards: Partial<Record<HazardKind, HazardText>>;
+  finales: Partial<Record<FinaleKind, FinaleText>>;
+  visited(stallId: string): boolean;
+  /** The street plays a rescue while the hero is down and calls `finishDown` when it is over. */
+  rescue?: boolean;
+  /** People standing or walking about: the hero walks round them, never through. */
+  people?: () => Array<{ x: number; y: number }>;
 }
 
 export interface RunConfig {
   /** Running speed in the run (tiles/s): quicker than everyday walking, so hazards can be outrun. */
   runSpeed: number;
+  /** The stroll turns into rush hour after this many seconds, or sooner once `strollVisits` stalls were visited; 0: one act, gags from the start. */
+  strollSec: number;
+  /** The first gag comes this long after the gags start (ms). */
+  firstGagMs?: number;
+  strollVisits: number;
+  /** The stroll keeps the player west of this column (the fence comes down with the chaos). */
+  fenceX: number;
   dashSpeed: number;
   dashMs: number;
   dashCooldownMs: number;
-  /** How long the death plays before the ending card. */
-  deathMs: number;
-  /** Seconds of survival after which each hazard starts to appear. */
-  unlockSec: Record<HazardKind, number>;
+  /** The gag that got the hero plays this long, then the hero lies down for `downMs`. */
+  hitMs: number;
+  downMs: number;
+  /** Dodging everything this long brings on the fate, which plays for `finaleMs`. */
+  chaosSec: number;
+  finaleMs: number;
+  /** How long a harmless gag (durian smell, shorts on the head) lasts. */
+  dazeMs: number;
+  /** Seconds into rush hour after which each gag starts to appear (absent: never dealt, e.g. the chickens). */
+  unlockSec: Partial<Record<HazardKind, number>>;
   /** Spawn interval: from `spawnStartMs` down to `spawnMinMs` over `rampSec`. */
   spawnStartMs: number;
   spawnMinMs: number;
@@ -59,9 +137,9 @@ export interface RunConfig {
   rushSec: number;
   /** Telegraphs shrink to this share of their length as the run ramps up. */
   minWarnScale: number;
-  /** First and last row of the main road, and first and last column of the side street (motorbike lanes). */
+  /** First and last row of the main road, and first and last column of a side street, if any (motorbike lanes). */
   roadRows: [number, number];
-  roadCols: [number, number];
+  roadCols?: [number, number];
 }
 
 interface Hazard extends HazardView {
@@ -69,16 +147,32 @@ interface Hazard extends HazardView {
   ms: number;
   warnMs: number;
   activeMs: number;
+  /** The hero came close: moving away again counts as a dodge (and brings the twist). */
+  near: boolean;
+  /** Its twist already came (or it is one). */
+  twisted: boolean;
+  /** Slipper: where it was thrown from, how far it flies out, and whether it is on its way back. */
+  ox: number;
+  oy: number;
+  reach: number;
+  back: boolean;
+  /** Pigeons after the hero's bread: they home in. */
+  bread: boolean;
 }
 
 const R = 0.25;
+/** How close the hero gets to another person (tile units). */
+const PERSON_GAP = 0.45;
 /** Chasers give up when the player gets this far away (tiles), once they have chased a little… */
 const LOSE_AT = 12;
 const LOSE_AFTER_MS = 2500;
 /** …and the same animal waits this long before coming back (ms), so other hazards get their turn. */
 const CHASER_REST = 9000;
 /** Hit distances (tile units) for the hazards that touch by distance. */
-const REACH: Partial<Record<HazardKind, number>> = { cat: 0.4, dog: 0.45, durian: 0.5, banana: 0.3, sinkhole: 0.85 };
+const REACH: Partial<Record<HazardKind, number>> = { cat: 0.4, dog: 0.45, chickens: 0.45, durian: 0.5, water: 0.6, laundry: 0.6, banana: 0.3, sinkhole: 0.85, shuttlecock: 0.45, slipper: 0.4 };
+const CHASERS: HazardKind[] = ['cat', 'dog', 'chickens'];
+/** Water and laundry come from the houses: only near the north sidewalk and the alley. */
+const NEAR_HOUSES_Y = 8.4;
 
 export class RunService {
   private hazards: Hazard[] = [];
@@ -89,19 +183,27 @@ export class RunService {
   private dashDir = { x: 0, y: 0 };
   private dashCd = 0;
   private steer = { x: 0, y: 0 };
-  private death: { kind: HazardKind; ms: number; x: number; y: number } | null = null;
+  private hit: { kind: HazardKind; ms: number; x: number; y: number } | null = null;
+  private finale: { kind: FinaleKind; ms: number; x: number; y: number; punched: boolean } | null = null;
+  private down: { ms: number; x: number; y: number; kind: HazardKind | FinaleKind } | null = null;
+  private sayText: { text: string; ms: number } | null = null;
+  private daze: { kind: 'smell' | 'shorts'; ms: number } | null = null;
+  /** The story was told the hero is down (once per run). */
+  private reported = false;
   /** When each chaser may come back (run time, ms). */
   private restUntil: Partial<Record<HazardKind, number>> = {};
-  /**
-   * Hazards are dealt like cards: every kind comes up once per round before any repeats,
-   * so each run meets them all. The run's `fate` is in the deck twice: it is the likeliest
-   * death, and a different one each time you play.
-   */
+  /** Hazards are dealt like cards: every kind comes up once per round before any repeats, so each run meets them all. */
   private deck: HazardKind[] = [];
-  fate: HazardKind = 'dog';
   running = false;
+  phase: RunPhase = 'stroll';
+  private strollMs = 0;
+  private fenced = false;
   /** Waiting for the player's first tap / key ("tap to start"): nothing moves yet. */
   paused = false;
+  /** A street scene moves the hero itself (the barrier): keys and joystick do nothing meanwhile. */
+  held = false;
+  /** A knock-out from outside the run (the barrier crash): its last line and how long the hero lies there. */
+  private koOverride: { line: string; downMs: number } | null = null;
 
   constructor(
     private readonly config: RunConfig,
@@ -110,8 +212,9 @@ export class RunService {
     private readonly random: () => number,
     /** Map size, for spawning bikes and pigeons from the edges. */
     private readonly size: { w: number; h: number },
-    /** Called once the death has played: the story shows the ending card. */
-    private readonly onDeath: (kind: HazardKind, aliveMs: number) => void,
+    /** Called once the hero has lain down: the story moves on. */
+    private readonly onDeath: (kind: HazardKind | FinaleKind, aliveMs: number) => void,
+    private readonly script: RunScript = { hazards: {}, finales: {}, visited: () => false },
   ) {}
 
   start(): void {
@@ -120,20 +223,58 @@ export class RunService {
     this.dashMs = 0;
     this.dashCd = 0;
     this.spawnIn = 2500;
-    this.death = null;
+    this.hit = null;
+    this.finale = null;
+    this.down = null;
+    this.sayText = null;
+    this.daze = null;
+    this.reported = false;
+    this.held = false;
+    this.koOverride = null;
     this.restUntil = {};
     this.deck = [];
-    const kinds = Object.keys(this.config.unlockSec) as HazardKind[];
-    this.fate = kinds[Math.floor(this.random() * kinds.length)] ?? 'dog';
     this.running = true;
     this.paused = true;
+    this.phase = 'stroll';
+    this.strollMs = 0;
+    // One act: the street is open and the gags come from the start (gently at first).
+    if (this.config.strollSec <= 0) {
+      this.phase = 'chaos';
+      this.spawnIn = this.config.firstGagMs ?? 700;
+    } else this.setFence(true);
   }
 
-  /** Ends the run without a death (the story moved on by other means). */
+  /** Rush hour: the fence comes down and the hazards start. */
+  startChaos(): void {
+    if (!this.running || this.phase !== 'stroll') return;
+    this.phase = 'chaos';
+    // The first gag comes at once: rush hour has to feel like it.
+    this.spawnIn = this.config.firstGagMs ?? 700;
+    this.setFence(false);
+  }
+
+  /** Ends the run without a knock-out (the story moved on by other means). */
   stop(): void {
     this.running = false;
-    this.death = null;
+    this.hit = null;
+    this.finale = null;
+    this.down = null;
     this.steer = { x: 0, y: 0 };
+    this.setFence(false);
+  }
+
+  /** Column of the construction fence while it stands, or null. */
+  get fenceX(): number | null {
+    return this.fenced ? this.config.fenceX : null;
+  }
+
+  /** The fence is a blocker on the nav grid, so both steering and click-to-move stop at it. */
+  private setFence(on: boolean): void {
+    if (on === this.fenced) return;
+    const f = { x: this.config.fenceX, y: 0, w: 1, h: this.size.h };
+    if (on) this.grid.addBlocker(f);
+    else this.grid.removeBlocker(f);
+    this.fenced = on;
   }
 
   /** Direct control, in world (tile) directions; (0,0) lets click-to-move drive. */
@@ -146,18 +287,18 @@ export class RunService {
     return this.steer.x !== 0 || this.steer.y !== 0;
   }
 
-  /** A death is playing: no movement at all until the ending card. */
+  /** Knocked out (the gag, the fate, lying down): no movement at all until the story moves on. */
   get dying(): boolean {
-    return this.death !== null;
+    return this.hit !== null || this.finale !== null || this.down !== null;
   }
 
   /** True while the run moves the player itself: path movement must wait. */
   get controlsPlayer(): boolean {
-    return this.steering || this.dashMs > 0 || this.death !== null;
+    return this.steering || this.dashMs > 0 || this.dying;
   }
 
   dash(): boolean {
-    if (!this.running || this.paused || this.dashCd > 0) return false;
+    if (!this.running || this.paused || this.held || this.dashCd > 0) return false;
     this.dashDir = this.steering ? { ...this.steer } : facingVector(this.player);
     this.dashMs = this.config.dashMs;
     this.dashCd = this.config.dashCooldownMs;
@@ -166,52 +307,166 @@ export class RunService {
 
   /** `_walkSpeed` is the everyday speed; the run uses its own `runSpeed`. */
   tick(dt: number, _walkSpeed: number): void {
-    const speed = this.config.runSpeed;
-    const d = this.death;
-    if (d) {
-      d.ms += dt;
-      if (d.ms >= this.config.deathMs) {
-        this.death = null;
-        this.onDeath(d.kind, this.aliveMs);
-      }
+    if (this.sayText && (this.sayText.ms -= dt) <= 0) this.sayText = null;
+    if (this.knockOut(dt)) return;
+    if (!this.running || this.paused) return;
+    this.dashCd = Math.max(0, this.dashCd - dt);
+    if (this.daze && (this.daze.ms -= dt) <= 0) this.daze = null;
+    this.movePlayer(dt);
+    if (this.phase === 'stroll') {
+      this.strollMs += dt;
+      if (this.strollMs >= this.config.strollSec * 1000) this.startChaos();
       return;
     }
-    if (!this.running || this.paused) return;
+    // Time alive (the HUD timer, unlocks and the ramp) counts from rush hour.
     this.aliveMs += dt;
-    this.dashCd = Math.max(0, this.dashCd - dt);
-    this.movePlayer(dt, speed);
+    if (this.aliveMs >= this.config.chaosSec * 1000) return this.startFinale();
     this.spawn(dt);
-    for (const h of this.hazards) {
+    for (const h of [...this.hazards]) {
       this.step(h, dt);
-      if (this.death) return;
+      if (this.hit) return;
     }
     this.hazards = this.hazards.filter((h) => h.phase !== 'gone' || h.ms < 400);
   }
 
+  /** Plays the knock-out (gag or fate), then the hero lying down; true while it does. */
+  private knockOut(dt: number): boolean {
+    const h = this.hit, f = this.finale, d = this.down;
+    if (h || f || d) this.drift(dt);
+    if (h && (h.ms += dt) >= this.config.hitMs) {
+      this.hit = null;
+      this.lieDown(h.kind, this.koOverride?.line ?? this.script.hazards[h.kind]?.faint ?? '…');
+    }
+    if (f) {
+      f.ms += dt;
+      if (!f.punched && f.ms >= this.config.finaleMs * 0.62) {
+        f.punched = true;
+        this.say(this.script.finales[f.kind]?.punch ?? '…', this.config.finaleMs);
+      }
+      if (f.ms >= this.config.finaleMs) {
+        this.finale = null;
+        this.down = { ms: 0, x: f.x, y: f.y, kind: f.kind };
+      }
+    }
+    // Stays down (the view keeps lying) while the story takes over.
+    const downMs = this.koOverride?.downMs ?? this.config.downMs;
+    if (d) d.ms = Math.min(downMs, d.ms + dt);
+    // With a street rescue, the story moves on when the ambulance is gone (`finishDown`), not after `downMs`.
+    if (d && !this.reported && !this.script.rescue) {
+      if (d.ms >= downMs) {
+        this.reported = true;
+        this.onDeath(d.kind, this.aliveMs);
+      }
+    }
+    return this.hit !== null || this.finale !== null || this.down !== null;
+  }
+
+  private lieDown(kind: HazardKind, line: string): void {
+    this.down = { ms: 0, x: this.player.pos.x, y: this.player.pos.y, kind };
+    this.say(line, Math.min(3000, (this.koOverride?.downMs ?? this.config.downMs) + 1500));
+  }
+
+  /**
+   * While the hero is knocked out the street does not freeze: the bikes that
+   * hit them ride on out of sight, the animal in the scuffle runs off once the
+   * hit has played, everything else fades.
+   */
+  private drift(dt: number): void {
+    const s = dt / 1000;
+    for (const h of this.hazards) {
+      if (h.phase === 'gone') { h.ms += dt; h.t = Math.min(1, h.ms / 400); continue; }
+      if (h.kind === 'motorbike' && h.phase === 'active') {
+        h.x += h.dx * 8 * s;
+        h.y += h.dy * 8 * s;
+        if (h.x < -6 || h.x > this.size.w + 6 || h.y < -6 || h.y > this.size.h + 6) this.gone(h);
+        continue;
+      }
+      if (!this.hit) this.gone(h);
+    }
+    this.hazards = this.hazards.filter((h) => h.phase !== 'gone' || h.ms < 400);
+  }
+
+  /** The hero is lying knocked out (the street's rescue can start). */
+  get isDown(): boolean {
+    return this.down !== null;
+  }
+
+  /** The rescue is over (the ambulance is gone): the story moves on. */
+  finishDown(): void {
+    const d = this.down;
+    if (!d || this.reported) return;
+    this.reported = true;
+    this.onDeath(d.kind, this.aliveMs);
+  }
+
+  /** Knocked out by something the street plays (the motorbike past the barrier): like a gag hit, lying longer. */
+  crash(kind: HazardKind, line: string, downMs: number): void {
+    // Mid-dash the hero slips between the bikes.
+    if (this.dying || this.dashMs > 0) return;
+    this.koOverride = { line, downMs };
+    const p = this.player.pos;
+    this.knock(kind, { ...p } as Hazard);
+  }
+
+  private say(text: string, ms: number): void {
+    this.sayText = { text, ms };
+  }
+
   // ── player motion ───────────────────────────────────────────────────────
 
-  private movePlayer(dt: number, speed: number): void {
+  private movePlayer(dt: number): void {
     if (this.dashMs > 0) {
       this.dashMs -= dt;
       this.moveBy((this.dashDir.x * this.config.dashSpeed * dt) / 1000, (this.dashDir.y * this.config.dashSpeed * dt) / 1000);
       return;
     }
-    if (!this.steering) return;
+    if (!this.steering || this.held) return;
+    // Shorts over the eyes: left is right. Durian smell: legs like jelly.
+    const s = this.daze?.kind === 'shorts' ? -1 : 1;
+    const speed = this.config.runSpeed * (this.daze?.kind === 'smell' ? 0.55 : 1);
+    const sx = this.steer.x * s, sy = this.steer.y * s;
     this.player.clearWaypoints();
-    this.player.faceTowards({ x: this.player.pos.x + this.steer.x, y: this.player.pos.y + this.steer.y });
-    this.moveBy((this.steer.x * speed * dt) / 1000, (this.steer.y * speed * dt) / 1000);
+    this.player.faceTowards({ x: this.player.pos.x + sx, y: this.player.pos.y + sy });
+    this.moveBy((sx * speed * dt) / 1000, (sy * speed * dt) / 1000);
   }
 
   /** Moves with wall sliding (each axis separately). */
   private moveBy(dx: number, dy: number): void {
     const p = this.player.pos;
-    if (this.free({ x: p.x + dx, y: p.y })) p.x += dx;
-    if (this.free({ x: p.x, y: p.y + dy })) p.y += dy;
+    if (this.free({ x: p.x + dx, y: p.y }) && !this.bumps(p, { x: p.x + dx, y: p.y })) p.x += dx;
+    if (this.free({ x: p.x, y: p.y + dy }) && !this.bumps(p, { x: p.x, y: p.y + dy })) p.y += dy;
+  }
+
+  /** Moving into someone (closer than shoulder to shoulder, and getting closer): blocked. Moving away is always fine. */
+  private bumps(from: WorldPos, to: WorldPos): boolean {
+    for (const o of this.script.people?.() ?? []) {
+      const d = Math.hypot(to.x - o.x, to.y - o.y);
+      if (d < PERSON_GAP && d < Math.hypot(from.x - o.x, from.y - o.y)) return true;
+    }
+    return false;
   }
 
   private free(p: WorldPos): boolean {
     for (const [ox, oy] of [[-R, -R], [R, -R], [-R, R], [R, R]] as const) if (!this.grid.isWalkable(worldToTile({ x: p.x + ox, y: p.y + oy }))) return false;
     return true;
+  }
+
+  // ── the fate ────────────────────────────────────────────────────────────
+
+  /** Dodged everything: the fate (only those whose joke was set up at a stall). */
+  private startFinale(): void {
+    const all = this.script.finales;
+    const ok = (Object.keys(all) as FinaleKind[]).filter((k) => !all[k]!.needs || this.script.visited(all[k]!.needs!));
+    const kind = ok[Math.floor(this.random() * ok.length)] ?? 'sau';
+    this.phase = 'faint';
+    this.running = false;
+    this.steer = { x: 0, y: 0 };
+    this.dashMs = 0;
+    this.daze = null;
+    this.player.clearWaypoints();
+    for (const h of this.hazards) if (h.phase !== 'gone') this.gone(h);
+    this.finale = { kind, ms: 0, x: this.player.pos.x, y: this.player.pos.y, punched: false };
+    this.say(all[kind]?.setup ?? '', this.config.finaleMs * 0.38);
   }
 
   // ── hazards ─────────────────────────────────────────────────────────────
@@ -233,15 +488,18 @@ export class RunService {
     return Math.min(1, this.aliveMs / 1000 / this.config.rampSec);
   }
 
-  /** Next card from the deck that can come now (unlocked, not already out, not resting). */
+  /** Next card from the deck that can come now (unlocked, not already out, not resting, in the right place). */
   private deal(): HazardKind | null {
     const c = this.config, sec = this.aliveMs / 1000;
-    const unlocked = (k: HazardKind) => sec >= c.unlockSec[k];
-    // One dog, one cat, one hole at a time (counting one still fading out): a pack is not funny, it is unfair.
-    const canCome = (k: HazardKind) => unlocked(k) && !((k === 'cat' || k === 'dog' || k === 'sinkhole') && this.hazards.some((h) => h.kind === k)) && (this.restUntil[k] ?? 0) <= this.aliveMs;
+    const unlocked = (k: HazardKind) => c.unlockSec[k] !== undefined && sec >= c.unlockSec[k]!;
+    // One of each animal and one hole at a time (counting one still fading out): a pack is not funny, it is unfair.
+    const canCome = (k: HazardKind) =>
+      unlocked(k) &&
+      !((CHASERS.includes(k) || k === 'sinkhole') && this.hazards.some((h) => h.kind === k)) &&
+      (this.restUntil[k] ?? 0) <= this.aliveMs &&
+      ((k !== 'water' && k !== 'laundry') || this.player.pos.y < NEAR_HOUSES_Y);
     if (!this.deck.some(canCome)) {
       const round = (Object.keys(c.unlockSec) as HazardKind[]).filter(unlocked);
-      if (unlocked(this.fate)) round.push(this.fate);
       for (let i = round.length - 1; i > 0; i--) { const j = Math.floor(this.random() * (i + 1)); [round[i], round[j]] = [round[j]!, round[i]!]; }
       this.deck.push(...round);
     }
@@ -249,38 +507,54 @@ export class RunService {
     return i < 0 ? null : this.deck.splice(i, 1)[0]!;
   }
 
-  private add(kind: HazardKind): void {
+  private add(kind: HazardKind, at?: WorldPos & { warnMs?: number; twist?: boolean }): void {
     const p = this.player.pos;
     const ahead = this.steering ? this.steer : facingVector(this.player);
-    const base = { id: this.nextId++, kind, phase: 'warn' as const, ms: 0, t: 0, dx: 0, dy: 0 };
+    const text = this.script.hazards[kind];
+    const base = { id: this.nextId++, kind, phase: 'warn' as const, ms: 0, t: 0, dx: 0, dy: 0, twist: !!at?.twist, twisted: !!at?.twist, near: false, label: (at?.twist ? text?.twist : text?.label) ?? null, ox: 0, oy: 0, reach: 0, back: false, bread: false };
     const before = this.hazards.length;
     const rnd = (a: number, b: number) => a + this.random() * (b - a);
+    if (at) {
+      // A twist: right where the dodge took the hero, with a short warning.
+      this.hazards.push({ ...base, x: at.x, y: at.y, warnMs: at.warnMs ?? 400, activeMs: kind === 'chickens' ? 4500 : kind === 'banana' ? 14000 : 4000 });
+      return;
+    }
     switch (kind) {
       case 'cat':
       case 'dog': {
-        const a = this.random() * Math.PI * 2;
-        const at = this.walkableNear({ x: p.x + Math.cos(a) * 6.5, y: p.y + Math.sin(a) * 6.5 });
-        // A short chase each: outrun it or dodge for a few seconds and it gives up.
-        if (at && Math.hypot(at.x - p.x, at.y - p.y) > 4) this.hazards.push({ ...base, ...at, warnMs: kind === 'dog' ? 1200 : 1000, activeMs: kind === 'dog' ? 4500 : 6000 });
+        // Somewhere on the street a fair way off (the street is narrow: try a few directions).
+        const a0 = this.random() * Math.PI * 2;
+        for (let i = 0; i < 8; i++) {
+          const a = a0 + (i * Math.PI) / 4;
+          const pos = this.walkableNear({ x: p.x + Math.cos(a) * 6.5, y: p.y + Math.sin(a) * 6.5 });
+          if (!pos || Math.hypot(pos.x - p.x, pos.y - p.y) <= 4) continue;
+          // A short chase each: outrun it or dodge for a few seconds and it gives up.
+          this.hazards.push({ ...base, ...pos, warnMs: kind === 'dog' ? 1700 : 1100, activeMs: kind === 'dog' ? 3600 : 6000 });
+          break;
+        }
         break;
       }
       case 'sinkhole': {
         // The road caves in further along where the player is heading: time to swerve.
-        const at = this.walkableNear({ x: p.x + ahead.x * 3.5, y: p.y + ahead.y * 3.5 });
-        if (at && Math.hypot(at.x - p.x, at.y - p.y) > 2) this.hazards.push({ ...base, ...at, warnMs: 1500, activeMs: 4000 });
+        const pos = this.walkableNear({ x: p.x + ahead.x * 3.5, y: p.y + ahead.y * 3.5 });
+        if (pos && Math.hypot(pos.x - p.x, pos.y - p.y) > 2) this.hazards.push({ ...base, ...pos, warnMs: 1500, activeMs: 4000 });
         break;
       }
-      case 'durian': {
+      case 'durian':
+      case 'water':
+      case 'laundry': {
         // Aimed at where you are (a little ahead when running): one step aside is enough.
         const lead = this.steering ? 0.8 : 0;
-        this.hazards.push({ ...base, x: p.x + ahead.x * lead + rnd(-0.3, 0.3), y: p.y + ahead.y * lead + rnd(-0.3, 0.3), warnMs: 1400, activeMs: 250 });
+        // Water and laundry fall from the houses: on the north sidewalk.
+        const y = kind === 'durian' ? p.y + ahead.y * lead : Math.min(p.y + ahead.y * lead, 7.6);
+        this.hazards.push({ ...base, x: p.x + ahead.x * lead + rnd(-0.3, 0.3), y: y + rnd(-0.3, 0.3), warnMs: kind === 'durian' ? 1400 : 1200, activeMs: 250 });
         break;
       }
       case 'motorbike': {
         // Along the main road or down the side street, whichever the player is nearer.
         const dir = this.random() < 0.5 ? 1 : -1;
-        const [r0, r1] = this.config.roadRows, [c0, c1] = this.config.roadCols;
-        const side = Math.abs(p.x - (c0 + c1 + 1) / 2) < Math.abs(p.y - (r0 + r1 + 1) / 2);
+        const [r0, r1] = this.config.roadRows, [c0, c1] = this.config.roadCols ?? [0, 0];
+        const side = !!this.config.roadCols && Math.abs(p.x - (c0 + c1 + 1) / 2) < Math.abs(p.y - (r0 + r1 + 1) / 2);
         if (side) {
           const col = c0 + Math.floor(this.random() * (c1 - c0 + 1)) + 0.5;
           this.hazards.push({ ...base, x: col, y: dir > 0 ? -3 : this.size.h + 3, dx: 0, dy: dir, warnMs: 1600, activeMs: 8000 });
@@ -290,19 +564,34 @@ export class RunService {
         }
         break;
       }
-      case 'pigeons': {
+      case 'pigeons':
+      case 'shuttlecock': {
+        // Across the hero's row or column, from off screen (pigeons) or a few tiles away (a kid's kick).
         const horizontal = this.random() < 0.5;
         const dir = this.random() < 0.5 ? 1 : -1;
-        const x = horizontal ? (dir > 0 ? -2 : this.size.w + 2) : p.x;
-        const y = horizontal ? p.y : dir > 0 ? -2 : this.size.h + 2;
-        this.hazards.push({ ...base, x, y, dx: horizontal ? dir : 0, dy: horizontal ? 0 : dir, warnMs: 1500, activeMs: 6000 });
+        const far = kind === 'pigeons' ? null : 6;
+        const x = horizontal ? (far ? p.x - dir * far : dir > 0 ? -2 : this.size.w + 2) : p.x;
+        const y = horizontal ? p.y : far ? p.y - dir * far : dir > 0 ? -2 : this.size.h + 2;
+        // Bread in hand (from the bánh mì stall): the pigeons come for it.
+        const bread = kind === 'pigeons' && this.script.visited('banh_mi');
+        this.hazards.push({ ...base, x, y, dx: horizontal ? dir : 0, dy: horizontal ? 0 : dir, warnMs: kind === 'pigeons' ? 1500 : 800, activeMs: 6000, bread, label: bread ? text?.bread ?? base.label : base.label });
+        break;
+      }
+      case 'slipper': {
+        // Thrown in a quarrel nearby: past the hero… and back like a boomerang.
+        const a = this.random() * Math.PI * 2;
+        const ox = p.x + Math.cos(a) * 5, oy = p.y + Math.sin(a) * 5;
+        const d = Math.hypot(p.x - ox, p.y - oy);
+        this.hazards.push({ ...base, x: ox, y: oy, ox, oy, dx: (p.x - ox) / d, dy: (p.y - oy) / d, reach: d + 2.5, warnMs: 900, activeMs: 8000 });
         break;
       }
       case 'banana': {
-        const at = this.walkableNear({ x: p.x + ahead.x * rnd(3, 5) + rnd(-1, 1), y: p.y + ahead.y * rnd(3, 5) + rnd(-1, 1) });
-        if (at && Math.hypot(at.x - p.x, at.y - p.y) > 2) this.hazards.push({ ...base, ...at, warnMs: 300, activeMs: 14000 });
+        const pos = this.walkableNear({ x: p.x + ahead.x * rnd(3, 5) + rnd(-1, 1), y: p.y + ahead.y * rnd(3, 5) + rnd(-1, 1) });
+        if (pos && Math.hypot(pos.x - p.x, pos.y - p.y) > 2) this.hazards.push({ ...base, ...pos, warnMs: 300, activeMs: 14000 });
         break;
       }
+      case 'chickens':
+        break;
     }
     // Later in the run the telegraphs get shorter.
     const scale = 1 - (1 - this.config.minWarnScale) * this.ramp;
@@ -318,6 +607,12 @@ export class RunService {
     return null;
   }
 
+  /** Where the hero is heading, `d` tiles on (a walkable tile), for twists. */
+  private aheadOfHero(d: number): WorldPos | null {
+    const a = this.steering ? this.steer : facingVector(this.player);
+    return this.walkableNear({ x: this.player.pos.x + a.x * d, y: this.player.pos.y + a.y * d });
+  }
+
   private step(h: Hazard, dt: number): void {
     h.ms += dt;
     if (h.phase === 'gone') {
@@ -326,7 +621,11 @@ export class RunService {
     }
     if (h.phase === 'warn') {
       h.t = Math.min(1, h.ms / h.warnMs);
-      if (h.ms >= h.warnMs) Object.assign(h, { phase: 'active', ms: 0, t: 0 });
+      if (h.ms >= h.warnMs) {
+        Object.assign(h, { phase: 'active', ms: 0, t: 0 });
+        // The little yapping dog was only the warning: the big one comes out.
+        if (h.kind === 'dog') h.label = this.script.hazards.dog?.twist ?? h.label;
+      }
       return;
     }
     h.t = Math.min(1, h.ms / h.activeMs);
@@ -335,11 +634,13 @@ export class RunService {
     const s = dt / 1000;
     switch (h.kind) {
       case 'cat':
-        // Clingy but slower than you: you can outrun it, not forget it.
+      case 'chickens':
+        // Clingy but slower than you: you can outrun them, not forget them.
         if (d > 1e-3) {
           h.dx = (p.x - h.x) / d;
           h.dy = (p.y - h.y) / d;
-          this.moveHazard(h, h.dx * 2.6 * s, h.dy * 2.6 * s);
+          const v = h.kind === 'cat' ? 2.6 : 3.2;
+          this.moveHazard(h, h.dx * v * s, h.dy * v * s);
         }
         break;
       case 'dog': {
@@ -351,13 +652,17 @@ export class RunService {
         cur += Math.max(-turn, Math.min(turn, diff));
         h.dx = Math.cos(cur);
         h.dy = Math.sin(cur);
-        this.moveHazard(h, h.dx * 4.3 * s, h.dy * 4.3 * s);
+        this.moveHazard(h, h.dx * 3.8 * s, h.dy * 3.8 * s);
         break;
       }
       case 'durian':
-        if (d < REACH.durian!) return this.hurt('durian', h);
+      case 'water':
+      case 'laundry':
+        if (d < REACH[h.kind]!) return this.hurt(h.kind, h);
+        // A durian landing just next to you: not a hit, but that smell…
+        if (h.kind === 'durian' && d < 1.4) this.dazed('smell', this.script.hazards.durian?.smell);
         this.gone(h);
-        break;
+        return;
       case 'motorbike':
         // A little pack of bikes (the lead and two behind it) sweeps the lane.
         h.x += h.dx * 8 * s;
@@ -367,19 +672,59 @@ export class RunService {
           const side = h.dx ? p.y - h.y : p.x - h.x, along = h.dx ? p.x - (h.x + off * h.dx) : p.y - (h.y + off * h.dy);
           if (Math.abs(side) < 0.5 && Math.abs(along) < 0.6) return this.hurt('motorbike', h);
         }
+        // Dodged the bikes… but the last one's crate of chickens bursts open right by you.
+        if (!h.twisted && (h.dx ? (p.x - h.x) * h.dx < -3.2 : (p.y - h.y) * h.dy < -3.2) && Math.abs(h.dx ? p.y - h.y : p.x - h.x) < 3.5) {
+          h.twisted = true;
+          const at = this.walkableNear({ x: h.x - h.dx * 2.6, y: h.y - h.dy * 2.6 });
+          if (at && !this.hazards.some((o) => o.kind === 'chickens')) this.add('chickens', { ...at, warnMs: 500, twist: true });
+        }
         if (h.x < -6 || h.x > this.size.w + 6 || h.y < -6 || h.y > this.size.h + 6) this.gone(h);
         break;
       case 'pigeons':
-        h.x += h.dx * 9 * s;
-        h.y += h.dy * 9 * s;
-        if (Math.abs(h.dx ? p.y - h.y : p.x - h.x) < 0.55 && Math.abs(h.dx ? p.x - h.x : p.y - h.y) < 0.8) return this.hurt('pigeons', h);
-        if (h.x < -4 || h.y < -4 || h.x > this.size.w + 4 || h.y > this.size.h + 4) this.gone(h);
+      case 'shuttlecock': {
+        const v = h.kind === 'pigeons' ? 9 : 10;
+        // After your bread: they bend towards you as they fly.
+        if (h.bread && d > 0.5) {
+          const k = Math.min(1, 1.6 * s);
+          const nx = h.dx + ((p.x - h.x) / d - h.dx) * k, ny = h.dy + ((p.y - h.y) / d - h.dy) * k, l = Math.hypot(nx, ny);
+          h.dx = nx / l;
+          h.dy = ny / l;
+        }
+        h.x += h.dx * v * s;
+        h.y += h.dy * v * s;
+        if (h.kind === 'shuttlecock' ? d < REACH.shuttlecock! : Math.abs(h.dx ? p.y - h.y : p.x - h.x) < 0.55 && Math.abs(h.dx ? p.x - h.x : p.y - h.y) < 0.8) return this.hurt(h.kind, h);
+        if (h.x < -4 || h.y < -4 || h.x > this.size.w + 4 || h.y > this.size.h + 4 || (h.kind === 'shuttlecock' && h.ms > 2500)) this.gone(h);
         break;
+      }
+      case 'slipper': {
+        h.x += h.dx * 7 * s;
+        h.y += h.dy * 7 * s;
+        if (d < REACH.slipper!) return this.hurt('slipper', h);
+        const out = Math.hypot(h.x - h.ox, h.y - h.oy);
+        if (!h.back && out >= h.reach) {
+          // Turns round mid-air and comes back the same way.
+          h.back = true;
+          h.twist = true;
+          h.dx = -h.dx;
+          h.dy = -h.dy;
+          h.label = this.script.hazards.slipper?.twist ?? h.label;
+        } else if (h.back && out < 0.5) this.gone(h);
+        break;
+      }
     }
-    // Left far behind: the animal gives up the chase.
-    if ((h.kind === 'cat' || h.kind === 'dog') && h.ms > LOSE_AFTER_MS && d > LOSE_AT) return this.gone(h);
+    // Banana peels and holes: walking close then away counts as a dodge… and the twist is right there.
+    if ((h.kind === 'banana' || h.kind === 'sinkhole') && !h.twisted) {
+      if (d < 1.8) h.near = true;
+      else if (h.near && d > 2.4) {
+        h.twisted = true;
+        const at = this.aheadOfHero(h.kind === 'banana' ? 1.4 : 1.8);
+        if (at) this.add(h.kind, { ...at, warnMs: h.kind === 'banana' ? 150 : 450, twist: true });
+      }
+    }
+    // Left far behind: the animals give up the chase.
+    if (CHASERS.includes(h.kind) && h.ms > LOSE_AFTER_MS && d > LOSE_AT) return this.gone(h);
     const reach = REACH[h.kind];
-    if (reach !== undefined && h.kind !== 'durian' && d < reach) return this.hurt(h.kind, h);
+    if (reach !== undefined && ['cat', 'dog', 'chickens', 'banana', 'sinkhole'].includes(h.kind) && d < reach) return this.hurt(h.kind, h);
     if (h.phase === 'active' && h.ms >= h.activeMs) this.gone(h);
   }
 
@@ -391,40 +736,63 @@ export class RunService {
 
   private gone(h: Hazard): void {
     Object.assign(h, { phase: 'gone', ms: 0, t: 0 });
-    if (h.kind === 'cat' || h.kind === 'dog') this.restUntil[h.kind] = this.aliveMs + CHASER_REST;
+    if (CHASERS.includes(h.kind)) this.restUntil[h.kind] = this.aliveMs + CHASER_REST;
   }
 
-  /** A touch, unless the player is mid-dash: dashing goes straight through anything. */
+  private dazed(kind: 'smell' | 'shorts', line?: string): void {
+    this.daze = { kind, ms: this.config.dazeMs };
+    if (line) this.say(line, this.config.dazeMs);
+  }
+
+  /** A touch, unless the player is mid-dash (dashing goes straight through anything). Laundry only blinds you for a moment. */
   private hurt(kind: HazardKind, h: Hazard): void {
     if (this.dashMs > 0) return;
-    this.die(kind, h);
+    if (kind === 'laundry') {
+      this.gone(h);
+      return this.dazed('shorts', this.script.hazards.laundry?.faint);
+    }
+    this.knock(kind, h);
   }
 
-  /** Touch = death: the run stops and the death plays where it happened. */
-  private die(kind: HazardKind, h: Hazard): void {
+  /** One touch is enough: the gag plays where it happened, then the hero lies down. */
+  private knock(kind: HazardKind, h: Hazard): void {
     this.running = false;
+    this.phase = 'faint';
     this.steer = { x: 0, y: 0 };
     this.dashMs = 0;
+    this.daze = null;
     this.player.clearWaypoints();
-    // The cat or dog that caught you jumps on you: it is the one in the scuffle, not a second animal.
-    if (kind === 'cat' || kind === 'dog') {
+    // The animal that caught you jumps on you: it is the one in the scuffle, not a second one.
+    if (CHASERS.includes(kind)) {
       h.x = this.player.pos.x + 0.05;
       h.y = this.player.pos.y + 0.05;
     }
+    for (const o of this.hazards) if (o !== h && o.phase !== 'gone') this.gone(o);
+    // What hit stays only while it plays a part: the bikes ride on, the animal stays in the scuffle, the hole swallows; the rest is drawn by the hit itself.
+    if (this.hazards.includes(h) && !['motorbike', 'sinkhole', ...CHASERS].includes(h.kind)) this.gone(h);
     // The hole swallows you at its centre; the others where you stood.
-    this.death = kind === 'sinkhole' ? { kind, ms: 0, x: h.x, y: h.y } : { kind, ms: 0, x: this.player.pos.x, y: this.player.pos.y };
+    this.hit = kind === 'sinkhole' ? { kind, ms: 0, x: h.x, y: h.y } : { kind, ms: 0, x: this.player.pos.x, y: this.player.pos.y };
   }
 
   view(): RunView {
-    const d = this.death;
+    const c = this.config, h = this.hit, f = this.finale, d = this.down;
     return {
       running: this.running,
+      phase: this.phase,
+      fenceX: this.fenceX,
       paused: this.paused,
       aliveMs: this.aliveMs,
+      leftSec: this.phase === 'chaos' ? Math.max(0, Math.ceil(c.chaosSec - this.aliveMs / 1000)) : null,
+      strollLeftSec: this.phase === 'stroll' ? Math.max(0, Math.ceil(c.strollSec - this.strollMs / 1000)) : null,
       dashReadyIn: this.dashCd,
       dashing: this.dashMs > 0,
-      hazards: this.hazards.map(({ id, kind, phase, x, y, dx, dy, t }) => ({ id, kind, phase, x, y, dx, dy, t })),
-      death: d ? { kind: d.kind, t: Math.min(1, d.ms / this.config.deathMs), x: d.x, y: d.y } : null,
+      hazards: this.hazards.map(({ id, kind, phase, x, y, dx, dy, t, twist, label }) => ({ id, kind, phase, x, y, dx, dy, t, twist, label })),
+      hit: h ? { kind: h.kind, t: Math.min(1, h.ms / c.hitMs), x: h.x, y: h.y } : null,
+      finale: f ? { kind: f.kind, t: Math.min(1, f.ms / c.finaleMs), x: f.x, y: f.y, sound: this.script.finales[f.kind]?.sound ?? '' } : null,
+      // Follows the hero: the medics carry them off.
+      down: d ? { t: Math.min(1, d.ms / (this.koOverride?.downMs ?? c.downMs)), x: this.player.pos.x, y: this.player.pos.y } : null,
+      say: this.sayText?.text ?? null,
+      dazed: this.daze?.kind ?? null,
     };
   }
 }
