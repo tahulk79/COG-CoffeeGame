@@ -168,7 +168,7 @@ export class HudScene extends Phaser.Scene {
       this.decorHud = new DecorHud(this, decor, CONTENT.furniture, CONTENT.items);
     }
 
-    if (sim.story.active) this.storyHud = new StoryHud(this, () => sim.story.advanceDialog(), () => sim.dash(), () => sim.story.retryRun(), () => toggleMute(this.sound));
+    if (sim.story.active) this.storyHud = new StoryHud(this, () => sim.story.advanceDialog(), () => sim.dash(), () => sim.story.retryRun(), () => toggleMute(this.sound), (i) => sim.story.chooseReply(i));
 
     this.metaHud = new MetaHud(this, {
       replayStory: () => sim.replayStory(),

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import type { HazardKind, RunView } from '../../gameplay/story/RunService';
+import type { FinaleKind, HazardKind, RunView } from '../../gameplay/story/RunService';
 
 /**
  * Chapter-1 run sound, synthesised with Web Audio (no files): a cue for every
@@ -66,11 +66,13 @@ export class RunAudio {
     if (this.seen.size > 64) for (const id of [...this.seen.keys()].slice(0, 32)) this.seen.delete(id);
     if (run.dashing && !this.wasDashing) this.noise(0.22, 0.25, 'highpass', 1800, 5000);
     this.wasDashing = run.dashing;
-    if (run.death && !this.dying) {
+    // A knock-out: the gag's own sound, or the fate's thud, then "wah wah wah".
+    const ko = run.hit?.kind ?? (run.finale && run.finale.t > .46 ? run.finale.kind : null);
+    if (ko && !this.dying) {
       this.dying = true;
       this.stopMusic();
-      this.die(run.death.kind);
-    } else if (!run.death && run.running) this.dying = false;
+      this.die(ko);
+    } else if (!run.hit && !run.finale && !run.down && run.running) this.dying = false;
   }
 
   private warn(k: HazardKind): void {
@@ -82,6 +84,12 @@ export class RunAudio {
       case 'motorbike': this.tone(520, 0.12, 'square', 0.1); return this.tone(520, 0.12, 'square', 0.1, 0.18);
       case 'pigeons': for (let i = 0; i < 6; i++) this.noise(0.05, 0.12, 'bandpass', 2200, 2200, i * 0.07); return;
       case 'banana': return this.glide(500, 760, 0.08, 'triangle', 0.08);
+      case 'water':
+      case 'laundry': return this.glide(1100, 500, 0.6, 'sine', 0.1);
+      case 'shuttlecock': return this.tone(880, 0.06, 'triangle', 0.12);
+      case 'slipper': return this.noise(0.15, 0.2, 'bandpass', 1500, 900);
+      // Clucking: three short squawks.
+      case 'chickens': for (let i = 0; i < 3; i++) this.glide(700, 1100, 0.07, 'square', 0.06, i * 0.12); return;
     }
   }
 
@@ -92,7 +100,7 @@ export class RunAudio {
     if (k === 'motorbike') this.glide(110, 170, 1.2, 'sawtooth', 0.06);
   }
 
-  private die(k: HazardKind): void {
+  private die(k: HazardKind | FinaleKind): void {
     if (k === 'sinkhole') this.glide(900, 70, 1.2, 'sine', 0.3);
     else if (k === 'pigeons' || k === 'motorbike') this.glide(300, 1200, 0.9, 'triangle', 0.22);
     else if (k === 'banana') { this.glide(300, 900, 0.3, 'sine', 0.2); this.thud(0.5); }

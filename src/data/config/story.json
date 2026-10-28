@@ -30,120 +30,927 @@
       "map": "incident",
       "next": "S04",
       "title": "Phố cổ Hà Nội",
-      "objective": "Sống sót trên phố Hà Nội! Chạm vào là chết.",
+      "objective": "Ghé quán nghe chuyện ({n}/{max}) · {s} giây nữa tới giờ tan tầm",
       "intro": [],
       "outro": [],
       "run": {
         "runSpeed": 4.6,
+        "strollSec": 0,
+        "strollVisits": 2,
+        "fenceX": 34,
         "dashSpeed": 13,
         "dashMs": 240,
         "dashCooldownMs": 1000,
-        "deathMs": 1400,
+        "hitMs": 1400,
+        "downMs": 2200,
+        "chaosSec": 120,
+        "finaleMs": 4200,
+        "dazeMs": 2000,
         "unlockSec": {
-          "dog": 0,
-          "durian": 2,
-          "cat": 4,
-          "sinkhole": 6,
-          "banana": 8,
-          "motorbike": 10,
-          "pigeons": 12
+          "banana": 0,
+          "durian": 4,
+          "water": 10,
+          "shuttlecock": 16,
+          "dog": 22,
+          "cat": 28,
+          "sinkhole": 34,
+          "laundry": 40,
+          "motorbike": 46,
+          "slipper": 52,
+          "pigeons": 58
         },
-        "spawnStartMs": 2200,
-        "spawnMinMs": 650,
-        "rampSec": 60,
-        "maxHazards": 8,
+        "spawnStartMs": 2600,
+        "spawnMinMs": 1000,
+        "rampSec": 90,
+        "maxHazards": 5,
         "roadRows": [
-          3,
-          5
+          8,
+          10
         ],
-        "rushSec": 45,
+        "rushSec": 70,
         "minWarnScale": 0.65,
-        "roadCols": [
-          15,
-          17
-        ]
+        "firstGagMs": 8000
       },
       "hazards": {
         "dog": {
-          "death": "Bị chó nhà hàng xóm cắn cho chết",
-          "absurdity": 3
+          "death": "Bị chó Ngao nhà ông Tư Mập vồ",
+          "absurdity": 4,
+          "label": "Gâu gâu!",
+          "twist": "GÂU!!!",
+          "faint": "Con chó bé tí… mà có bố to thế…"
         },
         "cat": {
-          "death": "Bị mèo hoang cào cho tới chết",
-          "absurdity": 3
+          "death": "Vấp phải con mèo nằm giữa đường",
+          "absurdity": 3,
+          "label": "Meo~",
+          "faint": "Mèo nằm giữa đường… ai mà thấy…"
+        },
+        "banana": {
+          "death": "Né vỏ chuối thứ nhất, giẫm vỏ chuối thứ hai",
+          "absurdity": 4,
+          "twist": "Vỏ chuối thứ hai!",
+          "faint": "Đã né rồi cơ mà… ai rải hai cái…"
         },
         "sinkhole": {
-          "death": "Tụt xuống \"ổ voi\" giữa phố",
-          "absurdity": 5
+          "death": "Né được ổ voi, rơi xuống nắp cống bên cạnh",
+          "absurdity": 5,
+          "label": "Ổ voi!",
+          "twist": "Nắp cống!",
+          "faint": "Hà Nội ơi… hố ga nhiều hơn khách…"
         },
         "durian": {
-          "death": "Sầu riêng 5 ký rơi trúng đầu",
-          "absurdity": 4
+          "death": "Sầu riêng năm ký rơi trúng đầu",
+          "absurdity": 4,
+          "faint": "Sầu riêng… năm ký… đầu mình…",
+          "smell": "Mùi gì kinh thế… chân mềm nhũn…"
         },
         "motorbike": {
-          "death": "Bị đoàn xe máy giờ tan tầm cuốn đi",
-          "absurdity": 4
+          "death": "Bị xe máy chở cả tủ lạnh quẹt bay",
+          "absurdity": 4,
+          "label": "Xe chở hàng!",
+          "faint": "Ai chở cả tủ lạnh trên xe máy thế…"
+        },
+        "chickens": {
+          "death": "Bị đàn gà sổng chuồng mổ cho ngất",
+          "absurdity": 5,
+          "twist": "Gà sổng chuồng!",
+          "faint": "Bị gà mổ… nhục quá…"
         },
         "pigeons": {
           "death": "Bị bồ câu Hồ Gươm khiêng lên trời",
-          "absurdity": 5
+          "absurdity": 5,
+          "label": "Bồ câu!",
+          "bread": "Bánh mì kìa!!",
+          "faint": "Trả… bánh mì… đây…"
         },
-        "banana": {
-          "death": "Giẫm vỏ chuối, bay ba vòng",
-          "absurdity": 4
+        "water": {
+          "death": "Bị bà tầng hai đổ chậu nước rửa rau",
+          "absurdity": 3,
+          "label": "Ào!",
+          "faint": "Bà ơi… cháu không phải rau…"
+        },
+        "laundry": {
+          "death": "Bị quần đùi hoa rơi chụp đầu",
+          "absurdity": 3,
+          "label": "Dây phơi đứt!",
+          "faint": "Ai treo quần đùi hoa ở đây!! Không thấy đường!"
+        },
+        "shuttlecock": {
+          "death": "Bị quả cầu đá trúng đầu",
+          "absurdity": 3,
+          "label": "Cầu!",
+          "faint": "Đánh đầu… đẹp chưa…"
+        },
+        "slipper": {
+          "death": "Bị dép tổ ong bay vòng lại đập trúng",
+          "absurdity": 4,
+          "label": "Dép tổ ong!",
+          "twist": "Nó quay lại!!",
+          "faint": "Dép tổ ong… biết quay đầu à…"
         }
       },
-      "props": [
+      "objectiveChaos": "Dạo phố cổ, ghé quán cà phê ông Tám · coi chừng sự cố, dính 1 phát là ngất!",
+      "stalls": [
         {
-          "id": "bubble_tea",
-          "target": "Xe trà sữa",
-          "action": "Mua trà sữa",
-          "done": "Xe trà sữa · đã ghé",
-          "safe": "Một ly trà sữa trân châu mát lạnh. Ngon nhức nách!"
+          "id": "tra_da",
+          "name": "Trà đá chú Tư",
+          "x": 2,
+          "y": 5,
+          "people": [
+            {
+              "id": "tu",
+              "name": "Chú Tư",
+              "look": "seller",
+              "x": 2.6,
+              "y": 4.8
+            },
+            {
+              "id": "bay",
+              "name": "Ông Bảy",
+              "look": "old",
+              "x": 2.3,
+              "y": 6.5
+            },
+            {
+              "id": "tam",
+              "name": "Ông Tám",
+              "look": "old",
+              "x": 3.6,
+              "y": 6.6
+            }
+          ],
+          "lines": [
+            [
+              "tu",
+              "Ngồi đi cháu. Trà đá ba nghìn, chém gió miễn phí."
+            ],
+            [
+              "bay",
+              "Hôm qua tôi đá bóng với Messi đấy."
+            ],
+            [
+              "tam",
+              "Messi phường bên á?"
+            ],
+            [
+              "bay",
+              "Ừ, Messi bán bánh mì."
+            ]
+          ],
+          "choices": [
+            {
+              "text": "Cho cháu cốc trà đá",
+              "reply": [
+                [
+                  "tu",
+                  "Hết đá rồi. Trà nóng, để nguội là thành trà đá."
+                ]
+              ]
+            },
+            {
+              "text": "Cháu chỉ ngồi nhờ thôi ạ",
+              "reply": [
+                [
+                  "tu",
+                  "Ngồi nhờ năm nghìn."
+                ]
+              ]
+            }
+          ],
+          "after": [
+            [
+              "tu",
+              "À, cái ghế đỏ kia đừng ngồi nhé. Nó gãy chân từ thời bao cấp."
+            ]
+          ]
         },
         {
-          "id": "coffee",
-          "target": "Xe cà phê",
-          "action": "Uống cà phê",
-          "done": "Xe cà phê · đã ghé",
-          "safe": "Một ly cà phê sữa đá đậm đà. Tỉnh cả người!"
+          "id": "bao",
+          "name": "Sạp báo ông Hai",
+          "x": 7,
+          "y": 5,
+          "people": [
+            {
+              "id": "hai",
+              "name": "Ông Hai",
+              "look": "old",
+              "x": 7.6,
+              "y": 4.8
+            }
+          ],
+          "lines": [
+            [
+              "hai",
+              "Báo đây! Tin nóng: thanh niên đi dạo phố gặp sự cố lãng xẹt!"
+            ],
+            [
+              "hero",
+              "Ai thế bác?"
+            ],
+            [
+              "hai",
+              "Chưa biết, mai mới có ảnh."
+            ]
+          ],
+          "choices": [
+            {
+              "text": "Giờ ai còn đọc báo giấy hả bác?",
+              "reply": [
+                [
+                  "hai",
+                  "Đọc gì. Mua về lót ghế trà đá."
+                ]
+              ]
+            },
+            {
+              "text": "Cho cháu một tờ",
+              "reply": [
+                [
+                  "hai",
+                  "Báo hôm qua giảm nửa giá. Tin vẫn y nguyên."
+                ]
+              ]
+            }
+          ],
+          "after": []
         },
         {
-          "id": "spicy",
-          "target": "Xe bánh tráng trộn",
-          "action": "Ăn bánh tráng",
-          "done": "Xe bánh tráng · đã ghé",
-          "safe": "Bánh tráng trộn cấp 1. Cay vừa đủ, ngon hết sảy!"
+          "id": "pho",
+          "name": "Phở bà Ba",
+          "x": 11,
+          "y": 5,
+          "people": [
+            {
+              "id": "ba",
+              "name": "Bà Ba",
+              "look": "cook",
+              "x": 11.6,
+              "y": 4.8
+            },
+            {
+              "id": "khach",
+              "name": "Khách quen",
+              "look": "walker",
+              "x": 12.4,
+              "y": 6.6
+            }
+          ],
+          "lines": [
+            [
+              "hero",
+              "Bà ơi cho cháu bát phở tái."
+            ],
+            [
+              "ba",
+              "Tái hay chín? Nói một lần thôi!"
+            ],
+            [
+              "hero",
+              "Dạ… tái ạ."
+            ],
+            [
+              "ba",
+              "Hết tái. Ăn chín."
+            ],
+            [
+              "khach",
+              "Quán này ngon là nhờ bị chửi đấy. Không bị chửi ăn chẳng ra vị gì."
+            ]
+          ],
+          "choices": [
+            {
+              "text": "Bà cho cháu xin thêm hành",
+              "reply": [
+                [
+                  "ba",
+                  "Muốn thêm hành thì ra chợ mà mua."
+                ]
+              ]
+            },
+            {
+              "text": "Phở ngon quá bà ơi!",
+              "reply": [
+                [
+                  "ba",
+                  "…Lần sau được thêm thịt."
+                ]
+              ]
+            }
+          ],
+          "after": [
+            [
+              "ba",
+              "Ăn xong đi đứng cẩn thận. Trong ngõ có con chó nhà ông Tư Mập đấy."
+            ]
+          ]
         },
         {
-          "id": "selfie",
-          "target": "Điểm check-in",
-          "action": "Chụp ảnh",
-          "done": "Điểm check-in · đã ghé",
-          "safe": "Tách! Ảnh đẹp xuất sắc. Lên mạng được 12 like."
+          "id": "bun_dau",
+          "name": "Bún đậu cô Sáu",
+          "x": 15,
+          "y": 5,
+          "people": [
+            {
+              "id": "sau",
+              "name": "Cô Sáu",
+              "look": "cook",
+              "x": 15.6,
+              "y": 4.8
+            },
+            {
+              "id": "ongkhach",
+              "name": "Ông khách",
+              "look": "old",
+              "x": 16.6,
+              "y": 6.6
+            }
+          ],
+          "lines": [
+            [
+              "sau",
+              "Ngồi đi cháu. Mắm tôm hay nước mắm?"
+            ]
+          ],
+          "choices": [
+            {
+              "text": "Nước mắm ạ",
+              "reply": [
+                [
+                  "sau",
+                  "…"
+                ],
+                [
+                  "ongkhach",
+                  "…"
+                ],
+                [
+                  "sau",
+                  "Cháu về đi."
+                ]
+              ]
+            },
+            {
+              "text": "Mắm tôm, đánh thật bông vào cô!",
+              "reply": [
+                [
+                  "sau",
+                  "Chuẩn người Hà Nội. Ngồi đi!"
+                ]
+              ]
+            }
+          ],
+          "after": [
+            [
+              "ongkhach",
+              "Ăn mắm tôm xong thì bồ câu cũng phải né."
+            ]
+          ]
         },
         {
-          "id": "durian",
-          "target": "Sạp sầu riêng",
-          "action": "Ăn thử",
-          "done": "Sạp sầu riêng · đã ghé",
-          "safe": "Miếng sầu riêng béo ngậy. Người bán còn cho thêm miếng nữa!"
+          "id": "banh_mi",
+          "name": "Bánh mì anh Bảy",
+          "x": 26,
+          "y": 5,
+          "people": [
+            {
+              "id": "anhbay",
+              "name": "Anh Bảy",
+              "look": "seller",
+              "x": 26.6,
+              "y": 4.8
+            }
+          ],
+          "lines": [
+            [
+              "anhbay",
+              "Bánh mì gì cũng có đây!"
+            ],
+            [
+              "hero",
+              "Cho em ổ bánh mì không có gì."
+            ],
+            [
+              "anhbay",
+              "Hết rồi."
+            ]
+          ],
+          "choices": [
+            {
+              "text": "Thế cho em ổ có tất cả",
+              "reply": [
+                [
+                  "anhbay",
+                  "Có tất cả thì hết từ sáng."
+                ]
+              ]
+            },
+            {
+              "text": "Thôi em lấy ổ bình thường",
+              "reply": [
+                [
+                  "anhbay",
+                  "Đấy, nói thế có phải nhanh không. Cầm lấy."
+                ]
+              ]
+            }
+          ],
+          "after": [
+            [
+              "anhbay",
+              "Cầm chắc vào em, bồ câu bờ hồ nó thèm bánh mì lắm."
+            ]
+          ]
         },
         {
-          "id": "lottery",
-          "target": "Bà bán vé số",
-          "action": "Mua vé số",
-          "done": "Bà bán vé số · đã ghé",
-          "safe": "Bạn mua một tờ vé số ủng hộ bà. Bà cười móm mém chúc bạn may mắn."
+          "id": "cat_toc",
+          "name": "Cắt tóc bác Hùng",
+          "x": 31,
+          "y": 5,
+          "people": [
+            {
+              "id": "hung",
+              "name": "Bác Hùng",
+              "look": "seller",
+              "x": 31.6,
+              "y": 4.8
+            }
+          ],
+          "lines": [
+            [
+              "hung",
+              "Cắt tóc không cháu? Gương treo cây, view bờ hồ."
+            ],
+            [
+              "hero",
+              "Bác cắt kiểu Hàn Quốc được không ạ?"
+            ],
+            [
+              "hung",
+              "Bác chỉ biết kiểu Hàng Bạc với kiểu Hàng Gai."
+            ]
+          ],
+          "choices": [
+            {
+              "text": "Thôi để hôm khác ạ",
+              "reply": [
+                [
+                  "hung",
+                  "Hôm khác bác về quê."
+                ]
+              ]
+            },
+            {
+              "text": "Bác cắt theo cảm hứng đi",
+              "reply": [
+                [
+                  "hung",
+                  "Xoẹt xoẹt… Xong! Đẹp trai hơn hẳn. Ở phía sau."
+                ]
+              ]
+            }
+          ],
+          "after": []
         },
         {
-          "id": "wifi",
-          "target": "Biển wifi miễn phí",
-          "action": "Bắt wifi",
-          "done": "Biển wifi · đã ghé",
-          "safe": "Kết nối thành công! Bạn lướt mạng 5 phút rồi cất máy."
+          "id": "xe_om",
+          "name": "Xe ôm chú Năm",
+          "x": 8,
+          "y": 13,
+          "people": [
+            {
+              "id": "nam",
+              "name": "Chú Năm",
+              "look": "driver",
+              "x": 8.6,
+              "y": 14.3
+            },
+            {
+              "id": "tho",
+              "name": "Thợ sửa xe",
+              "look": "seller",
+              "x": 10.2,
+              "y": 14.3
+            }
+          ],
+          "lines": [
+            [
+              "nam",
+              "Xe ôm không cháu?"
+            ],
+            [
+              "hero",
+              "Cháu đi bộ ạ."
+            ],
+            [
+              "nam",
+              "Thế bác đi bộ cùng cháu, hai mươi nghìn."
+            ],
+            [
+              "tho",
+              "Bơm xe không em?"
+            ],
+            [
+              "hero",
+              "Em đi bộ mà anh!"
+            ]
+          ],
+          "choices": [
+            {
+              "text": "Bơm hộ em đôi dép",
+              "reply": [
+                [
+                  "tho",
+                  "Năm nghìn. Bơm căng quá thì dép bay đấy."
+                ]
+              ]
+            },
+            {
+              "text": "Thôi em đi đây",
+              "reply": [
+                [
+                  "nam",
+                  "Đi bộ cẩn thận, phố này hố ga nhiều hơn khách."
+                ]
+              ]
+            }
+          ],
+          "after": []
+        },
+        {
+          "id": "xoi",
+          "name": "Gánh xôi bà Tư",
+          "x": 17,
+          "y": 13,
+          "people": [
+            {
+              "id": "xoi",
+              "name": "Bà bán xôi",
+              "look": "granny",
+              "x": 17.6,
+              "y": 14.3
+            },
+            {
+              "id": "tay",
+              "name": "Khách Tây",
+              "look": "tourist",
+              "x": 18.8,
+              "y": 12.6
+            },
+            {
+              "id": "ship",
+              "name": "Anh shipper",
+              "look": "shipper",
+              "x": 16.4,
+              "y": 12.6
+            }
+          ],
+          "lines": [
+            [
+              "tay",
+              "How much?"
+            ],
+            [
+              "xoi",
+              "Hao mắc? Không mắc đâu, rẻ mà!"
+            ],
+            [
+              "tay",
+              "Oh… very rẻ!"
+            ],
+            [
+              "ship",
+              "Alo chị ơi em tới rồi, chị ở đâu ạ?"
+            ],
+            [
+              "ship",
+              "…Chị đang ở Úc á?"
+            ]
+          ],
+          "choices": [
+            {
+              "text": "Cho cháu một gói xôi",
+              "reply": [
+                [
+                  "xoi",
+                  "Xôi xéo hay xôi gấc? Thôi lấy xôi “xéo gấc” cho nhanh."
+                ]
+              ]
+            },
+            {
+              "text": "Bà ơi bà có biết tiếng Anh à?",
+              "reply": [
+                [
+                  "xoi",
+                  "Biết chứ. “Mua đi”, “hết rồi”, “thank you”."
+                ]
+              ]
+            }
+          ],
+          "after": [
+            [
+              "ship",
+              "Thôi em ăn luôn đơn này cho nhanh."
+            ]
+          ]
         }
-      ]
+      ],
+      "street": {
+        "walkers": 10,
+        "bikes": 3,
+        "lanes": [
+          7.3,
+          11.4,
+          15.4
+        ],
+        "bikeLanes": [
+          8.5,
+          10.5
+        ],
+        "walkSpeed": [
+          0.8,
+          1.4
+        ],
+        "bikeSpeed": 4.2,
+        "talkRadius": 1.9,
+        "chatEveryMs": [
+          3500,
+          7000
+        ],
+        "looks": [
+          "walker",
+          "phone",
+          "vendor",
+          "tourist",
+          "shipper",
+          "granny",
+          "kid"
+        ],
+        "chatter": {
+          "walker": [
+            "Hôm nay trời đẹp thế nhỉ.",
+            "Ơ, ai đánh rơi tờ hai nghìn kìa?",
+            "Đi ăn phở không mày? Quán bà Ba ấy, bị chửi mới ngon."
+          ],
+          "phone": [
+            "Alo, em đang tắc đường… à em đi bộ.",
+            "Đợi tí, đang check-in bờ hồ.",
+            "Mạng yếu quá, phải giơ cao lên mới có sóng."
+          ],
+          "vendor": [
+            "Ai mua xôi không…",
+            "Bánh mì nóng giòn đây!",
+            "Sấu ngâm đây, chua chua ngọt ngọt!"
+          ],
+          "tourist": [
+            "Xin chào! Phở! Bún chả! Hello!",
+            "So many motorbikes… so many.",
+            "Excuse me, where is… everywhere?"
+          ],
+          "shipper": [
+            "Đơn này ghi “nhà màu xanh, cạnh cây”. Phố này cây nào chẳng xanh!",
+            "Tránh ra, tránh ra, nóng nóng!"
+          ],
+          "granny": [
+            "Cháu ơi mua vé số không? Số đỏ như đèn xe cứu thương.",
+            "Thời của bà, đi bộ hai mươi cây số vẫn chưa ngất."
+          ],
+          "kid": [
+            "Mẹ ơi con muốn ăn kem Tràng Tiền!",
+            "Chú ơi chú đi kiểu gì buồn cười thế?"
+          ]
+        },
+        "bumped": [
+          "Đi đứng kiểu gì thế, nhìn đường chứ!",
+          "Ơ kìa, người hay cột điện mà đứng im thế?",
+          "Va vào tôi là tôi va lại đấy nhé!"
+        ],
+        "honk": [
+          "Bíp bíp!",
+          "Tránh ra em ơi!",
+          "Đứng giữa đường làm gì, chụp ảnh à?"
+        ],
+        "gates": [
+          {
+            "id": "west",
+            "x": 1.0,
+            "inward": 1,
+            "guard": {
+              "x": 1.5,
+              "y": 7.4
+            }
+          },
+          {
+            "id": "east",
+            "x": 47.0,
+            "inward": -1,
+            "guard": {
+              "x": 46.5,
+              "y": 7.4
+            }
+          }
+        ],
+        "gateLines": {
+          "hero": "Ơ, chặn đường à? Cho cháu qua với!",
+          "guard": "Phố đang cấm. Quay lại!",
+          "open": "Xe máy là người nhà, cho qua!",
+          "ask": "Ơ… thế người đi bộ thì sao ạ?",
+          "no": "Đi bộ thì… quay lại!",
+          "argue": "Chú ơi cho cháu qua tí thôi, cháu đi nhanh lắm!",
+          "back": "Thôi cháu quay lại ạ.",
+          "good": "Ngoan.",
+          "relent": "…Thôi được, qua nhanh lên!",
+          "rider": "Ơ kìa! Ai cho đi bộ ở đây!",
+          "scold": "Đã bảo cấm rồi còn cố đi!",
+          "faint": "Biết thế… quay lại cho rồi…"
+        },
+        "rescue": {
+          "crowd": [
+            "Có ai gọi 115 chưa?",
+            "Khoan, để em quay TikTok đã!",
+            "Thằng này hôm qua còn nợ tôi cốc trà đá.",
+            "Ơ, nó còn thở này… đang ngáy."
+          ],
+          "siren": "Tò te tí te!",
+          "xeom": "Để bác chở cho nhanh, hai mươi nghìn!",
+          "driver": "Bác đi ra!",
+          "lift": "Một, hai, ba… nhấc!",
+          "bonk": "CỐP!",
+          "oops": "Ơ… đập đầu vào cửa xe rồi. Thôi, đi!"
+        },
+        "again": [
+          "Lại là cháu à? Mua gì thì mua đi chứ!",
+          "Nói hết chuyện rồi, giờ chỉ bán thôi.",
+          "Cháu thích chỗ này thế à?"
+        ],
+        "skidChance": 0.5,
+        "skid": [
+          "Kíííít!! Đi đứng kiểu gì thế!",
+          "Kíííít!! Suýt nữa thì lên báo!",
+          "Kíííít!! May cho em là phanh còn ăn!",
+          "Kíííít!! Nhìn đường đi em ơi!"
+        ],
+        "shops": [
+          {
+            "id": "cafe",
+            "name": "Cà phê ông Tám",
+            "door": {
+              "x": 29.0,
+              "y": 5.1
+            },
+            "w": 6,
+            "h": 5,
+            "exitX": 3.0,
+            "furniture": [
+              {
+                "x": 0.5,
+                "y": 0.6,
+                "w": 2.4,
+                "h": 0.8,
+                "kind": "counter"
+              },
+              {
+                "x": 3.6,
+                "y": 1.6,
+                "w": 1.0,
+                "h": 1.0,
+                "kind": "table"
+              },
+              {
+                "x": 1.0,
+                "y": 2.8,
+                "w": 1.0,
+                "h": 1.0,
+                "kind": "table"
+              }
+            ],
+            "people": [
+              {
+                "id": "tam",
+                "name": "Ông Tám",
+                "look": "old",
+                "x": 3.3,
+                "y": 0.8
+              },
+              {
+                "id": "khach",
+                "name": "Anh ngồi từ sáng",
+                "look": "phone",
+                "x": 5.1,
+                "y": 2.1,
+                "lines": [
+                  "Tôi ngồi từ sáng, mới được nửa ly.",
+                  "Đợi cà phê nhỏ giọt cũng là một môn thể thao."
+                ]
+              },
+              {
+                "id": "meo",
+                "name": "Mèo quán",
+                "look": "cat",
+                "x": 5.4,
+                "y": 4.3,
+                "lines": [
+                  "Meo."
+                ]
+              }
+            ],
+            "seller": "tam",
+            "lines": [
+              [
+                "tam",
+                "Cà phê phin đây. Ngồi đi, đừng vội."
+              ],
+              [
+                "hero",
+                "Bác cho cháu một ly mang đi ạ."
+              ],
+              [
+                "tam",
+                "Mang đi? Cà phê phin phải ngồi đợi. Mười lăm phút một giọt."
+              ]
+            ],
+            "choices": [
+              {
+                "text": "Thế cháu ngồi đợi vậy",
+                "reply": [
+                  [
+                    "tam",
+                    "Ngoan. Cà phê ngon là phải chờ, như người yêu ấy."
+                  ]
+                ]
+              },
+              {
+                "text": "Bác có cà phê hòa tan không?",
+                "reply": [
+                  [
+                    "tam",
+                    "…"
+                  ],
+                  [
+                    "tam",
+                    "Ra ngoài kia mà mua."
+                  ]
+                ]
+              }
+            ],
+            "after": [
+              [
+                "tam",
+                "Cháu có khiếu đấy. Mai kia gặp được người pha giỏi hơn bác thì nhớ học nhé."
+              ]
+            ],
+            "effect": "cat"
+          }
+        ]
+      },
+      "finales": {
+        "sau": {
+          "death": "Thoát hết mọi thứ, bị một quả sấu bé tí rơi trúng đầu",
+          "absurdity": 5,
+          "setup": "Phù… thoát hết rồi! Đứng đây là an toàn nhất phố!",
+          "sound": "CỐC!",
+          "punch": "…quả sấu… bé tí… à?"
+        },
+        "coin": {
+          "death": "Cúi nhặt tờ hai nghìn, đứng lên đập đầu cột điện",
+          "absurdity": 4,
+          "setup": "Ơ, tờ hai nghìn! Hôm nay số đỏ thật!",
+          "sound": "BOONG!",
+          "punch": "Tiền… bay mất rồi…"
+        },
+        "chair": {
+          "needs": "tra_da",
+          "death": "Ngồi nhầm ghế đỏ quán trà đá",
+          "absurdity": 4,
+          "setup": "Mệt quá… ngồi tạm cái ghế đỏ này tí…",
+          "sound": "RẮC!",
+          "punch": "Chú Tư… đã bảo rồi…"
+        },
+        "sneeze": {
+          "needs": "pho",
+          "death": "Hắt hơi vì tiêu quán phở, tự bật ngửa",
+          "absurdity": 5,
+          "setup": "Hít… hít… tiêu phở bà Ba còn dính mũi…",
+          "sound": "HẮT XÌ!!!",
+          "punch": "…mạnh quá…"
+        },
+        "lick": {
+          "death": "Ngất vì bị chó Ngao liếm mặt",
+          "absurdity": 5,
+          "setup": "Con chó to quay lại kìa… thôi xong rồi!",
+          "sound": "LIẾM LIẾM",
+          "punch": "Nó… thân thiện à…"
+        },
+        "news": {
+          "needs": "bao",
+          "death": "Thấy ảnh mình ngất trên báo, ngất thật",
+          "absurdity": 5,
+          "setup": "Ông Hai: Báo đây! Tin nóng vừa in!",
+          "sound": "TIN NÓNG!",
+          "punch": "Ơ… ảnh mình đây mà…"
+        }
+      },
+      "objectiveFaint": "Ối… nằm im chờ xe cứu thương",
+      "objectiveShop": "Đang ở {name} · nói chuyện rồi ra cửa để về phố"
     },
     "S04": {
       "map": "portal",

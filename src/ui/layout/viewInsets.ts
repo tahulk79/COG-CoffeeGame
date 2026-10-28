@@ -18,10 +18,10 @@ export function hudScale(w: number, h: number): number {
 }
 
 /**
- * Camera zoom for the world. The world always fills the whole screen (no side
- * panels reserved for the HUD, which floats on top) and the camera follows the
- * player, clamped to the map. There is no manual zoom: phones get a close-up,
- * PC and tablet the zoom at which the whole map fits on screen.
+ * Camera zoom for the story maps (café and farm use `framingZoom`). The world
+ * always fills the whole screen (the HUD floats on top) and the camera follows
+ * the player, clamped to the map: phones get a close-up, PC and tablet the zoom
+ * at which the whole map fits on screen.
  */
 export function worldZoom(w: number, h: number, mapW = 14, mapH = 14): number {
   // Phones: a close-up that follows the player (a whole map would be unreadably small).

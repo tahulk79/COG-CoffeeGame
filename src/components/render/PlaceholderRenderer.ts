@@ -10,6 +10,7 @@ import type { ActorView, ActorViewState, FeedbackKind, FloorTileView, ObjectView
 import { debugFlags } from '../../ui/theme/debugFlags';
 import { createIcon } from '../../ui/theme/assetRegistry';
 import { COLORS, css, dur, FONT, MOTION } from '../../ui/theme/tokens';
+import { clampCenter, easeFactor, insetOffset, mapRect } from '../../systems/camera/framing';
 
 const shade = (c: number, f: number): number => {
   const r = Math.min(255, Math.round(((c >> 16) & 0xff) * f));
@@ -666,7 +667,7 @@ export class PlaceholderRenderer implements WorldRenderer {
   }
 
   /**
-   * Full-bleed world: the camera uses `zoom` (see `worldZoom`) and follows the player, so the map
+   * Full-bleed world: the camera uses `zoom` (picked by WorldScene) and follows the player, so the map
    * fills the whole screen; the HUD floats on top and `insets` only keeps the player clear of it.
    */
   frame(widthTiles: number, heightTiles: number, insets: { top: number; right: number; bottom: number; left: number }, zoom: number): void {
@@ -674,9 +675,7 @@ export class PlaceholderRenderer implements WorldRenderer {
     this.insets = insets;
     const cam = this.scene.cameras.main;
     cam.setZoom(zoom);
-    const availH = cam.height - insets.top - insets.bottom;
-    const availW = cam.width - insets.left - insets.right;
-    this.centerOffset = { x: (cam.width / 2 - (insets.left + availW / 2)) / zoom, y: (cam.height / 2 - (insets.top + availH / 2)) / zoom };
+    this.centerOffset = insetOffset(cam.width, cam.height, insets, zoom);
     this.snapNext = true;
   }
 
@@ -699,22 +698,13 @@ export class PlaceholderRenderer implements WorldRenderer {
     const cam = this.scene.cameras.main;
     const zoom = cam.zoom;
     const p = worldToScreen(pos);
-    // Map extents in render space (walls and objects stand above their floor tile, hence the margins).
-    // The ground continues past the map, so the camera may go a little beyond the edges (not far: nothing is there).
-    const minX = worldToScreen({ x: 0, y: this.bounds.h }).x - 260;
-    const maxX = worldToScreen({ x: this.bounds.w, y: 0 }).x + 260;
-    const minY = worldToScreen({ x: 0, y: 0 }).y - 260;
-    const maxY = worldToScreen({ x: this.bounds.w, y: this.bounds.h }).y + 200;
-    const halfW = cam.width / 2 / zoom;
-    const halfH = cam.height / 2 / zoom;
-    const clampAxis = (v: number, lo: number, hi: number, half: number): number => (hi - lo <= half * 2 ? (lo + hi) / 2 : Math.max(lo + half, Math.min(hi - half, v)));
-    const tx = clampAxis(p.x + this.centerOffset.x + this.pan.x, minX, maxX, halfW);
-    const ty = clampAxis(p.y - 24 + this.centerOffset.y + this.pan.y, minY, maxY, halfH);
+    const target = { x: p.x + this.centerOffset.x + this.pan.x, y: p.y - 24 + this.centerOffset.y + this.pan.y };
+    const t = clampCenter(target, cam.width / zoom, cam.height / zoom, mapRect(this.bounds.w, this.bounds.h));
     const mid = cam.midPoint;
-    // Frame-rate independent easing; snaps when reduced motion is on or right after a (re)frame.
-    const k = this.snapNext || dur(MOTION.base) === 0 ? 1 : 1 - Math.exp(-dtMs / 120);
+    // Snaps when reduced motion is on or right after a (re)frame.
+    const k = this.snapNext || dur(MOTION.base) === 0 ? 1 : easeFactor(dtMs, 120);
     this.snapNext = false;
-    cam.centerOn(mid.x + (tx - mid.x) * k, mid.y + (ty - mid.y) * k);
+    cam.centerOn(mid.x + (t.x - mid.x) * k, mid.y + (t.y - mid.y) * k);
   }
 
   private insets = { top: 0, right: 0, bottom: 0, left: 0 };
