@@ -18,8 +18,6 @@ export interface StoryChapter {
   /** Chapter 1: the objective in rush hour and once knocked out, the line announcing rush hour, and the three act names. */
   objectiveChaos?: string;
   objectiveFaint?: string;
-  /** Chapter 1, inside a shop ({name}). */
-  objectiveShop?: string;
   chaosAnnounce?: string;
   acts?: string[];
   timeLimitMs?: number;
@@ -255,12 +253,12 @@ export class StoryService {
 
   /** Chapter-1 stalls visited so far. */
   private get visits(): number {
-    return [...(this.chapter.stalls ?? []), ...(this.chapter.street?.shops ?? [])].filter((s) => this.state.story.flags[`visited:${s.id}`]).length;
+    return (this.chapter.stalls ?? []).filter((s) => this.state.story.flags[`visited:${s.id}`]).length;
   }
 
   canVisit(stallId: string): StoryResult {
     const f = this.state.story.flags;
-    const known = this.chapter.stalls?.some((s) => s.id === stallId) || this.chapter.street?.shops?.some((s) => s.id === stallId);
+    const known = this.chapter.stalls?.some((s) => s.id === stallId);
     if (!this.active || this.chapterId !== 'S03' || f.rescued || !known) return no('notNow', false);
     return f[`visited:${stallId}`] ? no('alreadyVisited', false) : OK;
   }
@@ -454,8 +452,7 @@ export class StoryService {
       else if (this.chapterId === 'S05') objective = f.introDone ? ch.objectiveBrew ?? '' : ch.objective;
       else if (this.chapterId === 'S03') {
         const v = this.run?.view();
-        const shop = this.street?.view().shop;
-        objective = shop ? (ch.objectiveShop ?? '').replace('{name}', shop.name) : v?.phase === 'stroll'
+        objective = v?.phase === 'stroll'
           ? ch.objective.replace('{n}', String(this.visits)).replace('{max}', String(ch.run?.strollVisits ?? 0)).replace('{s}', String(v.strollLeftSec ?? 0))
           : v?.phase === 'chaos' ? (ch.objectiveChaos ?? '').replace('{s}', String(v.leftSec ?? 0)) : ch.objectiveFaint ?? '';
       }

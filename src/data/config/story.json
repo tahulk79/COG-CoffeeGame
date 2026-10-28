@@ -45,16 +45,16 @@
         "dazeMs": 2000,
         "unlockSec": {
           "banana": 0,
-          "durian": 4,
-          "water": 10,
-          "shuttlecock": 16,
-          "dog": 22,
-          "cat": 28,
-          "sinkhole": 34,
-          "laundry": 40,
-          "motorbike": 46,
-          "slipper": 52,
-          "pigeons": 58
+          "durian": 0,
+          "water": 0,
+          "shuttlecock": 0,
+          "dog": 0,
+          "cat": 0,
+          "sinkhole": 0,
+          "laundry": 0,
+          "motorbike": 0,
+          "slipper": 0,
+          "pigeons": 0
         },
         "spawnStartMs": 2600,
         "spawnMinMs": 1000,
@@ -146,7 +146,7 @@
           "faint": "Dép tổ ong… biết quay đầu à…"
         }
       },
-      "objectiveChaos": "Dạo phố cổ, ghé quán cà phê ông Tám · coi chừng sự cố, dính 1 phát là ngất!",
+      "objectiveChaos": "Dạo phố cổ · coi chừng sự cố, dính 1 phát là ngất!",
       "stalls": [
         {
           "id": "tra_da",
@@ -652,7 +652,8 @@
         }
       ],
       "street": {
-        "walkers": 10,
+        "ambulanceAccess": [{ "x": 21, "y": 1, "w": 3, "h": 10 }],
+      "walkers": 10,
         "bikes": 3,
         "lanes": [
           7.3,
@@ -798,118 +799,6 @@
           "Kíííít!! Suýt nữa thì lên báo!",
           "Kíííít!! May cho em là phanh còn ăn!",
           "Kíííít!! Nhìn đường đi em ơi!"
-        ],
-        "shops": [
-          {
-            "id": "cafe",
-            "name": "Cà phê ông Tám",
-            "door": {
-              "x": 29.0,
-              "y": 5.1
-            },
-            "w": 6,
-            "h": 5,
-            "exitX": 3.0,
-            "furniture": [
-              {
-                "x": 0.5,
-                "y": 0.6,
-                "w": 2.4,
-                "h": 0.8,
-                "kind": "counter"
-              },
-              {
-                "x": 3.6,
-                "y": 1.6,
-                "w": 1.0,
-                "h": 1.0,
-                "kind": "table"
-              },
-              {
-                "x": 1.0,
-                "y": 2.8,
-                "w": 1.0,
-                "h": 1.0,
-                "kind": "table"
-              }
-            ],
-            "people": [
-              {
-                "id": "tam",
-                "name": "Ông Tám",
-                "look": "old",
-                "x": 3.3,
-                "y": 0.8
-              },
-              {
-                "id": "khach",
-                "name": "Anh ngồi từ sáng",
-                "look": "phone",
-                "x": 5.1,
-                "y": 2.1,
-                "lines": [
-                  "Tôi ngồi từ sáng, mới được nửa ly.",
-                  "Đợi cà phê nhỏ giọt cũng là một môn thể thao."
-                ]
-              },
-              {
-                "id": "meo",
-                "name": "Mèo quán",
-                "look": "cat",
-                "x": 5.4,
-                "y": 4.3,
-                "lines": [
-                  "Meo."
-                ]
-              }
-            ],
-            "seller": "tam",
-            "lines": [
-              [
-                "tam",
-                "Cà phê phin đây. Ngồi đi, đừng vội."
-              ],
-              [
-                "hero",
-                "Bác cho cháu một ly mang đi ạ."
-              ],
-              [
-                "tam",
-                "Mang đi? Cà phê phin phải ngồi đợi. Mười lăm phút một giọt."
-              ]
-            ],
-            "choices": [
-              {
-                "text": "Thế cháu ngồi đợi vậy",
-                "reply": [
-                  [
-                    "tam",
-                    "Ngoan. Cà phê ngon là phải chờ, như người yêu ấy."
-                  ]
-                ]
-              },
-              {
-                "text": "Bác có cà phê hòa tan không?",
-                "reply": [
-                  [
-                    "tam",
-                    "…"
-                  ],
-                  [
-                    "tam",
-                    "Ra ngoài kia mà mua."
-                  ]
-                ]
-              }
-            ],
-            "after": [
-              [
-                "tam",
-                "Cháu có khiếu đấy. Mai kia gặp được người pha giỏi hơn bác thì nhớ học nhé."
-              ]
-            ],
-            "effect": "cat"
-          }
         ]
       },
       "finales": {
@@ -959,8 +848,7 @@
           "punch": "Ơ… ảnh mình đây mà…"
         }
       },
-      "objectiveFaint": "Ối… nằm im chờ xe cứu thương",
-      "objectiveShop": "Đang ở {name} · nói chuyện rồi ra cửa để về phố"
+      "objectiveFaint": "Ối… nằm im chờ xe cứu thương"
     },
     "S04": {
       "map": "portal",

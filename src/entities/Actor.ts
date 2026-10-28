@@ -45,6 +45,8 @@ export interface ActorConfig {
 export class Actor {
   pos: WorldPos;
   facing: Facing = 'S';
+  canMove: ((from: WorldPos, to: WorldPos) => boolean) | null = null;
+  movementBlocked = false;
   heldItem: string | null = null;
   readonly fsm: StateMachine<ActorState>;
   private waypoints: WorldPos[] = [];
@@ -98,6 +100,7 @@ export class Actor {
    * final waypoint is reached.
    */
   stepMovement(dtMs: number): boolean {
+    this.movementBlocked = false;
     if (this.waypoints.length === 0) return false;
     let budget = (this.config.speedTilesPerSec * dtMs) / 1000;
     while (budget > 0 && this.waypoints.length > 0) {
@@ -105,6 +108,10 @@ export class Actor {
       const dx = target.x - this.pos.x;
       const dy = target.y - this.pos.y;
       const dist = Math.hypot(dx, dy);
+      if (dist < 0.00001) { this.waypoints.shift(); continue; }
+      const step = Math.min(dist, budget);
+      const next = { x: this.pos.x + dx / dist * step, y: this.pos.y + dy / dist * step };
+      if (this.canMove && !this.canMove(this.pos, next)) { this.movementBlocked = true; return false; }
       this.facing = facingFrom(dx, dy) ?? this.facing;
       if (dist <= budget) {
         this.pos = { ...target };

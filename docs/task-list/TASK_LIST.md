@@ -74,6 +74,21 @@
 | T-061 | Màn 1: hai đầu phố kéo dài thêm 12 ô sau thanh chắn (đường, hàng nhà thứ hai phía bắc, hàng nhà thấp phía nam) rồi mới tới đường vòng quanh một khối nhà ở giữa; xe máy chạy tới đầu phố thì đi vòng quanh khối nhà rồi quay lại làn đối diện (thay cho đường cụt ra biển, núi, bãi gửi xe, vòng xuyến tròn) | Done | | `incidentArt.ts` (`LOOP`, `LAND_W/E`, `hn:loophouse`), `StreetService.ts` (`goRound`, `LOOP`) | Đã xem đầu tây có xe chạy vòng; đầu đông cùng cách vẽ nhưng chưa xem bằng mắt |
 | T-062 | Bỏ zoom (con lăn). Camera cố định theo nhân vật; kéo để nhìn xa (nửa phải màn hình cảm ứng hoặc chuột), nhả tay camera lướt về; joystick chỉ ở nửa trái; chạm nhanh mới đi tới/nói chuyện (xử lý khi nhả tay); camera nhìn được cả đoạn phố kéo dài sau thanh chắn | Done | | `WorldScene.ts` (`clickAt`, `look`, `CAMERA_REACH`), `PlaceholderRenderer.ts` (`setLooking`, `setReach`), `framing.ts` (`mapRect` reach) | Đã thử camera nhìn xa và tự về bằng lệnh; chưa thử bằng ngón tay thật trên điện thoại |
 | T-063 | Sửa cổng Ô Quan Chưởng: trụ phía nam đứng trên làn đường nên xe cứu thương và xe máy chạy xuyên qua trụ; dời trụ ra vỉa hè. Bong bóng thoại đổi từ đám mây sang thẻ bo tròn kiểu game (viền dày, bóng đổ, vệt sáng, đuôi nhọn, nảy lên khi bắt đầu nói) cho đỡ giống hộp thoại web | Done | | `incidentArt.ts` (`cityGate`), `speechBubble.ts` | Đã xem bằng mắt cảnh ngã gần cổng đông
+| T-064 | Chọn điểm đỗ/tuyến xe cứu thương có lối tiếp cận, bác sĩ dùng tìm đường qua ngõ và đưa người ra xe | Done 2026-10-28 | Codex | `src/gameplay/story/rescueRouting.ts`, `StreetService.ts`, `GameSimulation.ts`, `streetArt.ts`, `tests/unit/rescue-routing.test.ts` | Kiểm tra chuỗi cứu hộ mọi ô đi được, đổi hướng khi đường chặn, 9 e2e mobile/PC; chưa thử thiết bị thật |
+| T-065 | Phân phối đủ tình huống Chương 1, lưu số lần đã xuất hiện để ưu tiên loại ít gặp qua các lượt | Done 2026-10-28 | Codex | `RunService.ts`, `story.json`, `tests/unit/incident-variety.test.ts` | 11 sự cố chính + gà phụ + 6 kết thúc; không bắt gặp tất cả trong một lượt |
+| T-066 | Rà mức sẵn sàng Prototype và lập brief asset cho Vertical Slice/Production | Done 2026-10-28 | Codex | [VERTICAL_SLICE_READINESS](../VERTICAL_SLICE_READINESS.md) | Phân biệt 3D runtime và atlas render từ 3D; chưa tạo asset sản xuất |
+| T-067 | Chốt art target, thiết bị và renderer cho scene thử 3D của một chương | Todo | | [VERTICAL_SLICE_READINESS](../VERTICAL_SLICE_READINESS.md) | Chưa tích hợp renderer 3D hay model/rig final |
+| T-068 | Sản xuất model, rig, animation, môi trường, UI và audio final cho Chương 1 | Todo | | [VERTICAL_SLICE_READINESS](../VERTICAL_SLICE_READINESS.md) | Nghiệm thu trong game sau scene thử, không dựa riêng ảnh render |
+| T-069 | Chơi thử và đo hiệu năng trên điện thoại Android/iOS thật | Todo | | [VERTICAL_SLICE_READINESS](../VERTICAL_SLICE_READINESS.md) | Chưa đóng nghiệm thu Prototype/Vertical Slice chỉ từ test mô phỏng |
+
+| T-070 | Sửa xe cứu thương chọn điểm đỗ quá xa ở barie; ưu tiên chỗ gần và kiểm tra xe trong camera khi đón | Done 2026-10-28 | Codex | `rescueRouting.ts`, `StreetService.ts`, `tests/unit/rescue-routing.test.ts`, `tests/e2e/mobile-controls.spec.ts` | So sánh điểm đỗ trên cả hai hướng đường, rút ngắn quãng xe xuất hiện; 282 unit test + 9 e2e + build qua |
+
+| T-071 | Gọn phố: bỏ hàng nhà chồng, giảm chiều cao và cache ảnh theo chân từng nhà; hồ chỉ phía nam | Review | Codex | `streetLayout.ts`, `incidentArt.ts` | Chờ người dùng tự thử; chưa đo lại tài nguyên sau chỉnh |
+| T-072 | Bỏ nội thất, hội thoại, mèo và cửa/biển cà phê ông Tám khỏi Chương 1 | Review | Codex | `StreetService.ts`, `StoryService.ts`, `GameSimulation.ts`, `WorldScene.ts`, `main.ts`, `story.json`; xóa `ShopScene.ts`, `ShopService.ts` | Theo yêu cầu mới; giữ hệ quản lý quán các chương sau |
+| T-073 | Giữ nhân vật ngã dưới đường và xe máy tiếp tục đi qua cổng thay vì bị xóa giữa đường | Review | Codex | `incidentArt.ts`, `StreetService.ts` | Bỏ nâng depth toàn cục; cảnh tông đẩy người về phía đường trước cổng |
+| T-074 | Dùng va chạm theo kích thước người cho click/joystick/cứu hộ, ổn định NPC khi đứng lại | Review | Codex | `Actor.ts`, `RunService.ts`, `GameSimulation.ts`, `StreetService.ts`, `streetArt.ts` | Người dùng tự test; không chạy thêm test theo yêu cầu |
+| T-075 | Nghiệm thu Prototype 1 trên trình duyệt và điện thoại thật | Review | Codex/người dùng | [Báo cáo nghiệm thu](../PROTOTYPE_1_ACCEPTANCE.md) | Dừng tự động theo yêu cầu; chưa có thiết bị thật kết nối, chưa ký nghiệm thu |
+
 ## Nhật ký cập nhật
 | Ngày | Người | Thay đổi |
 |---|---|---|
@@ -116,3 +131,8 @@
 | 2026-10-28 | Claude (theo yêu cầu) | T-061: kéo dài phố sau thanh chắn thêm nhà, đường vòng quanh khối nhà ở hai đầu, xe máy quay đầu theo vòng; unit test 271/271 |
 | 2026-10-28 | Claude (theo yêu cầu) | T-062: bỏ zoom, kéo để nhìn xa kiểu Tốc Chiến; unit test 271/271 |
 | 2026-10-28 | Claude (theo yêu cầu) | T-063: dời trụ cổng khỏi làn đường, bong bóng thoại kiểu game; unit test 271/271 |
+| 2026-10-28 | Codex | T-064…T-069: tuyến cứu hộ thật và kiểm tra tình huống; audit Prototype, brief asset và tiêu chí Vertical Slice/Production |
+| 2026-10-28 | Codex | T-064/T-065 hoàn tất: 281 unit test, 9 e2e, typecheck và build qua; cứu hộ cuối ngõ được kiểm tra lại mobile dọc/ngang. T-066 có brief bàn giao; T-067…T-069 vẫn Todo. |
+| 2026-10-28 | Codex | T-070 hoàn tất: xe chọn điểm đỗ gần thay vì ưu tiên ngõ xa; xác nhận xe trong khung hình lúc đón ở cả hai barie trên mobile dọc/ngang. |
+| 2026-10-28 | Codex | T-071…T-075: tiếp nhận ảnh lỗi, bỏ quán ông Tám, sửa phố/cổng/va chạm/NPC. Dừng toàn bộ test tự động theo yêu cầu người dùng; chờ tự chơi thử, chưa đóng nghiệm thu Prototype 1. |
+| 2026-10-28 | Codex | T-074 bổ sung: một quy tắc va chạm cho click/joystick/đường bác sĩ; bỏ ưu tiên depth khi ngã/khiêng; NPC chỉ nhún bước khi thực sự di chuyển, giữ hướng khi đứng; người bán không spawn trong quầy hoặc tường. Không chạy thêm test theo yêu cầu. |

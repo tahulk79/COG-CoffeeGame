@@ -226,6 +226,7 @@ export class StoryHud {
     this.gems = scene.add.graphics();
     this.tracker.add(this.gems);
     this.muteBtn = new Button(scene, 0, 0, t('story.soundOn'), () => this.toggleMute(), 'story.mute', { fontSize: 16, h: TOP_ROW.size, w: 92, variant: 'secondary' });
+    this.buttons.set('story.mute', this.muteBtn);
     this.choiceBtns = [0, 1].map((i) => {
       const b = new Button(scene, 0, 0, '', () => this.choose(i), `story.choice.${i}`, { fontSize: 16, h: 46, variant: 'secondary', wrap: true });
       b.text.setDepth(1550);
@@ -356,8 +357,8 @@ export class StoryHud {
     setShown(this.chipBox, st.active && !between && st.chapter !== 'S03' && !garden);
     const run = st.run;
     const running = !!run?.running && d === null;
-    // Chapter 1: the card always says which act is playing, what to do, and the seconds left.
-    setShown(this.top, st.active && !between && (st.chapter !== 'S03' || !!run) && !garden && d?.kind !== 'death');
+    // Keep the play area clear of the objective card.
+    setShown(this.top, false);
     setShown(this.runBar, false);
     setShown(this.muteBtn.text, (!!run || !!garden) && !between);
     setShown(this.tracker, !!garden && !between);

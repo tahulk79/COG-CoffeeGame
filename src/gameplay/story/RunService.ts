@@ -1,3 +1,4 @@
+import { hasClearance } from '../../systems/navigation/smoothing';
 import type { Actor } from '../../entities/Actor';
 import type { NavGrid } from '../../systems/navigation/NavGrid';
 import type { WorldPos } from '../../utils/tile';
@@ -98,6 +99,8 @@ export interface RunScript {
   visited(stallId: string): boolean;
   /** The street plays a rescue while the hero is down and calls `finishDown` when it is over. */
   rescue?: boolean;
+  seen?(kind: HazardKind | FinaleKind): number;
+  markSeen?(kind: HazardKind | FinaleKind): void;
   /** People standing or walking about: the hero walks round them, never through. */
   people?: () => Array<{ x: number; y: number }>;
 }
@@ -154,7 +157,8 @@ interface Hazard extends HazardView {
   bread: boolean;
 }
 
-const R = 0.25;
+export const RUN_BODY_RADIUS = 0.25;
+const R = RUN_BODY_RADIUS;
 /** How close the hero gets to another person (tile units). */
 const PERSON_GAP = 0.45;
 /** Chasers give up when the player gets this far away (tiles), once they have chased a little… */
@@ -401,14 +405,18 @@ export class RunService {
     const sx = this.steer.x * s, sy = this.steer.y * s;
     this.player.clearWaypoints();
     this.player.faceTowards({ x: this.player.pos.x + sx, y: this.player.pos.y + sy });
+    const before = { ...this.player.pos };
     this.moveBy((sx * speed * dt) / 1000, (sy * speed * dt) / 1000);
+    const moved = Math.hypot(this.player.pos.x - before.x, this.player.pos.y - before.y) > 0.001;
+    if (moved && this.player.fsm.can('MOVING')) this.player.fsm.transition('MOVING');
+    else if (!moved && this.player.fsm.is('MOVING')) this.player.fsm.transition(this.player.restState());
   }
 
   /** Moves with wall sliding (each axis separately). */
   private moveBy(dx: number, dy: number): void {
     const p = this.player.pos;
-    if (this.free({ x: p.x + dx, y: p.y }) && !this.bumps(p, { x: p.x + dx, y: p.y })) p.x += dx;
-    if (this.free({ x: p.x, y: p.y + dy }) && !this.bumps(p, { x: p.x, y: p.y + dy })) p.y += dy;
+    if (this.canMove(p, { x: p.x + dx, y: p.y })) p.x += dx;
+    if (this.canMove(p, { x: p.x, y: p.y + dy })) p.y += dy;
   }
 
   /** Moving into someone (closer than shoulder to shoulder, and getting closer): blocked. Moving away is always fine. */
@@ -420,9 +428,8 @@ export class RunService {
     return false;
   }
 
-  private free(p: WorldPos): boolean {
-    for (const [ox, oy] of [[-R, -R], [R, -R], [-R, R], [R, R]] as const) if (!this.grid.isWalkable(worldToTile({ x: p.x + ox, y: p.y + oy }))) return false;
-    return true;
+  canMove(from: WorldPos, to: WorldPos): boolean {
+    return hasClearance(this.grid, from, to, R) && !this.bumps(from, to);
   }
 
   // ── the fate ────────────────────────────────────────────────────────────
@@ -431,7 +438,10 @@ export class RunService {
   private startFinale(): void {
     const all = this.script.finales;
     const ok = (Object.keys(all) as FinaleKind[]).filter((k) => !all[k]!.needs || this.script.visited(all[k]!.needs!));
-    const kind = ok[Math.floor(this.random() * ok.length)] ?? 'sau';
+    const least = Math.min(...ok.map(k => this.script.seen?.(k) ?? 0));
+    const fresh = ok.filter(k => (this.script.seen?.(k) ?? 0) === least);
+    const kind = fresh[Math.floor(this.random() * fresh.length)] ?? 'sau';
+    this.script.markSeen?.(kind);
     this.phase = 'faint';
     this.running = false;
     this.steer = { x: 0, y: 0 };
@@ -476,7 +486,9 @@ export class RunService {
       for (let i = round.length - 1; i > 0; i--) { const j = Math.floor(this.random() * (i + 1)); [round[i], round[j]] = [round[j]!, round[i]!]; }
       this.deck.push(...round);
     }
-    const i = this.deck.findIndex(canCome);
+    const eligible = this.deck.filter(canCome);
+    const least = Math.min(...eligible.map(k => this.script.seen?.(k) ?? 0));
+    const i = this.deck.findIndex(k => canCome(k) && (this.script.seen?.(k) ?? 0) === least);
     return i < 0 ? null : this.deck.splice(i, 1)[0]!;
   }
 
@@ -490,6 +502,7 @@ export class RunService {
     if (at) {
       // A twist: right where the dodge took the hero, with a short warning.
       this.hazards.push({ ...base, x: at.x, y: at.y, warnMs: at.warnMs ?? 400, activeMs: kind === 'chickens' ? 4500 : kind === 'banana' ? 14000 : 4000 });
+      this.script.markSeen?.(kind);
       return;
     }
     switch (kind) {
@@ -566,6 +579,7 @@ export class RunService {
       case 'chickens':
         break;
     }
+    if (this.hazards.length > before) this.script.markSeen?.(kind);
     // Later in the run the telegraphs get shorter.
     const scale = 1 - (1 - this.config.minWarnScale) * this.ramp;
     for (const h of this.hazards.slice(before)) h.warnMs *= scale;

@@ -2,7 +2,6 @@ import Phaser from 'phaser';
 import { HudScene } from './scenes/HudScene';
 import { WorldScene, type WorldSceneData } from './scenes/WorldScene';
 import { TRANSITION_SCENE, TransitionScene } from './scenes/TransitionScene';
-import { SHOP_SCENE, ShopScene } from './scenes/ShopScene';
 import { readMuted } from './core/audioPrefs';
 
 // ?map=sandbox opens the M1 movement sandbox (never saved). Default: the map you were last on (farm for a new game).
@@ -32,7 +31,6 @@ game.scene.add('HudScene', HudScene, false);
 // Added last so it draws above the world and the HUD. On page load it is the loading screen: shut heavenly
 // doors with a progress bar; once the font is in, the world starts and opens them.
 game.scene.add(TRANSITION_SCENE, TransitionScene, false);
-game.scene.add(SHOP_SCENE, ShopScene, false);
 game.scene.start(TRANSITION_SCENE, { boot: { ready: fontsReady, start: () => game.scene.start('WorldScene', start) } });
 
 if (import.meta.env.DEV) (window as unknown as { __PHASER_GAME__: Phaser.Game }).__PHASER_GAME__ = game;

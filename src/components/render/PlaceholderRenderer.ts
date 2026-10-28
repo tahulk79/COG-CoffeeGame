@@ -726,7 +726,7 @@ export class PlaceholderRenderer implements WorldRenderer {
     this.pan = { x: 0, y: 0 };
   }
 
-  /** While the player drags to look ahead the camera stays where it is pushed; once let go it eases back to the hero. */
+  /** Apply panning directly while dragging; keep the offset until the next move command. */
   setLooking(on: boolean): void {
     this.looking = on;
   }
@@ -745,18 +745,11 @@ export class PlaceholderRenderer implements WorldRenderer {
     const cam = this.scene.cameras.main;
     const zoom = cam.zoom;
     const p = worldToScreen(pos);
-    if (!this.looking && (this.pan.x || this.pan.y)) {
-      // Let go: the look-ahead glides back to the hero.
-      const back = 1 - easeFactor(dtMs, 140);
-      this.pan.x *= back;
-      this.pan.y *= back;
-      if (Math.hypot(this.pan.x, this.pan.y) < 1) this.pan = { x: 0, y: 0 };
-    }
     const target = { x: p.x + this.centerOffset.x + this.pan.x, y: p.y - 24 + this.centerOffset.y + this.pan.y };
     const t = clampCenter(target, cam.width / zoom, cam.height / zoom, mapRect(this.bounds.w, this.bounds.h, this.reach));
     const mid = cam.midPoint;
     // Snaps when reduced motion is on or right after a (re)frame.
-    const k = this.snapNext || dur(MOTION.base) === 0 ? 1 : easeFactor(dtMs, 120);
+    const k = this.looking || this.snapNext || dur(MOTION.base) === 0 ? 1 : easeFactor(dtMs, 120);
     this.snapNext = false;
     cam.centerOn(mid.x + (t.x - mid.x) * k, mid.y + (t.y - mid.y) * k);
   }
