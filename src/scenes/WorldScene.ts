@@ -7,7 +7,6 @@ import { IncidentRunView, runPose } from '../components/render/incidentArt';
 import { RunAudio } from '../components/audio/RunAudio';
 import { StreetLifeView } from '../components/render/streetArt';
 import { TRANSITION_SCENE, type TransitionScene } from './TransitionScene';
-import { SHOP_SCENE } from './ShopScene';
 import { toggleMute } from '../core/audioPrefs';
 import { STORY_ASSETS } from '../components/render/storyAssets';
 import { t } from '../core/i18n';
@@ -60,7 +59,7 @@ export class WorldScene extends Phaser.Scene {
   private portalFlashed = false;
   private moveKeys: Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key> | null = null;
   private stick: { x: number; y: number; cx: number; cy: number; on: boolean; id: number } | null = null;
-  /** A drag that looks around (right half of a touch screen, or the mouse); `on` once it has moved enough not to be a tap. */
+  /** A drag outside the joystick pans; `on` distinguishes it from a tap. */
   private look: { x: number; y: number; px: number; py: number; on: boolean; id: number } | null = null;
   private stickGfx: Phaser.GameObjects.Graphics | null = null;
   private playerView!: ActorView;
@@ -73,6 +72,7 @@ export class WorldScene extends Phaser.Scene {
   private storyView: StoryPresenter | null = null;
   private glows: GlowPresenter | null = null;
   private rewards: RewardPresenter | null = null;
+  private gestureConsumed = false;
   private travelling = false;
   /** Set by the travel event; performed at the start of the next frame, never mid-tick. */
   private pendingTravel: string | null = null;
@@ -97,6 +97,9 @@ export class WorldScene extends Phaser.Scene {
 
   create(): void {
     this.portalFlashed = false;
+    this.stick = this.look = null;
+    this.dragMid = null;
+    this.gestureConsumed = false;
     const clock = new SystemClock(import.meta.env.PROD ? 0 : readDebugClockOffset());
     if (this.launchData.fresh && !import.meta.env.PROD) window.localStorage.removeItem('tcss.save.slot1');
     this.travelling = false;
@@ -123,7 +126,7 @@ export class WorldScene extends Phaser.Scene {
     );
     // Layout policy: the farm/café HUD panel occupies the right edge (PANEL_W + margin).
     this.frameCamera();
-    this.scale.on(Phaser.Scale.Events.RESIZE, () => this.frameCamera());
+    this.scale.on(Phaser.Scale.Events.RESIZE, this.frameCamera, this);
 
     this.playerView = this.worldRenderer.createActor('player', 'player');
     this.feedback = new FeedbackPresenter(this.sim.bus, world, this.worldRenderer, () => this.sim.player.pos, (id) => this.sim.cafe?.customer(id)?.actor.pos);
@@ -157,48 +160,52 @@ export class WorldScene extends Phaser.Scene {
       this.gardenFx = new GardenEffects(this, (id) => { const o = world.getObject(id); return o ? { x: o.footprint.x + o.footprint.w / 2, y: o.footprint.y + o.footprint.h / 2 } : null; });
       this.gardenAudio = new GardenAudio(this);
     }
-    if (this.sim.run || this.sim.garden) {
-      this.input.keyboard?.on('keydown-M', () => toggleMute(this.sound));
-      this.stickGfx = this.add.graphics().setDepth(1e6 + 5);
-      this.moveKeys = (this.input.keyboard?.addKeys('W,A,S,D') as Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>) ?? null;
-      // Touch: press and drag on the left half = joystick; on the right half (or with the mouse) = look ahead, and the camera glides
-      // back when you let go. A plain tap walks there / talks to whoever was tapped (on release, so a drag never walks).
-      this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-        if (p.rightButtonDown() || p.middleButtonDown()) return;
-        if (p.wasTouch && p.x < this.scale.width / 2) { if (!this.stick) this.stick = { x: p.x, y: p.y, cx: p.x, cy: p.y, on: false, id: p.id }; }
-        else if (!this.look) this.look = { x: p.x, y: p.y, px: p.x, py: p.y, on: false, id: p.id };
-      });
-      this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
-        if (!p.isDown) return;
-        const st = this.stick;
-        if (st && st.id === p.id) {
-          st.cx = p.x; st.cy = p.y;
-          if (Math.hypot(p.x - st.x, p.y - st.y) > 14) st.on = true;
-        }
-        const lk = this.look;
-        if (lk && lk.id === p.id) {
-          if (!lk.on && Math.hypot(p.x - lk.x, p.y - lk.y) > 12) { lk.on = true; this.worldRenderer.setLooking(true); }
-          if (lk.on) this.worldRenderer.panBy(-(p.x - lk.px), -(p.y - lk.py));
-          lk.px = p.x; lk.py = p.y;
-        }
-      });
-      const release = (p: Phaser.Input.Pointer) => {
-        if (this.stick?.id === p.id) {
-          const dragged = this.stick.on;
-          this.stick = null;
-      this.look = null;
-          if (!dragged) this.clickAt(p);
-        }
-        if (this.look?.id === p.id) {
-          const dragged = this.look.on;
-          this.look = null;
-          this.worldRenderer.setLooking(false);
-          if (!dragged) this.clickAt(p);
-        }
-      };
-      this.input.on('pointerup', release);
-      this.input.on('pointerupoutside', release);
-    }
+    this.input.keyboard?.on('keydown-M', () => toggleMute(this.sound));
+    this.stickGfx = this.add.graphics().setDepth(1e6 + 5);
+    this.moveKeys = (this.input.keyboard?.addKeys('W,A,S,D') as Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>) ?? null;
+    // The bottom-left ring steers; dragging anywhere else pans. Taps act on release.
+    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      if (p.rightButtonDown()) return this.sim.cancel();
+      if (p.middleButtonDown()) return;
+      if (this.input.pointer1.isDown && this.input.pointer2.isDown) {
+        this.gestureConsumed = true;
+        this.stick = this.look = null;
+        this.worldRenderer.setLooking(true);
+        return;
+      }
+      this.gestureConsumed = false;
+      const origin = this.stickOrigin();
+      if (p.wasTouch && (this.sim.run || this.sim.garden) && Math.hypot(p.x - origin.x, p.y - origin.y) < 64) { if (!this.stick) this.stick = { x: origin.x, y: origin.y, cx: p.x, cy: p.y, on: false, id: p.id }; }
+      else if (!this.look) this.look = { x: p.x, y: p.y, px: p.x, py: p.y, on: false, id: p.id };
+    });
+    this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
+      if (!p.isDown || this.gestureConsumed) return;
+      const st = this.stick;
+      if (st && st.id === p.id) {
+        st.cx = p.x; st.cy = p.y;
+        if (Math.hypot(p.x - st.x, p.y - st.y) > 14) st.on = true;
+      }
+      const lk = this.look;
+      if (lk && lk.id === p.id) {
+        if (!lk.on && Math.hypot(p.x - lk.x, p.y - lk.y) > 12) { lk.on = true; this.worldRenderer.setLooking(true); }
+        if (lk.on) this.worldRenderer.panBy(-(p.x - lk.px), -(p.y - lk.py));
+        lk.px = p.x; lk.py = p.y;
+      }
+    });
+    const release = (p: Phaser.Input.Pointer) => {
+      if (this.stick?.id === p.id) {
+        this.stick = null;
+      }
+      if (this.look?.id === p.id) {
+        const dragged = this.look.on;
+        this.look = null;
+        this.worldRenderer.setLooking(false);
+        if (!dragged && !this.gestureConsumed) this.clickAt(p);
+      }
+    };
+    this.input.on('pointerup', release);
+    this.input.on('pointerupoutside', release);
+    this.input.on('gameout', () => { this.stick = this.look = null; this.worldRenderer.setLooking(false); });
     this.sim.bus.on('meta:achievement', ({ label }) => this.worldRenderer.showFeedback(this.sim.player.pos, t('meta.achievement', { name: label }), 'ok'));
 
     this.decor = this.sim.decor.available
@@ -231,16 +238,9 @@ export class WorldScene extends Phaser.Scene {
 
     this.input.mouse?.disableContextMenu();
     this.input.addPointer(1);
-    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-      if (p.middleButtonDown()) return; // middle button drags the camera
-      if (p.rightButtonDown()) return this.sim.cancel();
-      // Chapters 1 and 2 act on release (see above), so that a drag can look around instead.
-      if (this.sim.run || this.sim.garden) return;
-      this.clickAt(p);
-    });
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
       if (p.middleButtonDown()) this.worldRenderer.panBy(-(p.x - p.prevPosition.x), -(p.y - p.prevPosition.y));
-      this.updateHover(this.pointerTarget(p));
+      if (!p.wasTouch && !this.look?.on) this.updateHover(this.pointerTarget(p));
     });
     this.cursors = this.input.keyboard?.createCursorKeys() ?? null;
     this.input.keyboard?.on('keydown-ESC', () => this.sim.cancel());
@@ -258,8 +258,8 @@ export class WorldScene extends Phaser.Scene {
     installTestBridge(this);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.scale.off(Phaser.Scale.Events.RESIZE, this.frameCamera, this);
       if (!this.travelling) flush(); // travel already saved with the destination map
-      this.scene.stop(SHOP_SCENE);
       this.customers?.destroy();
       this.customers = null;
       this.decor?.destroy();
@@ -279,7 +279,7 @@ export class WorldScene extends Phaser.Scene {
       this.streetView = null;
       this.stickGfx = null;
       this.moveKeys = null;
-      this.stick = null;
+      this.stick = this.look = null;
       this.glows = null;
       this.rewards?.destroy();
       this.rewards = null;
@@ -296,7 +296,8 @@ export class WorldScene extends Phaser.Scene {
     if (this.travelling) return;
     if (this.pendingTravel) return this.travel(this.pendingTravel);
     this.runControls();
-    this.sim.tick(delta);
+    // Reading settings must not leave the street's hazards running behind the menu.
+    if (!(this.sim.run && (this.scene.get('HudScene') as { modalOpen?: boolean }).modalOpen)) this.sim.tick(delta);
     this.cameraGestures(delta);
     // Decorating: follow the pointer every frame (Phaser can drop the first move after a HUD click).
     if (this.sim.decor.isActive) this.updateHover(this.pointerTarget(this.input.activePointer));
@@ -338,12 +339,6 @@ export class WorldScene extends Phaser.Scene {
       this.portalFlashed = true;
       if (dur(MOTION.base) > 0) this.cameras.main.flash(650, 210, 245, 255);
     }
-    // Chapter 1: walking into a shop opens its room over the street; walking out closes it.
-    const inside = !!s.story.street?.shop;
-    if (inside && !this.scene.isActive(SHOP_SCENE)) {
-      this.scene.launch(SHOP_SCENE, { sim: () => this.sim });
-      this.scene.bringToTop('HudScene');
-    } else if (!inside && this.scene.isActive(SHOP_SCENE)) this.scene.stop(SHOP_SCENE);
     this.runAudio?.sync(s.story.run);
     this.drawStick();
     this.worldRenderer.setPathPreview(s.player.waypoints.length ? [s.player.pos, ...s.player.waypoints] : null);
@@ -389,10 +384,14 @@ export class WorldScene extends Phaser.Scene {
     }
     const base = worldViewInsets(w, h);
     const mode = CAMERA_MODE[this.sim.map.id];
-    const zoom = mode ? framingZoom(mode, w - inset, h, mapRect(world.width, world.height)) : worldZoom(w - inset, h, world.width, world.height);
     const reach = CAMERA_REACH[this.sim.map.id];
+    const zoom = mode ? framingZoom(mode, w - inset, h, mapRect(world.width, world.height, reach)) : worldZoom(w - inset, h, world.width, world.height);
     this.worldRenderer.setReach(reach?.west ?? 0, reach?.east ?? 0);
     this.worldRenderer.frame(world.width, world.height, { ...base, right: base.right + inset }, zoom);
+  }
+
+  private stickOrigin(): { x: number; y: number } {
+    return { x: 82, y: this.scale.height - 90 };
   }
 
   /**
@@ -413,6 +412,7 @@ export class WorldScene extends Phaser.Scene {
     }
     const modal = (this.scene.get('HudScene') as { modalOpen?: boolean }).modalOpen;
     if (modal || (sx === 0 && sy === 0)) return this.sim.steer(0, 0);
+    this.worldRenderer.resetPan();
     const a = sx / 64, b = sy / 32;
     this.sim.steer((a + b) / 2, (b - a) / 2);
   }
@@ -422,11 +422,12 @@ export class WorldScene extends Phaser.Scene {
     const g = this.stickGfx, st = this.stick;
     if (!g) return;
     g.clear();
-    if (!st?.on) return;
+    if (!(this.sim.run || this.sim.garden) || navigator.maxTouchPoints === 0) return;
+    const origin = st ?? this.stickOrigin();
     const cam = this.cameras.main, z = cam.zoom;
-    const o = cam.getWorldPoint(st.x, st.y);
-    const len = Math.min(48, Math.hypot(st.cx - st.x, st.cy - st.y));
-    const ang = Math.atan2(st.cy - st.y, st.cx - st.x);
+    const o = cam.getWorldPoint(origin.x, origin.y);
+    const len = Math.min(48, st?.on ? Math.hypot(st.cx - st.x, st.cy - st.y) : 0);
+    const ang = st ? Math.atan2(st.cy - st.y, st.cx - st.x) : 0;
     const kx = o.x + (Math.cos(ang) * len) / z, ky = o.y + (Math.sin(ang) * len) / z;
     g.fillStyle(0xfff6e5, .35).fillCircle(o.x, o.y, 56 / z).lineStyle(3 / z, 0x5a3825, .6).strokeCircle(o.x, o.y, 56 / z);
     g.fillStyle(0xff7f6b, .9).fillCircle(kx, ky, 22 / z).lineStyle(3 / z, 0x5a3825).strokeCircle(kx, ky, 22 / z);
@@ -436,8 +437,6 @@ export class WorldScene extends Phaser.Scene {
   private clickAt(p: Phaser.Input.Pointer): void {
       // A second finger is a camera gesture (two-finger pan), not a click.
       if (this.input.pointer1.isDown && this.input.pointer2.isDown) return;
-      // Inside a shop, taps belong to the shop's room.
-      if (this.sim.street?.inside) return;
       this.worldRenderer.resetPan(); // a click on the world brings the camera back to the player
       // Chapter 1: tapping a person talks to them.
       const w = this.cameras.main.getWorldPoint(p.x, p.y);
@@ -468,7 +467,10 @@ export class WorldScene extends Phaser.Scene {
       const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
       if (this.dragMid) this.worldRenderer.panBy(-(mid.x - this.dragMid.x), -(mid.y - this.dragMid.y));
       this.dragMid = mid;
-    } else this.dragMid = null;
+    } else {
+      this.dragMid = null;
+      if (this.gestureConsumed) this.worldRenderer.setLooking(false);
+    }
   }
 
   /** Pointer → tile, using the camera's own inverse transform. */

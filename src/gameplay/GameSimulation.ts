@@ -1,3 +1,5 @@
+import { hasClearance } from '../systems/navigation/smoothing';
+import { planRescue } from './story/rescueRouting';
 import { RegionService, type EstateView } from './regions/RegionService';
 import { SystemClock, type Clock } from '../core/Clock';
 import { EventBus } from '../core/EventBus';
@@ -30,7 +32,7 @@ import { NeighborService, type CafeProfile } from './social/NeighborService';
 import { MetaService, type MetaView } from './meta/MetaService';
 import { StoryService, type StoryView } from './story/StoryService';
 import { registerStoryHandlers } from './story/storyHandlers';
-import { RunService } from './story/RunService';
+import { RunService, RUN_BODY_RADIUS } from './story/RunService';
 import { StreetService } from './story/StreetService';
 import { GardenService } from './story/GardenService';
 import { EmployeeService, type EmployeeView, type EmployeeView2 } from './employees/EmployeeService';
@@ -167,7 +169,7 @@ export class GameSimulation {
     }
     const local = this.localState = estate ? { ...this.state, cafe: estate.cafe, farm: estate.farm, processing: estate.processing, employees: estate.employees } : this.state;
     this.world = new WorldModel(map, content.objectTypes);
-    this.nav = new NavigationService(this.world.grid, this.config.player.bodyRadius);
+    this.nav = new NavigationService(this.world.grid, map.id === content.story.chapters.S03?.map ? RUN_BODY_RADIUS : this.config.player.bodyRadius);
     this.tx = new TransactionService(this.state, content.items, eco, this.bus, this.clock, map.regionId);
     // Before the player is placed: a saved furniture layout changes which tiles are walkable.
     this.decor = new FurnitureService(local, this.world, content.furniture, this.tx, this.bus, this.config.player.bodyRadius, {
@@ -250,7 +252,8 @@ export class GameSimulation {
       const rng = new Rng(opts.rngSeed ?? Date.now());
       this.run = new RunService(runCfg, this.world.grid, this.player, () => rng.next(), { w: this.world.width, h: this.world.height },
         (kind, ms) => { this.playerInteraction.cancelAll('superseded'); this.story.onDeath(kind, ms); },
-        { hazards: content.story.chapters.S03!.hazards ?? {}, finales: content.story.chapters.S03!.finales ?? {}, visited: (id) => !!this.state.story.flags[`visited:${id}`], rescue: !!(content.story.chapters.S03!.street && content.story.chapters.S03!.stalls), people: () => this.street?.people() ?? [] });
+        { hazards: content.story.chapters.S03!.hazards ?? {}, finales: content.story.chapters.S03!.finales ?? {}, visited: (id) => !!this.state.story.flags[`visited:${id}`], rescue: !!(content.story.chapters.S03!.street && content.story.chapters.S03!.stalls), seen: (kind) => this.state.meta.counters[`incident:seen:${kind}`] ?? 0, markSeen: (kind) => { const key = `incident:seen:${kind}`; this.state.meta.counters[key] = (this.state.meta.counters[key] ?? 0) + 1; }, people: () => this.street?.people() ?? [] });
+      this.player.canMove = (from, to) => this.run!.canMove(from, to);
       this.story.attachRun(this.run);
       // The street around the run: passers-by, motorbikes, stalls whose sellers banter.
       const ch = content.story.chapters.S03!;
@@ -265,7 +268,19 @@ export class GameSimulation {
           crash: (line, downMs) => run.crash('motorbike', line, downMs),
           isDown: () => run.isDown,
           knockedOut: () => run.dying,
-          walkable: (x, y) => this.world.grid.isWalkable(worldToTile({ x, y })),
+          walkable: (x, y) => hasClearance(this.world.grid, { x, y }, { x, y }, RUN_BODY_RADIUS),
+          canWalk: (from, to) => hasClearance(this.world.grid, from, to, RUN_BODY_RADIUS),
+          path: (from, to, avoid) => {
+            const grid = avoid ? this.world.grid.clone() : this.world.grid;
+            if (avoid) grid.addBlocker(avoid);
+            if (hasClearance(grid, from, to, RUN_BODY_RADIUS)) return [{ ...to }];
+            const plan = (avoid ? new NavigationService(grid, RUN_BODY_RADIUS) : this.nav).planTo(from, [worldToTile(to)]);
+            if (!plan) return null;
+            const end = plan.waypoints[plan.waypoints.length - 1] ?? from;
+            if (!hasClearance(grid, end, to, RUN_BODY_RADIUS)) return null;
+            return [...plan.waypoints, { ...to }];
+          },
+          rescueRoute: (hero) => planRescue(this.world.grid, hero, ch.street!.bikeLanes, ch.street!.ambulanceAccess),
           bikeHit: () => run.crash('motorbike', ch.hazards?.motorbike?.faint ?? '…', 2000),
           rescued: () => run.finishDown(),
         });
@@ -323,11 +338,14 @@ export class GameSimulation {
       const dt = Math.min(step, remaining);
       this.timeMs += dt;
       // The run pauses with the story (dialogue, transitions).
-      // Inside a chapter-1 shop the street (and its clock) waits.
-      if (this.run && !this.story.locked && !this.street?.inside) this.run.tick(dt, this.config.player.speedTilesPerSec);
+      if (this.run && !this.story.locked) this.run.tick(dt, this.config.player.speedTilesPerSec);
       // Caught (bitten, scratched, falling…): the hero is held in place until the ending card.
       if (this.run?.dying) this.playerInteraction.cancelAll('superseded', false);
       else this.playerInteraction.tick(dt);
+      if (this.player.movementBlocked) {
+        this.playerInteraction.cancelAll('superseded');
+        this.player.movementBlocked = false;
+      }
       if (this.garden && !this.story.locked) this.garden.tick(dt);
       if (this.street && !this.story.locked) this.street.tick(dt);
       this.cafe?.tick(dt);
@@ -349,7 +367,6 @@ export class GameSimulation {
 
   /** Direct control (keys / joystick) in world directions; (0, 0) releases it. Chapter-1 run and chapter-2 garden. */
   steer(x: number, y: number): void {
-    if (this.street?.inside) return this.street.shopSteer(this.story.locked ? 0 : x, this.story.locked ? 0 : y);
     const r = this.run ?? this.garden;
     if (!r) return;
     const was = r.steering;
@@ -372,7 +389,6 @@ export class GameSimulation {
 
   /** Chapter 1: the player tapped a person on the street. Close enough, they talk; otherwise the hero walks over first. */
   talkTo(npcId: string): void {
-    if (this.street?.inside) return void this.street.talkTo(npcId);
     if (this.story.locked || this.run?.dying || this.run?.held || !this.street) return;
     this.startRun();
     if (this.street.talkTo(npcId)) return;
@@ -385,11 +401,6 @@ export class GameSimulation {
       const tile = { x: t.x + dx * r, y: t.y + dy * r };
       if (this.world.grid.isWalkable(tile)) return void this.playerInteraction.moveTo(tile);
     }
-  }
-
-  /** Chapter 1, inside a shop: a tap on the floor (room coordinates) walks there. */
-  shopMoveTo(x: number, y: number): void {
-    this.street?.shopMoveTo(x, y);
   }
 
   /** Player input → command. A click on an object interacts; a click on floor moves. */

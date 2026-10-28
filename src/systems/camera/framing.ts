@@ -53,7 +53,7 @@ const TILES_ACROSS: Record<CameraMode, Record<ViewportClass, number>> = {
   exploration: { desktop: 11, tablet: 9, mobileLandscape: 7, mobilePortrait: 5.5 },
   cafe: { desktop: 10, tablet: 8.5, mobileLandscape: 7, mobilePortrait: 5.5 },
   farm: { desktop: 11, tablet: 9, mobileLandscape: 7.5, mobilePortrait: 5.5 },
-  story: { desktop: 10, tablet: 8.5, mobileLandscape: 6.5, mobilePortrait: 5 },
+  story: { desktop: 13, tablet: 11, mobileLandscape: 9, mobilePortrait: 7 },
   brewingFocus: { desktop: 6, tablet: 5, mobileLandscape: 4.5, mobilePortrait: 3.5 },
   cinematic: { desktop: 8, tablet: 7, mobileLandscape: 5.5, mobilePortrait: 4.5 },
 };
@@ -86,7 +86,7 @@ export function framingZoom(mode: CameraMode, viewW: number, viewH: number, env:
   const vp = classifyViewport(viewW, viewH);
   // Very tall phones: also keep enough height so the counter and the queue fit together.
   const base = Math.max(viewW / (tilesAcross(mode, vp) * TILE_W), vp === 'mobilePortrait' ? 0 : viewH / (tilesAcross(mode, vp) * TILE_W * 0.75));
-  const want = base * clamp(userZoom, MIN_USER_ZOOM, MAX_USER_ZOOM);
+  const want = base * (mode === 'story' ? 1 : 0.8) * clamp(userZoom, MIN_USER_ZOOM, MAX_USER_ZOOM);
   return clamp(want, minZoomFor(viewW, viewH, env), Math.max(MAX_ZOOM, minZoomFor(viewW, viewH, env)));
 }
 

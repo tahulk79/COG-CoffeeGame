@@ -11,20 +11,6 @@ export const SPRITE_SS = 2;
 /** Box (relative to the feet) every baked person covers. */
 const PERSON_BOX = { x: -50, y: -96, w: 100, h: 112 };
 
-/** A baked person image (shared by the street and the shop rooms): one texture per look, origin at the feet, scaled for `SPRITE_SS`. */
-export function personImage(scene: Phaser.Scene, look: string): Phaser.GameObjects.Image {
-  const key = `npc:${look}`, b = PERSON_BOX;
-  if (!scene.textures.exists(key)) {
-    const g = scene.make.graphics({ x: 0, y: 0 }, false);
-    g.scaleCanvas(SPRITE_SS, SPRITE_SS);
-    g.translateCanvas(-b.x, -b.y);
-    person(g, look);
-    g.generateTexture(key, b.w * SPRITE_SS, b.h * SPRITE_SS);
-    g.destroy();
-  }
-  return scene.add.image(0, 0, key).setOrigin(-b.x / b.w, -b.y / b.h).setScale(1 / SPRITE_SS);
-}
-
 /** Shirt and trousers per look; extras (hats, bags, phones) are drawn in `person`. */
 const LOOKS: Record<string, { shirt: number; legs: number; skin?: number; scale?: number }> = {
   walker: { shirt: 0x7cc47f, legs: 0x4f6d8f },
@@ -213,11 +199,13 @@ export class StreetLifeView {
       let g = this.bodies.get(n.id);
       if (!g) {
         g = this.bodyImage(n);
+        g.setData('sortBias', (this.bodies.size + 1) * 0.00001);
         this.bodies.set(n.id, g);
       }
+      if (n.look === 'ambulance') g.setTexture(`npc:ambulance:${n.dir < 0 ? -1 : 1}`).setFlipX(n.axis === 'y');
       const p = worldToScreen(n);
       const bob = n.moving && !n.bike ? -Math.abs(Math.sin(now / 110 + n.x)) * 3 : 0;
-      g.setPosition(p.x, p.y + bob).setScale(((n.dir < 0 && n.look !== 'ambulance' ? -1 : 1) * n.scale) / SPRITE_SS, n.scale / SPRITE_SS).setRotation(n.tilt).setDepth(actorDepth(n)).setVisible(n.scale > 0.01 && n.x >= STREET_ENDS.w && n.x <= STREET_ENDS.e);
+      g.setPosition(p.x, p.y + bob).setScale(((n.dir < 0 && n.look !== 'ambulance' ? -1 : 1) * n.scale) / SPRITE_SS, n.scale / SPRITE_SS).setRotation(n.tilt).setDepth(Math.round(actorDepth(n) * 100) / 100 + g.getData('sortBias')).setVisible(n.scale > 0.01 && n.x >= STREET_ENDS.w && n.x <= STREET_ENDS.e);
       if (n.say) { said.add(n.id); this.bubble(n.id, n.say, n, n.bike ? 84 : 78, z, false, lying); }
       if (n.skid) skids.push(n);
     }
@@ -230,35 +218,8 @@ export class StreetLifeView {
     const say = street?.heroHidden ? null : street?.heroSay ?? heroSay;
     if (say) { said.add('hero'); this.bubble('hero', say, hero, 84, z, true); }
     this.syncGates(street?.gates ?? []);
-    this.syncDoors(street?.doors ?? []);
     for (const [id, g] of this.bodies) if (!seen.has(id)) { g.destroy(); this.bodies.delete(id); }
     for (const [id, b] of this.bubbles) if (!said.has(id)) { b.destroy(); this.bubbles.delete(id); }
-  }
-
-  /** Shop doors on the house fronts: an open wooden door with a sign, or the shutter down at rush hour. */
-  private readonly doors = new Map<string, { open: boolean; parts: Phaser.GameObjects.GameObject[] }>();
-  private syncDoors(doors: StreetView['doors']): void {
-    for (const d of doors) {
-      const had = this.doors.get(d.id);
-      if (had && had.open === d.open) continue;
-      for (const o of had?.parts ?? []) o.destroy();
-      // The house fronts are baked behind everything (depth -2): doors sit just in front of them.
-      const g = this.scene.add.graphics().setDepth(-1.5), y = 4.92;
-      face(g, [[d.x - .4, y, 0], [d.x + .4, y, 0], [d.x + .4, y, 56], [d.x - .4, y, 56]], 0x6b4a3a, 1, 2.5);
-      if (d.open) {
-        face(g, [[d.x - .32, y, 0], [d.x + .32, y, 0], [d.x + .32, y, 48], [d.x - .32, y, 48]], 0x2e2219, 1, 2);
-        const glow = point(d.x, y, 20);
-        g.fillStyle(0xffd25e, .35).fillEllipse(glow.x, glow.y, 40, 30);
-        face(g, [[d.x - .55, y + .25, 60], [d.x + .55, y + .25, 60], [d.x + .55, y, 70], [d.x - .55, y, 70]], 0xe2513f, 1, 2);
-      } else {
-        // Shutter down, stripes of corrugated metal.
-        face(g, [[d.x - .32, y, 0], [d.x + .32, y, 0], [d.x + .32, y, 48], [d.x - .32, y, 48]], 0x9aa1ad, 1, 2);
-        for (let z = 6; z < 48; z += 8) { const a = point(d.x - .32, y, z), b = point(d.x + .32, y, z); g.lineStyle(1.5, 0x6b6b75).lineBetween(a.x, a.y, b.x, b.y); }
-      }
-      const sign = point(d.x, y, 92);
-      const label = this.scene.add.text(sign.x, sign.y, d.open ? d.name : `${d.name} · Nghỉ giờ tan tầm`, { fontFamily: "'Baloo 2', sans-serif", fontSize: '17px', fontStyle: '800', color: '#ffffff', backgroundColor: d.open ? '#5a3825' : '#6b6b75', padding: { x: 8, y: 2 }, resolution: 2 }).setOrigin(.5, 1).setDepth(-1.4);
-      this.doors.set(d.id, { open: d.open, parts: [g, label] });
-    }
   }
 
   /** The ambulance's runaway wheel, then the explosion: fireball, smoke, flying bits and the bang's word. */
@@ -430,7 +391,6 @@ export class StreetLifeView {
     this.flashG?.destroy();
     this.mishapG?.destroy();
     this.boomT?.destroy();
-    for (const d of this.doors.values()) for (const o of d.parts) o.destroy();
     this.bonkT?.destroy();
     this.bodies.clear();
     this.bubbles.clear();

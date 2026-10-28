@@ -1,3 +1,4 @@
+import { streetHouses } from './streetLayout';
 import Phaser from 'phaser';
 import { actorDepth, floorDepth, worldToScreen } from '../../utils/iso';
 import type { HazardView, RunView } from '../../gameplay/story/RunService';
@@ -12,9 +13,9 @@ import { SpeechBubble } from './speechBubble';
  * and collisions remain owned by the map.
  */
 export const INK = 0x5a3825;
-/** Camera background beyond the drawn surroundings: the same water as the lake, so zooming out shows sea, never bare canvas. */
+/** Quiet land behind the district; water belongs only on the lakeside. */
 const WATER = 0x8fd0ea;
-export const STREET_BACKGROUND = WATER;
+export const STREET_BACKGROUND = 0xe7e0d0;
 
 export const point = (x: number, y: number, z = 0) => { const p = worldToScreen({ x, y }); return new Phaser.Math.Vector2(p.x, p.y - z); };
 export function face(g: Phaser.GameObjects.Graphics, coords: number[][], color: number, alpha = 1, outline = 2): void {
@@ -334,6 +335,11 @@ function tubeHouse(g: Phaser.GameObjects.Graphics, x: number, y: number, w: numb
   block(g, { x, y, w, h: d }, 0, h, color, 2.5);
   // Red tiled roof edge.
   block(g, { x: x - .05, y: y - .05, w: w + .1, h: d + .1 }, h, 10, 0xd9674f, 2);
+  for (let tx = x + .16; tx < x + w; tx += .24) {
+    const a = point(tx, y, h + 10), b = point(tx, y + d, h + 10);
+    g.lineStyle(1, 0x9f5545, .32).lineBetween(a.x, a.y, b.x, b.y);
+  }
+  face(g, [[x, y + d, 0], [x + w, y + d, 0], [x + w, y + d, 7], [x, y + d, 7]], 0xc6b99f, 1, 0);
   for (let z = 70; z < h - 20; z += 46) {
     // Green shutters on the street face, a balcony every floor.
     for (let wx = x + .18; wx < x + w - .3; wx += .55) face(g, [[wx, y + d, z], [wx + .32, y + d, z], [wx + .32, y + d, z + 26], [wx, y + d, z + 26]], 0x6fae8a, 1, 1.5);
@@ -385,28 +391,14 @@ function cityGate(g: Phaser.GameObjects.Graphics, x: number, y0: number, y1: num
   block(g, { x: x - .1, y: y0 - .6, w: 1.6, h: y1 - y0 + 2.2 }, 154, 12, 0x6b4a3a, 2);
 }
 
-/** Endless water behind the street: one small wave tile repeated far beyond any zoom, so the edge of the map is a shore, not a cut-off. */
-function drawSea(scene: Phaser.Scene): void {
-  const key = 'hn:waves', W = 256, H = 128;
-  if (!scene.textures.exists(key)) {
-    const g = scene.make.graphics({ x: 0, y: 0 }, false);
-    g.scaleCanvas(2, 2);
-    const wave = (x: number, y: number, w: number, a: number) => {
-      g.lineStyle(2.2, 0xffffff, a);
-      g.beginPath().moveTo(x - w, y);
-      for (let i = 0; i <= 12; i++) g.lineTo(x - w + (w * 2 * i) / 12, y + Math.sin((i / 12) * Math.PI * 2) * 2.4);
-      g.strokePath();
-    };
-    wave(40, 22, 22, .6); wave(150, 12, 16, .45); wave(100, 62, 26, .55); wave(210, 52, 18, .5); wave(30, 100, 18, .4); wave(170, 108, 24, .55);
-    g.generateTexture(key, W * 2, H * 2);
-    g.destroy();
-  }
-  const c = 9000;
-  scene.add.tileSprite(0, 0, c * 2, c * 2, key).setScale(1).setTileScale(.5, .5).setDepth(-1000).setOrigin(.5);
+/** Only the southern half-plane is lake; the north side continues into the city. */
+function drawLake(scene: Phaser.Scene): void {
+  const g = scene.add.graphics().setDepth(-1000);
+  face(g, [[-220, MAP_H], [220, MAP_H], [220, 220], [-220, 220]], WATER, 1, 0);
 }
 
 export function drawIncidentEnvironment(scene: Phaser.Scene, floor: FloorTileView[]): void {
-  drawSea(scene);
+  drawLake(scene);
   // Everything flat (ground around the map, the map's own floor, markings, beds) is one baked layer.
   bakeLayer(scene, 'hn:ground', screenBox([[LAND_W - 1, -5], [LAND_E + 1, -5], [LAND_W - 1, MAP_H + 8], [LAND_E + 1, MAP_H + 8]], 0, 0), floorDepth - .8, (g) => drawGround(g, floor), .6);
   drawStanding(scene);
@@ -424,13 +416,9 @@ function drawGround(surround: Phaser.GameObjects.Graphics, floor: FloorTileView[
       : [0xbfe3a0, 0xb6dc96, 0xc5e7a8][n % 3]!;
     face(surround, [[x, y], [x + 1, y], [x + 1, y + 1], [x, y + 1]], color, 1, 0);
   }
-  // Shore: a pale bank and a line of foam where the land meets the sea (north, east and west; the south is the lake itself).
-  const shore = (a: number[], b: number[], c: number[], d: number[], color: number, alpha: number) => face(surround, [a, b, c, d], color, alpha, 0);
-  const X0 = LAND_W, X1 = LAND_E, Y0 = -4;
+  // A narrow bank at the actual lake, rather than an island shoreline behind the houses.
   for (const [pad, color, alpha] of [[.9, 0xd6f0f7, .55], [.5, 0xffffff, .8], [.18, 0xe9d9b8, 1]] as const) {
-    shore([X0 - pad, Y0 - pad], [X1 + pad, Y0 - pad], [X1 + pad, Y0], [X0 - pad, Y0], color, alpha);
-    shore([X1, Y0 - pad], [X1 + pad, Y0 - pad], [X1 + pad, MAP_H + 8], [X1, MAP_H + 8], color, alpha);
-    shore([X0 - pad, Y0 - pad], [X0, Y0 - pad], [X0, MAP_H + 8], [X0 - pad, MAP_H + 8], color, alpha);
+    face(surround, [[LAND_W, MAP_H - pad], [LAND_E, MAP_H - pad], [LAND_E, MAP_H], [LAND_W, MAP_H]], color, alpha, 0);
   }
   // The map's own floor, tile by tile.
   for (const t of floor) {
@@ -469,25 +457,21 @@ function drawGround(surround: Phaser.GameObjects.Graphics, floor: FloorTileView[
 
 /** Everything that stands up: houses, landmarks, poles and wires, street life, trees (all baked). */
 function drawStanding(scene: Phaser.Scene): void {
-  // Old-quarter tube houses along the north side, with a gap for the alley; behind its courtyard, a few more houses.
-  bakeLayer(scene, 'hn:houses', screenBox([[LAND_W - 2, -3], [LAND_E, -3], [LAND_W - 2, NORTH_WALK[0]!], [LAND_E, NORTH_WALK[0]!]], 300), -2, (city) => {
-    const walls = [0xf6d77a, 0xfff0c9, 0xc9ecd9, 0xf6c7b4, 0xf2e2a0] as const;
-    const signs = [0xe2513f, 0x5ec8f2, 0xffd25e, 0x7cc47f, 0xf6a6d0] as const;
-    let i = 0;
-    const house = (x: number, y: number, d: number) => { tubeHouse(city, x, y, 1.6, d, 170 + ((i * 37) % 4) * 30, walls[i % 5]!, signs[(i * 3) % 5]!); i++; };
-    for (let x = ALLEY_X0 + .05; x + 1.6 <= ALLEY_X1; x += 1.75) house(x, -2.6, 3.5);
-    // A second row behind the first, past both ends of the map (the old quarter goes on well beyond the barriers).
-    for (let x = -1.6; x > LAND_W - 1; x -= 1.75) house(x, -3.2, 3.9);
-    for (let x = MAP_W; x + 1.6 <= LAND_E; x += 1.75) house(x, -3.2, 3.9);
-    for (let x = ALLEY_X0 - 1.6; x > LAND_W - 1; x -= 1.75) house(x, 1, 3.9);
-    for (let x = ALLEY_X1; x + 1.6 <= LAND_E; x += 1.75) house(x, 1, 3.9);
-  }, .75);
+  // Each facade sorts by its real footprint, so people behind it cannot appear on its roof.
+  const walls = [0xe8d6ad, 0xf0e4ca, 0xc5d6c6, 0xe4c5b1, 0xd6ddd8];
+  const signs = [0xb9684f, 0x5d9692, 0xd0aa5c, 0x809c72, 0xb78a7f];
+  for (const h of streetHouses()) {
+    const corners: Array<[number, number]> = [[h.x, h.y], [h.x + h.w, h.y], [h.x, h.y + h.d], [h.x + h.w, h.y + h.d]];
+    bakeLayer(scene, `hn:houses:${h.variant}`, screenBox(corners, h.height + 16, 12), h.x + h.w + h.y + h.d - 1, city => {
+      tubeHouse(city, h.x, h.y, h.w, h.d, h.height, walls[h.variant % walls.length]!, signs[h.variant % signs.length]!);
+    }, .85);
+  }
   // Lower houses along the south side of the street beyond the map ends, between the road and the lake.
   const southWalls = [0xf2e2a0, 0xf6c7b4, 0xc9ecd9, 0xfff0c9, 0xf6d77a] as const;
   for (const [from, to] of [[LAND_W + 1, -1.7], [MAP_W + 1.5, LAND_E - 1.7]] as const) {
-    for (let x = from, k = 0; x <= to; x += 1.75, k++) {
-      const hx = x, hh = 110 + ((k * 29) % 4) * 22;
-      bakeProp(scene, `hn:south:${hx}`, hx, 14.4, 1.6, 2.6, hx + 1.6 + 17, (g) => tubeHouse(g, hx, 14.4, 1.6, 2.6, hh, southWalls[k % 5]!, [0xe2513f, 0x5ec8f2, 0xffd25e][k % 3]!));
+    for (let x = from, k = 0; x + 2.2 <= to + 1.6; x += 2.6, k++) {
+      const hx = x, hh = 96 + (k % 3) * 16;
+      bakeProp(scene, `hn:south:${hx}`, hx, 14.4, 2.2, 2.2, hx + 2.2 + 16.6, (g) => tubeHouse(g, hx, 14.4, 2.2, 2.2, hh, southWalls[k % 5]!, [0xe2513f, 0x5ec8f2, 0xffd25e][k % 3]!));
     }
   }
   // The block of houses in the middle of each loop.
@@ -598,7 +582,7 @@ export class IncidentActorView implements ActorView {
     this.depth = actorDepth(s.pos);
     // Walking bobs the torso: the nearest of three baked frames (-2, 0, +2 px).
     const bob = s.state === 'MOVING' ? Math.round(Math.sin(this.scene.time.now / 85)) * 2 : 0;
-    const depth = this.pose.dy < 0 ? 1e6 - 3 : this.depth;
+    const depth = this.depth;
     this.img.setTexture(heroFrame(this.scene, bob)).setPosition(p.x, p.y + this.pose.dy).setScale(this.pose.sx / HERO_SS, this.pose.sy / HERO_SS).setRotation(this.pose.angle).setDepth(depth);
     if (s.progress !== null) {
       const g = (this.bar ??= this.scene.add.graphics()).clear().setPosition(p.x, p.y + this.pose.dy).setScale(this.pose.sx, this.pose.sy).setRotation(this.pose.angle).setDepth(depth).setAlpha(this.img.alpha);
