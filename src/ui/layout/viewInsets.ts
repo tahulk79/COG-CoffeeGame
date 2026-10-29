@@ -18,7 +18,7 @@ export function hudScale(w: number, h: number): number {
 }
 
 /**
- * Camera zoom for the story maps (café and farm use `framingZoom`). The world
+ * Camera zoom for maps without a framing mode (the chapter-2 garden; the chapter-1 street uses `framingZoom`). The world
  * always fills the whole screen (the HUD floats on top) and the camera follows
  * the player, clamped to the map: phones get a close-up, PC and tablet the zoom
  * at which the whole map fits on screen.

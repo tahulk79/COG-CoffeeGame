@@ -1,20 +1,6 @@
 {
   "start": "S03",
-  "afterStoryMap": "farm",
-  "tutorialScoreFloor": 75,
   "whiteoutMs": 1000,
-  "respawnMasterMs": 3000,
-  "cherryReward": {
-    "itemId": "seed_arabica",
-    "qty": 2
-  },
-  "tutorialItems": [
-    {
-      "itemId": "roasted_arabica",
-      "qty": 3,
-      "quality": 70
-    }
-  ],
   "stones": [
     "stone_sight",
     "stone_hearing",
@@ -862,32 +848,12 @@
     },
     "S04": {
       "map": "portal",
-      "next": "S05",
+      "next": "S03",
       "title": "Chương 2 · Vườn mây",
       "objective": "Bắt đốm sáng quanh 3 viên đá giác quan ({n}/3)",
       "objectiveReady": "Cổng thiên đàng đã mở, chạy vào cổng!",
       "intro": [],
       "outro": []
-    },
-    "S05": {
-      "map": "master",
-      "next": "done",
-      "title": "Chương 3 · Gặp bậc thầy",
-      "objective": "Nói chuyện với bậc thầy",
-      "objectiveBrew": "Pha espresso cho bậc thầy: nhận order → xay → nén → chiết → mang ra",
-      "intro": [
-        "Một ông lão pha cà phê đón bạn trong quán nhỏ trên đồi.",
-        "Ta sẽ đánh thức nốt các giác quan còn lại: Khứu giác, Vị giác và Trực giác.",
-        "Hãy nhận order của ta ở quầy, rồi pha một ly espresso: xay hạt, nén bột, chiết cà phê. Xong thì mang ra cho ta."
-      ],
-      "outro": [
-        "Ly cà phê của bạn... có hồn đấy.",
-        "Giác quan thứ sáu của người pha chế là biết khách cần gì. Giờ hãy nói ta nghe: bạn là ai?",
-        "Hãy bắt đầu ở nông trại của bạn."
-      ]
     }
-  },
-  "masterHint": [
-    "Nhận order ở quầy, rồi pha espresso: xay, nén, chiết. Mang ly ra cho ta khi xong."
-  ]
+  }
 }

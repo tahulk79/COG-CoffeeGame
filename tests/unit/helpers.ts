@@ -1,14 +1,15 @@
 import { FakeClock } from '../../src/core/Clock';
 import { CONTENT } from '../../src/data/content';
 import { GameSimulation } from '../../src/gameplay/GameSimulation';
-import type { GameState } from '../../src/gameplay/state/GameState';
 import type { MapData, MapObjectData } from '../../src/gameplay/world/types';
 import { NavGrid } from '../../src/systems/navigation/NavGrid';
+import fixtureTypes from './fixtures/objectTypes.json';
+import sandboxMap from './fixtures/sandbox.json';
 
-export const TYPES = CONTENT.objectTypes;
+/** Engine fixtures (movement and interaction tests): a small room with props that use the generic handlers. */
+export const TYPES = { ...CONTENT.objectTypes, ...(fixtureTypes as typeof CONTENT.objectTypes) };
 export const CONFIG = CONTENT.gameplay;
-export const SANDBOX = CONTENT.maps.sandbox!;
-export const FARM = CONTENT.maps.farm!;
+export const SANDBOX = sandboxMap as MapData;
 
 /** Grid from ASCII rows: '#' blocked, anything else walkable. */
 export function gridFrom(rows: string[]): NavGrid {
@@ -29,13 +30,7 @@ export function makeMap(rows: string[], objects: MapObjectData[], start = { x: 1
 }
 
 export function sandboxSim(): GameSimulation {
-  return new GameSimulation(structuredClone(SANDBOX), CONTENT, { clock: new FakeClock() });
-}
-
-export function farmSim(opts: { state?: GameState; clock?: FakeClock } = {}): { sim: GameSimulation; clock: FakeClock } {
-  const clock = opts.clock ?? new FakeClock();
-  const sim = new GameSimulation(structuredClone(FARM), CONTENT, { clock, ...(opts.state ? { state: opts.state } : {}) });
-  return { sim, clock };
+  return new GameSimulation(structuredClone(SANDBOX), { ...CONTENT, objectTypes: TYPES }, { clock: new FakeClock() });
 }
 
 /** Tick in 16 ms frames until predicate holds or the budget runs out. */
@@ -63,14 +58,4 @@ export function collectEvents(sim: GameSimulation): Array<{ type: string; payloa
   ] as const;
   for (const t of types) sim.bus.on(t, (payload) => log.push({ type: t, payload }));
   return log;
-}
-
-export const CAFE = CONTENT.maps.cafe!;
-
-/** Café simulation. The automatic spawner is off unless autoSpawn is set, so tests control who arrives. */
-export function cafeSim(opts: { seed?: number; state?: GameState; autoSpawn?: boolean } = {}): { sim: GameSimulation; clock: FakeClock } {
-  const clock = new FakeClock();
-  const sim = new GameSimulation(structuredClone(CAFE), CONTENT, { clock, rngSeed: opts.seed ?? 1, ...(opts.state ? { state: opts.state } : {}) });
-  if (sim.cafe) sim.cafe.open = opts.autoSpawn ?? false;
-  return { sim, clock };
 }

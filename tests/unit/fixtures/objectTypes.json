@@ -1,0 +1,162 @@
+{
+  "counter": {
+    "label": "Quầy",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true
+  },
+  "espresso_machine": {
+    "label": "Máy pha cà phê",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true,
+    "interaction": {
+      "radius": 1,
+      "sides": [
+        "S"
+      ],
+      "actions": [
+        {
+          "id": "brew_test",
+          "label": "Pha cốc thử",
+          "durationMs": 1500,
+          "handler": "held.take",
+          "params": {
+            "item": "test_cup"
+          }
+        }
+      ]
+    }
+  },
+  "plant": {
+    "label": "Chậu cây",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true
+  },
+  "table_2": {
+    "label": "Bàn",
+    "footprint": {
+      "w": 2,
+      "h": 1
+    },
+    "blocking": true,
+    "interaction": {
+      "radius": 1,
+      "actions": [
+        {
+          "id": "place_cup",
+          "label": "Đặt cốc",
+          "durationMs": 400,
+          "handler": "held.deliver",
+          "params": {
+            "item": "test_cup",
+            "counter": "cupsPlaced"
+          }
+        }
+      ]
+    }
+  },
+  "crate": {
+    "label": "Thùng gỗ",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true,
+    "interaction": {
+      "radius": 1,
+      "actions": [
+        {
+          "id": "pick_box",
+          "label": "Nhặt hộp",
+          "durationMs": 800,
+          "handler": "held.take",
+          "params": {
+            "item": "box"
+          }
+        }
+      ]
+    }
+  },
+  "shelf": {
+    "label": "Kệ",
+    "footprint": {
+      "w": 1,
+      "h": 2
+    },
+    "blocking": true,
+    "interaction": {
+      "radius": 1,
+      "sides": [
+        "E"
+      ],
+      "actions": [
+        {
+          "id": "store_box",
+          "label": "Cất hộp",
+          "durationMs": 600,
+          "handler": "held.deliver",
+          "params": {
+            "item": "box",
+            "counter": "boxesStored"
+          }
+        }
+      ]
+    }
+  },
+  "sign": {
+    "label": "Biển báo",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true,
+    "interaction": {
+      "radius": 1,
+      "actions": [
+        {
+          "id": "read",
+          "label": "Đọc biển",
+          "durationMs": 0,
+          "handler": "inspect",
+          "params": {}
+        }
+      ]
+    }
+  },
+  "statue": {
+    "label": "Tượng có rào",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true,
+    "interaction": {
+      "radius": 1,
+      "actions": [
+        {
+          "id": "inspect",
+          "label": "Quan sát",
+          "durationMs": 0,
+          "handler": "inspect",
+          "params": {}
+        }
+      ]
+    }
+  },
+  "wall_post": {
+    "label": "Cột",
+    "footprint": {
+      "w": 1,
+      "h": 1
+    },
+    "blocking": true
+  }
+}

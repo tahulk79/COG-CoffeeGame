@@ -10,7 +10,7 @@ import { worldToScreen } from '../../utils/iso';
  * - the camera shows `viewport / zoom` render pixels around its centre
  */
 export type ViewportClass = 'desktop' | 'tablet' | 'mobileLandscape' | 'mobilePortrait';
-export type CameraMode = 'exploration' | 'cafe' | 'farm' | 'story' | 'brewingFocus' | 'cinematic';
+export type CameraMode = 'exploration' | 'story';
 
 export interface Rect {
   x: number;
@@ -46,16 +46,11 @@ export function classifyViewport(w: number, h: number): ViewportClass {
 
 /**
  * How many tile widths fit across the screen, per mode and device. This is
- * the framing intent: the café shows the counter-to-tables working area, the
- * farm a few plot rows, brewing a single station. Fewer tiles = closer.
+ * the framing intent: the street follows the hero. Fewer tiles = closer.
  */
 const TILES_ACROSS: Record<CameraMode, Record<ViewportClass, number>> = {
   exploration: { desktop: 11, tablet: 9, mobileLandscape: 7, mobilePortrait: 5.5 },
-  cafe: { desktop: 10, tablet: 8.5, mobileLandscape: 7, mobilePortrait: 5.5 },
-  farm: { desktop: 11, tablet: 9, mobileLandscape: 7.5, mobilePortrait: 5.5 },
   story: { desktop: 13, tablet: 11, mobileLandscape: 9, mobilePortrait: 7 },
-  brewingFocus: { desktop: 6, tablet: 5, mobileLandscape: 4.5, mobilePortrait: 3.5 },
-  cinematic: { desktop: 8, tablet: 7, mobileLandscape: 5.5, mobilePortrait: 4.5 },
 };
 
 export function tilesAcross(mode: CameraMode, vp: ViewportClass): number {

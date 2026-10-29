@@ -8,12 +8,10 @@ export interface SessionOptions {
   /** Map to open; omitted = resume the story checkpoint or the saved map. */
   mapId?: string;
   content: GameContent;
-  /** false = throwaway session (M1 sandbox, tests); nothing is loaded or saved. */
+  /** false = throwaway session (tests); nothing is loaded or saved. */
   persistent: boolean;
   storage?: StorageAdapter;
   clock?: Clock;
-  /** Dev/test only: new games skip the story. */
-  skipStory?: boolean;
   /** Live state passed between scenes; storage failure must not roll back a chapter transition. */
   initialState?: GameState;
 }
@@ -39,19 +37,18 @@ export function createSession(o: SessionOptions): GameSession {
     return structuredClone(m);
   };
   if (!o.persistent) {
-    return { sim: new GameSimulation(mapOf(o.mapId ?? 'farm'), o.content, { clock }), saves: null, loadProblem: null, recoveredFromBackup: false, saveBlocked: true, frame: null };
+    return { sim: new GameSimulation(mapOf(o.mapId ?? o.content.story.chapters[o.content.story.start]!.map), o.content, { clock }), saves: null, loadProblem: null, recoveredFromBackup: false, saveBlocked: true, frame: null };
   }
   const saves = new SaveService(o.storage ?? new LocalStorageAdapter());
   const loaded = saves.load(clock.now());
   const state = o.initialState ?? (loaded.status === 'ok' ? loaded.state : undefined);
   // A new game starts with the story; a save resumes where it was.
-  const newGameMap = o.skipStory ? 'farm' : o.content.story.chapters[o.content.story.start]?.map ?? 'farm';
-  const usable = (id: string) => { const m = o.content.maps[id]; return m && (!m.regionId || (m.businessKind === 'cafe' ? state?.regions[m.regionId]?.cafeBuilt : state?.regions[m.regionId]?.farmBuilt)); };
+  const newGameMap = o.content.story.chapters[o.content.story.start]!.map;
+  const usable = (id: string) => !!o.content.maps[id];
   // A save taken as the doors close can already name the next chapter while player.map still names the old map.
-  const chapterMap = !o.skipStory && state ? o.content.story.chapters[state.story.chapter]?.map : undefined;
-  const savedMap = chapterMap && usable(chapterMap) ? chapterMap
-    : state && usable(state.player.map) && state.player.map !== 'sandbox' ? state.player.map : newGameMap;
-  const sim = new GameSimulation(mapOf(o.mapId && usable(o.mapId) ? o.mapId : savedMap), o.content, { clock, ...(state ? { state } : {}), ...(o.skipStory ? { skipStory: true } : {}) });
+  const chapterMap = state ? o.content.story.chapters[state.story.chapter]?.map : undefined;
+  const savedMap = chapterMap && usable(chapterMap) ? chapterMap : state && usable(state.player.map) ? state.player.map : newGameMap;
+  const sim = new GameSimulation(mapOf(o.mapId && usable(o.mapId) ? o.mapId : savedMap), o.content, { clock, ...(state ? { state } : {}) });
   const loadProblem = loaded.status === 'ok' || loaded.status === 'empty' ? null : loaded;
   return { sim, saves, loadProblem, recoveredFromBackup: loaded.status === 'ok' && !!loaded.recoveredFromBackup, saveBlocked: loaded.status === 'unsupported', frame: null };
 }
@@ -72,7 +69,7 @@ export class Autosave {
   ) {
     const bus = session.sim.bus;
     const mark = () => (this.dirty = true);
-    this.offs.push(bus.on('economy:transaction', mark), bus.on('farm:plotChanged', mark), bus.on('farm:canChanged', mark), bus.on('farm:seedSelected', mark), bus.on('move:arrived', mark), bus.on('decor:changed', mark), bus.on('employee:hired', mark), bus.on('employee:fired', mark), bus.on('employee:paid', mark), bus.on('story:changed', mark), bus.on('story:chapterChanged', mark), bus.on('meta:questClaimed', mark), bus.on('meta:branchBought', mark), bus.on('meta:achievement', mark));
+    this.offs.push(bus.on('move:arrived', mark), bus.on('story:changed', mark), bus.on('story:chapterChanged', mark));
   }
 
   /** Call every frame with a monotonic time. */

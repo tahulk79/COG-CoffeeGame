@@ -21,8 +21,8 @@ it('all 11 primary gags are eligible early and saved exposure favours unseen gag
     const sim = replay(round, state), run = sim.run!;
     const kind = run['deal']();
     expect(kind).not.toBeNull();
-    const counts = kinds.map(k => sim.state.meta.counters[`incident:seen:${k}`] ?? 0);
-    expect(sim.state.meta.counters[`incident:seen:${kind}`] ?? 0).toBe(Math.min(...counts));
+    const counts = kinds.map(k => sim.state.counters[`incident:seen:${k}`] ?? 0);
+    expect(sim.state.counters[`incident:seen:${kind}`] ?? 0).toBe(Math.min(...counts));
     run['add'](kind!);
     if (run.view().hazards.some(h => h.kind === kind)) shown.add(kind!);
     state = structuredClone(sim.captureState());
@@ -40,5 +40,5 @@ it('dodging the delivery bike can release the twelfth gag, chickens', () => {
   let chickens = false;
   for (let i = 0; i < 30; i++) { run.tick(50, 4.6); chickens ||= run.view().hazards.some(h => h.kind === 'chickens'); }
   expect(chickens).toBe(true);
-  expect(sim.state.meta.counters['incident:seen:chickens']).toBe(1);
+  expect(sim.state.counters['incident:seen:chickens']).toBe(1);
 });

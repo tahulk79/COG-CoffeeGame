@@ -20,26 +20,19 @@ export interface TestBridge {
   /** Tile under page coordinates, via the same path the game's input uses. */
   clientToTile(x: number, y: number): TilePos;
   /** What a click at page coordinates would target (object first, then tile). */
-  clientToTarget(x: number, y: number): { customerId: string | null; objectId: string | null; tile: TilePos };
-  /** Page coordinates of a customer's body. */
-  customerClickClient(id: string): { x: number; y: number } | null;
+  clientToTarget(x: number, y: number): { objectId: string | null; tile: TilePos };
   /** Page coordinates of an object's visible top/label — where a player would click. */
   objectClickClient(id: string): { x: number; y: number } | null;
   objectTiles(id: string): TilePos[];
   setTimeScale(scale: number): void;
   events(): Array<{ type: string; payload: unknown }>;
-  /** Fast-forward the wall clock (crops). Persisted so it survives a page reload. */
+  /** Fast-forward the wall clock. Persisted so it survives a page reload. */
   advanceClock(ms: number): void;
   /** Page coordinates of a named HUD button, or null if absent/hidden. */
   buttonClient(name: string): { x: number; y: number; enabled: boolean } | null;
   saveNow(): boolean;
-  /** Dev-only cheat for UI-focused tests: grants items through the TransactionService (reason "debug:grant"). */
-  grantItems(itemId: string, qty: number, quality?: number): boolean;
-  /** Café only: spawn a customer now / turn the automatic spawner on or off. */
-  spawnCustomer(archetype?: string, recipeId?: string, service?: 'dineIn' | 'takeaway'): string | null;
   /** World camera state (zoom and scroll), to test zoom / pan / follow. */
   cameraInfo(): { zoom: number; x: number; y: number; width: number; height: number };
-  setCafeOpen(open: boolean): void;
 }
 
 declare global {
@@ -52,7 +45,7 @@ export function installTestBridge(scene: WorldScene): void {
   if (import.meta.env.PROD) return;
   const log: Array<{ type: string; payload: unknown }> = [];
   const bus = scene.sim.bus;
-  for (const type of ['actor:stateChanged', 'move:started', 'move:arrived', 'move:unreachable', 'interaction:queued', 'interaction:started', 'interaction:completed', 'interaction:failed', 'interaction:cancelled', 'actor:heldChanged', 'economy:transaction', 'farm:plotChanged', 'shop:opened', 'shop:closed', 'save:written', 'world:objectSelected', 'order:changed', 'customer:spawned', 'customer:left', 'customer:removed', 'world:travelRequested', 'brew:started', 'brew:finished', 'brew:aborted', 'cafe:paid', 'decor:modeChanged', 'decor:changed', 'decor:rejected', 'cafe:rated', 'progression:levelUp', 'meta:achievement', 'meta:questClaimed', 'meta:branchBought', 'employee:hired', 'employee:fired', 'story:chapterChanged'] as const) {
+  for (const type of ['actor:stateChanged', 'move:started', 'move:arrived', 'move:unreachable', 'interaction:queued', 'interaction:started', 'interaction:completed', 'interaction:failed', 'interaction:cancelled', 'actor:heldChanged', 'save:written', 'world:objectSelected', 'world:travelRequested', 'story:chapterChanged'] as const) {
     bus.on(type, (payload) => log.push({ type, payload }));
   }
   const canvasRect = () => scene.game.canvas.getBoundingClientRect();
@@ -74,10 +67,6 @@ export function installTestBridge(scene: WorldScene): void {
     },
     clientToTile: (x, y) => scene.pointerTile(clientToCanvas(x, y)),
     clientToTarget: (x, y) => scene.pointerTarget(clientToCanvas(x, y)),
-    customerClickClient: (id) => {
-      const p = scene.customerClickPoint(id);
-      return p ? renderToClient(p.x, p.y) : null;
-    },
     objectClickClient: (id) => {
       const p = scene.objectClickPoint(id);
       return p ? renderToClient(p.x, p.y) : null;
@@ -111,14 +100,9 @@ export function installTestBridge(scene: WorldScene): void {
       return { x: r.left + (c.x * r.width) / scene.scale.width, y: r.top + (c.y * r.height) / scene.scale.height, enabled: b.isEnabled };
     },
     saveNow: () => scene.autosave.saveNow(),
-    spawnCustomer: (archetype, recipeId, service) => scene.sim.cafe?.spawn(archetype, recipeId, service).id ?? null,
     cameraInfo: () => {
       const cam = scene.cameras.main;
       return { zoom: cam.zoom, x: cam.midPoint.x, y: cam.midPoint.y, width: cam.width, height: cam.height };
     },
-    setCafeOpen: (open) => {
-      if (scene.sim.cafe) scene.sim.cafe.open = open;
-    },
-    grantItems: (itemId, qty, quality = 50) => scene.sim.tx.execute({ reason: 'debug:grant', items: [{ itemId, qty, quality }] }).ok,
   };
 }

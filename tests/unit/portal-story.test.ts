@@ -7,7 +7,7 @@ import { runUntil } from './helpers';
 import { stoneVisualState } from '../../src/components/presenters/StoryPresenter';
 function portal() {
   const clock=new FakeClock();
-  const state=createNewGameState({now:clock.now(),startingCoins:200,startingItems:{},wateringCanCapacity:4,map:'portal'});
+  const state=createNewGameState({now:clock.now(),map:'portal'});
   state.story={chapter:'S04',flags:{introDone:true}};
   return new GameSimulation(structuredClone(CONTENT.maps.portal!),CONTENT,{state,clock});
 }
@@ -32,16 +32,15 @@ describe('magical portal gameplay',()=>{
     expect(sim.story.portalOpen).toBe(true);
     const start=sim.player.tile;
     sim.clickObject('portal');
-    // No outro to click through: walking up to the open door goes straight on to chapter 3.
-    expect(runUntil(sim,()=>sim.story.chapterId==='S05',30000)).toBe(true);
+    // No outro to click through: walking up to the open door goes straight on to the next chapter (the story loops back to chapter 1).
+    expect(runUntil(sim,()=>sim.story.chapterId==='S03',30000)).toBe(true);
     expect(sim.player.tile).not.toEqual(start);
     expect(sim.story.view().dialog).toBeNull();
     expect(sim.story.view().locked).toBe(true);
   });
-  it('keeps the optional memory discovery as a real one-time inventory reward',()=>{
+  it('keeps the optional memory discovery as a one-time pick-up',()=>{
     const sim=portal();sim.clickObject('hidden_cherry');
     expect(runUntil(sim,()=>sim.story.view().cherryTaken,30000)).toBe(true);
-    expect(sim.tx.count(CONTENT.story.cherryReward.itemId)).toBe(CONTENT.story.cherryReward.qty);
     expect(sim.story.pickCherry().ok).toBe(false);
   });
   it('cloud garden: catching a stone\'s three sparks wakes it, all three open the door, walking into it goes on',()=>{
@@ -61,7 +60,7 @@ describe('magical portal gameplay',()=>{
     expect(sim.story.portalOpen).toBe(true);
     const door=sim.world.getObject('portal')!.footprint;
     sim.player.pos={x:door.x+1,y:door.y+2.6}; sim.tick(16);
-    expect(sim.story.chapterId).toBe('S05');
+    expect(sim.story.chapterId).toBe('S03');
   });
 });
 

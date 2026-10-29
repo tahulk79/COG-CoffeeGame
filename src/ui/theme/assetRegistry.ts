@@ -6,10 +6,6 @@ import type Phaser from 'phaser';
  * empty container until a texture named `ui/<key>` (see `textureKey`) is loaded.
  */
 
-/** Logical icon for an item category (production art can key by item id later: `item.<id>`). */
-export const itemIconKey = (category: string): string =>
-  ({ seed: 'sprout', cherry: 'cherry', green: 'bean', roasted: 'bean', ingredient: 'bottle', furniture: 'chair' } as Record<string, string>)[category] ?? 'box';
-
 /** Texture a production build provides for a logical key. */
 export const textureKey = (key: string): string => `ui/${key}`;
 

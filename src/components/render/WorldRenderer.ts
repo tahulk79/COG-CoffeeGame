@@ -67,23 +67,12 @@ export interface ActorView {
 
 export type FeedbackKind = 'ok' | 'info' | 'error' | 'coin' | 'exp' | 'unlock';
 
-/** Decorate mode: the piece being placed, drawn where it would go. */
-export interface PlacementPreview {
-  footprint: Footprint;
-  valid: boolean;
-  label: string;
-}
-
 export interface WorldRenderer {
   buildWorld(floor: FloorTileView[], objects: ObjectViewData[]): void;
   addObject(o: ObjectViewData): void;
   removeObject(id: string): void;
   setObjectHighlight(id: string, highlighted: boolean): void;
   setObjectVisual(id: string, visual: ObjectVisual): void;
-  /** Small icons floating above world objects (coins to collect, dirty seats…). Keyed by `id`; pooled; redrawn only when the set changes. */
-  setIndicators(items: Array<{ id: string; objectId: string; icon: string }>): void;
-  /** Persistent pulsing outlines (next station, plot ready…): id → colour. Cheap to call every frame; redraws only on change. */
-  setGlows(glows: Record<string, number>): void;
   /**
    * Front-most object (interactive or not) whose *drawn* shape covers this
    * point (render-space pixels, i.e. camera world point). Players click what
@@ -94,16 +83,10 @@ export interface WorldRenderer {
   objectClickPoint(id: string): { x: number; y: number } | null;
   createActor(id: string, kind: 'player' | 'customer' | 'employee', archetype?: string): ActorView;
   /** Debug/feedback: remaining path of the selected actor. */
-  /** A customer's reaction above their head: short words and 1–5 stars (from the real rating). */
-  showRatingBubble(at: WorldPos, text: string, stars: number): void;
   setPathPreview(points: WorldPos[] | null): void;
   setHoverTile(tile: TilePos | null): void;
   /** Short-lived world-space feedback (e.g. "Unreachable" over a tile). */
   showFeedback(at: WorldPos, text: string, kind: FeedbackKind): void;
-  /** Decorate mode: highlight where furniture may go (null hides it). */
-  setDecorArea(area: Footprint[] | null): void;
-  /** Decorate mode: ghost of the selected piece, green when valid, red when not (null hides it). */
-  setPlacementPreview(preview: PlacementPreview | null): void;
   /** World point at the centre of the map, for camera framing. */
   /** `insetRight`: screen px covered by a UI panel on the right, kept clear of the map. */
   frame(widthTiles: number, heightTiles: number, insets: { top: number; right: number; bottom: number; left: number }, zoom: number): void;

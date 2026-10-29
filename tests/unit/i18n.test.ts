@@ -18,7 +18,7 @@ describe('languages', () => {
     setLocale('en');
     expect(getLocale()).toBe('en');
     expect(t('settings.title')).toBe('Settings');
-    expect(t('hud.coins', { n: 5 })).toBe('Coins: 5');
+    expect(t('save.problem', { status: 'corrupt' })).toBe('The save could not be read (corrupt). It was backed up and a new game started.');
   });
 
   it('falls back to Vietnamese for a key the English file does not have, then to the key itself', () => {

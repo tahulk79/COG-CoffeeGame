@@ -55,98 +55,11 @@ export function validateState(s: unknown): string[] {
   const p: string[] = [];
   if (!isObj(s)) return ['root is not an object'];
   if (!isNum(s.schemaVersion)) p.push('schemaVersion');
-  const eco = s.economy;
-  if (!isObj(eco)) p.push('economy');
-  else {
-    if (!isNum(eco.coins) || eco.coins < 0 || !Number.isInteger(eco.coins)) p.push('economy.coins');
-    if (!isObj(eco.inventory)) p.push('economy.inventory');
-    else
-      for (const [k, v] of Object.entries(eco.inventory)) {
-        if (!isObj(v) || !isNum(v.qty) || v.qty <= 0 || !Number.isInteger(v.qty) || !isNum(v.quality)) p.push(`economy.inventory.${k}`);
-      }
-    if (!Array.isArray(eco.history)) p.push('economy.history');
-    if (!Array.isArray(eco.processedKeys)) p.push('economy.processedKeys');
-    if (!isNum(eco.nextTxId)) p.push('economy.nextTxId');
-  }
-  if (!isObj(s.progression) || !isNum(s.progression.exp) || s.progression.exp < 0) p.push('progression.exp');
-  const farm = s.farm;
-  if (!isObj(farm)) p.push('farm');
-  else {
-    if (!isObj(farm.plots)) p.push('farm.plots');
-    else
-      for (const [k, v] of Object.entries(farm.plots)) {
-        if (!isObj(v) || typeof v.phase !== 'string' || !isNum(v.growthMs) || !isNum(v.lastUpdateAt) || !isNum(v.waterings)) p.push(`farm.plots.${k}`);
-      }
-    if (!isObj(farm.wateringCan) || !isNum(farm.wateringCan.water)) p.push('farm.wateringCan');
-  }
-  if (!isObj(s.player)) p.push('player');
-  const proc = s.processing;
-  if (!isObj(proc) || !isObj(proc.equipment) || !isObj(proc.selectedRecipe)) p.push('processing');
-  else
-    for (const [k, v] of Object.entries(proc.equipment)) {
-      if (!isObj(v) || typeof v.type !== 'string' || !isNum(v.level)) p.push(`processing.equipment.${k}`);
-      else if (v.job !== null) {
-        const j = v.job;
-        if (!isObj(j) || !isNum(j.startedAt) || !isNum(j.durationMs) || !isNum(j.outputQty) || j.outputQty <= 0 || typeof j.outputItem !== 'string')
-          p.push(`processing.equipment.${k}.job`);
-      }
-    }
-  if (!isObj(s.market) || !isObj(s.market.saturation)) p.push('market');
-  const cafe = s.cafe;
-  if (!isObj(cafe) || !Array.isArray(cafe.ratings) || !Array.isArray(cafe.feedback) || !isObj(cafe.stats)) p.push('cafe');
-  else if (cafe.ratings.some((r) => !isNum(r) || r < 1 || r > 5)) p.push('cafe.ratings');
-  const decor = s.decor;
-  if (!isObj(decor) || !isObj(decor.layouts) || !isNum(decor.nextId)) p.push('decor');
-  else
-    for (const [map, layout] of Object.entries(decor.layouts)) {
-      const ok = (f: unknown) => isObj(f) && typeof f.id === 'string' && typeof f.type === 'string' && isNum(f.x) && isNum(f.y) && isNum(f.rotation);
-      if (!Array.isArray(layout) || !layout.every(ok)) p.push(`decor.layouts.${map}`);
-    }
-  const emp = s.employees;
-  if (!isObj(emp) || !isNum(emp.nextId) || !Array.isArray(emp.list)) p.push('employees');
-  else if (!emp.list.every((e) => isObj(e) && typeof e.id === 'string' && typeof e.role === 'string' && isNum(e.nextPayAt))) p.push('employees.list');
+  if (!isObj(s.player) || typeof s.player.map !== 'string') p.push('player');
   const story = s.story;
   if (!isObj(story) || typeof story.chapter !== 'string' || !isObj(story.flags)) p.push('story');
-  const meta = s.meta;
-  if (!isObj(meta) || !['counters', 'quests', 'achievements', 'skills', 'branches'].every((k) => isObj(meta[k]))) p.push('meta');
-  if (isObj(s.cafe) && (!Array.isArray(s.cafe.payments) || !Array.isArray(s.cafe.dirtySeats) || !isObj(s.cafe.upgrades) || !isNum(s.cafe.nextPaymentId))) p.push('cafe.v9');
-  if (!isObj(s.social) || !isObj(s.social.liked) || !isObj(s.social.bots)) p.push('social');
-  if (isObj(s.social) && isObj(s.social.bots)) for (const [id, b] of Object.entries(s.social.bots)) {
-    if (!isObj(b) || !['at', 'phase', 'coins', 'stock', 'raw', 'sold'].every((k) => isNum(b[k]) && (b[k] as number) >= 0) || !Number.isInteger(b.phase) || (b.phase as number) > 4) p.push(`social.bots.${id}`);
-  }
-  if (!isObj(s.regions)) p.push('regions');
-  else for (const [id, estate] of Object.entries(s.regions)) {
-    if (!isObj(estate) || typeof estate.ownerId !== 'string' || !isNum(estate.boughtAt) || typeof estate.cafeBuilt !== 'boolean' || typeof estate.farmBuilt !== 'boolean') {
-      p.push(`regions.${id}`);
-      continue;
-    }
-    const localProblems = validateState({ ...s, regions: {}, cafe: estate.cafe, farm: estate.farm, processing: estate.processing, employees: estate.employees });
-    p.push(...localProblems.map((v) => `regions.${id}.${v}`));
-  }
+  if (!isObj(s.counters)) p.push('counters');
   return p;
-}
-
-/**
- * Repairs harmless inconsistencies in an otherwise valid save so they cannot
- * cause duplicates or crashes: repeated idempotency keys, repeated employee
- * ids, an employee id counter that would reuse an existing id.
- */
-export function sanitizeState(s: GameState): void {
-  s.economy.processedKeys = [...new Set(s.economy.processedKeys)];
-  const seen = new Set<string>();
-  s.employees.list = s.employees.list.filter((e) => !seen.has(e.id) && !!seen.add(e.id));
-  const maxId = Math.max(0, ...s.employees.list.map((e) => Number(e.id.replace(/\D/g, '')) || 0));
-  s.employees.nextId = Math.max(s.employees.nextId, maxId + 1);
-  s.farm.wateringCan.water = Math.max(0, s.farm.wateringCan.water);
-  // Payment ids are unique forever: the counter can never sit at or below an existing id, and a collected payment is never pending again.
-  const maxPay = Math.max(0, ...s.cafe.payments.map((x) => x.id));
-  s.cafe.nextPaymentId = Math.max(s.cafe.nextPaymentId, maxPay + 1);
-  const seenPay = new Set<number>();
-  s.cafe.payments = s.cafe.payments.filter((x) => !seenPay.has(x.id) && !!seenPay.add(x.id));
-  s.cafe.dirtySeats = [...new Set(s.cafe.dirtySeats)];
-  for (const estate of Object.values(s.regions)) {
-    sanitizeState({ ...s, regions: {}, cafe: estate.cafe, farm: estate.farm, processing: estate.processing, employees: estate.employees });
-  }
 }
 
 /**
@@ -225,7 +138,6 @@ export class SaveService {
     }
     const problems = validateState(data);
     if (problems.length) return { status: 'invalid', detail: problems.join(', '), backupKey: this.backup(raw, now, key) };
-    sanitizeState(data as unknown as GameState);
     return from === this.currentVersion ? { status: 'ok', state: data as unknown as GameState } : { status: 'ok', state: data as unknown as GameState, migratedFrom: from };
   }
 

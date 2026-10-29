@@ -23,7 +23,7 @@ async function object(page:Page,id:string){
 for(const viewport of views)test(`forest gameplay, save/load and viewport ${viewport.width}`,async({page})=>{
   test.setTimeout(90000);
   await page.setViewportSize(viewport);
-  const state=createNewGameState({now:Date.now(),startingCoins:200,startingItems:{},wateringCanCapacity:4,map:'portal'});
+  const state=createNewGameState({now:Date.now(),map:'portal'});
   state.story={chapter:'S04',flags:{}};
   await page.addInitScript(state=>{if(!localStorage.getItem('tcss.save.slot1'))localStorage.setItem('tcss.save.slot1',JSON.stringify(state));},state);
   const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
@@ -46,9 +46,6 @@ for(const viewport of views)test(`forest gameplay, save/load and viewport ${view
   expect(await page.evaluate(()=>window.__TCSS__!.snapshot().story.chapter)).toBe('S04');
   expect(await page.evaluate(()=>window.__TCSS__!.snapshot().story.portalOpen)).toBe(true);
   await object(page,'portal');
-  await page.waitForFunction(()=>window.__TCSS__!.snapshot().story.dialog!==null);
-  await page.screenshot({path:`docs/screenshots/portal-open-${viewport.width}.png`,scale:'css'});
-  await button(page,'story.next');await page.waitForFunction(()=>window.__TCSS__?.snapshot().map==='master');
-  expect(await page.evaluate(()=>window.__TCSS__!.buttonClient('world.open'))).toBeNull();
+  await page.waitForFunction(()=>window.__TCSS__?.snapshot().map==='incident',undefined,{timeout:30000});
   expect(errors).toEqual([]);
 });
