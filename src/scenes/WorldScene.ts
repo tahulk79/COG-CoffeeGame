@@ -38,6 +38,8 @@ export interface WorldSceneData {
   fresh?: boolean;
   /** Carry progress across scenes without depending on a successful storage write. */
   state?: GameState;
+  /** Only the page boot sets this; scene travel carries the live state instead. */
+  restartStory?: boolean;
 }
 
 /**
@@ -105,7 +107,7 @@ export class WorldScene extends Phaser.Scene {
     this.travelling = false;
     this.pendingTravel = null;
     this.hoveredObject = null; // scene instances are reused on restart
-    this.session = createSession({ ...(readIncidentReview() ? { storage: new MemoryStorage() } : {}), ...(this.launchData.mapId ? { mapId: this.launchData.mapId } : {}), content: CONTENT, persistent: this.launchData.persistent, clock, initialState: this.launchData.state });
+    this.session = createSession({ ...(readIncidentReview() ? { storage: new MemoryStorage() } : {}), ...(this.launchData.mapId ? { mapId: this.launchData.mapId } : {}), content: CONTENT, persistent: this.launchData.persistent, clock, initialState: this.launchData.state, restartStory: this.launchData.restartStory });
     this.autosave = new Autosave(this.session);
     const world = this.sim.world;
 

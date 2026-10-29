@@ -58,3 +58,7 @@ Typecheck và production build đã qua sau quyền người dùng. Không chạ
 [Cứu hộ sang S04 sau sửa](../screenshots/flow8-fixed-rescue-s04.png).
 
 Gói ZIP/manifest đã tạo lại sau sửa; mã SHA256 trong file cạnh ZIP xác định gói cuối. Build/typecheck cuối qua; không chạy test, không deploy hoặc push. T-107 vẫn Review vì chưa có số đo Android và còn khoảng khựng khởi tạo cần người dùng đánh giá/tiếp tục xử lý trước nghiệm thu cuối.
+
+### Sửa đường kẻ bong bóng
+
+Người dùng phản hồi leader line nhìn như đường kẻ thừa. Đã xóa toàn bộ lớp Graphics vẽ đường nối, giữ đuôi tam giác ngắn của thẻ thoại. Mô tả leader ở lịch sử phía trên không còn là hiện trạng.

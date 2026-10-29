@@ -234,3 +234,13 @@
 | 2026-10-29 | Codex | Duyệt luồng7→T-106 Done; luồng8/T-107 Review. Người dùng cho phép build/typecheck, không test; xác định web+Android, không iOS. Lưu kiểm kê38WebP/baseline dev+release/manifest và ZIP. Trong lượt nhận ảnh xe/NPC/thoại: đổi vị trí xe/điểm vào, thêm segment/props/spacing/crowd/yield, giới hạn speech và nối pointer tới người nói. Cần duyệt lại va chạm/cứu hộ và số đo Android trước đóng mốc. |
 
 | 2026-10-29 | Codex | Bổ sung T-107 theo ảnh mới: xe lên vỉa hè/xe2 x29; S03 vào giữa; NPC kiểm đoạn, A* xét props, nhường/sidesteps khi bị chặn; crowd giữ chỗ và tăng spacing; thoại1NPC, tránh hero và leader về người nói. Tái hiện kẹt bác sĩ cạnh cây, sửa ô xuất phát/điểm khiêng và bước né; lượt sau đã sang S04. Build/typecheck qua, ZIP/manifest làm lại, lưu report đúng bundle BG2D6wzT và2ảnh. Android thật và gap khởi tạo còn chờ kiểm, không test/push. |
+
+| 2026-10-29 | Codex | Theo phản hồi đường kẻ bong bóng: gỡ hoàn toàn Graphics leader line trong streetArt, giữ đuôi tam giác truyền thống và cơ chế1NPC/giới hạn camera/tránh che hero. Không thay luật hội thoại hoặc di chuyển. |
+
+| 2026-10-29 | Codex | Theo phạm vi2màn mới: boot/reload luôn reset story về S03, bỏ checkpoint/position/flags của lượt trước, giữ counters sự cố và tùy chọn âm thanh. restartStory chỉ từ main, scene travel không mang cờ nên S03→S04 vẫn giữ state cùng lượt; không xóa localStorage. Thay quyết định tiếp tục checkpoint của T-100 đối với page boot. |
+
+| 2026-10-29 | Codex | Sửa reload về S03: typecheck/build qua, không test. Làm lại ZIP/manifest. Chưa kiểm UI lần này: CUA trả browser.user unavailable sau khi lấy inventory, không khẳng định đã chơi qua reload thực tế. |
+
+| 2026-10-29 | Codex | Theo yêu cầu nhịp cứu thương/vòng xoáy: xe rời chỗ đón và chạy ít nhất10ô, thoát ngõ về đường xong mới mở portal6ô phía trước; camera tiếp tục theo xe. Bỏ cột sáng chữ nhật, thay dấu vuông bằng chấm tròn trong syncPortal. Giữ nhánh rụng bánh/nổ và chuyển S04. |
+
+| 2026-10-29 | Codex | Người dùng cho phép tự test để sửa NPC/ô tô/thoại. Thêm streetPath lưới nhỏ, ô tô chạy hai chiều, giữ đường vòng/nhường lối, sửa neo bubble và cứu hộ. 7 ca góc riêng qua; full suite còn 4 fail ở chapter1-playtest và bị dừng theo yêu cầu chuyển Claude. Chưa nghiệm thu, chưa đóng gói source mới, chưa push. Trạng thái và cách tái hiện ở docs/gameplay/CLAUDE_HANDOFF.md. |

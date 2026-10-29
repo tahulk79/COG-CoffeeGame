@@ -1,3 +1,4 @@
+import { StreetPath } from './story/streetPath';
 import { hasClearance } from '../systems/navigation/smoothing';
 import { planRescue } from './story/rescueRouting';
 import { SystemClock, type Clock } from '../core/Clock';
@@ -121,7 +122,7 @@ export class GameSimulation {
       // The street around the run: passers-by, motorbikes, stalls whose sellers banter.
       const ch = content.story.chapters.S03!;
       if (ch.street && ch.stalls) {
-        const run = this.run;
+        const run = this.run, streetPath = new StreetPath(this.world.grid, props);
         this.street = new StreetService(ch.street, ch.stalls, this.player, () => rng.next(), { w: this.world.width, h: this.world.height }, {
           phase: () => (run.running ? run.phase : null),
           isVisited: (id) => !!this.state.story.flags[`visited:${id}`],
@@ -134,23 +135,9 @@ export class GameSimulation {
           props: () => props,
           walkable: (x, y) => hasClearance(this.world.grid, { x, y }, { x, y }, RUN_BODY_RADIUS),
           canWalk: (from, to) => hasClearance(this.world.grid, from, to, RUN_BODY_RADIUS),
-          path: (from, to, avoid) => {
-            const grid = this.world.grid.clone();
-            if (avoid) grid.addBlocker(avoid);
-            for (const prop of props) {
-              const x = Math.floor(prop.x - prop.r), y = Math.floor(prop.y - prop.r);
-              const w = Math.ceil(prop.x + prop.r) - x, h = Math.ceil(prop.y + prop.r) - y;
-              const contains = (p: WorldPos) => p.x >= x - RUN_BODY_RADIUS && p.x <= x + w + RUN_BODY_RADIUS && p.y >= y - RUN_BODY_RADIUS && p.y <= y + h + RUN_BODY_RADIUS;
-              if (!contains(from) && !contains(to)) grid.addBlocker({ x, y, w, h });
-            }
-            if (hasClearance(grid, from, to, RUN_BODY_RADIUS)) return [{ ...to }];
-            const plan = new NavigationService(grid, RUN_BODY_RADIUS).planTo(from, [worldToTile(to)]);
-            if (!plan) return null;
-            const end = plan.waypoints[plan.waypoints.length - 1] ?? from;
-            if (!hasClearance(grid, end, to, RUN_BODY_RADIUS)) return null;
-            return [...plan.waypoints, { ...to }];
-          },
-          rescueRoute: (hero) => planRescue(this.world.grid, hero, ch.street!.bikeLanes, ch.street!.ambulanceAccess),
+          path: (from, to, avoid, people) => streetPath.plan(from, to, avoid, people),
+          rescueRoute: (hero, people = []) => planRescue(this.world.grid, hero, ch.street!.bikeLanes, ch.street!.ambulanceAccess,
+            (door, body) => props.every(o => Math.hypot(door.x - o.x, door.y - o.y) >= o.r + .26) && !!streetPath.plan(door, hero, body, people) && !!streetPath.plan(hero, door, body, people)),
           bikeHit: () => run.crash('motorbike', ch.hazards?.motorbike?.faint ?? '…', 2000),
           rescued: () => run.finishDown(),
         });

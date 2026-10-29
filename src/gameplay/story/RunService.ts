@@ -530,7 +530,7 @@ export class RunService {
     for (let i = 0; i < n; i++) {
       if (this.hazards.filter(h => h.phase !== 'gone').length >= c.maxHazards) break;
       const kind = this.deal();
-      if (kind) this.add(kind);
+      if (kind && !this.add(kind)) this.spawnIn = Math.min(this.spawnIn, 400);
     }
   }
 
@@ -603,7 +603,7 @@ export class RunService {
         // Water and laundry fall from the houses: on the north sidewalk.
         const y = kind === 'durian' ? p.y + ahead.y * lead : Math.min(p.y + ahead.y * lead, 7.6);
         const target = { x: p.x + ahead.x * lead + rnd(-0.3, 0.3), y: y + rnd(-0.3, 0.3) };
-        const pos = hasClearance(this.grid, target, target, R) ? target : this.walkableNear(target);
+        const pos = this.encounterClear(target) ? target : this.walkableNear(target);
         if (pos) this.hazards.push({ ...base, ...pos, warnMs: kind === 'durian' ? 1400 : 1200, activeMs: 250 });
         break;
       }
@@ -657,11 +657,17 @@ export class RunService {
     return this.hazards.length > before;
   }
 
+  private encounterClear(p: WorldPos): boolean {
+    return hasClearance(this.grid, p, p, .65)
+      && (this.script.props?.() ?? []).every(o => Math.hypot(p.x - o.x, p.y - o.y) >= o.r + .7)
+      && (this.script.people?.() ?? []).every(o => Math.hypot(p.x - o.x, p.y - o.y) >= .8);
+  }
+
   private walkableNear(p: WorldPos): WorldPos | null {
     for (let r = 0; r < 4; r++) for (let i = 0; i < 8; i++) {
       const a = (i / 8) * Math.PI * 2;
       const t = worldToTile({ x: p.x + Math.cos(a) * r, y: p.y + Math.sin(a) * r });
-      if (this.grid.inBounds(t) && hasClearance(this.grid, { x: t.x + .5, y: t.y + .5 }, { x: t.x + .5, y: t.y + .5 }, R)) return { x: t.x + 0.5, y: t.y + 0.5 };
+      if (this.grid.inBounds(t) && this.encounterClear({ x: t.x + .5, y: t.y + .5 })) return { x: t.x + 0.5, y: t.y + 0.5 };
     }
     return null;
   }

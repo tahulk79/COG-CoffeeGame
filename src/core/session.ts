@@ -14,6 +14,8 @@ export interface SessionOptions {
   clock?: Clock;
   /** Live state passed between scenes; storage failure must not roll back a chapter transition. */
   initialState?: GameState;
+  /** Boot only: begin chapter 1 again, keeping lifetime incident counters. */
+  restartStory?: boolean;
 }
 
 export interface GameSession {
@@ -42,13 +44,17 @@ export function createSession(o: SessionOptions): GameSession {
   const saves = new SaveService(o.storage ?? new LocalStorageAdapter());
   const loaded = saves.load(clock.now());
   const state = o.initialState ?? (loaded.status === 'ok' ? loaded.state : undefined);
+  if (o.restartStory && state) {
+    state.story = { chapter: o.content.story.start, flags: {} };
+    state.player = { map: o.content.story.chapters[o.content.story.start]!.map, tile: null };
+  }
   // A new game starts with the story; a save resumes where it was.
   const newGameMap = o.content.story.chapters[o.content.story.start]!.map;
   const usable = (id: string) => !!o.content.maps[id];
   // A save taken as the doors close can already name the next chapter while player.map still names the old map.
   const chapterMap = state ? o.content.story.chapters[state.story.chapter]?.map : undefined;
   const savedMap = chapterMap && usable(chapterMap) ? chapterMap : state && usable(state.player.map) ? state.player.map : newGameMap;
-  const sim = new GameSimulation(mapOf(o.mapId && usable(o.mapId) ? o.mapId : savedMap), o.content, { clock, ...(state ? { state } : {}) });
+  const sim = new GameSimulation(mapOf(o.restartStory ? newGameMap : o.mapId && usable(o.mapId) ? o.mapId : savedMap), o.content, { clock, ...(state ? { state } : {}) });
   const loadProblem = loaded.status === 'ok' || loaded.status === 'empty' ? null : loaded;
   return { sim, saves, loadProblem, recoveredFromBackup: loaded.status === 'ok' && !!loaded.recoveredFromBackup, saveBlocked: loaded.status === 'unsupported', frame: null };
 }

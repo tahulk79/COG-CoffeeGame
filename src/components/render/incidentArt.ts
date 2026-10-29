@@ -1137,7 +1137,7 @@ export class IncidentRunView {
       const pad = 8 / z, halfW = b.width / z / 2;
       const x = Phaser.Math.Clamp(p.x, view.x + halfW + pad, view.right - halfW - pad);
       const y = Phaser.Math.Clamp(p.y - lift, view.y + (b.height + 72) / z, view.bottom - pad);
-      b.setPosition(x, y);
+      b.setCardOffsetX((x - p.x) * z).setPosition(p.x, y);
     }
     for (const [id, b] of this.bubbles) if (!want.has(id)) { b.destroy(); this.bubbles.delete(id); }
   }

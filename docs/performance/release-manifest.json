@@ -1,6 +1,6 @@
 {
   "baseCommit": "06594b0c08fda39074db3b8364662cf925f6c7a5",
-  "workingTree": "uncommitted flows1-8 and user reported parking/NPC/bubble fixes",
+  "workingTree": "uncommitted; reload restarts chapter1; in-session chapter travel preserved",
   "checks": {
     "typecheck": "passed",
     "productionBuild": "passed",
@@ -8,14 +8,14 @@
   },
   "files": [
     {
-      "path": "assets/index-BG2D6wzT.js",
-      "bytes": 1912486,
-      "sha256": "5835d4131011760661d8681f4e44431cb99f71cb95724b71042d8621a1104681"
+      "path": "assets/index-COI2bYTJ.js",
+      "bytes": 1656697,
+      "sha256": "413aa690cb2e1663b53dd8775434c4f9ec683cccf50a320db8b61eaa54084b3d"
     },
     {
-      "path": "assets/perfReport-CfkOFNLs.js",
+      "path": "assets/perfReport-HgRPZs4p.js",
       "bytes": 3057,
-      "sha256": "9dfabc04025f3056baf9ad2dbff6dd710d7a5fdcc5ba8de1ea9d47aa28a2e07a"
+      "sha256": "8a42ecef183407fd40289ef386cc397b875b6a5767b34023914d4ff5ce8360dd"
     },
     {
       "path": "assets/slice/chapter1/ambulance-v1.webp",
@@ -210,7 +210,7 @@
     {
       "path": "index.html",
       "bytes": 1397,
-      "sha256": "9bb4acb118d9b88c978105e5b07399877ec1cecb2cdc04b3d330288118a2710c"
+      "sha256": "7c2bce1d2f0dd6b327da12995c22f446c7ef1dff84b8b11ad02c89b380441912"
     }
   ]
 }

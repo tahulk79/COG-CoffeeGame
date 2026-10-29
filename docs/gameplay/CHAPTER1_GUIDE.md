@@ -168,3 +168,11 @@ Bản dev có bộ chọn17ca/12loại tại `?incidentReview=cat`, tách save t
 ### Sửa vị trí và tránh va chạm theo ảnh ngày2026-10-29
 
 S03 vào giữa phố (24,12), gồm tải lại màn phố; xe đỗ ở vỉa hè y14, xe2 x29. NPC nhường người và tìm đường quanh vật cản tròn; lời nói hiển thị một NPC tại một thời điểm và giữ chỉ dẫn về người nói. Xem [ảnh và giới hạn kiểm tra](../performance/FLOW8_HANDOFF.md). Chưa nghiệm thu Android thật.
+
+### Reload trong bản2màn
+
+Mỗi lần mở/reload trang bắt đầu lại S03 ở điểm giữa phố. Cờ hội thoại/quầy và tiến độ S04 của lượt trước được reset khi boot; counters lịch sử sự cố và lựa chọn âm thanh vẫn giữ. S03→S04 trong cùng lượt không reset. Tham số map không ghi đè màn bắt đầu khi page boot. Đây là quyết định mới thay cơ chế tiếp tục checkpoint trước đây.
+
+### Cứu thương rời điểm đón trước khi gặp vòng xoáy
+
+Sau lên xe, xe tăng tốc và chạy ít nhất10ô theo đường thoát; chỉ mở vòng xoáy sau khi ra đường chính, cách xe6ô về phía trước. Xe chờ vòng mở rồi bị hút như trước. Hiệu ứng dùng vòng/chấm sáng, không còn cột sáng chữ nhật.

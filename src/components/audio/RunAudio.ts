@@ -26,6 +26,7 @@ export class RunAudio {
   private lastStreet = 0;
   private lastSiren = 0;
   private carried = false;
+  private down = false;
   private loaded = false;
   private portal = false;
   private wheel = false;
@@ -85,6 +86,9 @@ export class RunAudio {
         this.glide(620, 860, .45, 'sine', .07);
         this.glide(860, 620, .45, 'sine', .07, .45);
       }
+      // BÙM: the hero is knocked down on the street (a bike's crunch, a thud, a squeal of tyres).
+      if (street.heroDown && !this.down) { this.thud(); this.noise(.3, .3, 'bandpass', 1800, 500); this.glide(900, 300, .25, 'sawtooth', .08); }
+      this.down = street.heroDown;
       if (street.carried && !this.carried) this.tone(330, .12, 'triangle', .09);
       if (street.heroHidden && !this.loaded) this.thud();
       if (street.wheel && !this.wheel) this.glide(450, 180, .5, 'triangle', .08);
@@ -142,7 +146,7 @@ export class RunAudio {
 
   private die(k: HazardKind): void {
     if (k === 'sinkhole') this.glide(900, 70, 1.2, 'sine', 0.3);
-    else if (k === 'pigeons' || k === 'motorbike') this.glide(300, 1200, 0.9, 'triangle', 0.22);
+    else if (k === 'pigeons' || k === 'motorbike') { if (k === 'motorbike') this.thud(); this.glide(300, 1200, 0.9, 'triangle', 0.22); }
     else if (k === 'banana') { this.glide(300, 900, 0.3, 'sine', 0.2); this.thud(0.5); }
     else if (k === 'cat') {
       // Hiss, then scratch, scratch, scratch.

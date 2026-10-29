@@ -5,10 +5,10 @@ import { WorldScene, type WorldSceneData } from './scenes/WorldScene';
 import { TRANSITION_SCENE, TransitionScene } from './scenes/TransitionScene';
 import { readMuted } from './core/audioPrefs';
 
-// ?map=<id> opens that map (dev). Default: resume the checkpoint, or start chapter 1.
+// Every page load starts chapter 1; in-session travel still carries progress to chapter 2.
 const params = new URLSearchParams(window.location.search);
 const mapParam = readIncidentReview() ? 'incident' : params.get('map');
-const start: WorldSceneData = { ...(mapParam ? { mapId: mapParam } : {}), persistent: true, fresh: params.has('fresh') };
+const start: WorldSceneData = { ...(mapParam ? { mapId: mapParam } : {}), persistent: true, restartStory: true };
 
 // Phaser draws text once into a canvas: the game font must be loaded before the world is built, or every
 // label keeps the fallback. Never waits long: offline or slow networks go on after 2.5 s with the fallback.
