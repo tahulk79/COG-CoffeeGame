@@ -254,6 +254,7 @@ export class GameSimulation {
       const ROUND: Record<string, number> = { sau_tree: 0.28, stools: 0.32, parked_bike: 0.36 };
       const props = this.world.allObjects().filter((o) => ROUND[o.type] !== undefined)
         .map((o) => ({ x: o.footprint.x + o.footprint.w / 2, y: o.footprint.y + o.footprint.h / 2, r: ROUND[o.type]! }));
+      if (this.story.active && this.story.chapterId === 'S03') this.player.pos = tileCenter(map.playerStart);
       this.run = new RunService(runCfg, this.world.grid, this.player, () => rng.next(), { w: this.world.width, h: this.world.height },
         (kind, ms) => { this.playerInteraction.cancelAll('superseded'); this.story.onDeath(kind, ms); },
         { hazards: content.story.chapters.S03!.hazards ?? {}, visited: (id) => !!this.state.story.flags[`visited:${id}`], rescue: !!(content.story.chapters.S03!.street && content.story.chapters.S03!.stalls), seen: (kind) => this.state.meta.counters[`incident:seen:${kind}`] ?? 0, markSeen: (kind) => { const key = `incident:seen:${kind}`; this.state.meta.counters[key] = (this.state.meta.counters[key] ?? 0) + 1; }, people: () => this.street?.people() ?? [], props: () => props });
@@ -277,10 +278,16 @@ export class GameSimulation {
           walkable: (x, y) => hasClearance(this.world.grid, { x, y }, { x, y }, RUN_BODY_RADIUS),
           canWalk: (from, to) => hasClearance(this.world.grid, from, to, RUN_BODY_RADIUS),
           path: (from, to, avoid) => {
-            const grid = avoid ? this.world.grid.clone() : this.world.grid;
+            const grid = this.world.grid.clone();
             if (avoid) grid.addBlocker(avoid);
+            for (const prop of props) {
+              const x = Math.floor(prop.x - prop.r), y = Math.floor(prop.y - prop.r);
+              const w = Math.ceil(prop.x + prop.r) - x, h = Math.ceil(prop.y + prop.r) - y;
+              const contains = (p: WorldPos) => p.x >= x - RUN_BODY_RADIUS && p.x <= x + w + RUN_BODY_RADIUS && p.y >= y - RUN_BODY_RADIUS && p.y <= y + h + RUN_BODY_RADIUS;
+              if (!contains(from) && !contains(to)) grid.addBlocker({ x, y, w, h });
+            }
             if (hasClearance(grid, from, to, RUN_BODY_RADIUS)) return [{ ...to }];
-            const plan = (avoid ? new NavigationService(grid, RUN_BODY_RADIUS) : this.nav).planTo(from, [worldToTile(to)]);
+            const plan = new NavigationService(grid, RUN_BODY_RADIUS).planTo(from, [worldToTile(to)]);
             if (!plan) return null;
             const end = plan.waypoints[plan.waypoints.length - 1] ?? from;
             if (!hasClearance(grid, end, to, RUN_BODY_RADIUS)) return null;

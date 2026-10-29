@@ -255,6 +255,7 @@ export class StoryHud {
   }
 
   private onNext(): void {
+    if ((this.scene as Phaser.Scene & { modalOpen?: boolean }).modalOpen) return;
     if (this.lastSnapshot?.story.dialog) this.advance();
   }
 

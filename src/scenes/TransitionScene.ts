@@ -68,6 +68,7 @@ export class TransitionScene extends Phaser.Scene {
   private boot: BootGate | null = null;
   private bar!: Phaser.GameObjects.Graphics;
   private progress = 0;
+  private readonly voices = new Set<OscillatorNode>();
 
   constructor() {
     super(TRANSITION_SCENE);
@@ -94,7 +95,11 @@ export class TransitionScene extends Phaser.Scene {
     this.plate = this.add.container(0, 0, [this.plateG, this.kicker, this.label]);
     this.bar = this.add.graphics();
     this.scale.on(Phaser.Scale.Events.RESIZE, this.fit, this);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off(Phaser.Scale.Events.RESIZE, this.fit, this));
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.scale.off(Phaser.Scale.Events.RESIZE, this.fit, this);
+      for (const voice of this.voices) { try { voice.stop(); } catch { /* already ended */ } }
+      this.voices.clear();
+    });
     this.fit();
     this.setDoors(0);
     this.plate.setAlpha(0);
@@ -287,7 +292,7 @@ export class TransitionScene extends Phaser.Scene {
 
   private ctx(): AudioContext | null {
     const sm = this.sound;
-    return sm instanceof Phaser.Sound.WebAudioSoundManager && !sm.mute ? sm.context : null;
+    return sm instanceof Phaser.Sound.WebAudioSoundManager && !sm.mute && !document.hidden ? sm.context : null;
   }
 
   private note(freq: number, to: number, start: number, len: number, type: OscillatorType, vol: number): void {
@@ -301,10 +306,11 @@ export class TransitionScene extends Phaser.Scene {
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(vol, t + 0.02);
     g.gain.exponentialRampToValueAtTime(0.0001, t + len);
-    o.connect(g).connect(ctx.destination);
+    o.connect(g).connect((this.sound as Phaser.Sound.WebAudioSoundManager).destination);
+    this.voices.add(o);
     o.start(t);
     o.stop(t + len + 0.02);
-    o.onended = () => { o.disconnect(); g.disconnect(); };
+    o.onended = () => { this.voices.delete(o); o.disconnect(); g.disconnect(); };
   }
 
   /** Old hinges. */

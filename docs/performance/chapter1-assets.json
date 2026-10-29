@@ -1,0 +1,314 @@
+{
+  "baseCommit": "06594b0c08fda39074db3b8364662cf925f6c7a5",
+  "workingTree": "uncommitted; includes earlier approved flows",
+  "scope": "SLICE_ASSETS registry, not actual network requests or baked runtime textures",
+  "count": 38,
+  "bytes": 6612854,
+  "rgbaMiB": 82.16,
+  "assets": [
+    {
+      "asset": "housesVaried",
+      "path": "public/assets/slice/chapter1/houses-v2.webp",
+      "bytes": 520510,
+      "width": 1536,
+      "height": 1024,
+      "rgbaMiB": 6.0
+    },
+    {
+      "asset": "shopfronts",
+      "path": "public/assets/slice/chapter1/shopfronts-v1.webp",
+      "bytes": 515008,
+      "width": 1536,
+      "height": 1024,
+      "rgbaMiB": 6.0
+    },
+    {
+      "asset": "asphalt",
+      "path": "public/assets/slice/chapter1/asphalt-v1.webp",
+      "bytes": 492346,
+      "width": 1024,
+      "height": 1024,
+      "rgbaMiB": 4.0
+    },
+    {
+      "asset": "stalls",
+      "path": "public/assets/slice/chapter1/stalls-v1.webp",
+      "bytes": 438880,
+      "width": 1536,
+      "height": 768,
+      "rgbaMiB": 4.5
+    },
+    {
+      "asset": "treesVaried",
+      "path": "public/assets/slice/chapter1/trees-v2.webp",
+      "bytes": 420912,
+      "width": 1024,
+      "height": 683,
+      "rgbaMiB": 2.67
+    },
+    {
+      "asset": "ambulance",
+      "path": "public/assets/slice/chapter1/ambulance-v1.webp",
+      "bytes": 331642,
+      "width": 1067,
+      "height": 1280,
+      "rgbaMiB": 5.21
+    },
+    {
+      "asset": "vendors",
+      "path": "public/assets/slice/chapter1/vendors-v1.webp",
+      "bytes": 214400,
+      "width": 768,
+      "height": 768,
+      "rgbaMiB": 2.25
+    },
+    {
+      "asset": "southShopsVaried",
+      "path": "public/assets/slice/chapter1/south-shops-v2.webp",
+      "bytes": 211770,
+      "width": 1536,
+      "height": 1024,
+      "rgbaMiB": 6.0
+    },
+    {
+      "asset": "motorbikes",
+      "path": "public/assets/slice/chapter1/motorbikes-v1.webp",
+      "bytes": 202212,
+      "width": 768,
+      "height": 768,
+      "rgbaMiB": 2.25
+    },
+    {
+      "asset": "residents",
+      "path": "public/assets/slice/chapter1/residents-v1.webp",
+      "bytes": 195466,
+      "width": 768,
+      "height": 768,
+      "rgbaMiB": 2.25
+    },
+    {
+      "asset": "houses",
+      "path": "public/assets/slice/chapter1/houses-v1.webp",
+      "bytes": 193674,
+      "width": 1536,
+      "height": 512,
+      "rgbaMiB": 3.0
+    },
+    {
+      "asset": "locals",
+      "path": "public/assets/slice/chapter1/locals-v1.webp",
+      "bytes": 191404,
+      "width": 768,
+      "height": 768,
+      "rgbaMiB": 2.25
+    },
+    {
+      "asset": "hazardDogs",
+      "path": "public/assets/slice/chapter1/hazard-dogs-v1.webp",
+      "bytes": 188950,
+      "width": 768,
+      "height": 768,
+      "rgbaMiB": 2.25
+    },
+    {
+      "asset": "medicCarry",
+      "path": "public/assets/slice/chapter1/medic-carry-v1.webp",
+      "bytes": 188114,
+      "width": 768,
+      "height": 768,
+      "rgbaMiB": 2.25
+    },
+    {
+      "asset": "trees",
+      "path": "public/assets/slice/chapter1/trees-v1.webp",
+      "bytes": 185354,
+      "width": 1024,
+      "height": 455,
+      "rgbaMiB": 1.78
+    },
+    {
+      "asset": "hero",
+      "path": "public/assets/slice/chapter1/hero-v1.webp",
+      "bytes": 183602,
+      "width": 768,
+      "height": 768,
+      "rgbaMiB": 2.25
+    },
+    {
+      "asset": "owners",
+      "path": "public/assets/slice/chapter1/owners-v1.webp",
+      "bytes": 180312,
+      "width": 768,
+      "height": 768,
+      "rgbaMiB": 2.25
+    },
+    {
+      "asset": "citizens",
+      "path": "public/assets/slice/chapter1/citizens-v1.webp",
+      "bytes": 180168,
+      "width": 768,
+      "height": 768,
+      "rgbaMiB": 2.25
+    },
+    {
+      "asset": "neighbors",
+      "path": "public/assets/slice/chapter1/neighbors-v1.webp",
+      "bytes": 168592,
+      "width": 768,
+      "height": 768,
+      "rgbaMiB": 2.25
+    },
+    {
+      "asset": "workers",
+      "path": "public/assets/slice/chapter1/workers-v1.webp",
+      "bytes": 165920,
+      "width": 768,
+      "height": 768,
+      "rgbaMiB": 2.25
+    },
+    {
+      "asset": "medic",
+      "path": "public/assets/slice/chapter1/medic-v1.webp",
+      "bytes": 165766,
+      "width": 768,
+      "height": 768,
+      "rgbaMiB": 2.25
+    },
+    {
+      "asset": "hazardHoles",
+      "path": "public/assets/slice/chapter1/hazard-holes-v1.webp",
+      "bytes": 127776,
+      "width": 768,
+      "height": 512,
+      "rgbaMiB": 1.5
+    },
+    {
+      "asset": "hazardCargoBike",
+      "path": "public/assets/slice/chapter1/hazard-cargo-bike-v1.webp",
+      "bytes": 121766,
+      "width": 512,
+      "height": 768,
+      "rgbaMiB": 1.5
+    },
+    {
+      "asset": "heroReactions",
+      "path": "public/assets/slice/chapter1/hero-reactions-v1.webp",
+      "bytes": 121180,
+      "width": 1024,
+      "height": 512,
+      "rgbaMiB": 2.0
+    },
+    {
+      "asset": "southShopTile",
+      "path": "public/assets/slice/chapter1/south-shop-tile-v1.webp",
+      "bytes": 106288,
+      "width": 768,
+      "height": 512,
+      "rgbaMiB": 1.5
+    },
+    {
+      "asset": "southShopTin",
+      "path": "public/assets/slice/chapter1/south-shop-tin-v1.webp",
+      "bytes": 103446,
+      "width": 768,
+      "height": 512,
+      "rgbaMiB": 1.5
+    },
+    {
+      "asset": "hazardCat",
+      "path": "public/assets/slice/chapter1/hazard-cat-v1.webp",
+      "bytes": 87866,
+      "width": 768,
+      "height": 384,
+      "rgbaMiB": 1.12
+    },
+    {
+      "asset": "parkedBikes",
+      "path": "public/assets/slice/chapter1/parked-bikes-v1.webp",
+      "bytes": 77586,
+      "width": 512,
+      "height": 512,
+      "rgbaMiB": 1.0
+    },
+    {
+      "asset": "hazardPigeons",
+      "path": "public/assets/slice/chapter1/hazard-pigeons-v1.webp",
+      "bytes": 57896,
+      "width": 1024,
+      "height": 341,
+      "rgbaMiB": 1.33
+    },
+    {
+      "asset": "hazardWater",
+      "path": "public/assets/slice/chapter1/hazard-water-v1.webp",
+      "bytes": 55166,
+      "width": 512,
+      "height": 512,
+      "rgbaMiB": 1.0
+    },
+    {
+      "asset": "parkedCars",
+      "path": "public/assets/slice/chapter1/parked-cars-v1.webp",
+      "bytes": 51390,
+      "width": 768,
+      "height": 384,
+      "rgbaMiB": 1.12
+    },
+    {
+      "asset": "hazardChickens",
+      "path": "public/assets/slice/chapter1/hazard-chickens-v1.webp",
+      "bytes": 47064,
+      "width": 512,
+      "height": 256,
+      "rgbaMiB": 0.5
+    },
+    {
+      "asset": "hazardLaundry",
+      "path": "public/assets/slice/chapter1/hazard-laundry-v1.webp",
+      "bytes": 40302,
+      "width": 384,
+      "height": 384,
+      "rgbaMiB": 0.56
+    },
+    {
+      "asset": "hazardSlipper",
+      "path": "public/assets/slice/chapter1/hazard-slipper-v1.webp",
+      "bytes": 27746,
+      "width": 384,
+      "height": 256,
+      "rgbaMiB": 0.38
+    },
+    {
+      "asset": "hazardDurian",
+      "path": "public/assets/slice/chapter1/hazard-durian-v1.webp",
+      "bytes": 21278,
+      "width": 384,
+      "height": 192,
+      "rgbaMiB": 0.28
+    },
+    {
+      "asset": "hazardShuttlecock",
+      "path": "public/assets/slice/chapter1/hazard-shuttlecock-v1.webp",
+      "bytes": 20898,
+      "width": 384,
+      "height": 384,
+      "rgbaMiB": 0.56
+    },
+    {
+      "asset": "hazardBanana",
+      "path": "public/assets/slice/chapter1/hazard-banana-v1.webp",
+      "bytes": 7680,
+      "width": 256,
+      "height": 128,
+      "rgbaMiB": 0.12
+    },
+    {
+      "asset": "wheel",
+      "path": "public/assets/slice/chapter1/wheel-v1.webp",
+      "bytes": 2524,
+      "width": 64,
+      "height": 64,
+      "rgbaMiB": 0.02
+    }
+  ]
+}

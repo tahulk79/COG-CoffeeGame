@@ -106,7 +106,7 @@ Chưa thêm loại sự cố/chương/landmark mới. Không yêu cầu mọi NP
 
 ## Triển khai luồng 1 — 2026-10-29
 
-T-100 đang Review, chưa nghiệm thu toàn bộ Vertical Slice.
+T-100 đã được người dùng duyệt ngày 2026-10-29. Chưa nghiệm thu toàn bộ Vertical Slice.
 
 - Chơi mới ở URL thường vào S03, không phụ thuộc trình duyệt có tự động hóa hay không. Bỏ `CHAPTER1_ONLY` và `playContent`; mọi bản dùng next từ cấu hình (S03 → S04).
 - Tải lại tiếp tục chương/flags đã lưu; không tự xóa tiến trình cốt truyện. Nếu save được ghi lúc chuyển cảnh với chương mới nhưng map cũ, chọn map của chương để tránh kẹt ở màn trước.
@@ -130,3 +130,79 @@ Bằng chứng: [đã sang S04](screenshots/flow1-chapter2.png), [xem lại về
 6. Trường hợp storage bị chặn/ghi lỗi và đóng tab giữa chuyển cảnh chưa được mô phỏng; phần xử lý mới đã rà code, chưa xác nhận runtime. Không đánh dấu các trường hợp này đã qua.
 
 Không chạy unit/e2e/typecheck/build theo yêu cầu tự test; chưa push/commit. Bước tiếp sau khi duyệt T-100 là T-101 (sinh hoạt NPC/lối đi), giữ nguyên art trong lượt này.
+
+
+## Triển khai luồng 2 — 2026-10-29
+
+T-101 đã được người dùng duyệt ngày 2026-10-29.
+
+- Cấu hình tăng 8 → **16 người đi bộ**, giữ 4 xe máy. Chia vị trí xuất phát đều dọc hai vỉa hè, hướng đi xen kẽ hai chiều, vẫn có khác biệt tốc độ/hình người từ bộ art hiện tại. Tìm chỗ spawn trống trong giới hạn phố, tránh người/quầy/props/bảo vệ/hero; không đẩy một spawn bị chắn ra ngoài map. Nếu không có chỗ hợp lệ thì không thêm người chồng lên nhau để đủ số.
+- Tối đa một phần tư nhóm đi bộ ghé quầy cùng lúc (với16 là4); mỗi quầy có tối đa một khách ghé từ dòng người qua đường. Chủ quầy và khách cố định vẫn giữ sinh hoạt riêng. Khách ghé xem2,5–5,5giây rồi quay lại lối đi, không biến cả nhóm thành đám đứng xem quầy.
+- Lưu chỗ/hướng xuất phát khi ghé; giữ nguyên làn gốc. Chuyến đi bị chặn quá9giây chuyển sang quay về, không lấy vị trí cạnh quầy làm làn mới. Nếu đường về cũng bị chặn quá lâu thì bỏ chuyến, trở lại luồng đi thường với làn gốc và quy tắc né; không teleport/xuyên người. Chỉ chọn đường ghé có waypoint nằm ngoài lòng đường.
+- Dùng kiểm khoảng cách chung cho đi thường, bước né, idle và từng bước của đường ghé quầy; tránh hero/người đi bộ/props nhỏ và thân xe cứu thương đã đỗ. Khi kiểm đường ghé dùng bước tiếp theo của tuyến thực, không xét đường thẳng tới đích qua tường. Người chắn tạm thời không làm hủy cache tuyến mỗi frame.
+- Bỏ nhánh NPC chờ lâu rồi xuyên người. Chỗ không né được thì quay lại; khi chỉ lắc ngang mà không tiến được cũng quay lại sau1,8giây. Người đã chồng nhẹ do một cảnh khác được bước ra, không bị khóa trong nhau.
+- Khi bắt đầu cứu hộ, khách đang ghé trở lại lối đi; chỉ nhóm4 người được chọn gần hero đứng xem như luồng cứu hộ đã có. Không tăng đám đông cứu hộ. Chưa sửa riêng thuật toán di chuyển bác sĩ hoặc xe trong phần này.
+
+**Đã quan sát:** mở game local cổng5190 ở PC1280×720 và viewport dọc390×844; người qua đường thay vị trí, hai phía phố có người qua lại, chủ/khách quầy giữ cử động; lưu [ảnh PC](screenshots/flow2-street-pc.png), [ảnh mobile](screenshots/flow2-street-mobile.png). Console không có error ở các lần đọc. Rà các caller của route/visit và `git diff --check`; không chạy suite unit/e2e/typecheck/build, không dùng mô phỏng tự động. Ảnh tĩnh không chứng minh mọi trường hợp tránh nhau hoặc đủ16 NPC đang hiện trên màn.
+
+**Bạn tự duyệt trước khi đóng T-101:**
+
+1. Ở đầu/giữa/cuối phố: mật độ có vừa đủ sống động; người đi hai chiều, không thành một hàng dính nhau. Không yêu cầu chủ quầy hoặc người đang hội thoại luôn phải đi.
+2. Quan sát một khách ghé quầy rồi rời đi; đứng chắn lối ghé và dời đi để xem họ tiếp tục hoặc bỏ chuyến, không mắc lại bên quầy. Không có nhiều khách ghé từ dòng người đứng cùng một điểm.
+3. Đứng giữa dòng người ở cả hai vỉa hè; họ né hoặc quay lại thay vì xuyên người. Đẩy tình huống đối đầu cạnh cây/xe đỗ/ghế/quầy; không giật hướng hoặc lắc ngang vô hạn.
+4. Đi dọc hai barie và miệng ngõ: còn lối cho hero và NPC, không spawn trong vật cản hoặc đứng chồng lên bảo vệ. Việc hero tự lách khi bị kẹt thuộc quy tắc RunService đã có, không đổi ở lượt này.
+5. Gặp sự cố khi phố đông: nhóm gần đó tụ lại, những người khác còn hoạt động/thoát khỏi quầy; bác sĩ tiếp cận và khiêng được, xe đỗ không bị người đi xuyên. Chưa xác nhận hết trường hợp cứu hộ sau tăng mật độ.
+6. Chơi trên điện thoại thật để duyệt độ mượt và cảm giác mật độ; chưa có số đo hiệu năng, không kết luận từ viewport giả lập.
+
+Giữ nguyên toàn bộ asset, UI, điều khiển và luồng chuyển chương đã duyệt. Sau khi T-101 được duyệt mới triển khai mẫu mỹ thuật T-102.
+
+
+## Triển khai luồng 3 — đoạn mẫu 2026-10-29
+
+T-102 Doing, đã có [mẫu14 trong game](art/chapter1/STREET_SAMPLE_14.md) chờ duyệt. Hai quán nhìn từ phía sau quanh cột8–13 có chất liệu mái ngói/tôn, tường/shutter/điều hòa theo bộ nhà đang dùng. Master và WebP được lưu trong workspace; phần ngoài đoạn mẫu, UI, hero, map/collision, nền và camera không đổi.
+
+Đã xem PC1280×720, dọc390×844 và ngang844×390; không thấy error console. Màn ngang còn cắt quán tiền cảnh. Chưa kiểm hết fade khi hero ở dưới mái, cảnh cứu hộ/miệng ngõ/hai đầu phố và hiệu năng thiết bị. Không chạy suite/typecheck/build. Đây chưa phải nghiệm thu toàn bộ luồng3.
+
+Sau khi bạn duyệt vật liệu/tỷ lệ/hướng nhìn mẫu: mới làm thêm biến thể, mở rộng dãy quán và rà nền/camera/che khuất toàn màn. Không đổi toàn bộ art khi chưa duyệt mẫu trong game.
+
+
+## Triển khai luồng 4 — 2026-10-29
+
+T-103 Review. Xem [thay đổi, ảnh và checklist cứu hộ](gameplay/CHAPTER1_RESCUE_REVIEW.md). Giữ phần3 ở mốc mẫu chờ duyệt, không tự đánh dấu được duyệt hoặc nhân rộng.
+
+Đã sửa điều kiện hai bác sĩ tới điểm đỡ, chờ chỗ xuống xe, chọn điểm có đường tới, chờ nhau khi khiêng và tránh thân xe khi tách người. Giãn hai điểm đỡ về đầu/chân và hạ độ nâng ảnh để hợp bàn tay; pose được cập nhật cùng khung. Không thay bộ ảnh hoặc tạo thêm VFX.
+
+Đã nhìn trực tiếp PC một cảnh tiếp cận/khiêng gần xe dựng và kết thúc sang S04 sau sửa, lưu ảnh trước/sau chỉnh đội hình. Còn các góc ngõ, cả hai barie/hướng xe, nhánh bánh và mobile thật cần tự duyệt theo bảng. Không chạy unit/e2e/typecheck/build hoặc mô phỏng tự động toàn bản đồ. Chưa nghiệm thu toàn bộ luồng4.
+
+
+## Luồng 3 làm lại toàn cảnh — 2026-10-29
+
+Người dùng xác nhận **chưa duyệt luồng3**, yêu cầu bỏ cách dừng ở hai quán mẫu và làm kỹ cả phố. [Đợt15](art/chapter1/STREET_COHESION_15.md) thay phạm vi mẫu14: toàn dãy phía nam dùng6 biến thể cùng art, sửa khoảng lô/bóng chân, giãn các lớp nhà bắc, thay nền chân nhà và nối phố nền cùng dãy đối diện. Không sửa lối đi/collision/NPC/cứu hộ/UI/camera.
+
+T-102 Review để người dùng duyệt lại toàn cảnh. Đã xem PC/dọc/ngang và overview; chưa đi kiểm hết từng góc hoặc đo thiết bị thật. Không chạy suite/typecheck/build. Các dòng đợt14 phía trên là lịch sử, không phải trạng thái đã được duyệt hoặc còn chặn việc triển khai toàn dãy.
+
+### Luồng3 — ảnh tham chiếu mới, đợt16
+
+Người dùng vẫn chưa duyệt đợt15. [Bản sửa16](art/chapter1/STREET_REFERENCE_16.md) thay mặt tiền dãy gần, thêm vật liệu nhựa đường, đá lát ấm/cống/rãnh và bóng cây tĩnh theo ảnh mẫu. T-102 vẫn Review; nhà còn lặp, vỉa hè còn rộng, chưa kiểm mọi góc/thiết bị thật. Đã xem PC/mobile giả lập, không chạy suite/typecheck/build.
+
+## Triển khai luồng 5 — 2026-10-29
+
+Người dùng duyệt luồng3 và4; đóng T-102/T-103 theo duyệt, không tự suy thành đã kiểm điện thoại thật. T-104 Review triển khai, chờ duyệt nội dung.
+
+Xem [ma trận12 sự cố và17 ca duyệt](gameplay/CHAPTER1_INCIDENT_REVIEW.md). Thêm bộ chọn DEV `?incidentReview=cat`, dùng save bộ nhớ và dừng chia ngẫu nhiên để xem mỗi loại/nhánh. Vẫn dùng logic hit/cứu hộ/chuyển chương thực; các nhánh dựng sẵn không chứng minh điều kiện mở nhánh tự nhiên.
+
+Sửa lá bài trùng tích lũy, cap khi nhịp đôi/nhánh phụ, tăng cảnh báo chuối/bẫy phụ, kiểm khoảng trống điểm rơi và đoạn va chạm xe/chim/cầu/dép. Không thêm kết thúc sống đủ thời gian hoặc sửa mỹ thuật đã duyệt. Không chạy suite/typecheck/build; chưa chơi hết17ca hoặc nghiệm thu thiết bị thật.
+
+## Triển khai luồng6 — 2026-10-29
+
+Người dùng duyệt luồng5, T-104 Done. [Luồng6](gameplay/CHAPTER1_UI_REVIEW.md) đang Review: input/menu, safe area, độ đọc thoại và xử lý lỗi tải. Chưa kiểm runtime mới do browser không khả dụng; cần kiểm các mục trong checklist trước khi duyệt. Không suite/typecheck/build.
+
+Luồng6 lượt tiếp tục: browser đã hoạt động; xem menu dọc/ngang và xoay khi đang mở. Sửa Enter/Space xuyên modal, ẩn bảng DEV và nhãn hazard cắt mép. Xem bằng chứng trong CHAPTER1_UI_REVIEW; T-105 còn Review, chưa kiểm đủ checklist.
+
+## Triển khai luồng7 — 2026-10-29
+
+Người dùng duyệt luồng6. T-106 Review: xem [kiểm kê âm và cách nghe duyệt](gameplay/CHAPTER1_AUDIO_REVIEW.md). Sửa master mute/catch-up/cleanup và thêm cue còn thiếu bằng synth nội bộ. Chưa nghe/đo/kiểm mobile thật, chưa Done; không suite/typecheck/build.
+
+## Triển khai luồng8 và phản hồi ảnh — 2026-10-29
+
+Người dùng duyệt luồng7. [Luồng8](performance/FLOW8_HANDOFF.md) có profiler Phaser/report, baseline local, manifest/gói ZIP. Build/typecheck đã được cho phép và qua; không test. Phạm vi web+Android; chưa có số đo Android, còn khựng khởi tạo/chuyển cảnh nên T-107 Review. Phản hồi ảnh mới bổ sung sửa xe đỗ, vào giữa map, NPC/collider và thoại; cần rà lại cứu hộ sau sửa.

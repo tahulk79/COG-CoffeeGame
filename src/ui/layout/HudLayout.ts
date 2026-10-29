@@ -35,7 +35,7 @@ export const TOP_ROW = { inset: 12, size: 40 } as const;
 export const hudViewport = { w: 0, h: 0, safe: { top: 0, right: 0, bottom: 0, left: 0 } };
 
 /** Reads `env(safe-area-inset-*)` through CSS variables declared in index.html. */
-function readSafeInsets(): Insets {
+export function readSafeInsets(): Insets {
   try {
     const cs = getComputedStyle(document.documentElement);
     const n = (name: string) => parseFloat(cs.getPropertyValue(name)) || 0;
@@ -72,7 +72,8 @@ export class HudLayout {
     cam.setScroll(-rawW * (1 - 1 / ui) / 2, -rawH * (1 - 1 / ui) / 2);
     hudViewport.w = w;
     hudViewport.h = h;
-    const safe = readSafeInsets();
+    const rawSafe = readSafeInsets();
+    const safe = { top: rawSafe.top / ui, right: rawSafe.right / ui, bottom: rawSafe.bottom / ui, left: rawSafe.left / ui };
     hudViewport.safe = safe;
     return { w, h, safe, mode: compact ? 'compact' : 'wide', portrait: h > w, margin: compact ? 6 : 10, ui };
   }

@@ -75,23 +75,23 @@
           "faint": "Con chó bé tí… mà bố nó to bằng con bê…"
         },
         "cat": {
-          "death": "Vấp phải con mèo nằm giữa đường",
+          "death": "Bị mèo quấn chân, ngã giữa phố",
           "absurdity": 3,
           "label": "Meo~",
           "faint": "Con mèo không sao… còn mình thì sao…"
         },
         "banana": {
-          "death": "Né vỏ chuối thứ nhất, giẫm vỏ chuối thứ hai",
+          "death": "Trượt vỏ chuối giữa phố",
           "absurdity": 4,
           "twist": "Vỏ chuối thứ hai!",
-          "faint": "Né một vỏ là kỹ năng… né hai vỏ là phép màu…"
+          "faint": "Vỏ chuối tí tẹo… mà trượt cả cuộc đời…"
         },
         "sinkhole": {
-          "death": "Né được ổ voi, rơi xuống nắp cống bên cạnh",
+          "death": "Rơi xuống hố giữa phố",
           "absurdity": 5,
           "label": "Ổ voi!",
           "twist": "Nắp cống!",
-          "faint": "Né ổ voi… rơi ổ gà… phố này đủ cả sở thú…"
+          "faint": "Ổ voi… ổ gà… phố này đủ cả sở thú…"
         },
         "durian": {
           "death": "Sầu riêng năm ký rơi trúng đầu",
@@ -100,10 +100,10 @@
           "smell": "Mùi này… chân mềm như bún… đậu…"
         },
         "motorbike": {
-          "death": "Bị xe máy chở cả tủ lạnh quẹt bay",
+          "death": "Bị xe máy chở hàng quẹt ngã",
           "absurdity": 4,
           "label": "Xe chở hàng!",
-          "faint": "Tủ lạnh hai cánh… inverter… tiết kiệm điện… á…"
+          "faint": "Anh ơi… chở hàng thôi… đừng chở luôn em…"
         },
         "chickens": {
           "death": "Bị đàn gà sổng chuồng mổ cho ngất",
@@ -701,7 +701,7 @@
             "h": 10
           }
         ],
-        "walkers": 8,
+        "walkers": 16,
         "bikes": 4,
         "lanes": [
           7.3,

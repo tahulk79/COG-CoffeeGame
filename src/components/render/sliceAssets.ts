@@ -7,6 +7,11 @@ import type { Facing } from '../../entities/Actor';
  * `maxEdge` by `scripts/export-slice-webp.sh`, so `registerSliceFrames()` no longer has to shrink them.
  */
 export const SLICE_ASSETS = {
+  asphalt: { key: 'slice.chapter1.asphalt.v1', url: '/assets/slice/chapter1/asphalt-v1.webp', columns: 1, rows: 1, maxEdge: 1024 },
+  shopfronts: { key: 'slice.chapter1.shopfronts.v1', url: '/assets/slice/chapter1/shopfronts-v1.webp', columns: 2, rows: 2, maxEdge: 1536 },
+  southShopsVaried: { key: 'slice.chapter1.south-shops.v2', url: '/assets/slice/chapter1/south-shops-v2.webp', columns: 2, rows: 2, maxEdge: 1536 },
+  southShopTile: { key: 'slice.chapter1.south-shop.tile.v1', url: '/assets/slice/chapter1/south-shop-tile-v1.webp', columns: 1, rows: 1, maxEdge: 768 },
+  southShopTin: { key: 'slice.chapter1.south-shop.tin.v1', url: '/assets/slice/chapter1/south-shop-tin-v1.webp', columns: 1, rows: 1, maxEdge: 768 },
   neighbors: { key: 'slice.chapter1.neighbors.v1', url: '/assets/slice/chapter1/neighbors-v1.webp', columns: 4, rows: 4, maxEdge: 768 },
   owners: { key: 'slice.chapter1.owners.v1', url: '/assets/slice/chapter1/owners-v1.webp', columns: 4, rows: 4, maxEdge: 768 },
   housesVaried: { key: 'slice.chapter1.houses.v2', url: '/assets/slice/chapter1/houses-v2.webp', columns: 3, rows: 2, maxEdge: 1536 },

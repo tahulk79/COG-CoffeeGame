@@ -125,11 +125,14 @@ export class StreetLifeView {
   private readonly contactShadows = new Map<string, Phaser.GameObjects.Ellipse>();
   private readonly carryArtReady: boolean;
   private readonly bubbles = new Map<string, SpeechBubble>();
+  private readonly leaders: Phaser.GameObjects.Graphics;
+  private bubbleBoxes: Array<{ x: number; y: number; w: number; h: number }> = [];
   /** Street-end barriers: the fixed fences (drawn once) and each boom (redrawn as it moves). */
   private readonly fences = new Map<string, Phaser.GameObjects.GameObject[]>();
   private readonly booms = new Map<string, { g: Phaser.GameObjects.Graphics; open: number }>();
 
   constructor(private readonly scene: Phaser.Scene) {
+    this.leaders = scene.add.graphics().setDepth(1e6 - 2.1);
     this.carryArtReady = this.sliceReady('medicCarry');
     this.prewarm();
   }
@@ -183,9 +186,19 @@ export class StreetLifeView {
     const z = this.scene.cameras.main.zoom, now = street?.elapsedMs ?? this.scene.time.now;
     const skids: StreetView['npcs'] = [];
     this.raised = 0;
+    this.bubbleBoxes = [];
+    this.leaders.clear();
+    const view = this.scene.cameras.main.worldView;
+    const speakers = (street?.npcs ?? []).filter(n => n.say && view.contains(worldToScreen(n).x, worldToScreen(n).y))
+      .sort((a, b) => {
+        const priority = (n: StreetView['npcs'][number]) => (n.look === 'medic' || n.look === 'ambulance' || (street?.talking && n.id.startsWith(street.talking + ':')) ? -100 : 0) + (this.bubbles.has(n.id) ? -2 : 0) + Math.hypot(n.x - hero.x, n.y - hero.y);
+        return priority(a) - priority(b);
+      });
+    // Read one speaker at a time; distant chatter must not flood the phone or obscure rescue dialogue.
+    const speaking = speakers[0]?.id;
     // The hero lying on the street (about a tile long, head to the left): bubbles keep off it.
     const hp = worldToScreen(hero);
-    const lying = street?.heroDown && !street.heroHidden ? { x0: hp.x - 90, x1: hp.x + 28, y0: hp.y - 48, y1: hp.y + 12 } : null;
+    const lying = street?.heroHidden ? null : street?.heroDown ? { x0: hp.x - 90, x1: hp.x + 28, y0: hp.y - 48, y1: hp.y + 12 } : { x0: hp.x - 30, x1: hp.x + 30, y0: hp.y - 75, y1: hp.y + 10 };
     for (const n of street?.npcs ?? []) {
       seen.add(n.id);
       let g = this.bodies.get(n.id);
@@ -220,7 +233,7 @@ export class StreetLifeView {
       const visible = n.scale > 0.01 && n.x >= STREET_ENDS.w && n.x <= STREET_ENDS.e;
       g.setPosition(p.x, p.y + bob).setScale(flip * scale, scale).setRotation(n.tilt).setDepth(Math.round(actorDepth(n) * 100) / 100 + g.getData('sortBias')).setVisible(visible).setData('worldScale', n.scale);
       this.contactShadows.get(n.id)?.setPosition(p.x, p.y).setScale(n.scale).setVisible(visible);
-      if (n.say) {
+      if (n.say && n.id === speaking && !street?.heroSay && !heroSay) {
         said.add(n.id);
         this.bubble(n.id, n.say, n, kind ? g.displayHeight * g.originY + 12 : n.bike ? 84 : 78, z, false, lying);
       }
@@ -431,9 +444,12 @@ export class StreetLifeView {
       b = new SpeechBubble(this.scene).setDepth(1e6 - 2);
       this.bubbles.set(id, b);
     }
+    const anchor = worldToScreen(at), cameraView = this.scene.cameras.main.worldView;
+    if (!cameraView.contains(anchor.x, anchor.y)) { b.setVisible(false); return; }
+    b.setVisible(true);
     b.set(text, hero ? 'hero' : 'npc');
     const p = worldToScreen(at);
-    b.setScale(Math.max(1, Math.min(2.4, 1 / zoom)));
+    b.setScale(1 / zoom);
     let y = p.y - lift;
     if (avoid) {
       const w = b.width * b.scale, h = b.height * b.scale;
@@ -445,10 +461,21 @@ export class StreetLifeView {
     const view = this.scene.cameras.main.worldView, w = b.width * b.scale, h = b.height * b.scale, pad = 8 / zoom;
     const x = Math.max(view.x + w / 2 + pad, Math.min(view.right - w / 2 - pad, p.x));
     y = Math.max(view.y + h + 84 / zoom, Math.min(view.bottom - pad, y));
+    for (const other of this.bubbleBoxes) {
+      if (x + w / 2 > other.x && x - w / 2 < other.x + other.w && y > other.y && y - h < other.y + other.h) y = other.y - pad;
+    }
+    y = Math.max(view.y + h + 72 / zoom, y);
     b.setPosition(x, y);
+    this.bubbleBoxes.push({ x: x - w / 2, y: y - h, w, h });
+    // The card can move to fit the screen; its pointer still ends at the actual speaker's head.
+    const headY = p.y - lift;
+    if (Math.hypot(x - p.x, y - headY) > 8 / zoom) {
+      this.leaders.lineStyle(2 / zoom, 0x5a3825, .85).lineBetween(x, y, p.x, headY);
+    }
   }
 
   destroy(): void {
+    this.leaders.destroy();
     for (const g of this.bodies.values()) g.destroy();
     for (const shadow of this.contactShadows.values()) shadow.destroy();
     for (const b of this.bubbles.values()) b.destroy();

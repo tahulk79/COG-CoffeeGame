@@ -99,7 +99,7 @@ export class GameModal implements ManagedPanel {
   }
 
   get isOpen(): boolean {
-    return this.opened;
+    return this.opened || this.closing;
   }
 
   open(): void {
@@ -121,8 +121,7 @@ export class GameModal implements ManagedPanel {
     if (!this.opened) return;
     this.opened = false;
     this.closing = true;
-    // Stop taking clicks right away; the panel only fades out afterwards.
-    this.setBlocking(false);
+    // Keep the world blocked until the exit animation has actually finished.
     this.scene.tweens.killTweensOf(this.panel);
     if (dur(MOTION.fast) === 0) return this.finishClose();
     // Short exit animation.
@@ -136,6 +135,7 @@ export class GameModal implements ManagedPanel {
   private finishClose(): void {
     if (!this.closing) return; // re-opened during the exit animation
     this.closing = false;
+    this.setBlocking(false);
     setShown(this.root, false);
     this.onClosed?.();
   }

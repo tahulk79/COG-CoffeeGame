@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { uiClick } from '../../components/audio/UiAudio';
 import { Panel } from './Panel';
 import { isShown, setShown } from './panelVisibility';
 import { createIcon } from '../theme/assetRegistry';
@@ -84,6 +85,7 @@ export class GameButton {
       if (!this.enabled || !isShown(this.text)) return;
       this.press();
       this.onClick();
+      uiClick(this.scene);
     });
     this.text.on('pointerover', () => {
       this.hovered = true;

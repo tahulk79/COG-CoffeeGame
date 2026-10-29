@@ -139,3 +139,32 @@ Kiểm tra tự động: `tests/unit/chapter1-playtest.test.ts` (chơi thử t�
 Mở game bình thường: chưa có save thì vào phố (S03); có save thì tiếp tục chương đã lưu. Sau cứu hộ, nhân vật chuyển sang cảnh trùng sinh S04; không tự lặp lại màn 1. Tải lại giữa một sự cố không khôi phục từng khung hình/đám đông, mà bắt đầu lại lượt chạy của chương ở checkpoint đã lưu.
 
 Trong Cài đặt, **Xem lại cốt truyện** bắt đầu lại S03 và giữ tài sản hiện có. **Game mới** xóa tiến trình sau bước xác nhận và mở từ đầu. Bản phát triển có thể mở `?skipStory=1` để vào phần quản lý; không cần `?story=1` hoặc `?chapter2=1` để chơi cốt truyện thật.
+
+
+## Sinh hoạt phố (T-101)
+
+Phố có mục tiêu16 người đi bộ, phân bố hai vỉa hè và hai chiều; 4xe máy. Người bán/khách ở quầy có hoạt động tại chỗ. Người qua đường có thể ghé xem một quầy trong2,5–5,5giây rồi trở lại tuyến cũ; tối đa4người ghé cùng lúc và mỗi quầy một khách ghé từ dòng người qua đường. Nếu lối ghé bị chặn lâu họ bỏ chuyến/quay về thay vì đứng mãi cạnh quầy. Người đi bộ né người/vật cản; chỗ không qua được thì quay lại, không dùng timeout để đi xuyên người.
+
+Mật độ và các tình huống góc hẹp/cứu hộ đông người còn chờ tự chơi duyệt; ảnh ở kế hoạch luồng2 là bằng chứng bố cục PC/mobile giả lập, chưa phải đo hiệu năng điện thoại thật.
+
+
+## Cứu hộ (T-103)
+
+Hai bác sĩ xuống lần lượt; người thứ hai chờ cửa trống. Cả hai tới điểm đỡ rồi mới nâng. Khi đi vòng vật cản, người được khiêng có thể chờ bác sĩ theo kịp trước khi đi tiếp; không phải đứng chờ theo một mốc giờ cố định để bỏ qua bác sĩ đang mắc đường. Gần cửa xe, cả hai phải về vị trí mới kết thúc cảnh lên xe.
+
+Checklist các góc/ngõ/hướng xe còn cần tự chơi duyệt nằm trong [rà cứu hộ luồng4](CHAPTER1_RESCUE_REVIEW.md).
+
+
+## Cảnh phố (luồng3, đợt15)
+
+Dãy quán phía nam và dãy phố nền dùng cùng6 biến thể nhà thấp; các lớp nhà phía bắc được giãn qua lối sau, chung nền đất/gạch và bóng chân. Thay đổi này chỉ ở trang trí ngoài lối đi, không mở thêm vùng đi lại hoặc đổi luật chơi. Xem [bản sửa toàn cảnh](../art/chapter1/STREET_COHESION_15.md); đang chờ duyệt lại, chưa nghiệm thu trên điện thoại thật.
+
+Bản mỹ thuật mới nhất là [đợt16 theo ảnh mẫu](../art/chapter1/STREET_REFERENCE_16.md): cửa hàng gần có mặt tiền, đường nhựa và đá lát màu ấm. Giữ luồng chơi/UI/camera; đang chờ duyệt, chưa nghiệm thu thiết bị thật.
+
+### Duyệt đủ sự cố (luồng5)
+
+Bản dev có bộ chọn17ca/12loại tại `?incidentReview=cat`, tách save thật; chọn ca rồi bấm Bắt đầu. Xem [ma trận và hướng dẫn](CHAPTER1_INCIDENT_REVIEW.md) để thử nhánh tự nhiên lẫn nhánh dựng sẵn. Gà là nhánh xe, dây phơi/mùi chỉ gây rối điều khiển/chậm chân; các loại gây ngất vẫn dẫn tới cứu hộ/trùng sinh. Luồng3/4 đã được người dùng duyệt ngày2026-10-29.
+
+### Sửa vị trí và tránh va chạm theo ảnh ngày2026-10-29
+
+S03 vào giữa phố (24,12), gồm tải lại màn phố; xe đỗ ở vỉa hè y14, xe2 x29. NPC nhường người và tìm đường quanh vật cản tròn; lời nói hiển thị một NPC tại một thời điểm và giữ chỉ dẫn về người nói. Xem [ảnh và giới hạn kiểm tra](../performance/FLOW8_HANDOFF.md). Chưa nghiệm thu Android thật.

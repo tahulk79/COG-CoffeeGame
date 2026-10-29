@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { GameModal } from '../ui/components/GameModal';
 import { CONTENT } from '../data/content';
 import { setLocale, t } from '../core/i18n';
 import type { GameSession } from '../core/session';
@@ -33,6 +34,8 @@ import type { Button } from '../ui/widgets/Button';
 
 /** UI overlay with its own un-zoomed camera, running on top of a world scene. */
 export class HudScene extends Phaser.Scene {
+  private assetNotice: GameModal | null = null;
+  private loadFailures = 0;
   private debug: DebugOverlay | null = null;
   private layout!: HudLayout;
   private modals!: ModalManager;
@@ -67,8 +70,9 @@ export class HudScene extends Phaser.Scene {
     super('HudScene');
   }
 
-  init(data: { session: GameSession }): void {
+  init(data: { session: GameSession; loadFailures?: number }): void {
     this.session = data.session;
+    this.loadFailures = data.loadFailures ?? 0;
   }
 
   /** True while a big panel (inventory, staff, map…) is open; the world should not react to the wheel then. */
@@ -206,7 +210,19 @@ export class HudScene extends Phaser.Scene {
       }),
     );
 
+    this.assetNotice = null;
+    if (this.loadFailures) {
+      const notice = this.assetNotice = new GameModal(this, 'Chưa tải đủ hình ảnh', 460, 230, 'assetLoad', undefined, 'light');
+      const label = this.add.text(0, 0, `Có ${this.loadFailures} hình chưa tải được. Đóng bảng để chơi bằng hình tạm, hoặc thử tải lại.`, { fontFamily: FONT.family, fontSize: '16px', color: css(COLORS.ink) });
+      const retry = new GameButton(this, 0, 0, 'Thử tải lại', () => { const url = new URL(window.location.href); url.searchParams.delete('fresh'); window.location.assign(url); }, 'assetLoad.retry', { h: 44 });
+      notice.body.add([label, retry.text]);
+      notice.onLayout((w, h) => { label.setWordWrapWidth(w); retry.text.setPosition(0, h - 46); });
+      this.modals.register(notice);
+      this.modals.open('assetLoad');
+    }
+
     this.unsubscribeLayout = this.layout.subscribe((f) => {
+      this.assetNotice?.layout(f);
       this.profile.layout(f);
       this.currency.layout(f);
       this.guide.layout(f);
@@ -236,6 +252,8 @@ export class HudScene extends Phaser.Scene {
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       for (const off of this.offs.splice(0)) off();
+      this.assetNotice?.destroy();
+      this.assetNotice = null;
       this.debug?.destroy();
       this.unsubscribeLayout?.();
       this.layout.destroy();

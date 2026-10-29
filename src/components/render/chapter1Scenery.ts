@@ -1,10 +1,13 @@
 import Phaser from 'phaser';
 import { floorDepth, worldToScreen } from '../../utils/iso';
-import { roadDashes, STREET_PAVING, streetPaver, streetKerb } from './streetPaving';
+import { roadDashes, STREET_PAVING, streetPaver, streetKerb, streetAsphalt } from './streetPaving';
+import { asphaltSurface } from './streetMaterial';
+
+export const CITY_BACK_STREET = { near: 20.5, far: 23.5, shops: 24.7 } as const;
 
 /** Quiet ground continues on the same isometric plane. Architecture is never mirrored or tiled as wallpaper. */
 export function drawChapter1Backdrop(scene: Phaser.Scene): void {
-  const key = 'hn:continuous-paving:sample-v1';
+  const key = 'hn:continuous-paving:reference-v2';
   if (!scene.textures.exists(key)) {
     const g = scene.make.graphics({ x: 0, y: 0 }, false);
     g.fillStyle(STREET_PAVING.stone).fillRect(0, 0, 512, 256);
@@ -24,18 +27,12 @@ export function drawChapter1Backdrop(scene: Phaser.Scene): void {
   };
   scene.events.on(Phaser.Scenes.Events.PRE_RENDER, place);
   scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => scene.events.off(Phaser.Scenes.Events.PRE_RENDER, place));
-  // Below the shop row the city opens onto a wide boulevard (two carriageways and a planted median), no buildings:
-  // nothing to draw or keep in memory beyond the playable street.
-  const road = scene.add.graphics().setDepth(floorDepth - 3);
-  const band = (y0: number, y1: number, color: number) => road.fillStyle(color).fillPoints([[-32, y0], [88, y0], [88, y1], [-32, y1]].map(([x, y]) => {
-    const at = worldToScreen({ x: x!, y: y! });
-    return new Phaser.Math.Vector2(at.x, at.y);
-  }), true);
-  band(20.5, 26.1, STREET_PAVING.asphalt);
-  band(26.9, 32.5, STREET_PAVING.asphalt);
-  band(26.1, 26.9, 0xa9bd8f);
-  for (const y of [22.4, 24.25, 28.8, 30.65]) roadDashes(road, -32, 88, y);
-  for (const [y, side] of [[20.5, 1], [26.1, -1], [26.9, 1], [32.5, -1]] as const) streetKerb(road, -32, 88, y, side);
+  // One neighborhood street separates the two south-side blocks, on the same plane as the playable street.
+  const road = scene.add.graphics().setDepth(floorDepth - 2.8);
+  if (!asphaltSurface(scene, -32, 88, CITY_BACK_STREET.near, CITY_BACK_STREET.far, floorDepth - 2.9)) streetAsphalt(road, -32, 88, CITY_BACK_STREET.near, CITY_BACK_STREET.far, 6);
+  roadDashes(road, -32, 88, (CITY_BACK_STREET.near + CITY_BACK_STREET.far) / 2);
+  streetKerb(road, -32, 88, CITY_BACK_STREET.near, 1);
+  streetKerb(road, -32, 88, CITY_BACK_STREET.far, -1);
 }
 
 /** A low garden boundary explains the existing y=17 navigation edge; the city continues behind it. */

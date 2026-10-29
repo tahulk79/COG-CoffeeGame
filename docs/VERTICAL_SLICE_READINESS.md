@@ -1,4 +1,12 @@
+> Hiện hành: người dùng duyệt luồng7; luồng8 đang Review. Build/typecheck đã được cho phép và qua, không test. Phạm vi web+Android, chưa có số đo Android. Xem [luồng8 và gói bàn giao](performance/FLOW8_HANDOFF.md), gồm giới hạn và sửa theo ảnh mới.
+
+> Cập nhật: người dùng đã duyệt luồng6; [luồng7 âm thanh](gameplay/CHAPTER1_AUDIO_REVIEW.md) đang Review chờ nghe duyệt.
+
+> Cập nhật: người dùng đã duyệt luồng5. Luồng6 đang Review; xem [thay đổi và giới hạn kiểm tra](gameplay/CHAPTER1_UI_REVIEW.md).
+
 # Kiểm tra Prototype và yêu cầu bàn giao đồ họa
+
+> Người dùng đã duyệt luồng3 (mỹ thuật đợt16) và luồng4 (cứu hộ) ngày2026-10-29. T-102/T-103 Done theo duyệt; luồng5/T-104 đã có [ma trận12loại/17ca DEV](gameplay/CHAPTER1_INCIDENT_REVIEW.md) ở trạng thái Review chờ duyệt. Việc duyệt từng luồng chưa thay nghiệm thu thiết bị thật và toàn chương.
 
 > **Kế hoạch hiện hành sau khi rà bản mới ngày 2026-10-29:** xem [VERTICAL_SLICE_PLAN.md](VERTICAL_SLICE_PLAN.md), theo dõi T-099–T-108 trong task list. Các mục audit cũ dưới đây lưu diễn biến; không dùng số PNG/danh sách lỗi cũ làm hiện trạng. Master đã tách, runtime WebP khoảng 5,3 MB. T-100 đã gỡ CHAPTER1_ONLY, tiếp tục checkpoint và chuyển S03 → S04 thống nhất; xem ghi nhận triển khai luồng 1 trong kế hoạch. Đang Review, chưa nghiệm thu thiết bị thật.
 
