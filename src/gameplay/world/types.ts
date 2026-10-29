@@ -20,15 +20,10 @@ export interface InteractionDef {
 
 export interface ObjectTypeDef {
   label: string;
-  /** Counts as this brewing station type (a purchased machine works like the built-in one). */
-  station?: string;
   footprint: { w: number; h: number };
   blocking: boolean;
   interaction?: InteractionDef;
 }
-
-/** The brewing station type an object serves as. */
-export const stationOf = (o: { type: string; def: ObjectTypeDef }): string => o.def.station ?? o.type;
 
 export type ObjectTypeTable = Record<string, ObjectTypeDef>;
 
@@ -44,18 +39,14 @@ export interface MapObjectData {
 }
 
 export interface MapData {
-  regionId?: string;
-  businessKind?: 'cafe' | 'farm';
   id: string;
   name: string;
   legend: Record<string, { kind: string; walkable: boolean }>;
   terrain: string[];
   playerStart: TilePos;
   objects: MapObjectData[];
-  /** Named walkable spots for AI (spawn, exit, door, orderPoint, queue, waitSpots…). */
+  /** Named walkable spots (spawn, exit, door…). */
   markers?: Record<string, TilePos[]>;
-  /** M7: maps the player may decorate. Furniture can only be placed inside `area`. */
-  decor?: { area: Footprint[] };
 }
 
 export interface WorldObject {

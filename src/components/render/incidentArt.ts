@@ -1,6 +1,7 @@
-import { drawChapter1Backdrop } from './chapter1Scenery';
-import { roadDashes, streetPaver, streetKerb } from './streetPaving';
+import { CITY_BACK_STREET, drawChapter1Backdrop } from './chapter1Scenery';
+import { roadDashes, streetPaver, streetKerb, streetAsphalt, streetDrain, streetManhole, STREET_PAVING } from './streetPaving';
 import { streetHouses } from './streetLayout';
+import { asphaltSurface } from './streetMaterial';
 import { SLICE_ASSETS, SLICE_STALL_FRAMES, sliceAnimalFrame, sliceCargoBikeFrame, sliceHeroFrame, sliceHeroReactionFrame, appearanceSeed, treeAppearance, sliceMotorbikeFrame } from './sliceAssets';
 import { facingFrom, type Facing } from '../../entities/Actor';
 import Phaser from 'phaser';
@@ -18,7 +19,7 @@ import { SpeechBubble } from './speechBubble';
 export const INK = 0x5a3825;
 export const STREET_BACKGROUND = 0xe7e0d0;
 const STREET_SURFACES = {
-  road: 0x8c989c,
+  road: STREET_PAVING.asphalt,
   sidewalk: [0xeee3ce, 0xe9ddc7, 0xf1e7d5],
   grass: [0xaec28c, 0xa8bd83, 0xb5c995],
 };
@@ -282,6 +283,20 @@ export function bakeImage(scene: Phaser.Scene, key: string, b: { x: number; y: n
 /** A street tree's pit, flat on the pavement: a stone kerb round a square of soil with a few tufts. */
 function treePit(scene: Phaser.Scene, id: string, f: Footprint): void {
   const { x, y } = f, sq = (a: number, b: number) => [[x + a, y + a], [x + b, y + a], [x + b, y + b], [x + a, y + b]];
+  const shadowKey = 'hn:foliage-shadow:v1';
+  if (!scene.textures.exists(shadowKey)) {
+    const g = scene.make.graphics({ x: 0, y: 0 }, false);
+    for (let i = 0; i < 28; i++) {
+      const angle = i * 2.39996, r = Math.sqrt(i / 28) * 72;
+      const sx = 110 + Math.cos(angle) * r, sy = 55 + Math.sin(angle) * r * .43;
+      g.fillStyle(0x343d30, .09).fillEllipse(sx, sy, 30 + i % 3 * 7, 14 + i % 3 * 3);
+      g.fillStyle(0x343d30, .09).fillEllipse(sx + 9, sy + 3, 9, 4);
+    }
+    g.generateTexture(shadowKey, 220, 110);
+    g.destroy();
+  }
+  const at = point(x + .5, y + .5);
+  scene.add.image(at.x + 32, at.y + 18, shadowKey).setScale(.85 + appearanceSeed(id) % 4 * .05).setDepth(floorDepth + .3);
   bakeImage(scene, `hn:treepit:${id}`, screenBox([[x, y], [x + 1, y], [x, y + 1], [x + 1, y + 1]], 8, 4), floorDepth + .5, (g) => {
     face(g, sq(.06, .94), 0xa79f8c, 1, 0);
     face(g, sq(.1, .9), 0xd9d0bd, 1, 1);
@@ -330,7 +345,7 @@ function sliceProp(scene: Phaser.Scene, key: string, frame: number, depth: numbe
 }
 
 /** Shared house art also covers the street extensions and the blocks inside traffic loops. */
-function houseSprite(scene: Phaser.Scene, f: Footprint, height: number, variant: number): boolean {
+function houseSprite(scene: Phaser.Scene, f: Footprint, height: number, variant: number, distant = false): boolean {
   const varied = scene.textures.exists(SLICE_ASSETS.housesVaried.key) && scene.textures.get(SLICE_ASSETS.housesVaried.key).has('5');
   const pick = ((variant % 9) + 9) % 9;
   const key = varied && pick < 6 ? SLICE_ASSETS.housesVaried.key : SLICE_ASSETS.houses.key, frame = String(varied && pick < 6 ? [0, 3, 1, 4, 2, 5][pick] : pick % 3);
@@ -338,7 +353,7 @@ function houseSprite(scene: Phaser.Scene, f: Footprint, height: number, variant:
   const front = point(f.x + f.w, f.y + f.h);
   scene.add.image(front.x, front.y, key, frame).setOrigin(.54, .97)
     .setDisplaySize((f.w + f.h) * 64, height + (f.w + f.h) * 32)
-    .setDepth(f.x + f.w + f.y + f.h - 1);
+    .setDepth(f.x + f.w + f.y + f.h - 1).setTint(distant ? 0xd4d9ce : 0xffffff).setAlpha(distant ? .86 : 1);
   return true;
 }
 
@@ -459,22 +474,34 @@ export function drawIncidentEnvironment(scene: Phaser.Scene, floor: FloorTileVie
   drawChapter1Backdrop(scene);
   drawSky(scene);
   // Everything flat (ground around the map, the map's own floor, markings, beds) is one baked layer.
-  bakeLayer(scene, 'hn:ground:street-v2', screenBox([[LAND_W - 1, ROOFS_FROM - 1], [LAND_E + 1, ROOFS_FROM - 1], [LAND_W - 1, MAP_H + 8], [LAND_E + 1, MAP_H + 8]], 0, 0), floorDepth - .8, (g) => drawGround(g, floor), .6);
+  bakeLayer(scene, 'hn:ground:reference-v5', screenBox([[LAND_W - 1, ROOFS_FROM - 1], [LAND_E + 1, ROOFS_FROM - 1], [LAND_W - 1, MAP_H + 8], [LAND_E + 1, MAP_H + 8]], 0, 0), floorDepth - .8, (g) => drawGround(g, floor, scene.textures.exists(SLICE_ASSETS.asphalt.key)), .6);
+  asphaltSurface(scene, LAND_W, LAND_E, 8, 11, floorDepth - .65);
+  for (const [a, b] of [[5, 8], [11, 17]] as const) {
+    for (const image of asphaltSurface(scene, LAND_W, LAND_E, a, b, floorDepth - .64) ?? []) image.setAlpha(.18).setBlendMode(Phaser.BlendModes.MULTIPLY);
+  }
+  for (const l of [LOOP.w, LOOP.e]) {
+    asphaltSurface(scene, l.x0, l.x1, LOOP.y0, LOOP.plotY0 - .18, floorDepth - .65);
+    asphaltSurface(scene, l.x0, l.x1, LOOP.plotY1 + .18, LOOP.y1, floorDepth - .65);
+    asphaltSurface(scene, l.x0, l.px0 - .18, LOOP.plotY0 - .18, LOOP.plotY1 + .18, floorDepth - .65);
+    asphaltSurface(scene, l.px1 + .18, l.x1, LOOP.plotY0 - .18, LOOP.plotY1 + .18, floorDepth - .65);
+  }
+  drawRoadDetails(scene.add.graphics().setDepth(floorDepth - .5));
   drawStanding(scene);
 }
 
 /** Roof colour under the house rows from this row on; north of it, the sky (see `drawSky`). */
-const SKY_FROM = -3;
+const SKY_FROM = -9;
 const SKY_HORIZON = 0xe2f2f8;
 const ROOFS_FROM = SKY_FROM;
 
-/** Under and between the rows of houses: the horizon's colour, so only sky ever shows past the rooftops. */
+/** Shared ground under each block; the sky belongs beyond the last row, never between two neighboring houses. */
 function roofTile(g: Phaser.GameObjects.Graphics, x: number, y: number): void {
-  face(g, [[x, y], [x + 1, y], [x + 1, y + 1], [x, y + 1]], SKY_HORIZON, 1, 0);
+  if ((y >= 0 && y < 3) || (y >= -5 && y < -3)) streetPaver(g, x, y);
+  else face(g, [[x, y], [x + 1, y], [x + 1, y + 1], [x, y + 1]], 0xd9cdb6, 1, 0);
 }
 
 /** The flat street: around the map, the map floor itself, road markings, the zebra crossing and flower beds. */
-function drawGround(surround: Phaser.GameObjects.Graphics, floor: FloorTileView[]): void {
+function drawGround(surround: Phaser.GameObjects.Graphics, floor: FloorTileView[], textured = false): void {
   // Beyond the map: the road and both sidewalks run on east and west, the decorative city continues outside the playable district.
   for (let y = ROOFS_FROM; y < MAP_H + 8; y++) for (let x = LAND_W; x < LAND_E; x++) {
     if (x >= 0 && x < MAP_W && y >= 0 && y < MAP_H) continue;
@@ -502,24 +529,37 @@ function drawGround(surround: Phaser.GameObjects.Graphics, floor: FloorTileView[
   // Road markings: centre dashes, kerbs, and a zebra crossing in front of the alley.
   const road = surround;
   // Asphalt is one surface, not a checkerboard of individually outlined ground tiles.
-  face(road, [[LAND_W, 8], [LAND_E, 8], [LAND_E, 11], [LAND_W, 11]], STREET_SURFACES.road, 1, 0);
-  const mid = (ROAD_ROWS[0]! + ROAD_ROWS[1]!) / 2;
-  roadDashes(road, LAND_W, LAND_E, mid + .5, (x) => inRange(x, [ALLEY_X0, ALLEY_X1]));
-  // The same kerb the whole length of the street, on both sides (the far one shows its face, the near one only its top).
-  streetKerb(road, LAND_W, LAND_E, ROAD_ROWS[0]!, 1);
-  streetKerb(road, LAND_W, LAND_E, ROAD_ROWS[1]! + 1, -1);
-  for (let x = ALLEY_X0 + 1.1; x < ALLEY_X1 - 1; x += .45) face(road, [[x, ROAD_ROWS[0]! + .15], [x + .22, ROAD_ROWS[0]! + .15], [x + .22, ROAD_ROWS[1]! + .85], [x, ROAD_ROWS[1]! + .85]], 0xffffff, .9, 0);
+  streetAsphalt(road, LAND_W, LAND_E, 8, 11, textured ? 0 : 28);
 
   // A loop road at each end of the street: it goes round a block of houses, and the bikes ride round it and come back the other way.
   const rect = (x0: number, y0: number, x1: number, y1: number) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
   for (const l of [LOOP.w, LOOP.e]) {
-    face(road, rect(l.x0, LOOP.y0, l.x1, LOOP.y1), STREET_SURFACES.road, 1, 0);
-    road.lineStyle(2.5, 0xffffff, .95).strokePoints(rect(l.x0, LOOP.y0, l.x1, LOOP.y1).map(([x, y]) => point(x!, y!)), true);
+    streetAsphalt(road, l.x0, l.x1, LOOP.y0, LOOP.y1, textured ? 0 : 18);
     // The plot in the middle: pavement with a kerb, the houses stand on it.
     face(road, rect(l.px0 - .18, LOOP.plotY0 - .18, l.px1 + .18, LOOP.plotY1 + .18), 0xe9dfc9, 1, 2);
     face(road, rect(l.px0, LOOP.plotY0, l.px1, LOOP.plotY1), 0xf3e7d3, 1, 0);
   }
+  // Contact shadows tie each block to the paving without adding an individual platform under every sprite.
+  for (const h of streetHouses()) {
+    const y = h.y + h.d;
+    face(road, [[h.x, y], [h.x + h.w, y], [h.x + h.w, y + .14], [h.x, y + .14]], 0x594c39, .13, 0);
+  }
+  for (const y of [SOUTH_ROW.y + SOUTH_ROW.d, CITY_BACK_STREET.shops + SOUTH_ROW.d]) {
+    face(road, [[LAND_W, y], [LAND_E, y], [LAND_E, y + .14], [LAND_W, y + .14]], 0x594c39, .13, 0);
+  }
+}
 
+function drawRoadDetails(road: Phaser.GameObjects.Graphics): void {
+  const mid = (ROAD_ROWS[0]! + ROAD_ROWS[1]!) / 2;
+  roadDashes(road, LAND_W, LAND_E, mid + .5, x => inRange(x, [ALLEY_X0, ALLEY_X1]));
+  streetKerb(road, LAND_W, LAND_E, ROAD_ROWS[0]!, 1);
+  streetKerb(road, LAND_W, LAND_E, ROAD_ROWS[1]! + 1, -1);
+  for (let x = ALLEY_X0 + 1.1; x < ALLEY_X1 - 1; x += .45) face(road, [[x, ROAD_ROWS[0]! + .15], [x + .22, ROAD_ROWS[0]! + .15], [x + .22, ROAD_ROWS[1]! + .85], [x, ROAD_ROWS[1]! + .85]], 0xe5dbc2, .8, 0);
+  for (let x = LAND_W + 3; x < LAND_E - 1; x += 8) {
+    streetDrain(road, x, 8.06);
+    streetDrain(road, x + 3.1, 10.68);
+    streetManhole(road, x + 1.4, 7.35);
+  }
 }
 
 const EATERY_WALLS = [0xf2e2a0, 0xf6c7b4, 0xc9ecd9, 0xfff0c9, 0xe8d6ad, 0xd6ddd8] as const;
@@ -527,7 +567,7 @@ const EATERY_STRIPES = [0xd45a45, 0x3c8f86, 0xd99a3e, 0x4a7fae, 0xb5556f] as con
 const SHOP_ROOFS = [0x9aa7a0, 0xb06a52, 0x88a08f, 0xa98e6c] as const;
 const SOUTH_SHOPS = ['Phở gà', 'Lẩu', 'Cơm rang', 'Bánh cuốn', 'Trà chanh', 'Bún ốc', 'Ốc luộc', 'Miến lươn', 'Tạp hóa', 'Bánh tôm'] as const;
 /** The south shop row: from the street's kerb side of the shops (y) to their back, one-storey high. */
-const SOUTH_ROW = { y: 17.05, d: 1.6, w: 2.3, gap: .3, height: 44 } as const;
+const SOUTH_ROW = { y: 17.05, d: 1.6, w: 2.3, gap: .12, height: 44 } as const;
 
 /**
  * A one-storey shop on the south side, seen from behind (the camera looks over it at the street): a plastered
@@ -579,17 +619,32 @@ function shopSign(scene: Phaser.Scene, at: Phaser.Math.Vector2, name: string, co
 /** South shops, per scene: their images and signs fade while the hero is behind them. */
 const southShops = new WeakMap<Phaser.Scene, Array<{ parts: Array<Phaser.GameObjects.Image | Phaser.GameObjects.Text>; depth: number; x0: number; x1: number; y0: number; y1: number }>>();
 
-function southShopRow(scene: Phaser.Scene): void {
+function southShopRow(scene: Phaser.Scene, backdrop = false): void {
   const list: NonNullable<ReturnType<typeof southShops.get>> = [];
-  const { y, d, w, gap, height } = SOUTH_ROW;
+  const { d, w, gap, height } = SOUTH_ROW, y = backdrop ? CITY_BACK_STREET.shops : SOUTH_ROW.y;
   for (let x = LAND_W, k = 0; x + w <= LAND_E; x += w + gap, k++) {
     const wall = EATERY_WALLS[k % EATERY_WALLS.length]!, stripe = EATERY_STRIPES[(k * 2) % EATERY_STRIPES.length]!, depth = x + w + y + d - 1;
-    const box = screenBox([[x, y - .6], [x + w, y - .6], [x, y + d], [x + w, y + d]], height + 30, 12);
-    const img = bakeImage(scene, `hn:shop:s2:${k}`, box, depth, (g) => backShop(g, x, y, w, d, height, wall, stripe, SHOP_ROOFS[k % SHOP_ROOFS.length]!, k));
-    const sign = shopSign(scene, point(x + w / 2, y + d * .5, height + 14), SOUTH_SHOPS[k % SOUTH_SHOPS.length]!, stripe, depth + .001);
+    let box = screenBox([[x, y - .6], [x + w, y - .6], [x, y + d], [x + w, y + d]], height + 30, 12);
+    const variant = [0, 3, 1, 4, 2, 5, 3, 0, 5, 2, 4, 1][(k + (backdrop ? 5 : 0)) % 12]!;
+    const frontReady = !backdrop && scene.textures.exists(SLICE_ASSETS.shopfronts.key) && scene.textures.get(SLICE_ASSETS.shopfronts.key).has('3');
+    const sample = frontReady ? SLICE_ASSETS.shopfronts : variant < 2 ? variant ? SLICE_ASSETS.southShopTin : SLICE_ASSETS.southShopTile : SLICE_ASSETS.southShopsVaried;
+    const frameName = frontReady ? String([1, 0, 3, 2, 0, 1, 2, 3, 1, 3, 0, 2][k % 12]) : variant < 2 ? '0' : String(variant - 2);
+    let img: Phaser.GameObjects.Image;
+    if (scene.textures.exists(sample.key) && scene.textures.get(sample.key).has(frameName)) {
+      const at = point(x + w, y + d), frame = scene.textures.getFrame(sample.key, frameName);
+      const width = (w + d) * 64;
+      img = scene.add.image(at.x, at.y, sample.key, frameName).setOrigin(frontReady ? .58 : .59, frontReady ? .98 : .99)
+        .setDisplaySize(width, width * frame.realHeight / frame.realWidth).setDepth(depth);
+      const bounds = img.getBounds();
+      box = { x: bounds.x, y: bounds.y, w: bounds.width, h: bounds.height };
+    } else img = bakeImage(scene, `hn:shop:s2:${k}`, box, depth, (g) => backShop(g, x, y, w, d, height, wall, stripe, SHOP_ROOFS[k % SHOP_ROOFS.length]!, k));
+    if (backdrop) continue;
+    if (frontReady) { list.push({ parts: [img], depth, x0: box.x, x1: box.x + box.w, y0: box.y, y1: box.y + box.h }); continue; }
+    const signAt = img.texture.key === sample.key ? new Phaser.Math.Vector2(img.x, box.y - 6) : point(x + w / 2, y + d * .5, height + 14);
+    const sign = shopSign(scene, signAt, SOUTH_SHOPS[k % SOUTH_SHOPS.length]!, stripe, depth + .001);
     list.push({ parts: [img, sign], depth, x0: box.x, x1: box.x + box.w, y0: box.y, y1: box.y + box.h });
   }
-  southShops.set(scene, list);
+  if (!backdrop) southShops.set(scene, list);
 }
 
 /** The hero behind a south shop (it is drawn in front of them): the shop goes see-through so they stay visible. */
@@ -610,7 +665,7 @@ function drawStanding(scene: Phaser.Scene): void {
   const walls = [0xe8d6ad, 0xf0e4ca, 0xc5d6c6, 0xe4c5b1, 0xd6ddd8];
   const signs = [0xb9684f, 0x5d9692, 0xd0aa5c, 0x809c72, 0xb78a7f];
   for (const h of streetHouses()) {
-    if (houseSprite(scene, { x: h.x, y: h.y, w: h.w, h: h.d }, h.height, h.variant)) continue;
+    if (houseSprite(scene, { x: h.x, y: h.y, w: h.w, h: h.d }, h.height, h.variant, !!h.back)) continue;
     const corners: Array<[number, number]> = [[h.x, h.y], [h.x + h.w, h.y], [h.x, h.y + h.d], [h.x + h.w, h.y + h.d]];
     bakeLayer(scene, `hn:houses:${h.variant}`, screenBox(corners, h.height + 16, 12), h.x + h.w + h.y + h.d - 1, city => {
       tubeHouse(city, h.x, h.y, h.w, h.d, h.height, walls[h.variant % walls.length]!, signs[h.variant % signs.length]!);
@@ -618,6 +673,7 @@ function drawStanding(scene: Phaser.Scene): void {
   }
   // The south side of the street: one-storey eateries and shops all along (low, so they never wall off the street).
   southShopRow(scene);
+  southShopRow(scene, true);
   // The block of houses in the middle of each loop.
   for (const [key, l, wall, sign] of [['w', LOOP.w, 0xf6d77a, 0xe2513f], ['e', LOOP.e, 0xc9ecd9, 0x5ec8f2]] as const) {
     if (houseSprite(scene, { x: l.px0 + .2, y: LOOP.plotY0 + .2, w: l.px1 - l.px0 - .4, h: LOOP.plotY1 - LOOP.plotY0 - .4 }, 156, key === 'w' ? 0 : 2)) continue;
@@ -1065,6 +1121,8 @@ export class IncidentRunView {
     const z = this.scene.cameras.main.zoom;
     for (const h of run?.hazards ?? []) {
       if (!h.label || h.phase === 'gone' || run?.hit) continue;
+      const at = point(h.x, h.y), view = this.scene.cameras.main.worldView;
+      if (!view.contains(at.x, at.y)) continue;
       want.add(h.id);
       let b = this.bubbles.get(h.id);
       if (!b) {
@@ -1075,7 +1133,11 @@ export class IncidentRunView {
       const p = point(h.x, h.y);
       const lift = h.kind === 'pigeons' || h.kind === 'shuttlecock' || h.kind === 'slipper' ? 96 : h.kind === 'dog' && h.phase === 'active' ? 78 : 64;
       // World text shrinks with the camera; keep the bubble readable on a zoomed-out PC view.
-      b.setScale(Math.max(1, Math.min(2.4, 1 / z))).setPosition(p.x, p.y - lift - Math.abs(Math.sin(this.scene.time.now / 120)) * 4);
+      b.setScale(1 / z);
+      const pad = 8 / z, halfW = b.width / z / 2;
+      const x = Phaser.Math.Clamp(p.x, view.x + halfW + pad, view.right - halfW - pad);
+      const y = Phaser.Math.Clamp(p.y - lift, view.y + (b.height + 72) / z, view.bottom - pad);
+      b.setCardOffsetX((x - p.x) * z).setPosition(p.x, y);
     }
     for (const [id, b] of this.bubbles) if (!want.has(id)) { b.destroy(); this.bubbles.delete(id); }
   }

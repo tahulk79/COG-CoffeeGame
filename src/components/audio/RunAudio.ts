@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import type { StreetView } from '../../gameplay/story/StreetService';
 import type { HazardKind, RunView } from '../../gameplay/story/RunService';
 
 /**
@@ -19,12 +20,27 @@ export class RunAudio {
   private nextNote = 0;
   private step = 0;
   private bpm = 112;
+  private paused = false;
+  private readonly voices = new Set<OscillatorNode | AudioBufferSourceNode>();
+  private lastFoot = 0;
+  private lastStreet = 0;
+  private lastSiren = 0;
+  private carried = false;
+  private down = false;
+  private loaded = false;
+  private portal = false;
+  private wheel = false;
+  private boom = false;
+  private readonly visibility = () => {
+    if (document.hidden) { this.stopVoices(); this.out?.gain.setValueAtTime(0, this.ctx!.currentTime); }
+    if (this.ctx) this.nextNote = this.ctx.currentTime + .1;
+  };
   /**
    * Browsers only start audio from a user gesture. Phaser waits for a `mousedown`
    * on the page, but its own pointer handling suppresses that event, so a tap
    * never unlocked sound: resume the context on any pointer / key / touch ourselves.
    */
-  private readonly resume = () => { if (this.ctx && this.ctx.state !== 'running') void this.ctx.resume(); };
+  private readonly resume = () => { if (this.ctx && !document.hidden && this.ctx.state !== 'running') void this.ctx.resume().catch(() => undefined); };
 
   constructor(private readonly scene: Phaser.Scene) {
     const sm = scene.sound;
@@ -36,25 +52,56 @@ export class RunAudio {
     this.limiter.threshold.value = -14;
     this.limiter.knee.value = 8;
     this.limiter.ratio.value = 6;
-    this.limiter.connect(this.ctx.destination);
+    this.limiter.connect((sm as Phaser.Sound.WebAudioSoundManager).destination);
     this.out = this.ctx.createGain();
     this.out.gain.value = OUT_GAIN;
     this.out.connect(this.limiter);
     this.music = this.ctx.createGain();
-    this.music.gain.value = 0.7;
+    this.music.gain.value = 0.32;
     this.music.connect(this.out);
+    document.addEventListener('visibilitychange', this.visibility);
     for (const ev of ['pointerdown', 'pointerup', 'keydown', 'touchend'] as const) window.addEventListener(ev, this.resume, { capture: true });
   }
 
   /** Called every frame with the run's view: plays what changed. */
-  sync(run: RunView | null): void {
+  sync(run: RunView | null, street: StreetView | null = null, moving = false, paused = false): void {
     if (!this.ctx || !this.out) return;
-    this.out.gain.value = this.scene.sound.mute ? 0 : OUT_GAIN;
+    if (paused && !this.paused) this.stopVoices();
+    this.paused = paused;
+    this.out.gain.value = this.scene.sound.mute || paused || document.hidden ? 0 : OUT_GAIN;
     if (!run) return;
+    if (street && !paused && !document.hidden) {
+      const now = street.elapsedMs;
+      if (moving && !run.hit && !run.down && now - this.lastFoot > 330) {
+        this.lastFoot = now; this.noise(.035, .035, 'lowpass', 650, 300);
+      }
+      if (now - this.lastStreet > 6500) {
+        this.lastStreet = now;
+        this.noise(1.4, .025, 'lowpass', 450, 220);
+        this.glide(180, 95, 1.1, 'triangle', .02);
+      }
+      const van = street.npcs.find(n => n.look === 'ambulance');
+      if (van?.moving && now - this.lastSiren > 1500) {
+        this.lastSiren = now;
+        this.glide(620, 860, .45, 'sine', .07);
+        this.glide(860, 620, .45, 'sine', .07, .45);
+      }
+      // BÙM: the hero is knocked down on the street (a bike's crunch, a thud, a squeal of tyres).
+      if (street.heroDown && !this.down) { this.thud(); this.noise(.3, .3, 'bandpass', 1800, 500); this.glide(900, 300, .25, 'sawtooth', .08); }
+      this.down = street.heroDown;
+      if (street.carried && !this.carried) this.tone(330, .12, 'triangle', .09);
+      if (street.heroHidden && !this.loaded) this.thud();
+      if (street.wheel && !this.wheel) this.glide(450, 180, .5, 'triangle', .08);
+      if (street.boom && !this.boom) this.thud();
+      if (street.portal && !this.portal) [330, 440, 660].forEach((f, i) => this.tone(f, .8, 'sine', .07, i * .12));
+      this.carried = street.carried; this.loaded = street.heroHidden;
+      this.wheel = !!street.wheel; this.boom = !!street.boom; this.portal = !!street.portal;
+    }
     // Music starts as soon as the street is on screen, before the first move. If the browser holds
     // sound back until a gesture, the context resumes on the first key / tap (see `resume`).
     if (run.running && this.timer === null) this.startMusic();
     this.bpm = 112 + Math.min(1, run.aliveMs / 90000) * 44;
+    if (run.paused || paused || document.hidden) return;
     for (const h of run.hazards) {
       const prev = this.seen.get(h.id);
       if (prev === h.phase) continue;
@@ -99,7 +146,7 @@ export class RunAudio {
 
   private die(k: HazardKind): void {
     if (k === 'sinkhole') this.glide(900, 70, 1.2, 'sine', 0.3);
-    else if (k === 'pigeons' || k === 'motorbike') this.glide(300, 1200, 0.9, 'triangle', 0.22);
+    else if (k === 'pigeons' || k === 'motorbike') { if (k === 'motorbike') this.thud(); this.glide(300, 1200, 0.9, 'triangle', 0.22); }
     else if (k === 'banana') { this.glide(300, 900, 0.3, 'sine', 0.2); this.thud(0.5); }
     else if (k === 'cat') {
       // Hiss, then scratch, scratch, scratch.
@@ -131,6 +178,8 @@ export class RunAudio {
   /** A sunny pentatonic loop: bass on the beat, a bouncy melody, hats on the offbeat. */
   private schedule(): void {
     const ctx = this.ctx!;
+    if (this.paused || document.hidden || this.scene.sound.mute || ctx.state !== 'running') { this.nextNote = ctx.currentTime + .1; return; }
+    this.nextNote = Math.max(this.nextNote, ctx.currentTime);
     const MEL = [0, 2, 4, 7, 9, 7, 4, 2, 4, 7, 9, 12, 9, 7, 4, -1];
     const BASS = [0, 0, 7, 7, 5, 5, 7, 4];
     const root = 262;
@@ -156,8 +205,8 @@ export class RunAudio {
 
   private glide(from: number, to: number, dur: number, type: OscillatorType, vol: number, delay = 0, dest: AudioNode = this.out!): void {
     const ctx = this.ctx;
-    if (!ctx) return;
-    const t = ctx.currentTime + delay;
+    if (!ctx || this.paused || document.hidden || this.scene.sound.mute || ctx.state !== 'running') return;
+    const t = ctx.currentTime + Math.max(0, delay);
     const o = ctx.createOscillator(), g = ctx.createGain();
     o.type = type;
     o.frequency.setValueAtTime(from, t);
@@ -166,15 +215,16 @@ export class RunAudio {
     g.gain.exponentialRampToValueAtTime(vol, t + 0.01);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     o.connect(g).connect(dest);
+    this.voices.add(o);
     o.start(t);
     o.stop(t + dur + 0.02);
-    o.onended = () => { o.disconnect(); g.disconnect(); };
+    o.onended = () => { this.voices.delete(o); o.disconnect(); g.disconnect(); };
   }
 
   private noise(dur: number, vol: number, kind: BiquadFilterType, from: number, to: number, delay = 0, dest: AudioNode = this.out!): void {
     const ctx = this.ctx;
-    if (!ctx) return;
-    const t = ctx.currentTime + delay;
+    if (!ctx || this.paused || document.hidden || this.scene.sound.mute || ctx.state !== 'running') return;
+    const t = ctx.currentTime + Math.max(0, delay);
     const buf = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * dur), ctx.sampleRate);
     const d = buf.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
@@ -186,8 +236,9 @@ export class RunAudio {
     g.gain.setValueAtTime(vol, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     src.connect(flt).connect(g).connect(dest);
+    this.voices.add(src);
     src.start(t);
-    src.onended = () => { src.disconnect(); flt.disconnect(); g.disconnect(); };
+    src.onended = () => { this.voices.delete(src); src.disconnect(); flt.disconnect(); g.disconnect(); };
   }
 
   private bark(delay: number): void {
@@ -200,9 +251,17 @@ export class RunAudio {
     this.noise(0.12, 0.25, 'lowpass', 500, 100, delay);
   }
 
+  private stopVoices(): void {
+    for (const voice of this.voices) { try { voice.stop(); } catch { /* already ended */ } }
+    this.voices.clear();
+  }
+
   destroy(): void {
+    document.removeEventListener('visibilitychange', this.visibility);
+    this.stopVoices();
     for (const ev of ['pointerdown', 'pointerup', 'keydown', 'touchend'] as const) window.removeEventListener(ev, this.resume, { capture: true });
     this.stopMusic();
+    this.music?.disconnect();
     this.out?.disconnect();
     this.limiter?.disconnect();
   }

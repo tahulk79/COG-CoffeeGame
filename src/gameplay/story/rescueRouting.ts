@@ -2,7 +2,7 @@ import type { NavGrid } from '../../systems/navigation/NavGrid';
 import { NavigationService } from '../../systems/navigation/NavigationService';
 import { hasClearance } from '../../systems/navigation/smoothing';
 import type { Rect } from '../../systems/camera/framing';
-import { worldToTile, type WorldPos } from '../../utils/tile';
+import { worldToTile, type WorldPos, type Footprint } from '../../utils/tile';
 
 export interface RescueRoute {
   dir: number;
@@ -24,7 +24,7 @@ export function vanBody(park: WorldPos, vertical: boolean): { x: number; y: numb
 export const DOOR_OUT = 1.1;
 
 /** Roads are authored vehicle access, while the live grid accounts for walls and props. */
-export function planRescue(grid: NavGrid, hero: WorldPos, lanes: number[], access: Rect[] = []): RescueRoute | null {
+export function planRescue(grid: NavGrid, hero: WorldPos, lanes: number[], access: Rect[] = [], canReach?: (door: WorldPos, body: Footprint) => boolean): RescueRoute | null {
   const preferredDir = hero.x > grid.width / 2 ? -1 : 1;
   // Lying against something (half on a tree's tile, say): the medics head for the nearest free tile instead.
   const t = worldToTile(hero);
@@ -61,6 +61,7 @@ export function planRescue(grid: NavGrid, hero: WorldPos, lanes: number[], acces
       const parked = grid.clone();
       parked.addBlocker(vanBody(c.park, c.axis === 'y'));
       if (!new NavigationService(parked, 0.25).planTo(door, [reach])) continue;
+      if (canReach && !canReach(door, vanBody(c.park, c.axis === 'y'))) continue;
       // From past the street end (through the boom), never popping up in the middle of the street.
       const entryX = dir > 0 ? -3 : grid.width + 3;
       return { dir, lane, park: c.park, door, approach: [{ x: entryX, y: lane }, ...(c.junction ? [junction] : []), c.park], exit: c.junction ? [junction] : [] };

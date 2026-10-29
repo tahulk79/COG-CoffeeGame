@@ -144,7 +144,7 @@ interface Hazard extends HazardView {
 export const RUN_BODY_RADIUS = 0.25;
 const R = RUN_BODY_RADIUS;
 /** How close the hero gets to another person (tile units). */
-const PERSON_GAP = 0.45;
+const PERSON_GAP = 0.7;
 /** Blocked by the corner of something: a sidestep this long (tiles) round it is taken on its own. */
 const CORNER_SLIP = 1;
 /** Going round someone or something, the hero keeps to the chosen side this long (ms). */
@@ -163,6 +163,8 @@ const NEAR_HOUSES_Y = 8.4;
 export class RunService {
   private hazards: Hazard[] = [];
   private nextId = 1;
+  /** Only enabled by the developer review screen; ordinary spawning is suspended. */
+  reviewing = false;
   private spawnIn = 2500;
   private aliveMs = 0;
   private steer = { x: 0, y: 0 };
@@ -207,6 +209,7 @@ export class RunService {
 
   start(): void {
     this.hazards = [];
+    this.reviewing = false;
     this.aliveMs = 0;
     this.spawnIn = 2500;
     this.hit = null;
@@ -227,6 +230,27 @@ export class RunService {
       this.phase = 'chaos';
       this.spawnIn = this.config.firstGagMs ?? 700;
     } else this.setFence(true);
+  }
+
+  /** Developer-only caller: a fresh isolated encounter, paused until the player starts. */
+  reviewHazard(kind: HazardKind, branch = 'base'): void {
+    this.start();
+    this.startChaos();
+    this.reviewing = true;
+    this.player.clearWaypoints();
+    this.player.pos = { x: 22.5, y: 7.5 };
+    this.player.faceTowards({ x: 23.5, y: 7.5 });
+    if (kind === 'chickens' || ((kind === 'banana' || kind === 'sinkhole') && branch === 'twist')) {
+      this.add(kind, { x: 25.5, y: 7.5, warnMs: 1200, twist: true });
+    } else this.add(kind);
+    const h = this.hazards[0];
+    if (!h) return;
+    h.warnMs = Math.max(1200, h.warnMs);
+    if (kind === 'motorbike') Object.assign(h, { x: 17, y: 9.5, dx: 1, dy: 0 });
+    if (kind === 'pigeons' || kind === 'shuttlecock') Object.assign(h, { x: 17, y: 7.5, dx: 1, dy: 0 });
+    if (kind === 'pigeons' && branch === 'bread') { h.bread = true; h.label = this.script.hazards.pigeons?.bread ?? h.label; }
+    if (kind === 'durian' && branch === 'smell') Object.assign(h, { x: 23.5, y: 7.5 });
+    if (kind === 'slipper' && branch === 'return') Object.assign(h, { x: 27, y: 7.5, ox: 17, oy: 7.5, dx: -1, dy: 0, back: true, twist: true, label: this.script.hazards.slipper?.twist ?? h.label });
   }
 
   /** Rush hour: the fence comes down and the hazards start. */
@@ -364,7 +388,7 @@ export class RunService {
 
   /** Knocked out by something the street plays (the motorbike past the barrier): like a gag hit, lying longer. */
   crash(kind: HazardKind, line: string, downMs: number): void {
-    if (this.dying) return;
+    if (this.dying || this.reviewing) return;
     this.koOverride = { line, downMs };
     const p = this.player.pos;
     this.knock(kind, { ...p } as Hazard);
@@ -497,14 +521,16 @@ export class RunService {
   // ── hazards ─────────────────────────────────────────────────────────────
 
   private spawn(dt: number): void {
+    if (this.reviewing) return;
     this.spawnIn -= dt;
     if (this.spawnIn > 0 || this.hazards.filter((h) => h.phase !== 'gone').length >= this.config.maxHazards) return;
     const c = this.config;
     this.spawnIn = c.spawnStartMs + (c.spawnMinMs - c.spawnStartMs) * this.ramp;
     const n = this.aliveMs / 1000 >= c.rushSec ? 2 : 1;
     for (let i = 0; i < n; i++) {
+      if (this.hazards.filter(h => h.phase !== 'gone').length >= c.maxHazards) break;
       const kind = this.deal();
-      if (kind) this.add(kind);
+      if (kind && !this.add(kind)) this.spawnIn = Math.min(this.spawnIn, 400);
     }
   }
 
@@ -526,7 +552,7 @@ export class RunService {
     if (!this.deck.some(canCome)) {
       const round = (Object.keys(c.unlockSec) as HazardKind[]).filter(unlocked);
       for (let i = round.length - 1; i > 0; i--) { const j = Math.floor(this.random() * (i + 1)); [round[i], round[j]] = [round[j]!, round[i]!]; }
-      this.deck.push(...round);
+      this.deck.push(...round.filter(k => !this.deck.includes(k)));
     }
     const eligible = this.deck.filter(canCome);
     const least = Math.min(...eligible.map(k => this.script.seen?.(k) ?? 0));
@@ -534,7 +560,8 @@ export class RunService {
     return i < 0 ? null : this.deck.splice(i, 1)[0]!;
   }
 
-  private add(kind: HazardKind, at?: WorldPos & { warnMs?: number; twist?: boolean }): void {
+  private add(kind: HazardKind, at?: WorldPos & { warnMs?: number; twist?: boolean }): boolean {
+    if (this.hazards.filter(h => h.phase !== 'gone').length >= this.config.maxHazards) return false;
     const p = this.player.pos;
     const ahead = this.steering ? this.steer : facingVector(this.player);
     const text = this.script.hazards[kind];
@@ -545,7 +572,7 @@ export class RunService {
       // A twist: right where the dodge took the hero, with a short warning.
       this.hazards.push({ ...base, x: at.x, y: at.y, warnMs: at.warnMs ?? 400, activeMs: kind === 'chickens' ? 4500 : kind === 'banana' ? 14000 : 4000 });
       this.script.markSeen?.(kind);
-      return;
+      return true;
     }
     switch (kind) {
       case 'cat':
@@ -575,7 +602,9 @@ export class RunService {
         const lead = this.steering ? 0.8 : 0;
         // Water and laundry fall from the houses: on the north sidewalk.
         const y = kind === 'durian' ? p.y + ahead.y * lead : Math.min(p.y + ahead.y * lead, 7.6);
-        this.hazards.push({ ...base, x: p.x + ahead.x * lead + rnd(-0.3, 0.3), y: y + rnd(-0.3, 0.3), warnMs: kind === 'durian' ? 1400 : 1200, activeMs: 250 });
+        const target = { x: p.x + ahead.x * lead + rnd(-0.3, 0.3), y: y + rnd(-0.3, 0.3) };
+        const pos = this.encounterClear(target) ? target : this.walkableNear(target);
+        if (pos) this.hazards.push({ ...base, ...pos, warnMs: kind === 'durian' ? 1400 : 1200, activeMs: 250 });
         break;
       }
       case 'motorbike': {
@@ -615,7 +644,7 @@ export class RunService {
       }
       case 'banana': {
         const pos = this.walkableNear({ x: p.x + ahead.x * rnd(3, 5) + rnd(-1, 1), y: p.y + ahead.y * rnd(3, 5) + rnd(-1, 1) });
-        if (pos && Math.hypot(pos.x - p.x, pos.y - p.y) > 2) this.hazards.push({ ...base, ...pos, warnMs: 300, activeMs: 14000 });
+        if (pos && Math.hypot(pos.x - p.x, pos.y - p.y) > 2) this.hazards.push({ ...base, ...pos, warnMs: 800, activeMs: 14000 });
         break;
       }
       case 'chickens':
@@ -624,14 +653,21 @@ export class RunService {
     if (this.hazards.length > before) this.script.markSeen?.(kind);
     // Later in the run the telegraphs get shorter.
     const scale = 1 - (1 - this.config.minWarnScale) * this.ramp;
-    for (const h of this.hazards.slice(before)) h.warnMs *= scale;
+    for (const h of this.hazards.slice(before)) h.warnMs = Math.max(600, h.warnMs * scale);
+    return this.hazards.length > before;
+  }
+
+  private encounterClear(p: WorldPos): boolean {
+    return hasClearance(this.grid, p, p, .65)
+      && (this.script.props?.() ?? []).every(o => Math.hypot(p.x - o.x, p.y - o.y) >= o.r + .7)
+      && (this.script.people?.() ?? []).every(o => Math.hypot(p.x - o.x, p.y - o.y) >= .8);
   }
 
   private walkableNear(p: WorldPos): WorldPos | null {
     for (let r = 0; r < 4; r++) for (let i = 0; i < 8; i++) {
       const a = (i / 8) * Math.PI * 2;
       const t = worldToTile({ x: p.x + Math.cos(a) * r, y: p.y + Math.sin(a) * r });
-      if (this.grid.inBounds(t) && this.grid.isWalkable(t)) return { x: t.x + 0.5, y: t.y + 0.5 };
+      if (this.grid.inBounds(t) && this.encounterClear({ x: t.x + .5, y: t.y + .5 })) return { x: t.x + 0.5, y: t.y + 0.5 };
     }
     return null;
   }
@@ -661,7 +697,7 @@ export class RunService {
     h.t = Math.min(1, h.ms / h.activeMs);
     const p = this.player.pos;
     const d = Math.hypot(p.x - h.x, p.y - h.y);
-    const s = dt / 1000;
+    const s = dt / 1000, before = { x: h.x, y: h.y };
     switch (h.kind) {
       case 'cat':
       case 'chickens':
@@ -699,14 +735,14 @@ export class RunService {
         h.y += h.dy * 8 * s;
         // Lane-relative: across the lane (`side`) and along it (`along`), for each of the three bikes.
         for (const off of [0, -1.3, -2.6]) {
-          const side = h.dx ? p.y - h.y : p.x - h.x, along = h.dx ? p.x - (h.x + off * h.dx) : p.y - (h.y + off * h.dy);
-          if (Math.abs(side) < 0.5 && Math.abs(along) < 0.6) return this.hurt('motorbike', h);
+          const from = { x: before.x + off * h.dx, y: before.y + off * h.dy };
+          const to = { x: h.x + off * h.dx, y: h.y + off * h.dy };
+          if (sweptTouch(p, from, to, .5)) return this.hurt('motorbike', h);
         }
         // Dodged the bikes… but the last one's crate of chickens bursts open right by you.
         if (!h.twisted && (h.dx ? (p.x - h.x) * h.dx < -3.2 : (p.y - h.y) * h.dy < -3.2) && Math.abs(h.dx ? p.y - h.y : p.x - h.x) < 3.5) {
-          h.twisted = true;
           const at = this.walkableNear({ x: h.x - h.dx * 2.6, y: h.y - h.dy * 2.6 });
-          if (at && !this.hazards.some((o) => o.kind === 'chickens')) this.add('chickens', { ...at, warnMs: 500, twist: true });
+          if (at && !this.hazards.some((o) => o.kind === 'chickens') && this.add('chickens', { ...at, warnMs: 500, twist: true })) h.twisted = true;
         }
         if (h.x < -6 || h.x > this.size.w + 6 || h.y < -6 || h.y > this.size.h + 6) this.gone(h);
         break;
@@ -722,14 +758,14 @@ export class RunService {
         }
         h.x += h.dx * v * s;
         h.y += h.dy * v * s;
-        if (h.kind === 'shuttlecock' ? d < REACH.shuttlecock! : Math.abs(h.dx ? p.y - h.y : p.x - h.x) < 0.55 && Math.abs(h.dx ? p.x - h.x : p.y - h.y) < 0.8) return this.hurt(h.kind, h);
+        if (sweptTouch(p, before, h, h.kind === 'shuttlecock' ? REACH.shuttlecock! : .55)) return this.hurt(h.kind, h);
         if (h.x < -4 || h.y < -4 || h.x > this.size.w + 4 || h.y > this.size.h + 4 || (h.kind === 'shuttlecock' && h.ms > 2500)) this.gone(h);
         break;
       }
       case 'slipper': {
         h.x += h.dx * 7 * s;
         h.y += h.dy * 7 * s;
-        if (d < REACH.slipper!) return this.hurt('slipper', h);
+        if (sweptTouch(p, before, h, REACH.slipper!)) return this.hurt('slipper', h);
         const out = Math.hypot(h.x - h.ox, h.y - h.oy);
         if (!h.back && out >= h.reach) {
           // Turns round mid-air and comes back the same way.
@@ -746,9 +782,8 @@ export class RunService {
     if ((h.kind === 'banana' || h.kind === 'sinkhole') && !h.twisted) {
       if (d < 1.8) h.near = true;
       else if (h.near && d > 2.4) {
-        h.twisted = true;
         const at = this.aheadOfHero(h.kind === 'banana' ? 1.4 : 1.8);
-        if (at) this.add(h.kind, { ...at, warnMs: h.kind === 'banana' ? 150 : 450, twist: true });
+        if (at && this.add(h.kind, { ...at, warnMs: 600, twist: true })) h.twisted = true;
       }
     }
     // Left far behind: the animals give up the chase.
@@ -828,4 +863,11 @@ function facingVector(a: Actor): { x: number; y: number } {
   const [x, y] = FACING_VEC[a.facing] ?? [0, 1];
   const l = Math.hypot(x, y);
   return { x: x / l, y: y / l };
+}
+
+/** Distance to the whole movement segment, so fast projectiles cannot skip over the hero. */
+function sweptTouch(p: WorldPos, from: WorldPos, to: WorldPos, radius: number): boolean {
+  const dx = to.x - from.x, dy = to.y - from.y, length2 = dx * dx + dy * dy;
+  const t = length2 ? Math.max(0, Math.min(1, ((p.x - from.x) * dx + (p.y - from.y) * dy) / length2)) : 0;
+  return Math.hypot(p.x - from.x - t * dx, p.y - from.y - t * dy) < radius;
 }

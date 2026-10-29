@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { H5_ASSETS, HERO_FACINGS, plotAnchorY, worldSprite, terrainFrame, addTerrainTile, terrainRepeat } from './h5Assets';
+import { H5_ASSETS, HERO_FACINGS, worldSprite, terrainFrame, addTerrainTile, terrainRepeat } from './h5Assets';
 import { treeAppearance, SLICE_TREE_NAMES } from './sliceAssets';
 import { STORY_ASSETS } from './storyAssets';
 import { bakeGardenObject, drawGardenEnvironment, GARDEN_BACKGROUND, STONE_COLOR } from './gardenArt';
@@ -7,7 +7,7 @@ import { bakeIncidentObject, drawIncidentEnvironment, drawIncidentObject, Incide
 import { actorDepth, floorDepth, footprintDepth, worldToScreen, type ScreenPos } from '../../utils/iso';
 import type { Footprint, TilePos, WorldPos } from '../../utils/tile';
 import { DEFAULT_STYLE, FEEDBACK_COLORS, PLACEHOLDER_STYLES, PLACEHOLDER_VARIANTS, PLAYER_COLOR, TERRAIN_COLORS } from './placeholderStyles';
-import type { ActorView, ActorViewState, FeedbackKind, FloorTileView, ObjectViewData, ObjectVisual, PlacementPreview, WorldRenderer } from './WorldRenderer';
+import type { ActorView, ActorViewState, FeedbackKind, FloorTileView, ObjectViewData, ObjectVisual, WorldRenderer } from './WorldRenderer';
 import { debugFlags } from '../../ui/theme/debugFlags';
 import { createIcon } from '../../ui/theme/assetRegistry';
 import { COLORS, css, dur, FONT, MOTION } from '../../ui/theme/tokens';
@@ -48,8 +48,6 @@ interface ObjectEntry {
   sprite?: Phaser.GameObjects.Image;
   /** Chapter-1 street objects: drawn once into an image (a Graphics would be re-drawn every frame). */
   baked?: Phaser.GameObjects.Image | null;
-  /** Padlock on a plot that is not bought yet. */
-  lock?: Phaser.GameObjects.Image;
   data: ObjectViewData;
   depth: number;
   box: Phaser.GameObjects.Graphics;
@@ -61,7 +59,6 @@ interface ObjectEntry {
   /** Showing state (growth %, machine progress) rather than just a name: always visible. */
   captioned: boolean;
   focused: boolean;
-  glowed: boolean;
 }
 
 const NPC_TINTS = [0xc9e2ff, 0xffd0da, 0xd3f3cd, 0xe2d2ff, 0xffe2b8];
@@ -214,25 +211,12 @@ export class PlaceholderRenderer implements WorldRenderer {
   private readonly highlight: Phaser.GameObjects.Graphics;
   private readonly path: Phaser.GameObjects.Graphics;
   private readonly hover: Phaser.GameObjects.Graphics;
-  private readonly decorArea: Phaser.GameObjects.Graphics;
-  private readonly ghost: Phaser.GameObjects.Graphics;
-  private readonly ghostLabel: Phaser.GameObjects.Text;
-  private ghostKey = '';
   private bounds = { w: 1, h: 1 };
 
   constructor(private readonly scene: Phaser.Scene) {
-    this.glowGfx = scene.add.graphics().setDepth(1e6 - 2);
     this.path = scene.add.graphics().setDepth(floorDepth + 2);
     this.hover = scene.add.graphics().setDepth(floorDepth + 1);
     this.highlight = scene.add.graphics().setDepth(1e6);
-    this.decorArea = scene.add.graphics().setDepth(floorDepth + 0.5);
-    // The ghost is drawn over everything so it is never hidden behind the object it collides with.
-    this.ghost = scene.add.graphics().setDepth(1e6 - 1).setAlpha(0.6);
-    this.ghostLabel = scene.add
-      .text(0, 0, '', { fontFamily: 'monospace', fontSize: '12px', color: '#ffffff', padding: { x: 4, y: 2 } })
-      .setOrigin(0.5, 1)
-      .setDepth(1e6 - 1)
-      .setVisible(false);
   }
 
   /**
@@ -339,21 +323,9 @@ export class PlaceholderRenderer implements WorldRenderer {
       visualKey: '',
       captioned: false,
       focused: false,
-      glowed: false,
     };
     this.objectGfx.set(o.id, entry);
     this.drawObject(entry, { variant: 'default' });
-  }
-
-  /** Bought plots get a clear edge; plots still for sale are dimmed with a padlock, so the two can't be confused. */
-  private decoratePlot(e: ObjectEntry, c: ScreenPos, locked: boolean): void {
-    const f = e.data.footprint;
-    const pts = [worldToScreen({ x: f.x, y: f.y }), worldToScreen({ x: f.x + f.w, y: f.y }), worldToScreen({ x: f.x + f.w, y: f.y + f.h }), worldToScreen({ x: f.x, y: f.y + f.h })].map((p) => v(p));
-    e.box.lineStyle(2, COLORS.cream, locked ? 0.22 : 0.6).strokePoints(pts, true);
-    if (locked && this.scene.textures.exists(H5_ASSETS.icons.key)) {
-      e.lock ??= this.scene.add.image(0, 0, H5_ASSETS.icons.key, '14').setDisplaySize(30, 30).setDepth(e.depth + 0.02);
-      e.lock.setPosition(c.x, c.y - 24).setVisible(true);
-    } else e.lock?.setVisible(false);
   }
 
   setObjectVisual(id: string, visual: ObjectVisual): void {
@@ -366,8 +338,7 @@ export class PlaceholderRenderer implements WorldRenderer {
   private drawObject(e: ObjectEntry, visual: ObjectVisual): void {
     const o = e.data;
     const base = PLACEHOLDER_VARIANTS[o.type]?.[visual.variant] ?? PLACEHOLDER_STYLES[o.type] ?? DEFAULT_STYLE;
-    const tableLevel = visual.variant.startsWith('tableLevel') ? Number(visual.variant.slice(10)) : 1;
-    const style = tableLevel > 1 ? { color: [0, 0, 0x9e7750, 0x72968a, 0xceb36a][tableLevel] ?? base.color, height: base.height + (tableLevel - 1) * 3 } : base;
+    const style = base;
     const f = o.footprint;
     const h = this.forestScene && o.type === 'portal' ? 230 : this.forestScene && o.type === 'sense_stone' ? 110 : style.height;
     e.box.clear();
@@ -377,9 +348,9 @@ export class PlaceholderRenderer implements WorldRenderer {
       const frame = 'frame' in asset ? asset.frame : undefined;
       e.sprite ??= this.scene.add.image(p.x,p.y,asset.key,frame).setOrigin(.5,.88).setDepth(e.depth-.01);
       e.sprite.setTexture(asset.key,frame);
-      const size = this.forestScene ? o.type === 'portal' ? 300 : o.type === 'tree' ? 220 : 145 : o.type === 'pickup_point' || o.type === 'standing_spot' ? 42 : o.type === 'farmhouse' ? 260 : o.type === 'tree' ? 180 : o.type === 'chair' ? 84 : o.type === 'armchair' ? 92 : o.type === 'plant' ? 84 : (f.w+f.h)*64;
-      e.sprite.setAlpha(visual.variant === 'rescued' || visual.variant === 'away' ? 0 : visual.variant === 'taken' ? .25 : visual.variant === 'locked' ? .55 : 1);
-      e.sprite.setOrigin(.5, this.forestScene ? .94 : o.type === 'farm_plot' ? plotAnchorY(this.scene) : .88).setDisplaySize(size, this.forestScene && o.type === 'tree' ? 126 : size).setFlipX(o.rotation%2===1).setTint(visual.variant === 'locked' ? 0x8c8c8c : !this.forestScene || visual.variant === 'open' || visual.variant === 'ACTIVATED' ? 0xffffff : o.type === 'portal' ? 0x889ba6 : 0xb6c4ba);
+      const size = this.forestScene ? o.type === 'portal' ? 300 : o.type === 'tree' ? 220 : 145 : o.type === 'tree' ? 180 : (f.w+f.h)*64;
+      e.sprite.setAlpha(visual.variant === 'rescued' || visual.variant === 'away' ? 0 : visual.variant === 'taken' ? .25 : 1);
+      e.sprite.setOrigin(.5, this.forestScene ? .94 : .88).setDisplaySize(size, this.forestScene && o.type === 'tree' ? 126 : size).setFlipX(o.rotation%2===1).setTint(!this.forestScene || visual.variant === 'open' || visual.variant === 'ACTIVATED' ? 0xffffff : o.type === 'portal' ? 0x889ba6 : 0xb6c4ba);
       if(o.type === 'sense_stone') {
         const color=STONE_COLOR[o.id] ?? 0xb8ddc4;
         const bright=visual.variant === 'ACTIVATED' || visual.variant === 'ACTIVATING' || visual.variant === 'PLAYER_NEARBY';
@@ -399,12 +370,9 @@ export class PlaceholderRenderer implements WorldRenderer {
     } else if (!drawIncidentObject(e.box, o.type, f, visual.variant === 'default' ? o.id : visual.variant)) drawBox(e.box, f, style.color, h);
     const c = worldToScreen({ x: f.x + f.w / 2, y: f.y + f.h / 2 });
     // Only states that call for action (progress, ready, thirsty, done) stay on screen; names show when near/hovered.
-    const lockedPlot = o.type === 'farm_plot' && visual.variant === 'locked';
-    e.captioned = visual.progress != null || lockedPlot || ['ready', 'thirsty', 'done'].includes(visual.variant);
-    // A plot's label sits on the plot itself (its sprite is a tall, mostly empty image).
-    const labelY = o.type === 'farm_plot' ? c.y + (lockedPlot ? 8 : -14) : e.baked?.getData('sliceProp') ? e.baked.y - e.baked.displayHeight * e.baked.originY - 6 : e.sprite ? c.y - e.sprite.displayHeight * .82 - 4 : c.y - h - 4;
+    e.captioned = visual.progress != null;
+    const labelY = e.baked?.getData('sliceProp') ? e.baked.y - e.baked.displayHeight * e.baked.originY - 6 : e.sprite ? c.y - e.sprite.displayHeight * .82 - 4 : c.y - h - 4;
     e.label.setText(this.streetScene && o.type === 'sau_tree' ? SLICE_TREE_NAMES[treeAppearance(o.id)]! : visual.caption ?? o.label).setPosition(c.x, labelY).setVisible((e.focused || e.captioned) && visual.variant !== 'away');
-    if (o.type === 'farm_plot') this.decoratePlot(e, c, lockedPlot);
     e.bar.clear();
     if (visual.progress != null) {
       const w = 44;
@@ -422,8 +390,6 @@ export class PlaceholderRenderer implements WorldRenderer {
   }
 
   objectAtPoint(px: number, py: number): string | null {
-    // A coin / broom floating above an object is a click target for that object ("click what you see").
-    for (const ind of this.indicators.values()) if (ind.c.visible && Math.hypot(px - ind.x, py - ind.y) <= 18) return ind.objectId;
     // Shapes first (front-most wins); labels only when no shape is under the pointer,
     // so a label floating over a neighbour never steals that neighbour's click.
     const pick = (test: (e: ObjectEntry) => boolean): string | null => {
@@ -447,7 +413,6 @@ export class PlaceholderRenderer implements WorldRenderer {
   objectClickPoint(id: string): { x: number; y: number } | null {
     const e = this.objectGfx.get(id);
     if (!e) return null;
-    for (const ind of this.indicators.values()) if (ind.objectId === id && ind.c.visible) return { x: ind.x, y: ind.y };
     // Centre of the top face: always inside the object's own silhouette.
     const f = e.data.footprint;
     const c = worldToScreen({ x: f.x + f.w / 2, y: f.y + f.h / 2 });
@@ -459,7 +424,6 @@ export class PlaceholderRenderer implements WorldRenderer {
     if (!g) return;
     g.sprite?.destroy();
     g.baked?.destroy();
-    g.lock?.destroy();
     g.box.destroy();
     g.label.destroy();
     g.bar.destroy();
@@ -538,52 +502,10 @@ export class PlaceholderRenderer implements WorldRenderer {
     this.hover.lineStyle(2, 0xffffff, 0.5).strokePoints(pts.map((p) => v(p)), true);
   }
 
-  private readonly indicators = new Map<string, { c: Phaser.GameObjects.Container; icon: string; tween: Phaser.Tweens.Tween | null; objectId: string; x: number; y: number }>();
-  private readonly indicatorPool: Phaser.GameObjects.Container[] = [];
-  private indicatorKey = '';
-
-  setIndicators(items: Array<{ id: string; objectId: string; icon: string }>): void {
-    const key = items.map((i) => `${i.id}|${i.icon}`).sort().join(',');
-    if (key === this.indicatorKey) return;
-    this.indicatorKey = key;
-    const want = new Map(items.map((i) => [i.id, i]));
-    // Remove indicators that are no longer relevant (returned to the pool, never left behind).
-    for (const [id, ind] of this.indicators) {
-      if (want.has(id) && want.get(id)!.icon === ind.icon) continue;
-      ind.tween?.stop();
-      ind.c.setVisible(false);
-      this.indicatorPool.push(ind.c);
-      this.indicators.delete(id);
-    }
-    const perObject = new Map<string, number>();
-    for (const it of items) {
-      const e = this.objectGfx.get(it.objectId);
-      if (!e) continue;
-      const slot = perObject.get(it.objectId) ?? 0; // two indicators on one object sit side by side
-      perObject.set(it.objectId, slot + 1);
-      let ind = this.indicators.get(it.id);
-      if (!ind) {
-        const c = this.indicatorPool.pop() ?? this.scene.add.container(0, 0);
-        c.removeAll(true);
-        c.add(createIcon(this.scene, it.icon, 26));
-        ind = { c, icon: it.icon, tween: null, objectId: it.objectId, x: 0, y: 0 };
-        this.indicators.set(it.id, ind);
-      }
-      const f = e.data.footprint;
-      const p = worldToScreen({ x: f.x + f.w / 2, y: f.y + f.h / 2 });
-      const x = p.x + (slot % 2 === 0 ? 1 : -1) * Math.ceil(slot / 2) * 28;
-      const y = p.y - (e.height ?? 0) - 34;
-      ind.x = x;
-      ind.y = y;
-      ind.c.setPosition(x, y).setVisible(true).setDepth(1e6 - 3);
-      if (!ind.tween && dur(MOTION.slow) > 0) ind.tween = this.scene.tweens.add({ targets: ind.c, y: y - 6, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-    }
-  }
-
   private labelKey = '';
 
   focusLabels(playerPos: WorldPos, hoveredId: string | null): void {
-    const key = `${Math.floor(playerPos.x * 2)},${Math.floor(playerPos.y * 2)},${hoveredId ?? ''},${this.glowKey}`;
+    const key = `${Math.floor(playerPos.x * 2)},${Math.floor(playerPos.y * 2)},${hoveredId ?? ''}`;
     if (key === this.labelKey) return;
     this.labelKey = key;
     const playerScreen = worldToScreen(playerPos);
@@ -631,81 +553,6 @@ export class PlaceholderRenderer implements WorldRenderer {
         else t.destroy();
       },
     });
-  }
-
-  showRatingBubble(at: WorldPos, text: string, stars: number): void {
-    const p = worldToScreen(at);
-    const label = this.scene.add.text(0, -9, text, { fontFamily: FONT.family, fontSize: '15px', color: css(COLORS.espresso), fontStyle: 'bold' }).setOrigin(0.5, 0.5).setResolution(2);
-    const w = Math.max(96, Math.ceil(label.width) + 24);
-    const bg = this.scene.add.graphics();
-    bg.fillStyle(COLORS.cream, 1).fillRoundedRect(-w / 2, -26, w, 44, 14).lineStyle(2, COLORS.caramel, 1).strokeRoundedRect(-w / 2, -26, w, 44, 14).fillTriangle(-7, 17, 7, 17, 0, 27);
-    const row: Phaser.GameObjects.Container[] = [];
-    for (let i = 0; i < 5; i++) row.push(createIcon(this.scene, i < stars ? 'star' : 'starEmpty', 11).setPosition((i - 2) * 15, 6));
-    const c = this.scene.add.container(p.x, p.y - 96, [bg, label, ...row]).setDepth(1e6 + 2);
-    if (dur(MOTION.base) > 0) {
-      c.setScale(0.5);
-      this.scene.tweens.add({ targets: c, scale: 1, duration: MOTION.base, ease: 'Back.easeOut' });
-    }
-    this.scene.tweens.add({ targets: c, alpha: 0, y: c.y - (dur(MOTION.slow) > 0 ? 22 : 0), delay: 2200, duration: dur(MOTION.slow) || 1, onComplete: () => c.destroy() });
-  }
-
-  private glowKey = '';
-  private readonly glowGfx: Phaser.GameObjects.Graphics;
-  private glowTween: Phaser.Tweens.Tween | null = null;
-
-  setGlows(glows: Record<string, number>): void {
-    const key = Object.entries(glows).sort().join(',');
-    if (key === this.glowKey) return;
-    this.glowKey = key;
-    const g = this.glowGfx.clear();
-    for (const e of this.objectGfx.values()) e.glowed = false;
-    for (const [id, color] of Object.entries(glows)) {
-      const e = this.objectGfx.get(id);
-      if (!e) continue;
-      e.glowed = true;
-      const f = e.data.footprint;
-      if (e.data.type === 'kitten' || e.data.type === 'street_prop') {
-        const p = worldToScreen({ x: f.x + .5, y: f.y + .5 });
-        g.fillStyle(color, .15).fillEllipse(p.x, p.y, 90, 42).lineStyle(3, color, .9).strokeEllipse(p.x, p.y, 90, 42);
-        continue;
-      }
-      const pts = [worldToScreen({ x: f.x, y: f.y }), worldToScreen({ x: f.x + f.w, y: f.y }), worldToScreen({ x: f.x + f.w, y: f.y + f.h }), worldToScreen({ x: f.x, y: f.y + f.h })];
-      g.fillStyle(color, 0.22).fillPoints(pts.map((p) => v(p)), true);
-      g.lineStyle(3, color, 0.95).strokePoints(pts.map((p) => v(p, e.height ?? 0)), true);
-      g.strokePoints(pts.map((p) => v(p)), true);
-    }
-    if (!this.glowTween && dur(MOTION.slow) > 0) {
-      this.glowTween = this.scene.tweens.add({ targets: this.glowGfx, alpha: 0.45, duration: 650, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-    }
-  }
-
-  setDecorArea(area: Footprint[] | null): void {
-    this.decorArea.clear();
-    if (!area) return;
-    this.decorArea.lineStyle(1, 0x3c9d4a, 0.9);
-    for (const a of area) {
-      for (let y = a.y; y < a.y + a.h; y++) {
-        for (let x = a.x; x < a.x + a.w; x++) {
-          const pts = [worldToScreen({ x, y }), worldToScreen({ x: x + 1, y }), worldToScreen({ x: x + 1, y: y + 1 }), worldToScreen({ x, y: y + 1 })];
-          this.decorArea.fillStyle(0x6db55a, 0.16).fillPoints(pts.map((p) => v(p)), true);
-          this.decorArea.strokePoints(pts.map((p) => v(p)), true);
-        }
-      }
-    }
-  }
-
-  setPlacementPreview(preview: PlacementPreview | null): void {
-    const key = preview ? `${preview.footprint.x},${preview.footprint.y},${preview.footprint.w},${preview.footprint.h},${preview.valid},${preview.label}` : '';
-    if (key === this.ghostKey) return;
-    this.ghostKey = key;
-    this.ghost.clear();
-    this.ghostLabel.setVisible(preview !== null);
-    if (!preview) return;
-    const color = preview.valid ? 0x6db55a : 0xc8463d;
-    drawBox(this.ghost, preview.footprint, color, 18);
-    const f = preview.footprint;
-    const c = worldToScreen({ x: f.x + f.w / 2, y: f.y + f.h / 2 });
-    this.ghostLabel.setText(preview.label).setBackgroundColor(preview.valid ? '#3c9d4a' : '#c8463d').setPosition(c.x, c.y - 24);
   }
 
   /**

@@ -1,0 +1,216 @@
+{
+  "baseCommit": "06594b0c08fda39074db3b8364662cf925f6c7a5",
+  "workingTree": "uncommitted; reload restarts chapter1; in-session chapter travel preserved",
+  "checks": {
+    "typecheck": "passed",
+    "productionBuild": "passed",
+    "tests": "not run, user instruction"
+  },
+  "files": [
+    {
+      "path": "assets/index-COI2bYTJ.js",
+      "bytes": 1656697,
+      "sha256": "413aa690cb2e1663b53dd8775434c4f9ec683cccf50a320db8b61eaa54084b3d"
+    },
+    {
+      "path": "assets/perfReport-HgRPZs4p.js",
+      "bytes": 3057,
+      "sha256": "8a42ecef183407fd40289ef386cc397b875b6a5767b34023914d4ff5ce8360dd"
+    },
+    {
+      "path": "assets/slice/chapter1/ambulance-v1.webp",
+      "bytes": 331642,
+      "sha256": "061eca490868c0af3ac08dacdd33a61abcb0fe2dd0506b97e86606e77be5b294"
+    },
+    {
+      "path": "assets/slice/chapter1/asphalt-v1.webp",
+      "bytes": 492346,
+      "sha256": "b8087bd40174c8992bdb4e92b5ff29a35218fc0fa9ca3ed843d8957d10d58dab"
+    },
+    {
+      "path": "assets/slice/chapter1/citizens-v1.webp",
+      "bytes": 180168,
+      "sha256": "fabcc390162868e831aca5c0db6d0e2aa856987a868aabf40c8576a776acb80d"
+    },
+    {
+      "path": "assets/slice/chapter1/hazard-banana-v1.webp",
+      "bytes": 7680,
+      "sha256": "da195b41fbe44f9fe3dd10096ddedd86e8c522f4ba44741595bd398f9c3720db"
+    },
+    {
+      "path": "assets/slice/chapter1/hazard-cargo-bike-v1.webp",
+      "bytes": 121766,
+      "sha256": "7c1d1edd52f0da769285658c7bfc4d495e9c5599ea8cb5f0646acd7a5c844e58"
+    },
+    {
+      "path": "assets/slice/chapter1/hazard-cat-v1.webp",
+      "bytes": 87866,
+      "sha256": "8ce03bc16f64e7e4050234676c510176a376eb90d0b425e71810a741f3e3d48c"
+    },
+    {
+      "path": "assets/slice/chapter1/hazard-chickens-v1.webp",
+      "bytes": 47064,
+      "sha256": "02198304ef0a97609665c22c5ee71b4ba96803488b7a453feeef423e3b79aacd"
+    },
+    {
+      "path": "assets/slice/chapter1/hazard-dogs-v1.webp",
+      "bytes": 188950,
+      "sha256": "4347a0f253fa8f9b293a6d55a483a3ef790f856cb8c699e5a937d0d12646c513"
+    },
+    {
+      "path": "assets/slice/chapter1/hazard-durian-v1.webp",
+      "bytes": 21278,
+      "sha256": "083698542355cfdf2945044cbc56dde90bbf3ca477528b02f0b505d47404d0da"
+    },
+    {
+      "path": "assets/slice/chapter1/hazard-holes-v1.webp",
+      "bytes": 127776,
+      "sha256": "2766bcbec6d1375646b70d01dfae458c72d4e7b0bc2377bf45da36630af7ed66"
+    },
+    {
+      "path": "assets/slice/chapter1/hazard-laundry-v1.webp",
+      "bytes": 40302,
+      "sha256": "5ce90aa61c7e747822619d62d2f3f00048b589de4f597da046b7c26ec4764853"
+    },
+    {
+      "path": "assets/slice/chapter1/hazard-pigeons-v1.webp",
+      "bytes": 57896,
+      "sha256": "c049fd8f60da6965ac044db1bdb2e542fc8d6c789b4e3254f48c64a4c27e855d"
+    },
+    {
+      "path": "assets/slice/chapter1/hazard-shuttlecock-v1.webp",
+      "bytes": 20898,
+      "sha256": "a81edba4633950dd3cd5107d073ed4425ab438776d7378f6623941537baf6dfa"
+    },
+    {
+      "path": "assets/slice/chapter1/hazard-slipper-v1.webp",
+      "bytes": 27746,
+      "sha256": "520cff75dabb22562f3891fe014852af3691aa3c220a09bdd2481996a0543364"
+    },
+    {
+      "path": "assets/slice/chapter1/hazard-water-v1.webp",
+      "bytes": 55166,
+      "sha256": "6985712d860eb8d55c42b6308c19aeab9bde3e4ddead775387df6d3e2fda7c5d"
+    },
+    {
+      "path": "assets/slice/chapter1/hero-reactions-v1.webp",
+      "bytes": 121180,
+      "sha256": "69b8763b6d77894e44d3884f5738a1f926bb9749af8d13e61dea8e5280525204"
+    },
+    {
+      "path": "assets/slice/chapter1/hero-v1.webp",
+      "bytes": 183602,
+      "sha256": "0690572797cc58fc52511f98d9962c2840c1aeb051ffda6308d825a6c13462a4"
+    },
+    {
+      "path": "assets/slice/chapter1/houses-v1.webp",
+      "bytes": 193674,
+      "sha256": "c23d4769eedc4a5dc3287a4d1a1bba5c7a2022c8e2009948970f6b2c73465bb2"
+    },
+    {
+      "path": "assets/slice/chapter1/houses-v2.webp",
+      "bytes": 520510,
+      "sha256": "7a4c8d07bd08cba28e7e0b8bc9dbce98cf8900250aee3f9c57652a4ee64a035e"
+    },
+    {
+      "path": "assets/slice/chapter1/locals-v1.webp",
+      "bytes": 191404,
+      "sha256": "770e921eaf7814597c921adee7f2fd0a000dc935dfb35353114b471557446cce"
+    },
+    {
+      "path": "assets/slice/chapter1/medic-carry-v1.webp",
+      "bytes": 188114,
+      "sha256": "32306bd9a8039c523ecde9aa6377aa4321a83a26b1c8f3c1dc157b42ff2025ca"
+    },
+    {
+      "path": "assets/slice/chapter1/medic-v1.webp",
+      "bytes": 165766,
+      "sha256": "810407b9b2c54f0b5f471f760c6207667f970cfa73f2e2e4b928b261993e5f26"
+    },
+    {
+      "path": "assets/slice/chapter1/motorbikes-v1.webp",
+      "bytes": 202212,
+      "sha256": "b09de9e6a03dd09e205d160dc3af777cb89116347889cb3e9be858c916f4ed83"
+    },
+    {
+      "path": "assets/slice/chapter1/neighbors-v1.webp",
+      "bytes": 168592,
+      "sha256": "f62c2cd20e5da4966bfe677507b4344ce73d2bacc56ef37f084e5f9bd844b1b2"
+    },
+    {
+      "path": "assets/slice/chapter1/owners-v1.webp",
+      "bytes": 180312,
+      "sha256": "80071af932adca2ad43bf7a1cb42f8c91666a84776fe69798e6301872a919d90"
+    },
+    {
+      "path": "assets/slice/chapter1/parked-bikes-v1.webp",
+      "bytes": 77586,
+      "sha256": "af6641bc860695ec2171f0aef7abeccf7f9ddc7ceb9112dd1cbbb5464a1ff711"
+    },
+    {
+      "path": "assets/slice/chapter1/parked-cars-v1.webp",
+      "bytes": 51390,
+      "sha256": "3ef4d6b1973cb69bb6aec166f959f4292663bdeaa26514fc843cd370126d18a9"
+    },
+    {
+      "path": "assets/slice/chapter1/residents-v1.webp",
+      "bytes": 195466,
+      "sha256": "4735546640f4b05877ea9b41581d40a75ada0df7c1b74bac477a6c3248cbbfbc"
+    },
+    {
+      "path": "assets/slice/chapter1/shopfronts-v1.webp",
+      "bytes": 515008,
+      "sha256": "c3139151e8c41f6a0cfeb4ec27400d0233140f6224426a230672c668b26bc83a"
+    },
+    {
+      "path": "assets/slice/chapter1/south-shop-tile-v1.webp",
+      "bytes": 106288,
+      "sha256": "358d55d499af2548b228185acdf4265f5d19c4f52e17f26073ee64e757f38aa0"
+    },
+    {
+      "path": "assets/slice/chapter1/south-shop-tin-v1.webp",
+      "bytes": 103446,
+      "sha256": "3a511f4b9918285af88f31931f95b64a47539ebcca78f2dea31bd099e307adaf"
+    },
+    {
+      "path": "assets/slice/chapter1/south-shops-v2.webp",
+      "bytes": 211770,
+      "sha256": "7403ddd0388f14e71c27ad41402f186af57cf84c33bbf97425bc1268982d36e6"
+    },
+    {
+      "path": "assets/slice/chapter1/stalls-v1.webp",
+      "bytes": 438880,
+      "sha256": "2377fb3dc94ce50f86fff7720959de3395589ec878441487fc3771e448056cba"
+    },
+    {
+      "path": "assets/slice/chapter1/trees-v1.webp",
+      "bytes": 185354,
+      "sha256": "6a567b27dad846a013aab65cf1dad666820da3985432df2c29b6229d5270c535"
+    },
+    {
+      "path": "assets/slice/chapter1/trees-v2.webp",
+      "bytes": 420912,
+      "sha256": "44085551634dddf9eb29dc5cbfd0c1e90a5abde9c573564b38151bc501187e20"
+    },
+    {
+      "path": "assets/slice/chapter1/vendors-v1.webp",
+      "bytes": 214400,
+      "sha256": "081a14bf61ad5752dd8d1556be64382eaf9f2f1b8281461849b4f4bd92a7754b"
+    },
+    {
+      "path": "assets/slice/chapter1/wheel-v1.webp",
+      "bytes": 2524,
+      "sha256": "fb4de24b5183b396d8817b5d43d53f4e18e6de807b4562ed82bad5b30b18eda9"
+    },
+    {
+      "path": "assets/slice/chapter1/workers-v1.webp",
+      "bytes": 165920,
+      "sha256": "da3159f9714ace8122c4f2a6209d8114442f7834ee407f5f6e4e988d9d6cc5eb"
+    },
+    {
+      "path": "index.html",
+      "bytes": 1397,
+      "sha256": "7c2bce1d2f0dd6b327da12995c22f446c7ef1dff84b8b11ad02c89b380441912"
+    }
+  ]
+}

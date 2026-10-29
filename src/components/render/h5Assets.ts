@@ -5,8 +5,6 @@ export const H5_ASSETS = {
   panel: { key: 'h5.panel', url: '/assets/h5/panel.png' },
   button: { key: 'h5.button', url: '/assets/h5/button.png' },
   icons: { key: 'h5.icons', url: '/assets/h5/icons.png' },
-  cafe: { key: 'h5.cafe', url: '/assets/h5/cafe.png' },
-  farm: { key: 'h5.farm', url: '/assets/h5/farm.png' },
   portrait: { key: 'h5.portrait', url: '/assets/h5/portrait.png' },
   hero: { key: 'h5.hero', url: '/assets/h5/hero.png' },
 } as const;
@@ -19,7 +17,7 @@ const TERRAIN_BOUNDS: Record<string,{x:number;y:number;w:number;h:number}> = {};
 
 /** Cell geometry is independent of the generated image's pixel resolution. */
 export function registerH5Frames(scene: Phaser.Scene): void {
-  for (const name of ['icons', 'cafe', 'farm', 'hero', 'extra', 'terrain'] as const) {
+  for (const name of ['icons', 'hero', 'extra', 'terrain'] as const) {
     const key = H5_ASSETS[name].key;
     if (!scene.textures.exists(key)) continue;
     const texture = scene.textures.get(key), source = texture.getSourceImage() as HTMLImageElement;
@@ -37,34 +35,9 @@ export function registerH5Frames(scene: Phaser.Scene): void {
 
   }
 }
-const CAFE: Record<string, number> = { espresso_machine: 0, cafe_espresso: 0, espresso_pro: 0, grinder: 1, grinder_pro: 1, milk_station: 2, milk_station_pro: 2, counter: 3, order_counter: 3, table_2: 4, cafe_table: 4, cafe_table_long: 5, chair: 6, armchair: 7, supply_shelf: 8, shelf: 8, bookshelf: 9, plant: 10, floor_lamp: 11, pickup_point: 13, standing_spot: 13, travel_sign: 14, sign: 14, wall_post: 15 };
-const FARM: Record<string, number> = { well: 4, seed_stall: 5, farmhouse: 6, tree: 7, drying_rack: 8, roaster: 9, market_stall: 10, crate: 11 };
-export function worldSprite(type: string, variant: string): { key: string; frame: string } | null {
-  if (type === 'farm_plot') {
-    const frame = variant === 'ready' ? 12 : variant === 'thirsty' ? 13 : variant.startsWith('growing_') ? (Number(variant.slice(-1)) < 2 ? 1 : 2) : variant === 'prepared' ? 3 : 0;
-    return { key: H5_ASSETS.farm.key, frame: String(frame) };
-  }
-  const extra:Record<string,number>={kitten:4,car:5,barrier:6,ancient_pillar:7,master:11,hidden_cherry:1};
-  if(extra[type]!==undefined)return {key:H5_ASSETS.extra.key,frame:String(extra[type])};
-  if (CAFE[type] !== undefined) return { key: H5_ASSETS.cafe.key, frame: String(CAFE[type]) };
-  if (FARM[type] !== undefined) return { key: H5_ASSETS.farm.key, frame: String(FARM[type]) };
-  return null;
-}
-let plotCenterY: number | null = null;
-/**
- * Where the soil diamond's centre sits in a plot frame (0–1 of its height). Props are drawn with their base at 88%,
- * but a flat plot's centre is higher up, so anchoring the image at 88% floats it above its tile.
- */
-export function plotAnchorY(scene: Phaser.Scene): number {
-  if (plotCenterY !== null) return plotCenterY;
-  plotCenterY = 0.88;
-  const key = H5_ASSETS.farm.key;
-  if (!scene.textures.exists(key)) return plotCenterY;
-  const f = scene.textures.get(key).get('0');
-  let top = f.height, bottom = 0;
-  for (let y = 0; y < f.height; y += 2) for (let x = 0; x < f.width; x += 4) if ((scene.textures.getPixelAlpha(x, y, key, '0') ?? 0) > 32) { top = Math.min(top, y); bottom = Math.max(bottom, y); }
-  if (bottom > top) plotCenterY = (top + bottom) / 2 / f.height;
-  return plotCenterY;
+export function worldSprite(type: string, _variant: string): { key: string; frame: string } | null {
+  const extra: Record<string, number> = { kitten: 4, car: 5, barrier: 6, ancient_pillar: 7, hidden_cherry: 1 };
+  return extra[type] !== undefined ? { key: H5_ASSETS.extra.key, frame: String(extra[type]) } : null;
 }
 export const HERO_FACINGS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 

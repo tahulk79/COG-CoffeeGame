@@ -1,6 +1,5 @@
 import type { EventBus } from '../../core/EventBus';
 import type { GameEvents } from '../../core/events';
-import type { TransactionService } from '../../systems/economy/TransactionService';
 import type { GameState } from '../state/GameState';
 import type { HazardKind, HazardText, RunConfig, RunPhase, RunService, RunView } from './RunService';
 import type { GardenService, GardenView } from './GardenService';
@@ -12,7 +11,6 @@ export interface StoryChapter {
   title: string;
   objective: string;
   objectiveReady?: string;
-  objectiveBrew?: string;
   /** How the screen changes on the way into this chapter: heavenly doors (default) or a burst of light. */
   arrive?: { style: 'doors' | 'light' };
   /** Chapter 1: the objective in rush hour and once knocked out, the line announcing rush hour, and the three act names. */
@@ -42,16 +40,10 @@ export interface FateView {
 
 export interface StoryConfig {
   start: string;
-  afterStoryMap: string;
-  tutorialScoreFloor: number;
   whiteoutMs: number;
-  respawnMasterMs: number;
-  cherryReward: { itemId: string; qty: number };
-  tutorialItems: Array<{ itemId: string; qty: number; quality: number }>;
   stones: string[];
   stoneLabels: Record<string, string>;
   chapters: Record<string, StoryChapter>;
-  masterHint: string[];
 }
 
 export type StoryResult = { ok: true } | { ok: false; reason: string; applicable?: boolean };
@@ -67,7 +59,7 @@ export interface StoryView {
   /** Seconds left in a timed chapter, or null. */
   timeLeftSec: number | null;
   /** `death`: the ending card (advance = go on); `line`: a dialogue line. */
-  dialog: { text: string; index: number; total: number; speaker: 'hero' | 'master'; kind: DialogKind } | null;
+  dialog: { text: string; index: number; total: number; speaker: 'hero'; kind: DialogKind } | null;
   /** Chapter 1: what killed the hero, once it happened. */
   fate: FateView | null;
   /** Chapter 1: the survival run (hearts, time, hazards), or null outside it. */
@@ -94,11 +86,6 @@ export interface StoryView {
 
 export interface StoryHooks {
   resetPlayer(): void;
-  spawnMaster(): void;
-  /** The café still has this customer (they may vanish without a `left` event, e.g. after a reload). */
-  hasCustomer(id: string): boolean;
-  setCafeOpen(open: boolean): void;
-  setScoreFloor(floor: number): void;
 }
 
 type DialogKind = 'line' | 'death';
@@ -114,19 +101,15 @@ const OK: StoryResult = { ok: true };
 const no = (reason: string, applicable = true): StoryResult => ({ ok: false, reason, applicable });
 
 /**
- * Playable rebirth story (M9): chapters S03 → S04 → S05, each an interactive
- * level on its own map with click-to-move objectives. Progress is saved in
- * `state.story` (chapter + flags), so a reload resumes the chapter. The chapter
- * only runs while the player is on its map; other maps (e.g. dev farm) ignore it.
- * S05 reuses the café: a "master" customer orders an espresso and rates it.
+ * Playable rebirth story: chapters S03 (the old quarter) → S04 (the cloud garden) → back to S03, each a
+ * level on its own map. Progress is saved in `state.story` (chapter + flags), so a reload resumes the
+ * chapter. The chapter only runs while the player is on its map.
  */
 export class StoryService {
   private dialog: Dialog | null = null;
   private timerMs = 0;
-  private respawnIn: number | null = null;
   private travelIn: number | null = null;
   private travelTo = '';
-  private masterId: string | null = null;
   private retries = 0;
   private aside: { text: string; ms: number } | null = null;
   private run: RunService | null = null;
@@ -143,33 +126,15 @@ export class StoryService {
     private readonly mapId: string,
     private readonly config: StoryConfig,
     private readonly bus: EventBus<GameEvents>,
-    private readonly tx: TransactionService,
     private readonly hooks: StoryHooks,
     private readonly random: () => number = Math.random,
   ) {
     if (!this.active) return;
     const flags = this.state.story.flags;
-    if (this.chapterId === 'S05') {
-      hooks.setCafeOpen(false);
-      hooks.setScoreFloor(config.tutorialScoreFloor);
-    }
     if (this.chapterId === 'S03' && flags.rescued) this.showDeath();
     // A chapter without intro lines (the chapter-1 run) starts at once, no dialogue to click through.
     else if (!flags.introDone && this.chapter.intro.length === 0) this.introDone();
     else if (!flags.introDone) this.open(this.chapter.intro, () => this.introDone());
-    else if (this.chapterId === 'S05' && !flags.rated) this.respawnIn = 500;
-
-    bus.on('cafe:rated', ({ customerId }) => {
-      if (!this.active || this.chapterId !== 'S05' || this.masterId !== customerId) return;
-      this.state.story.flags.rated = true;
-      this.open(this.chapter.outro, () => this.finishChapter());
-    });
-    bus.on('customer:left', ({ customerId, reason }) => {
-      if (!this.active || this.chapterId !== 'S05' || this.state.story.flags.rated || customerId !== this.masterId) return;
-      // Retry is always allowed: the master comes back.
-      this.masterId = null;
-      this.respawnIn = config.respawnMasterMs;
-    });
   }
 
   get chapterId(): string {
@@ -298,9 +263,6 @@ export class StoryService {
   private introDone(): void {
     this.state.story.flags.introDone = true;
     if (this.chapterId === 'S03') this.run?.start();
-    if (this.chapterId !== 'S05') return;
-    for (const it of this.config.tutorialItems) this.tx.execute({ reason: 'story:tutorialBeans', items: [{ itemId: it.itemId, qty: it.qty, quality: it.quality }], key: `story:tutorial:${it.itemId}` });
-    this.respawnIn = 500;
   }
 
   // ── actions (called by handlers) ────────────────────────────────────────
@@ -358,22 +320,8 @@ export class StoryService {
   pickCherry(): StoryResult {
     const c = this.canPickCherry();
     if (!c.ok) return c;
-    const r = this.config.cherryReward;
-    const paid = this.tx.execute({ reason: 'story:cherry', items: [{ itemId: r.itemId, qty: r.qty }], key: 'story:cherry' });
-    if (!paid.ok) return no(paid.error);
     this.state.story.flags.cherry = true;
     this.bus.emit('story:changed', { chapter: this.chapterId });
-    return OK;
-  }
-
-  canTalk(): StoryResult {
-    return this.active && this.chapterId === 'S05' ? OK : no('notNow', false);
-  }
-
-  talk(): StoryResult {
-    const c = this.canTalk();
-    if (!c.ok) return c;
-    this.open(this.config.masterHint, () => undefined);
     return OK;
   }
 
@@ -384,7 +332,7 @@ export class StoryService {
     // The drawn situation is kept, so replaying the story never deals the same one twice in a row.
     this.state.story = { chapter: next, flags: {} };
     this.bus.emit('story:chapterChanged', { chapter: next });
-    this.travelTo = next === 'done' ? this.config.afterStoryMap : this.config.chapters[next]!.map;
+    this.travelTo = this.config.chapters[next]!.map;
     this.travelIn = this.config.whiteoutMs;
   }
 
@@ -418,24 +366,6 @@ export class StoryService {
         this.bus.emit('story:retry', { chapter: this.chapterId });
       }
     }
-    // Safety net: the master must never stay missing, or the chapter would stall with no way forward.
-    const f = this.state.story.flags;
-    if (this.chapterId === 'S05' && f.introDone && !f.rated) {
-      if (this.masterId !== null && !this.hooks.hasCustomer(this.masterId)) this.masterId = null;
-      if (this.masterId === null && this.respawnIn === null) this.respawnIn = this.config.respawnMasterMs;
-    }
-    if (this.respawnIn !== null) {
-      this.respawnIn -= dtMs;
-      if (this.respawnIn <= 0) {
-        this.respawnIn = null;
-        this.hooks.spawnMaster();
-      }
-    }
-  }
-
-  /** Only the master's rating ends the chapter. */
-  registerMaster(customerId: string): void {
-    this.masterId = customerId;
   }
 
   // ── view ────────────────────────────────────────────────────────────────
@@ -448,7 +378,6 @@ export class StoryService {
     if (this.active && ch) {
       const left = ch.timeLimitMs ? Math.max(0, Math.ceil((ch.timeLimitMs - this.timerMs) / 1000)) : 0;
       if (this.chapterId === 'S04') objective = this.portalOpen ? ch.objectiveReady ?? '' : ch.objective.replace('{n}', String(this.config.stones.filter((s) => f[s]).length));
-      else if (this.chapterId === 'S05') objective = f.introDone ? ch.objectiveBrew ?? '' : ch.objective;
       else if (this.chapterId === 'S03') {
         const v = this.run?.view();
         objective = v?.phase === 'stroll'
@@ -464,7 +393,7 @@ export class StoryService {
       act: this.active && this.chapterId === 'S03' && this.run ? ch?.acts?.[{ stroll: 0, chaos: 1, faint: 2 }[this.run.phase]] ?? null : null,
       objective,
       timeLeftSec: this.active && ch?.timeLimitMs && !f.rescued ? Math.max(0, Math.ceil((ch.timeLimitMs - this.timerMs) / 1000)) : null,
-      dialog: d ? { text: d.lines[d.index]!, index: d.index, total: d.lines.length, speaker: this.chapterId === 'S05' ? 'master' : 'hero', kind: d.kind } : null,
+      dialog: d ? { text: d.lines[d.index]!, index: d.index, total: d.lines.length, speaker: 'hero', kind: d.kind } : null,
       fate: this.fateView(),
       // Chapter 1 stays on screen as it was (hero gone into the ambulance, the street) until the map changes,
       // even though the story already points at chapter 2.

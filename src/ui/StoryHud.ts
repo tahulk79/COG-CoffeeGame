@@ -4,7 +4,6 @@ import type { SimulationSnapshot } from '../gameplay/GameSimulation';
 import { Button } from './widgets/Button';
 import { setShown } from './components/panelVisibility';
 import { Panel } from './components/Panel';
-import { masterStep } from '../gameplay/guide/guide';
 import { hudViewport, TOP_ROW } from './layout/HudLayout';
 import { COLORS, css, dur, FONT, MOTION, RADIUS } from './theme/tokens';
 import { STONE_COLOR } from '../components/render/gardenArt';
@@ -57,20 +56,13 @@ class Pill {
   h = 34;
 }
 
-/** Round portrait drawn in code until character art lands. */
-function portrait(scene: Phaser.Scene, master: boolean): Phaser.GameObjects.Graphics {
+/** Round portrait of the hero, drawn in code until character art lands. */
+function portrait(scene: Phaser.Scene): Phaser.GameObjects.Graphics {
   const g = scene.add.graphics();
-  g.fillStyle(master ? COLORS.mint : COLORS.sun).fillCircle(0, 0, 40).lineStyle(3, COLORS.ink).strokeCircle(0, 0, 40);
-  if (master) {
-    // Old coffee master: white hair and beard, warm apron.
-    g.fillStyle(0x8a5a3a).fillRoundedRect(-24, 14, 48, 22, 10);
-    g.fillStyle(0xf6d2b0).fillCircle(0, -4, 20);
-    g.fillStyle(0xffffff).fillEllipse(0, 12, 34, 18).fillEllipse(-15, -16, 14, 12).fillEllipse(15, -16, 14, 12);
-  } else {
-    g.fillStyle(COLORS.coral).fillRoundedRect(-24, 14, 48, 22, 10);
-    g.fillStyle(0xf6d2b0).fillCircle(0, -4, 20);
-    g.fillStyle(0x5a3825).fillEllipse(0, -20, 44, 22).fillRoundedRect(-22, -20, 8, 22, 4).fillRoundedRect(14, -20, 8, 18, 4);
-  }
+  g.fillStyle(COLORS.sun).fillCircle(0, 0, 40).lineStyle(3, COLORS.ink).strokeCircle(0, 0, 40);
+  g.fillStyle(COLORS.coral).fillRoundedRect(-24, 14, 48, 22, 10);
+  g.fillStyle(0xf6d2b0).fillCircle(0, -4, 20);
+  g.fillStyle(0x5a3825).fillEllipse(0, -20, 44, 22).fillRoundedRect(-22, -20, 8, 22, 4).fillRoundedRect(14, -20, 8, 18, 4);
   g.fillStyle(COLORS.ink).fillCircle(-7, -2, 2.6).fillCircle(7, -2, 2.6);
   g.lineStyle(2, COLORS.ink).beginPath().arc(0, 5, 5, 0.2, Math.PI - 0.2).strokePath();
   g.fillStyle(0xff9e8a, 0.6).fillCircle(-13, 6, 4).fillCircle(13, 6, 4);
@@ -124,7 +116,6 @@ export class StoryHud {
   private readonly line: Phaser.GameObjects.Text;
   private readonly nameTag: Pill;
   private readonly heroPortrait: Phaser.GameObjects.Graphics;
-  private readonly masterPortrait: Phaser.GameObjects.Graphics;
   private readonly dots: Phaser.GameObjects.Graphics;
   private readonly tapHint: Phaser.GameObjects.Text;
   private boxW = 680;
@@ -197,14 +188,13 @@ export class StoryHud {
     this.box = scene.add.container(0, 0).setDepth(1600);
     this.boxCard = new Card(scene, this.box);
     this.boxCard.bg.swallowClicks().object.on('pointerdown', () => this.onNext());
-    this.heroPortrait = portrait(scene, false);
-    this.masterPortrait = portrait(scene, true).setVisible(false);
+    this.heroPortrait = portrait(scene);
     this.line = scene.add.text(124, 26, '', { ...text(18, '600'), wordWrap: { width: 520 }, lineSpacing: 2 });
     this.dots = scene.add.graphics();
     this.tapHint = scene.add.text(0, 0, 'Chạm bất kỳ đâu để tiếp', text(12, '600', css(COLORS.woodLight))).setOrigin(1, 0.5);
     this.next = new Button(scene, 0, 0, t('story.next'), () => this.onNext(), 'story.next', { fontSize: 16, h: 40 });
     this.nameTag = new Pill(scene, COLORS.coral, css(COLORS.white));
-    this.box.add([this.heroPortrait, this.masterPortrait, this.line, this.dots, this.tapHint, this.next.text, this.nameTag.root]);
+    this.box.add([this.heroPortrait, this.line, this.dots, this.tapHint, this.next.text, this.nameTag.root]);
     this.buttons.set('story.next', this.next);
 
     this.card = scene.add.container(0, 0).setDepth(1600);
@@ -255,6 +245,7 @@ export class StoryHud {
   }
 
   private onNext(): void {
+    if ((this.scene as Phaser.Scene & { modalOpen?: boolean }).modalOpen) return;
     if (this.lastSnapshot?.story.dialog) this.advance();
   }
 
@@ -280,7 +271,7 @@ export class StoryHud {
 
     this.boxW = Math.min(680, usableW - 24);
     const compact = this.boxW < 480;
-    for (const p of [this.heroPortrait, this.masterPortrait]) p.setScale(compact ? 0.7 : 1).setPosition(compact ? 44 : 62, compact ? 50 : 66);
+    this.heroPortrait.setScale(compact ? 0.7 : 1).setPosition(compact ? 44 : 62, compact ? 50 : 66);
     const textX = compact ? 88 : 124;
     this.line.setPosition(textX, 28).setWordWrapWidth(this.boxW - textX - 24);
     this.nameTag.root.setPosition(textX - 6, -17);
@@ -417,7 +408,7 @@ export class StoryHud {
     this.lastAside = aside;
     setShown(this.aside, aside !== null && !between && choices === null);
 
-    const objective = (st.chapter === 'S05' && !d && masterStep(s)) || st.objective;
+    const objective = st.objective;
     if (this.objective.text !== objective) {
       this.objective.setText(objective);
       relayout = true;
@@ -457,10 +448,7 @@ export class StoryHud {
           this.boxH = h;
           relayout = true;
         }
-        const master = d.speaker === 'master';
-        this.masterPortrait.setVisible(master);
-        this.heroPortrait.setVisible(!master);
-        this.nameTag.setText(master ? 'Bậc thầy' : 'Bạn', 34);
+        this.nameTag.setText('Bạn', 34);
         this.next.setLabel(d.index + 1 >= d.total ? 'Bắt đầu ▸' : t('story.next'));
         this.drawDots(d.index, d.total);
         if (first) {

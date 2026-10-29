@@ -3,7 +3,7 @@ import { COLORS, css, FONT, prefersReducedMotion } from '../../ui/theme/tokens';
 
 /**
  * The speech bubble of the street and the shops, drawn like a game's: a chunky rounded card with a thick chocolate
- * outline, a hard drop shadow, a glossy highlight and a tail to whoever is talking; it pops in when it starts to speak.
+ * outline, a hard drop shadow, a glossy highlight, sitting right over whoever is talking (no tail, no leader line); it pops in when it starts to speak.
  * The card is baked into a texture once per size and tone, so a bubble costs one image and one piece of text.
  */
 export type BubbleTone = 'npc' | 'hero' | 'alert' | 'twist';
@@ -22,13 +22,14 @@ const TONES: Record<BubbleTone, { fill: number; text: number }> = {
 /** Baked at double size so the edge stays sharp on dense screens and when the camera zooms in. */
 const SS = 2;
 /** The outline, the drop shadow, the room round the body, the tail and the corner radius. */
-const OUTLINE = 3, SHADOW = 4, MARGIN = OUTLINE + SHADOW + 2, TAIL = 14, RADIUS = 14;
+const OUTLINE = 3, SHADOW = 4, MARGIN = OUTLINE + SHADOW + 2, TAIL = 0, RADIUS = 14;
 const PAD_X = 14, PAD_Y = 9;
 
 export class SpeechBubble {
   readonly root: Phaser.GameObjects.Container;
   /** Holds the card and the text so that the pop-in scales about the tail's tip (the root's scale is the caller's). */
   private readonly inner: Phaser.GameObjects.Container;
+  private cardOffset = 0;
   private readonly img: Phaser.GameObjects.Image;
   private readonly label: Phaser.GameObjects.Text;
   private shown = '';
@@ -52,10 +53,10 @@ export class SpeechBubble {
     // The cloud's body, sized in steps so different bubbles share textures.
     const bw = Math.ceil((this.label.width + PAD_X * 2) / 8) * 8, bh = Math.ceil((this.label.height + PAD_Y * 2) / 4) * 4;
     const W = bw + MARGIN * 2, H = bh + MARGIN * 2 + TAIL;
-    const key = `bubble:${tone}:${bw}x${bh}`;
+    const key = `bubble:anchored:${tone}:${bw}x${bh}`;
     if (!this.scene.textures.exists(key)) this.bake(key, tone, bw, bh, W, H);
     this.img.setTexture(key).setScale(1 / SS);
-    this.label.setPosition(0, -(H - MARGIN - bh / 2));
+    this.label.setPosition(this.cardOffset, -(H - MARGIN - bh / 2));
     this.w = W;
     this.h = H;
     if (!prefersReducedMotion()) {
@@ -68,17 +69,24 @@ export class SpeechBubble {
   private bake(key: string, tone: BubbleTone, bw: number, bh: number, W: number, H: number): void {
     const g = this.scene.make.graphics({ x: 0, y: 0 }, false);
     g.scaleCanvas(SS, SS);
-    const x = MARGIN, y = MARGIN, cx = W / 2, fill = TONES[tone].fill;
-    const tail = (grow: number) => [cx - 9 - grow, y + bh - 3, cx + 9 + grow, y + bh - 3, cx + 1, y + bh + TAIL + grow] as const;
-    // Hard drop shadow, outline (card and tail), the tail's fill, then the card on top so no seam shows.
-    g.fillStyle(COLORS.ink, .28).fillRoundedRect(x, y + SHADOW, bw, bh, RADIUS).fillTriangle(...tail(0).map((v, i) => (i % 2 ? v + SHADOW : v)) as [number, number, number, number, number, number]);
-    g.fillStyle(COLORS.ink, 1).fillRoundedRect(x - OUTLINE, y - OUTLINE, bw + OUTLINE * 2, bh + OUTLINE * 2, RADIUS + OUTLINE).fillTriangle(...tail(OUTLINE));
-    g.fillStyle(fill, 1).fillTriangle(...tail(0)).fillRoundedRect(x, y, bw, bh, RADIUS);
+    const x = MARGIN, y = MARGIN, fill = TONES[tone].fill;
+    g.fillStyle(COLORS.ink, .28).fillRoundedRect(x, y + SHADOW, bw, bh, RADIUS);
+    g.fillStyle(COLORS.ink).fillRoundedRect(x - OUTLINE, y - OUTLINE, bw + OUTLINE * 2, bh + OUTLINE * 2, RADIUS + OUTLINE);
+    g.fillStyle(fill).fillRoundedRect(x, y, bw, bh, RADIUS);
     // Glossy highlight along the top edge, and a darker lip along the bottom.
     g.fillStyle(0xffffff, .38).fillRoundedRect(x + 8, y + 4, bw - 16, 4, 2);
     g.fillStyle(0x000000, .08).fillRoundedRect(x + 4, y + bh - 7, bw - 8, 4, 2);
     g.generateTexture(key, W * SS, H * SS);
     g.destroy();
+  }
+
+  /** Move only the card to fit the viewport; the short triangular tip remains on the speaker. */
+  setCardOffsetX(x: number): this {
+    x = Math.round(x);
+    if (x === this.cardOffset) return this;
+    this.cardOffset = x;
+    this.img.setX(x); this.label.setX(x);
+    return this;
   }
 
   /** Full size (cloud and tail) at scale 1, in pixels. */

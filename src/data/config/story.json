@@ -1,20 +1,6 @@
 {
   "start": "S03",
-  "afterStoryMap": "farm",
-  "tutorialScoreFloor": 75,
   "whiteoutMs": 1000,
-  "respawnMasterMs": 3000,
-  "cherryReward": {
-    "itemId": "seed_arabica",
-    "qty": 2
-  },
-  "tutorialItems": [
-    {
-      "itemId": "roasted_arabica",
-      "qty": 3,
-      "quality": 70
-    }
-  ],
   "stones": [
     "stone_sight",
     "stone_hearing",
@@ -75,23 +61,23 @@
           "faint": "Con chó bé tí… mà bố nó to bằng con bê…"
         },
         "cat": {
-          "death": "Vấp phải con mèo nằm giữa đường",
+          "death": "Bị mèo quấn chân, ngã giữa phố",
           "absurdity": 3,
           "label": "Meo~",
           "faint": "Con mèo không sao… còn mình thì sao…"
         },
         "banana": {
-          "death": "Né vỏ chuối thứ nhất, giẫm vỏ chuối thứ hai",
+          "death": "Trượt vỏ chuối giữa phố",
           "absurdity": 4,
           "twist": "Vỏ chuối thứ hai!",
-          "faint": "Né một vỏ là kỹ năng… né hai vỏ là phép màu…"
+          "faint": "Vỏ chuối tí tẹo… mà trượt cả cuộc đời…"
         },
         "sinkhole": {
-          "death": "Né được ổ voi, rơi xuống nắp cống bên cạnh",
+          "death": "Rơi xuống hố giữa phố",
           "absurdity": 5,
           "label": "Ổ voi!",
           "twist": "Nắp cống!",
-          "faint": "Né ổ voi… rơi ổ gà… phố này đủ cả sở thú…"
+          "faint": "Ổ voi… ổ gà… phố này đủ cả sở thú…"
         },
         "durian": {
           "death": "Sầu riêng năm ký rơi trúng đầu",
@@ -100,10 +86,10 @@
           "smell": "Mùi này… chân mềm như bún… đậu…"
         },
         "motorbike": {
-          "death": "Bị xe máy chở cả tủ lạnh quẹt bay",
+          "death": "Bị xe máy chở hàng quẹt ngã",
           "absurdity": 4,
           "label": "Xe chở hàng!",
-          "faint": "Tủ lạnh hai cánh… inverter… tiết kiệm điện… á…"
+          "faint": "Anh ơi… chở hàng thôi… đừng chở luôn em…"
         },
         "chickens": {
           "death": "Bị đàn gà sổng chuồng mổ cho ngất",
@@ -701,7 +687,7 @@
             "h": 10
           }
         ],
-        "walkers": 8,
+        "walkers": 16,
         "bikes": 4,
         "lanes": [
           7.3,
@@ -856,38 +842,19 @@
           "Kíííít!! May cho em là phanh còn ăn!",
           "Kíííít!! Nhìn đường đi em ơi!",
           "Kíííít!! Phanh mới thay sáng nay đấy, hên cho em!"
-        ]
+        ],
+        "cars": 2
       },
       "objectiveFaint": "Nằm im… giả vờ ngủ chờ xe cứu thương"
     },
     "S04": {
       "map": "portal",
-      "next": "S05",
+      "next": "S03",
       "title": "Chương 2 · Vườn mây",
       "objective": "Bắt đốm sáng quanh 3 viên đá giác quan ({n}/3)",
       "objectiveReady": "Cổng thiên đàng đã mở, chạy vào cổng!",
       "intro": [],
       "outro": []
-    },
-    "S05": {
-      "map": "master",
-      "next": "done",
-      "title": "Chương 3 · Gặp bậc thầy",
-      "objective": "Nói chuyện với bậc thầy",
-      "objectiveBrew": "Pha espresso cho bậc thầy: nhận order → xay → nén → chiết → mang ra",
-      "intro": [
-        "Một ông lão pha cà phê đón bạn trong quán nhỏ trên đồi.",
-        "Ta sẽ đánh thức nốt các giác quan còn lại: Khứu giác, Vị giác và Trực giác.",
-        "Hãy nhận order của ta ở quầy, rồi pha một ly espresso: xay hạt, nén bột, chiết cà phê. Xong thì mang ra cho ta."
-      ],
-      "outro": [
-        "Ly cà phê của bạn... có hồn đấy.",
-        "Giác quan thứ sáu của người pha chế là biết khách cần gì. Giờ hãy nói ta nghe: bạn là ai?",
-        "Hãy bắt đầu ở nông trại của bạn."
-      ]
     }
-  },
-  "masterHint": [
-    "Nhận order ở quầy, rồi pha espresso: xay, nén, chiết. Mang ly ra cho ta khi xong."
-  ]
+  }
 }

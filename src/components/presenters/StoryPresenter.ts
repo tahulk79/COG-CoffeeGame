@@ -12,8 +12,6 @@ export class StoryPresenter {
     const story=s.story;
     // Chapter 1: the stalls (their name shows near the hero; a tick once their talk was heard).
     if(story.active&&story.chapter==='S03') { for(const p of story.stalls) this.renderer.setObjectVisual(p.id,{variant:p.id,caption:`${p.name}${p.visited?' ✓':''}`}); return; }
-    // The teacher walks out and comes back in as the customer who orders (so there is only ever one of him).
-    if(story.active&&story.chapter==='S05') { this.renderer.setObjectVisual('master',story.introDone?{variant:'away'}:{variant:'default'}); return; }
     if(!story.active||story.chapter!=='S04')return;
     // Chapter 2 (cloud garden): stones are dim until their sparks are caught; walking into the open door goes on.
     const names:Record<string,string>={stone_sight:'Hương thơm',stone_hearing:'Vị giác',stone_touch:'Cảm xúc'};

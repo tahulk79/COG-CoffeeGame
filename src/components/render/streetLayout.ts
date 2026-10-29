@@ -24,12 +24,12 @@ export function streetHouses(): StreetHouse[] {
   };
   row(-18, 19);
   row(26, 69);
-  // The city goes on behind the frontage: two more rows of houses, staggered, never in front of the alley's courtyard.
-  for (const [y, shift] of [[FRONT - HOUSE.d * 2 - .1, 1], [FRONT - HOUSE.d * 3 - .2, .4]] as const) {
+  // Separate blocks by service lanes; tightly packing complete facades made them look piled onto the next roof.
+  for (const [y, shift] of [[-2.6, .8], [-7.2, 1.4]] as const) {
     for (let x = -18 + shift; x + HOUSE.w <= 69; x += HOUSE.w + HOUSE.gap) {
-      if (x + HOUSE.w > 18.6 && x < 26.4 && y > -2) continue;
+      if (x + HOUSE.w > 18.6 && x < 26.4 && y > -3) continue;
       const variant = houses.length;
-      houses.push({ x, y, w: HOUSE.w, d: HOUSE.d, height: [150, 170, 140, 176][variant % 4]!, variant, back: true });
+      houses.push({ x, y, w: HOUSE.w, d: HOUSE.d, height: [120, 138, 126, 146][variant % 4]!, variant, back: true });
     }
   }
   // Behind the courtyard at the end of the alley: low houses, so the alley stays readable.

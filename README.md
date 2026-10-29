@@ -1,7 +1,7 @@
 # COG-CoffeeGame
 
-2.5D isometric coffee farming + café management game (Phaser 4, TypeScript, Vite).
-Current phase: **gameplay first, placeholder art**. See [docs/GAMEPLAY_ROADMAP.md](docs/GAMEPLAY_ROADMAP.md).
+2.5D isometric story game (Phaser 4, TypeScript, Vite).
+Current scope: **chapter 1 (the old quarter) and chapter 2 (the cloud garden)** only. The café, farm and economy code was removed so it can be rebuilt; the docs under `docs/` still describe the old design.
 Task tracking: [docs/task-list/TASK_LIST.md](docs/task-list/TASK_LIST.md) (update it whenever you change docs, see its README).
 
 ## Run

@@ -182,10 +182,17 @@ export class StreetLifeView {
     const seen = new Set<string>(), said = new Set<string>();
     const z = this.scene.cameras.main.zoom, now = street?.elapsedMs ?? this.scene.time.now;
     const skids: StreetView['npcs'] = [];
-    this.raised = 0;
+    const view = this.scene.cameras.main.worldView;
+    const speakers = (street?.npcs ?? []).filter(n => n.say && view.contains(worldToScreen(n).x, worldToScreen(n).y))
+      .sort((a, b) => {
+        const priority = (n: StreetView['npcs'][number]) => (n.look === 'medic' || n.look === 'ambulance' || (street?.talking && n.id.startsWith(street.talking + ':')) ? -100 : 0) + (this.bubbles.has(n.id) ? -2 : 0) + Math.hypot(n.x - hero.x, n.y - hero.y);
+        return priority(a) - priority(b);
+      });
+    // Read one speaker at a time; distant chatter must not flood the phone or obscure rescue dialogue.
+    const speaking = speakers[0]?.id;
     // The hero lying on the street (about a tile long, head to the left): bubbles keep off it.
     const hp = worldToScreen(hero);
-    const lying = street?.heroDown && !street.heroHidden ? { x0: hp.x - 90, x1: hp.x + 28, y0: hp.y - 48, y1: hp.y + 12 } : null;
+    const lying = street?.heroHidden ? null : street?.heroDown ? { x0: hp.x - 90, x1: hp.x + 28, y0: hp.y - 48, y1: hp.y + 12 } : { x0: hp.x - 30, x1: hp.x + 30, y0: hp.y - 75, y1: hp.y + 10 };
     for (const n of street?.npcs ?? []) {
       seen.add(n.id);
       let g = this.bodies.get(n.id);
@@ -220,7 +227,7 @@ export class StreetLifeView {
       const visible = n.scale > 0.01 && n.x >= STREET_ENDS.w && n.x <= STREET_ENDS.e;
       g.setPosition(p.x, p.y + bob).setScale(flip * scale, scale).setRotation(n.tilt).setDepth(Math.round(actorDepth(n) * 100) / 100 + g.getData('sortBias')).setVisible(visible).setData('worldScale', n.scale);
       this.contactShadows.get(n.id)?.setPosition(p.x, p.y).setScale(n.scale).setVisible(visible);
-      if (n.say) {
+      if (n.say && n.id === speaking && !street?.heroSay && !heroSay) {
         said.add(n.id);
         this.bubble(n.id, n.say, n, kind ? g.displayHeight * g.originY + 12 : n.bike ? 84 : 78, z, false, lying);
       }
@@ -322,11 +329,11 @@ export class StreetLifeView {
     g.fillStyle(0x6fe3ff, .25 + flare * .4).fillEllipse(p.x, p.y, R * 2.1, R * 1.05);
     for (const [r, w, c] of [[1, 5, 0xffd25e], [.78, 3, 0x6fe3ff], [.5, 3, 0xffffff]] as const) g.lineStyle(w, c, .95).strokeEllipse(p.x, p.y, R * 2 * r, R * r);
     // Runes running round between the rings, the inner star turning the other way.
-    for (let i = 0; i < 12; i++) { const a = now / 900 + (i / 12) * Math.PI * 2; g.fillStyle(0xffd25e).fillRect(p.x + Math.cos(a) * R * .89 - 3, p.y + Math.sin(a) * R * .445 - 3, 6, 6); }
+    for (let i = 0; i < 12; i++) { const a = now / 900 + (i / 12) * Math.PI * 2; g.fillStyle(0xffd25e).fillCircle(p.x + Math.cos(a) * R * .89, p.y + Math.sin(a) * R * .445, 2.5); }
     const pts: Phaser.Math.Vector2[] = [];
     for (let i = 0; i < 6; i++) { const a = -now / 1300 + (i * Math.PI * 2) / 6; pts.push(new Phaser.Math.Vector2(p.x + Math.cos(a) * R * .5, p.y + Math.sin(a) * R * .25)); }
     g.lineStyle(2, 0xffffff, .9).strokePoints(pts, true);
-    g.fillStyle(0xbff4ff, .18 + flare * .5).fillRect(p.x - R * .7, p.y - 260 * e, R * 1.4, 260 * e);
+    g.fillStyle(0xbff4ff, .18 + flare * .5).fillEllipse(p.x, p.y, R * 1.4, R * .7);
   }
 
   /** The texture key, size and drawing of a body (a person look, a bike colour, or the ambulance going one way). */
@@ -376,6 +383,11 @@ export class StreetLifeView {
       return this.scene.add.image(0, 0, texture.key, String(person.row * 4)).setOrigin(.5, 1)
         .setData('sliceKind', 'person').setData('personArt', person).setData('nativeScale', person.height / extent);
     }
+    if (n.look === 'traffic_car' && this.sliceReady('parkedCars')) {
+      const frame = n.id.endsWith('1') ? '1' : '0';
+      const image = this.scene.add.image(0, 0, SLICE_ASSETS.parkedCars.key, frame).setOrigin(.5, .84);
+      return image.setData('sliceKind', 'traffic_car').setData('nativeScale', 190 / image.width);
+    }
     if (n.bike && n.look !== 'ambulance' && this.sliceReady('motorbikes')) {
       const texture = this.scene.textures.get(SLICE_ASSETS.motorbikes.key);
       const extent = Math.max(...Array.from({ length: 16 }, (_, i) => texture.get(String(i)).height));
@@ -422,7 +434,6 @@ export class StreetLifeView {
 
   /** Speech bubble over a head; kept a readable size whatever the zoom. */
   /** Bubbles raised off the lying hero so far this frame. */
-  private raised = 0;
 
   /** `avoid`: screen box (the hero lying on the street) a bubble must not cover: it is raised above it instead. */
   private bubble(id: string, text: string, at: WorldPos, lift: number, zoom: number, hero: boolean, avoid: { x0: number; x1: number; y0: number; y1: number } | null = null): void {
@@ -431,21 +442,21 @@ export class StreetLifeView {
       b = new SpeechBubble(this.scene).setDepth(1e6 - 2);
       this.bubbles.set(id, b);
     }
+    const anchor = worldToScreen(at), cameraView = this.scene.cameras.main.worldView;
+    if (!cameraView.contains(anchor.x, anchor.y)) { b.setVisible(false); return; }
+    b.setVisible(true);
     b.set(text, hero ? 'hero' : 'npc');
     const p = worldToScreen(at);
-    b.setScale(Math.max(1, Math.min(2.4, 1 / zoom)));
-    let y = p.y - lift;
-    if (avoid) {
-      const w = b.width * b.scale, h = b.height * b.scale;
-      const overlapX = p.x + w / 2 > avoid.x0 && p.x - w / 2 < avoid.x1, overlapY = y > avoid.y0 && y - h < avoid.y1;
-      // Raised above the hero; each further raised bubble stacks on the one below instead of overlapping it.
-      if (overlapX && overlapY) y = avoid.y0 - 6 - this.raised++ * (h + 4);
-    }
-    // Always whole on screen (clear of the HUD buttons along the top): slid in from the edge rather than cut off.
-    const view = this.scene.cameras.main.worldView, w = b.width * b.scale, h = b.height * b.scale, pad = 8 / zoom;
+    b.setScale(1 / zoom);
+    const y = p.y - lift, view = this.scene.cameras.main.worldView;
+    const w = b.width * b.scale, h = b.height * b.scale, pad = 8 / zoom;
     const x = Math.max(view.x + w / 2 + pad, Math.min(view.right - w / 2 - pad, p.x));
-    y = Math.max(view.y + h + 84 / zoom, Math.min(view.bottom - pad, y));
-    b.setPosition(x, y);
+    const offset = (x - p.x) * zoom;
+    const overlapsHero = avoid && x + w / 2 > avoid.x0 && x - w / 2 < avoid.x1 && y > avoid.y0 && y - h < avoid.y1;
+    // Never detach a bubble from its speaker to squeeze it into a crowded corner.
+    if (Math.abs(offset) > b.width / 2 - 24 || y - h < view.y + 64 / zoom || overlapsHero) { b.setVisible(false); return; }
+    b.setCardOffsetX(offset).setPosition(p.x, y);
+
   }
 
   destroy(): void {

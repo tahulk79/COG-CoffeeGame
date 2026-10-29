@@ -17,16 +17,19 @@ export class GardenAudio {
   private nextNote = 0;
   private step = 0;
   private seen = 0;
-  private readonly resume = () => { if (this.ctx && this.ctx.state !== 'running') void this.ctx.resume(); };
+  private paused = false;
+  private readonly voices = new Set<OscillatorNode>();
+  private readonly limiter: DynamicsCompressorNode | null = null;
+  private readonly resume = () => { if (this.ctx && !document.hidden && this.ctx.state !== 'running') void this.ctx.resume().catch(() => undefined); };
 
   constructor(private readonly scene: Phaser.Scene) {
     const sm = scene.sound;
     this.ctx = sm instanceof Phaser.Sound.WebAudioSoundManager ? sm.context : null;
     if (!this.ctx) return;
-    const limiter = this.ctx.createDynamicsCompressor();
+    const limiter = this.limiter = this.ctx.createDynamicsCompressor();
     limiter.threshold.value = -14;
     limiter.ratio.value = 6;
-    limiter.connect(this.ctx.destination);
+    limiter.connect((sm as Phaser.Sound.WebAudioSoundManager).destination);
     this.out = this.ctx.createGain();
     this.out.connect(limiter);
     for (const ev of ['pointerdown', 'pointerup', 'keydown', 'touchend'] as const) window.addEventListener(ev, this.resume, { capture: true });
@@ -34,9 +37,11 @@ export class GardenAudio {
     this.timer = window.setInterval(() => this.schedule(), 50);
   }
 
-  sync(v: GardenView | null): void {
+  sync(v: GardenView | null, paused = false): void {
     if (!this.ctx || !this.out) return;
-    this.out.gain.value = this.scene.sound.mute ? 0 : 2;
+    if ((paused || document.hidden) && !this.paused) this.stopVoices();
+    this.paused = paused || document.hidden;
+    this.out.gain.value = this.scene.sound.mute || document.hidden || paused ? 0 : 2;
     if (!v) return;
     // Events are kept ~1.5 s; play each one once (they only ever grow at the end).
     const fresh = v.events.filter((e) => e.at > this.seen);
@@ -58,6 +63,8 @@ export class GardenAudio {
   /** Gentle arpeggio over a slow chord change. */
   private schedule(): void {
     const ctx = this.ctx!;
+    if (this.paused || document.hidden || this.scene.sound.mute || ctx.state !== 'running') { this.nextNote = ctx.currentTime + .1; return; }
+    this.nextNote = Math.max(this.nextNote, ctx.currentTime);
     const CHORDS = [[0, 4, 7, 12], [-3, 0, 4, 9], [-7, -3, 0, 5], [-5, -1, 2, 7]];
     const root = 261.63;
     while (this.nextNote < ctx.currentTime + 0.2) {
@@ -74,7 +81,7 @@ export class GardenAudio {
 
   private note(freq: number, len: number, type: OscillatorType, vol: number, delay = 0): void {
     const ctx = this.ctx;
-    if (!ctx || !this.out) return;
+    if (!ctx || !this.out || this.paused || this.scene.sound.mute || document.hidden || ctx.state !== 'running') return;
     const t = ctx.currentTime + Math.max(0, delay);
     const o = ctx.createOscillator(), g = ctx.createGain();
     o.type = type;
@@ -83,15 +90,23 @@ export class GardenAudio {
     g.gain.exponentialRampToValueAtTime(vol, t + 0.015);
     g.gain.exponentialRampToValueAtTime(0.0001, t + len);
     o.connect(g).connect(this.out);
+    this.voices.add(o);
     o.start(t);
     o.stop(t + len + 0.02);
-    o.onended = () => { o.disconnect(); g.disconnect(); };
+    o.onended = () => { this.voices.delete(o); o.disconnect(); g.disconnect(); };
+  }
+
+  private stopVoices(): void {
+    for (const voice of this.voices) { try { voice.stop(); } catch { /* already ended */ } }
+    this.voices.clear();
   }
 
   destroy(): void {
+    this.stopVoices();
     for (const ev of ['pointerdown', 'pointerup', 'keydown', 'touchend'] as const) window.removeEventListener(ev, this.resume, { capture: true });
     if (this.timer !== null) window.clearInterval(this.timer);
     this.timer = null;
     this.out?.disconnect();
+    this.limiter?.disconnect();
   }
 }
