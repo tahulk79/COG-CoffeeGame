@@ -14,6 +14,7 @@ import { t } from '../core/i18n';
 import { CONTENT } from '../data/content';
 import { Autosave, createSession, type GameSession } from '../core/session';
 import { SystemClock } from '../core/Clock';
+import type { GameState } from '../gameplay/state/GameState';
 import type { GameSimulation } from '../gameplay/GameSimulation';
 import { PlaceholderRenderer } from '../components/render/PlaceholderRenderer';
 import type { ActorView } from '../components/render/WorldRenderer';
@@ -40,6 +41,8 @@ export interface WorldSceneData {
   persistent: boolean;
   /** Dev/test only: start from a fresh game, discarding the stored save. */
   fresh?: boolean;
+  /** Carry progress across scenes without depending on a successful storage write. */
+  state?: GameState;
 }
 
 /**
@@ -107,7 +110,7 @@ export class WorldScene extends Phaser.Scene {
     this.travelling = false;
     this.pendingTravel = null;
     this.hoveredObject = null; // scene instances are reused on restart
-    this.session = createSession({ ...(this.launchData.mapId ? { mapId: this.launchData.mapId } : {}), content: playContent(), persistent: this.launchData.persistent, clock, ...(skipStory() ? { skipStory: true } : {}) });
+    this.session = createSession({ ...(this.launchData.mapId ? { mapId: this.launchData.mapId } : {}), content: CONTENT, persistent: this.launchData.persistent, clock, initialState: this.launchData.state, ...(skipStory() ? { skipStory: true } : {}) });
     this.autosave = new Autosave(this.session);
     const world = this.sim.world;
     // Dev builds: `?cheat=1` opens the game fully unlocked with a large purse, for testing.
@@ -251,8 +254,15 @@ export class WorldScene extends Phaser.Scene {
 
     // Persist when the tab is hidden or closed (best effort; autosave covers the rest).
     const flush = () => this.autosave.saveNow();
-    const onVisibility = () => document.visibilityState === 'hidden' && flush();
+    const stopInput = () => {
+      this.stick = this.look = null;
+      this.input.keyboard?.resetKeys();
+      this.sim.steer(0, 0);
+      this.worldRenderer.setLooking(false);
+    };
+    const onVisibility = () => { if (document.visibilityState === 'hidden') { stopInput(); flush(); } };
     document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('blur', stopInput);
     window.addEventListener('pagehide', flush);
 
     this.scene.launch('HudScene', { session: this.session });
@@ -287,6 +297,7 @@ export class WorldScene extends Phaser.Scene {
       this.rewards?.destroy();
       this.rewards = null;
       document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('blur', stopInput);
       window.removeEventListener('pagehide', flush);
       this.autosave.destroy();
       this.feedback.destroy();
@@ -363,9 +374,9 @@ export class WorldScene extends Phaser.Scene {
     this.travelling = true;
     this.pendingTravel = null;
     this.sim.prepareTravel(map);
-    this.session.saves!.save(this.sim.state, this.sim.clock.now());
+    if (!this.session.saveBlocked && !this.session.saves!.save(this.sim.state, this.sim.clock.now())) this.sim.bus.emit('save:writeFailed', { at: this.sim.clock.now() });
     this.scene.stop('HudScene');
-    this.scene.restart({ mapId: map, persistent: true });
+    this.scene.restart({ mapId: map, persistent: true, state: this.sim.state });
   }
 
   /** While decorating, the furniture panel covers the right edge: the map is re-fitted into the space left of it. */
@@ -549,7 +560,6 @@ export class WorldScene extends Phaser.Scene {
 const CAMERA_REACH: Partial<Record<string, { west: number; east: number }>> = { incident: { west: 18, east: 21 } };
 const CAMERA_MODE: Partial<Record<string, CameraMode>> = { cafe: 'cafe', master: 'cafe', farm: 'farm', sandbox: 'exploration', incident: 'story' };
 
-/** Automated browsers (Playwright) skip the story unless the URL has ?story=1. Never in production builds. */
 /** `?fit=1` (or any automated browser unless `?close=1`) shows the whole map instead of following the player. Never in production. */
 function fitWholeMap(): boolean {
   if (import.meta.env.PROD) return false;
@@ -557,22 +567,9 @@ function fitWholeMap(): boolean {
   return q.has('fit') || (navigator.webdriver === true && !q.has('close'));
 }
 
-/**
- * Temporary, while chapter 1 is being finished: after the rescue the game plays chapter 1 again instead of going
- * on to chapter 2. `?chapter2=1` (and automated browsers) get the real story. Set to false to restore chapter 2.
- */
-const CHAPTER1_ONLY = true;
-
-function playContent(): typeof CONTENT {
-  const real = !CHAPTER1_ONLY || navigator.webdriver === true || new URLSearchParams(window.location.search).has('chapter2');
-  const ch1 = CONTENT.story.chapters.S03;
-  if (real || !ch1) return CONTENT;
-  return { ...CONTENT, story: { ...CONTENT.story, chapters: { ...CONTENT.story.chapters, S03: { ...ch1, next: 'S03' } } } };
-}
-
 function skipStory(): boolean {
   if (import.meta.env.PROD) return false;
-  return navigator.webdriver === true && !new URLSearchParams(window.location.search).has('story');
+  return new URLSearchParams(window.location.search).get('skipStory') === '1';
 }
 
 function readDebugClockOffset(): number {

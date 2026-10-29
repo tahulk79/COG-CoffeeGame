@@ -51,7 +51,7 @@ async function stopNeedleInZone(page: Page): Promise<void> {
 for (const testMode of [false, true]) test(`story master${testMode ? ' (level 99 test mode)' : ''}: the lesson never stalls — order, brew espresso, serve, outro, then the farm`, async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto('/?map=cafe&fresh=1');
+  await page.goto('/?map=cafe&fresh=1&skipStory=1');
   await page.waitForFunction(() => window.__TCSS__?.ready === true);
   await page.evaluate((tm) => {
     const sim = (window as any).__PHASER_GAME__.scene.getScene('WorldScene').sim;
@@ -59,7 +59,7 @@ for (const testMode of [false, true]) test(`story master${testMode ? ' (level 99
     sim.state.story = { chapter: 'S05', flags: {} };
     window.__TCSS__!.saveNow();
   }, testMode);
-  await page.goto('/?map=master');
+  await page.goto('/?map=master&skipStory=1');
   await page.waitForFunction(() => window.__TCSS__?.ready === true && window.__TCSS__.snapshot().story.dialog !== null);
   expect((await snap(page)).map).toBe('master');
   // Menu is on screen, but the map and the notebook (hidden during the story) are not offered.

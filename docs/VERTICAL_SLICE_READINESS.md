@@ -1,6 +1,6 @@
 # Kiểm tra Prototype và yêu cầu bàn giao đồ họa
 
-> **Kế hoạch hiện hành sau khi rà bản mới ngày 2026-10-29:** xem [VERTICAL_SLICE_PLAN.md](VERTICAL_SLICE_PLAN.md), theo dõi T-099–T-108 trong task list. Các mục audit cũ dưới đây lưu diễn biến; không dùng số PNG/danh sách lỗi cũ làm hiện trạng. Master đã tách, runtime WebP khoảng 5,3 MB. `story.json` hiện trỏ S04 nhưng `WorldScene` còn CHAPTER1_ONLY=true đổi sang S03 trên trình duyệt thường; cần thống nhất ở T-100.
+> **Kế hoạch hiện hành sau khi rà bản mới ngày 2026-10-29:** xem [VERTICAL_SLICE_PLAN.md](VERTICAL_SLICE_PLAN.md), theo dõi T-099–T-108 trong task list. Các mục audit cũ dưới đây lưu diễn biến; không dùng số PNG/danh sách lỗi cũ làm hiện trạng. Master đã tách, runtime WebP khoảng 5,3 MB. T-100 đã gỡ CHAPTER1_ONLY, tiếp tục checkpoint và chuyển S03 → S04 thống nhất; xem ghi nhận triển khai luồng 1 trong kế hoạch. Đang Review, chưa nghiệm thu thiết bị thật.
 
 Ngày kiểm tra: 2026-10-28. Phạm vi Vertical Slice đề xuất: **Chương 1 – Phố cổ Hà Nội**, gồm ngoài phố, các quầy hàng ngoài trời, sự cố, cứu thương và chuyển sang chương tiếp theo. **Quán cà phê ông Tám đã được bỏ khỏi Chương 1 theo yêu cầu ngày 2026-10-28.** Chưa bao gồm nâng cấp toàn bộ nông trại và quản lý quán ở các chương sau.
 
@@ -181,7 +181,7 @@ Chưa chạy game/test/typecheck/build, chưa nghiệm thu trên thiết bị. V
 
 ## 13. Đợt rà toàn bộ màn 1 — 2026-10-29 (Review)
 
-**Tạm tắt màn 2:** hằng `CHAPTER1_ONLY` trong `WorldScene.ts` (cứu hộ xong thì chơi lại màn 1); `story.json` giữ `S03.next = "S04"`. Bật lại màn 2: đặt `CHAPTER1_ONLY = false`, hoặc mở game với `?chapter2=1`. Trình duyệt tự động (e2e) luôn chạy cốt truyện thật.
+**Ghi nhận lịch sử trước T-100 (đã gỡ override):** hằng `CHAPTER1_ONLY` trong `WorldScene.ts` (cứu hộ xong thì chơi lại màn 1); `story.json` giữ `S03.next = "S04"`. Bật lại màn 2: đặt `CHAPTER1_ONLY = false`, hoặc mở game với `?chapter2=1`. Trình duyệt tự động (e2e) luôn chạy cốt truyện thật.
 
 - **Va chạm:** cây sấu, ghế nhựa, xe máy dựng va chạm hình tròn đúng cỡ hình (không còn ô vuông vô hình); nhân vật trượt quanh người/vật theo phía nghiêng, phía đó tắc thì sang phía kia, giữ phía đã chọn 0,4 s (không giật); tự lách góc vật chữ nhật tới 1 ô; bị kẹt giữa tường và người thì lách qua người sau 0,35 s.
 - **Cứu hộ:** cửa xe cách thân xe 1,1 ô; bác sĩ và người được khiêng đi vòng thân xe; điểm đỗ chỉ được chọn khi có đường vòng tới nhân vật; hai bác sĩ xuống lệch nhau 0,6 s và luôn cách nhau ≥ 0,45 ô.

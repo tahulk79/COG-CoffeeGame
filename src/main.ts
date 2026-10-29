@@ -4,7 +4,7 @@ import { WorldScene, type WorldSceneData } from './scenes/WorldScene';
 import { TRANSITION_SCENE, TransitionScene } from './scenes/TransitionScene';
 import { readMuted } from './core/audioPrefs';
 
-// ?map=sandbox opens the M1 movement sandbox (never saved). Default: the map you were last on (farm for a new game).
+// ?map=sandbox opens the movement sandbox (never saved). Default: resume the checkpoint, or start chapter 1.
 const params = new URLSearchParams(window.location.search);
 const mapParam = params.get('map');
 const start: WorldSceneData = { ...(mapParam ? { mapId: mapParam } : {}), persistent: mapParam !== 'sandbox', fresh: params.has('fresh') };

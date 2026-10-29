@@ -16,7 +16,7 @@ Giữ các quyết định đã chốt: bỏ hồ và landmark hồ, bỏ quán 
 - 33 atlas runtime WebP khoảng 5,3 MB, master PNG khoảng 48 MB nằm ngoài public. Việc xuất ảnh đã có; hiệu năng thiết bị thật còn cần đo.
 - Đã mở bản chạy local, xem khung PC 1280×720, mobile dọc 390×844 và cài đặt PC. Ảnh đầu xem toàn map theo chế độ trình duyệt tự động; lượt sau dùng `story=1&close=1` để xem camera theo người. Giả lập chiều rộng không đồng nghĩa thiết bị cảm ứng thật.
 - Quan sát thấy dãy nhà ảnh chi tiết phía trên và dãy quán khối đơn giản phía dưới chưa cùng mức hoàn thiện. Đây là việc cần duyệt mỹ thuật, không mặc định phải bỏ toàn bộ đồ họa vẽ bằng code.
-- `story.json` đặt S03.next=S04 nhưng `WorldScene.playContent()` dùng CHAPTER1_ONLY=true để đổi về S03 ở trình duyệt thường, kể cả bản production; trình duyệt tự động hoặc `?chapter2=1` đi luồng khác. Cần thống nhất trước bàn giao.
+- Lúc rà ban đầu: `story.json` đặt S03.next=S04 nhưng WorldScene dùng CHAPTER1_ONLY=true để đổi về S03 ở trình duyệt thường. T-100 đã gỡ override này; xem ghi nhận triển khai bên dưới.
 - Không chạy suite unit/e2e, typecheck hoặc build trong lượt rà. Chưa nghe duyệt âm thanh, chưa chơi đủ 12 sự cố/các góc cứu hộ, chưa đo mạng/RAM hay kiểm tra điện thoại thật. Không kết luận đã nghiệm thu từ FPS overlay trên desktop.
 
 ## Cách làm từng phần
@@ -102,3 +102,31 @@ Danh sách: mèo, chó, hố/nắp cống, sầu riêng, xe máy chở hàng, b�
 Làm **T-100 → T-101 → mẫu T-102 → T-103 → T-104 → T-105 → T-106 → T-107 → T-108**. Nếu lỗi cứu hộ chặn chơi xuất hiện, sửa trước mẫu mỹ thuật. Khi duyệt đoạn mẫu, ghi rõ bộ phận nào được thay; không đổi style toàn game giữa chừng.
 
 Chưa thêm loại sự cố/chương/landmark mới. Không yêu cầu mọi NPC phải luôn đi; chủ quầy, người đang nói chuyện và người xem cứu hộ được đứng có lý do. Mỗi lần làm tiếp chọn một task cụ thể, trả ảnh/bằng chứng cùng phần còn cần bạn tự duyệt.
+
+
+## Triển khai luồng 1 — 2026-10-29
+
+T-100 đang Review, chưa nghiệm thu toàn bộ Vertical Slice.
+
+- Chơi mới ở URL thường vào S03, không phụ thuộc trình duyệt có tự động hóa hay không. Bỏ `CHAPTER1_ONLY` và `playContent`; mọi bản dùng next từ cấu hình (S03 → S04).
+- Tải lại tiếp tục chương/flags đã lưu; không tự xóa tiến trình cốt truyện. Nếu save được ghi lúc chuyển cảnh với chương mới nhưng map cũ, chọn map của chương để tránh kẹt ở màn trước.
+- Giữ nút Xem lại cốt truyện: bắt đầu S03 qua luồng travel có sẵn, giữ tiến trình kinh tế/phần thưởng. Các pha tạm như sự cố/đám đông không được serialize; reload giữa màn 1 tạo lượt chạy mới ở checkpoint đã lưu.
+- Chuyển scene mang state trong bộ nhớ, tránh đọc lại save cũ nếu storage không ghi được. Vẫn tôn trọng saveBlocked của save phiên bản mới hơn. Không đảm bảo khôi phục qua đóng tab khi trình duyệt từ chối ghi save.
+- Game mới vẫn cần bấm xác nhận; chặn autosave/pagehide của session cũ ghi lại slot vừa xóa; mở lại đường dẫn sạch để không kế thừa `map`, `cheat`, `skipStory` của URL phát triển.
+- Mất focus/ẩn tab: bỏ joystick, reset phím và ngừng steer để tránh giữ hướng khi quay lại.
+- Dev muốn bỏ cốt truyện dùng `?skipStory=1` rõ ràng, không dùng ở production. Các URL vào bộ e2e ngoài cốt truyện đã đổi theo cách này; chưa chạy chúng. `?chapter2=1` không còn cần thiết. `fit/close` vẫn chỉ hỗ trợ camera phát triển, không đổi next/chương.
+
+**Đã quan sát bằng UI local trên cổng riêng 5190:** mở `/` vào màn 1 không có tham số story; thao tác đi phố dẫn tới ngất/cứu hộ và sang cảnh S04; reload `/` vẫn ở S04; chọn Xem lại cốt truyện về màn 1; mở Game mới thấy bước xác nhận. Console không có error tại các lần đọc. Không dùng bot/suite hay gọi debug để ép chuyển chương.
+
+Bằng chứng: [đã sang S04](screenshots/flow1-chapter2.png), [xem lại về S03](screenshots/flow1-replay.png).
+
+**Bạn tự kiểm trước khi đóng T-100:**
+
+1. Mở URL thường không có map/skipStory; đi phố và gặp sự cố, chờ bác sĩ khiêng lên xe rồi vào cảnh trùng sinh. Không quay lại phố tự động.
+2. Reload khi đã ở S04: giữ chương và các viên đá đã kích hoạt. Reload giữa màn 1: giữ checkpoint/flags, bắt đầu lại phần sự cố tạm.
+3. Xem lại cốt truyện: quay về S03; kiểm tài sản/phần thưởng cũ không bị mất hoặc cấp đôi.
+4. Game mới: chỉ xóa sau xác nhận, vào S03 từ đầu; reload không hồi save cũ. Thử cả khi URL cũ có map override. Lượt triển khai chưa bấm xóa save qua UI.
+5. Mở/đóng menu, giữ phím/joystick rồi đổi tab/quay lại: không giữ hướng chạy. Cần kiểm trên điện thoại thật.
+6. Trường hợp storage bị chặn/ghi lỗi và đóng tab giữa chuyển cảnh chưa được mô phỏng; phần xử lý mới đã rà code, chưa xác nhận runtime. Không đánh dấu các trường hợp này đã qua.
+
+Không chạy unit/e2e/typecheck/build theo yêu cầu tự test; chưa push/commit. Bước tiếp sau khi duyệt T-100 là T-101 (sinh hoạt NPC/lối đi), giữ nguyên art trong lượt này.

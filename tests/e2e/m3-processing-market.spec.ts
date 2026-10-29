@@ -4,7 +4,7 @@ async function boot(page: Page): Promise<string[]> {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
-  await page.goto('/');
+  await page.goto('/?skipStory=1');
   await page.waitForFunction(() => window.__TCSS__?.ready === true);
   await page.waitForTimeout(250);
   await page.evaluate(() => window.__TCSS__!.setTimeScale(3));

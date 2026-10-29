@@ -4,7 +4,7 @@ async function boot(page: Page): Promise<string[]> {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
-  await page.goto('/?map=cafe');
+  await page.goto('/?map=cafe&skipStory=1');
   await ready(page);
   return errors;
 }

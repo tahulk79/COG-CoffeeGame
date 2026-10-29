@@ -132,3 +132,10 @@ Tất cả nằm trong [story.json](../../src/data/config/story.json), mục `ch
 | Cảnh cứu hộ, xác suất rơi bánh nổ | `street.rescue`, `street.rescue.wheelOffChance` (hiện 0,5) |
 
 Kiểm tra tự động: `tests/unit/chapter1-playtest.test.ts` (chơi thử từng sự cố, cảnh rào, cảnh cứu hộ, và một bài bấm ngẫu nhiên 40 lượt).
+
+
+## Chơi mới, tiếp tục và chơi lại (T-100)
+
+Mở game bình thường: chưa có save thì vào phố (S03); có save thì tiếp tục chương đã lưu. Sau cứu hộ, nhân vật chuyển sang cảnh trùng sinh S04; không tự lặp lại màn 1. Tải lại giữa một sự cố không khôi phục từng khung hình/đám đông, mà bắt đầu lại lượt chạy của chương ở checkpoint đã lưu.
+
+Trong Cài đặt, **Xem lại cốt truyện** bắt đầu lại S03 và giữ tài sản hiện có. **Game mới** xóa tiến trình sau bước xác nhận và mở từ đầu. Bản phát triển có thể mở `?skipStory=1` để vào phần quản lý; không cần `?story=1` hoặc `?chapter2=1` để chơi cốt truyện thật.

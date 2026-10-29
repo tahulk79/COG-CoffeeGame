@@ -4,7 +4,7 @@ async function boot(page: Page, url: string): Promise<string[]> {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
-  await page.goto(url);
+  await page.goto(`${url}${url.includes('?') ? '&' : '?'}skipStory=1`);
   await ready(page);
   return errors;
 }
