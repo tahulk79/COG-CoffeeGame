@@ -60,7 +60,7 @@ export const SLICE_PEOPLE: Readonly<Record<string, { asset: 'citizens' | 'vendor
   tourist: { asset: 'citizens', row: 2, height: 64 },
   kid: { asset: 'citizens', row: 3, height: 50 },
   vendor: { asset: 'vendors', row: 0, height: 64 },
-  seller: { asset: 'vendors', row: 1, height: 64 },
+  seller: { asset: 'vendors', row: 2, height: 64 },
   cook: { asset: 'vendors', row: 2, height: 64 },
   granny: { asset: 'vendors', row: 3, height: 62 },
   old: { asset: 'workers', row: 0, height: 62 },

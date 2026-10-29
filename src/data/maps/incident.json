@@ -31,8 +31,8 @@
     "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
     "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
     "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
-    "#..............................................#",
-    "#..............................................#",
+    "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
+    "#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#",
     "#..............................................#",
     "#..............................................#",
     "#..............................................#",
@@ -41,242 +41,50 @@
   ],
   "playerStart": {
     "x": 24,
-    "y": 12
+    "y": 14
   },
   "objects": [
-    {
-      "id": "tra_da",
-      "type": "stall",
-      "x": 2,
-      "y": 5
-    },
-    {
-      "id": "bao",
-      "type": "stall",
-      "x": 7,
-      "y": 5
-    },
-    {
-      "id": "banh_mi",
-      "type": "stall",
-      "x": 26,
-      "y": 5
-    },
-    {
-      "id": "cat_toc",
-      "type": "stall",
-      "x": 31,
-      "y": 5
-    },
-    {
-      "id": "xe_om",
-      "type": "stall",
-      "x": 8,
-      "y": 14
-    },
-    {
-      "id": "xoi",
-      "type": "stall",
-      "x": 17,
-      "y": 14
-    },
-    {
-      "id": "stools_18",
-      "type": "stools",
-      "x": 18,
-      "y": 5
-    },
-    {
-      "id": "stools_35",
-      "type": "stools",
-      "x": 35,
-      "y": 5
-    },
-    {
-      "id": "stools_40",
-      "type": "stools",
-      "x": 40,
-      "y": 5
-    },
-    {
-      "id": "parked_bike_14",
-      "type": "parked_bike",
-      "x": 14,
-      "y": 5
-    },
-    {
-      "id": "parked_bike_37",
-      "type": "parked_bike",
-      "x": 37,
-      "y": 5
-    },
-    {
-      "id": "parked_bike_44",
-      "type": "parked_bike",
-      "x": 44,
-      "y": 5
-    },
-    {
-      "id": "pho",
-      "type": "stall",
-      "x": 11,
-      "y": 5
-    },
-    {
-      "id": "bun_dau",
-      "type": "stall",
-      "x": 15,
-      "y": 5
-    },
     {
       "id": "tree_5",
       "type": "sau_tree",
       "x": 5,
-      "y": 11
+      "y": 13
     },
     {
       "id": "tree_11",
       "type": "sau_tree",
       "x": 11,
-      "y": 11
+      "y": 13
     },
     {
       "id": "tree_17",
       "type": "sau_tree",
       "x": 17,
-      "y": 11
+      "y": 13
     },
     {
       "id": "tree_23",
       "type": "sau_tree",
       "x": 23,
-      "y": 11
+      "y": 13
     },
     {
       "id": "tree_29",
       "type": "sau_tree",
       "x": 29,
-      "y": 11
+      "y": 13
     },
     {
       "id": "tree_35",
       "type": "sau_tree",
       "x": 35,
-      "y": 11
+      "y": 13
     },
     {
       "id": "tree_41",
       "type": "sau_tree",
       "x": 41,
-      "y": 11
-    },
-    {
-      "id": "stools_s3",
-      "type": "stools",
-      "x": 3,
-      "y": 15
-    },
-    {
-      "id": "stools_s13",
-      "type": "stools",
-      "x": 13,
-      "y": 15
-    },
-    {
-      "id": "stools_s22",
-      "type": "stools",
-      "x": 22,
-      "y": 15
-    },
-    {
-      "id": "stools_s31",
-      "type": "stools",
-      "x": 31,
-      "y": 15
-    },
-    {
-      "id": "stools_s40",
-      "type": "stools",
-      "x": 40,
-      "y": 15
-    },
-    {
-      "id": "parked_bike_s5",
-      "type": "parked_bike",
-      "x": 5,
-      "y": 15
-    },
-    {
-      "id": "parked_bike_s6",
-      "type": "parked_bike",
-      "x": 6,
-      "y": 15
-    },
-    {
-      "id": "parked_bike_s15",
-      "type": "parked_bike",
-      "x": 15,
-      "y": 15
-    },
-    {
-      "id": "parked_bike_s20",
-      "type": "parked_bike",
-      "x": 20,
-      "y": 15
-    },
-    {
-      "id": "parked_bike_s24",
-      "type": "parked_bike",
-      "x": 24,
-      "y": 15
-    },
-    {
-      "id": "parked_bike_s26",
-      "type": "parked_bike",
-      "x": 26,
-      "y": 15
-    },
-    {
-      "id": "parked_bike_s27",
-      "type": "parked_bike",
-      "x": 27,
-      "y": 15
-    },
-    {
-      "id": "parked_bike_s33",
-      "type": "parked_bike",
-      "x": 33,
-      "y": 15
-    },
-    {
-      "id": "parked_bike_s34",
-      "type": "parked_bike",
-      "x": 34,
-      "y": 15
-    },
-    {
-      "id": "parked_bike_s37",
-      "type": "parked_bike",
-      "x": 37,
-      "y": 15
-    },
-    {
-      "id": "parked_bike_s42",
-      "type": "parked_bike",
-      "x": 42,
-      "y": 15
-    },
-    {
-      "id": "parked_bike_s43",
-      "type": "parked_bike",
-      "x": 43,
-      "y": 15
-    },
-    {
-      "id": "parked_bike_s45",
-      "type": "parked_bike",
-      "x": 45,
-      "y": 15
+      "y": 13
     }
   ]
 }

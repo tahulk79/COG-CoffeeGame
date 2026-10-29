@@ -33,7 +33,7 @@ const LOOKS: Record<string, { shirt: number; legs: number; skin?: number; scale?
 };
 
 /** Rows the street-end barriers span: from the houses (north sidewalk), across the road, down to the lake railing (see incident.json). */
-const BARRIER_ROWS = { top: 5, roadTop: 8, roadBottom: 11, bottom: 17 };
+const BARRIER_ROWS = { top: 5, roadTop: 8, roadBottom: 13, bottom: 17 };
 
 /** A small outlined person at (0, 0) (feet), facing right; flipped by the caller to face left. `cat`: the shop cat. */
 export function person(g: Phaser.GameObjects.Graphics, look: string): void {
@@ -218,6 +218,9 @@ export class StreetLifeView {
         const person = g.getData('personArt') as NonNullable<ReturnType<typeof streetPerson>>;
         const pose = slicePersonFrame(person.row, n.facing ?? (n.dir < 0 ? 'W' : 'E'), n.moving, now);
         g.setTexture(SLICE_ASSETS[person.asset].key, pose.frame).setFlipX(pose.flipX);
+      } else if (kind === 'traffic_car') {
+        // The red car's nose points east, the blue one's west: each drives forwards.
+        g.setTexture(SLICE_ASSETS.parkedCars.key, n.dir > 0 ? '0' : '1').setFlipX(false);
       } else if (kind === 'motorbike') {
         g.setTexture(SLICE_ASSETS.motorbikes.key, sliceMotorbikeFrame(n.facing ?? (n.dir < 0 ? 'W' : 'E'), g.getData('bikeColor'))).setFlipX(false);
       } else if (n.look === 'ambulance') g.setTexture(`npc:ambulance:${n.dir < 0 ? -1 : 1}`).setFlipX(n.axis === 'y');
@@ -385,7 +388,7 @@ export class StreetLifeView {
     }
     if (n.look === 'traffic_car' && this.sliceReady('parkedCars')) {
       const frame = n.id.endsWith('1') ? '1' : '0';
-      const image = this.scene.add.image(0, 0, SLICE_ASSETS.parkedCars.key, frame).setOrigin(.5, .84);
+      const image = this.scene.add.image(0, 0, SLICE_ASSETS.parkedCars.key, frame).setOrigin(.5, .7);
       return image.setData('sliceKind', 'traffic_car').setData('nativeScale', 190 / image.width);
     }
     if (n.bike && n.look !== 'ambulance' && this.sliceReady('motorbikes')) {
@@ -415,7 +418,7 @@ export class StreetLifeView {
   npcAt(x: number, y: number): string | null {
     let best: { id: string; depth: number } | null = null;
     for (const [id, g] of this.bodies) {
-      if (!g.visible || id.startsWith('bike') || id.startsWith('gatebike') || id.startsWith('crashbike') || id === 'ambulance') continue;
+      if (!g.visible || id.startsWith('bike') || id.startsWith('veh') || id.startsWith('backbike') || id.startsWith('gatebike') || id.startsWith('crashbike') || id === 'ambulance') continue;
       const s: number = g.getData('worldScale') ?? Math.abs(g.scaleY) * SPRITE_SS;
       if (x < g.x - 22 * s || x > g.x + 22 * s || y < g.y - 74 * s || y > g.y + 6) continue;
       if (!best || g.depth > best.depth) best = { id, depth: g.depth };

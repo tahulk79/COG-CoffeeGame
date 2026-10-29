@@ -22,7 +22,6 @@ import type { ActorView } from '../components/render/WorldRenderer';
 import { StoryPresenter } from '../components/presenters/StoryPresenter';
 import { FeedbackPresenter } from '../ui/FeedbackPresenter';
 import { installTestBridge } from '../core/testBridge';
-import { readSafeInsets } from '../ui/layout/HudLayout';
 import { hudScale, worldViewInsets, worldZoom } from '../ui/layout/viewInsets';
 import { framingZoom, mapRect, type CameraMode } from '../systems/camera/framing';
 import { screenToWorld } from '../utils/iso';
@@ -149,7 +148,7 @@ export class WorldScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-M', () => toggleMute(this.sound));
     this.stickGfx = this.add.graphics().setDepth(1e6 + 5);
     this.moveKeys = (this.input.keyboard?.addKeys('W,A,S,D') as Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>) ?? null;
-    // The bottom-left ring steers. Chapter 1 ignores map drags; taps act on release.
+    // Touch steers with a floating joystick under the finger. Chapter 1 ignores map drags; taps act on release.
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       if (this.isUiBlocked()) return;
       if (p.rightButtonDown()) return this.sim.cancel();
@@ -161,8 +160,8 @@ export class WorldScene extends Phaser.Scene {
         return;
       }
       this.gestureConsumed = false;
-      const origin = this.stickOrigin();
-      if (p.wasTouch && (this.sim.run || this.sim.garden) && Math.hypot(p.x - origin.x, p.y - origin.y) < 64) { if (!this.stick) this.stick = { x: origin.x, y: origin.y, cx: p.x, cy: p.y, on: false, id: p.id }; }
+      // Touch: a floating joystick wherever the finger goes down (it shows only once the finger drags; a plain tap still taps).
+      if (p.wasTouch && (this.sim.run || this.sim.garden)) { if (!this.stick) this.stick = { x: p.x, y: p.y, cx: p.x, cy: p.y, on: false, id: p.id }; }
       else if (!this.look) this.look = { x: p.x, y: p.y, px: p.x, py: p.y, on: false, id: p.id };
     });
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
@@ -181,7 +180,9 @@ export class WorldScene extends Phaser.Scene {
     });
     const release = (p: Phaser.Input.Pointer) => {
       if (this.stick?.id === p.id) {
+        const tapped = !this.stick.on;
         this.stick = null;
+        if (tapped && !this.gestureConsumed) this.clickAt(p);
       }
       if (this.look?.id === p.id) {
         const dragged = this.look.on;
@@ -236,6 +237,8 @@ export class WorldScene extends Phaser.Scene {
     this.scene.launch('HudScene', { session: this.session, loadFailures: this.loadFailures });
     // Arriving through the story doors: they swing open on this map.
     if (this.scene.isActive(TRANSITION_SCENE)) (this.scene.get(TRANSITION_SCENE) as TransitionScene).open();
+    // Chapter 2 is not part of this build: once it has loaded, a "coming soon" card replaces it.
+    if (this.sim.story.chapterId === 'S04') this.showComingSoon();
     installTestBridge(this);
     if (import.meta.env.DEV) installIncidentReview(this);
 
@@ -344,9 +347,22 @@ export class WorldScene extends Phaser.Scene {
     this.worldRenderer.frame(world.width, world.height, base, zoom);
   }
 
-  private stickOrigin(): { x: number; y: number } {
-    const safe = readSafeInsets();
-    return { x: safe.left + 82, y: this.scale.height - safe.bottom - 90 };
+  /** Chapter 2 is off for now: the world and the HUD stop, sound goes quiet, a card says it is coming and offers chapter 1 again. */
+  private showComingSoon(): void {
+    window.setTimeout(() => {
+      this.scene.pause();
+      if (this.scene.isActive('HudScene')) this.scene.pause('HudScene');
+      this.sound.mute = true;
+    }, 50);
+    if (document.getElementById('soon')) return;
+    const card = document.createElement('div');
+    card.id = 'soon';
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-label', 'Sắp ra mắt');
+    card.innerHTML = '<div class="card"><div class="kicker">CHƯƠNG 2 · VƯỜN MÂY</div><div class="title">Sắp ra mắt</div><p>Chương tiếp theo đang được xây dựng. Hẹn bạn sớm nhé!</p><button type="button">Chơi lại chương 1</button></div>';
+    // A fresh page starts chapter 1 again.
+    card.querySelector('button')!.addEventListener('click', () => window.location.reload());
+    document.body.appendChild(card);
   }
 
   private isUiBlocked(): boolean {
@@ -393,7 +409,9 @@ export class WorldScene extends Phaser.Scene {
     g.clear();
     if (this.isUiBlocked()) return;
     if (!(this.sim.run || this.sim.garden) || navigator.maxTouchPoints === 0) return;
-    const origin = st ?? this.stickOrigin();
+    // Nothing on screen until the finger actually steers.
+    if (!st?.on) return;
+    const origin = st;
     const cam = this.cameras.main, z = cam.zoom;
     const o = cam.getWorldPoint(origin.x, origin.y);
     const len = Math.min(48, st?.on ? Math.hypot(st.cx - st.x, st.cy - st.y) : 0);

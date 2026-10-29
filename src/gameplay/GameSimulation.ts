@@ -137,7 +137,10 @@ export class GameSimulation {
           canWalk: (from, to) => hasClearance(this.world.grid, from, to, RUN_BODY_RADIUS),
           path: (from, to, avoid, people) => streetPath.plan(from, to, avoid, people),
           rescueRoute: (hero, people = []) => planRescue(this.world.grid, hero, ch.street!.bikeLanes, ch.street!.ambulanceAccess,
-            (door, body) => props.every(o => Math.hypot(door.x - o.x, door.y - o.y) >= o.r + .26) && !!streetPath.plan(door, hero, body, people) && !!streetPath.plan(hero, door, body, people)),
+            (door, body) => props.every(o => Math.hypot(door.x - o.x, door.y - o.y) >= o.r + .26
+              // The parked body itself keeps clear of trunks and parked bikes.
+              && Math.hypot(Math.max(body.x - o.x, 0, o.x - body.x - body.w), Math.max(body.y - o.y, 0, o.y - body.y - body.h)) >= o.r + .3) && !!streetPath.plan(door, hero, body, people) && !!streetPath.plan(hero, door, body, people),
+            props),
           bikeHit: () => run.crash('motorbike', ch.hazards?.motorbike?.faint ?? '…', 2000),
           rescued: () => run.finishDown(),
         });

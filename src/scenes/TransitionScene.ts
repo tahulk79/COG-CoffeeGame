@@ -1,6 +1,5 @@
 import Phaser from 'phaser';
 import { bakeTexture } from '../ui/theme/bake';
-import { t } from '../core/i18n';
 import { COLORS, dur, FONT, css, LIGHT } from '../ui/theme/tokens';
 
 export const TRANSITION_SCENE = 'TransitionScene';
@@ -108,12 +107,14 @@ export class TransitionScene extends Phaser.Scene {
     if (this.boot) this.runBoot(this.boot);
   }
 
-  /** Loading screen: shut doors, "Đang mở cổng…" and a bar that fills while the game gets ready. */
+  /**
+   * Loading: the light HTML screen in index.html (the hero running on the spot, a bar) stays up until the game is
+   * ready; no doors are drawn. Progress goes to its bar, and it fades out as the world starts.
+   */
   private runBoot(gate: BootGate): void {
-    this.setDoors(1);
-    this.showBar = true;
-    this.setTitle(t('transition.loading'), 'COG-CoffeeGame');
-    this.plate.setAlpha(1);
+    this.setDoors(0);
+    this.closed = false;
+    const screen = document.getElementById('boot'), fill = screen?.querySelector<HTMLElement>('.bar i') ?? null;
     const started = this.time.now;
     let ready = false;
     void gate.ready.then(() => {
@@ -125,11 +126,18 @@ export class TransitionScene extends Phaser.Scene {
     const tick = () => {
       // Creeps towards 90% while waiting, then completes; never shorter than a glance.
       this.progress += ((ready ? 1 : 0.9) - this.progress) * 0.08;
-      this.drawBar(this.progress);
-      if (ready && this.time.now - started > 900 && this.progress > 0.98) {
+      if (fill) fill.style.width = `${Math.round(Math.max(0.08, this.progress) * 100)}%`;
+      if (ready && this.time.now - started > 600 && this.progress > 0.98) {
         this.events.off(Phaser.Scenes.Events.UPDATE, tick);
-        this.drawBar(1);
         this.boot = null;
+        // Stays up until the street has been built and drawn (two frames after its create), so there is never a blank
+        // screen between the loading screen and the game.
+        const world = this.scene.get('WorldScene');
+        world.events.once(Phaser.Scenes.Events.CREATE, () => requestAnimationFrame(() => requestAnimationFrame(() => {
+          if (fill) fill.style.width = '100%';
+          screen?.classList.add('done');
+          window.setTimeout(() => screen?.remove(), 400);
+        })));
         gate.start();
       }
     };
@@ -243,17 +251,13 @@ export class TransitionScene extends Phaser.Scene {
       this.chime();
       return;
     }
-    this.tweens.add({
-      targets: s, t: 1, duration: time, ease: 'Cubic.easeIn',
-      onUpdate: () => this.setDoors(s.t),
-      onComplete: () => {
-        this.cameras.main.shake(dur(160), 0.006);
-        if (label) this.tweens.add({ targets: this.plate, alpha: 1, duration: dur(200) || 1 });
-        this.thud();
-      },
-    });
-    this.creak(time / 1000);
+    // Between maps: the same light loading screen as at start-up (the hero running, the next chapter's name), no doors.
+    this.setDoors(0);
+    this.loader = showLoader(label);
   }
+
+  /** The HTML loading screen while a new map loads (see index.html), and how far its bar is. */
+  private loader: HTMLElement | null = null;
 
   /** On the new map: the doors swing open in a burst of light, then the scene stops. */
   open(): void {
@@ -272,20 +276,13 @@ export class TransitionScene extends Phaser.Scene {
       return;
     }
     this.drawLight(0);
-    this.tweens.add({ targets: [this.plate, this.bar], alpha: 0, duration: dur(250) || 1, delay: dur(350) });
-    this.tweens.add({
-      targets: s, t: 0, duration: dur(1100) || 1, delay: dur(450), ease: 'Cubic.easeInOut',
-      onStart: () => this.chime(),
-      onUpdate: () => {
-        this.setDoors(s.t);
-        // The light is brightest as the gap first opens, then gives way to the new world.
-        this.drawLight(Math.sin(Math.min(1, (1 - s.t) * 1.6) * Math.PI) * 0.9);
-      },
-      onComplete: () => {
-        this.drawLight(0);
-        this.scene.stop();
-      },
-    });
+    // The bar completes, the screen fades out on the new map.
+    const screen = this.loader;
+    this.loader = null;
+    const fill = screen?.querySelector<HTMLElement>('.bar i');
+    if (fill) fill.style.width = '100%';
+    window.setTimeout(() => { screen?.classList.add('done'); window.setTimeout(() => screen?.remove(), 400); this.scene.stop(); }, 250);
+    void s;
   }
 
   // ── sound (Web Audio, follows the global mute) ─────────────────────────
@@ -364,4 +361,33 @@ function drawDoor(g: Phaser.GameObjects.Graphics, W: number, H: number): void {
   g.lineStyle(hd.r * 0.36, INK).strokeCircle(hd.x, hd.y, hd.r);
   g.lineStyle(hd.r * 0.2, COLORS.sun).strokeCircle(hd.x, hd.y, hd.r);
   g.fillStyle(COLORS.sun).fillCircle(hd.x, hd.y - hd.r, hd.r * 0.42).lineStyle(Math.max(2, L.line * 0.6), INK).strokeCircle(hd.x, hd.y - hd.r, hd.r * 0.42);
+}
+
+/**
+ * The light loading screen (styles in index.html): the hero running on the spot, `label` and a bar creeping towards
+ * 90 % until the caller completes it. Built on demand when the start-up one is gone.
+ */
+function showLoader(label: string): HTMLElement {
+  let screen = document.getElementById('boot');
+  if (!screen) {
+    screen = document.createElement('div');
+    screen.id = 'boot';
+    screen.setAttribute('role', 'status');
+    screen.setAttribute('aria-live', 'polite');
+    screen.className = 'done';
+    screen.innerHTML = '<div class="runner" aria-hidden="true"></div><div class="ground" aria-hidden="true"></div><div class="label"></div><div class="bar"><i></i></div>';
+    document.body.appendChild(screen);
+    // Next frame: fade in from transparent.
+    requestAnimationFrame(() => screen!.classList.remove('done'));
+  } else screen.classList.remove('done');
+  screen.querySelector('.label')!.textContent = label || 'Đang tải…';
+  const fill = screen.querySelector<HTMLElement>('.bar i')!;
+  let p = 0.08;
+  fill.style.width = '8%';
+  const creep = window.setInterval(() => {
+    if (!screen!.isConnected || fill.style.width === '100%') { window.clearInterval(creep); return; }
+    p += (0.9 - p) * 0.08;
+    fill.style.width = `${Math.round(p * 100)}%`;
+  }, 100);
+  return screen;
 }
