@@ -314,12 +314,15 @@ export class HudScene extends Phaser.Scene {
 
   /** Browser storage lives here, not in the simulation. */
   private newGame(): void {
+    // The old page's pagehide/shutdown handlers must not save over the reset slot.
+    this.session.saveBlocked = true;
     try {
       for (const k of Object.keys(window.localStorage)) if (k.startsWith('tcss.save.slot1')) window.localStorage.removeItem(k);
     } catch {
       /* storage blocked: reload still starts from whatever is stored */
     }
-    window.location.reload();
+    // A new game starts at the story entrance, even if this page was opened with a dev map override.
+    window.location.assign(window.location.pathname);
   }
 
   private toolbarItems(): ToolbarItem[] {

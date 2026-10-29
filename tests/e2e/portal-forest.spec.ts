@@ -28,7 +28,9 @@ for(const viewport of views)test(`forest gameplay, save/load and viewport ${view
   await page.addInitScript(state=>{if(!localStorage.getItem('tcss.save.slot1'))localStorage.setItem('tcss.save.slot1',JSON.stringify(state));},state);
   const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto('/?story=1&close=1');await page.waitForFunction(()=>window.__TCSS__?.ready);
-  await button(page,'story.next');await button(page,'story.next');
+  // Chapter 2 may open with lines to click through, or none: wait for the doors to open first.
+  await page.waitForFunction(()=>!(window as any).__PHASER_GAME__.scene.isActive('TransitionScene'),undefined,{timeout:30000});
+  for(let i=0;i<4;i++){const next=await page.evaluate(()=>window.__TCSS__!.buttonClient('story.next')?.enabled);if(!next)break;await button(page,'story.next');}
   await page.evaluate(()=>window.__TCSS__!.setTimeScale(2));
   expect(await page.evaluate(()=>{const r=document.querySelector('canvas')!.getBoundingClientRect();return {w:r.width,h:r.height,x:r.x,y:r.y};})).toEqual({w:viewport.width,h:viewport.height,x:0,y:0});
   await page.screenshot({path:`docs/screenshots/portal-forest-${viewport.width}.png`,scale:'css'});

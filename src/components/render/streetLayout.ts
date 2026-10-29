@@ -6,18 +6,35 @@ export interface StreetHouse {
   d: number;
   height: number;
   variant: number;
+  /** One of the rows behind the street frontage (decor only). */
+  back?: boolean;
 }
+
+/** A continuous Hanoi frontage: tube houses side by side, a hair's gap between them. */
+const HOUSE = { w: 2, d: 2.2, gap: .12 } as const;
+const FRONT = 4.9;
 
 export function streetHouses(): StreetHouse[] {
   const houses: StreetHouse[] = [];
-  const row = (start: number, end: number, y: number, d: number, back = false) => {
-    for (let x = start; x + 2.2 <= end; x += 2.4) {
+  const row = (start: number, end: number) => {
+    for (let x = start; x + HOUSE.w <= end; x += HOUSE.w + HOUSE.gap) {
       const variant = houses.length;
-      houses.push({ x, y, w: 2.2, d, height: back ? 116 : [142, 164, 128, 176][variant % 4]!, variant });
+      houses.push({ x, y: FRONT - HOUSE.d, w: HOUSE.w, d: HOUSE.d, height: [128, 150, 118, 158][variant % 4]!, variant });
     }
   };
-  row(-18, 19, 2.3, 2.6);
-  row(26, 69, 2.3, 2.6);
-  row(19.1, 26, -1, 1.8, true);
+  row(-18, 19);
+  row(26, 69);
+  // The city goes on behind the frontage: two more rows of houses, staggered, never in front of the alley's courtyard.
+  for (const [y, shift] of [[FRONT - HOUSE.d * 2 - .1, 1], [FRONT - HOUSE.d * 3 - .2, .4]] as const) {
+    for (let x = -18 + shift; x + HOUSE.w <= 69; x += HOUSE.w + HOUSE.gap) {
+      if (x + HOUSE.w > 18.6 && x < 26.4 && y > -2) continue;
+      const variant = houses.length;
+      houses.push({ x, y, w: HOUSE.w, d: HOUSE.d, height: [150, 170, 140, 176][variant % 4]!, variant, back: true });
+    }
+  }
+  // Behind the courtyard at the end of the alley: low houses, so the alley stays readable.
+  for (let x = 19.1; x + 1.8 <= 26; x += 2.2) houses.push({ x, y: -.6, w: 1.8, d: 1.5, height: 104, variant: houses.length });
+  // …and the city carries on behind those.
+  for (let x = 18.7; x + HOUSE.w <= 26.6; x += HOUSE.w + HOUSE.gap) houses.push({ x, y: -3.1, w: HOUSE.w, d: HOUSE.d, height: 150, variant: houses.length, back: true });
   return houses.sort((a, b) => a.x + a.y - b.x - b.y);
 }

@@ -28,6 +28,8 @@ export interface ActorViewState {
   state: string;
   facing: Facing;
   heldItem: string | null;
+  /** Chapter-1 illustrated reaction; absent while idle/walking. */
+  reaction?: 'stumble' | 'fall' | 'down' | 'carry';
   /** 0–1 while WORKING (player) or remaining patience (customer); null hides the bar. */
   progress: number | null;
   /** Speech bubble text (e.g. a customer's order); null hides it. */

@@ -1,6 +1,6 @@
 {
   "id": "incident",
-  "name": "Phố ven hồ chiều nắng (Chương 1)",
+  "name": "Phố cổ chiều nắng (Chương 1)",
   "legend": {
     "#": {
       "kind": "city_edge",
@@ -34,9 +34,9 @@
     "#..............................................#",
     "#..............................................#",
     "#..............................................#",
-    "#\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"#",
-    "#\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"#",
-    "#\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"#",
+    "#..............................................#",
+    "#..............................................#",
+    "#..............................................#",
     "################################################"
   ],
   "playerStart": {
@@ -72,91 +72,25 @@
       "id": "xe_om",
       "type": "stall",
       "x": 8,
-      "y": 13
+      "y": 14
     },
     {
       "id": "xoi",
       "type": "stall",
       "x": 17,
-      "y": 13
+      "y": 14
     },
     {
       "id": "car_1",
       "type": "car",
-      "x": 11,
-      "y": 13
+      "x": 13,
+      "y": 11
     },
     {
       "id": "car_2",
       "type": "car",
       "x": 25,
-      "y": 13
-    },
-    {
-      "id": "tree_5",
-      "type": "sau_tree",
-      "x": 5,
-      "y": 16
-    },
-    {
-      "id": "tree_9",
-      "type": "sau_tree",
-      "x": 9,
-      "y": 16
-    },
-    {
-      "id": "tree_13",
-      "type": "sau_tree",
-      "x": 13,
-      "y": 16
-    },
-    {
-      "id": "tree_17",
-      "type": "sau_tree",
-      "x": 17,
-      "y": 16
-    },
-    {
-      "id": "tree_21",
-      "type": "sau_tree",
-      "x": 21,
-      "y": 16
-    },
-    {
-      "id": "tree_25",
-      "type": "sau_tree",
-      "x": 25,
-      "y": 16
-    },
-    {
-      "id": "tree_29",
-      "type": "sau_tree",
-      "x": 29,
-      "y": 16
-    },
-    {
-      "id": "tree_33",
-      "type": "sau_tree",
-      "x": 33,
-      "y": 16
-    },
-    {
-      "id": "tree_37",
-      "type": "sau_tree",
-      "x": 37,
-      "y": 16
-    },
-    {
-      "id": "tree_41",
-      "type": "sau_tree",
-      "x": 41,
-      "y": 16
-    },
-    {
-      "id": "tree_45",
-      "type": "sau_tree",
-      "x": 45,
-      "y": 16
+      "y": 11
     },
     {
       "id": "stools_18",
@@ -205,6 +139,156 @@
       "type": "stall",
       "x": 15,
       "y": 5
+    },
+    {
+      "id": "tree_5",
+      "type": "sau_tree",
+      "x": 5,
+      "y": 11
+    },
+    {
+      "id": "tree_11",
+      "type": "sau_tree",
+      "x": 11,
+      "y": 11
+    },
+    {
+      "id": "tree_17",
+      "type": "sau_tree",
+      "x": 17,
+      "y": 11
+    },
+    {
+      "id": "tree_23",
+      "type": "sau_tree",
+      "x": 23,
+      "y": 11
+    },
+    {
+      "id": "tree_29",
+      "type": "sau_tree",
+      "x": 29,
+      "y": 11
+    },
+    {
+      "id": "tree_35",
+      "type": "sau_tree",
+      "x": 35,
+      "y": 11
+    },
+    {
+      "id": "tree_41",
+      "type": "sau_tree",
+      "x": 41,
+      "y": 11
+    },
+    {
+      "id": "stools_s3",
+      "type": "stools",
+      "x": 3,
+      "y": 15
+    },
+    {
+      "id": "stools_s13",
+      "type": "stools",
+      "x": 13,
+      "y": 15
+    },
+    {
+      "id": "stools_s22",
+      "type": "stools",
+      "x": 22,
+      "y": 15
+    },
+    {
+      "id": "stools_s31",
+      "type": "stools",
+      "x": 31,
+      "y": 15
+    },
+    {
+      "id": "stools_s40",
+      "type": "stools",
+      "x": 40,
+      "y": 15
+    },
+    {
+      "id": "parked_bike_s5",
+      "type": "parked_bike",
+      "x": 5,
+      "y": 15
+    },
+    {
+      "id": "parked_bike_s6",
+      "type": "parked_bike",
+      "x": 6,
+      "y": 15
+    },
+    {
+      "id": "parked_bike_s15",
+      "type": "parked_bike",
+      "x": 15,
+      "y": 15
+    },
+    {
+      "id": "parked_bike_s20",
+      "type": "parked_bike",
+      "x": 20,
+      "y": 15
+    },
+    {
+      "id": "parked_bike_s24",
+      "type": "parked_bike",
+      "x": 24,
+      "y": 15
+    },
+    {
+      "id": "parked_bike_s26",
+      "type": "parked_bike",
+      "x": 26,
+      "y": 15
+    },
+    {
+      "id": "parked_bike_s27",
+      "type": "parked_bike",
+      "x": 27,
+      "y": 15
+    },
+    {
+      "id": "parked_bike_s33",
+      "type": "parked_bike",
+      "x": 33,
+      "y": 15
+    },
+    {
+      "id": "parked_bike_s34",
+      "type": "parked_bike",
+      "x": 34,
+      "y": 15
+    },
+    {
+      "id": "parked_bike_s37",
+      "type": "parked_bike",
+      "x": 37,
+      "y": 15
+    },
+    {
+      "id": "parked_bike_s42",
+      "type": "parked_bike",
+      "x": 42,
+      "y": 15
+    },
+    {
+      "id": "parked_bike_s43",
+      "type": "parked_bike",
+      "x": 43,
+      "y": 15
+    },
+    {
+      "id": "parked_bike_s45",
+      "type": "parked_bike",
+      "x": 45,
+      "y": 15
     }
   ]
 }

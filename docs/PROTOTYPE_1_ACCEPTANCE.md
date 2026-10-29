@@ -1,6 +1,8 @@
 # Prototype 1 – trạng thái nghiệm thu
 
-Ngày: 2026-10-28. Phạm vi mới: phố cổ, quầy hàng ngoài trời, 12 sự cố, 6 kết thúc, barie, cứu thương, chuyển chương, UI và âm thanh tạm. Đã bỏ quán cà phê ông Tám và toàn bộ nội thất/hội thoại của quán khỏi màn 1.
+Ngày: 2026-10-28. Phạm vi mới: phố cổ, quầy hàng ngoài trời, 12 sự cố, barie, cứu thương, chuyển chương, UI và âm thanh tạm. Đã bỏ quán cà phê ông Tám và toàn bộ nội thất/hội thoại của quán khỏi màn 1.
+
+**Cập nhật phạm vi:** đã bỏ sáu kết thúc theo thời gian và mốc ép ngất120 giây; né được thì tiếp tục chơi. Tai nạn vẫn nối cứu thương → trùng sinh. Các lượt test cũ bên dưới không xác nhận thay đổi này hay các đợt art/UI mới.
 
 **Kết luận hiện tại: chưa ký nghiệm thu. Người dùng yêu cầu dừng test tự động và sẽ tự chơi thử.**
 

@@ -2,9 +2,10 @@ import type { GameContent } from '../data/content';
 import { GameSimulation } from '../gameplay/GameSimulation';
 import { LocalStorageAdapter, SaveService, type LoadResult, type StorageAdapter } from '../gameplay/state/SaveService';
 import { SystemClock, type Clock } from './Clock';
+import type { GameState } from '../gameplay/state/GameState';
 
 export interface SessionOptions {
-  /** Map to open; omitted = the map the save was on (default farm). */
+  /** Map to open; omitted = resume the story checkpoint or the saved map. */
   mapId?: string;
   content: GameContent;
   /** false = throwaway session (M1 sandbox, tests); nothing is loaded or saved. */
@@ -13,6 +14,8 @@ export interface SessionOptions {
   clock?: Clock;
   /** Dev/test only: new games skip the story. */
   skipStory?: boolean;
+  /** Live state passed between scenes; storage failure must not roll back a chapter transition. */
+  initialState?: GameState;
 }
 
 export interface GameSession {
@@ -40,15 +43,14 @@ export function createSession(o: SessionOptions): GameSession {
   }
   const saves = new SaveService(o.storage ?? new LocalStorageAdapter());
   const loaded = saves.load(clock.now());
-  const state = loaded.status === 'ok' ? loaded.state : undefined;
+  const state = o.initialState ?? (loaded.status === 'ok' ? loaded.state : undefined);
   // A new game starts with the story; a save resumes where it was.
   const newGameMap = o.skipStory ? 'farm' : o.content.story.chapters[o.content.story.start]?.map ?? 'farm';
-  // Opening the game while the story is not finished starts it over from chapter 1: it is short and its
-  // opening is the hook. Travelling between chapters passes `mapId` and carries on where it was.
-  const restartStory = !!state && !o.mapId && !o.skipStory && state.story.chapter !== 'done';
-  if (restartStory) state!.story = { chapter: o.content.story.start, flags: {} };
   const usable = (id: string) => { const m = o.content.maps[id]; return m && (!m.regionId || (m.businessKind === 'cafe' ? state?.regions[m.regionId]?.cafeBuilt : state?.regions[m.regionId]?.farmBuilt)); };
-  const savedMap = !restartStory && state && usable(state.player.map) && state.player.map !== 'sandbox' ? state.player.map : newGameMap;
+  // A save taken as the doors close can already name the next chapter while player.map still names the old map.
+  const chapterMap = !o.skipStory && state ? o.content.story.chapters[state.story.chapter]?.map : undefined;
+  const savedMap = chapterMap && usable(chapterMap) ? chapterMap
+    : state && usable(state.player.map) && state.player.map !== 'sandbox' ? state.player.map : newGameMap;
   const sim = new GameSimulation(mapOf(o.mapId && usable(o.mapId) ? o.mapId : savedMap), o.content, { clock, ...(state ? { state } : {}), ...(o.skipStory ? { skipStory: true } : {}) });
   const loadProblem = loaded.status === 'ok' || loaded.status === 'empty' ? null : loaded;
   return { sim, saves, loadProblem, recoveredFromBackup: loaded.status === 'ok' && !!loaded.recoveredFromBackup, saveBlocked: loaded.status === 'unsupported', frame: null };

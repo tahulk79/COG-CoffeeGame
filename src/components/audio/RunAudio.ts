@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import type { FinaleKind, HazardKind, RunView } from '../../gameplay/story/RunService';
+import type { HazardKind, RunView } from '../../gameplay/story/RunService';
 
 /**
  * Chapter-1 run sound, synthesised with Web Audio (no files): a cue for every
@@ -63,13 +63,13 @@ export class RunAudio {
       else if (h.phase === 'active' && prev === 'warn') this.activate(h.kind);
     }
     if (this.seen.size > 64) for (const id of [...this.seen.keys()].slice(0, 32)) this.seen.delete(id);
-    // A knock-out: the gag's own sound, or the fate's thud, then "wah wah wah".
-    const ko = run.hit?.kind ?? (run.finale && run.finale.t > .46 ? run.finale.kind : null);
+    // A knock-out: the gag's own sound, then "wah wah wah".
+    const ko = run.hit?.kind;
     if (ko && !this.dying) {
       this.dying = true;
       this.stopMusic();
       this.die(ko);
-    } else if (!run.hit && !run.finale && !run.down && run.running) this.dying = false;
+    } else if (!run.hit && !run.down && run.running) this.dying = false;
   }
 
   private warn(k: HazardKind): void {
@@ -97,7 +97,7 @@ export class RunAudio {
     if (k === 'motorbike') this.glide(110, 170, 1.2, 'sawtooth', 0.06);
   }
 
-  private die(k: HazardKind | FinaleKind): void {
+  private die(k: HazardKind): void {
     if (k === 'sinkhole') this.glide(900, 70, 1.2, 'sine', 0.3);
     else if (k === 'pigeons' || k === 'motorbike') this.glide(300, 1200, 0.9, 'triangle', 0.22);
     else if (k === 'banana') { this.glide(300, 900, 0.3, 'sine', 0.2); this.thud(0.5); }

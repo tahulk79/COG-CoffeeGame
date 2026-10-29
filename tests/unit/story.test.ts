@@ -45,7 +45,7 @@ describe('incident survival run',()=>{
     const hz=sim.story.view().run!.hazards;
     expect(hz.length).toBeGreaterThan(0);
     expect(hz[0]!.phase).toBe('warn');
-    for(let i=0;i<6000&&!sim.story.view().run?.hit&&!sim.story.view().run?.finale;i++) sim.tick(50);
+    for(let i=0;i<6000&&!sim.story.view().run?.hit;i++) sim.tick(50);
     expect(sim.story.view().run?.phase).toBe('faint');
     const at={...sim.player.pos};
     sim.steer(1,0); sim.clickTile({x:10,y:7}); sim.tick(300);
@@ -68,18 +68,13 @@ describe('incident survival run',()=>{
     expect([carried,bonk,hidden,portal]).toEqual([true,true,true,true]);
     expect(sim.story.chapterId).toBe('S04');
   });
-  it('dodging everything still ends in the fate: relief, the silly event, then down',()=>{
-    const content=structuredClone(CONTENT); content.story.chapters.S03!.run!.unlockSec={}; content.story.chapters.S03!.run!.chaosSec=8;
-    const sim=new GameSimulation(structuredClone(CONTENT.maps.incident!),content,{clock:new FakeClock(),rngSeed:3}); sim.startRun();
-    sim.steer(1,0); sim.tick(50); sim.steer(0,0);
-    for(let i=0;i<1300&&!sim.story.view().run?.finale;i++) sim.tick(50);
-    const f=sim.story.view().run!.finale!;
-    expect(f).toBeTruthy();
-    // Stalls never visited: only the fates that need no set-up can come.
-    expect(['sau','coin','lick']).toContain(f.kind);
-    expect(sim.story.view().run?.say).toBe(content.story.chapters.S03!.finales![f.kind]!.setup);
-    dieIdle(sim);
-    expect(sim.story.chapterId).toBe('S04');
+  it('does not force a knock-out after the former survival time limit',()=>{
+    const sim=incident(false); sim.steer(1,0); sim.tick(50); sim.steer(0,0);
+    sim.player.pos={x:22.5,y:7.5};
+    for(let i=0;i<2600;i++) sim.tick(50);
+    expect(sim.story.chapterId).toBe('S03');
+    expect(sim.story.view().run).toMatchObject({running:true,phase:'chaos',hit:null,down:null});
+    expect(sim.story.view().run!.aliveMs).toBeGreaterThan(120_000);
   });
   it('reloads mid-run straight into a fresh run',()=>{
     const sim=incident(); sim.tick(1000);

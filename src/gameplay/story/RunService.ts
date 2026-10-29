@@ -9,13 +9,12 @@ import { worldToTile } from '../../utils/tile';
  * with direct control (keys / joystick / click-to-move) while absurd street
  * gags keep coming, each telegraphed and most with a twist when dodged (the
  * second banana peel, the manhole next to the hole…). One touch knocks the
- * hero out; dodging everything only ends in the run's fate, an even sillier
- * knock-out. Either way the hero lies down, says one last line, and the story
+ * hero out. The hero lies down, says one last line, and the story
  * moves on. Pure simulation (no Phaser): positions in tile units, time in ms.
  */
-export type HazardKind = 'cat' | 'dog' | 'sinkhole' | 'durian' | 'motorbike' | 'pigeons' | 'banana' | 'water' | 'laundry' | 'shuttlecock' | 'slipper' | 'chickens';
-/** The knock-out waiting for whoever dodges everything. */
-export type FinaleKind = 'sau' | 'coin' | 'chair' | 'sneeze' | 'lick' | 'news';
+export type HazardKind = 'cat' | 'dog' | 'sinkhole' | 'durian' | 'motorbike' | 'pigeons' | 'banana' | 'water' | 'laundry' | 'shuttlecock' | 'slipper' | 'chickens'
+  /** Not a gag: the street-end boom coming down on the hero's head (played by the street, never dealt). */
+  | 'barrier';
 
 export interface HazardView {
   id: number;
@@ -33,6 +32,10 @@ export interface HazardView {
   twist: boolean;
   /** Short bubble over the hazard ("Gâu gâu!", "Nắp cống!"), or null. */
   label: string | null;
+  /** Delivery bike: the existing dodge branch has released its chickens. Visual state only. */
+  cargoOpen?: boolean;
+  /** Chasers really changed position this tick; a blocked animal keeps its idle pose. */
+  moving?: boolean;
 }
 
 /**
@@ -49,15 +52,11 @@ export interface RunView {
   /** Waiting for "tap to start". */
   paused: boolean;
   aliveMs: number;
-  /** Rush hour time left before the fate catches up (s), or null outside rush hour. */
-  leftSec: number | null;
   /** Stroll time left before rush hour starts on its own (s), or null outside the stroll. */
   strollLeftSec: number | null;
   hazards: HazardView[];
   /** The gag that got the hero, playing (0–1); then `down`. */
   hit: { kind: HazardKind; t: number; x: number; y: number } | null;
-  /** The fate playing out (0–1): relief, the silly event, the fall. */
-  finale: { kind: FinaleKind; t: number; x: number; y: number; sound: string } | null;
   /** Knocked out, lying on the street (0–1) before the story moves on. */
   down: { t: number; x: number; y: number } | null;
   /** What the hero says (a near miss, the last words), or null. */
@@ -80,29 +79,17 @@ export interface HazardText {
   bread?: string;
 }
 
-export interface FinaleText {
-  death: string;
-  absurdity: number;
-  /** Only dealt if this stall's talk was heard (it set the joke up). */
-  needs?: string;
-  /** Relief first… */
-  setup: string;
-  /** …the sound of the silly event… */
-  sound: string;
-  /** …and the last words lying down. */
-  punch: string;
-}
-
 export interface RunScript {
   hazards: Partial<Record<HazardKind, HazardText>>;
-  finales: Partial<Record<FinaleKind, FinaleText>>;
   visited(stallId: string): boolean;
   /** The street plays a rescue while the hero is down and calls `finishDown` when it is over. */
   rescue?: boolean;
-  seen?(kind: HazardKind | FinaleKind): number;
-  markSeen?(kind: HazardKind | FinaleKind): void;
+  seen?(kind: HazardKind): number;
+  markSeen?(kind: HazardKind): void;
   /** People standing or walking about: the hero walks round them, never through. */
   people?: () => Array<{ x: number; y: number }>;
+  /** Small round things standing about (a street tree's trunk, a stack of stools): radius `r`, walked round like people. */
+  props?: () => Array<{ x: number; y: number; r: number }>;
 }
 
 export interface RunConfig {
@@ -118,9 +105,6 @@ export interface RunConfig {
   /** The gag that got the hero plays this long, then the hero lies down for `downMs`. */
   hitMs: number;
   downMs: number;
-  /** Dodging everything this long brings on the fate, which plays for `finaleMs`. */
-  chaosSec: number;
-  finaleMs: number;
   /** How long a harmless gag (durian smell, shorts on the head) lasts. */
   dazeMs: number;
   /** Seconds into rush hour after which each gag starts to appear (absent: never dealt, e.g. the chickens). */
@@ -161,6 +145,10 @@ export const RUN_BODY_RADIUS = 0.25;
 const R = RUN_BODY_RADIUS;
 /** How close the hero gets to another person (tile units). */
 const PERSON_GAP = 0.45;
+/** Blocked by the corner of something: a sidestep this long (tiles) round it is taken on its own. */
+const CORNER_SLIP = 1;
+/** Going round someone or something, the hero keeps to the chosen side this long (ms). */
+const SLIDE_HOLD_MS = 400;
 /** Chasers give up when the player gets this far away (tiles), once they have chased a little… */
 const LOSE_AT = 12;
 const LOSE_AFTER_MS = 2500;
@@ -179,8 +167,7 @@ export class RunService {
   private aliveMs = 0;
   private steer = { x: 0, y: 0 };
   private hit: { kind: HazardKind; ms: number; x: number; y: number } | null = null;
-  private finale: { kind: FinaleKind; ms: number; x: number; y: number; punched: boolean } | null = null;
-  private down: { ms: number; x: number; y: number; kind: HazardKind | FinaleKind } | null = null;
+  private down: { ms: number; x: number; y: number; kind: HazardKind } | null = null;
   private sayText: { text: string; ms: number } | null = null;
   private daze: { kind: 'smell' | 'shorts'; ms: number } | null = null;
   /** The story was told the hero is down (once per run). */
@@ -193,6 +180,12 @@ export class RunService {
   phase: RunPhase = 'stroll';
   private strollMs = 0;
   private fenced = false;
+  /** Which way the hero last stepped round someone (1 / -1), kept while they stay face to face. */
+  private slideSide = 1;
+  /** Time since the hero last stepped round someone or something (ms). */
+  private slideMs = SLIDE_HOLD_MS;
+  /** How long the stick has pushed without the hero getting anywhere (ms). */
+  private stillMs = 0;
   /** Waiting for the player's first tap / key ("tap to start"): nothing moves yet. */
   paused = false;
   /** A street scene moves the hero itself (the barrier): keys and joystick do nothing meanwhile. */
@@ -208,8 +201,8 @@ export class RunService {
     /** Map size, for spawning bikes and pigeons from the edges. */
     private readonly size: { w: number; h: number },
     /** Called once the hero has lain down: the story moves on. */
-    private readonly onDeath: (kind: HazardKind | FinaleKind, aliveMs: number) => void,
-    private readonly script: RunScript = { hazards: {}, finales: {}, visited: () => false },
+    private readonly onDeath: (kind: HazardKind, aliveMs: number) => void,
+    private readonly script: RunScript = { hazards: {}, visited: () => false },
   ) {}
 
   start(): void {
@@ -217,7 +210,6 @@ export class RunService {
     this.aliveMs = 0;
     this.spawnIn = 2500;
     this.hit = null;
-    this.finale = null;
     this.down = null;
     this.sayText = null;
     this.daze = null;
@@ -250,7 +242,6 @@ export class RunService {
   stop(): void {
     this.running = false;
     this.hit = null;
-    this.finale = null;
     this.down = null;
     this.steer = { x: 0, y: 0 };
     this.setFence(false);
@@ -280,9 +271,9 @@ export class RunService {
     return this.steer.x !== 0 || this.steer.y !== 0;
   }
 
-  /** Knocked out (the gag, the fate, lying down): no movement at all until the story moves on. */
+  /** Knocked out (the gag, lying down): no movement at all until the story moves on. */
   get dying(): boolean {
-    return this.hit !== null || this.finale !== null || this.down !== null;
+    return this.hit !== null || this.down !== null;
   }
 
   /** True while the run moves the player itself: path movement must wait. */
@@ -304,7 +295,6 @@ export class RunService {
     }
     // Time alive (the HUD timer, unlocks and the ramp) counts from rush hour.
     this.aliveMs += dt;
-    if (this.aliveMs >= this.config.chaosSec * 1000) return this.startFinale();
     this.spawn(dt);
     for (const h of [...this.hazards]) {
       this.step(h, dt);
@@ -313,24 +303,13 @@ export class RunService {
     this.hazards = this.hazards.filter((h) => h.phase !== 'gone' || h.ms < 400);
   }
 
-  /** Plays the knock-out (gag or fate), then the hero lying down; true while it does. */
+  /** Plays the knock-out (gag), then the hero lying down; true while it does. */
   private knockOut(dt: number): boolean {
-    const h = this.hit, f = this.finale, d = this.down;
-    if (h || f || d) this.drift(dt);
+    const h = this.hit, d = this.down;
+    if (h || d) this.drift(dt);
     if (h && (h.ms += dt) >= this.config.hitMs) {
       this.hit = null;
       this.lieDown(h.kind, this.koOverride?.line ?? this.script.hazards[h.kind]?.faint ?? '…');
-    }
-    if (f) {
-      f.ms += dt;
-      if (!f.punched && f.ms >= this.config.finaleMs * 0.62) {
-        f.punched = true;
-        this.say(this.script.finales[f.kind]?.punch ?? '…', this.config.finaleMs);
-      }
-      if (f.ms >= this.config.finaleMs) {
-        this.finale = null;
-        this.down = { ms: 0, x: f.x, y: f.y, kind: f.kind };
-      }
     }
     // Stays down (the view keeps lying) while the story takes over.
     const downMs = this.koOverride?.downMs ?? this.config.downMs;
@@ -342,7 +321,7 @@ export class RunService {
         this.onDeath(d.kind, this.aliveMs);
       }
     }
-    return this.hit !== null || this.finale !== null || this.down !== null;
+    return this.hit !== null || this.down !== null;
   }
 
   private lieDown(kind: HazardKind, line: string): void {
@@ -408,48 +387,111 @@ export class RunService {
     const before = { ...this.player.pos };
     this.moveBy((sx * speed * dt) / 1000, (sy * speed * dt) / 1000);
     const moved = Math.hypot(this.player.pos.x - before.x, this.player.pos.y - before.y) > 0.001;
+    // Held against someone for a frame or two while sliding round them: keep walking, no flicking to the standing pose.
+    this.stillMs = moved ? 0 : this.stillMs + dt;
+    this.slideMs += dt;
     if (moved && this.player.fsm.can('MOVING')) this.player.fsm.transition('MOVING');
-    else if (!moved && this.player.fsm.is('MOVING')) this.player.fsm.transition(this.player.restState());
+    else if (!moved && this.stillMs > 120 && this.player.fsm.is('MOVING')) this.player.fsm.transition(this.player.restState());
   }
 
-  /** Moves with wall sliding (each axis separately). */
+  /** Moves the hero, sliding along walls, round people and round the corners of things. */
   private moveBy(dx: number, dy: number): void {
+    if (!dx && !dy) return;
     const p = this.player.pos;
-    if (this.canMove(p, { x: p.x + dx, y: p.y })) p.x += dx;
-    if (this.canMove(p, { x: p.x, y: p.y + dy })) p.y += dy;
+    // Pushed into a wall or a stall by a scene (a landing, a crowd): back onto free ground first, or every move would fail.
+    if (!hasClearance(this.grid, p, p, R)) {
+      const out = this.freeSpot(p);
+      if (out) { p.x = out.x; p.y = out.y; }
+    }
+    const q = this.resolveMove(p, { x: p.x + dx, y: p.y + dy });
+    if (q) { p.x = q.x; p.y = q.y; }
   }
 
-  /** Moving into someone (closer than shoulder to shoulder, and getting closer): blocked. Moving away is always fine. */
-  private bumps(from: WorldPos, to: WorldPos): boolean {
-    for (const o of this.script.people?.() ?? []) {
+  /**
+   * Where the hero gets to trying to go from `from` to `to`: straight there, else
+   * along a wall (each axis on its own), round a person in the way, or round the
+   * corner of a stall or a car a small sidestep clears. Null when truly stuck.
+   */
+  resolveMove(from: WorldPos, to: WorldPos): WorldPos | null {
+    if (this.canMove(from, to)) return { ...to };
+    const dx = to.x - from.x, dy = to.y - from.y, len = Math.hypot(dx, dy);
+    if (len < 1e-6) return null;
+    const q = { ...from };
+    if (dx && this.canMove(q, { x: q.x + dx, y: q.y })) q.x += dx;
+    if (dy && this.canMove(q, { x: q.x, y: q.y + dy })) q.y += dy;
+    const slid = Math.hypot(q.x - from.x, q.y - from.y);
+    if (slid >= len * 0.5) return q;
+    // Face to face with someone: step round their side (the side the stick leans to), a little outwards.
+    const o = this.personBlocking(from, to);
+    if (o) {
+      const ox = from.x - o.x, oy = from.y - o.y, d = Math.hypot(ox, oy) || 1, nx = ox / d, ny = oy / d;
+      const tx = -ny, ty = nx;
+      // The side the stick leans to first, the other if that one is walled off (a stool against the shop row).
+      // Once going round one way it keeps to it for a moment, so nothing flips side to side every frame.
+      const lean = tx * dx + ty * dy, first = this.slideMs < SLIDE_HOLD_MS || Math.abs(lean) <= len * 0.2 ? this.slideSide : Math.sign(lean);
+      for (const k of [first, -first]) {
+        const r = { x: from.x + (tx * k * 0.9 + nx * 0.25) * len, y: from.y + (ty * k * 0.9 + ny * 0.25) * len };
+        if (!this.canMove(from, r)) continue;
+        this.slideSide = k;
+        this.slideMs = 0;
+        return r;
+      }
+      // No way round (a wall on each side, say): after pushing a moment the hero squeezes past a person, never stuck for good.
+      if (!o.prop && this.stillMs > 350) {
+        for (const t of [to, { x: to.x, y: from.y }, { x: from.x, y: to.y }]) if (hasClearance(this.grid, from, t, R)) return { ...t };
+      }
+      // Until then stand still rather than shuffle about (the corner step below is for walls).
+      return slid > 1e-4 ? q : null;
+    }
+    // The corner of something: if a sidestep of up to CORNER_SLIP clears the way, slide towards it.
+    const alongX = Math.abs(dx) >= Math.abs(dy), minor = alongX ? dy : dx;
+    const signs = minor < 0 ? [-1, 1] : [1, -1];
+    for (let k = 0.05; k <= CORNER_SLIP + 1e-9; k += 0.05) for (const s of signs) {
+      const side = alongX ? { x: from.x, y: from.y + s * k } : { x: from.x + s * k, y: from.y };
+      const ahead = alongX ? { x: side.x + Math.sign(dx) * len, y: side.y } : { x: side.x, y: side.y + Math.sign(dy) * len };
+      if (!this.canMove(from, side) || !this.canMove(side, ahead)) continue;
+      const m = Math.min(len, k);
+      return alongX ? { x: from.x, y: from.y + s * m } : { x: from.x + s * m, y: from.y };
+    }
+    return slid > 1e-4 ? q : null;
+  }
+
+  /** Everything round the hero walks round: people, and the small round props (trunks, stools). */
+  private obstacles(): Array<{ x: number; y: number; gap: number; prop: boolean }> {
+    const people = (this.script.people?.() ?? []).map((o) => ({ x: o.x, y: o.y, gap: PERSON_GAP, prop: false }));
+    return [...people, ...(this.script.props?.() ?? []).map((o) => ({ x: o.x, y: o.y, gap: o.r + R, prop: true }))];
+  }
+
+  /** The person or prop the move from `from` to `to` walks into, if any. */
+  private personBlocking(from: WorldPos, to: WorldPos): { x: number; y: number; prop: boolean } | null {
+    let best: { x: number; y: number; prop: boolean } | null = null, bd = Infinity;
+    for (const o of this.obstacles()) {
       const d = Math.hypot(to.x - o.x, to.y - o.y);
-      if (d < PERSON_GAP && d < Math.hypot(from.x - o.x, from.y - o.y)) return true;
+      if (d < o.gap && d < Math.hypot(from.x - o.x, from.y - o.y) && d - o.gap < bd) { best = o; bd = d - o.gap; }
+    }
+    return best;
+  }
+
+  /** The nearest spot the hero's body fits (no wall, no person), searching outwards. */
+  private freeSpot(p: WorldPos): WorldPos | null {
+    for (let r = 0.1; r <= 2; r += 0.1) for (let i = 0; i < 16; i++) {
+      const q = { x: p.x + Math.cos((i * Math.PI) / 8) * r, y: p.y + Math.sin((i * Math.PI) / 8) * r };
+      if (hasClearance(this.grid, q, q, R)) return q;
+    }
+    return null;
+  }
+
+  /** Moving into someone or a prop (closer than touching, and getting closer): blocked. Moving away is always fine. */
+  private bumps(from: WorldPos, to: WorldPos): boolean {
+    for (const o of this.obstacles()) {
+      const d = Math.hypot(to.x - o.x, to.y - o.y);
+      if (d < o.gap && d < Math.hypot(from.x - o.x, from.y - o.y)) return true;
     }
     return false;
   }
 
   canMove(from: WorldPos, to: WorldPos): boolean {
     return hasClearance(this.grid, from, to, R) && !this.bumps(from, to);
-  }
-
-  // ── the fate ────────────────────────────────────────────────────────────
-
-  /** Dodged everything: the fate (only those whose joke was set up at a stall). */
-  private startFinale(): void {
-    const all = this.script.finales;
-    const ok = (Object.keys(all) as FinaleKind[]).filter((k) => !all[k]!.needs || this.script.visited(all[k]!.needs!));
-    const least = Math.min(...ok.map(k => this.script.seen?.(k) ?? 0));
-    const fresh = ok.filter(k => (this.script.seen?.(k) ?? 0) === least);
-    const kind = fresh[Math.floor(this.random() * fresh.length)] ?? 'sau';
-    this.script.markSeen?.(kind);
-    this.phase = 'faint';
-    this.running = false;
-    this.steer = { x: 0, y: 0 };
-    this.daze = null;
-    this.player.clearWaypoints();
-    for (const h of this.hazards) if (h.phase !== 'gone') this.gone(h);
-    this.finale = { kind, ms: 0, x: this.player.pos.x, y: this.player.pos.y, punched: false };
-    this.say(all[kind]?.setup ?? '', this.config.finaleMs * 0.38);
   }
 
   // ── hazards ─────────────────────────────────────────────────────────────
@@ -601,6 +643,7 @@ export class RunService {
   }
 
   private step(h: Hazard, dt: number): void {
+    h.moving = false;
     h.ms += dt;
     if (h.phase === 'gone') {
       h.t = Math.min(1, h.ms / 400);
@@ -717,8 +760,10 @@ export class RunService {
 
   /** Chasers go around walls instead of through them. */
   private moveHazard(h: Hazard, dx: number, dy: number): void {
+    const x = h.x, y = h.y;
     if (this.grid.isWalkable(worldToTile({ x: h.x + dx, y: h.y }))) h.x += dx;
     if (this.grid.isWalkable(worldToTile({ x: h.x, y: h.y + dy }))) h.y += dy;
+    h.moving = Math.hypot(h.x - x, h.y - y) > .001;
   }
 
   private gone(h: Hazard): void {
@@ -760,18 +805,16 @@ export class RunService {
   }
 
   view(): RunView {
-    const c = this.config, h = this.hit, f = this.finale, d = this.down;
+    const c = this.config, h = this.hit, d = this.down;
     return {
       running: this.running,
       phase: this.phase,
       fenceX: this.fenceX,
       paused: this.paused,
       aliveMs: this.aliveMs,
-      leftSec: this.phase === 'chaos' ? Math.max(0, Math.ceil(c.chaosSec - this.aliveMs / 1000)) : null,
       strollLeftSec: this.phase === 'stroll' ? Math.max(0, Math.ceil(c.strollSec - this.strollMs / 1000)) : null,
-      hazards: this.hazards.map(({ id, kind, phase, x, y, dx, dy, t, twist, label }) => ({ id, kind, phase, x, y, dx, dy, t, twist, label })),
+      hazards: this.hazards.map(({ id, kind, phase, x, y, dx, dy, t, twist, label, twisted, moving }) => ({ id, kind, phase, x, y, dx, dy, t, twist, label, ...(kind === 'motorbike' ? { cargoOpen: twisted } : {}), ...(CHASERS.includes(kind) ? { moving: this.running && !!moving } : {}) })),
       hit: h ? { kind: h.kind, t: Math.min(1, h.ms / c.hitMs), x: h.x, y: h.y } : null,
-      finale: f ? { kind: f.kind, t: Math.min(1, f.ms / c.finaleMs), x: f.x, y: f.y, sound: this.script.finales[f.kind]?.sound ?? '' } : null,
       // Follows the hero: the medics carry them off.
       down: d ? { t: Math.min(1, d.ms / (this.koOverride?.downMs ?? c.downMs)), x: this.player.pos.x, y: this.player.pos.y } : null,
       say: this.sayText?.text ?? null,

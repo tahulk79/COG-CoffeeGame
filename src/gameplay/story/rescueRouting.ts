@@ -13,10 +13,23 @@ export interface RescueRoute {
   exit: WorldPos[];
 }
 
+/** The tiles whose centre lies under the parked van's body: the medics walk round them. */
+export function vanBody(park: WorldPos, vertical: boolean): { x: number; y: number; w: number; h: number } {
+  const rx = vertical ? 0.45 : 1.1, ry = vertical ? 1.1 : 0.45;
+  const x = Math.ceil(park.x - rx - 0.5), y = Math.ceil(park.y - ry - 0.5);
+  return { x, y, w: Math.max(1, Math.floor(park.x + rx - 0.5) - x + 1), h: Math.max(1, Math.floor(park.y + ry - 0.5) - y + 1) };
+}
+
+/** How far the side door stands out from the van's centre line (tiles). */
+export const DOOR_OUT = 1.1;
+
 /** Roads are authored vehicle access, while the live grid accounts for walls and props. */
 export function planRescue(grid: NavGrid, hero: WorldPos, lanes: number[], access: Rect[] = []): RescueRoute | null {
   const preferredDir = hero.x > grid.width / 2 ? -1 : 1;
-  const nav = new NavigationService(grid, 0.25);
+  // Lying against something (half on a tree's tile, say): the medics head for the nearest free tile instead.
+  const t = worldToTile(hero);
+  const reach = [t, ...[[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]].map(([dx, dy]) => ({ x: t.x + dx!, y: t.y + dy! }))]
+    .find((c) => grid.isWalkable(c)) ?? t;
   const candidates: Array<{ park: WorldPos; axis: 'x' | 'y'; dir: number; lane: number; junction?: WorldPos }> = [];
   for (const dir of [preferredDir, -preferredDir]) {
     const lane = lanes[dir > 0 ? lanes.length - 1 : 0]! + (dir > 0 ? -0.3 : 0.3);
@@ -41,9 +54,15 @@ export function planRescue(grid: NavGrid, hero: WorldPos, lanes: number[], acces
     if (c.junction && !hasClearance(grid, junction, c.park, 0.55)) continue;
     const side = c.axis === 'x' ? (hero.y >= c.park.y ? 1 : -1) : (hero.x >= c.park.x ? 1 : -1);
     for (const sign of [side, -side]) {
-      const door = c.axis === 'x' ? { x: c.park.x + dir * 0.3, y: c.park.y + sign * 0.95 } : { x: c.park.x + sign * 0.95, y: c.park.y - 0.3 };
-      if (!grid.isWalkable(worldToTile(door)) || !nav.planTo(door, [worldToTile(hero)])) continue;
-      const entryX = Math.max(2, Math.min(grid.width - 3, junction.x - dir * 10));
+      // The side door, a step clear of the van's body (the medics walk round the body, so they must not start inside it).
+      const door = c.axis === 'x' ? { x: c.park.x + dir * 0.3, y: c.park.y + sign * DOOR_OUT } : { x: c.park.x + sign * DOOR_OUT, y: c.park.y - 0.3 };
+      // Room for a medic to stand at the door, and a way from it to the hero that goes round the parked van.
+      if (!hasClearance(grid, door, door, 0.3)) continue;
+      const parked = grid.clone();
+      parked.addBlocker(vanBody(c.park, c.axis === 'y'));
+      if (!new NavigationService(parked, 0.25).planTo(door, [reach])) continue;
+      // From past the street end (through the boom), never popping up in the middle of the street.
+      const entryX = dir > 0 ? -3 : grid.width + 3;
       return { dir, lane, park: c.park, door, approach: [{ x: entryX, y: lane }, ...(c.junction ? [junction] : []), c.park], exit: c.junction ? [junction] : [] };
     }
   }

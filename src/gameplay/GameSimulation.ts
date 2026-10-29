@@ -250,10 +250,15 @@ export class GameSimulation {
     const runCfg = content.story.chapters.S03?.run;
     if (runCfg && content.story.chapters.S03!.map === map.id) {
       const rng = new Rng(opts.rngSeed ?? Date.now());
+      // Street trees, stacks of stools and parked motorbikes collide as their round shape, not a whole tile: nothing to snag on.
+      const ROUND: Record<string, number> = { sau_tree: 0.28, stools: 0.32, parked_bike: 0.36 };
+      const props = this.world.allObjects().filter((o) => ROUND[o.type] !== undefined)
+        .map((o) => ({ x: o.footprint.x + o.footprint.w / 2, y: o.footprint.y + o.footprint.h / 2, r: ROUND[o.type]! }));
       this.run = new RunService(runCfg, this.world.grid, this.player, () => rng.next(), { w: this.world.width, h: this.world.height },
         (kind, ms) => { this.playerInteraction.cancelAll('superseded'); this.story.onDeath(kind, ms); },
-        { hazards: content.story.chapters.S03!.hazards ?? {}, finales: content.story.chapters.S03!.finales ?? {}, visited: (id) => !!this.state.story.flags[`visited:${id}`], rescue: !!(content.story.chapters.S03!.street && content.story.chapters.S03!.stalls), seen: (kind) => this.state.meta.counters[`incident:seen:${kind}`] ?? 0, markSeen: (kind) => { const key = `incident:seen:${kind}`; this.state.meta.counters[key] = (this.state.meta.counters[key] ?? 0) + 1; }, people: () => this.street?.people() ?? [] });
+        { hazards: content.story.chapters.S03!.hazards ?? {}, visited: (id) => !!this.state.story.flags[`visited:${id}`], rescue: !!(content.story.chapters.S03!.street && content.story.chapters.S03!.stalls), seen: (kind) => this.state.meta.counters[`incident:seen:${kind}`] ?? 0, markSeen: (kind) => { const key = `incident:seen:${kind}`; this.state.meta.counters[key] = (this.state.meta.counters[key] ?? 0) + 1; }, people: () => this.street?.people() ?? [], props: () => props });
       this.player.canMove = (from, to) => this.run!.canMove(from, to);
+      this.player.slide = (from, to) => this.run!.resolveMove(from, to);
       this.story.attachRun(this.run);
       // The street around the run: passers-by, motorbikes, stalls whose sellers banter.
       const ch = content.story.chapters.S03!;
@@ -265,9 +270,10 @@ export class GameSimulation {
           visited: (id) => void this.story.visit(id),
           limitX: () => run.fenceX ?? this.world.width - 1,
           hold: (on) => { run.held = on; if (on) this.playerInteraction.cancelAll('superseded'); },
-          crash: (line, downMs) => run.crash('motorbike', line, downMs),
+          crash: (line, downMs, kind) => run.crash(kind ?? 'motorbike', line, downMs),
           isDown: () => run.isDown,
           knockedOut: () => run.dying,
+          props: () => props,
           walkable: (x, y) => hasClearance(this.world.grid, { x, y }, { x, y }, RUN_BODY_RADIUS),
           canWalk: (from, to) => hasClearance(this.world.grid, from, to, RUN_BODY_RADIUS),
           path: (from, to, avoid) => {

@@ -4,7 +4,7 @@ async function boot(page: Page, url = '/'): Promise<string[]> {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
-  await page.goto(url);
+  await page.goto(`${url}${url.includes('?') ? '&' : '?'}skipStory=1`);
   await page.waitForFunction(() => window.__TCSS__?.ready === true);
   await page.waitForTimeout(250);
   await page.evaluate(() => window.__TCSS__!.setTimeScale(3));
@@ -154,10 +154,10 @@ test('the M1 sandbox still runs and never touches the farm save', async ({ page 
   await clickObject(page, P);
   await waitPhase(page, P, 'PREPARED');
   await page.evaluate(() => window.__TCSS__!.saveNow());
-  await page.goto('/?map=sandbox');
+  await page.goto('/?map=sandbox&skipStory=1');
   await page.waitForFunction(() => window.__TCSS__?.ready === true);
   expect(await page.evaluate(() => window.__TCSS__!.saveNow())).toBe(false);
-  await page.goto('/');
+  await page.goto('/?skipStory=1');
   await page.waitForFunction(() => window.__TCSS__?.ready === true);
   expect((await plot(page, P)).phase).toBe('PREPARED');
 });

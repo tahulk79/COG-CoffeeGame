@@ -28,7 +28,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 1024, height: 768
     await page.setViewportSize(viewport);
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
-    await page.goto('/?map=farm&cheat=1');
+    await page.goto('/?map=farm&cheat=1&skipStory=1');
     await page.waitForFunction(() => window.__TCSS__?.ready);
     await button(page, 'world.open');
     await selectRegion(page, 'old_town');
@@ -51,7 +51,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 1024, height: 768
     expect(await page.evaluate(() => window.__TCSS__!.snapshot().farm.plots.every((p) => p.id.startsWith('old_town__farm:')))).toBe(true);
     await page.screenshot({ path: `docs/screenshots/regions-play-${viewport.width}.png` });
     await page.evaluate(() => window.__TCSS__!.saveNow());
-    await page.goto('/');
+    await page.goto('/?skipStory=1');
     await page.waitForFunction(() => window.__TCSS__?.snapshot().map === 'old_town__farm');
     await button(page, 'toolbar.travel');
     await page.waitForFunction(() => window.__TCSS__?.snapshot().map === 'old_town__cafe');

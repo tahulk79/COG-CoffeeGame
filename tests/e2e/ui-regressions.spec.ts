@@ -6,7 +6,7 @@ async function click(page:Page,name:string) {
 }
 for (const width of [1440,390]) test(`table upgrades and cafe/farm isolation ${width}`,async({page})=>{
   await page.setViewportSize({width,height:width===1440?900:844});
-  await page.goto('/?map=farm&cheat=1'); await page.waitForFunction(()=>window.__TCSS__?.ready);
+  await page.goto('/?map=farm&cheat=1&skipStory=1'); await page.waitForFunction(()=>window.__TCSS__?.ready);
   await click(page,'toolbar.travel');
   await page.waitForFunction(()=>window.__TCSS__?.snapshot().map==='cafe');
   expect(await page.evaluate(()=>window.__TCSS__!.snapshot().farm.plots)).toEqual([]);
@@ -21,6 +21,6 @@ for (const width of [1440,390]) test(`table upgrades and cafe/farm isolation ${w
   expect(await page.evaluate(()=>window.__TCSS__!.snapshot().economy.coins)).toBe(coins-150);
   await page.screenshot({path:`docs/screenshots/table-upgrade-${width}.png`});
   await page.evaluate(()=>window.__TCSS__!.saveNow());
-  await page.goto('/'); await page.waitForFunction(()=>window.__TCSS__?.ready);
+  await page.goto('/?skipStory=1'); await page.waitForFunction(()=>window.__TCSS__?.ready);
   expect(await page.evaluate((id)=>window.__TCSS__!.snapshot().tables.find((x)=>x.id===id)!.level,t.id)).toBe(2);
 });

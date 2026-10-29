@@ -90,7 +90,7 @@ export class SettingsModal {
   private readonly footer: Phaser.GameObjects.Text;
 
   constructor(scene: Phaser.Scene, private readonly commands: SettingsCommands) {
-    this.modal = new GameModal(scene, t('settings.title'), 420, 530, 'settings', undefined, 'light');
+    this.modal = new GameModal(scene, t('settings.title'), 640, 580, 'settings', undefined, 'light');
     const body = this.modal.body;
     const add = (b: GameButton) => {
       body.add(b.text);
@@ -117,7 +117,7 @@ export class SettingsModal {
     for (const lang of LANGUAGES) {
       this.chips.push(add(new GameButton(scene, 0, 0, lang.label, () => {
         if (lang.code !== getLocale()) commands.setLanguage(lang.code);
-      }, `settings.lang.${lang.code}`, { variant: 'secondary', h: 40, fontSize: FONT.size.md })));
+      }, `settings.lang.${lang.code}`, { variant: 'secondary', h: 48, fontSize: FONT.size.md })));
     }
     this.langNote = scene.add.text(2, 0, t('settings.languageNote'), { fontFamily: FONT.family, fontSize: `${FONT.size.xs}px`, color: css(LIGHT.textDim), wordWrap: { width: 340 } }).setResolution(2);
     body.add(this.langNote);
@@ -126,19 +126,19 @@ export class SettingsModal {
     this.replay = add(new GameButton(scene, 0, 0, t('meta.replay'), () => {
       this.modal.close();
       commands.replayStory();
-    }, 'settings.replay', { variant: 'secondary', h: 40 }));
+    }, 'settings.replay', { variant: 'secondary', h: 48, wrap: true }));
     this.fresh = add(new GameButton(scene, 0, 0, t('meta.newGame'), () => {
       if (this.confirmNew) commands.newGame();
       else {
         this.confirmNew = true;
         this.refresh();
       }
-    }, 'settings.newGame', { variant: 'danger', h: 40 }));
+    }, 'settings.newGame', { variant: 'danger', h: 48, wrap: true }));
     if (commands.testMode && !import.meta.env.PROD) {
       this.test = add(new GameButton(scene, 0, 0, t('settings.testMode'), () => {
         commands.testMode?.();
         this.modal.close();
-      }, 'settings.testMode', { variant: 'primary', h: 40 }));
+      }, 'settings.testMode', { variant: 'primary', h: 48, wrap: true }));
     }
     this.footer = scene.add.text(0, 0, t('settings.version'), { fontFamily: FONT.family, fontSize: `${FONT.size.xs}px`, color: css(LIGHT.textDim) }).setOrigin(0.5, 0).setResolution(2).setAlpha(0.8);
     body.add(this.footer);
@@ -149,39 +149,44 @@ export class SettingsModal {
     setShown(this.modal.root, false, true); // children were added after the modal was built
   }
 
-  /** Stacks the sections top to bottom; tighter spacing, then a smaller scale, when the screen is short. */
+  /** Two columns on landscape phones keep the controls readable without shrinking the whole menu. */
   private layout(bodyW: number, bodyH: number): void {
-    const place = (compact: boolean) => {
-      const rowH = compact ? 38 : 44, gap = compact ? 4 : 6, headH = compact ? 18 : 22, sectionGap = compact ? 6 : 12, btnH = 40;
-      let y = 0;
-      const head = (i: number) => { this.headers[i]!.setPosition(2, y); y += headH; };
-      head(0);
-      for (const row of [this.sound, this.motion, this.full]) {
-        if (!row) continue;
-        row.layout(bodyW - 2, rowH);
-        row.root.setPosition(0, y);
-        y += rowH + gap;
-      }
-      y += sectionGap - gap;
-      head(1);
-      const cw = (bodyW - 2 - 8) / this.chips.length;
-      this.chips.forEach((c, i) => c.setWidth(cw).text.setPosition(i * (cw + 8), y));
-      y += btnH + 6;
-      this.langNote.setVisible(!compact).setWordWrapWidth(bodyW - 4).setPosition(2, y);
-      if (!compact) y += this.langNote.height + 4;
-      y += sectionGap - 2;
-      head(2);
-      for (const b of [this.replay, this.fresh, this.test]) {
-        if (!b) continue;
-        b.setWidth(bodyW - 2).text.setPosition(0, y);
-        y += btnH + gap;
-      }
-      this.footer.setVisible(!compact).setPosition(bodyW / 2, y + 4);
-      return y + (compact ? 0 : 22);
-    };
-    let total = place(false);
-    if (total > bodyH) total = place(true);
-    this.modal.body.setScale(Math.min(1, bodyH / total));
+    const columns = bodyW >= 500;
+    const gap = 8, rowH = 48, headH = 22;
+    const colW = columns ? (bodyW - 18) / 2 : bodyW;
+    let y = 0;
+    this.headers[0]!.setPosition(2, y);
+    y += headH;
+    for (const row of [this.sound, this.motion, this.full]) {
+      if (!row) continue;
+      row.layout(colW - 2, rowH);
+      row.root.setPosition(0, y);
+      y += rowH + gap;
+    }
+    this.headers[1]!.setPosition(2, y + 2);
+    y += headH + 2;
+    const chipW = (colW - gap * (this.chips.length - 1)) / this.chips.length;
+    this.chips.forEach((chip, i) => chip.setWidth(chipW).text.setPosition(i * (chipW + gap), y));
+    y += rowH + gap;
+    this.langNote.setVisible(!columns).setWordWrapWidth(colW - 4).setPosition(2, y);
+    if (!columns) y += this.langNote.height + gap;
+    const leftH = y;
+    const storyX = columns ? colW + 18 : 0;
+    if (columns) y = 0;
+    this.headers[2]!.setPosition(storyX + 2, y);
+    y += headH;
+    for (const button of [this.replay, this.fresh, this.test]) {
+      if (!button) continue;
+      button.setWidth(colW - 2).text.setPosition(storyX, y);
+      y += button.height + gap;
+    }
+    const total = Math.max(leftH, y);
+    const footerH = 22;
+    this.footer.setPosition(bodyW / 2, total);
+    const showFooter = total + footerH <= bodyH;
+    this.footer.setVisible(showFooter);
+    // Only exceptionally small browser viewports need this fallback.
+    this.modal.body.setScale(Math.min(1, bodyH / (total + (showFooter ? footerH : 0))));
   }
 
   private refresh(): void {

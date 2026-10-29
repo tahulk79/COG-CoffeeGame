@@ -1,4 +1,8 @@
+import { drawChapter1Backdrop } from './chapter1Scenery';
+import { roadDashes, streetPaver, streetKerb } from './streetPaving';
 import { streetHouses } from './streetLayout';
+import { SLICE_ASSETS, SLICE_STALL_FRAMES, sliceAnimalFrame, sliceCargoBikeFrame, sliceHeroFrame, sliceHeroReactionFrame, appearanceSeed, treeAppearance, sliceMotorbikeFrame } from './sliceAssets';
+import { facingFrom, type Facing } from '../../entities/Actor';
 import Phaser from 'phaser';
 import { actorDepth, floorDepth, worldToScreen } from '../../utils/iso';
 import type { HazardView, RunView } from '../../gameplay/story/RunService';
@@ -8,14 +12,16 @@ import { TERRAIN_COLORS } from './placeholderStyles';
 import { SpeechBubble } from './speechBubble';
 
 /**
- * Chapter 1 street on a sunny afternoon, drawn in code in the cozy diorama
- * style: flat pastel colours, chocolate outlines, soft shadows. Coordinates
- * and collisions remain owned by the map.
+ * Chapter 1 street: shared 2.5D atlases over a baked, grid-aligned ground.
+ * Coordinates and collisions remain owned by the map.
  */
 export const INK = 0x5a3825;
-/** Quiet land behind the district; water belongs only on the lakeside. */
-const WATER = 0x8fd0ea;
 export const STREET_BACKGROUND = 0xe7e0d0;
+const STREET_SURFACES = {
+  road: 0x8c989c,
+  sidewalk: [0xeee3ce, 0xe9ddc7, 0xf1e7d5],
+  grass: [0xaec28c, 0xa8bd83, 0xb5c995],
+};
 
 export const point = (x: number, y: number, z = 0) => { const p = worldToScreen({ x, y }); return new Phaser.Math.Vector2(p.x, p.y - z); };
 export function face(g: Phaser.GameObjects.Graphics, coords: number[][], color: number, alpha = 1, outline = 2): void {
@@ -197,7 +203,7 @@ export function drawIncidentObject(g: Phaser.GameObjects.Graphics, type: string,
     stall(g, f, variant);
     return true;
   }
-  // Street furniture that blocks the way: sấu trees by the lake, iced-tea stools, parked motorbikes.
+  // Street furniture that blocks the way: street trees, iced-tea stools, parked motorbikes.
   if (type === 'sau_tree') {
     tree(g, f.x + .5, f.y + .5, 1.1);
     return true;
@@ -273,11 +279,67 @@ export function bakeImage(scene: Phaser.Scene, key: string, b: { x: number; y: n
   return scene.add.image(b.x, b.y, key).setOrigin(0).setDepth(depth);
 }
 
+/** A street tree's pit, flat on the pavement: a stone kerb round a square of soil with a few tufts. */
+function treePit(scene: Phaser.Scene, id: string, f: Footprint): void {
+  const { x, y } = f, sq = (a: number, b: number) => [[x + a, y + a], [x + b, y + a], [x + b, y + b], [x + a, y + b]];
+  bakeImage(scene, `hn:treepit:${id}`, screenBox([[x, y], [x + 1, y], [x, y + 1], [x + 1, y + 1]], 8, 4), floorDepth + .5, (g) => {
+    face(g, sq(.06, .94), 0xa79f8c, 1, 0);
+    face(g, sq(.1, .9), 0xd9d0bd, 1, 1);
+    face(g, sq(.22, .78), 0x7b5b40, 1, 1);
+    for (const [tx, ty] of [[.32, .4], [.62, .33], [.45, .66], [.7, .62]] as const) {
+      const p = point(x + tx, y + ty);
+      g.fillStyle(0x7fb35f).fillCircle(p.x, p.y - 1, 3);
+    }
+  });
+}
+
 /** A chapter-1 map object (street prop, parked car, barrier) as one baked image; null for types drawn elsewhere. */
 export function bakeIncidentObject(scene: Phaser.Scene, id: string, type: string, f: Footprint, variant: string, depth: number): Phaser.GameObjects.Image | null {
   if (!['street_prop', 'stall', 'sau_tree', 'stools', 'parked_bike', 'kitten', 'car', 'barrier'].includes(type)) return null;
+  const centre = point(f.x + f.w / 2, f.y + f.h / 2);
+  const variantIndex = appearanceSeed(id);
+  if (type === 'stall' && SLICE_STALL_FRAMES[variant] !== undefined) {
+    const image = sliceProp(scene, SLICE_ASSETS.stalls.key, SLICE_STALL_FRAMES[variant]!, depth);
+    if (image) {
+      const front = point(f.x + f.w, f.y + f.h);
+      // Mirror the atlas's long facade onto the map's x axis; anchor its front ground corner.
+      return image.setPosition(front.x, front.y).setOrigin(.65, .97).setFlipX(true)
+        .setDisplaySize((f.w + f.h) * 64, 104 + (f.w + f.h) * 32);
+    }
+  }
+  if (type === 'sau_tree') {
+    treePit(scene, id, f);
+    const image = sliceProp(scene, SLICE_ASSETS.treesVaried.key, treeAppearance(id), depth) ?? sliceProp(scene, SLICE_ASSETS.trees.key, variantIndex % 3, depth);
+    if (image) return image.setPosition(centre.x, centre.y).setOrigin(.5, .98).setScale((126 + variantIndex % 33) / image.height);
+  }
+  if (type === 'parked_bike') {
+    const image = sliceProp(scene, SLICE_ASSETS.parkedBikes.key, variantIndex % 4, depth);
+    if (image) return image.setPosition(centre.x, centre.y).setOrigin(.5, .86).setScale(54 / image.height);
+  }
+  if (type === 'car') {
+    const image = sliceProp(scene, SLICE_ASSETS.parkedCars.key, Math.floor(variantIndex / 2) % 2, depth);
+    if (image) return image.setPosition(centre.x, centre.y).setOrigin(.5, .84).setDisplaySize((f.w + f.h) * 64, 104 + (f.w + f.h) * 32);
+  }
   const b = screenBox([[f.x, f.y], [f.x + f.w, f.y], [f.x, f.y + f.h], [f.x + f.w, f.y + f.h]], 170, 70);
   return bakeImage(scene, `hn:obj:${id}:${variant}`, b, depth, (g) => drawIncidentObject(g, type, f, variant));
+}
+
+function sliceProp(scene: Phaser.Scene, key: string, frame: number, depth: number): Phaser.GameObjects.Image | null {
+  if (!scene.textures.exists(key) || !scene.textures.get(key).has(String(frame))) return null;
+  return scene.add.image(0, 0, key, String(frame)).setDepth(depth).setData('sliceProp', true);
+}
+
+/** Shared house art also covers the street extensions and the blocks inside traffic loops. */
+function houseSprite(scene: Phaser.Scene, f: Footprint, height: number, variant: number): boolean {
+  const varied = scene.textures.exists(SLICE_ASSETS.housesVaried.key) && scene.textures.get(SLICE_ASSETS.housesVaried.key).has('5');
+  const pick = ((variant % 9) + 9) % 9;
+  const key = varied && pick < 6 ? SLICE_ASSETS.housesVaried.key : SLICE_ASSETS.houses.key, frame = String(varied && pick < 6 ? [0, 3, 1, 4, 2, 5][pick] : pick % 3);
+  if (!scene.textures.exists(key) || !scene.textures.get(key).has(frame)) return false;
+  const front = point(f.x + f.w, f.y + f.h);
+  scene.add.image(front.x, front.y, key, frame).setOrigin(.54, .97)
+    .setDisplaySize((f.w + f.h) * 64, height + (f.w + f.h) * 32)
+    .setDepth(f.x + f.w + f.y + f.h - 1);
+  return true;
 }
 
 /** Screen-space box around some tile points, raised by `z` px for what stands on them. */
@@ -304,23 +366,19 @@ function tree(g: Phaser.GameObjects.Graphics, x: number, y: number, size = 1): v
   g.fillStyle(0xffffff, .35).fillCircle(p.x - 8 * size, p.y - 76 * size, 7 * size);
 }
 
-/** Chapter-1 map layout (see incident.json): the main road, a sidewalk either side, the alley going north, the lake to the south. */
+/** Chapter-1 map layout (see incident.json): the main road, a sidewalk either side, the alley going north, a planted promenade to the south. */
 const ROAD_ROWS = [8, 10];
 /** The land ends a few tiles past the map, with a loop road round a block of houses at each end of the street. */
 const LAND_W = -18, LAND_E = 69;
 /** The loop road at each end of the street: the road goes round a block of houses and comes back (rings of asphalt around a plot). Keep in step with the path in StreetService (`LOOP`). */
 const LOOP = { y0: 6.6, y1: 12.4, plotY0: 8, plotY1: 11, w: { x0: -18, x1: -12.3, px0: -16.7, px1: -14 }, e: { x0: 62.3, x1: 69, px0: 64, px1: 66.7 } } as const;
 const ROUNDABOUT = { w: -2.8, e: 52.2, r: 2.5, island: .5 };
-const NORTH_WALK = [5, 7], SOUTH_WALK = [11, 13];
 /** The gap in the north row of houses: the alley (x 21–23) and the courtyard at its end (x 19–25). */
 const ALLEY_X0 = 19, ALLEY_X1 = 26;
 const MAP_W = 48, MAP_H = 18;
 /** Past these (the edge of the land) a vehicle that has driven off is not drawn. */
 export const STREET_ENDS = { w: LAND_W + .2, e: LAND_E - .2 };
 const inRange = (v: number, [lo, hi]: number[]) => v >= lo! && v <= hi!;
-
-/** Hoan Kiem lake along the south of the map (outside it), with a gently wavy shore. */
-const inLake = (x: number, y: number) => y > MAP_H + .3 + Math.sin(x * .6) * .35;
 
 /** Floating name plate over a landmark. */
 function plate(scene: Phaser.Scene, x: number, y: number, z: number, name: string): void {
@@ -353,105 +411,196 @@ function tubeHouse(g: Phaser.GameObjects.Graphics, x: number, y: number, w: numb
   for (let wy = y + .3; wy < y + d - .3; wy += .7) face(g, [[x + w, wy, 80], [x + w, wy + .35, 80], [x + w, wy + .35, 104], [x + w, wy, 104]], 0x6fae8a, 1, 1.5);
 }
 
-/** Thap Rua: the little three-tier tower on its islet in the lake. */
-function turtleTower(g: Phaser.GameObjects.Graphics, x: number, y: number): void {
-  const c = point(x + .5, y + .5);
-  g.fillStyle(0x86c86b).fillEllipse(c.x, c.y + 6, 150, 62).lineStyle(2.5, INK).strokeEllipse(c.x, c.y + 6, 150, 62);
-  block(g, { x, y, w: 1, h: 1 }, 0, 44, 0xf3e7d3);
-  block(g, { x: x + .15, y: y + .15, w: .7, h: .7 }, 44, 32, 0xefe1ca);
-  block(g, { x: x + .28, y: y + .28, w: .44, h: .44 }, 76, 26, 0xf6ecdb);
-  const top = point(x + .5, y + .5, 102);
-  tri(g, [top.x - 22, top.y + 6, top.x + 22, top.y + 6, top.x, top.y - 16], 0x8a5a3a);
-  for (const z of [16, 56, 86]) { const q = point(x + .5, y + 1, z); g.fillStyle(INK).fillEllipse(q.x, q.y, 10, 14); }
-}
-
-/** The Huc bridge: red, arched, from the shore to Ngoc Son temple. */
-function redBridge(g: Phaser.GameObjects.Graphics, x0: number, y0: number, x1: number, y1: number): void {
-  const n = 9;
-  for (let i = 0; i < n; i++) {
-    const a = i / n, b = (i + 1) / n, arc = (u: number) => Math.sin(u * Math.PI) * 26;
-    const p0 = { x: x0 + (x1 - x0) * a, y: y0 + (y1 - y0) * a }, p1 = { x: x0 + (x1 - x0) * b, y: y0 + (y1 - y0) * b };
-    face(g, [[p0.x - .2, p0.y, arc(a) + 8], [p1.x - .2, p1.y, arc(b) + 8], [p1.x + .2, p1.y, arc(b) + 8], [p0.x + .2, p0.y, arc(a) + 8]], 0xe2513f, 1, 2);
-    const q = point(p0.x + .2, p0.y, arc(a) + 8);
-    g.lineStyle(3, INK).lineBetween(q.x, q.y, q.x, q.y - 14);
-  }
-  // Ngoc Son temple roof at the far end.
-  const t = { x: x1 - .6, y: y1 - .6 };
-  block(g, { x: t.x, y: t.y, w: 1.4, h: 1.2 }, 0, 36, 0xffd25e);
-  block(g, { x: t.x - .1, y: t.y - .1, w: 1.6, h: 1.4 }, 36, 12, 0x6b4a3a);
-}
-
 /** O Quan Chuong: the old city gate, arching over the road where it leaves the map. */
 function cityGate(g: Phaser.GameObjects.Graphics, x: number, y0: number, y1: number): void {
-  // The road covers rows y0…y1 (so up to y1 + 1): the two pillars stand on the pavements either side, never on a lane.
-  block(g, { x, y: y0 - 1, w: 1.4, h: 1 }, 0, 120, 0xe6dcc6, 2.5);
-  block(g, { x, y: y1 + 1, w: 1.4, h: 1 }, 0, 120, 0xe6dcc6, 2.5);
-  block(g, { x, y: y0 - 1, w: 1.4, h: y1 - y0 + 3 }, 90, 34, 0xd9cfb7, 2.5);
-  block(g, { x: x + .2, y: y0 - .4, w: 1, h: y1 - y0 + 1.8 }, 124, 30, 0xf3e7d3, 2);
-  block(g, { x: x - .1, y: y0 - .6, w: 1.6, h: y1 - y0 + 2.2 }, 154, 12, 0x6b4a3a, 2);
+  const start = y0, end = y1 + 1, spring = 120, rise = 50, top = 190, width = 1.4;
+  const archZ = (y: number) => spring + rise * Math.sqrt(Math.max(0, 1 - ((y - (start + end) / 2) / ((end - start) / 2)) ** 2));
+  // Supports stay on the two sidewalks. The road below the arch is never filled.
+  for (const y of [start - 1, end]) {
+    block(g, { x, y, w: width, h: 1 }, 0, top, 0xb98163, 1.5);
+    block(g, { x, y, w: width, h: 1 }, 0, 12, 0xc8b99e, 1);
+    for (let row = 0; row < 8; row++) for (let brick = 0; brick < 3; brick++) {
+      const ya = y + .06 + brick * .3, z = 18 + row * 20;
+      face(g, [[x + width, ya, z], [x + width, ya + .25, z], [x + width, ya + .25, z + 16], [x + width, ya, z + 16]], (row + brick) % 2 ? 0xba876b : 0xc99474, 1, .6);
+    }
+  }
+  const arch: Phaser.Math.Vector2[] = [];
+  for (let i = 0; i < 24; i++) {
+    const a = start + (end - start) * i / 24, b = start + (end - start) * (i + 1) / 24;
+    const za = archZ(a), zb = archZ(b);
+    face(g, [[x, a, za], [x + width, a, za], [x + width, b, zb], [x, b, zb]], 0x8c725b, 1, 0);
+    face(g, [[x + width, a, za], [x + width, b, zb], [x + width, b, top], [x + width, a, top]], 0xb98163, 1, 0);
+    arch.push(point(x + width, a, za));
+  }
+  arch.push(point(x + width, end, archZ(end)));
+  g.lineStyle(7, 0xd7c3a0).strokePoints(arch, false);
+  block(g, { x, y: start - 1, w: width, h: end - start + 2 }, top, 8, 0xd5c4a7, 1.5);
+  block(g, { x: x + .08, y: start - .9, w: width - .16, h: end - start + 1.8 }, top + 8, 20, 0xc69a7c, 1);
+  for (let y = start - .85; y < end + .7; y += .7) block(g, { x: x + 1.06, y, w: .28, h: .38 }, top + 28, 10, 0xd7c7ac, 1);
+  const pavilion = { x: x + .12, y: (start + end) / 2 - .85, w: 1.16, h: 1.7 };
+  block(g, pavilion, top + 28, 44, 0xe1cba4, 1.5);
+  for (const y of [pavilion.y + .2, pavilion.y + 1]) face(g, [[pavilion.x + pavilion.w, y, top + 35], [pavilion.x + pavilion.w, y + .4, top + 35], [pavilion.x + pavilion.w, y + .4, top + 60], [pavilion.x + pavilion.w, y, top + 60]], 0x665647, 1, 1);
+  const roofX = x - .08, roofY = pavilion.y - .18, roofW = 1.56, roofD = 2.06, eave = top + 74, ridge = eave + 20;
+  face(g, [[roofX, roofY, eave], [roofX + roofW / 2, roofY + .18, ridge], [roofX + roofW / 2, roofY + roofD - .18, ridge], [roofX, roofY + roofD, eave]], 0xb96e4d, 1, 1.5);
+  face(g, [[roofX + roofW, roofY, eave], [roofX + roofW, roofY + roofD, eave], [roofX + roofW / 2, roofY + roofD - .18, ridge], [roofX + roofW / 2, roofY + .18, ridge]], 0x99563f, 1, 1.5);
+  face(g, [[roofX, roofY + roofD, eave], [roofX + roofW / 2, roofY + roofD - .18, ridge], [roofX + roofW, roofY + roofD, eave]], 0x8b523d, 1, 1.5);
 }
 
-/** Only the southern half-plane is lake; the north side continues into the city. */
-function drawLake(scene: Phaser.Scene): void {
-  const g = scene.add.graphics().setDepth(-1000);
-  face(g, [[-220, MAP_H], [220, MAP_H], [220, 220], [-220, 220]], WATER, 1, 0);
+/** Over the rooftops, the sky: one flat shape (no texture), pale towards the horizon. */
+function drawSky(scene: Phaser.Scene): void {
+  const g = scene.add.graphics().setDepth(floorDepth - 3.5);
+  const band = (y0: number, y1: number, color: number) => g.fillStyle(color).fillPoints([[LAND_W - 80, y0], [LAND_E + 80, y0], [LAND_E + 80, y1], [LAND_W - 80, y1]].map(([x, y]) => point(x!, y!)), true);
+  band(-140, SKY_FROM - 6, 0xa9d8f0);
+  band(SKY_FROM - 6, SKY_FROM - 2, 0xc4e5f4);
+  band(SKY_FROM - 2, SKY_FROM + .2, SKY_HORIZON);
 }
 
 export function drawIncidentEnvironment(scene: Phaser.Scene, floor: FloorTileView[]): void {
-  drawLake(scene);
+  drawChapter1Backdrop(scene);
+  drawSky(scene);
   // Everything flat (ground around the map, the map's own floor, markings, beds) is one baked layer.
-  bakeLayer(scene, 'hn:ground', screenBox([[LAND_W - 1, -5], [LAND_E + 1, -5], [LAND_W - 1, MAP_H + 8], [LAND_E + 1, MAP_H + 8]], 0, 0), floorDepth - .8, (g) => drawGround(g, floor), .6);
+  bakeLayer(scene, 'hn:ground:street-v2', screenBox([[LAND_W - 1, ROOFS_FROM - 1], [LAND_E + 1, ROOFS_FROM - 1], [LAND_W - 1, MAP_H + 8], [LAND_E + 1, MAP_H + 8]], 0, 0), floorDepth - .8, (g) => drawGround(g, floor), .6);
   drawStanding(scene);
+}
+
+/** Roof colour under the house rows from this row on; north of it, the sky (see `drawSky`). */
+const SKY_FROM = -3;
+const SKY_HORIZON = 0xe2f2f8;
+const ROOFS_FROM = SKY_FROM;
+
+/** Under and between the rows of houses: the horizon's colour, so only sky ever shows past the rooftops. */
+function roofTile(g: Phaser.GameObjects.Graphics, x: number, y: number): void {
+  face(g, [[x, y], [x + 1, y], [x + 1, y + 1], [x, y + 1]], SKY_HORIZON, 1, 0);
 }
 
 /** The flat street: around the map, the map floor itself, road markings, the zebra crossing and flower beds. */
 function drawGround(surround: Phaser.GameObjects.Graphics, floor: FloorTileView[]): void {
-  // Beyond the map: the road and both sidewalks run on east and west, the lake lies south, pavement behind the houses.
-  for (let y = -4; y < MAP_H + 8; y++) for (let x = LAND_W; x < LAND_E; x++) {
+  // Beyond the map: the road and both sidewalks run on east and west, the decorative city continues outside the playable district.
+  for (let y = ROOFS_FROM; y < MAP_H + 8; y++) for (let x = LAND_W; x < LAND_E; x++) {
     if (x >= 0 && x < MAP_W && y >= 0 && y < MAP_H) continue;
+    // Under the house rows: roof colour (it only shows between the houses); further back the sky shows through.
+    if (y < 5) { if (y >= SKY_FROM) roofTile(surround, x, y); continue; }
+    if (y >= MAP_H) continue;
     const n = ((x * 17 + y * 31) % 7 + 7) % 7;
-    const color = inLake(x + .5, y + .5) ? WATER
-      : inRange(y, ROAD_ROWS) ? 0x9aa7b5
-      : inRange(y, NORTH_WALK) || inRange(y, SOUTH_WALK) || y < NORTH_WALK[0]! ? [0xf3e7d3, 0xefe1ca, 0xf6ecdb][n % 3]!
-      : [0xbfe3a0, 0xb6dc96, 0xc5e7a8][n % 3]!;
-    face(surround, [[x, y], [x + 1, y], [x + 1, y + 1], [x, y + 1]], color, 1, 0);
-  }
-  // A narrow bank at the actual lake, rather than an island shoreline behind the houses.
-  for (const [pad, color, alpha] of [[.9, 0xd6f0f7, .55], [.5, 0xffffff, .8], [.18, 0xe9d9b8, 1]] as const) {
-    face(surround, [[LAND_W, MAP_H - pad], [LAND_E, MAP_H - pad], [LAND_E, MAP_H], [LAND_W, MAP_H]], color, alpha, 0);
+    // Past the map's ends the sidewalks carry on, laid exactly like the ones on the map.
+    if (inRange(y, ROAD_ROWS)) face(surround, [[x, y], [x + 1, y], [x + 1, y + 1], [x, y + 1]], STREET_SURFACES.road, 1, 0);
+    else streetPaver(surround, x, y);
   }
   // The map's own floor, tile by tile.
   for (const t of floor) {
     const { x, y } = t.tile;
-    const top = (TERRAIN_COLORS[t.kind] ?? TERRAIN_COLORS.floor!).top;
-    face(surround, [[x, y], [x + 1, y], [x + 1, y + 1], [x, y + 1]], (x + y) % 2 ? shadeOf(top, -2) : top, 1, 0);
-    if (t.kind === 'sidewalk') surround.lineStyle(1, 0xc9b392, .7).strokePoints([point(x, y), point(x + 1, y), point(x + 1, y + 1), point(x, y + 1)], true);
+    const n = Math.abs(x * 17 + y * 31) % 3;
+    const top = t.kind === 'street' ? STREET_SURFACES.road : t.kind === 'sidewalk' ? STREET_SURFACES.sidewalk[n]! : t.kind === 'grass' ? STREET_SURFACES.grass[n]! : t.kind === 'city_edge' ? STREET_SURFACES.sidewalk[n]! : (TERRAIN_COLORS[t.kind] ?? TERRAIN_COLORS.floor!).top;
+    // Every bit of ground on the map is laid with the same pavers (the courtyard and the alley included).
+    if (t.kind === 'sidewalk' || t.kind === 'city_edge') streetPaver(surround, x, y);
+    else face(surround, [[x, y], [x + 1, y], [x + 1, y + 1], [x, y + 1]], top, 1, 0);
+    if (t.kind === 'street') {
+      const q = point(x + .24 + n * .12, y + .35);
+      surround.fillStyle(0xe1e0d6, .13).fillCircle(q.x, q.y, 1.5);
+    }
   }
-  // Lake ripples.
-  for (let i = 0; i < 40; i++) { const x = -6 + (i * 7.3) % (MAP_W + 12), y = MAP_H + 1.5 + (i * 3.7) % 5; if (!inLake(x, y)) continue; const q = point(x, y); surround.lineStyle(2, 0xffffff, .55).lineBetween(q.x - 14, q.y, q.x + 14, q.y); }
-
   // Road markings: centre dashes, kerbs, and a zebra crossing in front of the alley.
   const road = surround;
+  // Asphalt is one surface, not a checkerboard of individually outlined ground tiles.
+  face(road, [[LAND_W, 8], [LAND_E, 8], [LAND_E, 11], [LAND_W, 11]], STREET_SURFACES.road, 1, 0);
   const mid = (ROAD_ROWS[0]! + ROAD_ROWS[1]!) / 2;
-  for (let x = LAND_W; x < LAND_E; x++) if (x % 3 === 1 && !inRange(x, [ALLEY_X0, ALLEY_X1])) face(road, [[x + .15, mid + .46], [x + .95, mid + .46], [x + .95, mid + .54], [x + .15, mid + .54]], 0xffffff, .95, 0);
-  for (const y of [ROAD_ROWS[0]!, ROAD_ROWS[1]! + 1]) face(road, [[LAND_W, y], [LAND_E, y], [LAND_E, y + .08], [LAND_W, y + .08]], 0xffffff, 1, 0);
+  roadDashes(road, LAND_W, LAND_E, mid + .5, (x) => inRange(x, [ALLEY_X0, ALLEY_X1]));
+  // The same kerb the whole length of the street, on both sides (the far one shows its face, the near one only its top).
+  streetKerb(road, LAND_W, LAND_E, ROAD_ROWS[0]!, 1);
+  streetKerb(road, LAND_W, LAND_E, ROAD_ROWS[1]! + 1, -1);
   for (let x = ALLEY_X0 + 1.1; x < ALLEY_X1 - 1; x += .45) face(road, [[x, ROAD_ROWS[0]! + .15], [x + .22, ROAD_ROWS[0]! + .15], [x + .22, ROAD_ROWS[1]! + .85], [x, ROAD_ROWS[1]! + .85]], 0xffffff, .9, 0);
 
   // A loop road at each end of the street: it goes round a block of houses, and the bikes ride round it and come back the other way.
   const rect = (x0: number, y0: number, x1: number, y1: number) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
   for (const l of [LOOP.w, LOOP.e]) {
-    face(road, rect(l.x0, LOOP.y0, l.x1, LOOP.y1), 0x9aa7b5, 1, 0);
+    face(road, rect(l.x0, LOOP.y0, l.x1, LOOP.y1), STREET_SURFACES.road, 1, 0);
     road.lineStyle(2.5, 0xffffff, .95).strokePoints(rect(l.x0, LOOP.y0, l.x1, LOOP.y1).map(([x, y]) => point(x!, y!)), true);
     // The plot in the middle: pavement with a kerb, the houses stand on it.
     face(road, rect(l.px0 - .18, LOOP.plotY0 - .18, l.px1 + .18, LOOP.plotY1 + .18), 0xe9dfc9, 1, 2);
     face(road, rect(l.px0, LOOP.plotY0, l.px1, LOOP.plotY1), 0xf3e7d3, 1, 0);
   }
 
-  // Lakeside flower beds on the grass (flat, never in the way).
-  for (const [x, y] of [[4, 15.3], [16, 15.4], [23, 15.2], [37, 15.3], [44, 15.4]] as const) {
-    const p = point(x, y);
-    surround.fillStyle(0x9ad67c).fillEllipse(p.x, p.y, 90, 40).lineStyle(2, INK).strokeEllipse(p.x, p.y, 90, 40);
-    for (let i = 0; i < 6; i++) surround.fillStyle([0xff8a73, 0xffd25e, 0xf6a6d0][i % 3]!).fillCircle(p.x - 28 + i * 11, p.y - 4 + (i % 2) * 8, 4);
+}
+
+const EATERY_WALLS = [0xf2e2a0, 0xf6c7b4, 0xc9ecd9, 0xfff0c9, 0xe8d6ad, 0xd6ddd8] as const;
+const EATERY_STRIPES = [0xd45a45, 0x3c8f86, 0xd99a3e, 0x4a7fae, 0xb5556f] as const;
+const SHOP_ROOFS = [0x9aa7a0, 0xb06a52, 0x88a08f, 0xa98e6c] as const;
+const SOUTH_SHOPS = ['Phở gà', 'Lẩu', 'Cơm rang', 'Bánh cuốn', 'Trà chanh', 'Bún ốc', 'Ốc luộc', 'Miến lươn', 'Tạp hóa', 'Bánh tôm'] as const;
+/** The south shop row: from the street's kerb side of the shops (y) to their back, one-storey high. */
+const SOUTH_ROW = { y: 17.05, d: 1.6, w: 2.3, gap: .3, height: 44 } as const;
+
+/**
+ * A one-storey shop on the south side, seen from behind (the camera looks over it at the street): a plastered
+ * back wall with a window and an air-conditioner, a ribbed tin roof sloping down towards the street, and a
+ * short striped canvas awning with a scalloped edge hanging over the sidewalk.
+ */
+function backShop(g: Phaser.GameObjects.Graphics, x: number, y: number, w: number, d: number, h: number, wall: number, stripe: number, roof: number, k: number): void {
+  block(g, { x, y, w, h: d }, 0, h, wall, 1.2);
+  face(g, [[x, y + d, 0], [x + w, y + d, 0], [x + w, y + d, 7], [x, y + d, 7]], shadeOf(wall, -18), 1, 0);
+  // Back wall: a shuttered window, an air-conditioner (the right-hand ones), a stain of damp.
+  const wx = x + (k % 2 ? .35 : 1.25);
+  face(g, [[wx, y + d, h - 30], [wx + .55, y + d, h - 30], [wx + .55, y + d, h - 12], [wx, y + d, h - 12]], 0x6f8f86, 1, 1);
+  face(g, [[wx + .27, y + d, h - 30], [wx + .28, y + d, h - 30], [wx + .28, y + d, h - 12], [wx + .27, y + d, h - 12]], 0x4f6a63, 1, 0);
+  if (k % 3 !== 1) block(g, { x: x + (k % 2 ? 1.5 : .3), y: y + d, w: .42, h: .14 }, h - 26, 13, 0xe9e9e4, 1);
+  face(g, [[x + .2, y + d, 7], [x + .9, y + d, 7], [x + .75, y + d, 15], [x + .3, y + d, 13]], shadeOf(wall, -9), .6, 0);
+  // Tin roof, ribbed, a little past the walls.
+  const hi = h + 12, lo = h - 1, back = y + d + .08, front = y - .12;
+  face(g, [[x - .06, back, hi], [x + w + .06, back, hi], [x + w + .06, front, lo], [x - .06, front, lo]], roof, 1, 1.2);
+  for (let i = 1; i < 10; i++) {
+    const rx = x - .06 + ((w + .12) * i) / 10, a = point(rx, back, hi), b2 = point(rx, front, lo);
+    g.lineStyle(1, shadeOf(roof, -16), .7).lineBetween(a.x, a.y, b2.x, b2.y);
+  }
+  // The awning over the sidewalk, striped, its edge scalloped.
+  const out = y - .72, drop = lo - 15;
+  for (let i = 0; i < 8; i++) {
+    const a = x + (w * i) / 8, b2 = x + (w * (i + 1)) / 8;
+    face(g, [[a, front, lo], [b2, front, lo], [b2, out, drop], [a, out, drop]], i % 2 ? 0xfaf3e3 : stripe, 1, 0);
+    const c = point((a + b2) / 2, out, drop);
+    g.fillStyle(i % 2 ? 0xfaf3e3 : stripe).fillCircle(c.x, c.y, 5.5);
+  }
+  const l0 = point(x, out, drop), l1 = point(x + w, out, drop);
+  g.lineStyle(1.2, INK, .8).lineBetween(l0.x, l0.y, l1.x, l1.y);
+  // Something on the roof: a water tank or a row of potted plants.
+  if (k % 2) {
+    block(g, { x: x + w - .75, y: y + d - .7, w: .45, h: .45 }, hi - 6, 16, 0xdfe6ea, 1);
+  } else for (let i = 0; i < 3; i++) {
+    const q = point(x + .45 + i * .5, y + d - .25, hi - 4);
+    g.fillStyle(0xb9684f).fillRect(q.x - 5, q.y - 6, 10, 7);
+    g.fillStyle(0x86c86b).fillCircle(q.x, q.y - 10, 7).lineStyle(1, INK, .6).strokeCircle(q.x, q.y - 10, 7);
+  }
+}
+
+/** The shop's name on a small board, readable over any background. */
+function shopSign(scene: Phaser.Scene, at: Phaser.Math.Vector2, name: string, color: number, depth: number): Phaser.GameObjects.Text {
+  return scene.add.text(at.x, at.y, name, { fontFamily: "'Baloo 2', sans-serif", fontSize: '17px', fontStyle: '800', color: '#fffaf0', backgroundColor: `#${color.toString(16).padStart(6, '0')}`, padding: { x: 6, y: 0 }, stroke: '#5a3825', strokeThickness: 2, resolution: 2 })
+    .setOrigin(.5, 1).setDepth(depth);
+}
+
+/** South shops, per scene: their images and signs fade while the hero is behind them. */
+const southShops = new WeakMap<Phaser.Scene, Array<{ parts: Array<Phaser.GameObjects.Image | Phaser.GameObjects.Text>; depth: number; x0: number; x1: number; y0: number; y1: number }>>();
+
+function southShopRow(scene: Phaser.Scene): void {
+  const list: NonNullable<ReturnType<typeof southShops.get>> = [];
+  const { y, d, w, gap, height } = SOUTH_ROW;
+  for (let x = LAND_W, k = 0; x + w <= LAND_E; x += w + gap, k++) {
+    const wall = EATERY_WALLS[k % EATERY_WALLS.length]!, stripe = EATERY_STRIPES[(k * 2) % EATERY_STRIPES.length]!, depth = x + w + y + d - 1;
+    const box = screenBox([[x, y - .6], [x + w, y - .6], [x, y + d], [x + w, y + d]], height + 30, 12);
+    const img = bakeImage(scene, `hn:shop:s2:${k}`, box, depth, (g) => backShop(g, x, y, w, d, height, wall, stripe, SHOP_ROOFS[k % SHOP_ROOFS.length]!, k));
+    const sign = shopSign(scene, point(x + w / 2, y + d * .5, height + 14), SOUTH_SHOPS[k % SOUTH_SHOPS.length]!, stripe, depth + .001);
+    list.push({ parts: [img, sign], depth, x0: box.x, x1: box.x + box.w, y0: box.y, y1: box.y + box.h });
+  }
+  southShops.set(scene, list);
+}
+
+/** The hero behind a south shop (it is drawn in front of them): the shop goes see-through so they stay visible. */
+export function fadeSouthShops(scene: Phaser.Scene, hero: WorldPos): void {
+  const list = southShops.get(scene);
+  if (!list) return;
+  const p = worldToScreen(hero), depth = hero.x + hero.y;
+  for (const s of list) {
+    const behind = depth < s.depth && p.x > s.x0 + 20 && p.x < s.x1 - 20 && p.y - 40 > s.y0 && p.y - 40 < s.y1;
+    const a = behind ? .45 : 1;
+    if (s.parts[0]!.alpha !== a) for (const part of s.parts) part.setAlpha(a);
   }
 }
 
@@ -461,43 +610,24 @@ function drawStanding(scene: Phaser.Scene): void {
   const walls = [0xe8d6ad, 0xf0e4ca, 0xc5d6c6, 0xe4c5b1, 0xd6ddd8];
   const signs = [0xb9684f, 0x5d9692, 0xd0aa5c, 0x809c72, 0xb78a7f];
   for (const h of streetHouses()) {
+    if (houseSprite(scene, { x: h.x, y: h.y, w: h.w, h: h.d }, h.height, h.variant)) continue;
     const corners: Array<[number, number]> = [[h.x, h.y], [h.x + h.w, h.y], [h.x, h.y + h.d], [h.x + h.w, h.y + h.d]];
     bakeLayer(scene, `hn:houses:${h.variant}`, screenBox(corners, h.height + 16, 12), h.x + h.w + h.y + h.d - 1, city => {
       tubeHouse(city, h.x, h.y, h.w, h.d, h.height, walls[h.variant % walls.length]!, signs[h.variant % signs.length]!);
     }, .85);
   }
-  // Lower houses along the south side of the street beyond the map ends, between the road and the lake.
-  const southWalls = [0xf2e2a0, 0xf6c7b4, 0xc9ecd9, 0xfff0c9, 0xf6d77a] as const;
-  for (const [from, to] of [[LAND_W + 1, -1.7], [MAP_W + 1.5, LAND_E - 1.7]] as const) {
-    for (let x = from, k = 0; x + 2.2 <= to + 1.6; x += 2.6, k++) {
-      const hx = x, hh = 96 + (k % 3) * 16;
-      bakeProp(scene, `hn:south:${hx}`, hx, 14.4, 2.2, 2.2, hx + 2.2 + 16.6, (g) => tubeHouse(g, hx, 14.4, 2.2, 2.2, hh, southWalls[k % 5]!, [0xe2513f, 0x5ec8f2, 0xffd25e][k % 3]!));
-    }
-  }
+  // The south side of the street: one-storey eateries and shops all along (low, so they never wall off the street).
+  southShopRow(scene);
   // The block of houses in the middle of each loop.
   for (const [key, l, wall, sign] of [['w', LOOP.w, 0xf6d77a, 0xe2513f], ['e', LOOP.e, 0xc9ecd9, 0x5ec8f2]] as const) {
+    if (houseSprite(scene, { x: l.px0 + .2, y: LOOP.plotY0 + .2, w: l.px1 - l.px0 - .4, h: LOOP.plotY1 - LOOP.plotY0 - .4 }, 156, key === 'w' ? 0 : 2)) continue;
     bakeLayer(scene, `hn:loophouse:${key}`, screenBox([[l.px0, LOOP.plotY0], [l.px1, LOOP.plotY0], [l.px0, LOOP.plotY1], [l.px1, LOOP.plotY1]], 230), l.px1 + LOOP.plotY1 - 1, (g) => {
       tubeHouse(g, l.px0 + .2, LOOP.plotY0 + .2, l.px1 - l.px0 - .4, LOOP.plotY1 - LOOP.plotY0 - .4, 170, wall, sign);
     }, .75);
   }
-  // Low garden walls along both sides of the alley, with a potted plant (tall houses there would hide the alley).
-  for (const x of [ALLEY_X0 + 1.8, ALLEY_X1 - 2]) bakeProp(scene, `hn:alleywall:${x}`, x, 3, .2, 2, x + 5, (g) => {
-    block(g, { x, y: 3, w: .2, h: 1.9 }, 0, 40, 0xe6dcc6, 2);
-    block(g, { x: x - .02, y: 2.98, w: .24, h: 1.94 }, 40, 6, 0xd9674f, 1.5);
-    const pot = point(x + .1, 4.6, 46);
-    dot(g, pot.x, pot.y - 8, 9, 0x86c86b);
-  });
 
-  // Landmarks across the lake.
-  bakeLayer(scene, 'hn:lake', screenBox([[18, MAP_H + 3], [22, MAP_H + 7], [36, MAP_H - 1], [41, MAP_H + 4]], 130), 0, (lm) => {
-    turtleTower(lm, 20, MAP_H + 4.5);
-    redBridge(lm, 37.5, MAP_H - .2, 39, MAP_H + 3.6);
-  });
-  plate(scene, 20.5, MAP_H + 5, 150, 'Tháp Rùa');
-  plate(scene, 12, MAP_H + 4, 30, 'Hồ Gươm');
-  plate(scene, 38.5, MAP_H + 1.5, 70, 'Cầu Thê Húc');
-  bakeLayer(scene, 'hn:gate', screenBox([[MAP_W + .4, ROAD_ROWS[0]! - 2], [MAP_W + 2.6, ROAD_ROWS[0]! - 2], [MAP_W + .4, ROAD_ROWS[1]! + 3], [MAP_W + 2.6, ROAD_ROWS[1]! + 3]], 190), MAP_W + 12, (gate) => cityGate(gate, MAP_W + .8, ROAD_ROWS[0]!, ROAD_ROWS[1]!));
-  plate(scene, MAP_W + 1.5, (ROAD_ROWS[0]! + ROAD_ROWS[1]! + 1) / 2, 200, 'Ô Quan Chưởng');
+  bakeLayer(scene, 'hn:gate:v2', screenBox([[MAP_W + .4, ROAD_ROWS[0]! - 2], [MAP_W + 2.6, ROAD_ROWS[0]! - 2], [MAP_W + .4, ROAD_ROWS[1]! + 3], [MAP_W + 2.6, ROAD_ROWS[1]! + 3]], 315), MAP_W + 12, (gate) => cityGate(gate, MAP_W + .8, ROAD_ROWS[0]!, ROAD_ROWS[1]!));
+  plate(scene, MAP_W + 1.5, (ROAD_ROWS[0]! + ROAD_ROWS[1]! + 1) / 2, 310, 'Ô Quan Chưởng');
 
   // Electric poles with the famous tangle of wires, in front of the houses (none across the alley mouth).
   const poles: Array<[number, number]> = [];
@@ -510,10 +640,12 @@ function drawStanding(scene: Phaser.Scene): void {
   });
   bakeLayer(scene, 'hn:wires', screenBox([[poles[0]![0], 4.85], [poles[poles.length - 1]![0], 4.85]], 160, 80), 1e6 - 7, (wires) => {
     for (let i = 0; i + 1 < poles.length; i++) {
+      // No wires slung across the alley mouth (with no houses behind, they read as lines on the ground).
+      if (poles[i + 1]![0] - poles[i]![0] > 6) continue;
       const a = point(poles[i]![0], poles[i]![1], 140), b = point(poles[i + 1]![0], poles[i + 1]![1], 140);
-      for (let k = 0; k < 4; k++) {
+      for (let k = 0; k < 3; k++) {
         const sag = 18 + k * 9, mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2 + sag;
-        wires.lineStyle(1.5, 0x3a3340, .85).beginPath().moveTo(a.x, a.y + k * 3);
+        wires.lineStyle(1.2, 0x555047, .55).beginPath().moveTo(a.x, a.y + k * 3);
         for (let u = 0.1; u <= 1.001; u += .1) { const x = (1 - u) * (1 - u) * a.x + 2 * (1 - u) * u * mx + u * u * b.x, y = (1 - u) * (1 - u) * (a.y + k * 3) + 2 * (1 - u) * u * my + u * u * (b.y + k * 2); wires.lineTo(x, y); }
         wires.strokePath();
       }
@@ -522,12 +654,6 @@ function drawStanding(scene: Phaser.Scene): void {
 
   // Plastic stools, parked motorbikes and the sấu trees are map objects (they block the way): see `drawIncidentObject`.
 
-  // The low iron railing along the lake shore: the edge of the walkable grass, so nobody wonders why they cannot go on.
-  for (let x = 1; x < MAP_W - 1; x += 4) bakeProp(scene, `hn:rail:${x}`, x, MAP_H - 1, 4, 0, x + 2 + MAP_H - .9, (g) => {
-    const x1 = Math.min(MAP_W - 1, x + 4);
-    for (let px = x; px <= x1 + .01; px += .5) { const a = point(px, MAP_H - 1), b = point(px, MAP_H - 1, 26); g.lineStyle(3, INK).lineBetween(a.x, a.y, b.x, b.y); }
-    for (const z of [14, 26]) { const a = point(x, MAP_H - 1, z), b = point(x1, MAP_H - 1, z); g.lineStyle(5, INK).lineBetween(a.x, a.y, b.x, b.y); g.lineStyle(2.5, 0x6b8e3a).lineBetween(a.x, a.y, b.x, b.y); }
-  });
 
 }
 
@@ -569,13 +695,27 @@ function heroFrame(scene: Phaser.Scene, bob: number): string {
 export class IncidentActorView implements ActorView {
   depth = 0;
   private readonly img: Phaser.GameObjects.Image;
+  private readonly illustrated: boolean;
+  private readonly spriteScale: number;
+  private readonly contactShadow: Phaser.GameObjects.Ellipse | null;
   /** The little progress bar over the head (only while the hero is working; chapter 1 has no such work). */
   private bar: Phaser.GameObjects.Graphics | null = null;
   private pose = { sx: 1, sy: 1, dy: 0, angle: 0 };
-  constructor(private readonly scene: Phaser.Scene) {
-    // All three walking frames up front, so none is drawn in the middle of play.
-    for (const bob of [-2, 0, 2]) heroFrame(scene, bob);
-    this.img = scene.add.image(0, 0, heroFrame(scene, 0)).setOrigin(-HERO_BOX.x / HERO_BOX.w, -HERO_BOX.y / HERO_BOX.h);
+  private reaction = false;
+  constructor(private readonly scene: Phaser.Scene, useSliceArt = false) {
+    this.illustrated = useSliceArt && scene.textures.exists(SLICE_ASSETS.hero.key)
+      && scene.textures.get(SLICE_ASSETS.hero.key).has('15');
+    if (this.illustrated) {
+      const texture = scene.textures.get(SLICE_ASSETS.hero.key);
+      this.spriteScale = 70 / Math.max(...Array.from({ length: 16 }, (_, i) => texture.get(String(i)).height));
+      this.img = scene.add.image(0, 0, SLICE_ASSETS.hero.key, '0').setOrigin(.5, 1);
+      this.contactShadow = scene.add.ellipse(0, 0, 30, 11, INK, .16);
+    } else {
+      for (const bob of [-2, 0, 2]) heroFrame(scene, bob);
+      this.spriteScale = 1 / HERO_SS;
+      this.img = scene.add.image(0, 0, heroFrame(scene, 0)).setOrigin(-HERO_BOX.x / HERO_BOX.w, -HERO_BOX.y / HERO_BOX.h);
+      this.contactShadow = null;
+    }
   }
   update(s: ActorViewState): void {
     const p = worldToScreen(s.pos);
@@ -583,17 +723,27 @@ export class IncidentActorView implements ActorView {
     // Walking bobs the torso: the nearest of three baked frames (-2, 0, +2 px).
     const bob = s.state === 'MOVING' ? Math.round(Math.sin(this.scene.time.now / 85)) * 2 : 0;
     const depth = this.depth;
-    this.img.setTexture(heroFrame(this.scene, bob)).setPosition(p.x, p.y + this.pose.dy).setScale(this.pose.sx / HERO_SS, this.pose.sy / HERO_SS).setRotation(this.pose.angle).setDepth(depth);
+    const reactions = SLICE_ASSETS.heroReactions.key;
+    this.reaction = this.illustrated && !!s.reaction && this.scene.textures.exists(reactions) && this.scene.textures.get(reactions).has('7');
+    let scale = this.spriteScale;
+    if (this.reaction) {
+      const frame = sliceHeroReactionFrame(s.facing, s.reaction!);
+      scale = 70 / this.scene.textures.get(reactions).get('0').height;
+      this.img.setTexture(reactions, frame).setFlipX((s.reaction === 'stumble' || s.reaction === 'fall') && ['S', 'SW', 'W', 'NW'].includes(s.facing)).setOrigin(s.reaction === 'down' || s.reaction === 'carry' ? .78 : .5, .9);
+    } else if (this.illustrated) this.img.setTexture(SLICE_ASSETS.hero.key, sliceHeroFrame(s.facing, s.state === 'MOVING' && this.pose.angle === 0, this.scene.time.now)).setFlipX(false).setOrigin(.5, 1);
+    else this.img.setTexture(heroFrame(this.scene, bob));
+    this.img.setPosition(p.x, p.y + this.pose.dy).setScale(this.pose.sx * scale, this.pose.sy * scale).setRotation(this.reaction ? 0 : this.pose.angle).setDepth(depth);
+    this.contactShadow?.setPosition(p.x - (s.reaction === 'down' || s.reaction === 'carry' ? 28 : 0), p.y).setDisplaySize(s.reaction === 'down' || s.reaction === 'carry' ? 74 : 30, 11).setDepth(depth - .01);
     if (s.progress !== null) {
       const g = (this.bar ??= this.scene.add.graphics()).clear().setPosition(p.x, p.y + this.pose.dy).setScale(this.pose.sx, this.pose.sy).setRotation(this.pose.angle).setDepth(depth).setAlpha(this.img.alpha);
       g.fillStyle(0xfff6e5).fillRoundedRect(-25, -82, 50, 9, 4).lineStyle(2, INK).strokeRoundedRect(-25, -82, 50, 9, 4).fillStyle(0x6fd3c0).fillRoundedRect(-23, -80, 46 * s.progress, 5, 2);
     } else this.bar?.clear();
   }
   hitTest(x: number, y: number): boolean { const p = this.img; return x >= p.x - 22 && x <= p.x + 22 && y >= p.y - 70 && y <= p.y + 5; }
-  setAlpha(a: number): void { this.img.setAlpha(a); this.bar?.setAlpha(a); }
+  setAlpha(a: number): void { this.img.setAlpha(a); this.bar?.setAlpha(a); this.contactShadow?.setAlpha(a); }
   /** Death animation pose (scale, lift, spin); identity when alive. */
   setPose(sx: number, sy: number, dy: number, angle: number): void { this.pose = { sx, sy, dy, angle }; }
-  destroy(): void { this.img.destroy(); this.bar?.destroy(); }
+  destroy(): void { this.img.destroy(); this.bar?.destroy(); this.contactShadow?.destroy(); }
 }
 
 
@@ -637,29 +787,35 @@ export function motorbike(g: Phaser.GameObjects.Graphics, x: number, y: number, 
  * Chapter-1 run: draws each gag every frame from the simulation's view.
  * Telegraphs (cracks, shadows, lane strips, "!") sit on the ground so the
  * player always sees what is coming; the gags themselves sort with the
- * actors. A knock-out (the gag that got the hero, or the fate) plays its
+ * actors. A knock-out (the gag that got the hero) plays its
  * little slapstick scene on top, then the hero lies there seeing stars.
  */
 export class IncidentRunView {
   private readonly ground: Phaser.GameObjects.Graphics;
   private readonly fx: Phaser.GameObjects.Graphics;
   private readonly bodies = new Map<number, Phaser.GameObjects.Graphics>();
+  private readonly sprites = new Map<string, Phaser.GameObjects.Image>();
+  private readonly usedSprites = new Set<string>();
+  private readonly atlasHeights = new Map<keyof typeof SLICE_ASSETS, number>();
+  private hit: RunView['hit'] = null;
   /** Bubbles over the gags ("Gâu gâu!", "Nắp cống!"). */
   private readonly bubbles = new Map<number, SpeechBubble>();
-  /** The fate's sound word ("CỐC!", "BOONG!"). */
-  private readonly sound: Phaser.GameObjects.Text;
   constructor(private readonly scene: Phaser.Scene) {
     this.ground = scene.add.graphics().setDepth(floorDepth + .7);
     this.fx = scene.add.graphics().setDepth(1e6 - 4);
-    this.sound = scene.add.text(0, 0, '', { fontFamily: "'Baloo 2', sans-serif", fontSize: '40px', fontStyle: '800', color: '#e2513f', stroke: '#ffffff', strokeThickness: 8, resolution: 2 }).setOrigin(.5, 1).setDepth(1e6 - 1).setVisible(false);
   }
 
   /** `heroHidden`: the hero is inside the ambulance (no stars over an empty street). */
   sync(run: RunView | null, hero: WorldPos, heroHidden = false): void {
+    fadeSouthShops(this.scene, hero);
     this.ground.clear();
     this.fx.clear();
+    this.usedSprites.clear();
+    this.hit = run?.hit ?? null;
     const seen = new Set<number>();
     for (const h of run?.hazards ?? []) {
+      // The head/impact sprite takes over; do not leave a second copy fading on the road.
+      if (h.phase === 'gone' && ((h.kind === 'laundry' && run?.dazed === 'shorts') || ((h.kind === 'slipper' || h.kind === 'pigeons') && run?.hit?.kind === h.kind))) continue;
       seen.add(h.id);
       let g = this.bodies.get(h.id);
       if (!g) this.bodies.set(h.id, (g = this.scene.add.graphics()));
@@ -669,9 +825,238 @@ export class IncidentRunView {
     for (const [id, g] of this.bodies) if (!seen.has(id)) { g.destroy(); this.bodies.delete(id); }
     this.syncBubbles(run);
     if (run?.hit) this.drawHit(run.hit);
-    this.drawFinale(run?.finale ?? null);
     if (run?.down && !heroHidden) this.drawDown(run.down);
     if (run?.dazed) this.drawDaze(run.dazed, hero);
+    for (const [id, image] of this.sprites) if (!this.usedSprites.has(id)) {
+      image.destroy(); this.sprites.delete(id);
+    }
+  }
+
+  /** Reuse each hazard/impact quad; missing art keeps the code-drawn fallback. */
+  private sprite(id: string, asset: keyof typeof SLICE_ASSETS, frame: number): Phaser.GameObjects.Image | null {
+    const key = SLICE_ASSETS[asset].key;
+    if (!this.scene.textures.exists(key) || !this.scene.textures.get(key).has(String(frame))) return null;
+    let image = this.sprites.get(id);
+    if (!image) {
+      image = this.scene.add.image(0, 0, key, String(frame));
+      this.sprites.set(id, image);
+    }
+    this.usedSprites.add(id);
+    return image.setTexture(key, String(frame)).setOrigin(.5).setAlpha(1).setRotation(0).setFlipX(false);
+  }
+
+  private atlasReady(asset: keyof typeof SLICE_ASSETS): boolean {
+    const spec = SLICE_ASSETS[asset];
+    if (!this.scene.textures.exists(spec.key)) return false;
+    const texture = this.scene.textures.get(spec.key);
+    for (let frame = 0; frame < spec.columns * spec.rows; frame++) if (!texture.has(String(frame))) return false;
+    return true;
+  }
+
+  private atlasHeight(asset: keyof typeof SLICE_ASSETS): number {
+    const cached = this.atlasHeights.get(asset);
+    if (cached !== undefined) return cached;
+    const spec = SLICE_ASSETS[asset], texture = this.scene.textures.get(spec.key);
+    let height = 1;
+    for (let frame = 0; frame < spec.columns * spec.rows; frame++) height = Math.max(height, texture.get(String(frame)).height);
+    this.atlasHeights.set(asset, height);
+    return height;
+  }
+
+  private animalSprite(id: string, asset: 'hazardCat' | 'hazardDogs' | 'hazardChickens' | 'hazardPigeons', facing: Facing, phase: number, height: number, rowOffset = 0): Phaser.GameObjects.Image | null {
+    const pose = sliceAnimalFrame(facing, phase, rowOffset), image = this.sprite(id, asset, pose.frame);
+    if (!image) return null;
+    image.setOrigin(.5, 1).setFlipX(pose.flipX).setScale(height / this.atlasHeight(asset));
+    if (asset === 'hazardPigeons') {
+      // Wing crops vary; anchor the body at the same source-cell point throughout a flap.
+      const spec = SLICE_ASSETS[asset], frame = image.frame;
+      const source = this.scene.textures.get(spec.key).getSourceImage() as HTMLImageElement;
+      const column = pose.frame % spec.columns, row = Math.floor(pose.frame / spec.columns);
+      const x0 = Math.floor(column * source.width / spec.columns), x1 = Math.floor((column + 1) * source.width / spec.columns);
+      const y0 = Math.floor(row * source.height / spec.rows), y1 = Math.floor((row + 1) * source.height / spec.rows);
+      const ox = (x0 + (x1 - x0) * .5 - frame.cutX) / image.width;
+      const oy = (y0 + (y1 - y0) * .55 - frame.cutY) / image.height;
+      image.setOrigin(pose.flipX ? 1 - ox : ox, oy);
+    }
+    return image;
+  }
+
+  private drawSliceHazard(h: HazardView): boolean {
+    const p = point(h.x, h.y), alpha = h.phase === 'gone' ? 1 - h.t : 1;
+    const id = `hazard:${h.id}`;
+    if (h.kind === 'banana') {
+      const image = this.sprite(id, 'hazardBanana', h.twist ? 1 : 0);
+      if (!image) return false;
+      image.setPosition(p.x, p.y).setDisplaySize(42, 24).setAlpha(alpha).setDepth(floorDepth + .8);
+      if (h.phase === 'warn') this.ground.lineStyle(2, 0xc97a49, .3 + h.t * .4).strokeEllipse(p.x, p.y, 56, 28);
+      return true;
+    }
+    if (h.kind === 'durian') {
+      const image = this.sprite(id, 'hazardDurian', h.phase === 'warn' ? 0 : 1);
+      if (!image) return false;
+      if (h.phase === 'warn') {
+        this.landing(p, h.t);
+        image.setPosition(p.x, p.y - 20 - (1 - h.t) ** 2 * 420).setScale(44 / image.width).setRotation(h.t * .6).setDepth(1e6 - 5);
+      } else image.setPosition(p.x, p.y - 8).setScale(66 / image.width).setDepth(floorDepth + .8);
+      image.setAlpha(alpha);
+      return true;
+    }
+    if (h.kind === 'water') {
+      const image = this.sprite(id, 'hazardWater', h.phase === 'warn' ? 0 : h.phase === 'active' ? 2 : 3);
+      if (!image) return false;
+      if (h.phase === 'warn') {
+        this.landing(p, h.t);
+        image.setPosition(p.x, p.y - 190 + h.t * 20).setDisplaySize(44, 28).setRotation(h.t * .6).setDepth(1e6 - 5);
+        const pour = Math.max(0, (h.t - .72) / .28);
+        if (pour > 0) {
+          const stream = this.sprite(`${id}:stream`, 'hazardWater', 1);
+          const top = p.y - 177 + h.t * 20;
+          stream?.setOrigin(.5, 0).setPosition(p.x + 16, top).setDisplaySize(18, (p.y - top) * pour).setDepth(1e6 - 5).setAlpha(alpha);
+        }
+      } else {
+        image.setPosition(p.x, p.y + (h.phase === 'active' ? 8 : 0)).setOrigin(.5, h.phase === 'active' ? 1 : .5)
+          .setDisplaySize(110, h.phase === 'active' ? 65 : 40).setDepth(h.phase === 'active' ? h.x + h.y + .05 : floorDepth + .8);
+      }
+      image.setAlpha(alpha);
+      return true;
+    }
+    if (h.kind === 'shuttlecock') {
+      const key = SLICE_ASSETS.hazardShuttlecock.key;
+      if (!this.scene.textures.exists(key) || !this.scene.textures.get(key).has('0')) return false;
+      if (h.phase === 'warn') {
+        this.lane(h, 18, .1 + h.t * .2);
+        this.alert(p.x, p.y - 50, h.t);
+        return true;
+      }
+      const image = this.sprite(id, 'hazardShuttlecock', Math.floor(h.t * 24) % 4);
+      if (!image) return false;
+      const next = point(h.x + h.dx, h.y + h.dy);
+      image.setPosition(p.x, p.y - 46).setScale(36 / image.width).setFlipX(next.x < p.x).setAlpha(alpha).setDepth(1e6 - 5);
+      return true;
+    }
+    if (h.kind === 'sinkhole') {
+      const frame = h.twist ? h.phase === 'warn' ? 2 : 3 : h.phase === 'warn' ? 0 : 1;
+      const image = this.sprite(id, 'hazardHoles', frame);
+      if (!image) return false;
+      const size = h.twist ? 120 : 190;
+      const growth = h.phase === 'warn' && !h.twist ? .25 + h.t * .55 : 1;
+      const flip = h.phase === 'warn' && h.twist ? .3 + Math.abs(Math.sin(h.t * Math.PI * 6)) * .7 : 1;
+      image.setPosition(p.x, p.y).setDisplaySize(size * growth, size * growth * (frame === 3 ? .72 : .5) * flip)
+        .setOrigin(.5, frame === 3 ? .7 : .5).setDepth(floorDepth + .8).setAlpha(alpha);
+      if (h.phase === 'warn') this.ground.lineStyle(2, 0xd98153, .45 + h.t * .4).strokeEllipse(p.x, p.y, size, size / 2);
+      return true;
+    }
+    if (h.kind === 'laundry') {
+      const image = this.sprite(id, 'hazardLaundry', h.phase === 'warn' ? Math.floor(h.t * 12) % 3 : 0);
+      if (!image) return false;
+      if (h.phase === 'warn') {
+        this.landing(p, h.t);
+        image.setPosition(p.x + Math.sin(h.t * Math.PI * 6) * 18, p.y - 30 - (1 - h.t) ** 2 * 320)
+          .setDisplaySize(42, 30).setRotation(Math.sin(h.t * Math.PI * 6) * .15).setDepth(1e6 - 5);
+      } else image.setPosition(p.x, p.y - 6).setDisplaySize(42, 24).setDepth(h.x + h.y + .05);
+      image.setAlpha(alpha);
+      return true;
+    }
+    if (h.kind === 'slipper') {
+      if (!this.atlasReady('hazardSlipper')) return false;
+      if (h.phase === 'warn') {
+        this.alert(p.x, p.y - 60, h.t);
+        return true;
+      }
+      const image = this.sprite(id, 'hazardSlipper', Math.floor(h.t * 32) % 4)!;
+      const next = point(h.x + h.dx, h.y + h.dy);
+      image.setPosition(p.x, p.y - 40).setScale(34 / image.width).setFlipX(next.x < p.x).setAlpha(alpha).setDepth(1e6 - 5);
+      return true;
+    }
+    if (h.kind === 'motorbike') {
+      if (h.phase === 'warn') {
+        this.lane(h, 56, .1 + (Math.sin(h.t * Math.PI * 12) * .5 + .5) * .18);
+        const side = h.dx ? point(h.dx > 0 ? .6 : MAP_W - .6, h.y) : point(h.x, h.dy > 0 ? .6 : MAP_H - .6);
+        this.alert(side.x, side.y - 40, h.t);
+        return true;
+      }
+      if (!this.atlasReady('motorbikes') || !this.atlasReady('hazardCargoBike')) return false;
+      const direction = h.dx ? h.dx > 0 ? 'E' : 'W' : h.dy > 0 ? 'S' : 'N';
+      const cargoTexture = this.scene.textures.get(SLICE_ASSETS.hazardCargoBike.key);
+      const bikeHeight = this.atlasHeight('motorbikes'), cargoHeight = this.atlasHeight('hazardCargoBike');
+      for (let i = 0; i < 3; i++) {
+        const wob = i % 2 ? .18 : -.12;
+        const x = h.x - i * 1.3 * h.dx + (h.dx ? 0 : wob), y = h.y - i * 1.3 * h.dy + (h.dx ? wob : 0);
+        if (h.dx && (x < STREET_ENDS.w || x > STREET_ENDS.e)) continue;
+        const q = point(x, y), cargo = i === 2;
+        const image = this.sprite(`${id}:bike:${i}`, cargo ? 'hazardCargoBike' : 'motorbikes', Number(cargo ? sliceCargoBikeFrame(direction, !!h.cargoOpen) : sliceMotorbikeFrame(direction, i)))!;
+        image.setPosition(q.x, q.y).setOrigin(.5, .88).setScale(cargo ? 100 / cargoHeight : 84 / bikeHeight).setAlpha(alpha).setDepth(x + y + .05);
+        if (cargo && h.cargoOpen) {
+          // An opened lid/feather can enlarge the crop without moving the bike itself.
+          const closed = cargoTexture.get(sliceCargoBikeFrame(direction, false));
+          const cellWidth = Math.floor((cargoTexture.getSourceImage() as HTMLImageElement).width / 2);
+          image.setOrigin((closed.cutX + closed.width * .5 + cellWidth - image.frame.cutX) / image.width,
+            (closed.cutY + closed.height * .88 - image.frame.cutY) / image.height);
+        }
+        this.ground.fillStyle(INK, .14 * alpha).fillEllipse(q.x, q.y + 2, cargo ? 64 : 54, 16);
+      }
+      return true;
+    }
+    if (h.kind === 'cat') {
+      if (!this.atlasReady('hazardCat')) return false;
+      const impact = this.hit?.kind === 'cat' && h.phase !== 'gone';
+      const moving = h.phase === 'active' && h.moving !== false;
+      const phase = impact ? 3 : moving ? 1 + Math.floor(h.t * 48) % 2 : 0;
+      const lift = impact ? -18 - Math.abs(Math.sin(this.hit!.t * Math.PI * 4)) * 8 : moving ? -Math.abs(Math.sin(h.t * Math.PI * 24)) * 3 : 0;
+      const image = this.animalSprite(id, 'hazardCat', facingFrom(h.dx, h.dy) ?? 'E', phase, 42)!;
+      image.setPosition(p.x, p.y + lift).setAlpha(alpha).setDepth(h.x + h.y + .05);
+      this.ground.fillStyle(INK, .14 * alpha).fillEllipse(p.x, p.y, 32, 11);
+      if (h.phase === 'warn') this.alert(p.x, p.y - 54, h.t);
+      return true;
+    }
+    if (h.kind === 'dog') {
+      if (!this.atlasReady('hazardDogs')) return false;
+      // A cancelled warning must not suddenly grow into a mastiff during its fade.
+      const large = h.phase === 'active' || (h.phase === 'gone' && this.sprites.get(id)?.getData('largeDog') === true);
+      const impact = this.hit?.kind === 'dog' && h.phase !== 'gone';
+      const moving = h.phase === 'active' && h.moving !== false;
+      const phase = impact || !large && h.phase === 'warn' ? 3 : moving ? 1 + Math.floor(h.t * 48) % 2 : 0;
+      const image = this.animalSprite(id, 'hazardDogs', facingFrom(h.dx, h.dy) ?? 'E', phase, large ? 66 : 32, large ? 2 : 0)!;
+      image.setPosition(p.x, p.y).setAlpha(alpha).setDepth(h.x + h.y + .05).setData('largeDog', large);
+      this.ground.fillStyle(INK, .14 * alpha).fillEllipse(p.x, p.y, large ? 62 : 26, large ? 20 : 9);
+      return true;
+    }
+    if (h.kind === 'chickens') {
+      if (!this.atlasReady('hazardChickens')) return false;
+      const impact = this.hit?.kind === 'chickens' && h.phase !== 'gone';
+      const moving = h.phase === 'active' && h.moving !== false;
+      for (const [ox, oy, k] of [[0, 0, 0], [-.35, .3, 1], [.3, .35, 2]] as const) {
+        const q = point(h.x + ox, h.y + oy);
+        const phase = impact ? 3 : moving ? 1 + Math.floor(h.t * 48 + k) % 2 : 0;
+        const hop = impact ? Math.abs(Math.sin(this.hit!.t * Math.PI * 8 + k)) * 8 : moving ? Math.abs(Math.sin(h.t * Math.PI * 36 + k)) * 4 : 0;
+        const image = this.animalSprite(`${id}:chicken:${k}`, 'hazardChickens', facingFrom(h.dx, h.dy) ?? 'E', phase, 34)!;
+        image.setPosition(q.x, q.y - hop).setAlpha(alpha).setDepth(h.x + ox + h.y + oy + .05);
+        this.ground.fillStyle(INK, .13 * alpha).fillEllipse(q.x, q.y, 24, 8);
+      }
+      if (h.phase === 'warn') this.alert(p.x, p.y - 44, h.t);
+      return true;
+    }
+    if (h.kind === 'pigeons') {
+      if (!this.atlasReady('hazardPigeons')) return false;
+      if (h.phase === 'warn') {
+        const { a, b } = this.lane(h, 26, .12 + h.t * .2);
+        for (let i = 0; i < 12; i++) {
+          const u = (i / 12 + h.t * 2) % 1;
+          this.ground.fillStyle(0xffffff, .8).fillCircle(a.x + (b.x - a.x) * u, a.y + (b.y - a.y) * u, 3);
+        }
+        return true;
+      }
+      const offsets = [[0, 0], [-.4, -.3], [.3, -.45], [-.2, .35], [.45, .2]] as const;
+      offsets.forEach(([ox, oy], i) => {
+        const q = point(h.x + ox, h.y + oy);
+        const phase = 1 + Math.floor(h.t * 60 + i) % 3;
+        const image = this.animalSprite(`${id}:bird:${i}`, 'hazardPigeons', facingFrom(h.dx, h.dy) ?? 'E', phase, 42)!;
+        image.setPosition(q.x, q.y - 58).setAlpha(alpha).setDepth(1e6 - 5);
+        this.ground.fillStyle(INK, .08 * alpha).fillEllipse(q.x, q.y, 22, 8);
+      });
+      return true;
+    }
+    return false;
   }
 
   /** Each gag with words says them in a bubble that follows it (the twist's in a darker red). */
@@ -679,7 +1064,7 @@ export class IncidentRunView {
     const want = new Set<number>();
     const z = this.scene.cameras.main.zoom;
     for (const h of run?.hazards ?? []) {
-      if (!h.label || h.phase === 'gone' || run?.hit || run?.finale) continue;
+      if (!h.label || h.phase === 'gone' || run?.hit) continue;
       want.add(h.id);
       let b = this.bubbles.get(h.id);
       if (!b) {
@@ -716,6 +1101,7 @@ export class IncidentRunView {
   }
 
   private draw(h: HazardView, g: Phaser.GameObjects.Graphics): void {
+    if (this.drawSliceHazard(h)) return;
     const p = point(h.x, h.y);
     const now = this.scene.time.now;
     const face = h.dx || h.dy ? (point(h.x + h.dx, h.y + h.dy).x - p.x >= 0 ? 1 : -1) : 1;
@@ -868,6 +1254,12 @@ export class IncidentRunView {
   private drawHit(d: NonNullable<RunView['hit']>): void {
     const p = point(d.x, d.y), t = d.t, now = this.scene.time.now, g = this.fx;
     switch (d.kind) {
+      case 'banana': {
+        const image = this.sprite('impact:banana', 'hazardBanana', 1);
+        image?.setPosition(p.x - t * 18, p.y + 4).setDisplaySize(42, 24).setAlpha(1 - t * .8).setDepth(floorDepth + .8);
+        if (t > .6) this.stars(p.x, p.y - 80 - (1 - t) * 100);
+        return;
+      }
       case 'cat':
       case 'dog':
       case 'chickens': {
@@ -878,7 +1270,7 @@ export class IncidentRunView {
           for (let i = 0; i < 3; i++) g.lineStyle(5, 0xe2513f, 1 - swipe * .6).lineBetween(p.x - 26 + i * 12, p.y - 70 + swipe * 10, p.x - 6 + i * 12, p.y - 28 + swipe * 10);
         } else if (d.kind === 'chickens') {
           for (let i = 0; i < 8; i++) { const a = i * .8 + now / 200; oval(g, p.x + Math.cos(a) * (20 + t * 40), p.y - 40 - Math.sin(a) * 30 - t * 30, 10, 5, 0xffffff); }
-        } else {
+        } else if (!this.atlasReady('hazardDogs')) {
           const open = Math.abs(Math.sin(now / 90)) * 12;
           for (const s of [-1, 1]) {
             const y = p.y - 16 + s * (6 + open);
@@ -888,27 +1280,48 @@ export class IncidentRunView {
         }
         return;
       }
-      case 'durian':
-        drawDurian(g, p.x, p.y - 70, 16);
+      case 'durian': {
+        const image = this.sprite('impact:durian', 'hazardDurian', 0);
+        if (image) image.setPosition(p.x, p.y - 70 - Math.sin(t * Math.PI) * 12).setScale(44 / image.width).setRotation(t * .8).setDepth(1e6 - 3);
+        else drawDurian(g, p.x, p.y - 70, 16);
         this.stars(p.x, p.y - 100);
         return;
-      case 'water':
+      }
+      case 'water': {
+        const image = this.sprite('impact:water', 'hazardWater', 2);
+        image?.setPosition(p.x, p.y - 34).setOrigin(.5, .7).setDisplaySize(88, 60).setAlpha(1 - t * .65).setDepth(1e6 - 3);
         for (let i = 0; i < 10; i++) dot(g, p.x - 36 + (i * 8) % 72, p.y - 90 + ((now / 4 + i * 37) % 80), 4, 0x8fd0ea);
         return;
-      case 'shuttlecock':
-        shuttlecock(g, p.x + t * 60, p.y - 70 - Math.sin(t * Math.PI) * 60, 1);
+      }
+      case 'shuttlecock': {
+        const image = this.sprite('impact:shuttlecock', 'hazardShuttlecock', Math.floor(t * 12) % 4);
+        if (image) image.setPosition(p.x + t * 60, p.y - 70 - Math.sin(t * Math.PI) * 60).setScale(36 / image.width).setRotation(t * .25).setDepth(1e6 - 3);
+        else shuttlecock(g, p.x + t * 60, p.y - 70 - Math.sin(t * Math.PI) * 60, 1);
         if (t > .3) this.stars(p.x, p.y - 80);
         return;
-      case 'slipper':
-        g.fillStyle(0xffd25e).fillEllipse(p.x - 10 - t * 50, p.y - 60 + t * 50, 30, 14).lineStyle(2.5, INK).strokeEllipse(p.x - 10 - t * 50, p.y - 60 + t * 50, 30, 14);
+      }
+      case 'slipper': {
+        const image = this.sprite('impact:slipper', 'hazardSlipper', Math.floor(t * 16) % 4);
+        if (image) image.setPosition(p.x - 10 - t * 50, p.y - 60 + t * 50).setScale(34 / image.width).setRotation(t * Math.PI * 2).setDepth(1e6 - 3);
+        else g.fillStyle(0xffd25e).fillEllipse(p.x - 10 - t * 50, p.y - 60 + t * 50, 30, 14).lineStyle(2.5, INK).strokeEllipse(p.x - 10 - t * 50, p.y - 60 + t * 50, 30, 14);
         if (t > .3) this.stars(p.x, p.y - 80);
         return;
+      }
       case 'sinkhole':
         for (let i = 0; i < 6; i++) { const a = i * 1.1 + t * 3; dot(g, p.x + Math.cos(a) * (40 + t * 50), p.y - 10 - t * 40 - (i % 2) * 10, 6 + (1 - t) * 6, 0xd8c3a5); }
         return;
-      case 'pigeons':
-        for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2 + now / 300; pigeon(g, p.x + Math.cos(a) * 34, p.y - 60 - Math.sin(t * Math.PI) * 260 + Math.sin(a) * 12, Math.cos(a) > 0 ? 1 : -1, Math.sin(now / 40 + i) * 8); }
+      case 'pigeons': {
+        const ready = this.atlasReady('hazardPigeons');
+        for (let i = 0; i < 5; i++) {
+          const a = (i / 5) * Math.PI * 2 + t * Math.PI * 8;
+          const x = p.x + Math.cos(a) * 34, y = p.y - 78 - Math.sin(t * Math.PI) * 260 + Math.sin(a) * 12;
+          if (ready) {
+            const image = this.animalSprite(`impact:pigeon:${i}`, 'hazardPigeons', Math.cos(a) > 0 ? 'E' : 'S', 1 + Math.floor(t * 60 + i) % 3, 42)!;
+            image.setPosition(x, y).setDepth(1e6 - 3);
+          } else pigeon(g, x, y + 18, Math.cos(a) > 0 ? 1 : -1, Math.sin(now / 40 + i) * 8);
+        }
         return;
+      }
       default:
         if (t > .6) this.stars(p.x, p.y - 80 - (1 - t) * 100);
     }
@@ -920,57 +1333,14 @@ export class IncidentRunView {
     if (d.t > .1) this.stars(p.x - 44, p.y - 24);
   }
 
-  /** The fate: relief, then the silly event and its sound word, then the fall. */
-  private drawFinale(f: RunView['finale']): void {
-    if (!f) return void this.sound.setVisible(false);
-    const p = point(f.x, f.y), t = f.t, g = this.fx, now = this.scene.time.now;
-    const ev = (a: number, b: number) => Math.max(0, Math.min(1, (t - a) / (b - a)));
-    switch (f.kind) {
-      case 'sau': {
-        // A tiny green fruit drops on the head and bounces off.
-        const fall = ev(.36, .48), off = ev(.48, .62);
-        if (t > .3 && t < .62) oval(g, p.x + off * 50, p.y - 64 - (1 - fall) * 320 - Math.sin(off * Math.PI) * 50, 12, 15, 0x9ccf5c);
-        break;
-      }
-      case 'coin':
-        if (t < .5) rr(g, p.x + 18, p.y - 6, 22, 11, 2, 0x8fd08a);
-        if (t > .44) { const q = p.x + 24; g.fillStyle(0x9aa1ad).fillRoundedRect(q - 5, p.y - 170, 10, 170, 3).lineStyle(2, INK).strokeRoundedRect(q - 5, p.y - 170, 10, 170, 3); }
-        break;
-      case 'chair':
-        if (t > .28) {
-          const broke = t > .55;
-          g.lineStyle(4, 0xc8463d);
-          for (const s of [-1, 1]) g.lineBetween(p.x + s * 12, p.y - 18, p.x + s * (broke ? 26 : 14), p.y);
-          rr(g, p.x - 18, p.y - (broke ? 10 : 24), 36, 8, 3, 0xe2513f);
-        }
-        break;
-      case 'sneeze':
-        if (t > .3 && t < .5) for (let i = 0; i < 5; i++) dot(g, p.x + 14 + (i * 7) % 20, p.y - 56 + Math.sin(now / 80 + i) * 4, 2, 0x3a3340);
-        if (t > .48 && t < .62) for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI - Math.PI / 2; g.lineStyle(3, 0xffffff).lineBetween(p.x + 20 + Math.cos(a) * 10, p.y - 52 + Math.sin(a) * 10, p.x + 20 + Math.cos(a) * 34, p.y - 52 + Math.sin(a) * 34); }
-        break;
-      case 'lick':
-        if (t > .2) dog(g, p.x + 70 - ev(.2, .4) * 20, p.y + 4, -1, t < .4 ? now / 55 : 0, 1.35);
-        if (t > .44 && t < .64) oval(g, p.x + 16, p.y - 52 + Math.sin(now / 50) * 6, 16, 26, 0xff8a8a);
-        break;
-      case 'news':
-        if (t > .3 && t < .66) {
-          rr(g, p.x + 16, p.y - 92, 60, 44, 3, 0xfffaf0);
-          g.fillStyle(0xe2513f).fillRect(p.x + 22, p.y - 86, 48, 6);
-          g.fillStyle(INK).fillRect(p.x + 34, p.y - 66, 26, 5).fillCircle(p.x + 30, p.y - 64, 4);
-        }
-        break;
-    }
-    // The sound word pops at the event and fades as the hero falls.
-    const s = ev(.46, .52);
-    this.sound.setVisible(t > .46 && t < .8);
-    if (this.sound.visible) this.sound.setText(f.sound).setPosition(p.x, p.y - 130).setScale((.6 + s * .6) * Math.max(1, 1 / this.scene.cameras.main.zoom)).setAlpha(t > .7 ? (.8 - t) / .1 : 1);
-    if (t > .7) this.stars(p.x - 44, p.y - 24);
-  }
-
   /** A harmless gag on the hero: flowered shorts over the head, or the durian smell around it. */
   private drawDaze(kind: 'smell' | 'shorts', hero: WorldPos): void {
     const p = point(hero.x, hero.y), now = this.scene.time.now;
-    if (kind === 'shorts') shorts(this.fx, p.x, p.y - 58);
+    if (kind === 'shorts') {
+      const image = this.sprite('daze:shorts', 'hazardLaundry', 3);
+      if (image) image.setPosition(p.x, p.y - 58).setDisplaySize(42, 30).setDepth(1e6 - 3);
+      else shorts(this.fx, p.x, p.y - 58);
+    }
     else for (let i = 0; i < 3; i++) {
       const y = p.y - 70 - ((now / 12 + i * 20) % 50);
       this.fx.lineStyle(3, 0x9ccf5c, .8).beginPath().moveTo(p.x - 20 + i * 20, y);
@@ -982,11 +1352,15 @@ export class IncidentRunView {
   destroy(): void {
     this.ground.destroy();
     this.fx.destroy();
-    this.sound.destroy();
     for (const g of this.bodies.values()) g.destroy();
     this.bodies.clear();
     for (const b of this.bubbles.values()) b.destroy();
     this.bubbles.clear();
+    for (const image of this.sprites.values()) image.destroy();
+    this.sprites.clear();
+    this.usedSprites.clear();
+    this.atlasHeights.clear();
+    this.hit = null;
   }
 }
 
@@ -995,11 +1369,10 @@ const STAND: Pose = { sx: 1, sy: 1, dy: 0, angle: 0, alpha: 1 };
 /** Lying flat on the street (the figure turns about its feet). */
 const LYING = -Math.PI / 2;
 
-/** How the hero's figure moves in the run: the gag that got them, the fate, then lying knocked out. */
+/** How the hero's figure moves in the run: the gag that got them, then lying knocked out. */
 export function runPose(run: RunView | null): Pose {
   if (!run) return STAND;
   if (run.hit) return hitPose(run.hit);
-  if (run.finale) return finalePose(run.finale);
   // Down: drops flat with a little bounce, then lies still.
   if (run.down) { const k = Math.min(1, run.down.t / .12); return { sx: 1, sy: 1, dy: -Math.sin(k * Math.PI) * 10, angle: LYING * k, alpha: 1 }; }
   return STAND;
@@ -1018,22 +1391,6 @@ function hitPose(d: NonNullable<RunView['hit']>): Pose {
     case 'durian':
     case 'water': return { sx: 1, sy: 1, dy: Math.sin(t * Math.PI) * 6, angle: Math.sin(t * 18) * .2 * (1 - t), alpha: 1 };
     default: return { sx: 1, sy: 1, dy: 0, angle: Math.sin(t * 40) * .15 * (1 - t), alpha: 1 };
-  }
-}
-
-function finalePose(f: NonNullable<RunView['finale']>): Pose {
-  const t = f.t;
-  const ev = (a: number, b: number) => Math.max(0, Math.min(1, (t - a) / (b - a)));
-  const fall = ev(.62, .72);
-  const lie = { angle: LYING * fall, dy: -Math.sin(fall * Math.PI) * 12 };
-  if (t >= .62) return { sx: 1, sy: 1, alpha: 1, ...lie };
-  switch (f.kind) {
-    case 'sau': return { sx: 1, sy: 1, dy: t > .48 && t < .56 ? 4 : 0, angle: 0, alpha: 1 };
-    case 'coin': return { sx: 1, sy: 1, dy: t > .36 && t < .5 ? 6 : 0, angle: t > .5 ? Math.sin(t * 90) * .12 : 0, alpha: 1 };
-    case 'chair': return { sx: 1, sy: 1, dy: t > .55 ? 16 : t > .3 ? 6 : 0, angle: 0, alpha: 1 };
-    case 'sneeze': return { sx: 1, sy: 1, dy: -Math.sin(ev(.48, .62) * Math.PI) * 60, angle: t < .48 ? -ev(.36, .48) * .25 : -.25 - ev(.48, .62) * .5, alpha: 1 };
-    case 'lick': return { sx: 1, sy: 1, dy: 0, angle: t > .44 ? Math.sin(t * 80) * .1 : 0, alpha: 1 };
-    default: return STAND;
   }
 }
 

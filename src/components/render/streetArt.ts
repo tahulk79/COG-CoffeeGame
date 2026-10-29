@@ -2,8 +2,10 @@ import Phaser from 'phaser';
 import { actorDepth, floorDepth, worldToScreen } from '../../utils/iso';
 import type { WorldPos } from '../../utils/tile';
 import type { StreetView } from '../../gameplay/story/StreetService';
+import { facingFrom } from '../../entities/Actor';
+import { SLICE_ASSETS, SLICE_PEOPLE, streetPerson, sliceAmbulanceFrame, sliceMedicCarryFrame, sliceMedicFrame, sliceMotorbikeFrame, slicePersonFrame } from './sliceAssets';
 import { SpeechBubble } from './speechBubble';
-import { bakeImage, block, dot, face, INK, motorbike, oval, point, rr, screenBox, shadow, STREET_ENDS, tri } from './incidentArt';
+import { block, dot, face, INK, motorbike, oval, point, rr, shadow, STREET_ENDS, tri } from './incidentArt';
 
 /** Baked sprites are drawn at this multiple of their size so they stay sharp when the camera zooms in. */
 export const SPRITE_SS = 2;
@@ -112,12 +114,6 @@ function ambulance(g: Phaser.GameObjects.Graphics, dir: number): void {
   }
 }
 
-/** Red-and-white fence across a sidewalk at column `x`, rows y0..y1 (pedestrians never get through). */
-function fence(g: Phaser.GameObjects.Graphics, x: number, y0: number, y1: number): void {
-  block(g, { x: x - .08, y: y0, w: .16, h: y1 - y0 }, 0, 30, 0xffffff, 2);
-  for (let y = y0; y < y1 - .2; y += .5) face(g, [[x + .08, y + .05, 4], [x + .08, y + .25, 4], [x + .08, y + .35, 26], [x + .08, y + .15, 26]], 0xe2513f, 1, 0);
-}
-
 /**
  * Chapter-1 street life: passers-by, motorbikes and the people at the stalls,
  * with their speech bubbles (and the hero's). Bodies are drawn once and moved
@@ -126,12 +122,15 @@ function fence(g: Phaser.GameObjects.Graphics, x: number, y0: number, y1: number
 export class StreetLifeView {
   /** People, bikes and the ambulance are baked into images once per look: a Graphics redraws all its shapes every frame (about 1000 commands a person). */
   private readonly bodies = new Map<string, Phaser.GameObjects.Image>();
+  private readonly contactShadows = new Map<string, Phaser.GameObjects.Ellipse>();
+  private readonly carryArtReady: boolean;
   private readonly bubbles = new Map<string, SpeechBubble>();
   /** Street-end barriers: the fixed fences (drawn once) and each boom (redrawn as it moves). */
   private readonly fences = new Map<string, Phaser.GameObjects.GameObject[]>();
   private readonly booms = new Map<string, { g: Phaser.GameObjects.Graphics; open: number }>();
 
   constructor(private readonly scene: Phaser.Scene) {
+    this.carryArtReady = this.sliceReady('medicCarry');
     this.prewarm();
   }
 
@@ -147,18 +146,10 @@ export class StreetLifeView {
     for (const gate of gates) {
       const x = gate.x;
       if (!this.fences.has(gate.id)) {
-        // Fences on both sidewalks and a sign: closed to people on foot, always.
-        // One segment per row, so people on either side sort in front of or behind it correctly.
+        // The boom closes the road to vehicles only: the sidewalks stay open, people walk past it.
         const parts: Phaser.GameObjects.GameObject[] = [];
-        for (const [y0, y1] of [[BARRIER_ROWS.top, BARRIER_ROWS.roadTop], [BARRIER_ROWS.roadBottom, BARRIER_ROWS.bottom]] as const) {
-          for (let y = y0; y < y1; y++) {
-            // Static: baked into an image once instead of being redrawn every frame.
-            const box = screenBox([[x - .2, y], [x + .2, y], [x - .2, y + 1], [x + .2, y + 1]], 50, 24);
-            parts.push(bakeImage(this.scene, `fence:${x}:${y}`, box, actorDepth({ x, y: y + .5 }), (g) => fence(g, x, y, y + 1)));
-          }
-        }
         const post = this.scene.add.graphics().setDepth(actorDepth({ x, y: BARRIER_ROWS.roadTop }));
-        block(post, { x: x - .12, y: BARRIER_ROWS.roadTop - .12, w: .24, h: .24 }, 0, 44, 0x6b6b75, 2);
+        block(post, { x: x - .12, y: BARRIER_ROWS.roadTop - .12, w: .24, h: .24 }, 0, 44, 0x717871, 1.5);
         const sign = point(x, BARRIER_ROWS.top + 1, 96);
         if (gate.sign) parts.push(this.scene.add.text(sign.x, sign.y, gate.sign, { fontFamily: "'Baloo 2', sans-serif", fontSize: '18px', fontStyle: '800', color: '#ffffff', backgroundColor: '#e2513f', padding: { x: 10, y: 3 }, resolution: 2 }).setOrigin(.5, 1).setDepth(1e6 - 6));
         else {
@@ -178,9 +169,10 @@ export class StreetLifeView {
       const pivot = point(x, BARRIER_ROWS.roadTop, 40), shut = point(x, BARRIER_ROWS.roadBottom, 40);
       const len = Math.hypot(shut.x - pivot.x, shut.y - pivot.y), a0 = Math.atan2(shut.y - pivot.y, shut.x - pivot.x), a = a0 + (Math.PI * 1.5 - a0) * gate.open;
       const g = boom.g.clear();
+      g.lineStyle(12, 0x514b40, .2).lineBetween(pivot.x + 1, pivot.y + 2, pivot.x + Math.cos(a) * len + 1, pivot.y + Math.sin(a) * len + 2);
       for (let i = 0; i < 6; i++) {
         const u0 = i / 6, u1 = (i + 1) / 6;
-        g.lineStyle(9, i % 2 ? 0xffffff : 0xe2513f).lineBetween(pivot.x + Math.cos(a) * len * u0, pivot.y + Math.sin(a) * len * u0, pivot.x + Math.cos(a) * len * u1, pivot.y + Math.sin(a) * len * u1);
+        g.lineStyle(9, i % 2 ? 0xf9f3e5 : 0xc96751).lineBetween(pivot.x + Math.cos(a) * len * u0, pivot.y + Math.sin(a) * len * u0, pivot.x + Math.cos(a) * len * u1, pivot.y + Math.sin(a) * len * u1);
       }
     }
   }
@@ -188,7 +180,7 @@ export class StreetLifeView {
   /** `heroSay`: what the run has the hero say (near misses, last words), when no stall talk is using the bubble. */
   sync(street: StreetView | null, hero: WorldPos, heroSay: string | null = null): void {
     const seen = new Set<string>(), said = new Set<string>();
-    const z = this.scene.cameras.main.zoom, now = this.scene.time.now;
+    const z = this.scene.cameras.main.zoom, now = street?.elapsedMs ?? this.scene.time.now;
     const skids: StreetView['npcs'] = [];
     this.raised = 0;
     // The hero lying on the street (about a tile long, head to the left): bubbles keep off it.
@@ -202,11 +194,36 @@ export class StreetLifeView {
         g.setData('sortBias', (this.bodies.size + 1) * 0.00001);
         this.bodies.set(n.id, g);
       }
-      if (n.look === 'ambulance') g.setTexture(`npc:ambulance:${n.dir < 0 ? -1 : 1}`).setFlipX(n.axis === 'y');
       const p = worldToScreen(n);
-      const bob = n.moving && !n.bike ? -Math.abs(Math.sin(now / 110 + n.x)) * 3 : 0;
-      g.setPosition(p.x, p.y + bob).setScale(((n.dir < 0 && n.look !== 'ambulance' ? -1 : 1) * n.scale) / SPRITE_SS, n.scale / SPRITE_SS).setRotation(n.tilt).setDepth(Math.round(actorDepth(n) * 100) / 100 + g.getData('sortBias')).setVisible(n.scale > 0.01 && n.x >= STREET_ENDS.w && n.x <= STREET_ENDS.e);
-      if (n.say) { said.add(n.id); this.bubble(n.id, n.say, n, n.bike ? 84 : 78, z, false, lying); }
+      const kind = g.getData('sliceKind');
+      const carrying = kind === 'medic' && !!street?.carried;
+      const carryAtlas = carrying && this.carryArtReady;
+      if (kind === 'medic') {
+        // Both medics look towards the lying body's centre while supporting opposite ends.
+        const facing = carrying ? facingFrom(hero.x - .27 - n.x, hero.y + .27 - n.y) : n.facing;
+        const direction = facing ?? (n.dir < 0 ? 'W' : 'E');
+        const key = carryAtlas ? SLICE_ASSETS.medicCarry.key : SLICE_ASSETS.medic.key;
+        const frame = carryAtlas ? sliceMedicCarryFrame(direction, n.moving, street?.carryLift ?? 1, now) : sliceMedicFrame(direction, n.moving, carrying, now);
+        g.setTexture(key, frame).setFlipX(false);
+      } else if (kind === 'ambulance') {
+        g.setTexture(SLICE_ASSETS.ambulance.key, sliceAmbulanceFrame(n.axis ?? 'x', n.dir, !!n.doorOpen, !!n.damaged)).setFlipX(false);
+      } else if (kind === 'person') {
+        const person = g.getData('personArt') as NonNullable<ReturnType<typeof streetPerson>>;
+        const pose = slicePersonFrame(person.row, n.facing ?? (n.dir < 0 ? 'W' : 'E'), n.moving, now);
+        g.setTexture(SLICE_ASSETS[person.asset].key, pose.frame).setFlipX(pose.flipX);
+      } else if (kind === 'motorbike') {
+        g.setTexture(SLICE_ASSETS.motorbikes.key, sliceMotorbikeFrame(n.facing ?? (n.dir < 0 ? 'W' : 'E'), g.getData('bikeColor'))).setFlipX(false);
+      } else if (n.look === 'ambulance') g.setTexture(`npc:ambulance:${n.dir < 0 ? -1 : 1}`).setFlipX(n.axis === 'y');
+      const bob = carrying ? carryAtlas ? 0 : (1 - (street?.carryLift ?? 1)) * 4 : n.moving && !n.bike ? -Math.abs(Math.sin(now / 110 + n.x)) * (kind === 'person' ? 1.5 : 3) : 0;
+      const scale = n.scale * (kind ? g.getData('nativeScale') : 1 / SPRITE_SS);
+      const flip = !kind && n.dir < 0 && n.look !== 'ambulance' ? -1 : 1;
+      const visible = n.scale > 0.01 && n.x >= STREET_ENDS.w && n.x <= STREET_ENDS.e;
+      g.setPosition(p.x, p.y + bob).setScale(flip * scale, scale).setRotation(n.tilt).setDepth(Math.round(actorDepth(n) * 100) / 100 + g.getData('sortBias')).setVisible(visible).setData('worldScale', n.scale);
+      this.contactShadows.get(n.id)?.setPosition(p.x, p.y).setScale(n.scale).setVisible(visible);
+      if (n.say) {
+        said.add(n.id);
+        this.bubble(n.id, n.say, n, kind ? g.displayHeight * g.originY + 12 : n.bike ? 84 : 78, z, false, lying);
+      }
       if (n.skid) skids.push(n);
     }
     this.drawSkids(skids);
@@ -218,21 +235,31 @@ export class StreetLifeView {
     const say = street?.heroHidden ? null : street?.heroSay ?? heroSay;
     if (say) { said.add('hero'); this.bubble('hero', say, hero, 84, z, true); }
     this.syncGates(street?.gates ?? []);
-    for (const [id, g] of this.bodies) if (!seen.has(id)) { g.destroy(); this.bodies.delete(id); }
+    for (const [id, g] of this.bodies) if (!seen.has(id)) {
+      g.destroy(); this.bodies.delete(id);
+      this.contactShadows.get(id)?.destroy(); this.contactShadows.delete(id);
+    }
     for (const [id, b] of this.bubbles) if (!said.has(id)) { b.destroy(); this.bubbles.delete(id); }
   }
 
   /** The ambulance's runaway wheel, then the explosion: fireball, smoke, flying bits and the bang's word. */
   private mishapG: Phaser.GameObjects.Graphics | null = null;
   private boomT: Phaser.GameObjects.Text | null = null;
+  private wheelImage: Phaser.GameObjects.Image | null = null;
   private drawMishap(wheel: StreetView['wheel'], boom: StreetView['boom'], zoom: number): void {
     const g = (this.mishapG ??= this.scene.add.graphics().setDepth(1e6 - 3)).clear();
+    this.wheelImage?.setVisible(false);
     if (wheel) {
       const q = worldToScreen(wheel);
       shadow(g, q.x, q.y + 2, 26, 8);
-      dot(g, q.x, q.y - 11, 11, 0x4a4a55);
-      dot(g, q.x, q.y - 11, 4, 0xe8e8ee);
-      g.lineStyle(2, 0xe8e8ee).lineBetween(q.x, q.y - 11, q.x + Math.cos(wheel.spin) * 9, q.y - 11 + Math.sin(wheel.spin) * 9);
+      if (this.sliceReady('wheel')) {
+        const image = (this.wheelImage ??= this.scene.add.image(0, 0, SLICE_ASSETS.wheel.key, '0').setDisplaySize(26, 26));
+        image.setVisible(true).setPosition(q.x, q.y - 11).setRotation(wheel.spin).setDepth(actorDepth(wheel));
+      } else {
+        dot(g, q.x, q.y - 11, 11, 0x4a4a55);
+        dot(g, q.x, q.y - 11, 4, 0xe8e8ee);
+        g.lineStyle(2, 0xe8e8ee).lineBetween(q.x, q.y - 11, q.x + Math.cos(wheel.spin) * 9, q.y - 11 + Math.sin(wheel.spin) * 9);
+      }
     }
     if (!boom) return void this.boomT?.setVisible(false);
     const q = worldToScreen(boom), t = boom.t, e = 1 - (1 - Math.min(1, t * 2.5)) ** 2, now = this.scene.time.now;
@@ -324,13 +351,49 @@ export class StreetLifeView {
 
   /** Every look the street can show, baked up front so no frame in the middle of play stops to draw one. */
   private prewarm(): void {
-    for (const look of [...Object.keys(LOOKS), 'cat']) this.bake(StreetLifeView.bodySpec(look, false, 0, 1));
-    for (const c of StreetLifeView.BIKE_COLORS) this.bake(StreetLifeView.bodySpec('bike', true, c, 1));
-    for (const dir of [-1, 1]) this.bake(StreetLifeView.bodySpec('ambulance', false, 0, dir));
+    for (const look of [...Object.keys(LOOKS), 'cat']) {
+      if (look === 'medic' && this.sliceReady('medic')) continue;
+      const person = SLICE_PEOPLE[look];
+      if (person && this.sliceReady(person.asset)) continue;
+      this.bake(StreetLifeView.bodySpec(look, false, 0, 1));
+    }
+    if (!this.sliceReady('motorbikes')) for (const c of StreetLifeView.BIKE_COLORS) this.bake(StreetLifeView.bodySpec('bike', true, c, 1));
+    if (!this.sliceReady('ambulance')) for (const dir of [-1, 1]) this.bake(StreetLifeView.bodySpec('ambulance', false, 0, dir));
+  }
+
+  private sliceReady(kind: keyof typeof SLICE_ASSETS): boolean {
+    const asset = SLICE_ASSETS[kind], key = asset.key, count = asset.columns * asset.rows;
+    return this.scene.textures.exists(key) && Array.from({ length: count }, (_, i) => String(i)).every(frame => this.scene.textures.get(key).has(frame));
   }
 
   /** The image for a person, bike or the ambulance: origin at the feet. */
   private bodyImage(n: StreetView['npcs'][number]): Phaser.GameObjects.Image {
+    const person = streetPerson(n.look, n.id);
+    if (!n.bike && person && this.sliceReady(person.asset)) {
+      const texture = this.scene.textures.get(SLICE_ASSETS[person.asset].key);
+      const extent = Math.max(...Array.from({ length: 4 }, (_, i) => texture.get(String(person.row * 4 + i)).height));
+      this.contactShadows.set(n.id, this.scene.add.ellipse(0, 0, n.look === 'kid' ? 22 : 29, 10, INK, .16).setDepth(floorDepth + .75));
+      return this.scene.add.image(0, 0, texture.key, String(person.row * 4)).setOrigin(.5, 1)
+        .setData('sliceKind', 'person').setData('personArt', person).setData('nativeScale', person.height / extent);
+    }
+    if (n.bike && n.look !== 'ambulance' && this.sliceReady('motorbikes')) {
+      const texture = this.scene.textures.get(SLICE_ASSETS.motorbikes.key);
+      const extent = Math.max(...Array.from({ length: 16 }, (_, i) => texture.get(String(i)).height));
+      const color = [...n.id].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 4;
+      this.contactShadows.set(n.id, this.scene.add.ellipse(0, 0, 62, 20, INK, .16).setDepth(floorDepth + .75));
+      return this.scene.add.image(0, 0, texture.key, '0').setOrigin(.5, .88)
+        .setData('sliceKind', 'motorbike').setData('nativeScale', 84 / extent).setData('bikeColor', color);
+    }
+    if ((n.look === 'medic' || n.look === 'ambulance') && this.sliceReady(n.look)) {
+      const medic = n.look === 'medic', count = medic ? 16 : 12;
+      const texture = this.scene.textures.get(SLICE_ASSETS[n.look].key);
+      // A single scale per atlas avoids size changes when the door opens or a foot moves.
+      let extent = Math.max(...Array.from({ length: count }, (_, i) => medic ? texture.get(String(i)).height : texture.get(String(i)).width));
+      if (medic && this.carryArtReady) extent = Math.max(extent, ...Array.from({ length: 16 }, (_, i) => this.scene.textures.get(SLICE_ASSETS.medicCarry.key).get(String(i)).height));
+      this.contactShadows.set(n.id, this.scene.add.ellipse(0, 0, medic ? 30 : 140, medic ? 11 : 46, INK, .16).setDepth(floorDepth + .75));
+      return this.scene.add.image(0, 0, texture.key, '0').setOrigin(.5, medic ? 1 : .82)
+        .setData('sliceKind', n.look).setData('nativeScale', (medic ? 70 : 205) / extent);
+    }
     const spec = StreetLifeView.bodySpec(n.look, n.bike, StreetLifeView.BIKE_COLORS[n.id.length % 4]!, n.dir);
     this.bake(spec);
     return this.scene.add.image(0, 0, spec.key).setOrigin(-spec.b.x / spec.b.w, -spec.b.y / spec.b.h);
@@ -341,7 +404,7 @@ export class StreetLifeView {
     let best: { id: string; depth: number } | null = null;
     for (const [id, g] of this.bodies) {
       if (!g.visible || id.startsWith('bike') || id.startsWith('gatebike') || id.startsWith('crashbike') || id === 'ambulance') continue;
-      const s = Math.abs(g.scaleY) * SPRITE_SS;
+      const s: number = g.getData('worldScale') ?? Math.abs(g.scaleY) * SPRITE_SS;
       if (x < g.x - 22 * s || x > g.x + 22 * s || y < g.y - 74 * s || y > g.y + 6) continue;
       if (!best || g.depth > best.depth) best = { id, depth: g.depth };
     }
@@ -378,11 +441,16 @@ export class StreetLifeView {
       // Raised above the hero; each further raised bubble stacks on the one below instead of overlapping it.
       if (overlapX && overlapY) y = avoid.y0 - 6 - this.raised++ * (h + 4);
     }
-    b.setPosition(p.x, y);
+    // Always whole on screen (clear of the HUD buttons along the top): slid in from the edge rather than cut off.
+    const view = this.scene.cameras.main.worldView, w = b.width * b.scale, h = b.height * b.scale, pad = 8 / zoom;
+    const x = Math.max(view.x + w / 2 + pad, Math.min(view.right - w / 2 - pad, p.x));
+    y = Math.max(view.y + h + 84 / zoom, Math.min(view.bottom - pad, y));
+    b.setPosition(x, y);
   }
 
   destroy(): void {
     for (const g of this.bodies.values()) g.destroy();
+    for (const shadow of this.contactShadows.values()) shadow.destroy();
     for (const b of this.bubbles.values()) b.destroy();
     for (const parts of this.fences.values()) for (const g of parts) g.destroy();
     for (const b of this.booms.values()) b.g.destroy();
@@ -392,7 +460,9 @@ export class StreetLifeView {
     this.mishapG?.destroy();
     this.boomT?.destroy();
     this.bonkT?.destroy();
+    this.wheelImage?.destroy();
     this.bodies.clear();
+    this.contactShadows.clear();
     this.bubbles.clear();
   }
 }

@@ -3,7 +3,7 @@ import { CONTENT } from '../../src/data/content';
 import { GameSimulation } from '../../src/gameplay/GameSimulation';
 import { FakeClock } from '../../src/core/Clock';
 import type { GameState } from '../../src/gameplay/state/GameState';
-import type { FinaleKind, HazardKind } from '../../src/gameplay/story/RunService';
+import type { HazardKind } from '../../src/gameplay/story/RunService';
 
 function replay(seed: number, state?: GameState) {
   if (state) state.story = { chapter: 'S03', flags: {} };
@@ -29,19 +29,6 @@ it('all 11 primary gags are eligible early and saved exposure favours unseen gag
     if (shown.size === kinds.length) break;
   }
   expect(shown.size).toBe(11);
-});
-
-it('all six eligible finales rotate across saved replays before repeating', () => {
-  let state: GameState | undefined;
-  const shown = new Set<FinaleKind>();
-  for (let i = 0; i < 6; i++) {
-    const sim = replay(i + 1, state);
-    for (const id of ['tra_da', 'pho', 'bao']) sim.story.visit(id);
-    sim.run!['startFinale']();
-    shown.add(sim.run!.view().finale!.kind);
-    state = structuredClone(sim.captureState());
-  }
-  expect(shown.size).toBe(6);
 });
 
 it('dodging the delivery bike can release the twelfth gag, chickens', () => {
