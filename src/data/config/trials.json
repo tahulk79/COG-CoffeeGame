@@ -1,0 +1,520 @@
+{
+  "intro": [
+    "Chào! Chưa chết đâu, mới ngất thôi.",
+    "Muốn trùng sinh thì đi qua 5 trạm trên con đường này.",
+    "Trả lời sai cũng không sao, nhưng Sổ Phúc Đức ghi hết đấy!"
+  ],
+  "timeoutLine": "Hết giờ! Im lặng cũng là một câu trả lời. Qua!",
+  "karma": {
+    "min": -4,
+    "max": 6,
+    "high": 4,
+    "mid": 1
+  },
+  "stations": [
+    {
+      "id": "st1",
+      "name": "Ông Đồ IQ",
+      "npc": "scholar",
+      "type": "troll",
+      "x": 8,
+      "y": 2,
+      "greet": "Khoan! Muốn qua đây phải làm bài kiểm tra trí tuệ của ta. Có đồng hồ đếm giờ đấy!",
+      "timerMs": 6000,
+      "questions": [
+        {
+          "id": "q_one_plus_one",
+          "prompt": "Câu hỏi trí tuệ: 1 + 1 = mấy?",
+          "options": [
+            {
+              "text": "2",
+              "karma": 0,
+              "mood": "right",
+              "reply": "Đúng. Nhưng thiếu sáng tạo."
+            },
+            {
+              "text": "11",
+              "karma": 0,
+              "mood": "funny",
+              "reply": "Ghép số à? Ta cho qua vì dũng cảm."
+            },
+            {
+              "text": "Cửa sổ",
+              "karma": 0,
+              "mood": "funny",
+              "reply": "Hahaha! Ta thích cậu. Qua!"
+            }
+          ],
+          "lesson": "Câu dễ nhất cũng có nhiều cách nhìn. Đừng vội cười người nghĩ khác mình."
+        },
+        {
+          "id": "q_wet_towel",
+          "prompt": "Cái gì càng lau càng ướt?",
+          "options": [
+            {
+              "text": "Cái khăn",
+              "karma": 0,
+              "mood": "right",
+              "reply": "Chuẩn! Cái khăn chịu ướt để người khác khô."
+            },
+            {
+              "text": "Sàn nhà",
+              "karma": 0,
+              "mood": "wrong",
+              "reply": "Sàn càng lau càng sạch chứ! Cậu lau kiểu gì thế?"
+            },
+            {
+              "text": "Nước mắt",
+              "karma": 0,
+              "mood": "funny",
+              "reply": "…Sao tự nhiên buồn thế. Thôi qua đi."
+            }
+          ],
+          "lesson": "Có lúc thứ giúp người khác khô ráo là thứ chịu ướt nhiều nhất."
+        },
+        {
+          "id": "q_goat_snail",
+          "prompt": "Con gì đầu dê mình ốc?",
+          "options": [
+            {
+              "text": "Con dốc",
+              "karma": 0,
+              "mood": "right",
+              "reply": "Giỏi! Chữ \"dê\" ghép \"ốc\" thành \"dốc\"."
+            },
+            {
+              "text": "Con dê bị ốc bám",
+              "karma": 0,
+              "mood": "wrong",
+              "reply": "Tội con dê. Sai!"
+            },
+            {
+              "text": "Con ốc đội mũ dê",
+              "karma": 0,
+              "mood": "funny",
+              "reply": "Thời trang đấy. Nhưng sai."
+            }
+          ],
+          "lesson": "Đôi khi đáp án nằm ngay trong cách đặt câu hỏi."
+        },
+        {
+          "id": "q_ducks",
+          "prompt": "Một con vịt đi trước hai con vịt, một con vịt đi sau hai con vịt. Có mấy con vịt?",
+          "options": [
+            {
+              "text": "3 con",
+              "karma": 0,
+              "mood": "right",
+              "reply": "Chuẩn! Ba con xếp hàng một."
+            },
+            {
+              "text": "5 con",
+              "karma": 0,
+              "mood": "wrong",
+              "reply": "Đếm thừa rồi! Vịt nhà ai mà đông thế."
+            },
+            {
+              "text": "Hết vịt, ăn rồi",
+              "karma": 0,
+              "mood": "funny",
+              "reply": "Ai cho ăn! Đây là thiên đàng!"
+            }
+          ],
+          "lesson": "Nhìn cả bức tranh trước khi vội đếm từng phần."
+        }
+      ]
+    },
+    {
+      "id": "st2",
+      "name": "Bà Thủ Thư Mây",
+      "npc": "librarian",
+      "type": "knowledge",
+      "x": 15,
+      "y": 6,
+      "greet": "Suỵt, thư viện mây cần yên tĩnh. Trả lời bà một câu kiến thức là bà mở đường.",
+      "questions": [
+        {
+          "id": "q_coffee_vn",
+          "prompt": "Cây cà phê được đưa vào Việt Nam khoảng thời gian nào?",
+          "options": [
+            {
+              "text": "Thế kỷ 19",
+              "karma": 1,
+              "reply": "Đúng rồi, khoảng giữa thế kỷ 19, thời Pháp thuộc."
+            },
+            {
+              "text": "Năm ngoái",
+              "karma": 0,
+              "reply": "Năm ngoái là lúc cậu mới biết uống thôi."
+            },
+            {
+              "text": "Thời khủng long",
+              "karma": 0,
+              "reply": "Khủng long chỉ uống trà đá."
+            }
+          ],
+          "lesson": "Ly cà phê nào cũng có câu chuyện dài phía sau."
+        },
+        {
+          "id": "q_coffee_export",
+          "prompt": "Việt Nam đứng thứ mấy thế giới về xuất khẩu cà phê?",
+          "options": [
+            {
+              "text": "Thứ 2",
+              "karma": 1,
+              "reply": "Chính xác, chỉ sau Brazil."
+            },
+            {
+              "text": "Thứ 10",
+              "karma": 0,
+              "reply": "Khiêm tốn quá! Thứ 2 cơ, chỉ sau Brazil."
+            },
+            {
+              "text": "Thứ nhất vũ trụ",
+              "karma": 0,
+              "reply": "Vũ trụ chưa có bảng xếp hạng. Thứ 2 thế giới nhé."
+            }
+          ],
+          "lesson": "Hạt cà phê nhỏ nhưng nuôi sống hàng triệu gia đình nông dân."
+        },
+        {
+          "id": "q_boiling",
+          "prompt": "Ở mực nước biển, nước sôi ở bao nhiêu độ C?",
+          "options": [
+            {
+              "text": "100 độ",
+              "karma": 1,
+              "reply": "Đúng. Nhưng pha cà phê thì đừng dùng nước sôi sùng sục."
+            },
+            {
+              "text": "37 độ",
+              "karma": 0,
+              "reply": "Đó là nhiệt độ người. Cậu đang sốt à?"
+            },
+            {
+              "text": "Tuỳ tâm trạng",
+              "karma": 0,
+              "reply": "Nước không có tâm trạng. 100 độ nhé."
+            }
+          ],
+          "lesson": "Pha cà phê ngon cần nước khoảng 90 đến 96 độ, nóng vừa đủ chứ không cần sôi."
+        },
+        {
+          "id": "q_sword_lake",
+          "prompt": "Hồ Hoàn Kiếm gắn với truyền thuyết nào?",
+          "options": [
+            {
+              "text": "Trả gươm cho Rùa Thần",
+              "karma": 1,
+              "reply": "Đúng! Vua Lê trả gươm, hồ mang tên Hoàn Kiếm."
+            },
+            {
+              "text": "Rùa đi mua trà sữa",
+              "karma": 0,
+              "reply": "Rùa Thần không xếp hàng trà sữa."
+            },
+            {
+              "text": "Cá chép hoá rồng",
+              "karma": 0,
+              "reply": "Đó là chuyện khác rồi, cũng hay nhưng sai."
+            }
+          ],
+          "lesson": "Mượn thì phải trả, kể cả khi người cho mượn là… một con rùa."
+        }
+      ]
+    },
+    {
+      "id": "st3",
+      "name": "Ông Cân Phúc Đức",
+      "npc": "scale",
+      "type": "ethics",
+      "x": 22,
+      "y": 2,
+      "greet": "Ta cân lòng người. Câu này không phải để đùa đâu, nghĩ kỹ rồi hãy chọn.",
+      "questions": [
+        {
+          "id": "q_faint",
+          "prompt": "Thấy một người ngất giữa phố, bạn sẽ…",
+          "options": [
+            {
+              "text": "Gọi 115, giữ an toàn cho họ",
+              "karma": 2,
+              "reply": "Cái cân nghiêng hẳn về phía sáng."
+            },
+            {
+              "text": "Quay TikTok đã",
+              "karma": -2,
+              "reply": "Ta nhớ có một ông ngoài phố cũng quay cậu đấy."
+            },
+            {
+              "text": "Đứng xem cho biết",
+              "karma": -1,
+              "reply": "Đứng xem thì không cứu được ai."
+            }
+          ],
+          "lesson": "Một cuộc gọi đáng giá hơn một nghìn lượt xem."
+        },
+        {
+          "id": "q_wallet",
+          "prompt": "Bạn nhặt được một cái ví có 5 triệu. Bạn sẽ…",
+          "options": [
+            {
+              "text": "Tìm trả lại chủ",
+              "karma": 2,
+              "reply": "Cái cân sáng lên. Chủ ví đang thở phào đấy."
+            },
+            {
+              "text": "Giữ 4 triệu, trả 1",
+              "karma": -2,
+              "reply": "Toán thì giỏi, lòng thì chưa."
+            },
+            {
+              "text": "Mua trà sữa cả phường",
+              "karma": -1,
+              "reply": "Cả phường vui, chủ ví khóc."
+            }
+          ],
+          "lesson": "Đồ không phải của mình, cầm càng lâu càng nặng tay."
+        },
+        {
+          "id": "q_cheat",
+          "prompt": "Bạn thân nhờ bạn cho chép bài kiểm tra. Bạn sẽ…",
+          "options": [
+            {
+              "text": "Từ chối, rủ bạn học cùng",
+              "karma": 2,
+              "reply": "Khó nói nhưng đúng. Cái cân gật gù."
+            },
+            {
+              "text": "Cho chép hết",
+              "karma": -1,
+              "reply": "Thương bạn kiểu này là hại bạn."
+            },
+            {
+              "text": "Cho chép đáp án sai",
+              "karma": -2,
+              "reply": "Ác thế! Cái cân rung bần bật."
+            }
+          ],
+          "lesson": "Giúp bạn là giúp bạn giỏi lên, không phải giúp bạn qua mặt."
+        },
+        {
+          "id": "q_parents",
+          "prompt": "Bố mẹ gọi điện đúng lúc bạn đang chơi game. Bạn sẽ…",
+          "options": [
+            {
+              "text": "Nghe máy, hỏi thăm",
+              "karma": 2,
+              "reply": "Cái cân rung… vì cảm động."
+            },
+            {
+              "text": "Tắt máy, nhắn \"con bận\"",
+              "karma": -1,
+              "reply": "Bận đánh quái à?"
+            },
+            {
+              "text": "Bật chế độ máy bay",
+              "karma": -2,
+              "reply": "Máy bay này không đáp xuống đâu được đâu."
+            }
+          ],
+          "lesson": "Game chơi lại được, còn cuộc gọi của bố mẹ thì không phải lúc nào cũng còn."
+        }
+      ]
+    },
+    {
+      "id": "st4",
+      "name": "Ông Đồ IQ (lại là ta)",
+      "npc": "scholar",
+      "type": "trap",
+      "x": 29,
+      "y": 6,
+      "greet": "Lại là ta đây! Câu này dễ lắm… chắc thế.",
+      "timerMs": 6000,
+      "questions": [
+        {
+          "id": "q_honest",
+          "prompt": "Câu này dễ: nãy giờ cậu có trả lời trung thực hết không?",
+          "options": [
+            {
+              "text": "Có, 100%",
+              "karma": 0,
+              "mood": "funny",
+              "reply": "Ừ… ta tin. Cái cân thì chưa chắc."
+            },
+            {
+              "text": "Không, có câu chọn cho vui",
+              "karma": 1,
+              "mood": "right",
+              "reply": "Thật thà là câu đúng duy nhất hôm nay!"
+            }
+          ],
+          "lesson": "Dám nhận mình chưa hoàn hảo là bước đầu để tốt hơn."
+        },
+        {
+          "id": "q_dropped_money",
+          "prompt": "Ta vừa đánh rơi 500 nghìn sau lưng cậu đấy. Cậu làm gì?",
+          "options": [
+            {
+              "text": "Nhặt lên trả ông",
+              "karma": 1,
+              "mood": "right",
+              "reply": "Thật ra ta chẳng đánh rơi gì. Nhưng cậu qua bài rồi."
+            },
+            {
+              "text": "Giả vờ không thấy",
+              "karma": -1,
+              "mood": "wrong",
+              "reply": "Ở đây cái gì cũng thấy hết đấy."
+            },
+            {
+              "text": "Nhặt, hỏi có thưởng không",
+              "karma": 0,
+              "mood": "funny",
+              "reply": "Thưởng cho cậu một cái nhìn khinh bỉ."
+            }
+          ],
+          "lesson": "Người tử tế là người tử tế cả khi tưởng không ai nhìn."
+        },
+        {
+          "id": "q_teacher_wrong",
+          "prompt": "Ta là thầy nhé: 2 + 2 = 5. Đúng không?",
+          "options": [
+            {
+              "text": "Không ạ, bằng 4",
+              "karma": 1,
+              "mood": "right",
+              "reply": "Dám nói thầy sai khi thầy sai. Tốt!"
+            },
+            {
+              "text": "Dạ đúng, thầy nói gì cũng đúng",
+              "karma": -1,
+              "mood": "wrong",
+              "reply": "Nịnh thế thì lên thiên đàng cũng tắc đường."
+            },
+            {
+              "text": "Bằng 5 nếu tính cả thầy",
+              "karma": 0,
+              "mood": "funny",
+              "reply": "…Cũng có lý. Qua."
+            }
+          ],
+          "lesson": "Tôn trọng người lớn không có nghĩa là im lặng trước điều sai."
+        }
+      ]
+    },
+    {
+      "id": "st5",
+      "name": "Thần Cà Phê",
+      "npc": "spirit",
+      "type": "advice",
+      "x": 36,
+      "y": 2,
+      "greet": "Trạm cuối là của ta! Một câu thôi, để cậu mang theo sang kiếp sau.",
+      "questions": [
+        {
+          "id": "q_patience",
+          "prompt": "Ta hỏi thật: làm gì cũng cần…",
+          "options": [
+            {
+              "text": "Kiên nhẫn",
+              "karma": 1,
+              "reply": "Đúng một nửa. Nửa kia là bắt tay vào làm."
+            },
+            {
+              "text": "Vốn",
+              "karma": 0,
+              "reply": "Đúng một nửa. Thiếu kiên nhẫn thì vốn bay như hơi cà phê."
+            },
+            {
+              "text": "Wifi mạnh",
+              "karma": 0,
+              "reply": "Đúng một phần tư thôi."
+            }
+          ],
+          "lesson": "Pha cà phê hay sống đời đều cần chờ từng giọt."
+        },
+        {
+          "id": "q_complaint",
+          "prompt": "Khách chê cà phê của cậu dở. Cậu sẽ…",
+          "options": [
+            {
+              "text": "Cảm ơn, hỏi dở chỗ nào",
+              "karma": 1,
+              "reply": "Khách khó tính là thầy giáo miễn phí."
+            },
+            {
+              "text": "Cãi tay đôi",
+              "karma": -1,
+              "reply": "Thắng khách thì thua quán."
+            },
+            {
+              "text": "Bỏ thêm 5 thìa đường",
+              "karma": 0,
+              "reply": "Giờ nó vừa dở vừa ngọt."
+            }
+          ],
+          "lesson": "Một lời chê đúng là một công thức miễn phí."
+        },
+        {
+          "id": "q_fail",
+          "prompt": "Làm lần đầu mà thất bại thì sao?",
+          "options": [
+            {
+              "text": "Rút kinh nghiệm, làm lại",
+              "karma": 1,
+              "reply": "Chuẩn. Ly đầu tiên của ai cũng đắng."
+            },
+            {
+              "text": "Đổ lỗi cho số phận",
+              "karma": -1,
+              "reply": "Số phận đang ngồi uống trà đá, không liên quan."
+            },
+            {
+              "text": "Ngủ một giấc rồi tính",
+              "karma": 0,
+              "reply": "Cũng được, nhưng nhớ dậy."
+            }
+          ],
+          "lesson": "Ngã thì đứng dậy, như cậu vừa làm đấy, từ giữa phố lên tận đây."
+        }
+      ]
+    }
+  ],
+  "gate": {
+    "name": "Bà Gác Cửa",
+    "x": 41,
+    "y": 2,
+    "advice": {
+      "high": "Sổ của cậu sáng như đèn lồng. Kiếp sau cứ sống tử tế như thế, người tốt sẽ tìm đến cậu.",
+      "mid": "Sổ không tối, chỉ chưa sáng lắm. Kiếp sau làm việc nhỏ cho tử tế, điều lớn sẽ tự đến.",
+      "low": "Sổ hơi tối, nhưng ai cũng có lần làm lại. Kiếp sau chịu khó nghĩ cho người khác một chút nhé."
+    },
+    "ask": "Bước qua cánh cửa này, cậu sẽ trùng sinh ở bất cứ đâu. Cậu đã sẵn sàng chưa?",
+    "ready": "Sẵn sàng!",
+    "wait": "Cho tôi nghĩ thêm",
+    "readyReply": "Tốt. Nhớ mang theo những lời nhắn nhé.",
+    "countdown": [
+      "Ừ, nghĩ đi…",
+      "3…",
+      "2…",
+      "1… hết giờ!",
+      "Vào!"
+    ]
+  },
+  "spin": {
+    "title": "Cậu sẽ trùng sinh thành…",
+    "items": [
+      "Con gà",
+      "Cây xương rồng",
+      "Tổng thống",
+      "Con muỗi",
+      "Siêu sao bóng đá",
+      "Cái ấm siêu tốc",
+      "Chủ một quán cà phê nhỏ"
+    ],
+    "result": 6,
+    "ms": 3800,
+    "holdMs": 2400
+  }
+}

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { hudScale } from './viewInsets';
+import { cssSize, screenCamera } from './pixelRatio';
 
 export type LayoutMode = 'wide' | 'compact';
 
@@ -60,16 +61,11 @@ export class HudLayout {
   }
 
   private measure(): HudFrame {
-    const rawW = this.scene.scale.width;
-    const rawH = this.scene.scale.height;
+    const { w: rawW, h: rawH } = cssSize(this.scene);
     // Portrait phones and short landscape phones both count as compact.
     const compact = rawW < 760 || rawH < 520;
     const ui = hudScale(rawW, rawH);
-    const w = rawW / ui;
-    const h = rawH / ui;
-    const cam = this.scene.cameras.main;
-    cam.setZoom(ui);
-    cam.setScroll(-rawW * (1 - 1 / ui) / 2, -rawH * (1 - 1 / ui) / 2);
+    const { w, h } = screenCamera(this.scene, ui);
     hudViewport.w = w;
     hudViewport.h = h;
     const rawSafe = readSafeInsets();

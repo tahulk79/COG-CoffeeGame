@@ -34,26 +34,3 @@ export function drawChapter1Backdrop(scene: Phaser.Scene): void {
   streetKerb(road, -32, 88, CITY_BACK_STREET.near, 1);
   streetKerb(road, -32, 88, CITY_BACK_STREET.far, -1);
 }
-
-/** A low garden boundary explains the existing y=17 navigation edge; the city continues behind it. */
-export function drawStreetBoundary(scene: Phaser.Scene): void {
-  const key = 'hn:promenade-boundary:v1';
-  if (!scene.textures.exists(key)) {
-    const g = scene.make.graphics({ x: 0, y: 0 }, false);
-    // A 4-tile section aligned to the same (2,1) ground axis as the street.
-    const p = (x: number, y: number) => new Phaser.Math.Vector2(x, y);
-    g.fillStyle(0x9d997f).fillPoints([p(8, 32), p(264, 160), p(264, 171), p(8, 43)], true);
-    g.fillStyle(0xe0d3b7).fillPoints([p(8, 25), p(264, 153), p(264, 160), p(8, 32)], true);
-    for (let x = 8; x <= 264; x += 32) {
-      const y = 32 + (x - 8) / 2;
-      g.lineStyle(2, 0x637963).lineBetween(x, y, x, y - 17);
-    }
-    for (const z of [9, 17]) g.lineStyle(2, 0x637963).lineBetween(8, 32 - z, 264, 160 - z);
-    g.generateTexture(key, 274, 180);
-    g.destroy();
-  }
-  for (let x = -18; x < 69; x += 4) {
-    const at = worldToScreen({ x, y: 17 });
-    scene.add.image(at.x - 8, at.y - 32, key).setOrigin(0).setDepth(x + 19.1);
-  }
-}

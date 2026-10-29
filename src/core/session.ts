@@ -2,7 +2,7 @@ import type { GameContent } from '../data/content';
 import { GameSimulation } from '../gameplay/GameSimulation';
 import { LocalStorageAdapter, SaveService, type LoadResult, type StorageAdapter } from '../gameplay/state/SaveService';
 import { SystemClock, type Clock } from './Clock';
-import type { GameState } from '../gameplay/state/GameState';
+import { createNewGameState, type GameState } from '../gameplay/state/GameState';
 
 export interface SessionOptions {
   /** Map to open; omitted = resume the story checkpoint or the saved map. */
@@ -16,6 +16,8 @@ export interface SessionOptions {
   initialState?: GameState;
   /** Boot only: begin chapter 1 again, keeping lifetime incident counters. */
   restartStory?: boolean;
+  /** TEMP (dev test, `?chap=`): with `restartStory`, begin at this chapter instead of chapter 1. */
+  startChapter?: string;
 }
 
 export interface GameSession {
@@ -43,13 +45,15 @@ export function createSession(o: SessionOptions): GameSession {
   }
   const saves = new SaveService(o.storage ?? new LocalStorageAdapter());
   const loaded = saves.load(clock.now());
-  const state = o.initialState ?? (loaded.status === 'ok' ? loaded.state : undefined);
+  // TEMP (dev test, `?chap=`): the chapter a boot restarts at; a brand-new game gets a state so it can start there too.
+  const begin = o.startChapter && o.content.story.chapters[o.startChapter] ? o.startChapter : o.content.story.start;
+  const state = o.initialState ?? (loaded.status === 'ok' ? loaded.state : begin !== o.content.story.start ? createNewGameState({ now: clock.now(), map: o.content.story.chapters[begin]!.map }) : undefined);
   if (o.restartStory && state) {
-    state.story = { chapter: o.content.story.start, flags: {} };
-    state.player = { map: o.content.story.chapters[o.content.story.start]!.map, tile: null };
+    state.story = { chapter: begin, flags: {} };
+    state.player = { map: o.content.story.chapters[begin]!.map, tile: null };
   }
   // A new game starts with the story; a save resumes where it was.
-  const newGameMap = o.content.story.chapters[o.content.story.start]!.map;
+  const newGameMap = o.content.story.chapters[begin]!.map;
   const usable = (id: string) => !!o.content.maps[id];
   // A save taken as the doors close can already name the next chapter while player.map still names the old map.
   const chapterMap = state ? o.content.story.chapters[state.story.chapter]?.map : undefined;

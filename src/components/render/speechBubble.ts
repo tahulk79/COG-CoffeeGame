@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { COLORS, css, FONT, prefersReducedMotion } from '../../ui/theme/tokens';
+import { TEXT_RES } from '../../ui/layout/pixelRatio';
 
 /**
  * The speech bubble of the street and the shops, drawn like a game's: a chunky rounded card with a thick chocolate
@@ -39,7 +40,7 @@ export class SpeechBubble {
 
   constructor(private readonly scene: Phaser.Scene, fontSize = 17) {
     this.img = scene.add.image(0, 0, '__WHITE').setOrigin(0.5, 1);
-    this.label = scene.add.text(0, 0, '', { fontFamily: FONT.family, fontSize: `${fontSize}px`, fontStyle: '700', color: css(COLORS.ink), align: 'center', wordWrap: { width: 230 }, resolution: 2 }).setOrigin(0.5, 0.5);
+    this.label = scene.add.text(0, 0, '', { fontFamily: FONT.family, fontSize: `${fontSize}px`, fontStyle: '700', color: css(COLORS.ink), align: 'center', wordWrap: { width: 230 }, resolution: TEXT_RES }).setOrigin(0.5, 0.5);
     this.inner = scene.add.container(0, 0, [this.img, this.label]);
     this.root = scene.add.container(0, 0, [this.inner]);
   }

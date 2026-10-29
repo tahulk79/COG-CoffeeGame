@@ -2,7 +2,7 @@ import type { EventBus } from '../../core/EventBus';
 import type { GameEvents } from '../../core/events';
 import type { GameState } from '../state/GameState';
 import type { HazardKind, HazardText, RunConfig, RunPhase, RunService, RunView } from './RunService';
-import type { GardenService, GardenView } from './GardenService';
+import type { TrialService, TrialView } from './TrialService';
 import type { StallConfig, StreetConfig, StreetService, StreetView } from './StreetService';
 
 export interface StoryChapter {
@@ -11,8 +11,6 @@ export interface StoryChapter {
   title: string;
   objective: string;
   objectiveReady?: string;
-  /** How the screen changes on the way into this chapter: heavenly doors (default) or a burst of light. */
-  arrive?: { style: 'doors' | 'light' };
   /** Chapter 1: the objective in rush hour and once knocked out, the line announcing rush hour, and the three act names. */
   objectiveChaos?: string;
   objectiveFaint?: string;
@@ -64,8 +62,8 @@ export interface StoryView {
   fate: FateView | null;
   /** Chapter 1: the survival run (hearts, time, hazards), or null outside it. */
   run: RunView | null;
-  /** Chapter 2: the cloud garden (sparks, the spirit and what it says), or null outside it. */
-  garden: GardenView | null;
+  /** Chapter 2: the road of rebirth (stations, what is said, karma, the wheel), or null outside it. */
+  trial: TrialView | null;
   /** Chapter 1: the stalls (name, whether their talk was heard). */
   stalls: Array<{ id: string; name: string; visited: boolean }>;
   /** Chapter 1: passers-by, stall talks and the reply to pick, or null outside it. */
@@ -101,7 +99,7 @@ const OK: StoryResult = { ok: true };
 const no = (reason: string, applicable = true): StoryResult => ({ ok: false, reason, applicable });
 
 /**
- * Playable rebirth story: chapters S03 (the old quarter) → S04 (the cloud garden) → back to S03, each a
+ * Playable rebirth story: chapters S03 (the old quarter) → S04 (the road of rebirth) → S05 (the café, still being built), each a
  * level on its own map. Progress is saved in `state.story` (chapter + flags), so a reload resumes the
  * chapter. The chapter only runs while the player is on its map.
  */
@@ -117,7 +115,7 @@ export class StoryService {
   private runPhase: RunPhase | null = null;
   /** Enough stalls visited: rush hour starts once the last stall's line has been read. */
   private chaosIn: number | null = null;
-  private garden: GardenService | null = null;
+  private trial: TrialService | null = null;
   private street: StreetService | null = null;
   private lastAlive = 0;
 
@@ -170,9 +168,9 @@ export class StoryService {
     if (this.active && this.visits >= (this.chapter.run?.strollVisits ?? Infinity)) this.chaosIn = 3000;
   }
 
-  /** Chapter 2's cloud garden, handed over by the simulation like the run. */
-  attachGarden(garden: GardenService): void {
-    this.garden = garden;
+  /** Chapter 2's road of rebirth, handed over by the simulation like the run. */
+  attachTrial(trial: TrialService): void {
+    this.trial = trial;
   }
 
   /** Chapter 1's street life, handed over by the simulation like the run. */
@@ -180,9 +178,9 @@ export class StoryService {
     this.street = street;
   }
 
-  /** Chapter 1: the reply picked in a stall talk. */
+  /** Chapter 1: the reply picked in a stall talk; chapter 2: the reply to a station's question or the door keeper. */
   chooseReply(i: number): StoryResult {
-    return !this.locked && this.street?.choose(i) ? OK : no('notNow', false);
+    return !this.locked && (this.street?.choose(i) || this.trial?.choose(i)) ? OK : no('notNow', false);
   }
 
   get runControls(): boolean {
@@ -249,10 +247,13 @@ export class StoryService {
     this.dialog = { lines, index: 0, onClose, kind };
   }
 
-  /** "Tiếp": next line, or close the dialog and run what follows it. */
+  /** "Tiếp": next line, or close the dialog and run what follows it (chapter 2: the road's footer line). */
   advanceDialog(): void {
     const d = this.dialog;
-    if (!d) return;
+    if (!d) {
+      if (!this.locked && this.active && this.chapterId === 'S04') this.trial?.next();
+      return;
+    }
     d.index += 1;
     if (d.index >= d.lines.length) {
       this.dialog = null;
@@ -295,6 +296,7 @@ export class StoryService {
   }
 
   get portalOpen(): boolean {
+    if (this.trial) return this.trial.isDoorOpen;
     return this.config.stones.every((s) => this.state.story.flags[s]);
   }
 
@@ -374,10 +376,11 @@ export class StoryService {
     const f = this.state.story.flags;
     const ch = this.config.chapters[this.chapterId];
     const d = this.dialog;
+    const trial = this.active && this.chapterId === 'S04' && this.trial ? this.trial.view() : null;
     let objective = '';
     if (this.active && ch) {
       const left = ch.timeLimitMs ? Math.max(0, Math.ceil((ch.timeLimitMs - this.timerMs) / 1000)) : 0;
-      if (this.chapterId === 'S04') objective = this.portalOpen ? ch.objectiveReady ?? '' : ch.objective.replace('{n}', String(this.config.stones.filter((s) => f[s]).length));
+      if (this.chapterId === 'S04') objective = this.portalOpen ? ch.objectiveReady ?? '' : ch.objective.replace('{n}', String(trial?.stations.filter((s) => s.done).length ?? 0));
       else if (this.chapterId === 'S03') {
         const v = this.run?.view();
         objective = v?.phase === 'stroll'
@@ -398,7 +401,7 @@ export class StoryService {
       // Chapter 1 stays on screen as it was (hero gone into the ambulance, the street) until the map changes,
       // even though the story already points at chapter 2.
       run: ((this.active && this.chapterId === 'S03') || this.leaving) && this.run ? this.run.view() : null,
-      garden: this.active && this.chapterId === 'S04' && this.garden ? this.garden.view() : null,
+      trial,
       stalls: this.active ? (ch?.stalls ?? []).map((s) => ({ id: s.id, name: s.name, visited: !!f[`visited:${s.id}`] })) : [],
       street: ((this.active && this.chapterId === 'S03') || this.leaving) && this.street ? this.street.view() : null,
       aside: this.aside?.text ?? null,

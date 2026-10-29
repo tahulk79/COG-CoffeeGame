@@ -16,7 +16,7 @@ import { StoryService, type StoryView } from './story/StoryService';
 import { registerStoryHandlers } from './story/storyHandlers';
 import { RunService, RUN_BODY_RADIUS } from './story/RunService';
 import { StreetService } from './story/StreetService';
-import { GardenService } from './story/GardenService';
+import { TrialService } from './story/TrialService';
 import { createNewGameState, type GameState } from './state/GameState';
 import { WorldModel } from './world/WorldModel';
 import type { MapData } from './world/types';
@@ -147,20 +147,25 @@ export class GameSimulation {
         this.story.attachStreet(this.street);
       }
     }
-    // Chapter 2 is the cloud garden: direct control, sparks to catch, the heaven door.
+    // Chapter 2 is the road of rebirth: direct control, five stations with a question each, the door.
     if (content.story.chapters.S04?.map === map.id && this.story.active && this.story.chapterId === 'S04') {
-      const centreOf = (id: string) => { const o = this.world.getObject(id); return o ? { x: o.footprint.x + o.footprint.w / 2, y: o.footprint.y + o.footprint.h / 2 } : null; };
-      this.garden = new GardenService(this.world.grid, this.player, content.story.chapters.S03!.run!, {
-        stones: content.story.stones,
-        isLit: (id) => !!this.state.story.flags[id],
-        light: (id) => void this.story.activate(id),
-        portalOpen: () => this.story.portalOpen,
-        enterPortal: () => { this.playerInteraction.cancelAll('superseded'); void this.story.enterPortal(); },
-        cherryTaken: () => !!this.state.story.flags.cherry,
-        pickCherry: () => void this.story.pickCherry(),
-        centreOf,
-      });
-      this.story.attachGarden(this.garden);
+      const flags = this.state.story.flags, counters = this.state.counters;
+      const stations = content.trials.stations;
+      // A fresh road: the karma and the lessons of an earlier visit are dropped.
+      if (!stations.some((st) => flags[`station:${st.id}`])) for (const k of Object.keys(counters)) if (k.startsWith('trial:')) delete counters[k];
+      const lessons = new Map(stations.flatMap((st) => st.questions.map((q) => [q.id, q.lesson] as const)));
+      const k = content.trials.karma, rng = new Rng(opts.rngSeed ?? Date.now());
+      this.trial = new TrialService(this.world.grid, this.player, content.story.chapters.S03!.run!, content.trials, {
+        isDone: (id) => !!flags[`station:${id}`],
+        markDone: (id) => { flags[`station:${id}`] = true; this.bus.emit('story:changed', { chapter: 'S04' }); },
+        karma: () => counters['trial:karma'] ?? 0,
+        addKarma: (n) => { counters['trial:karma'] = Math.max(k.min, Math.min(k.max, (counters['trial:karma'] ?? 0) + n)); },
+        lessons: () => Object.keys(counters).filter((key) => key.startsWith('trial:lesson:')).sort((a, b) => counters[a]! - counters[b]!).map((key) => lessons.get(key.slice(13)) ?? ''),
+        addLesson: (id) => { counters[`trial:lesson:${id}`] = Object.keys(counters).filter((key) => key.startsWith('trial:lesson:')).length + 1; },
+        halt: () => this.playerInteraction.cancelAll('superseded'),
+        enterDoor: () => { this.playerInteraction.cancelAll('superseded'); void this.story.enterPortal(); },
+      }, () => rng.next());
+      this.story.attachTrial(this.trial);
     }
   }
 
@@ -191,7 +196,7 @@ export class GameSimulation {
         this.playerInteraction.cancelAll('superseded');
         this.player.movementBlocked = false;
       }
-      if (this.garden && !this.story.locked) this.garden.tick(dt);
+      if (this.trial && !this.story.locked) this.trial.tick(dt);
       if (this.street && !this.story.locked) this.street.tick(dt);
       this.story.tick(dt);
       remaining -= dt;
@@ -202,12 +207,12 @@ export class GameSimulation {
   run: RunService | null = null;
   /** Chapter-1 street life (passers-by, stall talks), or null on other maps. */
   street: StreetService | null = null;
-  /** Chapter-2 cloud garden, or null on other maps. */
-  garden: GardenService | null = null;
+  /** Chapter-2 road of rebirth, or null on other maps. */
+  trial: TrialService | null = null;
 
-  /** Direct control (keys / joystick) in world directions; (0, 0) releases it. Chapter-1 run and chapter-2 garden. */
+  /** Direct control (keys / joystick) in world directions; (0, 0) releases it. Chapter-1 run and chapter-2 road. */
   steer(x: number, y: number): void {
-    const r = this.run ?? this.garden;
+    const r = this.run ?? this.trial;
     if (!r) return;
     const was = r.steering;
     if (x !== 0 || y !== 0) this.startRun();
@@ -245,7 +250,7 @@ export class GameSimulation {
 
   /** Player input → command. A click on an object interacts; a click on floor moves. */
   clickTile(tile: TilePos): void {
-    if (this.story.locked || this.run?.dying || this.run?.held) return;
+    if (this.story.locked || this.run?.dying || this.run?.held || this.trial?.busy) return;
     this.startRun();
     const obj = this.world.objectAt(tile);
     if (obj) this.clickObject(obj.id);
@@ -254,7 +259,7 @@ export class GameSimulation {
 
   /** Player clicked an object's visible shape. Non-interactive objects behave like a click on their tile. */
   clickObject(id: string): void {
-    if (this.story.locked || this.run?.dying || this.run?.held) return;
+    if (this.story.locked || this.run?.dying || this.run?.held || this.trial?.busy) return;
     this.startRun();
     const obj = this.world.getObject(id);
     if (!obj) return;

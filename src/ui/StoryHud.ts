@@ -6,10 +6,14 @@ import { setShown } from './components/panelVisibility';
 import { Panel } from './components/Panel';
 import { hudViewport, TOP_ROW } from './layout/HudLayout';
 import { COLORS, css, dur, FONT, MOTION, RADIUS } from './theme/tokens';
-import { STONE_COLOR } from '../components/render/gardenArt';
+import { drawKeeper, drawSpirit } from '../components/render/trialArt';
+import type { TrialPortrait } from '../gameplay/story/TrialService';
+import { TEXT_RES } from './layout/pixelRatio';
 
 const INK = css(COLORS.ink);
-const text = (size: number, weight = '600', color = INK): Phaser.Types.GameObjects.Text.TextStyle => ({ fontFamily: FONT.family, fontSize: `${size}px`, fontStyle: weight, color, resolution: 2 });
+const text = (size: number, weight = '600', color = INK): Phaser.Types.GameObjects.Text.TextStyle => ({ fontFamily: FONT.family, fontSize: `${size}px`, fontStyle: weight, color, resolution: TEXT_RES });
+/** The chapter-2 tracker: the lotus, then five station dots. */
+const TRACKER_W = 230;
 const stars = (n: number): string => '★'.repeat(Math.max(0, Math.min(5, n))) + '☆'.repeat(5 - Math.max(0, Math.min(5, n)));
 
 /** Cozy card: cream paper, chocolate outline, soft offset shadow. */
@@ -136,14 +140,46 @@ export class StoryHud {
   private readonly runBar: Phaser.GameObjects.Container;
   private readonly runTime: Pill;
   private readonly muteBtn: Button;
-  // Chapter-2 garden: three gems that light up as the stones wake (no objective text)
+  // Chapter-2 road: five station dots and the karma lotus (no objective text)
   private readonly tracker: Phaser.GameObjects.Container;
   private readonly trackerCard: Card;
   private readonly gems: Phaser.GameObjects.Graphics;
-  /** Starts as a key no real state has, so the gems are drawn on the first frame. */
+  /** Starts as a key no real state has, so the tracker is drawn on the first frame. */
   private gemsKey = '-';
+  // Chapter-2 karma book: a button, and the lessons collected so far
+  private readonly bookBtn: Button;
+  private readonly book: Phaser.GameObjects.Container;
+  private readonly bookCard: Card;
+  private readonly bookTitle: Phaser.GameObjects.Text;
+  private readonly bookText: Phaser.GameObjects.Text;
+  private bookOpen = false;
+  private bookLabel = '';
+  private bookKey = '';
+  // Chapter-2 footer: who is talking (portrait, name), the line, and "Tiếp" or the replies
+  private readonly talk: Phaser.GameObjects.Container;
+  private readonly talkCard: Card;
+  private readonly talkFace: Phaser.GameObjects.Graphics;
+  private readonly talkHero: Phaser.GameObjects.Graphics;
+  private readonly talkName: Pill;
+  private readonly talkLine: Phaser.GameObjects.Text;
+  private readonly talkTimer: Phaser.GameObjects.Text;
+  private readonly talkHint: Phaser.GameObjects.Text;
+  private readonly talkNext: Button;
+  private readonly talkAnswers: Button[];
+  private talkKey = '';
+  private talkW = 680;
+  private talkH = 132;
+  // Chapter-2 rebirth wheel
+  private readonly wheel: Phaser.GameObjects.Container;
+  private readonly wheelCard: Card;
+  private readonly wheelTitle: Phaser.GameObjects.Text;
+  private readonly wheelItem: Phaser.GameObjects.Text;
+  private readonly wheelLessons: Phaser.GameObjects.Text;
+  private wheelKey = '';
+  private wheelW = 420;
+  private wheelH = 220;
   private readonly retry: Button;
-  // Chapter-1 stall talks: the two replies to pick from
+  // Stall talks (chapter 1) and station questions (chapter 2): the replies to pick from
   private readonly choiceBtns: Button[];
   private readonly choicePanel: Phaser.GameObjects.Container;
   private readonly choiceCard: Card;
@@ -215,7 +251,7 @@ export class StoryHud {
     this.runBar.add(this.runTime.root);
     this.tracker = scene.add.container(0, 0).setDepth(1500);
     this.trackerCard = new Card(scene, this.tracker, COLORS.paper, RADIUS.pill);
-    this.trackerCard.set(176, 56);
+    this.trackerCard.set(TRACKER_W, 56);
     this.gems = scene.add.graphics();
     this.tracker.add(this.gems);
     this.muteBtn = new Button(scene, 0, 0, t('story.soundOn'), () => this.toggleMute(), 'story.mute', { fontSize: 16, h: TOP_ROW.size, w: 92, variant: 'secondary' });
@@ -225,13 +261,49 @@ export class StoryHud {
     this.choiceCard.bg.swallowClicks();
     this.choiceTitle = scene.add.text(16, 12, 'BẠN TRẢ LỜI', text(13, '800', css(COLORS.ink)));
     this.choicePanel.add(this.choiceTitle);
-    this.choiceBtns = [0, 1].map((i) => {
+    this.choiceBtns = [0, 1, 2].map((i) => {
       const b = new Button(scene, 0, 0, '', () => this.choose(i), `story.choice.${i}`, { fontSize: 17, h: 48, variant: 'secondary', wrap: true });
       this.choicePanel.add(b.text);
       this.buttons.set(`story.choice.${i}`, b);
       return b;
     });
 
+
+    this.bookBtn = new Button(scene, 0, 0, 'Sổ Phúc Đức', () => { this.bookOpen = !this.bookOpen; this.bookKey = ''; }, 'story.book', { fontSize: 16, h: TOP_ROW.size, variant: 'secondary' });
+    this.buttons.set('story.book', this.bookBtn);
+    this.book = scene.add.container(0, 0).setDepth(1560);
+    this.bookCard = new Card(scene, this.book);
+    this.bookCard.bg.swallowClicks().object.on('pointerdown', () => { this.bookOpen = false; this.bookKey = ''; });
+    this.bookTitle = scene.add.text(18, 14, 'SỔ PHÚC ĐỨC', text(14, '800', css(COLORS.coral)));
+    this.bookText = scene.add.text(18, 40, '', { ...text(16, '600'), wordWrap: { width: 380 }, lineSpacing: 4 });
+    this.book.add([this.bookTitle, this.bookText]);
+
+    this.talk = scene.add.container(0, 0).setDepth(1600);
+    this.talkCard = new Card(scene, this.talk);
+    this.talkCard.bg.swallowClicks().object.on('pointerdown', () => this.onNext());
+    this.talkFace = scene.add.graphics();
+    this.talkHero = portrait(scene);
+    this.talkLine = scene.add.text(124, 30, '', { ...text(18, '600'), wordWrap: { width: 520 }, lineSpacing: 2 });
+    this.talkTimer = scene.add.text(0, 12, '', text(14, '800', css(COLORS.coral))).setOrigin(1, 0);
+    this.talkHint = scene.add.text(0, 0, 'Chạm bất kỳ đâu để tiếp', text(12, '600', css(COLORS.woodLight))).setOrigin(1, 0.5);
+    this.talkNext = new Button(scene, 0, 0, t('story.next'), () => this.onNext(), 'story.talk.next', { fontSize: 16, h: 40 });
+    this.buttons.set('story.talk.next', this.talkNext);
+    this.talkName = new Pill(scene, COLORS.coral, css(COLORS.white));
+    this.talk.add([this.talkFace, this.talkHero, this.talkLine, this.talkTimer, this.talkHint, this.talkNext.text, this.talkName.root]);
+    this.talkAnswers = [0, 1, 2].map((i) => {
+      const b = new Button(scene, 0, 0, '', () => this.choose(i), `story.answer.${i}`, { fontSize: 17, h: 46, variant: 'secondary', wrap: true });
+      this.talk.add(b.text);
+      this.buttons.set(`story.answer.${i}`, b);
+      return b;
+    });
+
+    this.wheel = scene.add.container(0, 0).setDepth(1600);
+    this.wheelCard = new Card(scene, this.wheel);
+    this.wheelCard.bg.swallowClicks();
+    this.wheelTitle = scene.add.text(0, 18, '', text(16, '800', css(COLORS.coral))).setOrigin(0.5, 0);
+    this.wheelItem = scene.add.text(0, 48, '', { ...text(32, '800'), align: 'center', wordWrap: { width: 380 } }).setOrigin(0.5, 0);
+    this.wheelLessons = scene.add.text(0, 0, '', { ...text(14, '600', css(COLORS.woodLight)), align: 'center', wordWrap: { width: 380 }, lineSpacing: 3 }).setOrigin(0.5, 0);
+    this.wheel.add([this.wheelTitle, this.wheelItem, this.wheelLessons]);
 
     this.aside = scene.add.container(0, 0).setDepth(1500);
     this.asidePill = new Pill(scene, COLORS.paper, INK, 16);
@@ -241,12 +313,14 @@ export class StoryHud {
     scene.input.keyboard?.on('keydown-SPACE', this.keyHandler);
     scene.scale.on(Phaser.Scale.Events.RESIZE, this.layout, this);
     this.layout();
-    for (const c of [this.veil, this.chipBox, this.top, this.banner, this.box, this.card, this.aside, this.runBar, this.muteBtn.text, this.tracker, this.choicePanel]) setShown(c, false);
+    for (const c of [this.veil, this.chipBox, this.top, this.banner, this.box, this.card, this.aside, this.runBar, this.muteBtn.text, this.tracker, this.choicePanel, this.bookBtn.text, this.book, this.wheel, this.talk]) setShown(c, false);
   }
 
   private onNext(): void {
     if ((this.scene as Phaser.Scene & { modalOpen?: boolean }).modalOpen) return;
-    if (this.lastSnapshot?.story.dialog) this.advance();
+    const st = this.lastSnapshot?.story;
+    // Chapter 2: a tap goes on to the next line, except while a reply is waiting to be picked.
+    if (st?.dialog || (st?.trial?.say && !st.trial.choices)) this.advance();
   }
 
   private layout(): void {
@@ -301,9 +375,23 @@ export class StoryHud {
       this.retry.text.setPosition(this.cardW / 2 - this.retry.width / 2, by + 46 + 12);
     }
     this.runBar.setPosition(vw / 2 - this.runTime.width / 2, safeTop + (narrow ? 58 : 12));
-    this.tracker.setPosition(vw / 2 - 88, safeTop + 12);
+    this.tracker.setPosition(vw / 2 - TRACKER_W / 2, safeTop + (narrow ? 58 : 12));
     this.muteBtn.text.setPosition(safeLeft + TOP_ROW.inset, safeTop + TOP_ROW.inset);
+    this.bookBtn.text.setPosition(safeLeft + TOP_ROW.inset + this.muteBtn.width + 10, safeTop + TOP_ROW.inset);
+    const bookW = Math.min(440, usableW - 24);
+    this.bookText.setWordWrapWidth(bookW - 36);
+    this.bookCard.set(bookW, Math.ceil(this.bookText.height) + 58);
+    this.book.setPosition(safeLeft + (usableW - bookW) / 2, safeTop + TOP_ROW.inset + TOP_ROW.size + 14);
+    this.wheelW = Math.min(460, usableW - 24);
+    for (const label of [this.wheelItem, this.wheelLessons]) label.setWordWrapWidth(this.wheelW - 40);
+    this.wheelTitle.setX(this.wheelW / 2);
+    this.wheelItem.setX(this.wheelW / 2);
+    this.wheelLessons.setPosition(this.wheelW / 2, 48 + Math.ceil(this.wheelItem.height) + 18);
+    this.wheelH = this.wheelLessons.y + Math.ceil(this.wheelLessons.height) + 22;
+    this.wheelCard.set(this.wheelW, this.wheelH);
+    this.wheel.setPosition(vw / 2 - this.wheelW / 2, Math.max(safeTop + 40, vh / 2 - this.wheelH / 2));
     this.card.setPosition(vw / 2 - this.cardW / 2, Math.max(safeTop + 40, vh / 2 - this.cardH / 2));
+    this.layoutTalk(usableW, vh, safeLeft, safeBottom);
     // Portrait: above the joystick; landscape: beside it, leaving its left corner free.
     const landscape = vw > vh && usableW >= 600;
     const panelW = Math.min(landscape ? 380 : 520, usableW - (landscape ? 180 : 24));
@@ -319,6 +407,48 @@ export class StoryHud {
       landscape ? vw - safeRight - panelW - 12 : safeLeft + (usableW - panelW) / 2,
       vh - safeBottom - panelH - (landscape ? 16 : 148),
     );
+  }
+
+  /** The chapter-2 footer: portrait on the left, the line, then the replies stacked under it (or "Tiếp" at the bottom right). */
+  private layoutTalk(usableW: number, vh: number, safeLeft: number, safeBottom: number): void {
+    this.talkW = Math.min(760, usableW - 24);
+    const compact = this.talkW < 480;
+    const faceX = compact ? 44 : 62, faceY = compact ? 50 : 66, textX = compact ? 88 : 124;
+    this.talkFace.setScale(compact ? 0.7 : 1).setPosition(faceX, faceY);
+    this.talkHero.setScale(compact ? 0.7 : 1).setPosition(faceX, faceY);
+    this.talkLine.setPosition(textX, 30).setWordWrapWidth(this.talkW - textX - 24);
+    this.talkName.root.setPosition(textX - 6, -17);
+    this.talkTimer.setX(this.talkW - 18);
+    let y = 30 + Math.ceil(this.talkLine.height) + 16;
+    const asking = this.talkAnswers.some((b) => b.text.visible);
+    // Narrow screens: the replies take the whole width, under the portrait too.
+    const ansX = compact ? 16 : textX, ansW = this.talkW - ansX - 18;
+    for (const b of this.talkAnswers) {
+      if (!b.text.visible) continue;
+      b.setWidth(ansW);
+      b.text.setPosition(ansX, Math.max(y, compact ? 104 : 0));
+      y = b.text.y + b.height + 10;
+    }
+    this.talkH = asking ? Math.max(132, y + 6) : Math.max(132, y + 54);
+    this.talkCard.set(this.talkW, this.talkH);
+    this.talkNext.text.setPosition(this.talkW - this.talkNext.width - 18, this.talkH - this.talkNext.height - 14);
+    this.talkHint.setPosition(this.talkNext.text.x - 14, this.talkH - 14 - this.talkNext.height / 2).setVisible(!asking && this.talkW >= 520);
+    this.talk.setPosition(safeLeft + (usableW - this.talkW) / 2, vh - this.talkH - 16 - safeBottom);
+  }
+
+  /** The footer's face for whoever talks: the hero's portrait, a keeper's bust, the coffee spirit or the karma book. */
+  private drawFace(who: TrialPortrait, now: number): void {
+    const g = this.talkFace.clear();
+    this.talkHero.setVisible(who === 'hero');
+    if (who === 'hero') return;
+    const bg = who === 'book' ? COLORS.sun : who === 'spirit' ? 0xd8ecff : 0xfff1d6;
+    g.fillStyle(bg).fillCircle(0, 0, 40).lineStyle(3, COLORS.ink).strokeCircle(0, 0, 40);
+    if (who === 'spirit') drawSpirit(g, 0, 6, now);
+    else if (who === 'book') {
+      g.fillStyle(COLORS.coral).fillRoundedRect(-22, -18, 44, 36, 4).lineStyle(3, COLORS.ink).strokeRoundedRect(-22, -18, 44, 36, 4);
+      g.fillStyle(COLORS.paper).fillRect(-16, -14, 32, 28).lineStyle(2, COLORS.ink).lineBetween(0, -14, 0, 14);
+      for (const yy of [-6, 0, 6]) g.lineStyle(2, COLORS.woodLight).lineBetween(-12, yy, -4, yy).lineBetween(4, yy, 12, yy);
+    } else drawKeeper(g, 0, 50, who, now, 0, true);
   }
 
   private placeNext(): void {
@@ -354,34 +484,29 @@ export class StoryHud {
     const d = st.dialog;
     let relayout = false;
 
-    setShown(this.veil, d !== null);
+    setShown(this.veil, d !== null || (!!st.trial?.say && !st.trial.spin));
     // The chapter-1 run has no chapter chip: just play.
     // Between chapters (doors closing, next map loading) the story already points at the next chapter:
     // show nothing of it yet, the doors carry its title.
     const between = st.locked && d === null;
-    const garden = st.garden;
-    setShown(this.chipBox, st.active && !between && st.chapter !== 'S03' && !garden);
+    const trial = st.trial;
+    setShown(this.chipBox, st.active && !between && st.chapter !== 'S03' && !trial);
     const run = st.run;
     const running = !!run?.running && d === null;
     // Keep the play area clear of the objective card.
     setShown(this.top, false);
     setShown(this.runBar, false);
-    setShown(this.muteBtn.text, (!!run || !!garden) && !between);
-    setShown(this.tracker, !!garden && !between);
-    if (garden) {
-      const key = garden.lit.join(',');
-      if (key !== this.gemsKey) {
-        this.gemsKey = key;
-        this.drawGems(garden.lit);
-        if (key) popIn(this.scene, this.tracker, 176, 56);
-      }
-    }
+    setShown(this.muteBtn.text, (!!run || !!trial) && !between);
+    setShown(this.tracker, !!trial && !between && !trial.spin);
+    setShown(this.bookBtn.text, !!trial && !between && !trial.spin);
+    if (trial) this.syncTrial(trial, between);
+    else setShown(this.talk, false);
     if (run && running) {
       const w = this.runTime.width;
       this.runTime.setText(`${Math.floor(run.aliveMs / 1000)} giây`, 44);
       if (w !== this.runTime.width) relayout = true;
     }
-    // Stall talk waiting for a reply: two buttons (also keys 1 and 2).
+    // Stall talk or station question waiting for a reply: two or three buttons (also keys 1, 2, 3).
     const choices = d === null && !between ? st.street?.choices ?? null : null;
     const choicesKey = choices?.join('|') ?? '';
     setShown(this.choicePanel, choices !== null);
@@ -394,7 +519,7 @@ export class StoryHud {
       relayout = true;
     }
     // Says the state in words: an icon alone got muted by players trying to turn sound on.
-    if (run || garden) this.muteBtn.setLabel(this.scene.sound.mute ? t('story.soundOff') : t('story.soundOn'));
+    if (run || trial) this.muteBtn.setLabel(this.scene.sound.mute ? t('story.soundOff') : t('story.soundOn'));
     if (st.active) this.chip.setText(st.title, 38);
 
     // What just happened at a harmless prop: a bubble at the bottom, play goes on.
@@ -467,14 +592,87 @@ export class StoryHud {
     if (d?.kind === 'line') this.placeNext();
   }
 
-  /** The three sense stones as gems: pale until woken, then their own colour. */
-  private drawGems(lit: string[]): void {
+  /** Chapter 2: the tracker (stations passed, karma), the karma book and the rebirth wheel. */
+  private syncTrial(v: NonNullable<SimulationSnapshot['story']['trial']>, between: boolean): void {
+    // The footer: one line at a time, "Tiếp" (or a tap anywhere) goes on; a question shows its replies in it.
+    const say = !between && !v.spin ? v.say : null;
+    setShown(this.talk, !!say);
+    if (say) {
+      const key = `${say.who}|${say.text}|${v.choices?.join('|') ?? ''}`;
+      if (key !== this.talkKey) {
+        const first = this.talkKey === '';
+        this.talkKey = key;
+        this.talkName.setText(say.name, 34);
+        this.talkLine.setText(say.text).setColor(say.mood === 'wrong' ? css(0xc8463d) : INK);
+        this.talkAnswers.forEach((b, i) => {
+          setShown(b.text, !!v.choices?.[i]);
+          if (v.choices?.[i]) b.setLabel(`${i + 1} · ${v.choices[i]}`);
+        });
+        setShown(this.talkNext.text, !v.choices);
+        this.talkNext.setLabel(say.more ? t('story.next') : 'Đi tiếp ▸');
+        this.layout();
+        if (first) popIn(this.scene, this.talk, this.talkW, this.talkH);
+      }
+      // Faces move a little (bobbing, flapping wings), so they are redrawn every frame.
+      this.drawFace(say.portrait, this.scene.time.now);
+      const timer = v.timeLeftMs !== null ? `⏱ ${Math.ceil(v.timeLeftMs / 1000)} giây` : '';
+      if (this.talkTimer.text !== timer) this.talkTimer.setText(timer);
+    } else {
+      this.talkKey = '';
+    }
+    const done = v.stations.filter((s) => s.done).length;
+    const key = `${done}|${v.karma}`;
+    if (key !== this.gemsKey) {
+      const first = this.gemsKey === '-';
+      this.gemsKey = key;
+      this.drawTracker(v.stations.map((s) => s.done), v.karma, v.karmaRange);
+      if (!first) popIn(this.scene, this.tracker, TRACKER_W, 56);
+    }
+    const label = `Sổ Phúc Đức (${v.lessons.length})`;
+    if (this.bookLabel !== label) { this.bookLabel = label; this.bookBtn.setLabel(label); this.layout(); }
+    const showBook = this.bookOpen && !between && !v.spin;
+    setShown(this.book, showBook);
+    const bookKey = `${showBook}|${v.lessons.join('|')}`;
+    if (showBook && bookKey !== this.bookKey) {
+      this.bookKey = bookKey;
+      this.bookText.setText(v.lessons.length ? v.lessons.map((l, i) => `${i + 1}. ${l}`).join('\n') : 'Chưa có lời nhắn nào. Trả lời câu hỏi ở các trạm để ghi vào sổ.');
+      this.layout();
+      popIn(this.scene, this.book, Math.min(440, hudViewport.w - 24), 120);
+    }
+    // The wheel: the item flicks by, lands, then the card lists what the hero takes along.
+    setShown(this.wheel, !!v.spin && !between);
+    if (v.spin) {
+      const item = v.spin.items[v.spin.index] ?? '';
+      const wheelKey = `${item}|${v.spin.landed}`;
+      if (wheelKey !== this.wheelKey) {
+        const first = this.wheelKey === '';
+        this.wheelKey = wheelKey;
+        this.wheelTitle.setText(v.spin.title.toUpperCase());
+        this.wheelItem.setText(v.spin.landed ? `${item}!` : item).setColor(v.spin.landed ? css(COLORS.coral) : INK);
+        this.wheelLessons.setText(v.spin.landed ? `Mang theo ${v.karma} điểm Phúc Đức và ${v.lessons.length} lời nhắn:\n${v.lessons.map((l) => `• ${l}`).join('\n')}` : '');
+        this.layout();
+        if (first || v.spin.landed) popIn(this.scene, this.wheel, this.wheelW, this.wheelH);
+      }
+    } else this.wheelKey = '';
+  }
+
+  /** Five station dots (filled once passed) and the karma lotus, brighter the more karma. */
+  private drawTracker(done: boolean[], karma: number, range: { min: number; max: number }): void {
     const g = this.gems.clear();
-    ['stone_sight', 'stone_hearing', 'stone_touch'].forEach((id, i) => {
-      const x = 40 + i * 48, y = 28, on = lit.includes(id), c = on ? STONE_COLOR[id]! : COLORS.creamDim;
-      const pts = [new Phaser.Math.Vector2(x, y - 16), new Phaser.Math.Vector2(x + 13, y - 4), new Phaser.Math.Vector2(x, y + 16), new Phaser.Math.Vector2(x - 13, y - 4)];
-      g.fillStyle(c).fillPoints(pts, true).lineStyle(3, COLORS.ink).strokePoints(pts, true);
-      if (on) g.fillStyle(0xffffff, .8).fillCircle(x - 4, y - 6, 3);
+    const k = Math.max(0, Math.min(1, (karma - range.min) / (range.max - range.min)));
+    const lx = 36, ly = 28;
+    const petal = Phaser.Display.Color.Interpolate.ColorWithColor(Phaser.Display.Color.ValueToColor(0xb9b0a8), Phaser.Display.Color.ValueToColor(0xf6a6d0), 100, Math.round(k * 100));
+    const pc = Phaser.Display.Color.GetColor(petal.r, petal.g, petal.b);
+    if (k > 0.5) g.fillStyle(COLORS.sun, (k - 0.5) * 0.9).fillCircle(lx, ly, 24);
+    for (const a of [-0.9, -0.45, 0, 0.45, 0.9]) {
+      const x = lx + Math.sin(a) * 9, y = ly - Math.cos(a) * 7;
+      g.fillStyle(pc).fillEllipse(x, y, 11, 24).lineStyle(2, COLORS.ink).strokeEllipse(x, y, 11, 24);
+    }
+    g.fillStyle(COLORS.mint).fillEllipse(lx, ly + 12, 34, 8).lineStyle(2, COLORS.ink).strokeEllipse(lx, ly + 12, 34, 8);
+    done.forEach((on, i) => {
+      const x = 82 + i * 30, y = 28;
+      g.fillStyle(on ? COLORS.coral : COLORS.creamDim).fillCircle(x, y, 9).lineStyle(3, COLORS.ink).strokeCircle(x, y, 9);
+      if (on) g.fillStyle(0xffffff, 0.8).fillCircle(x - 3, y - 3, 2.5);
     });
   }
 
@@ -490,6 +688,6 @@ export class StoryHud {
     this.scene.input.keyboard?.off('keydown-ENTER', this.keyHandler);
     this.scene.input.keyboard?.off('keydown-SPACE', this.keyHandler);
     this.scene.scale.off(Phaser.Scale.Events.RESIZE, this.layout, this);
-    for (const c of [this.veil, this.chipBox, this.top, this.banner, this.box, this.card, this.aside, this.runBar, this.muteBtn.text, this.tracker, this.choicePanel]) c.destroy();
+    for (const c of [this.veil, this.chipBox, this.top, this.banner, this.box, this.card, this.aside, this.runBar, this.muteBtn.text, this.tracker, this.choicePanel, this.bookBtn.text, this.book, this.wheel, this.talk]) c.destroy();
   }
 }

@@ -12,6 +12,7 @@ import { COLORS, css, FONT } from '../ui/theme/tokens';
 import { StoryHud } from '../ui/StoryHud';
 import { readMuted, toggleMute } from '../core/audioPrefs';
 import type { Button } from '../ui/widgets/Button';
+import { TEXT_RES } from '../ui/layout/pixelRatio';
 
 /** UI overlay with its own un-zoomed camera, running on top of a world scene. */
 export class HudScene extends Phaser.Scene {
@@ -53,7 +54,7 @@ export class HudScene extends Phaser.Scene {
     this.debug = import.meta.env.PROD ? null : new DebugOverlay(this, sim.bus);
     this.layout = new HudLayout(this);
     this.modals = new ModalManager(this);
-    this.settings = new SettingsModal(this, { replayStory: () => sim.replayStory(), newGame: () => this.newGame(), sound: { isOn: () => !readMuted(), toggle: () => void toggleMute(this.sound) }, setLanguage: (code) => this.changeLanguage(code), fullscreen: { supported: () => !!document.fullscreenEnabled, isOn: () => this.scale.isFullscreen, toggle: () => this.toggleFullscreen() } });
+    this.settings = new SettingsModal(this, { replayStory: () => sim.replayStory(), newGame: () => this.newGame(), sound: { isOn: () => !readMuted(), toggle: () => void toggleMute(this.sound) }, setLanguage: (code) => this.changeLanguage(code), fullscreen: { supported: () => !!document.fullscreenEnabled, isOn: () => !!document.fullscreenElement, toggle: () => this.toggleFullscreen() } });
     this.settingsButton = new SettingsButton(this, () => this.modals.toggle('settings'));
     if (sim.story.active) this.storyHud = new StoryHud(this, () => sim.story.advanceDialog(), () => sim.story.retryRun(), () => toggleMute(this.sound), (i) => sim.story.chooseReply(i));
     this.modals.register(this.settings.modal);
@@ -100,7 +101,8 @@ export class HudScene extends Phaser.Scene {
   }
 
   private toggleFullscreen(): void {
-    if (this.scale.isFullscreen) this.scale.stopFullscreen();
+    // The page's own state: Phaser's flag is only set once its promise resolves, after the change event.
+    if (document.fullscreenElement) this.scale.stopFullscreen();
     else this.scale.startFullscreen();
   }
 
@@ -131,7 +133,7 @@ export class HudScene extends Phaser.Scene {
   private banner(msg: string): void {
     const b = this.add
       .text(hudViewport.w / 2, hudViewport.h - 90, msg, { fontFamily: FONT.family, fontSize: '14px', color: css(COLORS.cream), backgroundColor: css(COLORS.error), padding: { x: 10, y: 6 } })
-      .setResolution(2)
+      .setResolution(TEXT_RES)
       .setOrigin(0.5)
       .setDepth(3000);
     this.time.delayedCall(8000, () => b.destroy());

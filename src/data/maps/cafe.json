@@ -1,0 +1,29 @@
+{
+  "id": "cafe",
+  "name": "Quán cà phê trùng sinh (Chương 3)",
+  "legend": {
+    "#": {
+      "kind": "wall",
+      "walkable": false
+    },
+    ".": {
+      "kind": "floor",
+      "walkable": true
+    }
+  },
+  "terrain": [
+    "########",
+    "#......#",
+    "#......#",
+    "#......#",
+    "#......#",
+    "#......#",
+    "#......#",
+    "########"
+  ],
+  "playerStart": {
+    "x": 3,
+    "y": 3
+  },
+  "objects": []
+}

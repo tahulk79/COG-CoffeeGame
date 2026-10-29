@@ -18,8 +18,6 @@ export interface Footprint {
 
 export const tileKey = (t: TilePos): string => `${t.x},${t.y}`;
 
-export const sameTile = (a: TilePos, b: TilePos): boolean => a.x === b.x && a.y === b.y;
-
 export const tileCenter = (t: TilePos): WorldPos => ({ x: t.x + 0.5, y: t.y + 0.5 });
 
 export const worldToTile = (p: WorldPos): TilePos => ({ x: Math.floor(p.x), y: Math.floor(p.y) });

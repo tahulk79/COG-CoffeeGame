@@ -334,11 +334,19 @@
       "objectiveFaint": "Nằm im… giả vờ ngủ chờ xe cứu thương"
     },
     "S04": {
-      "map": "portal",
+      "map": "afterlife",
+      "next": "S05",
+      "title": "Chương 2 · Đường Chuyển Sinh",
+      "objective": "Qua 5 trạm hỏi đáp ({n}/5)",
+      "objectiveReady": "Cánh cửa trùng sinh đã mở!",
+      "intro": [],
+      "outro": []
+    },
+    "S05": {
+      "map": "cafe",
       "next": "S03",
-      "title": "Chương 2 · Vườn mây",
-      "objective": "Bắt đốm sáng quanh 3 viên đá giác quan ({n}/3)",
-      "objectiveReady": "Cổng thiên đàng đã mở, chạy vào cổng!",
+      "title": "Chương 3 · Quán cà phê trùng sinh",
+      "objective": "Đang xây dựng",
       "intro": [],
       "outro": []
     }

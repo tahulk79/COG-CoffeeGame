@@ -4,6 +4,7 @@ import { Panel } from './Panel';
 import { isShown, setShown } from './panelVisibility';
 import { createIcon } from '../theme/assetRegistry';
 import { COLORS, css, dur, FONT, MOTION, RADIUS } from '../theme/tokens';
+import { TEXT_RES } from '../layout/pixelRatio';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost';
 
@@ -70,7 +71,7 @@ export class GameButton {
     this.label = scene.add
       .text(0, 0, label, { fontFamily: FONT.family, fontSize: `${opts.fontSize ?? FONT.size.sm}px`, color: css(FILL[opts.variant ?? 'primary'].text), fontStyle: 'bold' })
       .setOrigin(0.5)
-      .setResolution(2);
+      .setResolution(TEXT_RES);
     this.visual.add([this.shadow.object, this.bg.object, this.lift.object, this.label]);
     if (opts.icon) {
       this.icon = createIcon(scene, opts.icon, (opts.fontSize ?? FONT.size.sm) + 7);

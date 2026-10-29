@@ -2,10 +2,13 @@ import gameplay from './config/gameplay.json';
 import objectTypes from './config/objectTypes.json';
 import story from './config/story.json';
 import incidentMap from './maps/incident.json';
-import portalMap from './maps/portal.json';
+import afterlifeMap from './maps/afterlife.json';
+import cafeMap from './maps/cafe.json';
+import trials from './config/trials.json';
 import type { GameplayConfig } from '../gameplay/GameSimulation';
 import type { MapData, ObjectTypeTable } from '../gameplay/world/types';
 import type { StoryConfig } from '../gameplay/story/StoryService';
+import type { TrialConfig } from '../gameplay/story/TrialService';
 
 /** Everything data-driven the simulation needs, typed once here. */
 export interface GameContent {
@@ -13,6 +16,8 @@ export interface GameContent {
   objectTypes: ObjectTypeTable;
   maps: Record<string, MapData>;
   story: StoryConfig;
+  /** Chapter 2: the stations, their questions, the door and the rebirth wheel. */
+  trials: TrialConfig;
 }
 
 export function validateContent(c: GameContent): string[] {
@@ -28,8 +33,9 @@ export function validateContent(c: GameContent): string[] {
 export const CONTENT: GameContent = {
   gameplay: gameplay as GameplayConfig,
   objectTypes: objectTypes as ObjectTypeTable,
-  maps: { incident: incidentMap as MapData, portal: portalMap as MapData },
+  maps: { incident: incidentMap as MapData, afterlife: afterlifeMap as MapData, cafe: cafeMap as MapData },
   story: story as unknown as StoryConfig,
+  trials: trials as unknown as TrialConfig,
 };
 
 const problems = validateContent(CONTENT);

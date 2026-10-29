@@ -1,16 +1,14 @@
 import Phaser from 'phaser';
-import type { GardenView } from '../../gameplay/story/GardenService';
-
-/** Each stone's notes (pentatonic, so every catch sounds right with the music). */
-const STONE_NOTE: Record<string, number> = { stone_sight: 523.25, stone_hearing: 659.25, stone_touch: 783.99 };
+import type { TrialView } from '../../gameplay/story/TrialService';
 
 /**
- * Chapter-2 garden sound, synthesised with Web Audio: a slow harp-like loop,
- * a note for every spark caught (rising as a stone fills), a chord when a
- * stone wakes and a fanfare when the heaven door opens. Follows the global mute;
- * resumes the audio context on the first gesture, like the run's audio.
+ * Chapter-2 road sound, synthesised with Web Audio: a slow harp-like loop, a
+ * bell for a good reply, a "toẹt" for a wrong one, a boing for a silly one, a
+ * soft run as a cloud wall melts, ticks while the rebirth wheel spins and a
+ * fanfare when the door opens. Follows the global mute; resumes the audio
+ * context on the first gesture, like the run's audio.
  */
-export class GardenAudio {
+export class TrialAudio {
   private readonly ctx: AudioContext | null;
   private readonly out: GainNode | null = null;
   private timer: number | null = null;
@@ -37,7 +35,7 @@ export class GardenAudio {
     this.timer = window.setInterval(() => this.schedule(), 50);
   }
 
-  sync(v: GardenView | null, paused = false): void {
+  sync(v: TrialView | null, paused = false): void {
     if (!this.ctx || !this.out) return;
     if ((paused || document.hidden) && !this.paused) this.stopVoices();
     this.paused = paused || document.hidden;
@@ -46,16 +44,14 @@ export class GardenAudio {
     // Events are kept ~1.5 s; play each one once (they only ever grow at the end).
     const fresh = v.events.filter((e) => e.at > this.seen);
     for (const e of fresh) {
-      const base = STONE_NOTE[e.stone ?? ''] ?? 659.25;
-      if (e.kind === 'spark') {
-        const caught = v.sparks.filter((s) => s.stone === e.stone && s.caught).length;
-        this.note(base * 2 ** (caught * 2 / 12), 0.5, 'triangle', 0.22);
-        this.note(base * 2, 0.25, 'sine', 0.08, 0.05);
-      } else if (e.kind === 'stone') {
-        [1, 1.26, 1.5, 2].forEach((m, i) => this.note(base * m, 1.4, 'triangle', 0.16, i * 0.06));
-      } else if (e.kind === 'open') {
-        [523.25, 659.25, 783.99, 1046.5, 1318.5, 1568].forEach((f, i) => this.note(f, 1.6, 'sine', 0.14, i * 0.1));
-      }
+      if (e.kind === 'right') [1046.5, 1318.5, 1568].forEach((f, i) => this.note(f, 1.1, 'sine', 0.16, i * 0.07));
+      else if (e.kind === 'wrong') this.slide(320, 90, 0.45, 'sawtooth', 0.12);
+      else if (e.kind === 'funny') { this.slide(260, 620, 0.18, 'square', 0.07); this.slide(620, 300, 0.22, 'square', 0.06, 0.18); }
+      else if (e.kind === 'clear') [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => this.note(f, 0.7, 'triangle', 0.12, 0.2 + i * 0.05));
+      else if (e.kind === 'lesson') [783.99, 1174.66].forEach((f, i) => this.note(f, 0.6, 'sine', 0.1, 0.6 + i * 0.12));
+      else if (e.kind === 'tick') this.note(1760, 0.05, 'square', 0.05);
+      else if (e.kind === 'land') [523.25, 659.25, 783.99, 1046.5].forEach((f) => this.note(f, 1.4, 'triangle', 0.13));
+      else if (e.kind === 'open') [523.25, 659.25, 783.99, 1046.5, 1318.5, 1568].forEach((f, i) => this.note(f, 1.6, 'sine', 0.14, i * 0.1));
     }
     if (fresh.length) this.seen = Math.max(...fresh.map((e) => e.at));
   }
@@ -88,6 +84,24 @@ export class GardenAudio {
     o.frequency.setValueAtTime(freq, t);
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(vol, t + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+    o.connect(g).connect(this.out);
+    this.voices.add(o);
+    o.start(t);
+    o.stop(t + len + 0.02);
+    o.onended = () => { this.voices.delete(o); o.disconnect(); g.disconnect(); };
+  }
+
+  /** A pitch glide (the "toẹt" and the boing). */
+  private slide(from: number, to: number, len: number, type: OscillatorType, vol: number, delay = 0): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.out || this.paused || this.scene.sound.mute || document.hidden || ctx.state !== 'running') return;
+    const t = ctx.currentTime + Math.max(0, delay);
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(from, t);
+    o.frequency.exponentialRampToValueAtTime(to, t + len);
+    g.gain.setValueAtTime(vol, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + len);
     o.connect(g).connect(this.out);
     this.voices.add(o);

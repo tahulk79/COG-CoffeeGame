@@ -13,16 +13,3 @@ export class SystemClock implements Clock {
     return Date.now() + this.offsetMs;
   }
 }
-
-export class FakeClock implements Clock {
-  constructor(private t = 1_700_000_000_000) {}
-  now(): number {
-    return this.t;
-  }
-  advance(ms: number): void {
-    this.t += ms;
-  }
-  set(t: number): void {
-    this.t = t;
-  }
-}

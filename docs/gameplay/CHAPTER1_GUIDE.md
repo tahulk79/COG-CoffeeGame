@@ -3,7 +3,7 @@
 # Hướng dẫn chơi Màn 1: "Một ngày xui tận mạng"
 
 > Cập nhật: **2026-10-28** · Trạng thái: **Prototype** (hình vẽ bằng code, chờ thay bằng art 3D). Số liệu bên dưới lấy từ [story.json](../../src/data/config/story.json) mục `chapters.S03` và mã nguồn `RunService.ts`, `StreetService.ts`, `ShopService.ts`.
-> Kế hoạch và danh sách asset: [CHAPTER_PLAN.md](../production/CHAPTER_PLAN.md).
+> Kế hoạch và danh sách asset: [CHAPTER_1.md](../production/chapters/CHAPTER_1.md).
 
 ## 1. Màn này là gì
 Bạn dạo một phố cổ ven Hồ Gươm. Phố đầy người, quán và xe máy, nhưng hôm nay xui: **sự cố lãng xẹt cứ lần lượt kéo tới**. Mục tiêu là **né càng lâu càng tốt**, nghe chuyện ở các quầy và ghé quán cà phê ông Tám. Dính **1 phát là ngất**, xe cứu thương tới đưa đi, và cuối cùng xe lao vào một vòng tròn ma thuật để sang Màn 2 (vườn mây).

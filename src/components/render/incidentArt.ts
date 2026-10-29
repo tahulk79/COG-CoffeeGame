@@ -11,6 +11,7 @@ import type { Footprint, WorldPos } from '../../utils/tile';
 import type { ActorView, ActorViewState, FloorTileView } from './WorldRenderer';
 import { TERRAIN_COLORS } from './placeholderStyles';
 import { SpeechBubble } from './speechBubble';
+import { PIXEL_RATIO, TEXT_RES } from '../../ui/layout/pixelRatio';
 
 /**
  * Chapter 1 street: shared 2.5D atlases over a baked, grid-aligned ground.
@@ -324,7 +325,7 @@ export function bakeIncidentObject(scene: Phaser.Scene, id: string, type: string
   }
   if (type === 'sau_tree') {
     treePit(scene, id, f);
-    const image = sliceProp(scene, SLICE_ASSETS.treesVaried.key, treeAppearance(id), depth) ?? sliceProp(scene, SLICE_ASSETS.trees.key, variantIndex % 3, depth);
+    const image = sliceProp(scene, SLICE_ASSETS.treesVaried.key, treeAppearance(id), depth);
     if (image) return image.setPosition(centre.x, centre.y).setOrigin(.5, .98).setScale((126 + variantIndex % 33) / image.height);
   }
   if (type === 'parked_bike') {
@@ -396,7 +397,7 @@ const inRange = (v: number, [lo, hi]: number[]) => v >= lo! && v <= hi!;
 /** Floating name plate over a landmark. */
 function plate(scene: Phaser.Scene, x: number, y: number, z: number, name: string): void {
   const p = point(x, y, z);
-  const t = scene.add.text(p.x, p.y, name, { fontFamily: "'Baloo 2', sans-serif", fontSize: '22px', fontStyle: '800', color: '#5a3825', backgroundColor: '#fffaf0', padding: { x: 12, y: 4 }, resolution: 2 }).setOrigin(.5, 1).setDepth(1e6 - 6);
+  const t = scene.add.text(p.x, p.y, name, { fontFamily: "'Baloo 2', sans-serif", fontSize: '22px', fontStyle: '800', color: '#5a3825', backgroundColor: '#fffaf0', padding: { x: 12, y: 4 }, resolution: TEXT_RES }).setOrigin(.5, 1).setDepth(1e6 - 6);
   const g = scene.add.graphics().setDepth(1e6 - 6.1);
   g.lineStyle(3, INK).strokeRoundedRect(t.x - t.width / 2, t.y - t.height, t.width, t.height, 8);
 }
@@ -602,7 +603,7 @@ function backShop(g: Phaser.GameObjects.Graphics, x: number, y: number, w: numbe
 
 /** The shop's name on a small board, readable over any background. */
 function shopSign(scene: Phaser.Scene, at: Phaser.Math.Vector2, name: string, color: number, depth: number): Phaser.GameObjects.Text {
-  return scene.add.text(at.x, at.y, name, { fontFamily: "'Baloo 2', sans-serif", fontSize: '17px', fontStyle: '800', color: '#fffaf0', backgroundColor: `#${color.toString(16).padStart(6, '0')}`, padding: { x: 6, y: 0 }, stroke: '#5a3825', strokeThickness: 2, resolution: 2 })
+  return scene.add.text(at.x, at.y, name, { fontFamily: "'Baloo 2', sans-serif", fontSize: '17px', fontStyle: '800', color: '#fffaf0', backgroundColor: `#${color.toString(16).padStart(6, '0')}`, padding: { x: 6, y: 0 }, stroke: '#5a3825', strokeThickness: 2, resolution: TEXT_RES })
     .setOrigin(.5, 1).setDepth(depth);
 }
 
@@ -1128,7 +1129,7 @@ export class IncidentRunView {
   /** Each gag with words says them in a bubble that follows it (the twist's in a darker red). */
   private syncBubbles(run: RunView | null): void {
     const want = new Set<number>();
-    const z = this.scene.cameras.main.zoom;
+    const z = this.scene.cameras.main.zoom / PIXEL_RATIO;
     for (const h of run?.hazards ?? []) {
       if (!h.label || h.phase === 'gone' || run?.hit) continue;
       const at = point(h.x, h.y), view = this.scene.cameras.main.worldView;

@@ -30,7 +30,6 @@ export const SLICE_ASSETS = {
   workers: { key: 'slice.chapter1.workers.v1', url: '/assets/slice/chapter1/workers-v1.webp', columns: 4, rows: 4, maxEdge: 768 },
   motorbikes: { key: 'slice.chapter1.motorbikes.v1', url: '/assets/slice/chapter1/motorbikes-v1.webp', columns: 4, rows: 4, maxEdge: 768 },
   stalls: { key: 'slice.chapter1.stalls.v1', url: '/assets/slice/chapter1/stalls-v1.webp', columns: 4, rows: 2, maxEdge: 1536 },
-  trees: { key: 'slice.chapter1.trees.v1', url: '/assets/slice/chapter1/trees-v1.webp', columns: 3, rows: 1, maxEdge: 1024 },
   parkedBikes: { key: 'slice.chapter1.parked-bikes.v1', url: '/assets/slice/chapter1/parked-bikes-v1.webp', columns: 2, rows: 2, maxEdge: 512 },
   parkedCars: { key: 'slice.chapter1.parked-cars.v1', url: '/assets/slice/chapter1/parked-cars-v1.webp', columns: 2, rows: 1, maxEdge: 768 },
   hazardBanana: { key: 'slice.chapter1.hazard.banana.v1', url: '/assets/slice/chapter1/hazard-banana-v1.webp', columns: 2, rows: 1, maxEdge: 256 },

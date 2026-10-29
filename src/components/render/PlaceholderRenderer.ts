@@ -12,6 +12,7 @@ import { debugFlags } from '../../ui/theme/debugFlags';
 import { createIcon } from '../../ui/theme/assetRegistry';
 import { COLORS, css, dur, FONT, MOTION } from '../../ui/theme/tokens';
 import { clampCenter, easeFactor, insetOffset, mapRect } from '../../systems/camera/framing';
+import { PIXEL_RATIO, TEXT_RES } from '../../ui/layout/pixelRatio';
 
 const shade = (c: number, f: number): number => {
   const r = Math.min(255, Math.round(((c >> 16) & 0xff) * f));
@@ -95,11 +96,11 @@ class PlaceholderActorView implements ActorView {
     this.body = spriteMode ? (master && scene.textures.exists(H5_ASSETS.extra.key) ? scene.add.sprite(0, 0, H5_ASSETS.extra.key, '11').setOrigin(.5,.9).setDisplaySize(96, 96) : scene.add.sprite(0, 0, H5_ASSETS.hero.key, '8').setOrigin(.5,.9).setDisplaySize(npcTint ? 76 : 88, npcTint ? 76 : 88).setTint(npcTint ?? 0xffffff)) : scene.add.circle(0, 0, 18, color).setStrokeStyle(2, shade(color, 0.5));
     this.nose = scene.add.circle(0, 0, 5, 0xffffff);
     this.held = createIcon(scene, 'cup', 32);
-    this.heldLabel = scene.add.text(0, 0, '', { fontFamily: FONT.family, fontSize: '13px', fontStyle: 'bold', color: css(COLORS.cream), backgroundColor: '#234332ee', padding: { x: 6, y: 3 } }).setOrigin(0.5, 1).setResolution(2);
+    this.heldLabel = scene.add.text(0, 0, '', { fontFamily: FONT.family, fontSize: '13px', fontStyle: 'bold', color: css(COLORS.cream), backgroundColor: '#234332ee', padding: { x: 6, y: 3 } }).setOrigin(0.5, 1).setResolution(TEXT_RES);
     this.label = scene.add.text(0, 0, '', { fontFamily: 'monospace', fontSize: '12px', color: '#ffffff', backgroundColor: '#00000088' }).setOrigin(0.5, 0);
     this.barBg = scene.add.graphics();
     this.bubbleBg = scene.add.graphics();
-    this.bubbleText = scene.add.text(0, 0, '', { fontFamily: FONT.family, fontSize: '12px', color: css(COLORS.espresso), fontStyle: 'bold' }).setOrigin(0, 0.5).setResolution(2);
+    this.bubbleText = scene.add.text(0, 0, '', { fontFamily: FONT.family, fontSize: '12px', color: css(COLORS.espresso), fontStyle: 'bold' }).setOrigin(0, 0.5).setResolution(TEXT_RES);
     this.bubbleIcon = createIcon(scene, 'cup', 16);
     this.bubble = scene.add.container(0, 0, [this.bubbleBg, this.bubbleIcon, this.bubbleText]).setVisible(false);
   }
@@ -315,7 +316,7 @@ export class PlaceholderRenderer implements WorldRenderer {
       depth,
       box: this.scene.add.graphics().setDepth(depth),
       label: this.scene.add
-        .text(0, 0, '', { fontFamily: FONT.family, fontSize: '12px', color: '#fff0d8', backgroundColor: '#17303bda', padding: { x: 4, y: 2 }, resolution: 2 })
+        .text(0, 0, '', { fontFamily: FONT.family, fontSize: '12px', color: '#fff0d8', backgroundColor: '#17303bda', padding: { x: 4, y: 2 }, resolution: TEXT_RES })
         .setOrigin(0.5, 1)
         .setDepth(depth + 0.05),
       bar: this.scene.add.graphics().setDepth(depth + 0.06),
@@ -528,7 +529,7 @@ export class PlaceholderRenderer implements WorldRenderer {
   /** Floating text (rewards, short messages). Pooled: no allocation per event after warm-up. */
   showFeedback(at: WorldPos, text: string, kind: FeedbackKind): void {
     const p = worldToScreen(at);
-    const t = this.floatPool.pop() ?? this.scene.add.text(0, 0, '', { fontFamily: FONT.family, fontSize: '14px', fontStyle: 'bold' }).setOrigin(0.5, 1).setResolution(2);
+    const t = this.floatPool.pop() ?? this.scene.add.text(0, 0, '', { fontFamily: FONT.family, fontSize: '14px', fontStyle: 'bold' }).setOrigin(0.5, 1).setResolution(TEXT_RES);
     const reward = kind === 'coin' || kind === 'exp' || kind === 'unlock';
     t.setText(text)
       .setColor(reward ? FEEDBACK_COLORS[kind] : css(COLORS.cream))
@@ -563,8 +564,10 @@ export class PlaceholderRenderer implements WorldRenderer {
     this.bounds = { w: widthTiles, h: heightTiles };
     this.insets = insets;
     const cam = this.scene.cameras.main;
-    cam.setZoom(zoom);
-    this.centerOffset = insetOffset(cam.width, cam.height, insets, zoom);
+    // `zoom` and `insets` are in CSS pixels; the canvas is PIXEL_RATIO times larger.
+    const z = zoom * PIXEL_RATIO;
+    cam.setZoom(z);
+    this.centerOffset = insetOffset(cam.width, cam.height, { top: insets.top * PIXEL_RATIO, right: insets.right * PIXEL_RATIO, bottom: insets.bottom * PIXEL_RATIO, left: insets.left * PIXEL_RATIO }, z);
     this.snapNext = true;
   }
 
@@ -612,6 +615,6 @@ export class PlaceholderRenderer implements WorldRenderer {
   private insets = { top: 0, right: 0, bottom: 0, left: 0 };
 
   reframe(): void {
-    this.frame(this.bounds.w, this.bounds.h, this.insets, this.scene.cameras.main.zoom);
+    this.frame(this.bounds.w, this.bounds.h, this.insets, this.scene.cameras.main.zoom / PIXEL_RATIO);
   }
 }

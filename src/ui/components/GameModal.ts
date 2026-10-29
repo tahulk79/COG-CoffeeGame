@@ -5,6 +5,7 @@ import { COLORS, css, DEPTH, dur, FONT, LIGHT, MOTION, RADIUS } from '../theme/t
 import { GameButton } from './GameButton';
 import { setShown } from './panelVisibility';
 import { Panel } from './Panel';
+import { TEXT_RES } from '../layout/pixelRatio';
 
 /** `dark`: the café's wooden panel (inventory, recipes…). `light`: the cream paper card of chapter 1. */
 export type ModalTheme = 'dark' | 'light';
@@ -58,7 +59,7 @@ export class GameModal implements ManagedPanel {
     this.shadowPanel?.object.setPosition(0, 6);
     this.swallow = scene.add.rectangle(0, 0, maxW, maxH, 0, 0).setOrigin(0, 0).setInteractive();
     this.body = scene.add.container(14, this.headerH);
-    this.heading = scene.add.text(16, 10, title, { fontFamily: FONT.family, fontSize: `${light ? FONT.size.xl : FONT.size.lg}px`, color: css(light ? LIGHT.text : COLORS.gold), fontStyle: 'bold' }).setResolution(2);
+    this.heading = scene.add.text(16, 10, title, { fontFamily: FONT.family, fontSize: `${light ? FONT.size.xl : FONT.size.lg}px`, color: css(light ? LIGHT.text : COLORS.gold), fontStyle: 'bold' }).setResolution(TEXT_RES);
     this.closeBtn = new GameButton(scene, maxW - this.closeSize - 8, 7, '✕', () => this.close(), `${id}.close`, { variant: light ? 'secondary' : 'ghost', w: this.closeSize, h: this.closeSize, fontSize: FONT.size.md });
     this.panel.add([...(this.shadowPanel ? [this.shadowPanel.object] : []), this.bg.object, this.swallow, this.heading, this.body, this.closeBtn.text]);
     this.root.add([this.dim, this.panel]);

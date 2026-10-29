@@ -54,11 +54,10 @@ export function planRescue(grid: NavGrid, hero: WorldPos, lanes: number[], acces
     const junction = c.junction ?? c.park, { dir, lane } = c;
     if (!hasClearance(grid, { x: dir > 0 ? 2 : grid.width - 3, y: lane }, junction, 0.55)) continue;
     if (c.junction && !hasClearance(grid, junction, c.park, 0.55)) continue;
-    const side = c.axis === 'x' ? (hero.y >= c.park.y ? 1 : -1) : (hero.x >= c.park.x ? 1 : -1);
-    // The sliding door is on the van's right, the kerb side (traffic keeps right): eastbound that is south, westbound north.
-    // Only if there is no way round from there does it use the other side.
-    const right = dir > 0 ? 1 : -1;
-    for (const sign of c.axis === 'x' ? [right, -right] : [side, -side]) {
+    // The sprite's sliding door opens on the side facing the camera whichever way the van points: south (+y) along the
+    // road, east (+x) up a side street. The hero is carried to that door; only if there is no way round from there is
+    // the other side used (the door then stays shut in the picture).
+    for (const sign of [1, -1]) {
       // The side door, a step clear of the van's body (the medics walk round the body, so they must not start inside it).
       const door = c.axis === 'x' ? { x: c.park.x - 0.4, y: c.park.y + sign * DOOR_OUT } : { x: c.park.x + sign * DOOR_OUT, y: c.park.y - 0.3 };
       // Room for a medic to stand at the door, and a way from it to the hero that goes round the parked van.
