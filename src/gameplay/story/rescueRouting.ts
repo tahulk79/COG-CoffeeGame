@@ -20,11 +20,11 @@ export function vanBody(park: WorldPos, vertical: boolean): { x: number; y: numb
   return { x, y, w: Math.max(1, Math.floor(park.x + rx - 0.5) - x + 1), h: Math.max(1, Math.floor(park.y + ry - 0.5) - y + 1) };
 }
 
-/** How far the side door stands out from the van's centre line (tiles). */
-export const DOOR_OUT = 1.1;
+/** How far the side door stands out from the van's centre line (tiles): the open sliding door is just behind the middle of the van. */
+export const DOOR_OUT = 1.6;
 
 /** Roads are authored vehicle access, while the live grid accounts for walls and props. */
-export function planRescue(grid: NavGrid, hero: WorldPos, lanes: number[], access: Rect[] = [], canReach?: (door: WorldPos, body: Footprint) => boolean): RescueRoute | null {
+export function planRescue(grid: NavGrid, hero: WorldPos, lanes: number[], access: Rect[] = [], canReach?: (door: WorldPos, body: Footprint) => boolean, props: Array<WorldPos & { r: number }> = []): RescueRoute | null {
   const preferredDir = hero.x > grid.width / 2 ? -1 : 1;
   // Lying against something (half on a tree's tile, say): the medics head for the nearest free tile instead.
   const t = worldToTile(hero);
@@ -44,8 +44,10 @@ export function planRescue(grid: NavGrid, hero: WorldPos, lanes: number[], acces
   const score = (c: typeof candidates[number]) => Math.hypot(c.park.x - hero.x, c.park.y - hero.y)
     + (c.dir === preferredDir ? 0 : 0.75) + (c.axis === 'x' && (hero.x - c.park.x) * c.dir < 0 ? 4 : 0);
   candidates.sort((a, b) => score(a) - score(b));
-  for (const c of candidates) {
+  // Park on open road, clear of trees, stools and parked bikes; only when none is free, put up with them.
+  for (const margin of [2.8, 0]) for (const c of candidates) {
     if (Math.hypot(c.park.x - hero.x, c.park.y - hero.y) < 2) continue;
+    if (margin && props.some(o => Math.hypot(o.x - c.park.x, o.y - c.park.y) < margin)) continue;
     const rx = c.axis === 'x' ? 1.1 : 0.55, ry = c.axis === 'x' ? 0.55 : 1.1;
     const x0 = Math.floor(c.park.x - rx), y0 = Math.floor(c.park.y - ry);
     if (!grid.isAreaFree({ x: x0, y: y0, w: Math.floor(c.park.x + rx) - x0 + 1, h: Math.floor(c.park.y + ry) - y0 + 1 })) continue;
@@ -53,17 +55,20 @@ export function planRescue(grid: NavGrid, hero: WorldPos, lanes: number[], acces
     if (!hasClearance(grid, { x: dir > 0 ? 2 : grid.width - 3, y: lane }, junction, 0.55)) continue;
     if (c.junction && !hasClearance(grid, junction, c.park, 0.55)) continue;
     const side = c.axis === 'x' ? (hero.y >= c.park.y ? 1 : -1) : (hero.x >= c.park.x ? 1 : -1);
-    for (const sign of [side, -side]) {
+    // The sliding door is on the van's right, the kerb side (traffic keeps right): eastbound that is south, westbound north.
+    // Only if there is no way round from there does it use the other side.
+    const right = dir > 0 ? 1 : -1;
+    for (const sign of c.axis === 'x' ? [right, -right] : [side, -side]) {
       // The side door, a step clear of the van's body (the medics walk round the body, so they must not start inside it).
-      const door = c.axis === 'x' ? { x: c.park.x + dir * 0.3, y: c.park.y + sign * DOOR_OUT } : { x: c.park.x + sign * DOOR_OUT, y: c.park.y - 0.3 };
+      const door = c.axis === 'x' ? { x: c.park.x - 0.4, y: c.park.y + sign * DOOR_OUT } : { x: c.park.x + sign * DOOR_OUT, y: c.park.y - 0.3 };
       // Room for a medic to stand at the door, and a way from it to the hero that goes round the parked van.
       if (!hasClearance(grid, door, door, 0.3)) continue;
       const parked = grid.clone();
       parked.addBlocker(vanBody(c.park, c.axis === 'y'));
       if (!new NavigationService(parked, 0.25).planTo(door, [reach])) continue;
       if (canReach && !canReach(door, vanBody(c.park, c.axis === 'y'))) continue;
-      // From past the street end (through the boom), never popping up in the middle of the street.
-      const entryX = dir > 0 ? -3 : grid.width + 3;
+      // From just out of sight up the road (16 tiles before its spot, at most the end of the land): it gets there quickly.
+      const entryX = Math.max(-14, Math.min(grid.width + 14, c.park.x - dir * 16));
       return { dir, lane, park: c.park, door, approach: [{ x: entryX, y: lane }, ...(c.junction ? [junction] : []), c.park], exit: c.junction ? [junction] : [] };
     }
   }

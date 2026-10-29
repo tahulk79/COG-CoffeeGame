@@ -382,11 +382,9 @@ function tree(g: Phaser.GameObjects.Graphics, x: number, y: number, size = 1): v
 }
 
 /** Chapter-1 map layout (see incident.json): the main road, a sidewalk either side, the alley going north, a planted promenade to the south. */
-const ROAD_ROWS = [8, 10];
+const ROAD_ROWS = [8, 12];
 /** The land ends a few tiles past the map, with a loop road round a block of houses at each end of the street. */
 const LAND_W = -18, LAND_E = 69;
-/** The loop road at each end of the street: the road goes round a block of houses and comes back (rings of asphalt around a plot). Keep in step with the path in StreetService (`LOOP`). */
-const LOOP = { y0: 6.6, y1: 12.4, plotY0: 8, plotY1: 11, w: { x0: -18, x1: -12.3, px0: -16.7, px1: -14 }, e: { x0: 62.3, x1: 69, px0: 64, px1: 66.7 } } as const;
 const ROUNDABOUT = { w: -2.8, e: 52.2, r: 2.5, island: .5 };
 /** The gap in the north row of houses: the alley (x 21–23) and the courtyard at its end (x 19–25). */
 const ALLEY_X0 = 19, ALLEY_X1 = 26;
@@ -427,11 +425,14 @@ function tubeHouse(g: Phaser.GameObjects.Graphics, x: number, y: number, w: numb
 }
 
 /** O Quan Chuong: the old city gate, arching over the road where it leaves the map. */
-function cityGate(g: Phaser.GameObjects.Graphics, x: number, y0: number, y1: number): void {
+/** The arch in three layers, so traffic passes in front of the far pillar, behind the near one, and under the beam. */
+type GatePart = 'far' | 'near' | 'top';
+function cityGate(g: Phaser.GameObjects.Graphics, x: number, y0: number, y1: number, part: GatePart): void {
   const start = y0, end = y1 + 1, spring = 120, rise = 50, top = 190, width = 1.4;
   const archZ = (y: number) => spring + rise * Math.sqrt(Math.max(0, 1 - ((y - (start + end) / 2) / ((end - start) / 2)) ** 2));
   // Supports stay on the two sidewalks. The road below the arch is never filled.
   for (const y of [start - 1, end]) {
+    if (part === 'top' || (part === 'far') !== (y === start - 1)) continue;
     block(g, { x, y, w: width, h: 1 }, 0, top, 0xb98163, 1.5);
     block(g, { x, y, w: width, h: 1 }, 0, 12, 0xc8b99e, 1);
     for (let row = 0; row < 8; row++) for (let brick = 0; brick < 3; brick++) {
@@ -439,6 +440,7 @@ function cityGate(g: Phaser.GameObjects.Graphics, x: number, y0: number, y1: num
       face(g, [[x + width, ya, z], [x + width, ya + .25, z], [x + width, ya + .25, z + 16], [x + width, ya, z + 16]], (row + brick) % 2 ? 0xba876b : 0xc99474, 1, .6);
     }
   }
+  if (part !== 'top') return;
   const arch: Phaser.Math.Vector2[] = [];
   for (let i = 0; i < 24; i++) {
     const a = start + (end - start) * i / 24, b = start + (end - start) * (i + 1) / 24;
@@ -475,15 +477,9 @@ export function drawIncidentEnvironment(scene: Phaser.Scene, floor: FloorTileVie
   drawSky(scene);
   // Everything flat (ground around the map, the map's own floor, markings, beds) is one baked layer.
   bakeLayer(scene, 'hn:ground:reference-v5', screenBox([[LAND_W - 1, ROOFS_FROM - 1], [LAND_E + 1, ROOFS_FROM - 1], [LAND_W - 1, MAP_H + 8], [LAND_E + 1, MAP_H + 8]], 0, 0), floorDepth - .8, (g) => drawGround(g, floor, scene.textures.exists(SLICE_ASSETS.asphalt.key)), .6);
-  asphaltSurface(scene, LAND_W, LAND_E, 8, 11, floorDepth - .65);
-  for (const [a, b] of [[5, 8], [11, 17]] as const) {
+  asphaltSurface(scene, LAND_W, LAND_E, ROAD_ROWS[0]!, ROAD_ROWS[1]! + 1, floorDepth - .65);
+  for (const [a, b] of [[5, ROAD_ROWS[0]!], [ROAD_ROWS[1]! + 1, 17]] as const) {
     for (const image of asphaltSurface(scene, LAND_W, LAND_E, a, b, floorDepth - .64) ?? []) image.setAlpha(.18).setBlendMode(Phaser.BlendModes.MULTIPLY);
-  }
-  for (const l of [LOOP.w, LOOP.e]) {
-    asphaltSurface(scene, l.x0, l.x1, LOOP.y0, LOOP.plotY0 - .18, floorDepth - .65);
-    asphaltSurface(scene, l.x0, l.x1, LOOP.plotY1 + .18, LOOP.y1, floorDepth - .65);
-    asphaltSurface(scene, l.x0, l.px0 - .18, LOOP.plotY0 - .18, LOOP.plotY1 + .18, floorDepth - .65);
-    asphaltSurface(scene, l.px1 + .18, l.x1, LOOP.plotY0 - .18, LOOP.plotY1 + .18, floorDepth - .65);
   }
   drawRoadDetails(scene.add.graphics().setDepth(floorDepth - .5));
   drawStanding(scene);
@@ -529,16 +525,8 @@ function drawGround(surround: Phaser.GameObjects.Graphics, floor: FloorTileView[
   // Road markings: centre dashes, kerbs, and a zebra crossing in front of the alley.
   const road = surround;
   // Asphalt is one surface, not a checkerboard of individually outlined ground tiles.
-  streetAsphalt(road, LAND_W, LAND_E, 8, 11, textured ? 0 : 28);
+  streetAsphalt(road, LAND_W, LAND_E, ROAD_ROWS[0]!, ROAD_ROWS[1]! + 1, textured ? 0 : 28);
 
-  // A loop road at each end of the street: it goes round a block of houses, and the bikes ride round it and come back the other way.
-  const rect = (x0: number, y0: number, x1: number, y1: number) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
-  for (const l of [LOOP.w, LOOP.e]) {
-    streetAsphalt(road, l.x0, l.x1, LOOP.y0, LOOP.y1, textured ? 0 : 18);
-    // The plot in the middle: pavement with a kerb, the houses stand on it.
-    face(road, rect(l.px0 - .18, LOOP.plotY0 - .18, l.px1 + .18, LOOP.plotY1 + .18), 0xe9dfc9, 1, 2);
-    face(road, rect(l.px0, LOOP.plotY0, l.px1, LOOP.plotY1), 0xf3e7d3, 1, 0);
-  }
   // Contact shadows tie each block to the paving without adding an individual platform under every sprite.
   for (const h of streetHouses()) {
     const y = h.y + h.d;
@@ -552,12 +540,14 @@ function drawGround(surround: Phaser.GameObjects.Graphics, floor: FloorTileView[
 function drawRoadDetails(road: Phaser.GameObjects.Graphics): void {
   const mid = (ROAD_ROWS[0]! + ROAD_ROWS[1]!) / 2;
   roadDashes(road, LAND_W, LAND_E, mid + .5, x => inRange(x, [ALLEY_X0, ALLEY_X1]));
+  // Two lanes each way: thin dashes between the outer and the inner lane.
+  for (const y of [ROAD_ROWS[0]! + 1.2, ROAD_ROWS[1]! - .2]) roadDashes(road, LAND_W, LAND_E, y, x => inRange(x, [ALLEY_X0, ALLEY_X1]));
   streetKerb(road, LAND_W, LAND_E, ROAD_ROWS[0]!, 1);
   streetKerb(road, LAND_W, LAND_E, ROAD_ROWS[1]! + 1, -1);
   for (let x = ALLEY_X0 + 1.1; x < ALLEY_X1 - 1; x += .45) face(road, [[x, ROAD_ROWS[0]! + .15], [x + .22, ROAD_ROWS[0]! + .15], [x + .22, ROAD_ROWS[1]! + .85], [x, ROAD_ROWS[1]! + .85]], 0xe5dbc2, .8, 0);
   for (let x = LAND_W + 3; x < LAND_E - 1; x += 8) {
     streetDrain(road, x, 8.06);
-    streetDrain(road, x + 3.1, 10.68);
+    streetDrain(road, x + 3.1, 12.68);
     streetManhole(road, x + 1.4, 7.35);
   }
 }
@@ -674,15 +664,11 @@ function drawStanding(scene: Phaser.Scene): void {
   // The south side of the street: one-storey eateries and shops all along (low, so they never wall off the street).
   southShopRow(scene);
   southShopRow(scene, true);
-  // The block of houses in the middle of each loop.
-  for (const [key, l, wall, sign] of [['w', LOOP.w, 0xf6d77a, 0xe2513f], ['e', LOOP.e, 0xc9ecd9, 0x5ec8f2]] as const) {
-    if (houseSprite(scene, { x: l.px0 + .2, y: LOOP.plotY0 + .2, w: l.px1 - l.px0 - .4, h: LOOP.plotY1 - LOOP.plotY0 - .4 }, 156, key === 'w' ? 0 : 2)) continue;
-    bakeLayer(scene, `hn:loophouse:${key}`, screenBox([[l.px0, LOOP.plotY0], [l.px1, LOOP.plotY0], [l.px0, LOOP.plotY1], [l.px1, LOOP.plotY1]], 230), l.px1 + LOOP.plotY1 - 1, (g) => {
-      tubeHouse(g, l.px0 + .2, LOOP.plotY0 + .2, l.px1 - l.px0 - .4, LOOP.plotY1 - LOOP.plotY0 - .4, 170, wall, sign);
-    }, .75);
-  }
-
-  bakeLayer(scene, 'hn:gate:v2', screenBox([[MAP_W + .4, ROAD_ROWS[0]! - 2], [MAP_W + 2.6, ROAD_ROWS[0]! - 2], [MAP_W + .4, ROAD_ROWS[1]! + 3], [MAP_W + 2.6, ROAD_ROWS[1]! + 3]], 315), MAP_W + 12, (gate) => cityGate(gate, MAP_W + .8, ROAD_ROWS[0]!, ROAD_ROWS[1]!));
+  const gateBox = screenBox([[MAP_W + .4, ROAD_ROWS[0]! - 2], [MAP_W + 2.6, ROAD_ROWS[0]! - 2], [MAP_W + .4, ROAD_ROWS[1]! + 3], [MAP_W + 2.6, ROAD_ROWS[1]! + 3]], 315);
+  const gateX = MAP_W + .8, gateEnd = MAP_W + .8 + 1.4;
+  bakeLayer(scene, 'hn:gate:v3:far', gateBox, gateEnd + ROAD_ROWS[0]! - 1, (gate) => cityGate(gate, gateX, ROAD_ROWS[0]!, ROAD_ROWS[1]!, 'far'));
+  bakeLayer(scene, 'hn:gate:v3:near', gateBox, gateEnd + ROAD_ROWS[1]! + 2, (gate) => cityGate(gate, gateX, ROAD_ROWS[0]!, ROAD_ROWS[1]!, 'near'));
+  bakeLayer(scene, 'hn:gate:v3:top', gateBox, MAP_W + 60, (gate) => cityGate(gate, gateX, ROAD_ROWS[0]!, ROAD_ROWS[1]!, 'top'));
   plate(scene, MAP_W + 1.5, (ROAD_ROWS[0]! + ROAD_ROWS[1]! + 1) / 2, 310, 'Ô Quan Chưởng');
 
   // Electric poles with the famous tangle of wires, in front of the houses (none across the alley mouth).
@@ -707,6 +693,30 @@ function drawStanding(scene: Phaser.Scene): void {
       }
     }
   });
+
+  // The paved corners beside the alley mouth are not walkable: a low wooden fence marks their edge so they never look like a way in.
+  const wood = 0xb98a5a, dark = 0x8a6238;
+  const fence = (key: string, x0: number, y0: number, x1: number, y1: number) => {
+    const horizontal = y0 === y1, len = Math.hypot(x1 - x0, y1 - y0), n = Math.round(len / .5);
+    bakeProp(scene, key, Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0), Math.min(x0, x1) + Math.min(y0, y1) - .5, (g) => {
+      for (const [z, h] of [[8, 4], [18, 4]] as const) block(g, horizontal ? { x: Math.min(x0, x1), y: y0 - .04, w: len, h: .08 } : { x: x0 - .04, y: Math.min(y0, y1), w: .08, h: len }, z, h, wood, 1.5);
+      for (let k = 0; k <= n; k++) {
+        const x = x0 + (x1 - x0) * k / n, y = y0 + (y1 - y0) * k / n;
+        block(g, { x: x - .05, y: y - .05, w: .1, h: .1 }, 0, 26, k === 0 || k === n ? dark : wood, 1.5);
+      }
+    });
+  };
+  // Each chevron sits at the back of the alley, hard against the corners of the houses behind it.
+  fence('hn:alley-fence:w-n', 18, 1, 20, 1);
+  fence('hn:alley-fence:w-w', 18, 1, 18, 3);
+  fence('hn:alley-fence:e-n', 24, 1, 26, 1);
+  fence('hn:alley-fence:e-e', 26, 1, 26, 3);
+
+  // Parked motorbikes live on the back street's sidewalk, in tidy rows, clear of the playable sidewalks.
+  for (const x0 of [-8, 6, 20, 34, 48]) for (let k = 0; k < 4; k++) {
+    const f = { x: x0 + k, y: 19, w: 1, h: 1 };
+    bakeIncidentObject(scene, `back_bike_${x0}_${k}`, 'parked_bike', f, 'default', f.x + f.w + f.y + f.h - 1);
+  }
 
   // Plastic stools, parked motorbikes and the sấu trees are map objects (they block the way): see `drawIncidentObject`.
 
@@ -1067,11 +1077,11 @@ export class IncidentRunView {
     }
     if (h.kind === 'dog') {
       if (!this.atlasReady('hazardDogs')) return false;
-      // A cancelled warning must not suddenly grow into a mastiff during its fade.
-      const large = h.phase === 'active' || (h.phase === 'gone' && this.sprites.get(id)?.getData('largeDog') === true);
+      // The big dog from the first moment (barking while it warns, then the chase).
+      const large = true;
       const impact = this.hit?.kind === 'dog' && h.phase !== 'gone';
       const moving = h.phase === 'active' && h.moving !== false;
-      const phase = impact || !large && h.phase === 'warn' ? 3 : moving ? 1 + Math.floor(h.t * 48) % 2 : 0;
+      const phase = impact ? 3 : moving ? 1 + Math.floor(h.t * 48) % 2 : 0;
       const image = this.animalSprite(id, 'hazardDogs', facingFrom(h.dx, h.dy) ?? 'E', phase, large ? 66 : 32, large ? 2 : 0)!;
       image.setPosition(p.x, p.y).setAlpha(alpha).setDepth(h.x + h.y + .05).setData('largeDog', large);
       this.ground.fillStyle(INK, .14 * alpha).fillEllipse(p.x, p.y, large ? 62 : 26, large ? 20 : 9);
@@ -1129,9 +1139,9 @@ export class IncidentRunView {
         b = new SpeechBubble(this.scene, 19).setDepth(1e6 - 3);
         this.bubbles.set(h.id, b);
       }
-      b.set(h.label, h.twist || (h.kind === 'dog' && h.phase === 'active') ? 'twist' : 'alert');
+      b.set(h.label, h.twist || h.kind === 'dog' ? 'twist' : 'alert');
       const p = point(h.x, h.y);
-      const lift = h.kind === 'pigeons' || h.kind === 'shuttlecock' || h.kind === 'slipper' ? 96 : h.kind === 'dog' && h.phase === 'active' ? 78 : 64;
+      const lift = h.kind === 'pigeons' || h.kind === 'shuttlecock' || h.kind === 'slipper' ? 96 : h.kind === 'dog' ? 78 : 64;
       // World text shrinks with the camera; keep the bubble readable on a zoomed-out PC view.
       b.setScale(1 / z);
       const pad = 8 / z, halfW = b.width / z / 2;
@@ -1176,9 +1186,8 @@ export class IncidentRunView {
         return;
       }
       case 'dog':
-        // The warning is a tiny yapping chihuahua; then the big one comes out of the gate.
-        if (h.phase === 'warn') chihuahua(g, p.x, p.y - Math.abs(Math.sin(now / 60)) * 4, face);
-        else dog(g, p.x, p.y, face, now / 55, 1.35);
+        // The big dog from the start: it barks on the spot while warning, then gives chase.
+        dog(g, p.x, p.y - (h.phase === 'warn' ? Math.abs(Math.sin(now / 60)) * 3 : 0), face, h.phase === 'warn' ? 0 : now / 55, 1.35);
         return;
       case 'chickens':
         for (const [ox, oy, k] of [[0, 0, 0], [-.35, .3, 1], [.3, .35, 2]] as const) {
@@ -1456,15 +1465,6 @@ function hitPose(d: NonNullable<RunView['hit']>): Pose {
   }
 }
 
-/** A tiny chihuahua with huge ears, yapping (the warning before the big dog). */
-function chihuahua(g: Phaser.GameObjects.Graphics, x: number, y: number, f: number): void {
-  shadow(g, x, y, 30, 10);
-  oval(g, x, y - 12, 24, 14, 0xe8c08a);
-  dot(g, x + 12 * f, y - 22, 8, 0xe8c08a);
-  tri(g, [x + 6 * f, y - 26, x + 4 * f, y - 42, x + 14 * f, y - 28], 0xe8c08a);
-  tri(g, [x + 14 * f, y - 28, x + 22 * f, y - 40, x + 20 * f, y - 24], 0xe8c08a);
-  g.fillStyle(INK).fillCircle(x + 15 * f, y - 23, 2);
-}
 
 /** A white hen with a red comb, facing `f`. */
 function chicken(g: Phaser.GameObjects.Graphics, x: number, y: number, f: number): void {

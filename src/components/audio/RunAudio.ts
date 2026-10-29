@@ -57,7 +57,7 @@ export class RunAudio {
     this.out.gain.value = OUT_GAIN;
     this.out.connect(this.limiter);
     this.music = this.ctx.createGain();
-    this.music.gain.value = 0.32;
+    this.music.gain.value = 0.18;
     this.music.connect(this.out);
     document.addEventListener('visibilitychange', this.visibility);
     for (const ev of ['pointerdown', 'pointerup', 'keydown', 'touchend'] as const) window.addEventListener(ev, this.resume, { capture: true });
@@ -99,8 +99,8 @@ export class RunAudio {
     }
     // Music starts as soon as the street is on screen, before the first move. If the browser holds
     // sound back until a gesture, the context resumes on the first key / tap (see `resume`).
-    if (run.running && this.timer === null) this.startMusic();
-    this.bpm = 112 + Math.min(1, run.aliveMs / 90000) * 44;
+    // No background music: only the street's own sounds.
+    this.bpm = 84;
     if (run.paused || paused || document.hidden) return;
     for (const h of run.hazards) {
       const prev = this.seen.get(h.id);
@@ -180,18 +180,16 @@ export class RunAudio {
     const ctx = this.ctx!;
     if (this.paused || document.hidden || this.scene.sound.mute || ctx.state !== 'running') { this.nextNote = ctx.currentTime + .1; return; }
     this.nextNote = Math.max(this.nextNote, ctx.currentTime);
-    const MEL = [0, 2, 4, 7, 9, 7, 4, 2, 4, 7, 9, 12, 9, 7, 4, -1];
-    const BASS = [0, 0, 7, 7, 5, 5, 7, 4];
-    const root = 262;
+    // A gentle music-box lullaby in a major pentatonic: a few soft plucked notes with rests, high and short (no drones).
+    const MEL = [0, -1, 4, -1, 7, -1, 4, -1, 9, -1, 7, -1, 4, -1, 2, -1, 0, -1, 4, -1, 7, -1, 9, -1, 12, -1, 9, -1, 7, -1, -1, -1];
+    const root = 392;
     const f = (semi: number) => root * 2 ** (semi / 12);
     while (this.nextNote < ctx.currentTime + 0.15) {
       const dur = 60 / this.bpm / 2;
-      const s = this.step % 16;
+      const s = this.step % MEL.length;
       const at = this.nextNote - ctx.currentTime;
-      if (MEL[s]! >= 0) this.tone(f(MEL[s]!), dur * 0.8, 'triangle', 0.5, at, this.music!);
-      // Triangle bass: its overtones reach small speakers, a pure low sine does not.
-      if (s % 2 === 0) this.tone(f(BASS[(s / 2) % 8]! - 12), dur * 1.6, 'triangle', 0.6, at, this.music!);
-      else this.noise(0.03, 0.18, 'highpass', 6000, 6000, at, this.music!);
+      if (MEL[s]! >= 0) { this.tone(f(MEL[s]!), dur * 3, 'sine', 0.45, at, this.music!); this.tone(f(MEL[s]!) * 2, dur * 1.2, 'sine', 0.08, at, this.music!); }
+      if (s % 16 === 0) this.tone(f(0) / 2, dur * 8, 'sine', 0.25, at, this.music!);
       this.nextNote += dur;
       this.step++;
     }

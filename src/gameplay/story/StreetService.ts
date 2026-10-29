@@ -1,8 +1,10 @@
 import type { Footprint, WorldPos } from '../../utils/tile';
 import type { Rect } from '../../systems/camera/framing';
-import { vanBody, type RescueRoute } from './rescueRouting';
+import { DOOR_OUT, vanBody, type RescueRoute } from './rescueRouting';
 import { facingFrom, type Actor, type Facing } from '../../entities/Actor';
 import type { HazardKind, RunPhase } from './RunService';
+import { assignSlots, carrySlots, lineOfSight, plannedRow, separate, socialStep, steadyHeading, toSegment, viewingSlots, type Circle, type SocialEnv } from './crowd';
+import { AMBULANCE_SPEC, Traffic, VEHICLE_SPECS, type Driving, type Obstacle, type TrafficConfig, type VehicleKind } from './traffic';
 
 /**
  * Chapter 1 street life: passers-by and motorbikes going about their day,
@@ -37,8 +39,8 @@ export interface StallConfig {
 
 export interface StreetConfig {
   walkers: number;
-  bikes: number;
-  cars?: number;
+  /** Road traffic: the motorbike/car mix, arrivals per hour each way, the opening density (see traffic.ts). */
+  traffic?: TrafficConfig;
   /** Rows (tile y) passers-by walk along, and the motorbike lanes. */
   lanes: number[];
   bikeLanes: number[];
@@ -68,6 +70,8 @@ export interface StreetConfig {
 export interface RescueLines {
   /** The crowd gathering round, in order. */
   crowd: string[];
+  /** Chatter among the onlookers between the scripted lines (any of them, in any order). */
+  gossip?: string[];
   siren: string;
   xeom: string;
   driver: string;
@@ -99,6 +103,8 @@ export interface GateLines {
   hero: string; guard: string;
   /** Motorbike: the rider (on the road, or up on the sidewalk), the guard afterwards, the hero's last words. */
   rider: string; kerb: string; scold: string; faint: string;
+  /** Slipper: the guard throwing it, the hero's last words. */
+  throw: string; slipperFaint: string;
   /** Boom: the guard raising it for the hero, letting it slip, the guard afterwards, the hero's last words. */
   lift: string; slam: string; slamScold: string; slamFaint: string;
 }
@@ -227,6 +233,16 @@ interface Npc {
   /** Braking hard (ms left of smoke), and no second near miss with the hero until `skidSafeUntil`. */
   skidMs?: number;
   skidSafeUntil?: number;
+  /** Traffic car: its own lane, and the lane it is swinging into to get round something stopped ahead. */
+  homeY?: number; laneTarget?: number;
+  /** On foot: velocity and steady heading (social force model, crowd.ts); an onlooker turned towards the hero. */
+  vx?: number; vy?: number; heading?: number; watch?: boolean; r?: number; wasMoving?: boolean;
+  /** A back-street bike's own cruising speed (its `speed` is the current one). */
+  cruise?: number;
+  /** On the main road: driven by the traffic model (IDM + MOBIL). */
+  traffic?: Driving;
+  /** Scenery on the back street (beyond the playable map): rides or walks round and round, never meets the story. */
+  decor?: boolean;
   /** A walker's own row: stepping aside for someone, they come back to it afterwards. */
   lane?: number;
   /** The side (1 / -1 in y) a walker is stepping aside to, kept until they have passed. */
@@ -264,7 +280,7 @@ interface Talk {
 const LEAVE_MARGIN = 1.6;
 const BUMP_AT = 0.75;
 /** The loop road at each end of the street goes round a block of houses; the drawing in incidentArt.ts matches. x: where a bike leaves the street (west, and east past the map width) and the far side of the loop; y: the loop's two lanes, above and below the street's own lanes. */
-const LOOP = { inW: -13, inE: 15, farW: -17.35, farE: 19.35, margin: 2.2 };
+const LOOP = { inW: -13, inE: 15, farW: -17.35, farE: 19.35, margin: 3.2 };
 /** Where people standing about look when they look round (front-facing, so their faces show). */
 const IDLE_LOOKS: Facing[] = ['E', 'S', 'W', 'SE', 'SW'];
 /** The hero this close to a street end's boom line (tiles) is trying to get past it. */
@@ -272,6 +288,22 @@ const GATE_REACH = 0.9;
 /** The two medics never stand closer than this (tiles): one figure on top of the other looks like one. */
 const MEDIC_GAP = 0.45;
 /** The magic circle takes this long to open before the ambulance drives into it (ms). */
+/** The back street (see CITY_BACK_STREET in chapter1Scenery.ts): its two lanes and the sidewalk in front of the shops. */
+/** Used when the chapter's street has no `traffic` block: about 85 % motorbikes, as on a Hanoi street. */
+const DEFAULT_TRAFFIC: TrafficConfig = { mix: { bike: 0.88, car: 0.12 }, flow: 1000, rushFlow: 1.6, density: 0.035 };
+
+const BACK = { lanes: [21.2, 22.8], walk: 20.1, bikes: 5, walkers: 7 } as const;
+/** When the ambulance turns into the street (rescue ms): it was called at once. */
+const AMBULANCE_AT = 1000;
+
+/** When onlookers gossip (rescue ms): in the gaps between the scripted lines. */
+const GOSSIP_AT = [2100, 3300, 4300, 5300, 6200, 7000, 8300, 9300, 10100, 10900] as const;
+
+/** The middle of the road (between the two directions). */
+const mid0 = (lanes: number[]) => (lanes[0]! + lanes[lanes.length - 1]!) / 2;
+
+/** The ambulance's braking (tiles/s²) on its way in. */
+const VAN_BRAKE = 4;
 const PORTAL_OPEN_MS = 700;
 const DEPART_BEFORE_PORTAL = 10;
 /** Onlookers never stand closer than this to the hero lying on the street (tiles). */
@@ -288,6 +320,14 @@ export class StreetService {
   /** Time into rush hour: the first seconds give the player a chance to get off the road. */
   private chaosMs = 0;
   private nextGateBike = 0;
+  private nextVehicle = 0;
+  /** The way the medics last carried the hero (kept when there is no way left, at the door). */
+  private carryHeading: WorldPos | null = null;
+  private lastGossip = '';
+  /** How long the ambulance has been held up on its way in (ms). */
+  private vanStuckMs = 0;
+  private walkEnv: SocialEnv = { walkable: () => true, people: [], circles: [] };
+  private traffic!: Traffic;
   /** A person the player tapped while too far: the hero walks there and the talk starts on arrival. */
   private pendingTalk: { id: string; until: number } | null = null;
   /** The guard keeps a barrier up while a motorbike goes through (street time, ms). */
@@ -343,13 +383,27 @@ export class StreetService {
         break;
       }
     }
-    // Bikes start on the part of the road the fence leaves open.
-    for (let i = 0; i < config.bikes; i++) this.npcs.push(this.bike(i, this.random() * (this.hooks.limitX() - 2)));
-    for (let i = 0; i < (config.cars ?? 0); i++) this.npcs.push({ id: `trafficCar${i}`, look: 'traffic_car', x: i % 2 ? this.size.w + 12 + i * 30 : -12 - i * 30, y: config.bikeLanes[i % 2 ? 0 : config.bikeLanes.length - 1]!, dir: i % 2 ? -1 : 1, speed: config.bikeSpeed * .65, bike: true, still: false, waitMs: 0, say: null, quietUntil: 0 });
+    // The road opens with traffic already on it, then vehicles arrive at both ends (traffic.ts).
+    this.traffic = new Traffic(config.bikeLanes, config.traffic ?? DEFAULT_TRAFFIC, this.random, { from: -19, to: this.size.w + 21 });
+    this.traffic.fill((kind, v0, dir, lane, x) => this.addVehicle(kind, v0, dir, lane, x, v0 * 0.8));
+    // The quiet street behind the south shops carries traffic and a few people of its own, so the main street is less crowded.
+    for (let i = 0; i < BACK.bikes; i++) {
+      const west = i % 2 === 0;
+      this.npcs.push({ id: `backbike${i}`, look: 'bike', x: -14 + (i * 83) / BACK.bikes + this.random() * 6, y: BACK.lanes[west ? 0 : 1]!, dir: west ? -1 : 1, speed: config.bikeSpeed * (0.7 + this.random() * 0.3), bike: true, decor: true, still: false, waitMs: 0, say: null, quietUntil: 0 });
+    }
+    for (let i = 0; i < BACK.walkers; i++) {
+      this.npcs.push({ id: `backwalker${i}`, look: config.looks[(i + 2) % config.looks.length]!, x: -10 + (i * 70) / BACK.walkers + this.random() * 8, y: BACK.walk + (i % 2) * 0.25, dir: i % 2 ? 1 : -1, speed: config.walkSpeed[0] + this.random() * (config.walkSpeed[1] - config.walkSpeed[0]), bike: false, decor: true, still: false, waitMs: 0, say: null, quietUntil: 0 });
+    }
     for (const g of config.gates ?? []) {
       this.gateOpen[g.id] = 0;
       this.npcs.push({ id: `gate:${g.id}`, look: 'guard', x: g.guard.x, y: g.guard.y, dir: g.inward, speed: 0, bike: false, still: true, waitMs: 0, say: null, quietUntil: 0, home: { ...g.guard, reach: 0 }, idleMs: 1500 + this.random() * 3000 });
     }
+  }
+
+  /** Right-hand rule on the sidewalks: of each pair of lanes on the north side one goes each way; the south lane alternates. */
+  private walkerDir(i: number): number {
+    const lanes = this.config.lanes, li = i % lanes.length;
+    return lanes[li]! < this.config.bikeLanes[0]! ? (li % 2 ? 1 : -1) : Math.floor(i / lanes.length) % 2 ? 1 : -1;
   }
 
   private walker(i: number, x: number): Npc {
@@ -357,31 +411,107 @@ export class StreetService {
     // Not all in single file: each walker keeps a row a little off the lane's centre.
     const y = c.lanes[i % c.lanes.length]! + (r() - 0.5) * 0.24;
     // Each look in turn, so a few passers-by are all different people.
-    return { id: `walker${i}`, look: c.looks[i % c.looks.length]!, x, y, lane: y, visitAt: 4000 + r() * 12000, dir: Math.floor(i / c.lanes.length) % 2 ? 1 : -1, speed: c.walkSpeed[0] + r() * (c.walkSpeed[1] - c.walkSpeed[0]), bike: false, still: false, waitMs: 0, say: null, quietUntil: 0 };
+    const look = c.looks[i % c.looks.length]!;
+    // A shoulder pole with two baskets takes room either side; a child is small.
+    return { id: `walker${i}`, look, r: look === 'vendor' ? 0.45 : look === 'kid' ? 0.2 : 0.25, x, y, lane: y, visitAt: Number.POSITIVE_INFINITY, dir: this.walkerDir(i), speed: c.walkSpeed[0] + r() * (c.walkSpeed[1] - c.walkSpeed[0]), bike: false, still: false, waitMs: 0, say: null, quietUntil: 0 };
   }
 
-  private bike(i: number, x: number): Npc {
-    const lane = i % this.config.bikeLanes.length;
-    // Keep to the right: the north lane drives west, the south lane east.
-    return { id: `bike${i}`, look: 'bike', x, y: this.config.bikeLanes[lane]!, dir: lane === 0 ? -1 : 1, speed: this.config.bikeSpeed * (0.85 + this.random() * 0.3), bike: true, still: false, waitMs: 0, say: null, quietUntil: 0 };
+  private addVehicle(kind: VehicleKind, v0: number, dir: number, lane: number, x: number, v: number): void {
+    this.npcs.push({ id: `veh${++this.nextVehicle}`, look: kind === 'bike' ? 'bike' : 'traffic_car', x, y: this.config.bikeLanes[lane]!, dir, speed: v, bike: true, still: false, waitMs: 0, say: null, quietUntil: 0, traffic: { kind, v0, lane, checkMs: this.random() * 600 } });
+  }
+
+  /** The road: obstacles for the traffic model, one step of it, then what the street makes of it (horns, the hero hit). */
+  private tickTraffic(dt: number): void {
+    const p = this.player.pos, chaos = this.hooks.phase() === 'chaos', down = this.hooks.isDown(), r = this.rescue;
+    const cars = this.npcs.filter(n => n.traffic);
+    const obstacles: Obstacle[] = [];
+    // The hero in the road: everybody stops, except rush-hour riders, who only ease off (and may not stop in time).
+    // Reach: the body (0.3) plus a vehicle's half-width, so someone between two lanes stops both.
+    if (!r?.hidden) obstacles.push({ x: p.x, y: p.y, half: 0.3, reach: 0.85, tag: 'hero', ignoredBy: chaos && !down ? 'bike' : undefined });
+    for (const n of this.npcs) if (!n.bike && !n.decor && (n.scale ?? 1) > .01 && this.onRoad(n.y)) obstacles.push({ x: n.x, y: n.y, half: 0.3, reach: 0.85, tag: 'person' });
+    // The ambulance is in the way as long as it is on the road (pulling out too); only on its way in does it sound the siren.
+    const van = r?.van && (r.van.scale ?? 1) > .01 ? r.van : null;
+    // Pulled up at the scene (medics out, the hero carried to it) it closes its side of the road: nobody squeezes past
+    // beside it; the other way keeps flowing. Driving, it takes only its own lane.
+    const atScene = !!van && !r!.hidden && !van.moving && !r!.route.approach.length;
+    const body: Obstacle | null = van ? { x: van.x, y: van.y, half: 1.1, reach: atScene ? 1.5 : 0.8, v: van.moving ? van.speed : 0, dir: van.dir, tag: 'van' } : null;
+    if (body) obstacles.push(body);
+    const siren = body && !r!.hidden ? body : null;
+    // While the medics work and carry, traffic both ways holds back short of the ambulance, leaving the space clear;
+    // it moves on once the van drives off (behind it, in its direction).
+    if (atScene && van) obstacles.push({ x: van.x, y: mid0(this.config.bikeLanes), half: 1.1 + 1.6, reach: 4, tag: 'scene' });
+    // A boom still down is a stop line for both ways.
+    const lanes = this.config.bikeLanes, mid = (lanes[0]! + lanes[lanes.length - 1]!) / 2;
+    for (const g of this.gates()) if ((this.gateOpen[g.id] ?? 0) < 0.9) obstacles.push({ x: g.x, y: mid, half: 0, reach: 4, tag: 'boom' });
+    for (const c of cars) {
+      const t = c.traffic!, ahead = (p.x - c.x) * c.dir, across = Math.abs(p.y - c.y);
+      t.cap = chaos && !down && t.kind === 'bike' && ahead > 0 && ahead < 4.5 && across < 0.7 ? t.v0 * 0.45 : undefined;
+    }
+    const before = new Map(cars.map(c => [c, { x: c.x, y: c.y }] as const));
+    this.traffic.step(cars, obstacles, dt, chaos ? this.config.traffic?.rushFlow ?? 1.6 : 1, siren,
+      (kind, v0, dir, lane, x, v) => this.addVehicle(kind, v0, dir, lane, x, v),
+      (c) => { const i = this.npcs.indexOf(c as Npc); if (i >= 0) this.npcs.splice(i, 1); });
+    for (const n of this.npcs) {
+      const t = n.traffic;
+      if (!t) continue;
+      const b = before.get(n);
+      if (b && n.moving) n.facing = facingFrom(n.x - b.x, n.y - b.y) ?? n.facing;
+      if (n.skidMs) n.skidMs = Math.max(0, n.skidMs - dt);
+      // The guard raises the boom for whoever is coming, early enough for them to roll through.
+      const spec = VEHICLE_SPECS[t.kind];
+      for (const g of this.gates()) {
+        const toBoom = (g.x - n.x) * n.dir;
+        if (toBoom > -1.5 && toBoom < (n.speed * n.speed) / (2 * spec.b) + 3) this.gateHold[g.id] = this.ms + 500;
+      }
+      // Held up by the hero or a person on the road: a horn (not every time).
+      if ((t.stoppedFor === 'hero' || t.stoppedFor === 'person') && this.ms >= n.quietUntil && !n.say) {
+        n.say = { text: this.pick(this.config.honk), ms: 1600 };
+        n.quietUntil = this.ms + 6000;
+      }
+      // A bike and the hero meet (stepping in front of it, or a rush-hour rider who could not stop): luck decides.
+      if (t.kind === 'bike' && !down && (!chaos || this.chaosMs > 5000)) {
+        const ahead = (p.x - n.x) * n.dir, across = Math.abs(p.y - n.y);
+        if (ahead > -0.3 && ahead < 0.55 && across < 0.45) this.nearMiss(n);
+      }
+      // Walking into a car (its nose, its side, standing or moving) knocks the hero down like a bike does: nobody walks
+      // through a car. The car stops dead, just clear of them.
+      if (t.kind === 'car' && !down && !this.hooks.knockedOut()) {
+        const along = (p.x - n.x) * n.dir, across = Math.abs(p.y - n.y), half = VEHICLE_SPECS.car.len / 2;
+        if (Math.abs(along) < half + 0.3 && across < 0.6) {
+          if (along > 0) n.x = p.x - n.dir * (half + 0.45);
+          n.speed = 0;
+          n.waitMs = 1500;
+          n.say = { text: 'RẦM!', ms: 900 };
+          this.hooks.bikeHit();
+        }
+      }
+    }
   }
 
   tick(dt: number): void {
     this.ms += dt;
     for (const n of this.npcs) n.moving = false;
     if (this.hooks.phase() === 'chaos') this.chaosMs += dt;
+    this.tickTraffic(dt);
+    this.walkEnv = this.socialEnv(true);
     for (const n of this.npcs) if (n.say && (n.say.ms -= dt) <= 0) n.say = null;
     if (this.heroSay && (this.heroSay.ms -= dt) <= 0) this.heroSay = null;
-    for (const n of this.npcs) if (!n.still) {
+    for (const n of this.npcs) if (!n.still && !n.traffic) {
       const x = n.x, y = n.y;
       this.move(n, dt);
       // By speed, not by distance per tick: a slow walker must not flick between walking and standing frames.
-      n.moving = (Math.hypot(n.x - x, n.y - y) * 1000) / Math.max(dt, 1) > 0.2;
+      // Walking pose with hysteresis: starts above 0.25 tiles/s, stops below 0.1 (no stepping on the spot).
+      const pace = (Math.hypot(n.x - x, n.y - y) * 1000) / Math.max(dt, 1);
+      n.moving = n.bike ? pace > 0.2 : pace > (n.wasMoving ? 0.1 : 0.25);
+      n.wasMoving = n.moving;
       // Facing the way they really go: round someone they turn that way (no walking sideways like a crab);
       // along their row, plainly along it (small wobbles must not flip the pose).
-      const mx = n.x - x, my = n.y - y, along = !n.bike && !n.visit && Math.abs(my) < Math.abs(mx) * 0.6;
-      if (n.moving) n.facing = (along ? facingFrom(n.dir, 0) : facingFrom(mx, my)) ?? n.facing;
+      const mx = n.x - x, my = n.y - y;
+      if (!n.bike) { const h = steadyHeading(n); if (h !== null) n.facing = facingFrom(Math.cos(h), Math.sin(h)) ?? n.facing; }
+      else if (n.moving) n.facing = facingFrom(mx, my) ?? n.facing;
     }
+    // Nobody ends a step inside anybody: whoever stands at a post (or carries the hero) holds their ground.
+    separate(this.walkEnv.people, (x, y) => this.hooks.walkable(x, y), (q) => { const n = q as Npc; return n.look === 'medic' || (n.still && !n.goal); });
     for (const n of this.npcs) if (n.home && n.still) this.idle(n, dt);
     this.chatter(dt);
     this.greet();
@@ -471,15 +601,14 @@ export class StreetService {
       if (!this.hooks.walkable(p0.x, p0.y) || this.hooks.props().some(o => Math.hypot(p0.x - o.x, p0.y - o.y) < o.r + .26)) Object.assign(p0, this.freeNear(p0.x, p0.y));
       const route = this.hooks.rescueRoute(p0, this.npcs.filter(n => n.look === 'guard' && (n.scale ?? 1) > .01));
       if (!route) return;
+      this.carryHeading = null;
+      this.vanStuckMs = 0;
       this.rescue = { route, ms: 0, dir: route.dir, crowd: [], yielding: [], van: null, medics: [], carried: false, hidden: false, bonkMs: 0, portal: null, bonked: false, done: false, departureDistance: 0, mishap: null };
     }
     const r = this.rescue, prev = r.ms, p = this.player.pos;
     if (!this.hooks.walkable(p.x, p.y)) Object.assign(p, this.freeNear(p.x, p.y));
     r.ms += dt;
-    const medicsReady = r.medics.length === 2 && r.medics.every((m, i) => {
-      const spot = m.goal ?? this.carrySpot(p, i);
-      return (m.scale ?? 1) > 0.01 && Math.hypot(m.x - spot.x, m.y - spot.y) <= 0.16;
-    });
+    const medicsReady = r.medics.length === 2 && r.medics.every((m) => (m.scale ?? 1) > 0.01 && !!m.goal && Math.hypot(m.x - m.goal.x, m.y - m.goal.y) <= 0.3);
     // Dialogue timing waits for the actual pickup and arrival at the van.
     if (prev < 7200 && r.ms >= 7200 && r.route.approach.length) r.ms = 7199;
     if (prev < 11300 && r.ms >= 11300 && !medicsReady) r.ms = 11299;
@@ -493,33 +622,32 @@ export class StreetService {
     const away = p.y >= lane ? 1 : -1;
     // Off the van's lane: whoever stands there steps to the nearer side of the road.
     const offLane = (g: { x: number; y: number }) => (Math.abs(g.y - lane) < 1.3 ? this.freeNear(g.x, lane + away * 1.6, true) : g);
-    // Onlookers: the nearest passers-by stop what they are doing and stand round the hero.
+    // Onlookers: curious passers-by nearby (who can get there) come and stand round the hero, in rings, all able to see.
     if (at(600)) {
-      // The lying hero is about a tile long on screen: onlookers stand well clear of them, on the side away from the road's traffic.
-      const spots = [[-1.6, 1.6 * away], [-0.3, 1.8 * away], [1.0, 1.7 * away], [2.2, 1.5 * away]] as const;
-      const near = this.npcs.filter((n) => !n.still && !n.bike && n.x > 1.5 && n.x < this.size.w - 1.5).sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) + ((a.y - lane) * away > 0 ? 0 : 6) - Math.hypot(b.x - p.x, b.y - p.y) - ((b.y - lane) * away > 0 ? 0 : 6)).slice(0, spots.length);
-      // Each onlooker stands on free ground near their spot (never inside a stall, a tree or a car).
-      near.forEach((n, i) => { n.visit = undefined; n.still = true; n.goal = offLane(this.spotAround(p, spots[i]![0], spots[i]![1])); });
+      const near = this.npcs.filter((n) => !n.still && !n.bike && !n.decor && n.x > 1.5 && n.x < this.size.w - 1.5 && Math.hypot(n.x - p.x, n.y - p.y) < 12 && this.random() < 0.9)
+        .sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y)).slice(0, 12);
+      this.gather(near, [1.8, 2.7, 3.6, 4.4]);
       r.crowd = near;
-      // Sellers and guards also make room; a stationary person must not seal a narrow rescue route.
-      r.yielding = this.npcs.filter(n => !n.bike && n.still && !near.includes(n) && Math.hypot(n.x - p.x, n.y - p.y) < 3.5);
-      for (const n of r.yielding) {
-        const dx = n.x - p.x, dy = n.y - p.y, d = Math.hypot(dx, dy) || 1;
-        n.goal = offLane(this.spotAround(p, dx / d * 4, dy / d * 4));
-      }
+      // Guards and others standing close also make room: a stationary person must not seal the rescue route.
+      r.yielding = this.npcs.filter(n => !n.bike && n.still && !near.includes(n) && !n.id.startsWith('gate:') && Math.hypot(n.x - p.x, n.y - p.y) < 3.5);
+      this.gather(r.yielding, [4.4, 5.2]);
     }
     const say = (n: Npc | undefined, text: string, ms = 2200) => { if (n) n.say = { text, ms }; };
     if (at(1500)) say(r.crowd[0], L.crowd[0] ?? '');
     if (at(2700)) say(r.crowd[1], L.crowd[1] ?? '');
     if (at(3900)) say(r.crowd[2], L.crowd[2] ?? '');
-    if (at(2200)) {
+    if (at(AMBULANCE_AT)) {
       const entry = r.route.approach.shift()!;
       r.van = this.vehicle('ambulance', 'ambulance', entry.x, entry.y, r.dir, 11, L.siren);
       r.route.approach.unshift(entry);
-      // The siren parts the crowd: people in the van's way step aside to both sides of the road.
-      for (const n of r.crowd) if (n.goal) n.goal = offLane(n.goal);
     }
     if (at(4800)) say(r.crowd[3] ?? r.crowd[0], L.xeom);
+    // Between the scripted lines the onlookers talk among themselves: a random one, a random line, never twice running.
+    for (const t of GOSSIP_AT) if (at(t) && L.gossip?.length) {
+      const idle = r.crowd.filter(n => !n.say && !n.photoMs);
+      const who = idle[Math.floor(this.random() * idle.length)];
+      if (who) { const lines = L.gossip.filter(l => l !== this.lastGossip); this.lastGossip = lines[Math.floor(this.random() * lines.length)] ?? L.gossip[0]!; say(who, this.lastGossip, 1500); }
+    }
     if (at(5800)) say(r.van ?? undefined, L.driver, 1600);
     if (at(6600)) say(r.crowd[0], L.crowd[3] ?? '');
     // The van pulls up short of the hero (never over them), then (later) drives off.
@@ -528,21 +656,25 @@ export class StreetService {
     const door = v ? r.route.door : null;
     if (v && !r.hidden) {
       // Flat out down the street, braking into each turn and to a stop by the hero.
-      const next = r.route.approach[0];
-      if (next) v.speed = Math.min(11, 2.2 + Math.hypot(next.x - v.x, next.y - v.y) * 2.4);
-      // Never through a car or bike ahead on its lane: keep behind it until it pulls away.
-      for (const m of this.npcs) {
-        if (m === v || !m.bike || m.look === 'medic' || (m.scale ?? 1) <= .01 || m.dir !== r.dir || Math.abs(m.y - v.y) > .9) continue;
-        const gap = (m.x - v.x) * r.dir;
-        if (gap <= 0 || gap > 3.4) continue;
-        v.speed = gap < 2.1 ? 0 : Math.min(v.speed, Math.max(0.6, m.speed));
+      // Kinematic braking: never faster than it can stop in, v = √(2·b·d), to the parking spot and into each turn.
+      const pts = r.route.approach;
+      if (pts.length) {
+        let left = Math.hypot(pts[0]!.x - v.x, pts[0]!.y - v.y);
+        for (let i = 1; i < pts.length; i++) left += Math.hypot(pts[i]!.x - pts[i - 1]!.x, pts[i]!.y - pts[i - 1]!.y);
+        const corner = pts.length > 1 ? Math.hypot(pts[0]!.x - v.x, pts[0]!.y - v.y) : Infinity;
+        // The same car-following model as the traffic (IDM), its desired speed capped by what it can still stop in.
+        const v0 = Math.min(AMBULANCE_SPEC.v0[1], Math.sqrt(2 * VAN_BRAKE * left) + 0.4, Math.sqrt(2 * VAN_BRAKE * corner) + 2.5);
+        this.idmStep(v, AMBULANCE_SPEC, v0, this.leaderOf(v, AMBULANCE_SPEC.len, false), dt);
+        // Stuck in a jam on the way: it pulls up right there and the medics go the rest of the way on foot.
+        this.vanStuckMs = v.speed < 0.3 ? this.vanStuckMs + dt : 0;
+        if (this.vanStuckMs > 1200 && r.route.park.y === r.route.lane) this.stopVanHere(r, v);
       }
-      this.drive(v, r.route.approach, dt);
+      if (r.route.approach.length) this.drive(v, r.route.approach, dt);
     }
     // The medics jump out, take the hero by both ends, and carry them to the back door.
     // One after the other out of the side door (never two figures on the same spot, looking like one).
     if (at(7200) && door) {
-      const spots = [this.carrySpot(p, 0), this.carrySpot(p, 1)];
+      const spots = this.formation(r, { x: door.x - p.x, y: door.y - p.y });
       const far = Math.hypot(spots[0]!.x - door.x, spots[0]!.y - door.y) >= Math.hypot(spots[1]!.x - door.x, spots[1]!.y - door.y) ? 0 : 1;
       r.medics = [0, 1].map((i) => { const n = this.vehicle(`medic${i}`, 'medic', door.x, door.y, -r.dir, 0, ''); n.bike = false; n.say = null; if (i === far) n.goal = spots[i]; else n.scale = 0; return n; });
     }
@@ -555,15 +687,13 @@ export class StreetService {
           && this.hooks.canWalk(door, q) && Math.hypot(q.x - first.x, q.y - first.y) >= MEDIC_GAP
           && !this.npcs.some(o => o !== m && !o.bike && o.look !== 'medic' && (o.scale ?? 1) > .01 && Math.hypot(q.x - o.x, q.y - o.y) < .6));
       // Keep waiting inside the van if the first medic has not cleared the door yet.
-      if (out) { m.x = out.x; m.y = out.y; m.scale = 1; m.goal = this.carrySpot(p, r.medics.indexOf(m)); }
+      if (out) { m.x = out.x; m.y = out.y; m.scale = 1; m.goal = this.formation(r, { x: door.x - p.x, y: door.y - p.y })[r.medics.indexOf(m)]; }
     }
     // "Make way!": the crowd is pushed back a step or two; the one filming gets told off (and answers back).
     if (at(7500)) {
       say(r.medics.find(m => (m.scale ?? 1) > 0), L.shoo, 1300);
-      for (const n of r.crowd) {
-        const ax = n.x - p.x, ay = n.y - p.y, d = Math.hypot(ax, ay) || 1;
-        n.goal = offLane(this.spotAround(p, (ax >= 0 ? 1 : -1) * 3.5, away));
-      }
+      // Back a step: everyone finds a spot on the outer rings (still with a view).
+      this.gather(r.crowd, [3.2, 4.0, 4.8]);
     }
     // One line at a time from here, so the bubbles never pile up over the hero.
     if (at(8900)) say(r.medics[1], L.scold, 1300);
@@ -581,19 +711,26 @@ export class StreetService {
       // At the door; the "CỐP!" waits for the last photo to be taken.
       // Lifted off a spot hard against a wall (a courtyard corner): carried from the free ground beside it.
       if (!this.hooks.walkable(p.x, p.y)) { const q = this.freeNear(p.x, p.y); p.x = q.x; p.y = q.y; }
-      const spots = [this.carrySpot(p, 0), this.carrySpot(p, 1)];
+      // The pair turns with the way the hero is being carried (one at each end), closing up where it is narrow.
+      // At the door there is no way left to face: keep the last one (or else the pair would collapse onto one spot).
+      const next = this.paths.get(p)?.points[0] ?? door, hx = next.x - p.x, hy = next.y - p.y;
+      if (Math.hypot(hx, hy) > 0.05) this.carryHeading = { x: hx, y: hy };
+      const spots = this.formation(r, this.carryHeading ?? { x: door.x - p.x || r.dir, y: door.y - p.y });
       const distance = (m: Npc, q: WorldPos) => Math.hypot(m.x - q.x, m.y - q.y);
       if (r.medics.length === 2 && distance(r.medics[0]!, spots[1]!) + distance(r.medics[1]!, spots[0]!) + .25 < distance(r.medics[0]!, spots[0]!) + distance(r.medics[1]!, spots[1]!)) r.medics.reverse();
       // The hero is only lifted while both medics hold them at arm's length; otherwise they wait for the pair to close up.
-      const together = r.medics.length === 2 && r.medics.every((m) => (m.scale ?? 1) > 0.01 && Math.hypot(m.x - p.x, m.y - p.y) <= 1.25);
-      if (together && this.stepToward(p, door, 1.8, dt, this.vanBody(r)) && !r.bonked && r.ms >= 13900) {
+      // No stop-and-go: the hero moves on all the time, as fast as the slower medic keeps up (a pair carrying together).
+      const lag = r.medics.length === 2 && r.medics.every(m => (m.scale ?? 1) > 0.01) ? Math.max(...r.medics.map((m, i) => distance(m, spots[i]!))) : Infinity;
+      const pace = Math.max(0, Math.min(1, 1 - (lag - 0.12) / 0.35));
+      const arrived = pace > 0.1 ? this.stepToward(p, door, 1.6 * pace, dt, this.vanBody(r)) : Math.hypot(p.x - door.x, p.y - door.y) <= 0.05;
+      if (arrived && lag <= 0.35 && !r.bonked && r.ms >= 13900) {
         // Head, meet door.
         r.bonked = true;
         r.bonkMs = 900;
         // In the van as soon as the "CỐP!" has sounded.
         r.ms = Math.max(r.ms, 14000);
       }
-      r.medics.forEach((m, i) => { if ((m.scale ?? 1) > 0) m.goal = this.carrySpot(p, i); });
+      r.medics.forEach((m, i) => { if ((m.scale ?? 1) > 0) m.goal = spots[i]; });
     }
     // Everyone in, doors shut, off it goes… and a magic circle opens on the road ahead.
     if (at(14900) && v) {
@@ -608,17 +745,19 @@ export class StreetService {
       if (this.random() < (L.wheelOffChance ?? 0)) r.mishap = { wheel: null, boom: null };
     }
     // First leave the pickup spot and rejoin the road; only then reveal the portal ahead.
-    if (r.hidden && v && !r.portal) {
+    // Pulling out: first wait for a gap in the traffic coming up behind in its lane (MOBIL-style safety check).
+    const merging = r.hidden && v && !r.portal && r.departureDistance < 0.5 && this.npcs.some(m => m.traffic && m.dir === r.dir && Math.abs(m.y - v.y) < 0.9 && (v.x - m.x) * r.dir > 0 && (v.x - m.x) * r.dir < 2 + m.speed * 1.2);
+    if (merging) v.speed = 0;
+    if (r.hidden && v && !r.portal && !merging) {
       const before = { x: v.x, y: v.y };
-      v.speed = Math.min(9, v.speed + dt / 1000 * 2.5);
+      this.idmStep(v, AMBULANCE_SPEC, AMBULANCE_SPEC.v0[1], this.leaderOf(v, AMBULANCE_SPEC.len, false), dt);
       if (r.route.exit.length) this.drive(v, r.route.exit, dt);
       else { v.axis = 'x'; v.dir = r.dir; v.x += r.dir * v.speed * dt / 1000; }
       r.departureDistance += Math.hypot(v.x - before.x, v.y - before.y);
       if (!r.route.exit.length && r.departureDistance >= DEPART_BEFORE_PORTAL) {
-        let px = v.x + r.dir * 6;
+        let px = v.x + r.dir * 10;
         for (const g of this.config.gates ?? []) if (Math.abs(px - g.x) < 2) px = g.x + r.dir * 2;
         r.portal = { x: px, y: v.y, ms: 0 };
-        v.speed = 0;
       }
     }
     if (r.portal && v) {
@@ -627,9 +766,13 @@ export class StreetService {
       const m = r.mishap;
       // The circle opens first (the driver stares at it), then the van floors it.
       const rev = r.portal.ms - PORTAL_OPEN_MS;
-      v.speed = rev < 0 ? 0 : Math.min(9, 1.5 + rev / 1000 * 9);
-      if (rev < 0) v.moving = false;
-      else if (r.route.exit.length) this.drive(v, r.route.exit, dt);
+      // No stop-and-go: the van keeps rolling towards the circle while it opens, only holding back right at its edge.
+      v.speed = rev < 0 ? Math.max(v.speed, 3.5) : Math.min(9, Math.max(v.speed, 1.5 + rev / 1000 * 9));
+      if (rev < 0 && !r.route.exit.length) {
+        const rolling = into < -2.5;
+        v.axis = 'x'; v.dir = r.dir; v.moving = rolling;
+        if (rolling) v.x += (r.dir * Math.min(v.speed, (-2.5 - into) / Math.max(.2, (PORTAL_OPEN_MS - r.portal.ms) / 1000)) * dt) / 1000;
+      } else if (r.route.exit.length) this.drive(v, r.route.exit, dt);
       else if (m) { v.axis = 'x'; v.dir = r.dir; this.tickMishap(r, v, m, into, dt); }
       else {
         v.axis = 'x'; v.dir = r.dir;
@@ -668,43 +811,58 @@ export class StreetService {
         }
       }
     }
-    // Onlookers and medics walk to their spots.
-    for (const n of [...r.crowd, ...r.yielding, ...r.medics]) {
-      if (!n.goal) continue;
+    // Onlookers walk to their spots by the social force (round each other, the medics, the van), then turn to watch.
+    const env = this.socialEnv(false);
+    for (const n of [...r.crowd, ...r.yielding]) {
       const x0 = n.x, y0 = n.y;
-      const avoid = this.vanBody(r);
-      const speed = r.carried && r.medics.includes(n) ? 2.6 : 2.2;
-      if (this.stepToward(n, n.goal, speed, dt, avoid)) n.goal = undefined;
+      if (n.goal && this.steerTo(n, n.goal, 2.2, dt, env)) n.goal = undefined;
       n.moving = Math.hypot(n.x - x0, n.y - y0) > 0.005;
-      if (!r.medics.includes(n) && n.goal) {
-        n.blockedMs = n.moving ? 0 : (n.blockedMs ?? 0) + dt;
-        if (n.blockedMs >= 1000) {
-          const angle = Math.atan2(n.y - p.y, n.x - p.x);
-          const others = this.npcs.filter(m => m !== n && !m.bike && (m.scale ?? 1) > .01);
-          let found = false;
-          for (const radius of [1, 1.5, 2, 3]) {
-            for (const turn of [0, 1, -1, 2, -2, 3, -3, 4]) {
-              const a = angle + turn * Math.PI / 4, q = { x: n.x + Math.cos(a) * radius, y: n.y + Math.sin(a) * radius };
-              if ((!r.hidden && (q.y - lane) * away < 1.3 && Math.abs(q.x - r.route.park.x) < 2.2 + (r.route.park.y === lane ? 6 : 0)) || Math.hypot(q.x - r.route.door.x, q.y - r.route.door.y) < 1.6 || Math.hypot(q.x - p.x, q.y - p.y) < 1.5 || others.some(m => Math.hypot(q.x - m.x, q.y - m.y) < .9)) continue;
-              const points = this.hooks.path(n, q, avoid, others);
-              if (!points) continue;
-              n.goal = q; this.paths.set(n, { goal: q, points }); this.routeRetry.delete(n); found = true; break;
-            }
-            if (found) break;
-          }
-          n.blockedMs = 0;
-        }
-      }
+      if (n.moving) { const h = steadyHeading(n); if (h !== null) n.facing = facingFrom(Math.cos(h), Math.sin(h)) ?? n.facing; }
+      else if (n.watch && !r.hidden) n.facing = facingFrom(p.x - n.x, p.y - n.y) ?? n.facing;
+      if (Math.abs(n.x - x0) > 0.005) n.dir = n.x > x0 ? 1 : -1;
+    }
+    // The medics keep their formation slots (exact routes round people and the van's body).
+    for (const n of r.medics) {
+      if (!n.goal || (n.scale ?? 1) <= .01) continue;
+      const x0 = n.x, y0 = n.y;
+      const speed = r.carried ? 2.8 : 2.2, gx = n.goal.x - n.x, gy = n.goal.y - n.y, gd = Math.hypot(gx, gy);
+      // Close behind a slot that keeps moving: straight to it when nothing is in between, smooth, no path search.
+      if (gd < 1.5 && this.hooks.canWalk(n, n.goal) && this.clearOfVan(n.goal, r)) {
+        const step = Math.min(gd, speed * dt / 1000);
+        if (gd > 1e-6) { n.x += gx / gd * step; n.y += gy / gd * step; }
+      } else this.stepToward(n, n.goal, speed, dt, this.vanBody(r));
+      n.moving = Math.hypot(n.x - x0, n.y - y0) > 0.005;
       if (n.moving) n.facing = facingFrom(n.x - x0, n.y - y0) ?? n.facing;
       if (Math.abs(n.x - x0) > 0.005) n.dir = n.x > x0 ? 1 : -1;
     }
-
   }
 
   /** The tiles under the parked ambulance's body (not its door side): what the medics walk round. */
   private vanBody(r: NonNullable<StreetService['rescue']>): Footprint | undefined {
     if (!r.van || r.hidden) return undefined;
     return vanBody(r.route.park, r.route.park.y !== r.route.lane);
+  }
+
+  /**
+   * The ambulance cannot get through: it stops where it is (this is its parking spot now) and the side door is on its
+   * kerb side, as ever. If that door has no way to the hero, the other side is used.
+   */
+  private stopVanHere(r: NonNullable<StreetService['rescue']>, v: Npc): void {
+    this.vanStuckMs = 0;
+    const right = r.dir > 0 ? 1 : -1, p = this.player.pos;
+    const body = vanBody({ x: v.x, y: v.y }, false);
+    const door = [right, -right].map(k => ({ x: v.x - 0.4, y: v.y + k * DOOR_OUT })).find(q => this.hooks.walkable(q.x, q.y) && !!this.hooks.path(q, p, body));
+    if (!door) return;
+    r.route.approach.length = 0;
+    r.route.park = { x: v.x, y: v.y };
+    r.route.door = door;
+    v.speed = 0; v.moving = false;
+  }
+
+  /** The medics' two places at the ends of the lying hero, facing the way they will carry them. */
+  private formation(r: NonNullable<StreetService['rescue']>, heading: WorldPos): [WorldPos, WorldPos] {
+    const props = this.hooks.props();
+    return carrySlots(this.player.pos, heading, q => this.clearOfVan(q, r) && props.every(o => Math.hypot(q.x - o.x, q.y - o.y) >= o.r + .26));
   }
 
   private clearOfVan(q: WorldPos, r: NonNullable<StreetService['rescue']>): boolean {
@@ -846,6 +1004,15 @@ export class StreetService {
   private tickGate(dt: number): void {
     const r0 = this.gateRun;
     this.gateBonkMs = Math.max(0, this.gateBonkMs - dt);
+    // Passers-by on foot walk through freely: the guard lifts the boom as they come and lets it down behind them.
+    {
+      const lanesNow = this.config.bikeLanes, top = lanesNow[0]! - 1.2, bottom = lanesNow[lanesNow.length - 1]! + 1.2;
+      for (const g of this.gates()) for (const n of this.npcs) {
+        if (n.bike || n.look === 'medic' || n.id.startsWith('gate:') || (n.scale ?? 1) <= .01 || n.y < top || n.y > bottom) continue;
+        const before = (g.x - n.x) * n.dir;
+        if (before > -1.2 && before < 2.8) this.gateHold[g.id] = this.ms + 500;
+      }
+    }
     for (const id in this.gateOpen) {
       const mine = r0?.gate.id === id;
       const held = mine && r0.arrived !== null ? r0.ms - r0.arrived : 0;
@@ -892,8 +1059,7 @@ export class StreetService {
         r.arrived = 0;
         this.player.faceTowards({ x: g.x - g.inward, y: p.y });
         if (r.how === 'slam') guard.say = { text: L!.lift, ms: 1600 };
-        // …just as a motorbike comes through from outside (up on the sidewalk too, as they do).
-        else r.bike = this.vehicle(`crashbike:${g.id}:${++this.nextGateBike}`, 'bike', g.x - g.inward * 9, p.y, g.inward, 9, this.config.honk[0] ?? 'Bíp bíp!');
+        // …and the guard hurls a slipper that always finds them.
       }
       if (at(700) && r.how === 'bike') guard.say = { text: L!.guard, ms: 1600 };
       const ko = (line: string, push: number, kind?: HazardKind) => {
@@ -911,12 +1077,9 @@ export class StreetService {
         }
         return;
       }
-      const b = r.bike;
-      const onRoad = Math.abs(p.y - roadY) < 1.6;
-      if (b && (!onRoad || this.gateOpen[g.id]! >= 0.6 || (g.x - b.x) * g.inward > 1.2)) ride(b);
-      if (b && Math.abs(b.x - p.x) < 0.7) {
-        b.say = { text: onRoad ? L!.rider : L!.kerb, ms: 2200 };
-        ko(L!.faint, 4);
+      if (at(1500)) {
+        guard.say = { text: L!.throw, ms: 1400 };
+        ko(L!.slipperFaint, 2, 'slipper');
       }
       return;
     }
@@ -940,9 +1103,9 @@ export class StreetService {
 
   private startGate(g: GateConfig): void {
     this.gateNeedsExit.add(g.id);
-    const lanes = this.config.bikeLanes, roadY = (lanes[0]! + lanes[lanes.length - 1]!) / 2;
-    const underBoom = Math.abs(this.player.pos.y - roadY) < 1.6;
-    this.gateRun = { gate: g, stage: 'walk', ms: 0, how: underBoom && this.random() < 0.5 ? 'slam' : 'bike', arrived: null, bike: null, landing: null };
+    const lanes = this.config.bikeLanes;
+    const underBoom = this.player.pos.y > lanes[0]! - 0.7 && this.player.pos.y < lanes[lanes.length - 1]! + 0.7;
+    this.gateRun = { gate: g, stage: 'walk', ms: 0, how: underBoom ? 'slam' : 'bike', arrived: null, bike: null, landing: null };
   }
 
   /**
@@ -1008,8 +1171,10 @@ export class StreetService {
 
   /** The nearest free ground to a point (searching outwards a little), or the point itself. */
   private freeNear(x: number, y: number, personalSpace = false): { x: number; y: number } {
-    for (let r = 0; r <= (personalSpace ? 3 : 1.5); r += 0.5) for (let a = 0; a < 8; a++) {
+    // Crowds keep off the walls (nobody stands with their nose to a house): first with room all round, then anywhere free.
+    for (const wall of personalSpace ? [0.9, 0] : [0]) for (let r = 0; r <= (personalSpace ? 3 : 1.5); r += 0.5) for (let a = 0; a < 8; a++) {
       const px = x + Math.cos((a * Math.PI) / 4) * r, py = y + Math.sin((a * Math.PI) / 4) * r;
+      if (wall && ![[wall, 0], [-wall, 0], [0, wall], [0, -wall]].every(([dx, dy]) => this.hooks.walkable(px + dx!, py + dy!))) { if (r === 0) break; continue; }
       if ((!personalSpace || !this.rescue || Math.hypot(px - this.rescue.route.door.x, py - this.rescue.route.door.y) >= 1.6) && this.hooks.walkable(px, py) && this.hooks.props().every(o => Math.hypot(px - o.x, py - o.y) >= o.r + .26) && (!personalSpace || this.npcs.every(n => n.bike || (Math.hypot(px - n.x, py - n.y) >= .75 && (!n.goal || Math.hypot(px - n.goal.x, py - n.goal.y) >= .85))))) return { x: px, y: py };
       if (r === 0) break;
     }
@@ -1035,108 +1200,159 @@ export class StreetService {
   // ── passers-by ──────────────────────────────────────────────────────────
 
   private move(n: Npc, dt: number): void {
-    if (n.look === 'traffic_car') {
-      const ahead = (p: WorldPos) => (p.x - n.x) * n.dir > -1 && (p.x - n.x) * n.dir < 5 && Math.abs(p.y - n.y) < 1.1;
-      if ((!this.rescue?.hidden && ahead(this.player.pos)) || this.npcs.some(m => m !== n && (m.scale ?? 1) > .01 && ahead(m))) return;
-      for (const g of this.gates()) if ((g.x - n.x) * n.dir > -2 && (g.x - n.x) * n.dir < 5) {
-        this.gateHold[g.id] = this.ms + 500;
-        if ((g.x - n.x) * n.dir > 0 && (g.x - n.x) * n.dir < 2.2 && (this.gateOpen[g.id] ?? 0) < .9) return;
-      }
-      // The siren behind: the car puts its foot down and clears the road.
-      const van = this.rescue?.van, rush = van && !this.rescue?.hidden && van.dir === n.dir && Math.abs(van.y - n.y) < .9 && (n.x - van.x) * n.dir > 0 && (n.x - van.x) * n.dir < 12 ? 2.2 : 1;
-      n.x += n.dir * n.speed * rush * dt / 1000;
-      if (n.dir > 0 && n.x > this.size.w + 18) n.x = -18 - this.random() * 12;
-      if (n.dir < 0 && n.x < -18) n.x = this.size.w + 18 + this.random() * 12;
+    if (n.decor) {
+      // Back-street bikes follow the same model (never into the one ahead); round and round, out one end, in the other.
+      if (n.bike) { n.cruise ??= n.speed; this.idmStep(n, VEHICLE_SPECS.bike, n.cruise, this.leaderOf(n, VEHICLE_SPECS.bike.len, true), dt); }
+      n.x += n.dir * n.speed * dt / 1000;
+      if (n.dir > 0 && n.x > this.size.w + 16) n.x = -16;
+      if (n.dir < 0 && n.x < -16) n.x = this.size.w + 16;
       return;
     }
-    const p = this.player.pos;
-    const ahead = (p.x - n.x) * n.dir, across = Math.abs(p.y - n.y);
-    const lanes = this.config.bikeLanes;
-    const chaos = this.hooks.phase() === 'chaos';
-    // Nobody walks through the hero lying on the street: passers-by turn back a little before.
+    // Pedestrians keep to the sidewalks: if one ever ends up in the car lanes it steps back to the kerb.
+    if (!n.bike && n.look !== 'medic' && this.onRoad(n.y)) {
+      const lanesNow = this.config.bikeLanes, top = lanesNow[0]! - 1.5, bottom = lanesNow[lanesNow.length - 1]! + 1.5;
+      n.y = n.y - top < bottom - n.y ? top : bottom;
+    }
     // The lying hero is handled by personal space and the held detour, never an instant reversal.
     let pace = 1;
-    if (n.bike && chaos && !this.hooks.isDown()) {
-      // Rush hour: bikes do not stop for anyone. A honk from afar and a little braking; still in the way, you are flat.
-      if (ahead > 0 && ahead < 4.5 && across < 0.7) {
-        if (this.ms >= n.quietUntil) {
-          n.say = { text: this.pick(this.config.honk), ms: 1400 };
-          n.quietUntil = this.ms + 4000;
-        }
-        pace = 0.45;
-      }
-      if (ahead > -0.3 && ahead < 0.55 && across < 0.45 && this.chaosMs > 5000) this.nearMiss(n);
-      n.waitMs = 0;
-    } else {
-      // Walking into a bike (stepping in front of a moving one, or bumping into it) is a crash, stroll or not.
-      if (n.bike && !this.hooks.isDown() && ahead > -0.3 && ahead < 0.55 && across < 0.45) this.nearMiss(n);
-      // The hero (standing or lying) in the way: bikes stop and honk (walkers step round, see `giveWay`).
-      if (n.bike && ahead > 0 && ahead < 1.8 && across < 0.7) this.blocked(n, this.config.honk);
-      // Bikes also queue behind the ambulance (no driving through it).
-      const van = this.rescue?.van;
-      if (n.bike && van && van !== n && !this.rescue?.hidden) {
-        const gap = (van.x - n.x) * n.dir;
-        if (gap > 0 && gap < 2.8 && Math.abs(van.y - n.y) < 0.6) this.blocked(n, this.config.honk);
-      }
-    }
-    // The street ends are barriers: a bike coming up has the guard raise the boom, and waits until it is up.
-    if (n.bike) for (const g of this.gates()) {
-      const before = (g.x - n.x) * n.dir;
-      if (before > -1.5 && before < 3.5) this.gateHold[g.id] = this.ms + 500;
-      if (before > 0 && before < 1.1 && (this.gateOpen[g.id] ?? 0) < 0.9) return;
-    }
-    if (n.skidMs) n.skidMs = Math.max(0, n.skidMs - dt);
     if (n.waitMs > 0) {
       n.waitMs -= dt;
       return;
     }
-    if (n.turn) return this.goRound(n, pace * dt);
     if (!n.bike) {
-      if (n.detour) {
-        const route = n.detour, before = { x: n.x, y: n.y };
-        const arrived = this.stepToward(n, route.goal, n.speed, dt, undefined, to => this.canPass(n, to));
-        route.ms += dt;
-        route.blockedMs = Math.hypot(n.x - before.x, n.y - before.y) > .002 ? 0 : route.blockedMs + dt;
-        if (arrived) { n.detour = undefined; n.dir = route.dir; n.dodge = undefined; }
-        else if (route.blockedMs > 1200) { this.paths.delete(n); route.blockedMs = 0; n.waitMs = 500; }
-        if (route.ms > 10000) { n.detour = undefined; n.waitMs = 1000; }
-        return;
-      }
-      if (this.visitStall(n, dt)) return;
-      pace *= this.giveWay(n, dt);
-      const x = n.x + (n.dir * n.speed * pace * dt) / 1000;
-      // Never through a stall, a car or a tree (giveWay steps round them; this is the last guard).
-      if (!this.footing(x, n.y)) { if (!this.beginDetour(n)) n.waitMs = 1000; return; }
-      if (Math.abs(x - n.x) < 1e-5 || !this.canPass(n, { x, y: n.y })) {
-        n.blockedMs = (n.blockedMs ?? 0) + dt;
-        if (n.blockedMs > 1200) { if (!this.beginDetour(n)) n.waitMs = 1000; n.blockedMs = 0; }
-        return;
-      }
-      n.blockedMs = 0;
-      n.x = x;
-    } else n.x += (n.dir * n.speed * pace * dt) / 1000;
-    if (n.bike) {
-      // At the end of the street the bike rides round the block of houses and comes back in the other lane.
-      const xin = n.dir < 0 ? LOOP.inW : this.size.w + LOOP.inE;
-      if ((n.dir < 0 && n.x <= xin) || (n.dir > 0 && n.x >= xin)) {
-        // While the hero is being taken away, bikes leaving the street do not come back (the road is jammed).
-        if (this.hooks.isDown()) {
-          if (n.x < LOOP.farW - 2 || n.x > this.size.w + LOOP.farE + 2) { n.speed = 0; n.scale = 0; }
-          return;
-        }
-        n.x = xin;
-        const lanes = this.config.bikeLanes, mid = (lanes[0]! + lanes[lanes.length - 1]!) / 2;
-        const near = n.y < mid ? mid - LOOP.margin : mid + LOOP.margin, far = 2 * mid - near, back = 2 * mid - n.y;
-        const xfar = n.dir < 0 ? LOOP.farW : this.size.w + LOOP.farE;
-        n.turn = { path: [[xin, n.y], [xin, near], [xfar, near], [xfar, far], [xin, far], [xin, back]], i: 0, at: 0 };
-      }
-      return;
+      // Along their own row of the sidewalk; what stands ahead is passed with room to spare (planned, not brushed past),
+      // then back to the row.
+      const lanes = this.config.bikeLanes, awayFromRoad = n.y < lanes[0]! ? -1 : 1;
+      const standing: Circle[] = [...this.hooks.props().map(o => ({ x: o.x, y: o.y, r: o.r })), ...this.walkEnv.people.filter(o => o !== n && (o as Npc).still).map(o => ({ x: o.x, y: o.y, r: o.r ?? 0.25 }))];
+      const row = plannedRow(n, n.dir, n.lane ?? n.y, standing, (x, y) => this.hooks.walkable(x, y) && !this.onRoad(y), awayFromRoad);
+      const ex = n.dir, ey = Math.max(-0.7, Math.min(0.7, (row - n.y) * 1.2)), el = Math.hypot(ex, ey);
+      const x0 = n.x;
+      socialStep(n, { x: ex / el, y: ey / el }, n.speed, this.walkEnv, dt);
+      // Walled in for a good while (a dead end): back the other way.
+      n.blockedMs = (n.x - x0) * n.dir > 0.0002 * dt ? 0 : (n.blockedMs ?? 0) + dt;
+      if (n.blockedMs > 1500) { n.dir = -n.dir; n.blockedMs = 0; }
     }
     // Walkers stroll right past the barriers (they are for vehicles) and turn round a little beyond; the fence, while it stands, turns them back.
     const fenced = this.hooks.limitX() < this.size.w - 1;
     const lo = -2.5, hi = fenced ? this.hooks.limitX() - 0.6 : this.size.w + 2.5;
     if (n.x < lo) { n.x = lo; n.dir = 1; }
     else if (n.x > hi) { n.x = hi; n.dir = -1; }
+  }
+
+  /** Distance to the nearest walker just ahead of `n` in its lane, going the same way, or Infinity. */
+  private walkerGap(n: Npc): number {
+    let gap = Infinity;
+    for (const m of this.npcs) {
+      if (m === n || m.bike || m.look === 'medic' || m.still || (m.scale ?? 1) <= .01 || m.dir !== n.dir || Math.abs(m.y - n.y) > .6) continue;
+      const d = (m.x - n.x) * n.dir;
+      if (d > .1 && d < gap) gap = d;
+    }
+    return gap;
+  }
+
+  /**
+   * What a pedestrian steers round: everybody else on foot, tree trunks and parked bikes, the vehicles, the hero.
+   * `sidewalk`: the kerbs are walls too (ordinary passers-by; onlookers and medics may step into the road).
+   */
+  private socialEnv(sidewalk: boolean): SocialEnv {
+    const circles: Circle[] = this.hooks.props().map(o => ({ x: o.x, y: o.y, r: o.r }));
+    for (const n of this.npcs) {
+      if (!n.bike || n.decor || (n.scale ?? 1) <= .01) continue;
+      const len = n.look === 'ambulance' ? 1.1 : n.look === 'traffic_car' ? 0.5 : 0, r = n.look === 'ambulance' ? 0.65 : n.look === 'traffic_car' ? 0.55 : 0.4;
+      for (const k of len ? [-1, 0, 1] : [0]) circles.push(n.axis === 'y' ? { x: n.x, y: n.y + k * len, r } : { x: n.x + k * len, y: n.y, r });
+    }
+    const p = this.player.pos;
+    if (!this.rescue?.hidden) {
+      circles.push({ x: p.x, y: p.y, r: 0.3 });
+      // Lying, the hero is about a tile long (head to the left on screen).
+      if (this.hooks.isDown()) circles.push({ x: p.x - 0.35, y: p.y + 0.35, r: 0.3 });
+    }
+    const lanes = this.config.bikeLanes;
+    return {
+      walkable: (x, y) => this.hooks.walkable(x, y),
+      people: this.npcs.filter(n => !n.bike && !n.decor && (n.scale ?? 1) > .01),
+      circles,
+      kerb: sidewalk ? { top: lanes[0]! - 0.6, bottom: lanes[lanes.length - 1]! + 0.6 } : undefined,
+    };
+  }
+
+  /** Walk to `goal`: the route round walls from the path finder, the steps among people by the social force. */
+  private steerTo(n: Npc, goal: WorldPos, v0: number, dt: number, env: SocialEnv): boolean {
+    let path = this.paths.get(n);
+    if (!path || Math.hypot(path.goal.x - goal.x, path.goal.y - goal.y) > 0.05) {
+      path = { goal: { ...goal }, points: this.hooks.path(n, goal) ?? [{ ...goal }] };
+      this.paths.set(n, path);
+    }
+    while (path.points.length > 1 && Math.hypot(path.points[0]!.x - n.x, path.points[0]!.y - n.y) < 0.35) path.points.shift();
+    const left = Math.hypot(goal.x - n.x, goal.y - n.y);
+    if (left < 0.12) { n.vx = 0; n.vy = 0; return true; }
+    const t = path.points[0] ?? goal, d = Math.hypot(t.x - n.x, t.y - n.y) || 1;
+    const x0 = n.x, y0 = n.y;
+    // Slowing down on arrival, never overshooting.
+    socialStep(n, { x: (t.x - n.x) / d, y: (t.y - n.y) / d }, v0 * Math.min(1, left / 0.8 + 0.15), env, dt);
+    n.blockedMs = Math.hypot(n.x - x0, n.y - y0) > 0.0002 * dt ? 0 : (n.blockedMs ?? 0) + dt;
+    if (n.blockedMs > 1500) { this.paths.delete(n); n.blockedMs = 0; }
+    return false;
+  }
+
+  /** Where the onlookers can watch from: rings round the hero with a clear view, off the ambulance's way, not nose to a wall. */
+  private watchSlots(rows: number[]): ReturnType<typeof viewingSlots> {
+    const r = this.rescue!, p = this.player.pos, lane = r.route.lane, door = r.route.door, park = r.route.park;
+    const props = this.hooks.props(), walk = (x: number, y: number) => this.hooks.walkable(x, y);
+    const away = p.y >= lane ? 1 : -1;
+    const valid = (q: WorldPos) => walk(q.x, q.y) && !this.onRoad(q.y)
+      && [[0.9, 0], [-0.9, 0], [0, 0.9], [0, -0.9]].every(([dx, dy]) => walk(q.x + dx!, q.y + dy!))
+      && props.every(o => Math.hypot(q.x - o.x, q.y - o.y) >= o.r + 0.35)
+      && !(Math.abs(q.y - lane) < 1.3 && Math.abs(q.x - park.x) < 4)
+      && toSegment(q, p, door) > 0.9 && Math.hypot(q.x - door.x, q.y - door.y) > 1.6
+      && lineOfSight(q, p, walk, props);
+    // Rather on the side away from the traffic, and where the face can be seen (the head lies to the screen's left).
+    const head = Math.atan2(1, -1);
+    // A shoulder's width and a bit between neighbours: a crowd, not a heap.
+    return viewingSlots(p, rows, 1.0, valid, (q, a) => ((q.y - lane) * away > 0 ? 0 : 1.5) + 0.3 * (1 - Math.cos(a - head)));
+  }
+
+  /** Send these people to watch from the given rings (each to their own spot). */
+  private gather(people: Npc[], rows: number[]): void {
+    const slots = assignSlots(people, this.watchSlots(rows));
+    for (const n of people) {
+      const s = slots.get(n);
+      n.visit = undefined; n.still = true; n.watch = true;
+      // Standing in a crowd people keep a little more room round them than when walking past each other.
+      n.r = Math.max(n.r ?? 0.25, 0.32);
+      n.goal = s ? { x: s.x, y: s.y } : this.spotAround(this.player.pos, n.x - this.player.pos.x, n.y - this.player.pos.y);
+    }
+  }
+
+  /**
+   * The free gap and speed of whatever is nearest ahead of `v` on its lane (traffic vehicles, people, the hero):
+   * the same leader the traffic model uses, for the ambulance and the back street's bikes.
+   */
+  private leaderOf(v: Npc, len: number, decor: boolean): { gap: number; v: number } {
+    let best = { gap: Infinity, v: 0 };
+    const p = this.player.pos;
+    const consider = (x: number, y: number, half: number, speed: number, reach: number) => {
+      const d = (x - v.x) * v.dir;
+      if (d <= 0 || Math.abs(y - v.y) > reach) return;
+      const gap = d - len / 2 - half;
+      if (gap < best.gap) best = { gap, v: speed };
+    };
+    for (const m of this.npcs) {
+      if (m === v || (m.scale ?? 1) <= .01) continue;
+      if (decor) { if (m.decor && m.bike && m.dir === v.dir) consider(m.x, m.y, 0.45, m.speed, 0.6); continue; }
+      if (m.traffic) consider(m.x, m.y, VEHICLE_SPECS[m.traffic.kind].len / 2, m.dir === v.dir ? m.speed : 0, 0.8);
+      else if (!m.bike && !m.decor && this.onRoad(m.y)) consider(m.x, m.y, 0.3, 0, 0.85);
+    }
+    if (!decor && !this.rescue?.carried && !this.hooks.isDown()) consider(p.x, p.y, 0.3, 0, 0.85);
+    return best;
+  }
+
+  /** One IDM step for a vehicle outside the traffic model: accelerate/brake to `leader`, never into it. */
+  private idmStep(v: Npc, spec: typeof AMBULANCE_SPEC, v0: number, lead: { gap: number; v: number }, dt: number): void {
+    const s = dt / 1000, a = Math.max(-3 * spec.b, Math.min(spec.a, Traffic.idm(spec, v.speed, Math.max(v0, 0.01), lead.gap, lead.v)));
+    v.speed = Math.max(0, Math.min(v0 * 1.05 + 0.01, v.speed + a * s));
+    const room = Math.max(0, lead.gap - 0.05 + lead.v * s);
+    if (v.speed * s > room) v.speed = room / Math.max(s, 1e-6);
   }
 
   /** Inside the road (where only vehicles go), with a little margin for a body. */
@@ -1241,7 +1457,7 @@ export class StreetService {
     // Away from them; head to head, each keeps to their own right. Once chosen, the side holds until they
     // have passed (picking afresh every frame flips it as soon as they draw level, and the walker jitters).
     const lanes = this.config.bikeLanes, roadTop = lanes[0]! - 0.5, roadBottom = lanes[lanes.length - 1]! + 0.5;
-    const free = (y: number) => Math.abs(y - lane) < 1.1 && (y < roadTop - 0.25 || y > roadBottom + 0.25 || (n.y > roadTop && n.y < roadBottom)) && this.canPass(n, { x: n.x, y });
+    const free = (y: number) => Math.abs(y - lane) < 1.1 && (y < roadTop - 1.0 || y > roadBottom + 1.0 || (n.y > roadTop && n.y < roadBottom)) && this.canPass(n, { x: n.x, y });
     // Round something solid: towards the side with room past it (a stool by the shop row is passed on the street side).
     if (n.dodge === undefined && wall) {
       const room = (k: number) => [0.3, 0.6, 0.9].some((dy) => free(n.y + k * dy) && this.footing(n.x + n.dir * 0.9, n.y + k * dy));
@@ -1256,8 +1472,8 @@ export class StreetService {
     else stepped = false;
     if (!stepped) {
       // No way round: turn back instead of eventually walking through whoever blocks the lane.
-      if (wall) { n.waitMs = 700; return 0; }
-      if ((n.stuckMs = (n.stuckMs ?? 0) + dt) > 1500) { n.waitMs = 700; n.stuckMs = 0; return 0; }
+      if (wall) { n.dir = -n.dir; return 1; }
+      if ((n.stuckMs = (n.stuckMs ?? 0) + dt) > 900) { n.dir = -n.dir; n.stuckMs = 0; return 1; }
     }
     if (b.hero && best < BUMP_AT && !this.hooks.isDown() && this.ms >= n.quietUntil && !n.say) {
       n.say = { text: this.pick(this.config.bumped), ms: 2200 };
@@ -1465,7 +1681,9 @@ export class StreetService {
     const rescue = this.rescue;
     return {
       npcs: this.npcs.map((n) => ({ id: n.id, look: n.look, x: n.x, y: n.y, dir: n.dir, moving: !!n.moving, bike: n.bike, say: n.say?.text ?? null, scale: n.scale ?? 1, skid: !!n.skidMs, tilt: n.tilt ?? 0, axis: n.axis ?? 'x', facing: n.facing,
-        doorOpen: !!rescue && n === rescue.van && !rescue.hidden && !rescue.route.approach.length && rescue.ms >= 6900,
+        // The art has the sliding door on the side facing the camera: opened only when the real door is that side (south);
+        // a westbound van's door (north, the kerb) is out of sight behind its body, so the visible side stays shut.
+        doorOpen: !!rescue && n === rescue.van && !rescue.hidden && !rescue.route.approach.length && rescue.ms >= 6900 && (rescue.route.park.y !== rescue.route.lane || rescue.route.door.y > rescue.route.park.y),
         damaged: !!rescue && n === rescue.van && !!rescue.mishap?.wheel,
       })),
       elapsedMs: this.ms,

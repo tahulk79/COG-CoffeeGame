@@ -116,6 +116,8 @@ export interface RunConfig {
   maxHazards: number;
   /** After this many seconds the street goes mad: two hazards at a time. */
   rushSec: number;
+  /** Alive this long (s) and still standing: a gag that cannot be dodged ends the run. */
+  sureHitSec?: number;
   /** Telegraphs shrink to this share of their length as the run ramps up. */
   minWarnScale: number;
   /** First and last row of the main road, and first and last column of a side street, if any (motorbike lanes). */
@@ -139,6 +141,8 @@ interface Hazard extends HazardView {
   back: boolean;
   /** Pigeons after the hero's bread: they home in. */
   bread: boolean;
+  /** Fate itself: follows the hero while it warns and always lands (the run must end some time). */
+  sure?: boolean;
 }
 
 export const RUN_BODY_RADIUS = 0.25;
@@ -166,6 +170,7 @@ export class RunService {
   /** Only enabled by the developer review screen; ordinary spawning is suspended. */
   reviewing = false;
   private spawnIn = 2500;
+  private sureDone = false;
   private aliveMs = 0;
   private steer = { x: 0, y: 0 };
   private hit: { kind: HazardKind; ms: number; x: number; y: number } | null = null;
@@ -211,6 +216,7 @@ export class RunService {
     this.hazards = [];
     this.reviewing = false;
     this.aliveMs = 0;
+    this.sureDone = false;
     this.spawnIn = 2500;
     this.hit = null;
     this.down = null;
@@ -320,6 +326,13 @@ export class RunService {
     // Time alive (the HUD timer, unlocks and the ramp) counts from rush hour.
     this.aliveMs += dt;
     this.spawn(dt);
+    // Too long without a knock-out: a durian with the hero's name on it (it tracks them while it whistles down).
+    const sure = this.config.sureHitSec;
+    if (sure !== undefined && !this.sureDone && this.aliveMs / 1000 >= sure && !this.hit && !this.dying) {
+      this.sureDone = true;
+      const p = this.player.pos, text = this.script.hazards.durian;
+      this.hazards.push({ id: this.nextId++, kind: 'durian', phase: 'warn', ms: 0, t: 0, dx: 0, dy: 0, twist: false, twisted: true, near: false, label: text?.label ?? null, ox: 0, oy: 0, reach: 0, back: false, bread: false, x: p.x, y: p.y, warnMs: 1300, activeMs: 250, sure: true });
+    }
     for (const h of [...this.hazards]) {
       this.step(h, dt);
       if (this.hit) return;
@@ -584,7 +597,8 @@ export class RunService {
           const pos = this.walkableNear({ x: p.x + Math.cos(a) * 6.5, y: p.y + Math.sin(a) * 6.5 });
           if (!pos || Math.hypot(pos.x - p.x, pos.y - p.y) <= 4) continue;
           // A short chase each: outrun it or dodge for a few seconds and it gives up.
-          this.hazards.push({ ...base, ...pos, warnMs: kind === 'dog' ? 1700 : 1100, activeMs: kind === 'dog' ? 3600 : 6000 });
+          // The dog is the big one from the start (its warning line is the big dog's).
+          this.hazards.push({ ...base, ...pos, label: kind === 'dog' ? text?.twist ?? base.label : base.label, warnMs: kind === 'dog' ? 1700 : 1100, activeMs: kind === 'dog' ? 3600 : 6000 });
           break;
         }
         break;
@@ -687,10 +701,9 @@ export class RunService {
     }
     if (h.phase === 'warn') {
       h.t = Math.min(1, h.ms / h.warnMs);
+      if (h.sure) { h.x = this.player.pos.x; h.y = this.player.pos.y; }
       if (h.ms >= h.warnMs) {
         Object.assign(h, { phase: 'active', ms: 0, t: 0 });
-        // The little yapping dog was only the warning: the big one comes out.
-        if (h.kind === 'dog') h.label = this.script.hazards.dog?.twist ?? h.label;
       }
       return;
     }
@@ -724,7 +737,7 @@ export class RunService {
       case 'durian':
       case 'water':
       case 'laundry':
-        if (d < REACH[h.kind]!) return this.hurt(h.kind, h);
+        if (d < REACH[h.kind]! || h.sure) return this.hurt(h.kind, h);
         // A durian landing just next to you: not a hit, but that smell…
         if (h.kind === 'durian' && d < 1.4) this.dazed('smell', this.script.hazards.durian?.smell);
         this.gone(h);
