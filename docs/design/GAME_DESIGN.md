@@ -11,6 +11,8 @@ All numbers in this document are **initial tuning values**. They live in data fi
 
 > **Official identity (2026-10-27):** game name **COG-CoffeeGame**; canonical repository **https://github.com/tahulk79/COG-CoffeeGame**. This supersedes the former project name. Existing save keys and internal IDs are unchanged by this documentation update.
 
+> **Update 2026-10-30:** the Product Owner reordered the opening: the story now goes café first (Chapter 3, brewing lesson with limited stock), then the coffee farm (Chapter 4), then a Vietnam map to build cafés and farms in other regions. This supersedes "farm first" below. See [CAFE_FARM_MAP_LOOP.md](CAFE_FARM_MAP_LOOP.md).
+
 ## 0. Product Owner synchronization — 27 October 2026
 
 This section records the Product Owner's latest direction and takes precedence over conflicting draft flow below. It changes design documentation only, not the running game. The remainder retains earlier tuning proposals until reconciled. Baseline reviewed: main `11a5c49`.

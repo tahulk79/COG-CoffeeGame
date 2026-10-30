@@ -49,8 +49,9 @@ export function classifyViewport(w: number, h: number): ViewportClass {
  * the framing intent: the street follows the hero. Fewer tiles = closer.
  */
 const TILES_ACROSS: Record<CameraMode, Record<ViewportClass, number>> = {
-  exploration: { desktop: 11, tablet: 9, mobileLandscape: 7, mobilePortrait: 5.5 },
-  story: { desktop: 13, tablet: 11, mobileLandscape: 9, mobilePortrait: 7 },
+  // Phones closer in (about 1.3×): characters and props big enough to read at a glance.
+  exploration: { desktop: 11, tablet: 9, mobileLandscape: 5.5, mobilePortrait: 4.3 },
+  story: { desktop: 13, tablet: 11, mobileLandscape: 7, mobilePortrait: 5.4 },
 };
 
 export function tilesAcross(mode: CameraMode, vp: ViewportClass): number {
@@ -89,15 +90,6 @@ export function framingZoom(mode: CameraMode, viewW: number, viewH: number, env:
 export function clampCenter(target: Point, viewW: number, viewH: number, bounds: Rect): Point {
   const axis = (v: number, lo: number, size: number, view: number): number => (view >= size ? lo + size / 2 : clamp(v, lo + view / 2, lo + size - view / 2));
   return { x: axis(target.x, bounds.x, bounds.w, viewW), y: axis(target.y, bounds.y, bounds.h, viewH) };
-}
-
-/**
- * Pointer-centred zoom: the render point under `anchor` (screen offset from
- * the viewport centre, CSS px) stays under it when zoom goes z0 → z1.
- * Returns how far the camera centre must move, in render pixels.
- */
-export function zoomAnchorShift(anchor: Point, z0: number, z1: number): Point {
-  return { x: anchor.x * (1 / z0 - 1 / z1), y: anchor.y * (1 / z0 - 1 / z1) };
 }
 
 /** Offset (render px) that puts the follow target in the middle of the area the HUD leaves free. */

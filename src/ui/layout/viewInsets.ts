@@ -18,14 +18,14 @@ export function hudScale(w: number, h: number): number {
 }
 
 /**
- * Camera zoom for maps without a framing mode (the chapter-2 garden; the chapter-1 street uses `framingZoom`). The world
+ * Camera zoom for maps without a framing mode (the chapter-1 street and the chapter-2 road use `framingZoom`). The world
  * always fills the whole screen (the HUD floats on top) and the camera follows
  * the player, clamped to the map: phones get a close-up, PC and tablet the zoom
  * at which the whole map fits on screen.
  */
 export function worldZoom(w: number, h: number, mapW = 14, mapH = 14): number {
   // Phones: a close-up that follows the player (a whole map would be unreadably small).
-  if (isCompact(w, h)) return w / ((h > w ? 7 : 8) * 128);
+  if (isCompact(w, h)) return w / ((h > w ? 5.4 : 6.2) * 128);
   // PC / tablet: the whole map is visible; the ground continues to the screen edges so nothing is black.
   const pxW = (mapW + mapH) * 64;
   const pxH = (mapW + mapH) * 32 + 160;

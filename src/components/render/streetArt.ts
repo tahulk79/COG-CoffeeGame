@@ -6,6 +6,7 @@ import { facingFrom } from '../../entities/Actor';
 import { SLICE_ASSETS, SLICE_PEOPLE, streetPerson, sliceAmbulanceFrame, sliceMedicCarryFrame, sliceMedicFrame, sliceMotorbikeFrame, slicePersonFrame } from './sliceAssets';
 import { SpeechBubble } from './speechBubble';
 import { block, dot, face, INK, motorbike, oval, point, rr, shadow, STREET_ENDS, tri } from './incidentArt';
+import { PIXEL_RATIO, TEXT_RES } from '../../ui/layout/pixelRatio';
 
 /** Baked sprites are drawn at this multiple of their size so they stay sharp when the camera zooms in. */
 export const SPRITE_SS = 2;
@@ -151,7 +152,7 @@ export class StreetLifeView {
         const post = this.scene.add.graphics().setDepth(actorDepth({ x, y: BARRIER_ROWS.roadTop }));
         block(post, { x: x - .12, y: BARRIER_ROWS.roadTop - .12, w: .24, h: .24 }, 0, 44, 0x717871, 1.5);
         const sign = point(x, BARRIER_ROWS.top + 1, 96);
-        if (gate.sign) parts.push(this.scene.add.text(sign.x, sign.y, gate.sign, { fontFamily: "'Baloo 2', sans-serif", fontSize: '18px', fontStyle: '800', color: '#ffffff', backgroundColor: '#e2513f', padding: { x: 10, y: 3 }, resolution: 2 }).setOrigin(.5, 1).setDepth(1e6 - 6));
+        if (gate.sign) parts.push(this.scene.add.text(sign.x, sign.y, gate.sign, { fontFamily: "'Baloo 2', sans-serif", fontSize: '18px', fontStyle: '800', color: '#ffffff', backgroundColor: '#e2513f', padding: { x: 10, y: 3 }, resolution: TEXT_RES }).setOrigin(.5, 1).setDepth(1e6 - 6));
         else {
           rr(post, sign.x - 34, sign.y - 30, 68, 30, 6, 0xe2513f);
           post.fillStyle(0xffffff).fillRect(sign.x - 22, sign.y - 18, 44, 6);
@@ -180,7 +181,7 @@ export class StreetLifeView {
   /** `heroSay`: what the run has the hero say (near misses, last words), when no stall talk is using the bubble. */
   sync(street: StreetView | null, hero: WorldPos, heroSay: string | null = null): void {
     const seen = new Set<string>(), said = new Set<string>();
-    const z = this.scene.cameras.main.zoom, now = street?.elapsedMs ?? this.scene.time.now;
+    const z = this.scene.cameras.main.zoom / PIXEL_RATIO, now = street?.elapsedMs ?? this.scene.time.now;
     const skids: StreetView['npcs'] = [];
     const view = this.scene.cameras.main.worldView;
     const speakers = (street?.npcs ?? []).filter(n => n.say && view.contains(worldToScreen(n).x, worldToScreen(n).y))
@@ -290,7 +291,7 @@ export class StreetLifeView {
       const a = -Math.PI / 2 + (i - 2.5) * .45, d = e * 120, fall = t * t * 160;
       rr(g, q.x + Math.cos(a) * d - 6, q.y - 40 + Math.sin(a) * d + fall - 4, 12, 8, 2, i === 2 ? 0xe2513f : 0xffffff);
     }
-    const b = (this.boomT ??= this.scene.add.text(0, 0, '', { fontFamily: "'Baloo 2', sans-serif", fontSize: '52px', fontStyle: '800', color: '#e2513f', stroke: '#ffffff', strokeThickness: 10, resolution: 2 }).setOrigin(.5, 1).setDepth(1e6 - 1));
+    const b = (this.boomT ??= this.scene.add.text(0, 0, '', { fontFamily: "'Baloo 2', sans-serif", fontSize: '52px', fontStyle: '800', color: '#e2513f', stroke: '#ffffff', strokeThickness: 10, resolution: TEXT_RES }).setOrigin(.5, 1).setDepth(1e6 - 1));
     b.setText(boom.word).setVisible(t < .8).setPosition(q.x, q.y - 120).setScale((0.6 + e * 0.6) * Math.max(1, 1 / zoom)).setAlpha(t > .6 ? (.8 - t) / .2 : 1);
   }
 
@@ -430,7 +431,7 @@ export class StreetLifeView {
   private bonkT: Phaser.GameObjects.Text | null = null;
   private syncBonk(text: string | null, hero: WorldPos, zoom: number): void {
     if (!text) { this.bonkT?.setVisible(false); return; }
-    const b = (this.bonkT ??= this.scene.add.text(0, 0, '', { fontFamily: "'Baloo 2', sans-serif", fontSize: '40px', fontStyle: '800', color: '#e2513f', stroke: '#ffffff', strokeThickness: 8, resolution: 2 }).setOrigin(.5, 1).setDepth(1e6 - 1));
+    const b = (this.bonkT ??= this.scene.add.text(0, 0, '', { fontFamily: "'Baloo 2', sans-serif", fontSize: '40px', fontStyle: '800', color: '#e2513f', stroke: '#ffffff', strokeThickness: 8, resolution: TEXT_RES }).setOrigin(.5, 1).setDepth(1e6 - 1));
     const p = worldToScreen(hero);
     b.setText(text).setVisible(true).setPosition(p.x, p.y - 110).setScale(Math.max(1, 1 / zoom));
   }

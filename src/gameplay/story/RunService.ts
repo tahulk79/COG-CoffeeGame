@@ -3,6 +3,7 @@ import type { Actor } from '../../entities/Actor';
 import type { NavGrid } from '../../systems/navigation/NavGrid';
 import type { WorldPos } from '../../utils/tile';
 import { worldToTile } from '../../utils/tile';
+import { HeroWalk } from './heroWalk';
 
 /**
  * Chapter 1 on a Hanoi street: a calm stroll, then rush hour. The player moves
@@ -172,7 +173,8 @@ export class RunService {
   private spawnIn = 2500;
   private sureDone = false;
   private aliveMs = 0;
-  private steer = { x: 0, y: 0 };
+  /** Direct control, shared with the other free-walk chapters. */
+  private readonly walk = new HeroWalk();
   private hit: { kind: HazardKind; ms: number; x: number; y: number } | null = null;
   private down: { ms: number; x: number; y: number; kind: HazardKind } | null = null;
   private sayText: { text: string; ms: number } | null = null;
@@ -191,8 +193,6 @@ export class RunService {
   private slideSide = 1;
   /** Time since the hero last stepped round someone or something (ms). */
   private slideMs = SLIDE_HOLD_MS;
-  /** How long the stick has pushed without the hero getting anywhere (ms). */
-  private stillMs = 0;
   /** Waiting for the player's first tap / key ("tap to start"): nothing moves yet. */
   paused = false;
   /** A street scene moves the hero itself (the barrier): keys and joystick do nothing meanwhile. */
@@ -273,7 +273,7 @@ export class RunService {
     this.running = false;
     this.hit = null;
     this.down = null;
-    this.steer = { x: 0, y: 0 };
+    this.walk.stop();
     this.setFence(false);
   }
 
@@ -293,12 +293,15 @@ export class RunService {
 
   /** Direct control, in world (tile) directions; (0,0) lets click-to-move drive. */
   setSteer(x: number, y: number): void {
-    const len = Math.hypot(x, y);
-    this.steer = len > 1e-3 && this.running ? { x: x / len, y: y / len } : { x: 0, y: 0 };
+    this.walk.set(x, y, this.running);
   }
 
   get steering(): boolean {
-    return this.steer.x !== 0 || this.steer.y !== 0;
+    return this.walk.steering;
+  }
+
+  private get steer(): { x: number; y: number } {
+    return this.walk.dir;
   }
 
   /** Knocked out (the gag, lying down): no movement at all until the story moves on. */
@@ -418,17 +421,9 @@ export class RunService {
     // Shorts over the eyes: left is right. Durian smell: legs like jelly.
     const s = this.daze?.kind === 'shorts' ? -1 : 1;
     const speed = this.config.runSpeed * (this.daze?.kind === 'smell' ? 0.55 : 1);
-    const sx = this.steer.x * s, sy = this.steer.y * s;
-    this.player.clearWaypoints();
-    this.player.faceTowards({ x: this.player.pos.x + sx, y: this.player.pos.y + sy });
-    const before = { ...this.player.pos };
-    this.moveBy((sx * speed * dt) / 1000, (sy * speed * dt) / 1000);
-    const moved = Math.hypot(this.player.pos.x - before.x, this.player.pos.y - before.y) > 0.001;
     // Held against someone for a frame or two while sliding round them: keep walking, no flicking to the standing pose.
-    this.stillMs = moved ? 0 : this.stillMs + dt;
+    this.walk.step(this.player, dt, speed, (dx, dy) => this.moveBy(dx, dy), s);
     this.slideMs += dt;
-    if (moved && this.player.fsm.can('MOVING')) this.player.fsm.transition('MOVING');
-    else if (!moved && this.stillMs > 120 && this.player.fsm.is('MOVING')) this.player.fsm.transition(this.player.restState());
   }
 
   /** Moves the hero, sliding along walls, round people and round the corners of things. */
@@ -474,7 +469,7 @@ export class RunService {
         return r;
       }
       // No way round (a wall on each side, say): after pushing a moment the hero squeezes past a person, never stuck for good.
-      if (!o.prop && this.stillMs > 350) {
+      if (!o.prop && this.walk.stillMs > 350) {
         for (const t of [to, { x: to.x, y: from.y }, { x: from.x, y: to.y }]) if (hasClearance(this.grid, from, t, R)) return { ...t };
       }
       // Until then stand still rather than shuffle about (the corner step below is for walls).
@@ -837,7 +832,7 @@ export class RunService {
   private knock(kind: HazardKind, h: Hazard): void {
     this.running = false;
     this.phase = 'faint';
-    this.steer = { x: 0, y: 0 };
+    this.walk.stop();
     this.daze = null;
     this.player.clearWaypoints();
     // The animal that caught you jumps on you: it is the one in the scuffle, not a second one.

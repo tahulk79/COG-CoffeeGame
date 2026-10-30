@@ -1,29 +1,126 @@
 import Phaser from 'phaser';
-import { floorDepth } from '../../utils/iso';
+import { ISLAND } from '../../data/islandLayout';
+import { actorDepth, floorDepth } from '../../utils/iso';
 import type { Footprint } from '../../utils/tile';
 import type { FloorTileView } from './WorldRenderer';
-import type { GardenView } from '../../gameplay/story/GardenService';
 import { bakeImage, bakeLayer, block, dot, face, INK, oval, point, rr, screenBox, shadow, tri } from './incidentArt';
+import { CHAPTER2_SLICE_ASSETS } from './sliceAssets';
 
 /**
- * Chapter 2, the cloud garden of the other world, drawn in code in the same
- * cozy style as the street: cream cloud ground, a rainbow stream with golden
- * bridges, glowing crystal sense stones, blossom trees, marble columns and the
- * heaven door. Static parts are baked; sparks and the spirit move every frame.
+ * Chapter 2 environment: projected cloud material, screen-covering sky and atlas props.
+ * The procedural garden remains a fallback for missing art; people and walls are in `trialArt.ts`.
  */
-export const GARDEN_BACKGROUND = 0xe6efff;
+export const GARDEN_BACKGROUND = 0xf4dce8;
 
 /** Each sense stone's colour (also its sparks and its HUD gem). */
 export const STONE_COLOR: Record<string, number> = { stone_sight: 0xf6a6d0, stone_hearing: 0xffd25e, stone_touch: 0x6fd3c0 };
 const RAINBOW = [0xffb3b3, 0xffd8a8, 0xfff1a8, 0xc8f0b0, 0xb3e0ff, 0xd5c4ff];
 
-function cloud(g: Phaser.GameObjects.Graphics, x: number, y: number, s: number, alpha = 1): void {
+export function cloud(g: Phaser.GameObjects.Graphics, x: number, y: number, s: number, alpha = 1): void {
   g.fillStyle(0xffffff, alpha);
   for (const [dx, dy, r] of [[-1, 0, .7], [0, -.35, .85], [1, 0, .7], [0, .2, .8]] as const) g.fillCircle(x + dx * s, y + dy * s, r * s);
 }
 
+/** One screen-covering painting; crop further towards gold as the hero approaches the door. */
+export class CloudSky {
+  private readonly image: Phaser.GameObjects.Image | null;
+
+  constructor(private readonly scene: Phaser.Scene) {
+    const key = CHAPTER2_SLICE_ASSETS.sky.key;
+    this.image = scene.textures.exists(key) ? scene.add.image(0, 0, key).setScrollFactor(0).setDepth(floorDepth - 10) : null;
+    this.sync(0);
+  }
+
+  sync(progress: number): void {
+    if (!this.image) return;
+    const cam = this.scene.cameras.main, w = cam.width / cam.zoom, h = cam.height / cam.zoom;
+    const scale = Math.max(w * 2 / this.image.width, h / this.image.height);
+    this.image.setScale(scale).setPosition(cam.width / 2 + (.5 - Phaser.Math.Clamp(progress, 0, 1)) * (this.image.displayWidth - w), cam.height / 2);
+  }
+
+  destroy(): void { this.image?.destroy(); }
+}
+
+/** Frames and full-cell pivots; collision footprints continue to come from the map. */
+export function gardenSprite(type: string, variant: string): { key: string; frame: string; size: number; originY: number } | null {
+  if (type === 'portal') return { key: CHAPTER2_SLICE_ASSETS.door.key, frame: variant === 'open' ? '1' : '0', size: 248, originY: .85 };
+  if (type === 'tree') return { key: CHAPTER2_SLICE_ASSETS.props.key, frame: '1', size: 152, originY: .90 };
+  if (type === 'ancient_pillar') return { key: CHAPTER2_SLICE_ASSETS.props.key, frame: '0', size: 128, originY: .90 };
+  return null;
+}
+
+/** Bake the material in map coordinates, once per chunk; continuous UVs hide tile and chunk boundaries. */
+function drawCloudRoad(scene: Phaser.Scene, w: number, h: number): boolean {
+  // shortcut: bake the current rectangular island; clip terrain cells if the map outline changes.
+  const key = CHAPTER2_SLICE_ASSETS.ground.key;
+  if (!scene.textures.exists(key)) return false;
+  const source = scene.textures.get(key).getSourceImage() as HTMLImageElement;
+  const material = document.createElement('canvas');
+  material.width = material.height = 512;
+  const m = material.getContext('2d')!;
+  // Reflected quadrants share their exact boundary pixels, even if the source's edges differ.
+  for (let y = 0; y < 2; y++) for (let x = 0; x < 2; x++) {
+    m.save();
+    m.translate(x ? 512 : 0, y ? 512 : 0);
+    m.scale(x ? -1 : 1, y ? -1 : 1);
+    m.drawImage(source, 0, 0, 256, 256);
+    m.restore();
+  }
+  const generated: string[] = [], scale = .75;
+  for (let x = 0; x < w; x += 8) {
+    const end = Math.min(w, x + 8), chunkKey = `chapter2:ground:v1:${w},${h}:${x}`;
+    const b = screenBox([[x, 0], [end, 0], [x, h], [end, h]], 0, 2);
+    if (!scene.textures.exists(chunkKey)) {
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.ceil(b.w * scale) + 1;
+      canvas.height = Math.ceil(b.h * scale) + 1;
+      const ctx = canvas.getContext('2d')!;
+      ctx.scale(scale, scale);
+      ctx.transform(.5, .25, -.5, .25, -b.x, -b.y);
+      ctx.fillStyle = ctx.createPattern(material, 'repeat')!;
+      ctx.fillRect(x * 128 - 1, 0, (end - x) * 128 + 2, h * 128);
+      ctx.fillStyle = 'rgba(255, 250, 240, .22)';
+      ctx.fillRect(x * 128 - 1, 128, (end - x) * 128 + 2, (h - 2) * 128);
+      ctx.fillStyle = 'rgba(255, 220, 148, .10)';
+      ctx.fillRect(x * 128 - 1, 3 * 128, (end - x) * 128 + 2, 3 * 128);
+      scene.textures.addCanvas(chunkKey, canvas);
+    }
+    generated.push(chunkKey);
+    const texture = scene.textures.get(chunkKey).getSourceImage() as HTMLCanvasElement;
+    scene.add.image(b.x, b.y, chunkKey).setOrigin(0).setDisplaySize(texture.width / scale, texture.height / scale).setDepth(floorDepth - .8);
+  }
+  scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => { for (const k of generated) scene.textures.remove(k); });
+
+  // The approved cloud bank softens the island's outline; it is baked art, below all actors.
+  const bank = CHAPTER2_SLICE_ASSETS.cloudWall.key;
+  if (scene.textures.exists(bank) && scene.textures.get(bank).has('0')) {
+    for (let x = 0; x <= w; x += 2.4) for (const y of [0, h]) {
+      const p = point(x, y);
+      scene.add.image(p.x, p.y, bank, '0').setFlipX(true).setOrigin(.5, .72).setDisplaySize(190, 190).setDepth(floorDepth - .7);
+    }
+    for (const x of [0, w]) for (let y = 1; y < h; y += 2.4) {
+      const p = point(x, y);
+      scene.add.image(p.x, p.y, bank, '0').setOrigin(.5, .72).setDisplaySize(190, 190).setDepth(floorDepth - .7);
+    }
+  }
+  const props = CHAPTER2_SLICE_ASSETS.props.key;
+  if (scene.textures.exists(props) && scene.textures.get(props).has('5')) {
+    const decorations = [[10, .3, 2, 104], [18, h - .3, 3, 100], [25, .3, 4, 96], [32, h - .3, 5, 112], [40, .3, 2, 104]] as const;
+    for (const [x, y, frame, size] of decorations) {
+      const p = point(x, y);
+      scene.add.image(p.x, p.y, props, String(frame)).setOrigin(.5, .90).setDisplaySize(size, size).setDepth(actorDepth({ x, y }) - .2);
+    }
+  }
+  return true;
+}
+
 export function drawGardenEnvironment(scene: Phaser.Scene, floor: FloorTileView[]): void {
+  if (scene.textures.exists(CHAPTER2_SLICE_ASSETS.island.key)) {
+    scene.add.image(ISLAND.x, ISLAND.y, CHAPTER2_SLICE_ASSETS.island.key).setOrigin(0).setDisplaySize(ISLAND.width, ISLAND.height).setDepth(floorDepth);
+    return;
+  }
   const w = Math.max(...floor.map((t) => t.tile.x)) + 1, h = Math.max(...floor.map((t) => t.tile.y)) + 1;
+  if (drawCloudRoad(scene, w, h)) return;
   bakeLayer(scene, 'garden:ground', screenBox([[-5, -5], [w + 5, -5], [-5, h + 5], [w + 5, h + 5]], 0, 0), floorDepth - .8, (g) => {
     // Clouds all around the island.
     for (let i = 0; i < 70; i++) {
@@ -140,77 +237,4 @@ export function bakeGardenObject(scene: Phaser.Scene, id: string, type: string, 
   if (!draw) return null;
   const b = screenBox([[f.x, f.y], [f.x + f.w, f.y], [f.x, f.y + f.h], [f.x + f.w, f.y + f.h]], 260, 200);
   return bakeImage(scene, `garden:obj:${id}:${variant}`, b, depth, draw);
-}
-
-/**
- * Per-frame garden life: the sparks (each stone's colour, twinkling), the
- * little coffee spirit following the hero with its speech bubble, and a ring
- * burst where a spark is caught or a stone wakes.
- */
-export class GardenEffects {
-  private readonly fx: Phaser.GameObjects.Graphics;
-  private readonly spiritG: Phaser.GameObjects.Graphics;
-  private readonly bubble: Phaser.GameObjects.Text;
-  constructor(private readonly scene: Phaser.Scene, private readonly centreOf: (id: string) => { x: number; y: number } | null) {
-    this.fx = scene.add.graphics().setDepth(1e6 - 4);
-    this.spiritG = scene.add.graphics().setDepth(1e6 - 3);
-    this.bubble = scene.add.text(0, 0, '', { fontFamily: "'Baloo 2', sans-serif", fontSize: '18px', fontStyle: '700', color: '#5a3825', backgroundColor: '#fffaf0', padding: { x: 12, y: 6 }, wordWrap: { width: 260 }, align: 'center', resolution: 2 }).setOrigin(.5, 1).setDepth(1e6 - 2).setVisible(false);
-  }
-
-  sync(v: GardenView | null): void {
-    const g = this.fx.clear();
-    this.spiritG.clear();
-    if (!v) { this.bubble.setVisible(false); return; }
-    const now = this.scene.time.now;
-    for (const s of v.sparks) {
-      if (s.caught) continue;
-      const p = point(s.x, s.y, 40 + Math.sin(now / 300 + s.id) * 8);
-      const c = STONE_COLOR[s.stone] ?? 0xffffff;
-      g.fillStyle(c, .25).fillCircle(p.x, p.y, 28);
-      g.fillStyle(c).fillCircle(p.x, p.y, 14).lineStyle(3, INK).strokeCircle(p.x, p.y, 14);
-      g.fillStyle(0xffffff).fillCircle(p.x - 4, p.y - 4, 5);
-      const tw = (Math.sin(now / 120 + s.id * 2) + 1) / 2;
-      g.lineStyle(3, 0xffffff, tw).lineBetween(p.x - 24, p.y, p.x + 24, p.y).lineBetween(p.x, p.y - 24, p.x, p.y + 24);
-    }
-    // Woken stones shine.
-    for (const id of v.lit) {
-      const c = this.centreOf(id);
-      if (!c) continue;
-      const p = point(c.x, c.y, 60);
-      const k = (now / 900) % 1;
-      g.lineStyle(3, STONE_COLOR[id] ?? 0xffffff, 1 - k).strokeCircle(p.x, p.y, 20 + k * 40);
-    }
-    // Bursts where something was just caught or woken.
-    for (const e of v.events) {
-      if (!e.stone) continue;
-      const c = e.kind === 'stone' ? this.centreOf(e.stone) : null;
-      const at = c ? point(c.x, c.y, 60) : null;
-      if (at) g.lineStyle(5, STONE_COLOR[e.stone] ?? 0xffffff, .7).strokeCircle(at.x, at.y, 30 + ((now % 1500) / 1500) * 60);
-    }
-    // The coffee spirit: a little winged cup that bobs along beside the hero.
-    const sp = point(v.spirit.x, v.spirit.y, 70 + Math.sin(now / 260) * 8);
-    const wing = Math.sin(now / 90) * 6;
-    const s = this.spiritG;
-    s.fillStyle(0xffffff).lineStyle(2, INK);
-    s.fillEllipse(sp.x - 18, sp.y - 6 - wing, 18, 12).strokeEllipse(sp.x - 18, sp.y - 6 - wing, 18, 12);
-    s.fillEllipse(sp.x + 18, sp.y - 6 - wing, 18, 12).strokeEllipse(sp.x + 18, sp.y - 6 - wing, 18, 12);
-    s.fillStyle(0xfff6e5).fillRoundedRect(sp.x - 13, sp.y - 14, 26, 24, 6).strokeRoundedRect(sp.x - 13, sp.y - 14, 26, 24, 6);
-    s.fillStyle(0x8a5a3a).fillEllipse(sp.x, sp.y - 13, 22, 6);
-    s.lineStyle(3, INK).beginPath().arc(sp.x + 15, sp.y - 3, 6, -Math.PI / 2, Math.PI / 2).strokePath();
-    s.fillStyle(INK).fillCircle(sp.x - 5, sp.y - 3, 2).fillCircle(sp.x + 5, sp.y - 3, 2);
-    s.fillStyle(0xff9e8a, .7).fillCircle(sp.x - 8, sp.y + 2, 2.5).fillCircle(sp.x + 8, sp.y + 2, 2.5);
-    for (let i = 0; i < 2; i++) s.lineStyle(2, 0xffffff, .8).beginPath().arc(sp.x - 4 + i * 8, sp.y - 24 - ((now / 30 + i * 10) % 10), 3, Math.PI, 0).strokePath();
-    if (v.say) {
-      if (this.bubble.text !== v.say) this.bubble.setText(v.say);
-      // World text shrinks with the camera; keep the bubble readable on a zoomed-out PC view.
-      const z = this.scene.cameras.main.zoom;
-      this.bubble.setScale(Math.max(1, Math.min(2.4, 1 / z))).setPosition(sp.x, sp.y - 34).setVisible(true);
-    } else this.bubble.setVisible(false);
-  }
-
-  destroy(): void {
-    this.fx.destroy();
-    this.spiritG.destroy();
-    this.bubble.destroy();
-  }
 }

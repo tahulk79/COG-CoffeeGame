@@ -299,8 +299,8 @@ const AMBULANCE_AT = 1000;
 /** When onlookers gossip (rescue ms): in the gaps between the scripted lines. */
 const GOSSIP_AT = [2100, 3300, 4300, 5300, 6200, 7000, 8300, 9300, 10100, 10900] as const;
 
-/** The middle of the road (between the two directions). */
-const mid0 = (lanes: number[]) => (lanes[0]! + lanes[lanes.length - 1]!) / 2;
+/** Held up this long (ms) a medic or the carried hero stops looking for a way round and goes straight there. */
+const RESCUE_STUCK_MS = 1500;
 
 /** The ambulance's braking (tiles/s²) on its way in. */
 const VAN_BRAKE = 4;
@@ -326,6 +326,8 @@ export class StreetService {
   private lastGossip = '';
   /** How long the ambulance has been held up on its way in (ms). */
   private vanStuckMs = 0;
+  /** How long the carried hero has not moved towards the door (ms). */
+  private carryStuckMs = 0;
   private walkEnv: SocialEnv = { walkable: () => true, people: [], circles: [] };
   private traffic!: Traffic;
   /** A person the player tapped while too far: the hero walks there and the talk starts on arrival. */
@@ -437,9 +439,8 @@ export class StreetService {
     const body: Obstacle | null = van ? { x: van.x, y: van.y, half: 1.1, reach: atScene ? 1.5 : 0.8, v: van.moving ? van.speed : 0, dir: van.dir, tag: 'van' } : null;
     if (body) obstacles.push(body);
     const siren = body && !r!.hidden ? body : null;
-    // While the medics work and carry, traffic both ways holds back short of the ambulance, leaving the space clear;
-    // it moves on once the van drives off (behind it, in its direction).
-    if (atScene && van) obstacles.push({ x: van.x, y: mid0(this.config.bikeLanes), half: 1.1 + 1.6, reach: 4, tag: 'scene' });
+    // The other side of the road keeps flowing past the scene: it only stops for what is really in its lane
+    // (a medic, the hero being carried, an onlooker on the road).
     // A boom still down is a stop line for both ways.
     const lanes = this.config.bikeLanes, mid = (lanes[0]! + lanes[lanes.length - 1]!) / 2;
     for (const g of this.gates()) if ((this.gateOpen[g.id] ?? 0) < 0.9) obstacles.push({ x: g.x, y: mid, half: 0, reach: 4, tag: 'boom' });
@@ -603,6 +604,7 @@ export class StreetService {
       if (!route) return;
       this.carryHeading = null;
       this.vanStuckMs = 0;
+      this.carryStuckMs = 0;
       this.rescue = { route, ms: 0, dir: route.dir, crowd: [], yielding: [], van: null, medics: [], carried: false, hidden: false, bonkMs: 0, portal: null, bonked: false, done: false, departureDistance: 0, mishap: null };
     }
     const r = this.rescue, prev = r.ms, p = this.player.pos;
@@ -664,7 +666,18 @@ export class StreetService {
         const corner = pts.length > 1 ? Math.hypot(pts[0]!.x - v.x, pts[0]!.y - v.y) : Infinity;
         // The same car-following model as the traffic (IDM), its desired speed capped by what it can still stop in.
         const v0 = Math.min(AMBULANCE_SPEC.v0[1], Math.sqrt(2 * VAN_BRAKE * left) + 0.4, Math.sqrt(2 * VAN_BRAKE * corner) + 2.5);
-        this.idmStep(v, AMBULANCE_SPEC, v0, this.leaderOf(v, AMBULANCE_SPEC.len, false), dt);
+        const lead = this.leaderOf(v, AMBULANCE_SPEC.len, false);
+        this.idmStep(v, AMBULANCE_SPEC, v0, lead, dt);
+        // Someone standing in its way (the side street most of all): asked to step aside, never driven through.
+        const n = lead.who, across = (q: WorldPos) => Math.abs(v.axis === 'y' ? q.x - v.x : q.y - v.y);
+        // Once given a spot off the van's line they keep it (no new route every frame).
+        if (n && !n.id.startsWith('gate:') && lead.gap < 2.5 && v.speed < 1 && (!n.goal || across(n.goal) < 1.2)) {
+          const sx = v.axis === 'y' ? 1 : 0, sy = v.axis === 'y' ? 0 : 1;
+          const k = (v.axis === 'y' ? n.x - v.x : n.y - v.y) >= 0 ? 1 : -1;
+          n.visit = undefined; n.still = true;
+          n.goal = this.spotAround(n, sx * k * 1.6, sy * k * 1.6);
+          if (!r.crowd.includes(n) && !r.yielding.includes(n)) r.yielding.push(n);
+        }
         // Stuck in a jam on the way: it pulls up right there and the medics go the rest of the way on foot.
         this.vanStuckMs = v.speed < 0.3 ? this.vanStuckMs + dt : 0;
         if (this.vanStuckMs > 1200 && r.route.park.y === r.route.lane) this.stopVanHere(r, v);
@@ -681,12 +694,18 @@ export class StreetService {
     if (r.ms >= 7800 && r.medics.some(m => m.scale === 0) && door) {
       // Out of the door a little along the van if the first medic is still standing by it.
       const m = r.medics.find(m => m.scale === 0)!, first = r.medics.find(m => m.scale !== 0)!;
-      const out = [0, -0.6, 0.6].map((offset) => r.route.park.y === lane
-        ? { x: door.x + offset * r.dir, y: door.y }
-        : { x: door.x, y: door.y + offset }).find((q) => this.clearOfVan(q, r)
-          && this.hooks.canWalk(door, q) && Math.hypot(q.x - first.x, q.y - first.y) >= MEDIC_GAP
-          && !this.npcs.some(o => o !== m && !o.bike && o.look !== 'medic' && (o.scale ?? 1) > .01 && Math.hypot(q.x - o.x, q.y - o.y) < .6));
-      // Keep waiting inside the van if the first medic has not cleared the door yet.
+      // Along the van, then a step further out from it (a tree or a bystander right by the door).
+      const horizontal = r.route.park.y === lane, outward = horizontal ? Math.sign(door.y - r.route.park.y) || 1 : Math.sign(door.x - r.route.park.x) || 1;
+      const spots = [0, -0.6, 0.6, -1.2, 1.2].flatMap(offset => [0, 0.5].map(off => horizontal
+        ? { x: door.x + offset * r.dir, y: door.y + off * outward }
+        : { x: door.x + off * outward, y: door.y + offset }));
+      const props = this.hooks.props();
+      const free = (q: WorldPos) => this.clearOfVan(q, r) && props.every(o => Math.hypot(q.x - o.x, q.y - o.y) >= o.r + .26);
+      const strict = (q: WorldPos) => free(q) && this.hooks.canWalk(door, q) && Math.hypot(q.x - first.x, q.y - first.y) >= MEDIC_GAP
+        && !this.npcs.some(o => o !== m && !o.bike && o.look !== 'medic' && (o.scale ?? 1) > .01 && Math.hypot(q.x - o.x, q.y - o.y) < .6);
+      // Keep waiting inside the van if the first medic has not cleared the door yet; never for good, though:
+      // after a moment any free ground by the door will do (bystanders step aside for them).
+      const out = spots.find(strict) ?? (r.ms >= 9000 ? spots.find(free) ?? this.freeNear(door.x, door.y) : undefined);
       if (out) { m.x = out.x; m.y = out.y; m.scale = 1; m.goal = this.formation(r, { x: door.x - p.x, y: door.y - p.y })[r.medics.indexOf(m)]; }
     }
     // "Make way!": the crowd is pushed back a step or two; the one filming gets told off (and answers back).
@@ -722,7 +741,16 @@ export class StreetService {
       // No stop-and-go: the hero moves on all the time, as fast as the slower medic keeps up (a pair carrying together).
       const lag = r.medics.length === 2 && r.medics.every(m => (m.scale ?? 1) > 0.01) ? Math.max(...r.medics.map((m, i) => distance(m, spots[i]!))) : Infinity;
       const pace = Math.max(0, Math.min(1, 1 - (lag - 0.12) / 0.35));
-      const arrived = pace > 0.1 ? this.stepToward(p, door, 1.6 * pace, dt, this.vanBody(r)) : Math.hypot(p.x - door.x, p.y - door.y) <= 0.05;
+      const hx0 = p.x, hy0 = p.y, toDoor = Math.hypot(door.x - p.x, door.y - p.y);
+      let arrived: boolean;
+      if (pace > 0.1 && this.carryStuckMs > RESCUE_STUCK_MS) {
+        // No way found round (a tree trunk, people at the door): carried straight to the door.
+        const step = Math.min(toDoor, 1.6 * pace * dt / 1000);
+        if (toDoor > 1e-6) { p.x += (door.x - p.x) / toDoor * step; p.y += (door.y - p.y) / toDoor * step; }
+        arrived = Math.hypot(p.x - door.x, p.y - door.y) <= 0.05;
+      } else arrived = pace > 0.1 ? this.stepToward(p, door, 1.6 * pace, dt, this.vanBody(r)) : toDoor <= 0.05;
+      // Only counts while the pair holds the hero (waiting for a medic to close up is not being stuck).
+      if (pace > 0.1 && !arrived && this.carryStuckMs <= RESCUE_STUCK_MS) this.carryStuckMs = Math.hypot(p.x - hx0, p.y - hy0) > 0.0002 * dt ? 0 : this.carryStuckMs + dt;
       if (arrived && lag <= 0.35 && !r.bonked && r.ms >= 13900) {
         // Head, meet door.
         r.bonked = true;
@@ -827,10 +855,14 @@ export class StreetService {
       const x0 = n.x, y0 = n.y;
       const speed = r.carried ? 2.8 : 2.2, gx = n.goal.x - n.x, gy = n.goal.y - n.y, gd = Math.hypot(gx, gy);
       // Close behind a slot that keeps moving: straight to it when nothing is in between, smooth, no path search.
-      if (gd < 1.5 && this.hooks.canWalk(n, n.goal) && this.clearOfVan(n.goal, r)) {
+      // Held up too long (no route past a tree, the crowd, the other medic): straight to the slot, so the rescue never stalls.
+      const sliding = (n.blockedMs ?? 0) > RESCUE_STUCK_MS;
+      if ((gd < 1.5 && this.hooks.canWalk(n, n.goal) && this.clearOfVan(n.goal, r)) || sliding) {
         const step = Math.min(gd, speed * dt / 1000);
         if (gd > 1e-6) { n.x += gx / gd * step; n.y += gy / gd * step; }
       } else this.stepToward(n, n.goal, speed, dt, this.vanBody(r));
+      // Once going straight it keeps on until it gets there (no back and forth with the route search).
+      n.blockedMs = gd <= 0.3 ? 0 : sliding ? n.blockedMs : Math.hypot(n.x - x0, n.y - y0) > 0.0002 * dt ? 0 : (n.blockedMs ?? 0) + dt;
       n.moving = Math.hypot(n.x - x0, n.y - y0) > 0.005;
       if (n.moving) n.facing = facingFrom(n.x - x0, n.y - y0) ?? n.facing;
       if (Math.abs(n.x - x0) > 0.005) n.dir = n.x > x0 ? 1 : -1;
@@ -844,14 +876,14 @@ export class StreetService {
   }
 
   /**
-   * The ambulance cannot get through: it stops where it is (this is its parking spot now) and the side door is on its
-   * kerb side, as ever. If that door has no way to the hero, the other side is used.
+   * The ambulance cannot get through: it stops where it is (this is its parking spot now) and the side door is the
+   * one the sprite opens (south, facing the camera). If that door has no way to the hero, the other side is used.
    */
   private stopVanHere(r: NonNullable<StreetService['rescue']>, v: Npc): void {
     this.vanStuckMs = 0;
-    const right = r.dir > 0 ? 1 : -1, p = this.player.pos;
+    const p = this.player.pos;
     const body = vanBody({ x: v.x, y: v.y }, false);
-    const door = [right, -right].map(k => ({ x: v.x - 0.4, y: v.y + k * DOOR_OUT })).find(q => this.hooks.walkable(q.x, q.y) && !!this.hooks.path(q, p, body));
+    const door = [1, -1].map(k => ({ x: v.x - 0.4, y: v.y + k * DOOR_OUT })).find(q => this.hooks.walkable(q.x, q.y) && !!this.hooks.path(q, p, body));
     if (!door) return;
     r.route.approach.length = 0;
     r.route.park = { x: v.x, y: v.y };
@@ -861,8 +893,20 @@ export class StreetService {
 
   /** The medics' two places at the ends of the lying hero, facing the way they will carry them. */
   private formation(r: NonNullable<StreetService['rescue']>, heading: WorldPos): [WorldPos, WorldPos] {
-    const props = this.hooks.props();
-    return carrySlots(this.player.pos, heading, q => this.clearOfVan(q, r) && props.every(o => Math.hypot(q.x - o.x, q.y - o.y) >= o.r + .26));
+    const props = this.hooks.props(), p = this.player.pos;
+    const fits = (q: WorldPos) => this.clearOfVan(q, r) && props.every(o => Math.hypot(q.x - o.x, q.y - o.y) >= o.r + .26);
+    // Lying against a tree or a wall one end may have no room: the pair turns a little until both ends do.
+    const a0 = Math.atan2(heading.y, heading.x) || (r.dir > 0 ? 0 : Math.PI);
+    for (const da of [0, 0.4, -0.4, 0.8, -0.8, 1.2, -1.2, Math.PI / 2]) {
+      const slots = carrySlots(p, { x: Math.cos(a0 + da), y: Math.sin(a0 + da) }, fits);
+      if (fits(slots[0]) && fits(slots[1])) return slots;
+    }
+    // Nowhere round the hero: each medic takes the nearest free ground, never a spot they could not stand on.
+    const [a, b] = carrySlots(p, heading, fits);
+    const fa = fits(a) ? a : this.freeNear(a.x, a.y);
+    let fb = fits(b) ? b : this.freeNear(b.x, b.y);
+    if (Math.hypot(fa.x - fb.x, fa.y - fb.y) < MEDIC_GAP) fb = this.freeNear(fb.x + (fb.x - p.x || 0.5), fb.y + (fb.y - p.y));
+    return [fa, fb];
   }
 
   private clearOfVan(q: WorldPos, r: NonNullable<StreetService['rescue']>): boolean {
@@ -1328,20 +1372,23 @@ export class StreetService {
    * The free gap and speed of whatever is nearest ahead of `v` on its lane (traffic vehicles, people, the hero):
    * the same leader the traffic model uses, for the ambulance and the back street's bikes.
    */
-  private leaderOf(v: Npc, len: number, decor: boolean): { gap: number; v: number } {
-    let best = { gap: Infinity, v: 0 };
+  private leaderOf(v: Npc, len: number, decor: boolean): { gap: number; v: number; who?: Npc } {
+    let best: { gap: number; v: number; who?: Npc } = { gap: Infinity, v: 0 };
     const p = this.player.pos;
-    const consider = (x: number, y: number, half: number, speed: number, reach: number) => {
-      const d = (x - v.x) * v.dir;
-      if (d <= 0 || Math.abs(y - v.y) > reach) return;
+    // Along the way it is heading: up or down a side street that is y, not x.
+    const alongY = v.axis === 'y';
+    const consider = (x: number, y: number, half: number, speed: number, reach: number, who?: Npc) => {
+      const d = (alongY ? y - v.y : x - v.x) * v.dir;
+      if (d <= 0 || Math.abs(alongY ? x - v.x : y - v.y) > reach) return;
       const gap = d - len / 2 - half;
-      if (gap < best.gap) best = { gap, v: speed };
+      if (gap < best.gap) best = { gap, v: speed, who };
     };
     for (const m of this.npcs) {
       if (m === v || (m.scale ?? 1) <= .01) continue;
       if (decor) { if (m.decor && m.bike && m.dir === v.dir) consider(m.x, m.y, 0.45, m.speed, 0.6); continue; }
       if (m.traffic) consider(m.x, m.y, VEHICLE_SPECS[m.traffic.kind].len / 2, m.dir === v.dir ? m.speed : 0, 0.8);
-      else if (!m.bike && !m.decor && this.onRoad(m.y)) consider(m.x, m.y, 0.3, 0, 0.85);
+      // People: on the road, and anywhere in a side street the van drives into.
+      else if (!m.bike && !m.decor && (alongY || this.onRoad(m.y))) consider(m.x, m.y, 0.3, 0, 0.85, m);
     }
     if (!decor && !this.rescue?.carried && !this.hooks.isDown()) consider(p.x, p.y, 0.3, 0, 0.85);
     return best;
@@ -1683,7 +1730,7 @@ export class StreetService {
       npcs: this.npcs.map((n) => ({ id: n.id, look: n.look, x: n.x, y: n.y, dir: n.dir, moving: !!n.moving, bike: n.bike, say: n.say?.text ?? null, scale: n.scale ?? 1, skid: !!n.skidMs, tilt: n.tilt ?? 0, axis: n.axis ?? 'x', facing: n.facing,
         // The art has the sliding door on the side facing the camera: opened only when the real door is that side (south);
         // a westbound van's door (north, the kerb) is out of sight behind its body, so the visible side stays shut.
-        doorOpen: !!rescue && n === rescue.van && !rescue.hidden && !rescue.route.approach.length && rescue.ms >= 6900 && (rescue.route.park.y !== rescue.route.lane || rescue.route.door.y > rescue.route.park.y),
+        doorOpen: !!rescue && n === rescue.van && !rescue.hidden && !rescue.route.approach.length && rescue.ms >= 6900 && (rescue.route.park.y !== rescue.route.lane ? rescue.route.door.x > rescue.route.park.x : rescue.route.door.y > rescue.route.park.y),
         damaged: !!rescue && n === rescue.van && !!rescue.mishap?.wheel,
       })),
       elapsedMs: this.ms,

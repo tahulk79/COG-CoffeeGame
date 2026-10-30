@@ -1,27 +1,23 @@
-import Phaser from 'phaser';
+import type Phaser from 'phaser';
 import type { StreetView } from '../../gameplay/story/StreetService';
 import type { HazardKind, RunView } from '../../gameplay/story/RunService';
+import { SynthAudio } from './SynthAudio';
 
 /**
  * Chapter-1 run sound, synthesised with Web Audio (no files): a cue for every
  * telegraph and impact, a death sting, and a cheerful loop that speeds up as
- * the run gets harder. Follows Phaser's global mute (`scene.sound.mute`).
+ * the run gets harder. The Web Audio frame (mute, unlock, voices) is `SynthAudio`.
  */
 const OUT_GAIN = 2.2;
 
-export class RunAudio {
-  private readonly ctx: AudioContext | null;
-  private readonly out: GainNode | null = null;
+export class RunAudio extends SynthAudio {
   private readonly music: GainNode | null = null;
-  private readonly limiter: DynamicsCompressorNode | null = null;
   private readonly seen = new Map<number, string>();
   private dying = false;
   private timer: number | null = null;
   private nextNote = 0;
   private step = 0;
   private bpm = 112;
-  private paused = false;
-  private readonly voices = new Set<OscillatorNode | AudioBufferSourceNode>();
   private lastFoot = 0;
   private lastStreet = 0;
   private lastSiren = 0;
@@ -31,44 +27,22 @@ export class RunAudio {
   private portal = false;
   private wheel = false;
   private boom = false;
-  private readonly visibility = () => {
-    if (document.hidden) { this.stopVoices(); this.out?.gain.setValueAtTime(0, this.ctx!.currentTime); }
-    if (this.ctx) this.nextNote = this.ctx.currentTime + .1;
-  };
-  /**
-   * Browsers only start audio from a user gesture. Phaser waits for a `mousedown`
-   * on the page, but its own pointer handling suppresses that event, so a tap
-   * never unlocked sound: resume the context on any pointer / key / touch ourselves.
-   */
-  private readonly resume = () => { if (this.ctx && !document.hidden && this.ctx.state !== 'running') void this.ctx.resume().catch(() => undefined); };
-
-  constructor(private readonly scene: Phaser.Scene) {
-    const sm = scene.sound;
-    this.ctx = sm instanceof Phaser.Sound.WebAudioSoundManager ? sm.context : null;
-    if (!this.ctx) return;
-    // Loud enough for laptop and phone speakers (measured: the first mix sat near -37 dB RMS and
-    // read as silence); a compressor keeps the peaks from clipping when several cues overlap.
-    this.limiter = this.ctx.createDynamicsCompressor();
-    this.limiter.threshold.value = -14;
-    this.limiter.knee.value = 8;
-    this.limiter.ratio.value = 6;
-    this.limiter.connect((sm as Phaser.Sound.WebAudioSoundManager).destination);
-    this.out = this.ctx.createGain();
-    this.out.gain.value = OUT_GAIN;
-    this.out.connect(this.limiter);
+  constructor(scene: Phaser.Scene) {
+    // Loud enough for laptop and phone speakers (measured: the first mix sat near -37 dB RMS and read as silence).
+    super(scene, OUT_GAIN);
+    if (!this.ctx || !this.out) return;
     this.music = this.ctx.createGain();
     this.music.gain.value = 0.18;
     this.music.connect(this.out);
-    document.addEventListener('visibilitychange', this.visibility);
-    for (const ev of ['pointerdown', 'pointerup', 'keydown', 'touchend'] as const) window.addEventListener(ev, this.resume, { capture: true });
+  }
+
+  protected override onVisibility(): void {
+    if (this.ctx) this.nextNote = this.ctx.currentTime + .1;
   }
 
   /** Called every frame with the run's view: plays what changed. */
   sync(run: RunView | null, street: StreetView | null = null, moving = false, paused = false): void {
-    if (!this.ctx || !this.out) return;
-    if (paused && !this.paused) this.stopVoices();
-    this.paused = paused;
-    this.out.gain.value = this.scene.sound.mute || paused || document.hidden ? 0 : OUT_GAIN;
+    if (!this.gate(paused)) return;
     if (!run) return;
     if (street && !paused && !document.hidden) {
       const now = street.elapsedMs;
@@ -195,49 +169,7 @@ export class RunAudio {
     }
   }
 
-  // ── synth helpers ───────────────────────────────────────────────────────
-
-  private tone(freq: number, dur: number, type: OscillatorType, vol: number, delay = 0, dest: AudioNode = this.out!): void {
-    this.glide(freq, freq, dur, type, vol, delay, dest);
-  }
-
-  private glide(from: number, to: number, dur: number, type: OscillatorType, vol: number, delay = 0, dest: AudioNode = this.out!): void {
-    const ctx = this.ctx;
-    if (!ctx || this.paused || document.hidden || this.scene.sound.mute || ctx.state !== 'running') return;
-    const t = ctx.currentTime + Math.max(0, delay);
-    const o = ctx.createOscillator(), g = ctx.createGain();
-    o.type = type;
-    o.frequency.setValueAtTime(from, t);
-    o.frequency.exponentialRampToValueAtTime(Math.max(20, to), t + dur);
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(vol, t + 0.01);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g).connect(dest);
-    this.voices.add(o);
-    o.start(t);
-    o.stop(t + dur + 0.02);
-    o.onended = () => { this.voices.delete(o); o.disconnect(); g.disconnect(); };
-  }
-
-  private noise(dur: number, vol: number, kind: BiquadFilterType, from: number, to: number, delay = 0, dest: AudioNode = this.out!): void {
-    const ctx = this.ctx;
-    if (!ctx || this.paused || document.hidden || this.scene.sound.mute || ctx.state !== 'running') return;
-    const t = ctx.currentTime + Math.max(0, delay);
-    const buf = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * dur), ctx.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-    const src = ctx.createBufferSource(), flt = ctx.createBiquadFilter(), g = ctx.createGain();
-    src.buffer = buf;
-    flt.type = kind;
-    flt.frequency.setValueAtTime(from, t);
-    flt.frequency.exponentialRampToValueAtTime(Math.max(20, to), t + dur);
-    g.gain.setValueAtTime(vol, t);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    src.connect(flt).connect(g).connect(dest);
-    this.voices.add(src);
-    src.start(t);
-    src.onended = () => { this.voices.delete(src); src.disconnect(); flt.disconnect(); g.disconnect(); };
-  }
+  // ── cues ────────────────────────────────────────────────────────────────
 
   private bark(delay: number): void {
     this.glide(420, 200, 0.12, 'square', 0.16, delay);
@@ -249,18 +181,9 @@ export class RunAudio {
     this.noise(0.12, 0.25, 'lowpass', 500, 100, delay);
   }
 
-  private stopVoices(): void {
-    for (const voice of this.voices) { try { voice.stop(); } catch { /* already ended */ } }
-    this.voices.clear();
-  }
-
-  destroy(): void {
-    document.removeEventListener('visibilitychange', this.visibility);
-    this.stopVoices();
-    for (const ev of ['pointerdown', 'pointerup', 'keydown', 'touchend'] as const) window.removeEventListener(ev, this.resume, { capture: true });
+  override destroy(): void {
+    super.destroy();
     this.stopMusic();
     this.music?.disconnect();
-    this.out?.disconnect();
-    this.limiter?.disconnect();
   }
 }

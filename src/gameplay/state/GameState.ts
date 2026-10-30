@@ -13,8 +13,9 @@ export interface GameState {
   savedAt: number;
   player: { map: string; tile: TilePos | null };
   /**
-   * Story progress. `chapter` is S03 | S04; `flags` are that chapter's progress markers.
-   * Chapter 1: `scenario` is the hazard that knocked the hero out (a reload shows that ending again).
+   * Story progress. `chapter` is S03 | S04 | S05; `flags` are that chapter's progress markers.
+   * Chapter 1: `scenario` is the hazard that knocked the hero out (a reload shows that ending again); chapter 2
+   * keeps it, for the Death God's question.
    */
   story: { chapter: string; flags: Record<string, boolean>; scenario?: string };
   /** Gameplay facts that outlive a chapter, e.g. how often each chapter-1 gag was seen (`incident:seen:<kind>`), so the street keeps varying. */
@@ -37,8 +38,8 @@ export function createNewGameState(o: NewGameOptions): GameState {
   };
 }
 
-const CHAPTERS = ['S03', 'S04'];
-const MAPS: Record<string, string> = { S03: 'incident', S04: 'portal' };
+const CHAPTERS = ['S03', 'S04', 'S05'];
+const MAPS: Record<string, string> = { S03: 'incident', S04: 'afterlife', S05: 'cafe' };
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 /**

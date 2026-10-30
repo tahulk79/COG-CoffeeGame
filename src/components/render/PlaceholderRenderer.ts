@@ -1,8 +1,10 @@
+import { CHAPTER2_SLICE_ASSETS } from './sliceAssets';
 import Phaser from 'phaser';
+import { ISLAND, islandCamera } from '../../data/islandLayout';
 import { H5_ASSETS, HERO_FACINGS, worldSprite, terrainFrame, addTerrainTile, terrainRepeat } from './h5Assets';
 import { treeAppearance, SLICE_TREE_NAMES } from './sliceAssets';
 import { STORY_ASSETS } from './storyAssets';
-import { bakeGardenObject, drawGardenEnvironment, GARDEN_BACKGROUND, STONE_COLOR } from './gardenArt';
+import { bakeGardenObject, drawGardenEnvironment, gardenSprite, GARDEN_BACKGROUND, STONE_COLOR } from './gardenArt';
 import { bakeIncidentObject, drawIncidentEnvironment, drawIncidentObject, IncidentActorView, STREET_BACKGROUND } from './incidentArt';
 import { actorDepth, floorDepth, footprintDepth, worldToScreen, type ScreenPos } from '../../utils/iso';
 import type { Footprint, TilePos, WorldPos } from '../../utils/tile';
@@ -12,6 +14,7 @@ import { debugFlags } from '../../ui/theme/debugFlags';
 import { createIcon } from '../../ui/theme/assetRegistry';
 import { COLORS, css, dur, FONT, MOTION } from '../../ui/theme/tokens';
 import { clampCenter, easeFactor, insetOffset, mapRect } from '../../systems/camera/framing';
+import { PIXEL_RATIO, TEXT_RES } from '../../ui/layout/pixelRatio';
 
 const shade = (c: number, f: number): number => {
   const r = Math.min(255, Math.round(((c >> 16) & 0xff) * f));
@@ -95,11 +98,11 @@ class PlaceholderActorView implements ActorView {
     this.body = spriteMode ? (master && scene.textures.exists(H5_ASSETS.extra.key) ? scene.add.sprite(0, 0, H5_ASSETS.extra.key, '11').setOrigin(.5,.9).setDisplaySize(96, 96) : scene.add.sprite(0, 0, H5_ASSETS.hero.key, '8').setOrigin(.5,.9).setDisplaySize(npcTint ? 76 : 88, npcTint ? 76 : 88).setTint(npcTint ?? 0xffffff)) : scene.add.circle(0, 0, 18, color).setStrokeStyle(2, shade(color, 0.5));
     this.nose = scene.add.circle(0, 0, 5, 0xffffff);
     this.held = createIcon(scene, 'cup', 32);
-    this.heldLabel = scene.add.text(0, 0, '', { fontFamily: FONT.family, fontSize: '13px', fontStyle: 'bold', color: css(COLORS.cream), backgroundColor: '#234332ee', padding: { x: 6, y: 3 } }).setOrigin(0.5, 1).setResolution(2);
+    this.heldLabel = scene.add.text(0, 0, '', { fontFamily: FONT.family, fontSize: '13px', fontStyle: 'bold', color: css(COLORS.cream), backgroundColor: '#234332ee', padding: { x: 6, y: 3 } }).setOrigin(0.5, 1).setResolution(TEXT_RES);
     this.label = scene.add.text(0, 0, '', { fontFamily: 'monospace', fontSize: '12px', color: '#ffffff', backgroundColor: '#00000088' }).setOrigin(0.5, 0);
     this.barBg = scene.add.graphics();
     this.bubbleBg = scene.add.graphics();
-    this.bubbleText = scene.add.text(0, 0, '', { fontFamily: FONT.family, fontSize: '12px', color: css(COLORS.espresso), fontStyle: 'bold' }).setOrigin(0, 0.5).setResolution(2);
+    this.bubbleText = scene.add.text(0, 0, '', { fontFamily: FONT.family, fontSize: '12px', color: css(COLORS.espresso), fontStyle: 'bold' }).setOrigin(0, 0.5).setResolution(TEXT_RES);
     this.bubbleIcon = createIcon(scene, 'cup', 16);
     this.bubble = scene.add.container(0, 0, [this.bubbleBg, this.bubbleIcon, this.bubbleText]).setVisible(false);
   }
@@ -228,11 +231,7 @@ export class PlaceholderRenderer implements WorldRenderer {
     if (this.streetScene || this.forestScene) {
       this.indoor = false;
       this.scene.cameras.main.setBackgroundColor(this.streetScene ? STREET_BACKGROUND : GARDEN_BACKGROUND);
-      if (this.streetScene) return; // Chapter 1 builds its own continuous city/lake backdrop.
-      const background=terrainRepeat(this.scene,this.forestScene?14:4);
-      if(background&&this.forestScene)this.scene.add.tileSprite(-6400,-3200,12800,6400,background).setOrigin(0).setTilePosition(64,0).setDepth(floorDepth-1).setTint(this.forestScene?0x8da189:0x9caeba);
-      else this.scene.add.graphics().setDepth(floorDepth - 1).fillStyle(this.streetScene ? STREET_BACKGROUND : GARDEN_BACKGROUND).fillRect(-6400, -3200, 12800, 6400);
-      return;
+      return; // Street and cloud road provide their own art backdrop.
     }
     const count = new Map<string, number>();
     for (const t of floor) if (t.walkable) count.set(t.kind, (count.get(t.kind) ?? 0) + 1);
@@ -282,6 +281,7 @@ export class PlaceholderRenderer implements WorldRenderer {
     const ground = this.scene.add.graphics().setDepth(floorDepth);
     const walkable = new Set(floor.filter((t) => t.walkable).map((t) => `${t.tile.x},${t.tile.y}`));
     for (const t of floor) {
+      if (this.forestScene) continue; // Chapter 2 ground is a continuous raster layer.
       const style = TERRAIN_COLORS[t.kind] ?? TERRAIN_COLORS.floor!;
       const f = { x: t.tile.x, y: t.tile.y, w: 1, h: 1 };
       if (style.height > 0) {
@@ -315,7 +315,7 @@ export class PlaceholderRenderer implements WorldRenderer {
       depth,
       box: this.scene.add.graphics().setDepth(depth),
       label: this.scene.add
-        .text(0, 0, '', { fontFamily: FONT.family, fontSize: '12px', color: '#fff0d8', backgroundColor: '#17303bda', padding: { x: 4, y: 2 }, resolution: 2 })
+        .text(0, 0, '', { fontFamily: FONT.family, fontSize: '12px', color: '#fff0d8', backgroundColor: '#17303bda', padding: { x: 4, y: 2 }, resolution: TEXT_RES })
         .setOrigin(0.5, 1)
         .setDepth(depth + 0.05),
       bar: this.scene.add.graphics().setDepth(depth + 0.06),
@@ -337,13 +337,26 @@ export class PlaceholderRenderer implements WorldRenderer {
 
   private drawObject(e: ObjectEntry, visual: ObjectVisual): void {
     const o = e.data;
+    if (this.forestScene && this.scene.textures.exists(CHAPTER2_SLICE_ASSETS.island.key)) {
+      e.box.clear(); e.sprite?.setVisible(false); e.baked?.setVisible(false); e.label.setVisible(false); e.bar.clear();
+      e.visualKey = visualKey(visual);
+      return;
+    }
     const base = PLACEHOLDER_VARIANTS[o.type]?.[visual.variant] ?? PLACEHOLDER_STYLES[o.type] ?? DEFAULT_STYLE;
     const style = base;
     const f = o.footprint;
-    const h = this.forestScene && o.type === 'portal' ? 230 : this.forestScene && o.type === 'sense_stone' ? 110 : style.height;
+    const illustration = this.forestScene ? gardenSprite(o.type, visual.variant) : null;
+    const h = illustration ? illustration.size * illustration.originY : this.forestScene && o.type === 'portal' ? 230 : this.forestScene && o.type === 'sense_stone' ? 110 : style.height;
     e.box.clear();
     const asset = (this.forestScene ? o.type === 'portal' ? STORY_ASSETS.portal : o.type === 'sense_stone' ? STORY_ASSETS.stone : o.type === 'tree' ? STORY_ASSETS.trees : null : null) ?? worldSprite(o.type, visual.variant);
-    if (asset && this.scene.textures.exists(asset.key)) {
+    if (illustration && this.scene.textures.exists(illustration.key) && this.scene.textures.get(illustration.key).has(illustration.frame)) {
+      e.baked?.destroy();
+      e.baked = null;
+      const p = worldToScreen({ x: f.x + f.w / 2, y: f.y + f.h / 2 });
+      e.sprite ??= this.scene.add.image(p.x, p.y, illustration.key, illustration.frame).setDepth(e.depth - .01);
+      e.sprite.setTexture(illustration.key, illustration.frame).setPosition(p.x, p.y).setOrigin(.5, illustration.originY)
+        .setDisplaySize(illustration.size, illustration.size).setFlipX(false).clearTint().setAlpha(1).setData('chapter2Sprite', true);
+    } else if (asset && this.scene.textures.exists(asset.key)) {
       const p = worldToScreen({x:f.x+f.w/2,y:f.y+f.h/2});
       const frame = 'frame' in asset ? asset.frame : undefined;
       e.sprite ??= this.scene.add.image(p.x,p.y,asset.key,frame).setOrigin(.5,.88).setDepth(e.depth-.01);
@@ -447,7 +460,8 @@ export class PlaceholderRenderer implements WorldRenderer {
       const npc = kind === 'player' ? undefined : NPC_TINTS[[...id].reduce((a, ch) => a + ch.charCodeAt(0), 0) % NPC_TINTS.length]!;
       return new PlaceholderActorView(this.scene, kind === 'player' ? PLAYER_COLOR : 0xd07a3a, true, npc, archetype === 'master');
     }
-    if ((this.streetScene || this.forestScene) && kind === 'player') return new IncidentActorView(this.scene, this.streetScene);
+    // Chapters 1 and 2 show the same illustrated hero (walk cycle and all).
+    if ((this.streetScene || this.forestScene) && kind === 'player') return new IncidentActorView(this.scene, true, this.forestScene ? 2 : 1);
     return new PlaceholderActorView(this.scene, kind === 'player' ? PLAYER_COLOR : 0xd07a3a);
   }
 
@@ -511,6 +525,11 @@ export class PlaceholderRenderer implements WorldRenderer {
     const playerScreen = worldToScreen(playerPos);
     for (const [id, e] of this.objectGfx) {
       const f = e.data.footprint;
+      if (this.forestScene && e.sprite?.getData('chapter2Sprite')) {
+        const bounds = e.sprite.getBounds();
+        const coversHero = actorDepth(playerPos) < e.depth && bounds.contains(playerScreen.x, playerScreen.y - 40);
+        e.sprite.setAlpha(coversHero ? .42 : 1);
+      }
       if (this.streetScene && e.data.type === 'sau_tree' && e.baked) {
         const image = e.baked, bounds = image.getBounds();
         const coversHero = playerPos.x + playerPos.y + .1 < e.depth && playerScreen.x > bounds.left && playerScreen.x < bounds.right && playerScreen.y - 40 > bounds.top && playerScreen.y - 40 < bounds.bottom;
@@ -528,7 +547,7 @@ export class PlaceholderRenderer implements WorldRenderer {
   /** Floating text (rewards, short messages). Pooled: no allocation per event after warm-up. */
   showFeedback(at: WorldPos, text: string, kind: FeedbackKind): void {
     const p = worldToScreen(at);
-    const t = this.floatPool.pop() ?? this.scene.add.text(0, 0, '', { fontFamily: FONT.family, fontSize: '14px', fontStyle: 'bold' }).setOrigin(0.5, 1).setResolution(2);
+    const t = this.floatPool.pop() ?? this.scene.add.text(0, 0, '', { fontFamily: FONT.family, fontSize: '14px', fontStyle: 'bold' }).setOrigin(0.5, 1).setResolution(TEXT_RES);
     const reward = kind === 'coin' || kind === 'exp' || kind === 'unlock';
     t.setText(text)
       .setColor(reward ? FEEDBACK_COLORS[kind] : css(COLORS.cream))
@@ -563,8 +582,10 @@ export class PlaceholderRenderer implements WorldRenderer {
     this.bounds = { w: widthTiles, h: heightTiles };
     this.insets = insets;
     const cam = this.scene.cameras.main;
-    cam.setZoom(zoom);
-    this.centerOffset = insetOffset(cam.width, cam.height, insets, zoom);
+    // `zoom` and `insets` are in CSS pixels; the canvas is PIXEL_RATIO times larger.
+    const z = zoom * PIXEL_RATIO;
+    cam.setZoom(z);
+    this.centerOffset = insetOffset(cam.width, cam.height, { top: insets.top * PIXEL_RATIO, right: insets.right * PIXEL_RATIO, bottom: insets.bottom * PIXEL_RATIO, left: insets.left * PIXEL_RATIO }, z);
     this.snapNext = true;
   }
 
@@ -601,6 +622,18 @@ export class PlaceholderRenderer implements WorldRenderer {
     const zoom = cam.zoom;
     const p = worldToScreen(pos);
     const target = { x: p.x + this.centerOffset.x + this.pan.x, y: p.y - 24 + this.centerOffset.y + this.pan.y };
+    if (this.forestScene && this.scene.textures.exists(CHAPTER2_SLICE_ASSETS.island.key)) {
+      const vw = cam.width / zoom, vh = cam.height / zoom;
+      const fit = islandCamera(this.scene.scale.width / PIXEL_RATIO, this.scene.scale.height / PIXEL_RATIO).overview;
+      const tx = fit ? ISLAND.x + ISLAND.width / 2 : Phaser.Math.Clamp(p.x, ISLAND.x + vw / 2, ISLAND.x + ISLAND.width - vw / 2);
+      const ty = fit ? ISLAND.y + ISLAND.height / 2 : Phaser.Math.Clamp(p.y + 120, ISLAND.y + Math.min(vh, ISLAND.height) / 2, ISLAND.y + ISLAND.height - Math.min(vh, ISLAND.height) / 2);
+      // Close behind the hero (the 120 ms lag of the street camera reads as the map lurching on a phone), and on whole device pixels.
+      const k = this.snapNext || dur(MOTION.base) === 0 ? 1 : easeFactor(dtMs, 60);
+      this.snapNext = false;
+      const mx = cam.midPoint.x + (tx - cam.midPoint.x) * k, my = cam.midPoint.y + (ty - cam.midPoint.y) * k;
+      cam.centerOn(Math.round(mx * zoom) / zoom, Math.round(my * zoom) / zoom);
+      return;
+    }
     const t = clampCenter(target, cam.width / zoom, cam.height / zoom, mapRect(this.bounds.w, this.bounds.h, this.reach));
     const mid = cam.midPoint;
     // Snaps when reduced motion is on or right after a (re)frame.
@@ -612,6 +645,6 @@ export class PlaceholderRenderer implements WorldRenderer {
   private insets = { top: 0, right: 0, bottom: 0, left: 0 };
 
   reframe(): void {
-    this.frame(this.bounds.w, this.bounds.h, this.insets, this.scene.cameras.main.zoom);
+    this.frame(this.bounds.w, this.bounds.h, this.insets, this.scene.cameras.main.zoom / PIXEL_RATIO);
   }
 }

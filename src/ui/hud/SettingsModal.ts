@@ -4,6 +4,7 @@ import { GameButton } from '../components/GameButton';
 import { setShown } from '../components/panelVisibility';
 import { GameModal } from '../components/GameModal';
 import { setReducedMotion, prefersReducedMotion, css, FONT, LIGHT } from '../theme/tokens';
+import { TEXT_RES } from '../layout/pixelRatio';
 
 export interface SettingsCommands {
   replayStory(): void;
@@ -34,8 +35,8 @@ class SwitchRow {
   constructor(scene: Phaser.Scene, text: string, onToggle: () => void) {
     this.bg = scene.add.graphics();
     this.sw = scene.add.graphics();
-    this.label = scene.add.text(14, 0, text, { fontFamily: FONT.family, fontSize: `${FONT.size.md}px`, color: css(LIGHT.text), fontStyle: 'bold' }).setOrigin(0, 0.5).setResolution(2);
-    this.state = scene.add.text(0, 0, '', { fontFamily: FONT.family, fontSize: `${FONT.size.xs}px`, fontStyle: 'bold' }).setOrigin(1, 0.5).setResolution(2);
+    this.label = scene.add.text(14, 0, text, { fontFamily: FONT.family, fontSize: `${FONT.size.md}px`, color: css(LIGHT.text), fontStyle: 'bold' }).setOrigin(0, 0.5).setResolution(TEXT_RES);
+    this.state = scene.add.text(0, 0, '', { fontFamily: FONT.family, fontSize: `${FONT.size.xs}px`, fontStyle: 'bold' }).setOrigin(1, 0.5).setResolution(TEXT_RES);
     this.hit = scene.add.zone(0, 0, this.w, this.h).setOrigin(0, 0).setInteractive({ cursor: 'pointer' });
     this.hit.on('pointerdown', onToggle);
     this.hit.on('pointerover', () => { this.hover = true; this.redraw(); });
@@ -98,7 +99,7 @@ export class SettingsModal {
       return b;
     };
     const header = (key: string) => {
-      const h = scene.add.text(2, 0, t(key), { fontFamily: FONT.family, fontSize: `${FONT.size.xs}px`, color: css(LIGHT.label), fontStyle: 'bold' }).setResolution(2);
+      const h = scene.add.text(2, 0, t(key), { fontFamily: FONT.family, fontSize: `${FONT.size.xs}px`, color: css(LIGHT.label), fontStyle: 'bold' }).setResolution(TEXT_RES);
       body.add(h);
       this.headers.push(h);
     };
@@ -119,7 +120,7 @@ export class SettingsModal {
         if (lang.code !== getLocale()) commands.setLanguage(lang.code);
       }, `settings.lang.${lang.code}`, { variant: 'secondary', h: 48, fontSize: FONT.size.md })));
     }
-    this.langNote = scene.add.text(2, 0, t('settings.languageNote'), { fontFamily: FONT.family, fontSize: `${FONT.size.xs}px`, color: css(LIGHT.textDim), wordWrap: { width: 340 } }).setResolution(2);
+    this.langNote = scene.add.text(2, 0, t('settings.languageNote'), { fontFamily: FONT.family, fontSize: `${FONT.size.xs}px`, color: css(LIGHT.textDim), wordWrap: { width: 340 } }).setResolution(TEXT_RES);
     body.add(this.langNote);
 
     header('settings.sectionStory');
@@ -140,14 +141,18 @@ export class SettingsModal {
         this.modal.close();
       }, 'settings.testMode', { variant: 'primary', h: 48, wrap: true }));
     }
-    this.footer = scene.add.text(0, 0, t('settings.version'), { fontFamily: FONT.family, fontSize: `${FONT.size.xs}px`, color: css(LIGHT.textDim) }).setOrigin(0.5, 0).setResolution(2).setAlpha(0.8);
+    this.footer = scene.add.text(0, 0, t('settings.version'), { fontFamily: FONT.family, fontSize: `${FONT.size.xs}px`, color: css(LIGHT.textDim) }).setOrigin(0.5, 0).setResolution(TEXT_RES).setAlpha(0.8);
     body.add(this.footer);
 
     for (const b of this.modal.buttons) this.buttons.set(b.name, b);
     this.modal.onLayout((w, h) => this.layout(w, h));
     this.refresh();
     setShown(this.modal.root, false, true); // children were added after the modal was built
+    // Entering or leaving fullscreen happens a moment after the tap (and Esc / F leave it too): the switch follows it.
+    document.addEventListener('fullscreenchange', this.onFullscreen);
   }
+
+  private readonly onFullscreen = (): void => this.refresh();
 
   /** Two columns on landscape phones keep the controls readable without shrinking the whole menu. */
   private layout(bodyW: number, bodyH: number): void {
@@ -204,6 +209,7 @@ export class SettingsModal {
   }
 
   destroy(): void {
+    document.removeEventListener('fullscreenchange', this.onFullscreen);
     this.modal.destroy();
   }
 }

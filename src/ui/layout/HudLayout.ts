@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { hudScale } from './viewInsets';
+import { cssSize, screenCamera } from './pixelRatio';
 
 export type LayoutMode = 'wide' | 'compact';
 
@@ -29,7 +30,7 @@ export interface HudFrame {
  * The top row of the HUD (sound button on the left, coins and settings on the right): every button in it is
  * `size` tall and starts `inset` below the safe area, so they sit on one line.
  */
-export const TOP_ROW = { inset: 12, size: 40 } as const;
+export const TOP_ROW = { inset: 12, size: 44 } as const;
 
 /** Size of the HUD's virtual screen (physical size divided by the HUD scale), shared by panels that position themselves. */
 export const hudViewport = { w: 0, h: 0, safe: { top: 0, right: 0, bottom: 0, left: 0 } };
@@ -60,16 +61,11 @@ export class HudLayout {
   }
 
   private measure(): HudFrame {
-    const rawW = this.scene.scale.width;
-    const rawH = this.scene.scale.height;
+    const { w: rawW, h: rawH } = cssSize(this.scene);
     // Portrait phones and short landscape phones both count as compact.
     const compact = rawW < 760 || rawH < 520;
     const ui = hudScale(rawW, rawH);
-    const w = rawW / ui;
-    const h = rawH / ui;
-    const cam = this.scene.cameras.main;
-    cam.setZoom(ui);
-    cam.setScroll(-rawW * (1 - 1 / ui) / 2, -rawH * (1 - 1 / ui) / 2);
+    const { w, h } = screenCamera(this.scene, ui);
     hudViewport.w = w;
     hudViewport.h = h;
     const rawSafe = readSafeInsets();
