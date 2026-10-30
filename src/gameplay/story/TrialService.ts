@@ -44,6 +44,8 @@ export interface TrialStationConfig {
   type: 'troll' | 'knowledge' | 'ethics' | 'trap' | 'advice';
   x: number;
   y: number;
+  /** Island: the spot the hero must stand on (within 0.8 tile) to open the talk, when the keeper is off the walkable floor. */
+  stand?: WorldPos;
   /** Said before the question (one tap to go on). */
   greet?: string;
   /** Silly questions run a countdown for fun: running out still passes. */
@@ -362,8 +364,8 @@ export class TrialService {
   private arrive(): void {
     const x = this.player.pos.x;
     const s = this.config.stations.find((st) => !this.hooks.isDone(st.id));
-    const near = (at: WorldPos) => Math.hypot(this.player.pos.x - at.x, this.player.pos.y - at.y) < 1.8;
-    if (s && (this.config.layout === 'island' ? near(s) : x >= s.x + WALL - TRIGGER)) return this.ask(s);
+    const near = (at: WorldPos, within = 1.8) => Math.hypot(this.player.pos.x - at.x, this.player.pos.y - at.y) < within;
+    if (s && (this.config.layout === 'island' ? (s.stand ? near(s.stand, 0.8) : near(s)) : x >= s.x + WALL - TRIGGER)) return this.ask(s);
     if (!s && (this.config.layout === 'island' ? near(this.config.gate) : x >= this.config.gate.x - 2.5)) this.gate();
   }
 
