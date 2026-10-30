@@ -58,15 +58,29 @@ for (const key of score.keys()) {
 
 // Where each keeper belongs (cell boxes), in story order. `gate` and `start` are fixed.
 const REGIONS = {
-  st1: { x: [17, 24], y: [14, 21] },   // the plaza, first thing the hero meets
+  st1: { x: [17, 28], y: [14, 20] },   // the plaza, first thing the hero meets
   st2: { x: [30, 37], y: [15, 20] },   // the right plaza, down the stairs
-  st3: { x: [14, 22], y: [14, 21] },   // the plaza again, away from st1
-  st4: { x: [13, 17], y: [20, 23] },   // the landing in front of the arch
-  st5: { x: [13, 16], y: [10, 14] },   // the upper lane, before the door keeper
+  st3: { x: [13, 24], y: [14, 21] },   // the plaza again, away from st1
+  st5: { x: [13, 17], y: [9, 15] },   // the upper lane, before the door keeper
 };
-const FIXED = { start: [18.5, 19.5], gate: [TRIALS.gate.x, TRIALS.gate.y] };
+// st4 (Ông Đồ, "lại là ta") stands in the middle of the arch's doorway, on the landing's top-left cells; he is a fixed anchor, not searched.
+const FIXED = { start: [18.5, 19.5], gate: [TRIALS.gate.x, TRIALS.gate.y], st4: [13.5, 24.5] };
 const MIN_CLEAR = 0.8;       // average floor share of the cell and its neighbours
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+
+// What a keeper takes up ON SCREEN (the island is isometric: two cells 3 tiles apart along the diagonal sit
+// exactly one above the other, so their name plate and chat bubble collide even though they are "far" in tiles).
+// Screen px of the world at zoom 1: x = (tx - ty) * 64, y = (tx + ty) * 32.
+const toScreen = ([x, y]) => [(x - y) * 64, (x + y) * 32];
+const NAMES = Object.fromEntries([...TRIALS.stations.map((s) => [s.id, s.name]), ['gate', TRIALS.gate.name], ['start', 'Bạn']]);
+const HALF_W = (id) => (id === 'start' ? 70 : Math.max(90, ((NAMES[id] ?? '').length * 13 + 30) / 2));   // the name plate (26 px letters, ~13 px each) or the body; the hero's start only has to stay out of the first keeper's way
+const UP = 200, DOWN = 64;                                                       // head + chat bubble above the feet, name plate below
+const CLEAR = 1.15;                                                              // >= 1 means the boxes do not touch; extra is air
+/** How many "box widths/heights" apart two keepers are on screen (>= 1: no overlap). */
+function clearance(idA, a, idB, b) {
+  const [ax, ay] = toScreen(a), [bx, by] = toScreen(b);
+  return Math.max(Math.abs(ax - bx) / (HALF_W(idA) + HALF_W(idB)), Math.abs(ay - by) / (UP + DOWN));
+}
 
 const candidates = {};
 for (const [id, r] of Object.entries(REGIONS)) {
@@ -83,8 +97,7 @@ for (const [id, r] of Object.entries(REGIONS)) {
 
 // The hero walks start -> st1 -> ... -> st5 -> gate; nobody may stand on a leg that is not his own.
 const ORDER = ['start', 'st1', 'st2', 'st3', 'st4', 'st5', 'gate'];
-const MIN_GAP = 4.0;         // tiles between two keepers (and the hero's start), when the island has the room
-const ROUTE_ROOM = 1.8;      // tiles between a keeper and a leg he is not part of
+const ROUTE_ROOM = 1.3;      // tiles between a keeper and a leg he is not part of
 const NEIGHBOURS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
 /** Shortest walk between two points over walkable cells (8-way Dijkstra); returns the cell centres on the way. */
 function route(a, b) {
@@ -106,7 +119,7 @@ function route(a, b) {
   for (let c = goal; c; c = prev.get(key(...c))) cells.push([c[0] + 0.5, c[1] + 0.5]);
   return cells;
 }
-const place = (id) => (id === 'start' || id === 'gate' ? FIXED[id] : pick[id]);
+const place = (id) => FIXED[id] ?? pick[id];
 /** Distance from `at` to the walking legs that do not touch keeper `id`. */
 function routeGap(id, at) {
   let gap = Infinity;
@@ -117,27 +130,55 @@ function routeGap(id, at) {
   return gap;
 }
 
-// Coordinate ascent: move one keeper at a time to the candidate that maximises the smallest distance to everybody else.
+// Joint search: random starts, then move one keeper at a time while the WORST pair on screen gets better.
+// A solution is judged by (1) its tightest pair of boxes, (2) no keeper on another keeper's walking leg, (3) clean floor.
 const ids = Object.keys(REGIONS);
-const pick = Object.fromEntries(ids.map((id) => [id, candidates[id][0]?.at]));
-const others = (id) => [...ids.filter((o) => o !== id).map((o) => pick[o]), FIXED.start, FIXED.gate];
-for (let round = 0; round < 8; round++) {
-  for (const id of ids) {
-    let best = null, bestValue = -Infinity;
-    const roomy = candidates[id].filter((cand) => Math.min(...others(id).map((o) => dist(cand.at, o))) >= MIN_GAP && routeGap(id, cand.at) >= ROUTE_ROOM);
-    for (const cand of roomy.length ? roomy : candidates[id]) {
-      const gap = Math.min(...others(id).map((o) => dist(cand.at, o)));
-      const onRoute = routeGap(id, cand.at) < ROUTE_ROOM;
-      const value = Math.min(gap, 7) + cand.c.mean * 2 + cand.c.min - (onRoute ? 20 : 0);      // off every other leg, then spread, then clean floor
-      if (value > bestValue) { bestValue = value; best = cand; }
-    }
-    pick[id] = best.at;
+const pick = {};
+const others = (id) => [...ids.filter((o) => o !== id).map((o) => [o, pick[o]]), ...Object.entries(FIXED)];
+const spread = (id, at) => Math.min(...others(id).map(([o, p]) => clearance(id, at, o, p)));
+function worst() {
+  let w = Infinity;
+  for (let a = 0; a < ids.length; a++) {
+    for (let b = a + 1; b < ids.length; b++) w = Math.min(w, clearance(ids[a], pick[ids[a]], ids[b], pick[ids[b]]));
+    w = Math.min(w, spread(ids[a], pick[ids[a]]));
   }
+  return w;
 }
+const routePenalty = () => ids.reduce((n, id) => n + (routeGap(id, pick[id]) < ROUTE_ROOM ? 1 : 0), 0);
+const floorBonus = () => ids.reduce((n, id) => n + clear.get(`${Math.floor(pick[id][0])},${Math.floor(pick[id][1])}`).mean, 0) / ids.length;
+const total = () => Math.min(worst(), 2.5) * 10 + floorBonus() - routePenalty() * 30;
 
-const rows = ids.map((id) => ({ id, x: pick[id][0], y: pick[id][1], routeGap: routeGap(id, pick[id]), nearest: Math.min(...others(id).map((o) => dist(pick[id], o))), clear: clear.get(`${Math.floor(pick[id][0])},${Math.floor(pick[id][1])}`).mean }));
-console.log('keeper  x     y     nearest  off-route  floor');
-for (const r of rows) console.log(`${r.id.padEnd(6)} ${r.x.toFixed(1).padStart(5)} ${r.y.toFixed(1).padStart(5)} ${r.nearest.toFixed(1).padStart(7)} ${r.routeGap.toFixed(1).padStart(9)} ${(r.clear * 100).toFixed(0).padStart(6)}%`);
+// Exhaustive maximin: every combination of the cells on offer, ranked by its tightest pair on screen.
+// Combinations are scored cheaply first; the walking-leg check (a path search) only runs on the best few.
+const ranked = [];
+const fixedClear = (id, at) => Math.min(clearance(id, at, 'start', FIXED.start), clearance(id, at, 'gate', FIXED.gate));
+// Nobody may touch the hero's start box or the door keeper's.
+const pool = Object.fromEntries(ids.map((id) => [id, candidates[id].filter((c) => Object.entries(FIXED).every(([f, at]) => clearance(id, c.at, f, at) >= 1))]));
+(function walkAll(k, chosen, worstSoFar) {
+  if (k === ids.length) { ranked.push({ chosen: { ...chosen }, worst: worstSoFar }); return; }
+  const id = ids[k];
+  for (const cand of pool[id]) {
+    let w = Math.min(worstSoFar, ...Object.entries(FIXED).map(([f, at]) => clearance(id, cand.at, f, at)));
+    for (let q = 0; q < k && w > 0; q++) w = Math.min(w, clearance(id, cand.at, ids[q], chosen[ids[q]]));
+    if (w <= 0.5) continue;
+    chosen[id] = cand.at;
+    walkAll(k + 1, chosen, w);
+  }
+})(0, {}, Infinity);
+ranked.sort((a, b) => b.worst - a.worst);
+let bestPick = null, bestTotal = -Infinity, checked = 0;
+for (const combo of ranked.slice(0, 400)) {
+  Object.assign(pick, combo.chosen);
+  const t = Math.min(combo.worst, 2.5) * 10 + floorBonus() - routePenalty() * 30;
+  checked++;
+  if (t > bestTotal) { bestTotal = t; bestPick = { ...pick }; }
+}
+console.log(`${ranked.length} layouts tried, best on screen: ${ranked[0]?.worst.toFixed(2)}, ${checked} checked against the walking legs`);
+Object.assign(pick, bestPick);
+
+const rows = ids.map((id) => ({ id, x: pick[id][0], y: pick[id][1], routeGap: routeGap(id, pick[id]), nearest: spread(id, pick[id]), clear: clear.get(`${Math.floor(pick[id][0])},${Math.floor(pick[id][1])}`).mean }));
+console.log('keeper  x     y     screen-clearance  off-route  floor   (>= 1 = name plates and bubbles do not touch)');
+for (const r of rows) console.log(`${r.id.padEnd(6)} ${r.x.toFixed(1).padStart(5)} ${r.y.toFixed(1).padStart(5)} ${r.nearest.toFixed(2).padStart(16)} ${r.routeGap.toFixed(1).padStart(9)} ${(r.clear * 100).toFixed(0).padStart(6)}%`);
 
 // Debug frame: heat map of the floor score, the walkable grid, the chosen cells and 2.5-tile "elbow room" circles.
 const out = [`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><image href="file://${IMG}" width="${W}" height="${H}"/>`];
@@ -147,21 +188,23 @@ for (const [key, s] of score) {
   const c = clear.get(key), good = !c.edge && c.mean >= MIN_CLEAR && c.min >= 0.4;
   out.push(`<polygon points="${pts}" fill="${good ? '#38d26b' : s > 0.5 ? '#f2c94c' : '#e5533d'}" fill-opacity="0.28" stroke="#fff" stroke-opacity="0.35" stroke-width="0.8"/>`);
 }
-const marks = [...rows.map((r) => [r.id, r.x, r.y, '#00e0ff']), ['gate', ...FIXED.gate, '#ff7bd5'], ['start', ...FIXED.start, '#ffffff']];
+const marks = [...rows.map((r) => [r.id, r.x, r.y, '#00e0ff']), ...Object.entries(FIXED).map(([id, at]) => [id, ...at, id === 'start' ? '#ffffff' : '#ff7bd5'])];
 for (const [name, x, y, color] of marks) {
   const [ix, iy] = worldToImage(x, y);
-  out.push(`<ellipse cx="${ix.toFixed(0)}" cy="${iy.toFixed(0)}" rx="${(2.5 * 32).toFixed(0)}" ry="${(2.5 * 16).toFixed(0)}" fill="none" stroke="${color}" stroke-width="2" stroke-dasharray="6 4"/>`);
+  // The box a keeper fills on screen (plate, body, bubble); the picture is drawn at half the world's screen size.
+  const hw = HALF_W(name) / 2, up = UP / 2, down = DOWN / 2;
+  out.push(`<rect x="${(ix - hw).toFixed(0)}" y="${(iy - up).toFixed(0)}" width="${(2 * hw).toFixed(0)}" height="${(up + down).toFixed(0)}" rx="10" fill="${color}" fill-opacity="0.10" stroke="${color}" stroke-width="2" stroke-dasharray="6 4"/>`);
   out.push(`<circle cx="${ix.toFixed(0)}" cy="${iy.toFixed(0)}" r="7" fill="${color}" stroke="#000" stroke-width="2"/><text x="${(ix + 10).toFixed(0)}" y="${(iy - 8).toFixed(0)}" font-size="22" font-weight="bold" fill="${color}" stroke="#000" stroke-width="4" paint-order="stroke">${name}</text>`);
 }
 out.push('</svg>');
 const debugPath = `${ROOT}docs/art/chapter2/island-npc-layout-debug.svg`;
 writeFileSync(debugPath, out.join('\n'));
-console.log(`debug frame: ${debugPath} (green = clear floor, yellow = busy, red = blocked by props; dashed ellipse = 2.5 tiles of elbow room)`);
+console.log(`debug frame: ${debugPath} (green = clear floor, yellow = busy, red = blocked by props; dashed box = what the keeper fills on screen: name plate, body and chat bubble; boxes must not touch)`);
 
 if (process.argv.includes('--write')) {
-  for (const r of rows) {
-    const st = TRIALS.stations.find((s) => s.id === r.id);
-    st.x = +r.x.toFixed(2); st.y = +r.y.toFixed(2);
+  for (const [id, [x, y]] of [...rows.map((r) => [r.id, [r.x, r.y]]), ...Object.entries(FIXED)]) {
+    const st = TRIALS.stations.find((s) => s.id === id);
+    if (st) { st.x = +x.toFixed(2); st.y = +y.toFixed(2); }
   }
   writeFileSync(TRIALS_PATH, JSON.stringify(TRIALS, null, 2) + '\n');
   console.log('trials.json updated');

@@ -94,7 +94,8 @@ function wall(g: Phaser.GameObjects.Graphics, x: number, melt: number, top: numb
 /** The "SAI" board dropping on the hero's head (`k` 0 → 1 over the gag). */
 function board(g: Phaser.GameObjects.Graphics, x: number, y: number, k: number, draw = true): Phaser.Math.Vector2 {
   const drop = Math.min(1, k * 4);
-  const by = y - 170 + drop * 70 + (drop >= 1 ? Math.sin(k * 30) * 3 * (1 - k) : 0);
+  // It drops from above and rests ON TOP of the head (the pill sits a hand's breadth (~10 px) over the hair), not over the face.
+  const by = y - 251 + drop * 85 + (drop >= 1 ? Math.sin(k * 30) * 3 * (1 - k) : 0);
   if (draw) {
     rr(g, x - 34, by - 22, 68, 40, 6, 0xffffff);
     g.lineStyle(4, 0xe2513f).strokeRoundedRect(x - 34, by - 22, 68, 40, 6);
@@ -119,14 +120,16 @@ export class TrialEffects {
   private lastReaper: WorldPos | null = null;
   private vanishAt = -1;
   /** Keepers that left because their double is coming: where they stood and when (scene clock). */
+  /** Which way each keeper looks (true = left), kept between frames for the dead zone. */
+  private readonly facing = new Map<string, boolean>();
   private readonly poofs = new Map<string, { at: WorldPos; start: number }>();
 
   constructor(private readonly scene: Phaser.Scene, private readonly road: { top: number; bottom: number }, private readonly door?: WorldPos) {
     this.fx = scene.add.graphics().setDepth(1e6 - 4);
     this.plates = scene.add.graphics().setDepth(1e6 - 5.5);
-    this.sai = scene.add.text(0, 0, 'SAI', { fontFamily: "'Baloo 2', sans-serif", fontSize: '22px', fontStyle: '800', color: '#c8463d', resolution: TEXT_RES }).setOrigin(.5).setDepth(1e6 - 3).setVisible(false);
+    this.sai = scene.add.text(0, 0, 'SAI', { fontFamily: "'Baloo 2', sans-serif", fontSize: '16px', fontStyle: '800', color: '#c8463d', resolution: TEXT_RES }).setOrigin(.5).setDepth(1e6 - 3).setVisible(false);
     const ui = CHAPTER2_SLICE_ASSETS.ui.key, ready = scene.textures.exists(ui) && scene.textures.get(ui).has('5');
-    this.saiBoard = ready ? scene.add.image(0, 0, ui, '4').setDisplaySize(100, 100).setDepth(1e6 - 3.5).setVisible(false) : null;
+    this.saiBoard = ready ? scene.add.image(0, 0, ui, '4').setDisplaySize(140, 140).setDepth(1e6 - 3.5).setVisible(false) : null;
     this.bell = ready ? scene.add.image(0, 0, ui, '5').setDisplaySize(64, 64).setDepth(1e6 - 3).setVisible(false) : null;
   }
 
@@ -186,11 +189,12 @@ export class TrialEffects {
       if (k < 0 || k > 1) continue;
       if (e.kind === 'right') {
         g.lineStyle(5, 0xffd25e, 1 - k).strokeCircle(h.x, h.y - 70, 30 + (motion ? k * 70 : 0));
-        this.bell?.setVisible(true).setPosition(h.x, h.y - 120 - (motion ? k * 20 : 0)).setAlpha(1 - k).setRotation(motion ? Math.sin(k * 24) * .12 : 0);
+        this.bell?.setVisible(true).setPosition(h.x, h.y - 163 - (motion ? k * 20 : 0)).setAlpha(1 - k).setRotation(motion ? Math.sin(k * 24) * .12 : 0);
       } else if (e.kind === 'wrong') {
         const at = board(g, h.x, h.y, motion ? k : 1, !this.saiBoard);
         this.saiBoard?.setVisible(true).setPosition(at.x, at.y);
-        this.sai.setPosition(at.x, at.y);
+        // The plaque sits ~4 px above its cell's middle, so the letters go up by the same amount to leave equal room above and below.
+        this.sai.setPosition(at.x, at.y - 4);
         showSai = true;
       } else if (e.kind === 'clear') {
         const st = v.stations.find((s) => s.id === e.station);
@@ -303,6 +307,15 @@ export class TrialEffects {
       sprite = this.scene.add.image(x, y, art.key, frame).setFlipX(art.flip).setOrigin(art.x, art.y).setDisplaySize(art.size * 1.9, art.size * 1.9);
       this.sprites.set(id, sprite);
     }
+    // The sheets are drawn facing right; `art.flip` is the old fixed look to the left. Now every keeper turns to the side the hero is on
+    // (with a dead zone so he does not flicker when the hero stands level with him), and the foot anchor is mirrored with the picture.
+    let left = art.flip;
+    if (kind !== 'spirit') {
+      const dx = this.heroAt.x - x, was = this.facing.get(id) ?? art.flip;
+      left = dx < -26 ? true : dx > 26 ? false : was;
+      this.facing.set(id, left);
+    }
+    if (kind !== 'spirit') sprite.setFlipX(left).setOrigin(left ? art.x : 1 - art.x, art.y);
     sprite.setFrame(frame).setPosition(x + (kind === 'scale' ? this.tilt * 2 : 0), y).setDepth(depth).setVisible(true);
     return true;
   }

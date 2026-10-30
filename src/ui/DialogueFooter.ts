@@ -65,6 +65,9 @@ export class DialogueFooter {
   private readonly decos: Phaser.GameObjects.Container[] = [];
   private readonly speakerTag: Phaser.GameObjects.Image | null;
   private timed = false;
+  private timerColor = '';
+  /** Which raster portrait (and ring size) is already set on `faceImage`, so a still portrait costs nothing per frame. */
+  private faceKey = '';
   private key = '';
   private h = 132;
   /** How far below its place the footer still is while sliding in. */
@@ -155,7 +158,9 @@ export class DialogueFooter {
     const timer = l.timeLeftMs !== null ? l.timeLeftMs > 0 ? `${Math.ceil(l.timeLeftMs / 1000)} giây` : 'Cứ từ từ' : '';
     if (this.timer.text !== timer) this.timer.setText(timer);
     this.timer.setVisible(l.timeLeftMs !== null);
-    this.timer.setColor(l.timeLeftMs !== null && l.timeLeftMs > 0 && l.timeLeftMs <= 2000 ? css(COLORS.coral) : INK);
+    // Changing a Text's colour re-draws its canvas and re-uploads the texture, so only do it when the colour really changes.
+    const timerColor = l.timeLeftMs !== null && l.timeLeftMs > 0 && l.timeLeftMs <= 2000 ? css(COLORS.coral) : INK;
+    if (timerColor !== this.timerColor) { this.timerColor = timerColor; this.timer.setColor(timerColor); }
     this.timerIcon?.setVisible(l.timeLeftMs !== null).setPosition(this.timer.x - this.timer.width - 14, this.timer.y + 9);
   }
 
@@ -265,6 +270,8 @@ export class DialogueFooter {
     if (dur(MOTION.slow) === 0) return;
     this.scene.tweens.killTweensOf(this.slideTween);
     this.slideTween.v = this.slide = this.h;
+    // Move it below the screen now: `layout` just put it in its final place, and without this the first frame flashes there.
+    this.root.setY(hudViewport.h - this.h - 12 + this.slide);
     this.scene.tweens.add({
       targets: this.slideTween, v: 0, duration: MOTION.slow, ease: 'Cubic.easeOut',
       onUpdate: () => { this.slide = this.slideTween.v; this.root.setY(hudViewport.h - this.h - 12 + this.slide); },
@@ -282,9 +289,13 @@ export class DialogueFooter {
         this.root.bringToTop(this.ringFront);
       }
       this.hero.setVisible(false);
+      const key = `${texture.key}|${texture.frame ?? ''}|${this.faceR}|${this.face.x}|${this.face.y}`;
+      if (key === this.faceKey) return;
+      this.faceKey = key;
       this.faceImage.setTexture(texture.key, texture.frame).setVisible(true).setPosition(this.face.x, this.face.y).setDisplaySize(2 * this.faceR - 4, 2 * this.faceR - 4);
       return;
     }
+    this.faceKey = '';
     this.faceImage?.setVisible(false);
     if (face !== 'hero') this.opts.drawFace?.(this.face, face, now);
   }

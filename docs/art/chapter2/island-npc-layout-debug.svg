@@ -137,7 +137,7 @@
 <polygon points="727,368 759,384 727,400 695,384" fill="#f2c94c" fill-opacity="0.28" stroke="#fff" stroke-opacity="0.35" stroke-width="0.8"/>
 <polygon points="759,384 791,400 759,416 727,400" fill="#f2c94c" fill-opacity="0.28" stroke="#fff" stroke-opacity="0.35" stroke-width="0.8"/>
 <polygon points="791,400 823,416 791,432 759,416" fill="#f2c94c" fill-opacity="0.28" stroke="#fff" stroke-opacity="0.35" stroke-width="0.8"/>
-<polygon points="823,416 855,432 823,448 791,432" fill="#38d26b" fill-opacity="0.28" stroke="#fff" stroke-opacity="0.35" stroke-width="0.8"/>
+<polygon points="823,416 855,432 823,448 791,432" fill="#f2c94c" fill-opacity="0.28" stroke="#fff" stroke-opacity="0.35" stroke-width="0.8"/>
 <polygon points="855,432 887,448 855,464 823,448" fill="#38d26b" fill-opacity="0.28" stroke="#fff" stroke-opacity="0.35" stroke-width="0.8"/>
 <polygon points="887,448 919,464 887,480 855,464" fill="#38d26b" fill-opacity="0.28" stroke="#fff" stroke-opacity="0.35" stroke-width="0.8"/>
 <polygon points="919,464 951,480 919,496 887,480" fill="#38d26b" fill-opacity="0.28" stroke="#fff" stroke-opacity="0.35" stroke-width="0.8"/>
@@ -150,10 +150,6 @@
 <polygon points="1367,688 1399,704 1367,720 1335,704" fill="#38d26b" fill-opacity="0.28" stroke="#fff" stroke-opacity="0.35" stroke-width="0.8"/>
 <polygon points="1399,704 1431,720 1399,736 1367,720" fill="#38d26b" fill-opacity="0.28" stroke="#fff" stroke-opacity="0.35" stroke-width="0.8"/>
 <polygon points="1431,720 1463,736 1431,752 1399,736" fill="#f2c94c" fill-opacity="0.28" stroke="#fff" stroke-opacity="0.35" stroke-width="0.8"/>
-<polygon points="663,368 695,384 663,400 631,384" fill="#f2c94c" fill-opacity="0.28" stroke="#fff" stroke-opacity="0.35" stroke-width="0.8"/>
-<polygon points="695,384 727,400 695,416 663,400" fill="#f2c94c" fill-opacity="0.28" stroke="#fff" stroke-opacity="0.35" stroke-width="0.8"/>
-<polygon points="727,400 759,416 727,432 695,416" fill="#e5533d" fill-opacity="0.28" stroke="#fff" stroke-opacity="0.35" stroke-width="0.8"/>
-<polygon points="759,416 791,432 759,448 727,432" fill="#f2c94c" fill-opacity="0.28" stroke="#fff" stroke-opacity="0.35" stroke-width="0.8"/>
 <polygon points="791,432 823,448 791,464 759,448" fill="#f2c94c" fill-opacity="0.28" stroke="#fff" stroke-opacity="0.35" stroke-width="0.8"/>
 <polygon points="823,448 855,464 823,480 791,464" fill="#38d26b" fill-opacity="0.28" stroke="#fff" stroke-opacity="0.35" stroke-width="0.8"/>
 <polygon points="855,464 887,480 855,496 823,480" fill="#38d26b" fill-opacity="0.28" stroke="#fff" stroke-opacity="0.35" stroke-width="0.8"/>
@@ -185,18 +181,24 @@
 <polygon points="759,480 791,496 759,512 727,496" fill="#f2c94c" fill-opacity="0.28" stroke="#fff" stroke-opacity="0.35" stroke-width="0.8"/>
 <polygon points="791,496 823,512 791,528 759,512" fill="#f2c94c" fill-opacity="0.28" stroke="#fff" stroke-opacity="0.35" stroke-width="0.8"/>
 <polygon points="823,512 855,528 823,544 791,528" fill="#f2c94c" fill-opacity="0.28" stroke="#fff" stroke-opacity="0.35" stroke-width="0.8"/>
-<ellipse cx="983" cy="480" rx="80" ry="40" fill="none" stroke="#00e0ff" stroke-width="2" stroke-dasharray="6 4"/>
-<circle cx="983" cy="480" r="7" fill="#00e0ff" stroke="#000" stroke-width="2"/><text x="993" y="472" font-size="22" font-weight="bold" fill="#00e0ff" stroke="#000" stroke-width="4" paint-order="stroke">st1</text>
-<ellipse cx="1399" cy="688" rx="80" ry="40" fill="none" stroke="#00e0ff" stroke-width="2" stroke-dasharray="6 4"/>
-<circle cx="1399" cy="688" r="7" fill="#00e0ff" stroke="#000" stroke-width="2"/><text x="1409" y="680" font-size="22" font-weight="bold" fill="#00e0ff" stroke="#000" stroke-width="4" paint-order="stroke">st2</text>
-<ellipse cx="983" cy="384" rx="80" ry="40" fill="none" stroke="#00e0ff" stroke-width="2" stroke-dasharray="6 4"/>
-<circle cx="983" cy="384" r="7" fill="#00e0ff" stroke="#000" stroke-width="2"/><text x="993" y="376" font-size="22" font-weight="bold" fill="#00e0ff" stroke="#000" stroke-width="4" paint-order="stroke">st3</text>
-<ellipse cx="663" cy="416" rx="80" ry="40" fill="none" stroke="#00e0ff" stroke-width="2" stroke-dasharray="6 4"/>
-<circle cx="663" cy="416" r="7" fill="#00e0ff" stroke="#000" stroke-width="2"/><text x="673" y="408" font-size="22" font-weight="bold" fill="#00e0ff" stroke="#000" stroke-width="4" paint-order="stroke">st4</text>
-<ellipse cx="919" cy="288" rx="80" ry="40" fill="none" stroke="#00e0ff" stroke-width="2" stroke-dasharray="6 4"/>
+<polygon points="567,416 599,432 567,448 535,432" fill="#f2c94c" fill-opacity="0.28" stroke="#fff" stroke-opacity="0.35" stroke-width="0.8"/>
+<polygon points="599,432 631,448 599,464 567,448" fill="#f2c94c" fill-opacity="0.28" stroke="#fff" stroke-opacity="0.35" stroke-width="0.8"/>
+<polygon points="631,448 663,464 631,480 599,464" fill="#f2c94c" fill-opacity="0.28" stroke="#fff" stroke-opacity="0.35" stroke-width="0.8"/>
+<polygon points="535,432 567,448 535,464 503,448" fill="#f2c94c" fill-opacity="0.28" stroke="#fff" stroke-opacity="0.35" stroke-width="0.8"/>
+<polygon points="567,448 599,464 567,480 535,464" fill="#f2c94c" fill-opacity="0.28" stroke="#fff" stroke-opacity="0.35" stroke-width="0.8"/>
+<polygon points="599,464 631,480 599,496 567,480" fill="#e5533d" fill-opacity="0.28" stroke="#fff" stroke-opacity="0.35" stroke-width="0.8"/>
+<rect x="906" y="332" width="90" height="132" rx="10" fill="#00e0ff" fill-opacity="0.10" stroke="#00e0ff" stroke-width="2" stroke-dasharray="6 4"/>
+<circle cx="951" cy="432" r="7" fill="#00e0ff" stroke="#000" stroke-width="2"/><text x="961" y="424" font-size="22" font-weight="bold" fill="#00e0ff" stroke="#000" stroke-width="4" paint-order="stroke">st1</text>
+<rect x="1346" y="556" width="106" height="132" rx="10" fill="#00e0ff" fill-opacity="0.10" stroke="#00e0ff" stroke-width="2" stroke-dasharray="6 4"/>
+<circle cx="1399" cy="656" r="7" fill="#00e0ff" stroke="#000" stroke-width="2"/><text x="1409" y="648" font-size="22" font-weight="bold" fill="#00e0ff" stroke="#000" stroke-width="4" paint-order="stroke">st2</text>
+<rect x="1020" y="332" width="119" height="132" rx="10" fill="#00e0ff" fill-opacity="0.10" stroke="#00e0ff" stroke-width="2" stroke-dasharray="6 4"/>
+<circle cx="1079" cy="432" r="7" fill="#00e0ff" stroke="#000" stroke-width="2"/><text x="1089" y="424" font-size="22" font-weight="bold" fill="#00e0ff" stroke="#000" stroke-width="4" paint-order="stroke">st3</text>
+<rect x="874" y="188" width="90" height="132" rx="10" fill="#00e0ff" fill-opacity="0.10" stroke="#00e0ff" stroke-width="2" stroke-dasharray="6 4"/>
 <circle cx="919" cy="288" r="7" fill="#00e0ff" stroke="#000" stroke-width="2"/><text x="929" y="280" font-size="22" font-weight="bold" fill="#00e0ff" stroke="#000" stroke-width="4" paint-order="stroke">st5</text>
-<ellipse cx="1090" cy="205" rx="80" ry="40" fill="none" stroke="#ff7bd5" stroke-width="2" stroke-dasharray="6 4"/>
-<circle cx="1090" cy="205" r="7" fill="#ff7bd5" stroke="#000" stroke-width="2"/><text x="1100" y="197" font-size="22" font-weight="bold" fill="#ff7bd5" stroke="#000" stroke-width="4" paint-order="stroke">gate</text>
-<ellipse cx="855" cy="448" rx="80" ry="40" fill="none" stroke="#ffffff" stroke-width="2" stroke-dasharray="6 4"/>
+<rect x="820" y="348" width="70" height="132" rx="10" fill="#ffffff" fill-opacity="0.10" stroke="#ffffff" stroke-width="2" stroke-dasharray="6 4"/>
 <circle cx="855" cy="448" r="7" fill="#ffffff" stroke="#000" stroke-width="2"/><text x="865" y="440" font-size="22" font-weight="bold" fill="#ffffff" stroke="#000" stroke-width="4" paint-order="stroke">start</text>
+<rect x="1045" y="105" width="90" height="132" rx="10" fill="#ff7bd5" fill-opacity="0.10" stroke="#ff7bd5" stroke-width="2" stroke-dasharray="6 4"/>
+<circle cx="1090" cy="205" r="7" fill="#ff7bd5" stroke="#000" stroke-width="2"/><text x="1100" y="197" font-size="22" font-weight="bold" fill="#ff7bd5" stroke="#000" stroke-width="4" paint-order="stroke">gate</text>
+<rect x="459" y="348" width="152" height="132" rx="10" fill="#ff7bd5" fill-opacity="0.10" stroke="#ff7bd5" stroke-width="2" stroke-dasharray="6 4"/>
+<circle cx="535" cy="448" r="7" fill="#ff7bd5" stroke="#000" stroke-width="2"/><text x="545" y="440" font-size="22" font-weight="bold" fill="#ff7bd5" stroke="#000" stroke-width="4" paint-order="stroke">st4</text>
 </svg>
