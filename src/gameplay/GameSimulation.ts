@@ -50,6 +50,14 @@ export interface SimulationSnapshot {
   interaction: InteractionSnapshot;
   objects: Array<{ id: string; counters: Record<string, number> }>;
   story: StoryView;
+  /** A free-walk chapter (see `walker`): the HUD shows its sound button. */
+  freeWalk: boolean;
+}
+
+/** What a free-walk chapter offers the controls. */
+export interface FreeWalker {
+  setSteer(x: number, y: number): void;
+  readonly steering: boolean;
 }
 
 export interface SimulationOptions {
@@ -88,7 +96,7 @@ export class GameSimulation {
     this.clock = opts.clock ?? new SystemClock();
     this.state = opts.state ?? createNewGameState({ now: this.clock.now(), map: map.id });
     this.world = new WorldModel(map, content.objectTypes);
-    this.nav = new NavigationService(this.world.grid, map.id === content.story.chapters.S03?.map ? RUN_BODY_RADIUS : this.config.player.bodyRadius);
+    this.nav = new NavigationService(this.world.grid, [content.story.chapters.S03?.map, content.story.chapters.S04?.map].includes(map.id) ? RUN_BODY_RADIUS : this.config.player.bodyRadius);
     registerBasicHandlers(this.actions, this.bus);
     // Story chapters 1–2 move faster than everyday walking, and the same whether steered or tapped to walk.
     const storyRun = content.story.chapters.S03?.run;
@@ -155,17 +163,24 @@ export class GameSimulation {
       if (!stations.some((st) => flags[`station:${st.id}`])) for (const k of Object.keys(counters)) if (k.startsWith('trial:')) delete counters[k];
       const lessons = new Map(stations.flatMap((st) => st.questions.map((q) => [q.id, q.lesson] as const)));
       const k = content.trials.karma, rng = new Rng(opts.rngSeed ?? Date.now());
+      counters['trial:karma'] = Math.max(k.min, Math.min(k.max, counters['trial:karma'] ?? 0));
       this.trial = new TrialService(this.world.grid, this.player, content.story.chapters.S03!.run!, content.trials, {
         isDone: (id) => !!flags[`station:${id}`],
         markDone: (id) => { flags[`station:${id}`] = true; this.bus.emit('story:changed', { chapter: 'S04' }); },
         karma: () => counters['trial:karma'] ?? 0,
         addKarma: (n) => { counters['trial:karma'] = Math.max(k.min, Math.min(k.max, (counters['trial:karma'] ?? 0) + n)); },
-        lessons: () => Object.keys(counters).filter((key) => key.startsWith('trial:lesson:')).sort((a, b) => counters[a]! - counters[b]!).map((key) => lessons.get(key.slice(13)) ?? ''),
-        addLesson: (id) => { counters[`trial:lesson:${id}`] = Object.keys(counters).filter((key) => key.startsWith('trial:lesson:')).length + 1; },
+        lessons: () => Object.keys(counters).filter((key) => key.startsWith('trial:lesson:') && lessons.has(key.slice(13))).sort((a, b) => counters[a]! - counters[b]!).map((key) => lessons.get(key.slice(13))!),
+        addLesson: (id) => {
+          const key = `trial:lesson:${id}`;
+          if (!lessons.has(id) || counters[key] !== undefined) return;
+          counters[key] = 1 + Math.max(0, ...Object.entries(counters).filter(([name]) => name.startsWith('trial:lesson:')).map(([, order]) => order));
+        },
+        cause: () => this.state.story.scenario ?? null,
         halt: () => this.playerInteraction.cancelAll('superseded'),
         enterDoor: () => { this.playerInteraction.cancelAll('superseded'); void this.story.enterPortal(); },
       }, () => rng.next());
       this.story.attachTrial(this.trial);
+      this.player.canMove = (from, to) => this.trial!.canMove(from, to);
     }
   }
 
@@ -210,9 +225,17 @@ export class GameSimulation {
   /** Chapter-2 road of rebirth, or null on other maps. */
   trial: TrialService | null = null;
 
-  /** Direct control (keys / joystick) in world directions; (0, 0) releases it. Chapter-1 run and chapter-2 road. */
+  /**
+   * The chapter played with direct control (keys, joystick, taps; the camera stays on the hero and the map is
+   * never dragged), or null. A new chapter of this kind only has to be returned here.
+   */
+  get walker(): FreeWalker | null {
+    return this.run ?? this.trial;
+  }
+
+  /** Direct control (keys / joystick) in world directions; (0, 0) releases it. */
   steer(x: number, y: number): void {
-    const r = this.run ?? this.trial;
+    const r = this.walker;
     if (!r) return;
     const was = r.steering;
     if (x !== 0 || y !== 0) this.startRun();
@@ -313,6 +336,7 @@ export class GameSimulation {
       },
       interaction: this.playerInteraction.snapshot(),
       objects: this.world.allObjects().map((o) => ({ id: o.id, counters: { ...o.counters } })),
+      freeWalk: !!this.walker,
       story: this.story.view(),
     };
   }

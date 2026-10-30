@@ -1,8 +1,10 @@
+import { CHAPTER2_SLICE_ASSETS } from './sliceAssets';
 import Phaser from 'phaser';
+import { ISLAND, islandCamera } from '../../data/islandLayout';
 import { H5_ASSETS, HERO_FACINGS, worldSprite, terrainFrame, addTerrainTile, terrainRepeat } from './h5Assets';
 import { treeAppearance, SLICE_TREE_NAMES } from './sliceAssets';
 import { STORY_ASSETS } from './storyAssets';
-import { bakeGardenObject, drawGardenEnvironment, GARDEN_BACKGROUND, STONE_COLOR } from './gardenArt';
+import { bakeGardenObject, drawGardenEnvironment, gardenSprite, GARDEN_BACKGROUND, STONE_COLOR } from './gardenArt';
 import { bakeIncidentObject, drawIncidentEnvironment, drawIncidentObject, IncidentActorView, STREET_BACKGROUND } from './incidentArt';
 import { actorDepth, floorDepth, footprintDepth, worldToScreen, type ScreenPos } from '../../utils/iso';
 import type { Footprint, TilePos, WorldPos } from '../../utils/tile';
@@ -229,11 +231,7 @@ export class PlaceholderRenderer implements WorldRenderer {
     if (this.streetScene || this.forestScene) {
       this.indoor = false;
       this.scene.cameras.main.setBackgroundColor(this.streetScene ? STREET_BACKGROUND : GARDEN_BACKGROUND);
-      if (this.streetScene) return; // Chapter 1 builds its own continuous city/lake backdrop.
-      const background=terrainRepeat(this.scene,this.forestScene?14:4);
-      if(background&&this.forestScene)this.scene.add.tileSprite(-6400,-3200,12800,6400,background).setOrigin(0).setTilePosition(64,0).setDepth(floorDepth-1).setTint(this.forestScene?0x8da189:0x9caeba);
-      else this.scene.add.graphics().setDepth(floorDepth - 1).fillStyle(this.streetScene ? STREET_BACKGROUND : GARDEN_BACKGROUND).fillRect(-6400, -3200, 12800, 6400);
-      return;
+      return; // Street and cloud road provide their own art backdrop.
     }
     const count = new Map<string, number>();
     for (const t of floor) if (t.walkable) count.set(t.kind, (count.get(t.kind) ?? 0) + 1);
@@ -283,6 +281,7 @@ export class PlaceholderRenderer implements WorldRenderer {
     const ground = this.scene.add.graphics().setDepth(floorDepth);
     const walkable = new Set(floor.filter((t) => t.walkable).map((t) => `${t.tile.x},${t.tile.y}`));
     for (const t of floor) {
+      if (this.forestScene) continue; // Chapter 2 ground is a continuous raster layer.
       const style = TERRAIN_COLORS[t.kind] ?? TERRAIN_COLORS.floor!;
       const f = { x: t.tile.x, y: t.tile.y, w: 1, h: 1 };
       if (style.height > 0) {
@@ -338,13 +337,26 @@ export class PlaceholderRenderer implements WorldRenderer {
 
   private drawObject(e: ObjectEntry, visual: ObjectVisual): void {
     const o = e.data;
+    if (this.forestScene && this.scene.textures.exists(CHAPTER2_SLICE_ASSETS.island.key)) {
+      e.box.clear(); e.sprite?.setVisible(false); e.baked?.setVisible(false); e.label.setVisible(false); e.bar.clear();
+      e.visualKey = visualKey(visual);
+      return;
+    }
     const base = PLACEHOLDER_VARIANTS[o.type]?.[visual.variant] ?? PLACEHOLDER_STYLES[o.type] ?? DEFAULT_STYLE;
     const style = base;
     const f = o.footprint;
-    const h = this.forestScene && o.type === 'portal' ? 230 : this.forestScene && o.type === 'sense_stone' ? 110 : style.height;
+    const illustration = this.forestScene ? gardenSprite(o.type, visual.variant) : null;
+    const h = illustration ? illustration.size * illustration.originY : this.forestScene && o.type === 'portal' ? 230 : this.forestScene && o.type === 'sense_stone' ? 110 : style.height;
     e.box.clear();
     const asset = (this.forestScene ? o.type === 'portal' ? STORY_ASSETS.portal : o.type === 'sense_stone' ? STORY_ASSETS.stone : o.type === 'tree' ? STORY_ASSETS.trees : null : null) ?? worldSprite(o.type, visual.variant);
-    if (asset && this.scene.textures.exists(asset.key)) {
+    if (illustration && this.scene.textures.exists(illustration.key) && this.scene.textures.get(illustration.key).has(illustration.frame)) {
+      e.baked?.destroy();
+      e.baked = null;
+      const p = worldToScreen({ x: f.x + f.w / 2, y: f.y + f.h / 2 });
+      e.sprite ??= this.scene.add.image(p.x, p.y, illustration.key, illustration.frame).setDepth(e.depth - .01);
+      e.sprite.setTexture(illustration.key, illustration.frame).setPosition(p.x, p.y).setOrigin(.5, illustration.originY)
+        .setDisplaySize(illustration.size, illustration.size).setFlipX(false).clearTint().setAlpha(1).setData('chapter2Sprite', true);
+    } else if (asset && this.scene.textures.exists(asset.key)) {
       const p = worldToScreen({x:f.x+f.w/2,y:f.y+f.h/2});
       const frame = 'frame' in asset ? asset.frame : undefined;
       e.sprite ??= this.scene.add.image(p.x,p.y,asset.key,frame).setOrigin(.5,.88).setDepth(e.depth-.01);
@@ -448,7 +460,8 @@ export class PlaceholderRenderer implements WorldRenderer {
       const npc = kind === 'player' ? undefined : NPC_TINTS[[...id].reduce((a, ch) => a + ch.charCodeAt(0), 0) % NPC_TINTS.length]!;
       return new PlaceholderActorView(this.scene, kind === 'player' ? PLAYER_COLOR : 0xd07a3a, true, npc, archetype === 'master');
     }
-    if ((this.streetScene || this.forestScene) && kind === 'player') return new IncidentActorView(this.scene, this.streetScene);
+    // Chapters 1 and 2 show the same illustrated hero (walk cycle and all).
+    if ((this.streetScene || this.forestScene) && kind === 'player') return new IncidentActorView(this.scene, true, this.forestScene ? 2 : 1);
     return new PlaceholderActorView(this.scene, kind === 'player' ? PLAYER_COLOR : 0xd07a3a);
   }
 
@@ -512,6 +525,11 @@ export class PlaceholderRenderer implements WorldRenderer {
     const playerScreen = worldToScreen(playerPos);
     for (const [id, e] of this.objectGfx) {
       const f = e.data.footprint;
+      if (this.forestScene && e.sprite?.getData('chapter2Sprite')) {
+        const bounds = e.sprite.getBounds();
+        const coversHero = actorDepth(playerPos) < e.depth && bounds.contains(playerScreen.x, playerScreen.y - 40);
+        e.sprite.setAlpha(coversHero ? .42 : 1);
+      }
       if (this.streetScene && e.data.type === 'sau_tree' && e.baked) {
         const image = e.baked, bounds = image.getBounds();
         const coversHero = playerPos.x + playerPos.y + .1 < e.depth && playerScreen.x > bounds.left && playerScreen.x < bounds.right && playerScreen.y - 40 > bounds.top && playerScreen.y - 40 < bounds.bottom;
@@ -604,6 +622,18 @@ export class PlaceholderRenderer implements WorldRenderer {
     const zoom = cam.zoom;
     const p = worldToScreen(pos);
     const target = { x: p.x + this.centerOffset.x + this.pan.x, y: p.y - 24 + this.centerOffset.y + this.pan.y };
+    if (this.forestScene && this.scene.textures.exists(CHAPTER2_SLICE_ASSETS.island.key)) {
+      const vw = cam.width / zoom, vh = cam.height / zoom;
+      const fit = islandCamera(this.scene.scale.width / PIXEL_RATIO, this.scene.scale.height / PIXEL_RATIO).overview;
+      const tx = fit ? ISLAND.x + ISLAND.width / 2 : Phaser.Math.Clamp(p.x, ISLAND.x + vw / 2, ISLAND.x + ISLAND.width - vw / 2);
+      const ty = fit ? ISLAND.y + ISLAND.height / 2 : Phaser.Math.Clamp(p.y + 120, ISLAND.y + Math.min(vh, ISLAND.height) / 2, ISLAND.y + ISLAND.height - Math.min(vh, ISLAND.height) / 2);
+      // Close behind the hero (the 120 ms lag of the street camera reads as the map lurching on a phone), and on whole device pixels.
+      const k = this.snapNext || dur(MOTION.base) === 0 ? 1 : easeFactor(dtMs, 60);
+      this.snapNext = false;
+      const mx = cam.midPoint.x + (tx - cam.midPoint.x) * k, my = cam.midPoint.y + (ty - cam.midPoint.y) * k;
+      cam.centerOn(Math.round(mx * zoom) / zoom, Math.round(my * zoom) / zoom);
+      return;
+    }
     const t = clampCenter(target, cam.width / zoom, cam.height / zoom, mapRect(this.bounds.w, this.bounds.h, this.reach));
     const mid = cam.midPoint;
     // Snaps when reduced motion is on or right after a (re)frame.

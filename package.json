@@ -9,8 +9,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "e2e": "playwright test"
+    "test:watch": "vitest"
   },
   "dependencies": {
     "phaser": "~4.2.1"

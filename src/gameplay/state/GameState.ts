@@ -14,7 +14,8 @@ export interface GameState {
   player: { map: string; tile: TilePos | null };
   /**
    * Story progress. `chapter` is S03 | S04 | S05; `flags` are that chapter's progress markers.
-   * Chapter 1: `scenario` is the hazard that knocked the hero out (a reload shows that ending again).
+   * Chapter 1: `scenario` is the hazard that knocked the hero out (a reload shows that ending again); chapter 2
+   * keeps it, for the Death God's question.
    */
   story: { chapter: string; flags: Record<string, boolean>; scenario?: string };
   /** Gameplay facts that outlive a chapter, e.g. how often each chapter-1 gag was seen (`incident:seen:<kind>`), so the street keeps varying. */

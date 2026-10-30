@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { islandCamera } from '../data/islandLayout';
 import { MemoryStorage } from '../gameplay/state/SaveService';
 import { installIncidentReview, readIncidentReview } from '../ui/dev/IncidentReview';
 import { registerH5Frames } from '../components/render/h5Assets';
@@ -76,6 +77,7 @@ export class WorldScene extends Phaser.Scene {
   private launchData!: WorldSceneData;
   private uiBlocked = false;
   private loadFailures = 0;
+  private discardResumeDelta = false;
 
   constructor() {
     super(WORLD_SCENE);
@@ -94,10 +96,12 @@ export class WorldScene extends Phaser.Scene {
     const failed = () => { this.loadFailures++; };
     this.load.on(Phaser.Loader.Events.FILE_LOAD_ERROR, failed);
     this.load.once(Phaser.Loader.Events.COMPLETE, () => this.load.off(Phaser.Loader.Events.FILE_LOAD_ERROR, failed));
-    queueWorldAssets(this.load, this.textures);
+    const map = this.launchData.mapId ?? CONTENT.story.chapters[this.launchData.startChapter ?? this.launchData.state?.story.chapter ?? CONTENT.story.start]?.map;
+    queueWorldAssets(this.load, this.textures, map);
   }
 
   create(): void {
+    this.discardResumeDelta = false;
     this.portalFlashed = false;
     this.uiBlocked = false;
     this.stick = this.look = null;
@@ -144,17 +148,19 @@ export class WorldScene extends Phaser.Scene {
       this.input.keyboard?.on('keydown-TWO', () => !this.isUiBlocked() && this.sim.story.chooseReply(1));
     }
     if (this.sim.trial) {
-      this.trialFx = new TrialEffects(this, { top: 1, bottom: world.height - 2 });
+      // The island painting supplies the sky and terrain in a single aligned plate.
+      const door = world.getObject('portal')?.footprint;
+      this.trialFx = new TrialEffects(this, { top: 1, bottom: world.height - 2 }, door ? { x: door.x + door.w / 2, y: door.y + door.h / 2 } : undefined);
       this.trialAudio = new TrialAudio(this);
       // Station questions: 1 / 2 / 3 pick a reply (the HUD has the same buttons).
-      for (const [key, i] of [['ONE', 0], ['TWO', 1], ['THREE', 2]] as const) this.input.keyboard?.on(`keydown-${key}`, () => !this.isUiBlocked() && this.sim.story.chooseReply(i));
+      for (const [key, i] of [['ONE', 0], ['TWO', 1], ['THREE', 2]] as const) this.input.keyboard?.on(`keydown-${key}`, (event: KeyboardEvent) => !event.repeat && !this.isUiBlocked() && this.sim.story.chooseReply(i));
     }
     this.input.keyboard?.on('keydown-M', () => toggleMute(this.sound));
     this.stickGfx = this.add.graphics().setDepth(1e6 + 5);
     this.moveKeys = (this.input.keyboard?.addKeys('W,A,S,D') as Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>) ?? null;
     // Touch steers with a floating joystick under the finger. Chapter 1 ignores map drags; taps act on release.
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-      if (this.isUiBlocked()) return;
+      if (this.isUiBlocked() || this.sim.trial?.busy) return;
       if (p.rightButtonDown()) return this.sim.cancel();
       if (p.middleButtonDown()) return;
       if (this.input.pointer1.isDown && this.input.pointer2.isDown) {
@@ -165,7 +171,7 @@ export class WorldScene extends Phaser.Scene {
       }
       this.gestureConsumed = false;
       // Touch: a floating joystick wherever the finger goes down (it shows only once the finger drags; a plain tap still taps).
-      if (p.wasTouch && (this.sim.run || this.sim.trial)) { if (!this.stick) this.stick = { x: p.x, y: p.y, cx: p.x, cy: p.y, on: false, id: p.id }; }
+      if (p.wasTouch && this.freeWalk) { if (!this.stick) this.stick = { x: p.x, y: p.y, cx: p.x, cy: p.y, on: false, id: p.id }; }
       else if (!this.look) this.look = { x: p.x, y: p.y, px: p.x, py: p.y, on: false, id: p.id };
     });
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
@@ -228,7 +234,10 @@ export class WorldScene extends Phaser.Scene {
     // Persist when the tab is hidden or closed (best effort; autosave covers the rest).
     const flush = () => this.autosave.saveNow();
     const stopInput = () => this.resetMovementInput();
-    const onVisibility = () => { if (document.visibilityState === 'hidden') { stopInput(); flush(); } };
+    const onVisibility = () => {
+      this.discardResumeDelta = true;
+      if (document.hidden) { stopInput(); flush(); }
+    };
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('blur', stopInput);
     window.addEventListener('pointercancel', stopInput);
@@ -275,11 +284,13 @@ export class WorldScene extends Phaser.Scene {
   override update(time: number, delta: number): void {
     if (this.travelling) return;
     if (this.pendingTravel) return this.travel(this.pendingTravel);
-    const blocked = this.isUiBlocked();
+    const blocked = this.isUiBlocked() || !!this.sim.trial?.busy;
     if (blocked !== this.uiBlocked) { this.resetMovementInput(); this.uiBlocked = blocked; }
     this.runControls();
     // Reading settings must not leave the street's hazards running behind the menu.
-    if (!((this.sim.run || this.sim.trial) && (this.scene.get('HudScene') as { modalOpen?: boolean }).modalOpen)) this.sim.tick(delta);
+    const elapsed = this.discardResumeDelta ? 0 : delta;
+    this.discardResumeDelta = false;
+    if (!document.hidden && !(this.freeWalk && (this.scene.get('HudScene') as { modalOpen?: boolean }).modalOpen)) this.sim.tick(elapsed);
     this.cameraGestures(delta);
     const s = this.sim.snapshot();
     this.session.frame = s;
@@ -334,6 +345,11 @@ export class WorldScene extends Phaser.Scene {
     const world = this.sim.world;
     const bottom = 90 * hudScale(w, h);
     const none = { top: 0, right: 0, bottom, left: 0 };
+    if (this.sim.trial && CONTENT.trials.layout === 'island') {
+      const { zoom } = islandCamera(w, h);
+      this.worldRenderer.frame(world.width, world.height, none, zoom);
+      return;
+    }
     if (fitWholeMap()) {
       // Dev / automated browsers: show the whole map (E2E suites click tiles anywhere on it).
       const zoom = Math.min(w / ((world.width + world.height) * 64), (h - bottom) / ((world.width + world.height) * 32 + 80)) * 0.94;
@@ -350,21 +366,36 @@ export class WorldScene extends Phaser.Scene {
 
   /** Chapter 3 is off for now: the world and the HUD stop, sound goes quiet, a card says it is coming (with the karma carried from chapter 2) and offers chapter 1 again. */
   private showComingSoon(): void {
-    window.setTimeout(() => {
+    if (document.getElementById('soon')) return;
+    this.time.delayedCall(50, () => {
       this.scene.pause();
       if (this.scene.isActive('HudScene')) this.scene.pause('HudScene');
       this.sound.mute = true;
-    }, 50);
-    if (document.getElementById('soon')) return;
+    });
     const card = document.createElement('div');
     card.id = 'soon';
     card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-modal', 'true');
     card.setAttribute('aria-label', 'Sắp ra mắt');
     const karma = this.sim.state.counters['trial:karma'] ?? 0;
-    card.innerHTML = `<div class="card"><div class="kicker">CHƯƠNG 3 · QUÁN CÀ PHÊ TRÙNG SINH</div><div class="title">Sắp ra mắt</div><p>Bạn đã trùng sinh thành chủ một quán cà phê nhỏ, mang theo ${karma} điểm Phúc Đức. Chương này đang được xây dựng, hẹn bạn sớm nhé!</p><button type="button">Chơi lại chương 1</button></div>`;
-    // A fresh page starts chapter 1 again.
-    card.querySelector('button')!.addEventListener('click', () => window.location.reload());
+    const lessons = new Map(this.sim.content.trials.stations.flatMap((s) => s.questions.map((q) => [q.id, q.lesson] as const)));
+    const carried = Object.entries(this.sim.state.counters)
+      .filter(([key]) => key.startsWith('trial:lesson:') && lessons.has(key.slice(13)))
+      .sort(([, a], [, b]) => a - b).map(([key]) => lessons.get(key.slice(13))!);
+    card.innerHTML = '<div class="card"><div class="kicker">CHƯƠNG 3 · QUÁN CÀ PHÊ TRÙNG SINH</div><div class="title">Sắp ra mắt</div><p></p><details><summary></summary><ol></ol></details><button type="button">Chơi lại chương 1</button></div>';
+    card.querySelector('p')!.textContent = `Bạn đã trùng sinh thành chủ một quán cà phê nhỏ, mang theo ${karma} điểm Phúc Đức và ${carried.length} lời nhắn. Chương này đang được xây dựng, hẹn bạn sớm nhé!`;
+    card.querySelector('summary')!.textContent = `Xem lại ${carried.length} lời nhắn`;
+    card.querySelector('details')!.hidden = carried.length === 0;
+    const list = card.querySelector('ol')!;
+    for (const lesson of carried) {
+      const item = document.createElement('li');
+      item.textContent = lesson;
+      list.appendChild(item);
+    }
+    // Clear chapter overrides too: reload would restart chapter 2 when entered via ?chap=2.
+    card.querySelector('button')!.addEventListener('click', () => window.location.assign(window.location.pathname));
     document.body.appendChild(card);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => card.remove());
   }
 
   private isUiBlocked(): boolean {
@@ -377,7 +408,7 @@ export class WorldScene extends Phaser.Scene {
     this.gestureConsumed = true;
     this.input.keyboard?.resetKeys();
     this.sim.steer(0, 0);
-    if (this.sim.run || this.sim.trial) this.sim.playerInteraction.cancelAll('superseded', false);
+    if (this.freeWalk) this.sim.playerInteraction.cancelAll('superseded', false);
     this.worldRenderer.setLooking(false);
   }
 
@@ -387,7 +418,7 @@ export class WorldScene extends Phaser.Scene {
    * through the isometric projection.
    */
   private runControls(): void {
-    if (!this.sim.run && !this.sim.trial) return;
+    if (!this.freeWalk) return;
     const k = this.moveKeys, c = this.cursors;
     const down = (a?: Phaser.Input.Keyboard.Key, b?: Phaser.Input.Keyboard.Key) => (a?.isDown || b?.isDown ? 1 : 0);
     let sx = down(k?.D, c?.right) - down(k?.A, c?.left);
@@ -397,7 +428,7 @@ export class WorldScene extends Phaser.Scene {
       sx = st.cx - st.x;
       sy = st.cy - st.y;
     }
-    const modal = this.isUiBlocked();
+    const modal = this.isUiBlocked() || this.sim.trial?.busy;
     if (modal || (sx === 0 && sy === 0)) return this.sim.steer(0, 0);
     this.worldRenderer.resetPan();
     const a = sx / 64, b = sy / 32;
@@ -409,8 +440,8 @@ export class WorldScene extends Phaser.Scene {
     const g = this.stickGfx, st = this.stick;
     if (!g) return;
     g.clear();
-    if (this.isUiBlocked()) return;
-    if (!(this.sim.run || this.sim.trial) || navigator.maxTouchPoints === 0) return;
+    if (this.isUiBlocked() || this.sim.trial?.busy) return;
+    if (!this.freeWalk || navigator.maxTouchPoints === 0) return;
     // Nothing on screen until the finger actually steers.
     if (!st?.on) return;
     const origin = st;
@@ -426,7 +457,7 @@ export class WorldScene extends Phaser.Scene {
 
   /** A click or tap on the world: talk to whoever is there, otherwise go there / use what is there. */
   private clickAt(p: Phaser.Input.Pointer): void {
-      if (this.isUiBlocked() || this.gestureConsumed) return;
+      if (this.isUiBlocked() || this.sim.trial?.busy || this.gestureConsumed) return;
       // A second finger is a camera gesture (two-finger pan), not a click.
       if (this.input.pointer1.isDown && this.input.pointer2.isDown) return;
       this.worldRenderer.resetPan(); // a click on the world brings the camera back to the player
@@ -441,7 +472,7 @@ export class WorldScene extends Phaser.Scene {
 
   /** Chapters 1 and 2 are walked freely: the camera stays on the hero, the map is never dragged. */
   private get freeWalk(): boolean {
-    return !!this.sim.run || !!this.sim.trial;
+    return !!this.sim.walker;
   }
 
   /** Arrow keys pan (except in chapters 1 and 2, where they move the hero); two-finger drag pans. */
@@ -453,7 +484,7 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
     const c = this.cursors;
-    if (c && !this.sim.run && !this.sim.trial && (c.left.isDown || c.right.isDown || c.up.isDown || c.down.isDown) && !(this.scene.get('HudScene') as { modalOpen?: boolean }).modalOpen) {
+    if (c && !this.freeWalk && (c.left.isDown || c.right.isDown || c.up.isDown || c.down.isDown) && !(this.scene.get('HudScene') as { modalOpen?: boolean }).modalOpen) {
       const v = 0.6 * delta * PIXEL_RATIO;
       this.worldRenderer.panBy((c.right.isDown ? v : 0) - (c.left.isDown ? v : 0), (c.down.isDown ? v : 0) - (c.up.isDown ? v : 0));
     }
@@ -505,7 +536,7 @@ export class WorldScene extends Phaser.Scene {
       this.hoveredObject = id;
     }
     // Chapters 1 and 2 are walked with keys, joystick and taps: no tile square following the mouse there.
-    const walkedFree = !!this.sim.run || !!this.sim.trial;
+    const walkedFree = this.freeWalk;
     this.worldRenderer.setHoverTile(!obj && !walkedFree && this.sim.world.grid.inBounds(target.tile) ? target.tile : null);
   }
 }

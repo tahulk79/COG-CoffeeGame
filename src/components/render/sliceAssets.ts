@@ -46,6 +46,36 @@ export const SLICE_ASSETS = {
   hazardChickens: { key: 'slice.chapter1.hazard.chickens.v1', url: '/assets/slice/chapter1/hazard-chickens-v1.webp', columns: 4, rows: 2, maxEdge: 512 },
 } as const;
 
+/** Chapter 2 keeps complete cells: a shared pivot must survive pose changes. */
+export const CHAPTER2_SLICE_ASSETS = {
+  speakerNameplate: { key: 'slice.chapter2.reference.speakerNameplate.v1', url: '/assets/slice/chapter2/reference-ui/speaker-nameplate-v1.webp', columns: 1, rows: 1, maxEdge: 1024 },
+  cloudOrnament: { key: 'slice.chapter2.reference.cloudOrnament.v1', url: '/assets/slice/chapter2/reference-ui/cloud-ornament-v1.webp', columns: 1, rows: 1, maxEdge: 1024 },
+  island: { key: 'slice.chapter2.reference.island.v1', url: '/assets/slice/chapter2/reference-ui/island-scene-v1.webp', columns: 1, rows: 1, maxEdge: 2048 },
+  playerPanel: { key: 'slice.chapter2.reference.playerPanel.v1', url: '/assets/slice/chapter2/reference-ui/player-panel-v1.webp', columns: 1, rows: 1, maxEdge: 2048 },
+  progressPanel: { key: 'slice.chapter2.reference.progressPanel.v1', url: '/assets/slice/chapter2/reference-ui/progress-panel-v1.webp', columns: 1, rows: 1, maxEdge: 2048 },
+  questPanel: { key: 'slice.chapter2.reference.questPanel.v2', url: '/assets/slice/chapter2/reference-ui/quest-panel-v2.webp', columns: 1, rows: 1, maxEdge: 2048 },
+  karmaPanel: { key: 'slice.chapter2.reference.karmaPanel.v1', url: '/assets/slice/chapter2/reference-ui/karma-panel-v2.webp', columns: 1, rows: 1, maxEdge: 2048 },
+  dialoguePanel: { key: 'slice.chapter2.reference.dialoguePanel.v1', url: '/assets/slice/chapter2/reference-ui/dialogue-panel-v1.webp', columns: 1, rows: 1, maxEdge: 2048 },
+  actionButton: { key: 'slice.chapter2.reference.actionButton.v1', url: '/assets/slice/chapter2/reference-ui/action-button-v1.webp', columns: 1, rows: 1, maxEdge: 2048 },
+  mapIcon: { key: 'slice.chapter2.reference.mapIcon.v1', url: '/assets/slice/chapter2/reference-ui/map-icon-v1.webp', columns: 1, rows: 1, maxEdge: 2048 },
+  bagIcon: { key: 'slice.chapter2.reference.bagIcon.v1', url: '/assets/slice/chapter2/reference-ui/bag-icon-v1.webp', columns: 1, rows: 1, maxEdge: 2048 },
+  journalIcon: { key: 'slice.chapter2.reference.journalIcon.v1', url: '/assets/slice/chapter2/reference-ui/journal-icon-v1.webp', columns: 1, rows: 1, maxEdge: 2048 },
+  settingsIcon: { key: 'slice.chapter2.reference.settingsIcon.v1', url: '/assets/slice/chapter2/reference-ui/settings-icon-v1.webp', columns: 1, rows: 1, maxEdge: 2048 },
+
+  scholar: { key: 'slice.chapter2.scholar.sample.v1', url: '/assets/slice/chapter2/scholar-sample-v1.webp', columns: 4, rows: 1, maxEdge: 1024 },
+  heroAvatar: { key: 'slice.chapter2.hero.avatar.v1', url: '/assets/slice/chapter2/hero-avatar-v1.webp', columns: 1, rows: 1, maxEdge: 256 },
+  scholarPortrait: { key: 'slice.chapter2.scholar.portrait.sample.v1', url: '/assets/slice/chapter2/scholar-portrait-sample-v1.webp', columns: 1, rows: 1, maxEdge: 256 },
+  cloudWall: { key: 'slice.chapter2.cloud.wall.sample.v1', url: '/assets/slice/chapter2/cloud-wall-sample-v1.webp', columns: 2, rows: 1, maxEdge: 1024 },
+  keepers: { key: 'slice.chapter2.keepers.extra.v1', url: '/assets/slice/chapter2/keepers-extra-v1.webp', columns: 4, rows: 3, maxEdge: 1024 },
+  gods: { key: 'slice.chapter2.gods.v1', url: '/assets/slice/chapter2/gods-v1.webp', columns: 4, rows: 2, maxEdge: 1024 },
+  portraits: { key: 'slice.chapter2.portraits.extra.v1', url: '/assets/slice/chapter2/portraits-extra-v1.webp', columns: 3, rows: 2, maxEdge: 768 },
+  ground: { key: 'slice.chapter2.cloud.ground.v1', url: '/assets/slice/chapter2/cloud-ground-v1.webp', columns: 1, rows: 1, maxEdge: 1024 },
+  door: { key: 'slice.chapter2.rebirth.door.v1', url: '/assets/slice/chapter2/rebirth-door-v1.webp', columns: 2, rows: 1, maxEdge: 1024 },
+  props: { key: 'slice.chapter2.props.v1', url: '/assets/slice/chapter2/props-v1.webp', columns: 3, rows: 2, maxEdge: 768 },
+  sky: { key: 'slice.chapter2.sky.v1', url: '/assets/slice/chapter2/sky-v1.webp', columns: 1, rows: 1, maxEdge: 2048 },
+  ui: { key: 'slice.chapter2.ui.v1', url: '/assets/slice/chapter2/ui-v1.webp', columns: 4, rows: 2, maxEdge: 1024 },
+} as const;
+
 export const SLICE_TREE_NAMES = ['Cây sấu', 'Cây me', 'Cây bàng', 'Liễu ven hồ', 'Cây đa', 'Bằng lăng'] as const;
 
 export const SLICE_STALL_FRAMES: Readonly<Record<string, number>> = {
@@ -191,6 +221,16 @@ export function sliceHeroFrame(facing: Facing, moving: boolean, time: number): s
  * pieces, small pieces touching the cell edge are erased, and the frame is cut round what is left.
  */
 export function registerSliceFrames(scene: Phaser.Scene): void {
+  for (const asset of Object.values(CHAPTER2_SLICE_ASSETS)) {
+    if (!scene.textures.exists(asset.key)) continue;
+    const texture = scene.textures.get(asset.key);
+    if (texture.has('0')) continue;
+    const source = texture.getSourceImage() as HTMLImageElement;
+    const w = source.width / asset.columns, h = source.height / asset.rows;
+    for (let row = 0; row < asset.rows; row++) for (let col = 0; col < asset.columns; col++) {
+      texture.add(String(row * asset.columns + col), 0, col * w, row * h, w, h);
+    }
+  }
   const BLOCK = 4;
   for (const asset of Object.values(SLICE_ASSETS)) {
     const { columns, rows, maxEdge } = asset;

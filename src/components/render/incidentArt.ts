@@ -769,7 +769,7 @@ export class IncidentActorView implements ActorView {
   private bar: Phaser.GameObjects.Graphics | null = null;
   private pose = { sx: 1, sy: 1, dy: 0, angle: 0 };
   private reaction = false;
-  constructor(private readonly scene: Phaser.Scene, useSliceArt = false) {
+  constructor(private readonly scene: Phaser.Scene, useSliceArt = false, private readonly size = 1) {
     this.illustrated = useSliceArt && scene.textures.exists(SLICE_ASSETS.hero.key)
       && scene.textures.get(SLICE_ASSETS.hero.key).has('15');
     if (this.illustrated) {
@@ -792,7 +792,7 @@ export class IncidentActorView implements ActorView {
     const depth = this.depth;
     const reactions = SLICE_ASSETS.heroReactions.key;
     this.reaction = this.illustrated && !!s.reaction && this.scene.textures.exists(reactions) && this.scene.textures.get(reactions).has('7');
-    let scale = this.spriteScale;
+    let scale = this.spriteScale * this.size;
     if (this.reaction) {
       const frame = sliceHeroReactionFrame(s.facing, s.reaction!);
       scale = 70 / this.scene.textures.get(reactions).get('0').height;

@@ -22,6 +22,8 @@ export interface GameButtonOptions {
   stack?: boolean;
   /** With a fixed `w`: long labels wrap onto more lines and the button grows taller instead of overflowing. */
   wrap?: boolean;
+  /** Left and right room kept clear of the label (for a badge and an arrow); left-aligns the label. */
+  inset?: [number, number];
 }
 
 const FILL: Record<ButtonVariant, { bg: number; border: number; text: number }> = {
@@ -45,6 +47,7 @@ export class GameButton {
   private readonly label: Phaser.GameObjects.Text;
   private icon: Phaser.GameObjects.Container | null = null;
   private glyph: Phaser.GameObjects.Graphics | null = null;
+  private skin: Phaser.GameObjects.Image | null = null;
   private readonly opts: GameButtonOptions;
   private enabled = true;
   private selected = false;
@@ -112,14 +115,16 @@ export class GameButton {
       this.label.setPosition(0, this.h * 0.27);
     } else {
       const iconW = this.icon ? (o.fontSize ?? FONT.size.sm) + 7 + 6 : 0;
-      if (o.wrap && o.w) this.label.setWordWrapWidth(o.w - pad * 2 - iconW).setAlign('center');
+      const il = o.inset?.[0] ?? pad, ir = o.inset?.[1] ?? pad, left = !!o.inset;
+      if (o.wrap && o.w) this.label.setWordWrapWidth(o.w - il - ir - iconW).setAlign(left ? 'left' : 'center');
       const textW = o.iconOnly ? 0 : this.label.width;
       this.h = Math.max(o.h ?? Math.round((o.fontSize ?? FONT.size.sm) * 2.1), o.wrap ? Math.ceil(this.label.height + 14) : 0);
-      this.w = o.w ?? Math.max(this.h, Math.ceil(textW + iconW + pad * 2));
+      this.w = o.w ?? Math.max(this.h, Math.ceil(textW + iconW + il + ir));
       this.visual.setPosition(this.w / 2, this.h / 2);
-      const left = -(textW + iconW) / 2;
-      this.icon?.setScale(1).setPosition(left + iconW / 2 - 3, 0);
-      this.label.setPosition(left + iconW + textW / 2, 0);
+      const start = -(textW + iconW) / 2;
+      this.icon?.setScale(1).setPosition(start + iconW / 2 - 3, 0);
+      if (left) this.label.setOrigin(0, 0.5).setPosition(-this.w / 2 + il, 0);
+      else this.label.setPosition(start + iconW + textW / 2, 0);
     }
     this.redraw();
     if (this.text.input) (this.text.input.hitArea as Phaser.Geom.Rectangle).setSize(this.w, this.h);
@@ -137,6 +142,11 @@ export class GameButton {
     this.bg.object.setAlpha(this.enabled ? 1 : 0.7).setTint(!this.enabled ? 0xa8a69e : this.opts.variant === 'danger' ? 0xffb3a5 : 0xffffff);
     this.label.setColor(css(this.enabled ? f.text : COLORS.espressoSoft));
     this.icon?.setAlpha(this.enabled ? 1 : 0.55);
+    if (this.skin) {
+      this.skin.setDisplaySize(this.w, this.h).setAlpha(this.enabled ? 1 : .5);
+      this.bg.object.setVisible(false); this.shadow.object.setVisible(false); this.lift.object.setVisible(false);
+      this.glyph?.setVisible(false);
+    }
   }
 
   private press(): void {
@@ -173,6 +183,11 @@ export class GameButton {
     return this;
   }
 
+  setHeight(h: number): this {
+    if (this.opts.h !== h) { this.opts.h = h; this.layout(); }
+    return this;
+  }
+
   /** Reuse a pooled button for another action. */
   rebind(name: string, onClick: () => void): this {
     this.name = name;
@@ -180,7 +195,28 @@ export class GameButton {
     return this;
   }
 
-  /** Draws a vector icon in the middle of the button (0, 0 is the centre) instead of a label. */
+  setSkin(key: string, iconOnly = false): this {
+    if (!this.scene.textures.exists(key)) return this;
+    this.skin ??= this.scene.add.image(0, 0, key);
+    this.visual.addAt(this.skin, 0);
+    if (iconOnly) { this.opts.iconOnly = true; this.opts.w = this.opts.h = 48; this.icon?.destroy(); this.icon = null; }
+    this.layout();
+    return this;
+  }
+
+  /** Add a raster icon beside the existing label. */
+  setIconTexture(key: string, frame?: string): this {
+    if (!this.scene.textures.exists(key)) return this;
+    this.icon ??= this.scene.add.container(0, 0);
+    this.icon.removeAll(true);
+    const size = (this.opts.fontSize ?? FONT.size.sm) + 7;
+    this.icon.add(this.scene.add.image(0, 0, key, frame).setDisplaySize(size, size));
+    this.visual.add(this.icon);
+    this.layout();
+    return this;
+  }
+
+  /** Draws a vector icon in the middle of the button instead of a label. */
   setGlyph(draw: (g: Phaser.GameObjects.Graphics) => void): this {
     this.glyph ??= this.scene.add.graphics();
     this.visual.add(this.glyph);

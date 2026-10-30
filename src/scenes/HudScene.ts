@@ -1,3 +1,4 @@
+import { worldToTile } from '../utils/tile';
 import Phaser from 'phaser';
 import { GameModal } from '../ui/components/GameModal';
 import { setLocale, t } from '../core/i18n';
@@ -56,7 +57,15 @@ export class HudScene extends Phaser.Scene {
     this.modals = new ModalManager(this);
     this.settings = new SettingsModal(this, { replayStory: () => sim.replayStory(), newGame: () => this.newGame(), sound: { isOn: () => !readMuted(), toggle: () => void toggleMute(this.sound) }, setLanguage: (code) => this.changeLanguage(code), fullscreen: { supported: () => !!document.fullscreenEnabled, isOn: () => !!document.fullscreenElement, toggle: () => this.toggleFullscreen() } });
     this.settingsButton = new SettingsButton(this, () => this.modals.toggle('settings'));
-    if (sim.story.active) this.storyHud = new StoryHud(this, () => sim.story.advanceDialog(), () => sim.story.retryRun(), () => toggleMute(this.sound), (i) => sim.story.chooseReply(i));
+    if (sim.story.active) {
+      this.storyHud = new StoryHud(this, () => sim.story.advanceDialog(), () => sim.story.retryRun(), () => toggleMute(this.sound), (i) => { if (!this.modalOpen) sim.story.chooseReply(i); }, () => this.modals.toggle('story.book'), () => {
+        if (this.modalOpen || !sim.trial || sim.trial.busy) return;
+        const trial = sim.trial.view();
+        const destination = trial.stations.find(s => !s.done) ?? trial.gate;
+        sim.clickTile(worldToTile(destination));
+      });
+      this.modals.register(this.storyHud.bookModal);
+    }
     this.modals.register(this.settings.modal);
     if (document.fullscreenEnabled) this.input.keyboard?.on('keydown-F', () => this.toggleFullscreen());
     this.offs.push(sim.bus.on('save:writeFailed', () => this.banner(t('save.writeFailed'))));
@@ -73,6 +82,7 @@ export class HudScene extends Phaser.Scene {
     }
 
     this.unsubscribeLayout = this.layout.subscribe((f) => {
+      this.storyHud?.bookModal.layout(f);
       this.assetNotice?.layout(f);
       this.settingsButton.layout(f);
       this.settings.modal.layout(f);

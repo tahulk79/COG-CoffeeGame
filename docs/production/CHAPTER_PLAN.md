@@ -22,8 +22,27 @@
 | 1 · Phố cổ Hà Nội: "Một ngày xui tận mạng" | [chapters/CHAPTER_1.md](chapters/CHAPTER_1.md) | Prototype tạm ổn |
 | 2 · Đường Chuyển Sinh | [chapters/CHAPTER_2.md](chapters/CHAPTER_2.md) | Prototype đã code 2026-10-29, chờ chơi thử |
 | 3 · Quán cà phê trùng sinh | [chapters/CHAPTER_3.md](chapters/CHAPTER_3.md) | Chưa làm (hiện thẻ "Sắp ra mắt") |
+| 4 · Nông trại cà phê, sau đó bản đồ Việt Nam | [../design/CAFE_FARM_MAP_LOOP.md](../design/CAFE_FARM_MAP_LOOP.md) | Ý tưởng 2026-10-30, chờ duyệt |
 
 > Các mục `§1.x`, `§2.x` nhắc trong TASK_LIST giờ nằm trong file của màn tương ứng.
+
+## Mạch cốt truyện xuyên suốt Màn 1–2–3 (ghi 2026-10-30)
+
+**Sợi chỉ:** một ngày xui ở Hà Nội khiến cậu ngất (Màn 1) → Thần Chết nhận nhầm là chết, Thần Cà Phê ghi nhầm hồ sơ (Màn 2) → hồ sơ lỡ đóng dấu, "như đổ ly cà phê không hốt lại được", nên cậu phải qua đường trùng sinh, nhặt lời nhắn → trùng sinh làm chủ một quán cà phê → (Màn 3) Thần Chết ghé quán, bị cậu làm đổ cà phê, phạt phải pha lại ly ngon thì mới yên (chi tiết ở [CHAPTER_3.md §3.1](chapters/CHAPTER_3.md)).
+
+**Đã xử lý trong thoại (2026-10-30):**
+1. *Vì sao chỉ ngất mà vẫn trùng sinh?* Thần Chết: "dấu đóng rồi, như đổ ly cà phê, không hốt lại được, quy trình là quy trình"; Thần Cà Phê: hồ sơ lỡ đóng dấu nên không về thẳng phố được, bù lại cậu được chọn kiếp mới qua 5 trạm (`reaper.twist`, `intro` trong `trials.json`). Câu "đổ ly cà phê" cũng gài trước cho gag cà phê đổ ở Màn 3.
+2. *Màn 1 gieo chủ đề cà phê:* thêm các câu xàm về cà phê vào lời người đi đường, người bán, shipper, bà bán vé số và đám đông cấp cứu ("Chắc nó ngất vì sáng nay chưa kịp uống cà phê!") ở `story.json` (`S03.street.chatter`, `rescue.crowd`).
+
+**Còn mở, cần chốt trước khi làm Màn 3:**
+3. *Nông trại hay quán trước?* **ĐÃ CHỐT 2026-10-30:** Màn 3 là quán và bài học pha chế (công thức do chủ sản phẩm đưa, nguyên liệu có hạn); khi hết hạt và có tiền thì nông trại cà phê mở ở **Màn 4**, hạt thu hoạch mang về quán bán; sau đó mở bản đồ Việt Nam để đi các vùng xây quán/nông trại, có cửa hàng của người khác. Chi tiết và các câu cần chốt: [CAFE_FARM_MAP_LOOP.md](../design/CAFE_FARM_MAP_LOOP.md). Thay thứ tự "làm nông trước" ở GAME_DESIGN §0.
+4. *Ai là "bậc thầy" dạy pha cà phê:* Thần Cà Phê, Thần Chết (qua đoạn pha lại) hay nhân vật mới. Khuyên Thần Chết là người phạt, Thần Cà Phê là người chỉ bước.
+5. *Phúc Đức dùng ở Màn 3 thế nào:* hiện chỉ có số và 5 lời nhắn, chưa hệ nào đọc lại (vốn khởi đầu, độ khó lời phạt của Thần Chết, câu trêu của Thần Cà Phê). Cần ít nhất một chỗ dùng để Phúc Đức có tác dụng.
+6. *Nhân vật sau trùng sinh:* ở đâu, còn là người Hà Nội không (cần chốt trước cảnh Thần Chết "tự dưng gặp lại" ở Màn 3).
+
+> **Phần dùng chung (đi tự do, di chuyển, footer thoại, âm thanh, setting):** [SHARED_CHAPTER_PARTS.md](../architecture/SHARED_CHAPTER_PARTS.md). Màn mới dùng lại, không chép code.
+
+> **Liên kết giữa các màn:** xem bảng ở [CHAPTER_2.md §2.1c](chapters/CHAPTER_2.md). Màn 1 → 2: kiểu ngất được Thần Chết hỏi lại. Màn 2 → 3: Phúc Đức và Lời nhắn.
 
 > **Test tạm (sẽ xoá):** thêm `?chap=1`, `?chap=2` hoặc `?chap=3` vào URL để vào thẳng Màn 1 / 2 / 3, ví dụ `http://localhost:5190/?chap=2`. Code đánh dấu `TEMP (dev test` trong `main.ts`, `WorldScene.ts`, `core/session.ts`.
 

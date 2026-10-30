@@ -1,16 +1,16 @@
 import Phaser from 'phaser';
-import { floorDepth } from '../../utils/iso';
+import { ISLAND } from '../../data/islandLayout';
+import { actorDepth, floorDepth } from '../../utils/iso';
 import type { Footprint } from '../../utils/tile';
 import type { FloorTileView } from './WorldRenderer';
 import { bakeImage, bakeLayer, block, dot, face, INK, oval, point, rr, screenBox, shadow, tri } from './incidentArt';
+import { CHAPTER2_SLICE_ASSETS } from './sliceAssets';
 
 /**
- * The cloud ground of the other world (chapter 2, the road of rebirth), drawn in
- * code in the same cozy style as the street: cream cloud ground, a rainbow
- * stream with golden bridges, blossom trees, marble columns and the heaven door.
- * Static parts are baked; the road's people and walls are in `trialArt.ts`.
+ * Chapter 2 environment: projected cloud material, screen-covering sky and atlas props.
+ * The procedural garden remains a fallback for missing art; people and walls are in `trialArt.ts`.
  */
-export const GARDEN_BACKGROUND = 0xe6efff;
+export const GARDEN_BACKGROUND = 0xf4dce8;
 
 /** Each sense stone's colour (also its sparks and its HUD gem). */
 export const STONE_COLOR: Record<string, number> = { stone_sight: 0xf6a6d0, stone_hearing: 0xffd25e, stone_touch: 0x6fd3c0 };
@@ -21,8 +21,106 @@ export function cloud(g: Phaser.GameObjects.Graphics, x: number, y: number, s: n
   for (const [dx, dy, r] of [[-1, 0, .7], [0, -.35, .85], [1, 0, .7], [0, .2, .8]] as const) g.fillCircle(x + dx * s, y + dy * s, r * s);
 }
 
+/** One screen-covering painting; crop further towards gold as the hero approaches the door. */
+export class CloudSky {
+  private readonly image: Phaser.GameObjects.Image | null;
+
+  constructor(private readonly scene: Phaser.Scene) {
+    const key = CHAPTER2_SLICE_ASSETS.sky.key;
+    this.image = scene.textures.exists(key) ? scene.add.image(0, 0, key).setScrollFactor(0).setDepth(floorDepth - 10) : null;
+    this.sync(0);
+  }
+
+  sync(progress: number): void {
+    if (!this.image) return;
+    const cam = this.scene.cameras.main, w = cam.width / cam.zoom, h = cam.height / cam.zoom;
+    const scale = Math.max(w * 2 / this.image.width, h / this.image.height);
+    this.image.setScale(scale).setPosition(cam.width / 2 + (.5 - Phaser.Math.Clamp(progress, 0, 1)) * (this.image.displayWidth - w), cam.height / 2);
+  }
+
+  destroy(): void { this.image?.destroy(); }
+}
+
+/** Frames and full-cell pivots; collision footprints continue to come from the map. */
+export function gardenSprite(type: string, variant: string): { key: string; frame: string; size: number; originY: number } | null {
+  if (type === 'portal') return { key: CHAPTER2_SLICE_ASSETS.door.key, frame: variant === 'open' ? '1' : '0', size: 248, originY: .85 };
+  if (type === 'tree') return { key: CHAPTER2_SLICE_ASSETS.props.key, frame: '1', size: 152, originY: .90 };
+  if (type === 'ancient_pillar') return { key: CHAPTER2_SLICE_ASSETS.props.key, frame: '0', size: 128, originY: .90 };
+  return null;
+}
+
+/** Bake the material in map coordinates, once per chunk; continuous UVs hide tile and chunk boundaries. */
+function drawCloudRoad(scene: Phaser.Scene, w: number, h: number): boolean {
+  // shortcut: bake the current rectangular island; clip terrain cells if the map outline changes.
+  const key = CHAPTER2_SLICE_ASSETS.ground.key;
+  if (!scene.textures.exists(key)) return false;
+  const source = scene.textures.get(key).getSourceImage() as HTMLImageElement;
+  const material = document.createElement('canvas');
+  material.width = material.height = 512;
+  const m = material.getContext('2d')!;
+  // Reflected quadrants share their exact boundary pixels, even if the source's edges differ.
+  for (let y = 0; y < 2; y++) for (let x = 0; x < 2; x++) {
+    m.save();
+    m.translate(x ? 512 : 0, y ? 512 : 0);
+    m.scale(x ? -1 : 1, y ? -1 : 1);
+    m.drawImage(source, 0, 0, 256, 256);
+    m.restore();
+  }
+  const generated: string[] = [], scale = .75;
+  for (let x = 0; x < w; x += 8) {
+    const end = Math.min(w, x + 8), chunkKey = `chapter2:ground:v1:${w},${h}:${x}`;
+    const b = screenBox([[x, 0], [end, 0], [x, h], [end, h]], 0, 2);
+    if (!scene.textures.exists(chunkKey)) {
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.ceil(b.w * scale) + 1;
+      canvas.height = Math.ceil(b.h * scale) + 1;
+      const ctx = canvas.getContext('2d')!;
+      ctx.scale(scale, scale);
+      ctx.transform(.5, .25, -.5, .25, -b.x, -b.y);
+      ctx.fillStyle = ctx.createPattern(material, 'repeat')!;
+      ctx.fillRect(x * 128 - 1, 0, (end - x) * 128 + 2, h * 128);
+      ctx.fillStyle = 'rgba(255, 250, 240, .22)';
+      ctx.fillRect(x * 128 - 1, 128, (end - x) * 128 + 2, (h - 2) * 128);
+      ctx.fillStyle = 'rgba(255, 220, 148, .10)';
+      ctx.fillRect(x * 128 - 1, 3 * 128, (end - x) * 128 + 2, 3 * 128);
+      scene.textures.addCanvas(chunkKey, canvas);
+    }
+    generated.push(chunkKey);
+    const texture = scene.textures.get(chunkKey).getSourceImage() as HTMLCanvasElement;
+    scene.add.image(b.x, b.y, chunkKey).setOrigin(0).setDisplaySize(texture.width / scale, texture.height / scale).setDepth(floorDepth - .8);
+  }
+  scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => { for (const k of generated) scene.textures.remove(k); });
+
+  // The approved cloud bank softens the island's outline; it is baked art, below all actors.
+  const bank = CHAPTER2_SLICE_ASSETS.cloudWall.key;
+  if (scene.textures.exists(bank) && scene.textures.get(bank).has('0')) {
+    for (let x = 0; x <= w; x += 2.4) for (const y of [0, h]) {
+      const p = point(x, y);
+      scene.add.image(p.x, p.y, bank, '0').setFlipX(true).setOrigin(.5, .72).setDisplaySize(190, 190).setDepth(floorDepth - .7);
+    }
+    for (const x of [0, w]) for (let y = 1; y < h; y += 2.4) {
+      const p = point(x, y);
+      scene.add.image(p.x, p.y, bank, '0').setOrigin(.5, .72).setDisplaySize(190, 190).setDepth(floorDepth - .7);
+    }
+  }
+  const props = CHAPTER2_SLICE_ASSETS.props.key;
+  if (scene.textures.exists(props) && scene.textures.get(props).has('5')) {
+    const decorations = [[10, .3, 2, 104], [18, h - .3, 3, 100], [25, .3, 4, 96], [32, h - .3, 5, 112], [40, .3, 2, 104]] as const;
+    for (const [x, y, frame, size] of decorations) {
+      const p = point(x, y);
+      scene.add.image(p.x, p.y, props, String(frame)).setOrigin(.5, .90).setDisplaySize(size, size).setDepth(actorDepth({ x, y }) - .2);
+    }
+  }
+  return true;
+}
+
 export function drawGardenEnvironment(scene: Phaser.Scene, floor: FloorTileView[]): void {
+  if (scene.textures.exists(CHAPTER2_SLICE_ASSETS.island.key)) {
+    scene.add.image(ISLAND.x, ISLAND.y, CHAPTER2_SLICE_ASSETS.island.key).setOrigin(0).setDisplaySize(ISLAND.width, ISLAND.height).setDepth(floorDepth);
+    return;
+  }
   const w = Math.max(...floor.map((t) => t.tile.x)) + 1, h = Math.max(...floor.map((t) => t.tile.y)) + 1;
+  if (drawCloudRoad(scene, w, h)) return;
   bakeLayer(scene, 'garden:ground', screenBox([[-5, -5], [w + 5, -5], [-5, h + 5], [w + 5, h + 5]], 0, 0), floorDepth - .8, (g) => {
     // Clouds all around the island.
     for (let i = 0; i < 70; i++) {

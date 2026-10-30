@@ -1,3 +1,5 @@
+> **Cập nhật 2026-10-30:** gieo chủ đề cà phê cho mạch Màn 1 → 2 → 3: thêm các câu xàm về cà phê vào lời người đi đường/người bán/shipper/đám đông cấp cứu (`story.json`, `S03.street.chatter` và `rescue.crowd`); xem [CHAPTER_PLAN](../CHAPTER_PLAN.md) mục Mạch cốt truyện.
+
 > **Cập nhật 2026-10-28:** Đã bỏ sáu cú chót và mốc ép ngất theo thời gian. Màn 1 tiếp tục khi né được; tai nạn dẫn tới cứu thương → trùng sinh/chuyển chương. Các mô tả cú chót bên dưới chỉ còn là lịch sử thiết kế.
 
 > Chung cho mọi màn: [CHAPTER_PLAN](../CHAPTER_PLAN.md) (3 giai đoạn, cách làm asset 3D/UI) · [ART_BIBLE](../../design/ART_BIBLE.md) · [TASK_LIST](../../task-list/TASK_LIST.md)

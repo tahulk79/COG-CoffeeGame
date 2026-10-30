@@ -1,15 +1,107 @@
 {
   "intro": [
-    "Chào! Chưa chết đâu, mới ngất thôi.",
-    "Muốn trùng sinh thì đi qua 5 trạm trên con đường này.",
-    "Trả lời sai cũng không sao, nhưng Sổ Phúc Đức ghi hết đấy!"
+    "Vì hồ sơ lỡ đóng dấu rồi nên cậu không về thẳng phố được. Bù lại, cậu được chọn kiếp mới: đi cùng mình qua 5 trạm nhé. Mỗi trạm một câu hỏi, trả lời sai vẫn được đi tiếp. Sổ Phúc Đức sẽ giữ lại lời nhắn cho cậu.",
+    "Dùng phím, kéo joystick hoặc chạm đường để đi. Khi có người nói, bấm Tiếp; gặp câu hỏi thì chọn đáp án hoặc nhấn 1, 2, 3."
   ],
   "timeoutLine": "Hết giờ! Im lặng cũng là một câu trả lời. Qua!",
   "karma": {
     "min": -4,
-    "max": 6,
+    "max": 5,
     "high": 4,
     "mid": 1
+  },
+  "reaper": {
+    "name": "Thần Chết",
+    "x": 17.625,
+    "y": 14.562,
+    "greet": [
+      "Chào mừng tới cõi bên kia. Ta là Thần Chết, hôm nay ta trực ban thủ tục.",
+      "Cái muôi này hả? Lưỡi hái mang đi mài rồi, ta mượn tạm của bà Ba bán phở."
+    ],
+    "ask": "Theo quy định, cậu tự khai: cậu chết vì gì?",
+    "right": "Khai đúng! Hồ sơ ghi: \"{record}\". Ta đóng dấu đây.",
+    "wrong": "Khai sai! Hồ sơ ghi rõ: \"{record}\". Ta cũng thấy khó tin, nhưng hồ sơ không biết đùa.",
+    "twist": [
+      "Ơ khoan… hồ sơ ghi NGẤT, không phải CHẾT! Ai chuyển nhầm cậu lên đây thế này?!",
+      "Mà thôi, dấu đóng rồi. Ở đây đóng dấu xong là như đổ ly cà phê: không hốt lại được. Quy trình là quy trình!"
+    ],
+    "spirit": "Dạ em! Em ghi nhầm ạ. Chào cậu, mình là Thần Cà Phê, người dẫn đường.",
+    "farewell": "Thôi, ta đi ăn phở đây. Đi đường cẩn thận nhé.",
+    "decoys": [
+      "Gọi nước mắm ở quán bún đậu",
+      "Ngồi trúng cái ghế đỏ gãy chân ở quán trà đá",
+      "Bị bà Ba bán phở chửi",
+      "Đọc hết điều khoản sử dụng",
+      "Bị crush xem tin nhắn mà không trả lời",
+      "Cười to quá ở quán trà đá"
+    ],
+    "causes": {
+      "dog": {
+        "cause": "Bị chó Ngao vồ",
+        "record": "Bị chó Ngao nhà ông Tư Mập vồ",
+        "quip": "Yên tâm, trên này không có chó. Chỉ có mây, mà mây thì không cắn."
+      },
+      "cat": {
+        "cause": "Bị mèo quấn chân",
+        "record": "Bị mèo quấn chân, ngã giữa phố",
+        "quip": "Con mèo vẫn khoẻ, nó nhờ ta gửi lời xin lỗi. Đùa đấy, mèo không bao giờ xin lỗi."
+      },
+      "banana": {
+        "cause": "Trượt vỏ chuối",
+        "record": "Trượt vỏ chuối giữa phố",
+        "quip": "Cái vỏ chuối đã bị ta tịch thu làm tang vật."
+      },
+      "sinkhole": {
+        "cause": "Rơi xuống ổ voi",
+        "record": "Rơi xuống hố giữa phố",
+        "quip": "Ta báo phường lấp hố rồi. Họ bảo tuần sau, còn tuần sau của năm nào thì không nói."
+      },
+      "durian": {
+        "cause": "Sầu riêng rơi trúng đầu",
+        "record": "Sầu riêng năm ký rơi trúng đầu",
+        "quip": "Quả sầu riêng không sao. Ngon lắm, ta vừa ăn xong."
+      },
+      "motorbike": {
+        "cause": "Bị xe máy chở hàng quẹt",
+        "record": "Bị xe máy chở hàng quẹt ngã",
+        "quip": "Anh xe máy vẫn chạy tiếp, giao hàng đúng giờ. Được khách chấm năm sao."
+      },
+      "chickens": {
+        "cause": "Bị đàn gà mổ",
+        "record": "Bị đàn gà sổng chuồng mổ cho ngất",
+        "quip": "Ta hứa không kể chuyện này với ai. Trừ cả thiên đàng."
+      },
+      "pigeons": {
+        "cause": "Bị bồ câu khiêng đi",
+        "record": "Bị bồ câu phố cổ khiêng lên trời",
+        "quip": "Bồ câu khiêng cậu được nửa đường thì mỏi cánh, nên mới phải gọi xe cứu thương."
+      },
+      "water": {
+        "cause": "Bị đổ chậu nước rửa rau",
+        "record": "Bị bà tầng hai đổ chậu nước rửa rau",
+        "quip": "Bà tầng hai hứa lần sau sẽ hô trước. Bà hứa câu đó từ năm 1998."
+      },
+      "laundry": {
+        "cause": "Bị quần đùi hoa chụp đầu",
+        "record": "Bị quần đùi hoa rơi chụp đầu",
+        "quip": "Chủ cái quần đang đi tìm. Ta không nói cậu đang ở đâu đâu."
+      },
+      "shuttlecock": {
+        "cause": "Bị quả cầu đá trúng đầu",
+        "record": "Bị quả cầu đá trúng đầu",
+        "quip": "Đội đá cầu vẫn tính cho cậu một bàn thắng."
+      },
+      "slipper": {
+        "cause": "Bị dép tổ ong đập trúng",
+        "record": "Bị dép tổ ong bay vòng lại đập trúng",
+        "quip": "Chiếc dép đã quay về với chủ. Dép tổ ong lúc nào cũng quay về."
+      },
+      "barrier": {
+        "cause": "Bị thanh chắn đầu phố đập trúng",
+        "record": "Cố đi qua rào chắn, bị thanh chắn đập trúng đầu",
+        "quip": "Bác bảo vệ dặn rồi mà: đã cấm là cấm."
+      }
+    }
   },
   "stations": [
     {
@@ -17,10 +109,10 @@
       "name": "Ông Đồ IQ",
       "npc": "scholar",
       "type": "troll",
-      "x": 8,
-      "y": 2,
+      "x": 21.5,
+      "y": 18.5,
       "greet": "Khoan! Muốn qua đây phải làm bài kiểm tra trí tuệ của ta. Có đồng hồ đếm giờ đấy!",
-      "timerMs": 6000,
+      "timerMs": 20000,
       "questions": [
         {
           "id": "q_one_plus_one",
@@ -86,7 +178,7 @@
               "text": "Con dê bị ốc bám",
               "karma": 0,
               "mood": "wrong",
-              "reply": "Tội con dê. Sai!"
+              "reply": "Tội con dê. Không phải đâu!"
             },
             {
               "text": "Con ốc đội mũ dê",
@@ -129,8 +221,8 @@
       "name": "Bà Thủ Thư Mây",
       "npc": "librarian",
       "type": "knowledge",
-      "x": 15,
-      "y": 6,
+      "x": 34.5,
+      "y": 18.5,
       "greet": "Suỵt, thư viện mây cần yên tĩnh. Trả lời bà một câu kiến thức là bà mở đường.",
       "questions": [
         {
@@ -228,9 +320,10 @@
       "name": "Ông Cân Phúc Đức",
       "npc": "scale",
       "type": "ethics",
-      "x": 22,
-      "y": 2,
+      "x": 18.5,
+      "y": 15.5,
       "greet": "Ta cân lòng người. Câu này không phải để đùa đâu, nghĩ kỹ rồi hãy chọn.",
+      "afterFaint": "q_faint",
       "questions": [
         {
           "id": "q_faint",
@@ -315,7 +408,7 @@
             {
               "text": "Bật chế độ máy bay",
               "karma": -2,
-              "reply": "Máy bay này không đáp xuống đâu được đâu."
+              "reply": "Máy bay này không đáp xuống được đâu."
             }
           ],
           "lesson": "Game chơi lại được, còn cuộc gọi của bố mẹ thì không phải lúc nào cũng còn."
@@ -327,10 +420,10 @@
       "name": "Ông Đồ IQ (lại là ta)",
       "npc": "scholar",
       "type": "trap",
-      "x": 29,
-      "y": 6,
+      "x": 14.5,
+      "y": 21.5,
       "greet": "Lại là ta đây! Câu này dễ lắm… chắc thế.",
-      "timerMs": 6000,
+      "timerMs": 20000,
       "questions": [
         {
           "id": "q_honest",
@@ -400,6 +493,31 @@
             }
           ],
           "lesson": "Tôn trọng người lớn không có nghĩa là im lặng trước điều sai."
+        },
+        {
+          "id": "q_no_one_watching",
+          "prompt": "Không ai nhìn đâu: cậu có định lách qua trạm mà chưa trả lời không?",
+          "options": [
+            {
+              "text": "Không, tới lượt thì trả lời",
+              "karma": 1,
+              "mood": "right",
+              "reply": "Tốt! Ta hỏi cho vui thôi, cái sổ vẫn đang nhìn đấy."
+            },
+            {
+              "text": "Có, chạy nhanh chắc được",
+              "karma": -1,
+              "mood": "wrong",
+              "reply": "Nhanh thì được, nhưng cái sổ của cậu chạy theo nhanh hơn."
+            },
+            {
+              "text": "Xin ông cho qua trước",
+              "karma": 0,
+              "mood": "funny",
+              "reply": "Biết hỏi còn hơn biết lách. Thôi, trả lời câu này là đủ rồi."
+            }
+          ],
+          "lesson": "Giữ lời với chính mình, kể cả khi không có ai nhắc."
         }
       ]
     },
@@ -408,8 +526,8 @@
       "name": "Thần Cà Phê",
       "npc": "spirit",
       "type": "advice",
-      "x": 36,
-      "y": 2,
+      "x": 14.5,
+      "y": 13.5,
       "greet": "Trạm cuối là của ta! Một câu thôi, để cậu mang theo sang kiếp sau.",
       "questions": [
         {
@@ -477,14 +595,36 @@
             }
           ],
           "lesson": "Ngã thì đứng dậy, như cậu vừa làm đấy, từ giữa phố lên tận đây."
+        },
+        {
+          "id": "q_small_start",
+          "prompt": "Ngày đầu mở quán, việc gì cũng chưa biết. Cậu bắt đầu từ đâu?",
+          "options": [
+            {
+              "text": "Tập pha một món cho tử tế",
+              "karma": 1,
+              "reply": "Một ly ngon trước, thực đơn dài tính sau."
+            },
+            {
+              "text": "Mua máy thật đắt rồi tính",
+              "karma": 0,
+              "reply": "Máy biết pha, nhưng chưa biết cậu muốn pha gì đâu."
+            },
+            {
+              "text": "Hứa món nào mình cũng giỏi",
+              "karma": -1,
+              "reply": "Khách uống cà phê, không uống lời hứa đâu nhé."
+            }
+          ],
+          "lesson": "Bắt đầu nhỏ, làm cho tốt, rồi thêm từng chút một."
         }
       ]
     }
   ],
   "gate": {
     "name": "Bà Gác Cửa",
-    "x": 41,
-    "y": 2,
+    "x": 14.578,
+    "y": 8.234,
     "advice": {
       "high": "Sổ của cậu sáng như đèn lồng. Kiếp sau cứ sống tử tế như thế, người tốt sẽ tìm đến cậu.",
       "mid": "Sổ không tối, chỉ chưa sáng lắm. Kiếp sau làm việc nhỏ cho tử tế, điều lớn sẽ tự đến.",
@@ -514,7 +654,9 @@
       "Chủ một quán cà phê nhỏ"
     ],
     "result": 6,
+    "openMs": 700,
     "ms": 3800,
-    "holdMs": 2400
-  }
+    "holdMs": 3200
+  },
+  "layout": "island"
 }

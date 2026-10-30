@@ -1,11 +1,15 @@
 import type { Actor } from '../../entities/Actor';
 import type { NavGrid } from '../../systems/navigation/NavGrid';
 import type { WorldPos } from '../../utils/tile';
-import { worldToTile } from '../../utils/tile';
-import type { RunConfig } from './RunService';
+import { hasClearance } from '../../systems/navigation/smoothing';
+import { RUN_BODY_RADIUS, type RunConfig } from './RunService';
+import { HeroWalk } from './heroWalk';
 
 /**
- * Chapter 2, the road of rebirth: a cloud road with five stations. At each one a
+ * Chapter 2, the road of rebirth. It opens with the Death God's paperwork: he asks
+ * how the hero died, the true answer being the gag that knocked them out in
+ * chapter 1 (right or wrong, it is only for laughs), then finds out the hero only
+ * fainted and hands over to the coffee spirit. Then a cloud road with five stations. At each one a
  * cloud wall bars the way and its keeper greets the hero, then asks one question
  * (silly, real knowledge, a moral choice, a trap, life advice). Everything said
  * goes in the footer one line at a time: the player taps "Tiếp" (or anywhere)
@@ -44,23 +48,55 @@ export interface TrialStationConfig {
   greet?: string;
   /** Silly questions run a countdown for fun: running out still passes. */
   timerMs?: number;
+  /** This question (id) is always asked when the hero arrives from fainting in chapter 1; otherwise one is drawn. */
+  afterFaint?: string;
   questions: TrialQuestion[];
 }
 
+/** How the Death God tells a chapter-1 knock-out: the reply to pick, his record of it, and his parting quip. */
+export interface TrialCause {
+  cause: string;
+  record: string;
+  quip: string;
+}
+
+export interface TrialReaperConfig {
+  name: string;
+  x: number;
+  y: number;
+  greet: string[];
+  ask: string;
+  /** `{record}` is replaced by the record of how the hero died. */
+  right: string;
+  wrong: string;
+  twist: string[];
+  /** The coffee spirit owning up to the mix-up. */
+  spirit: string;
+  farewell: string;
+  /** Wrong replies (two are drawn). */
+  decoys: string[];
+  /** Keyed by chapter-1 gag (`HazardKind`). */
+  causes: Record<string, TrialCause>;
+}
+
 export interface TrialConfig {
+  layout?: 'island';
+  /** The coffee spirit, after the Death God's talk. */
   intro: string[];
+  reaper?: TrialReaperConfig;
   timeoutLine: string;
   karma: { min: number; max: number; high: number; mid: number };
   stations: TrialStationConfig[];
   gate: { name: string; x: number; y: number; advice: { high: string; mid: string; low: string }; ask: string; ready: string; wait: string; readyReply: string; countdown: string[] };
-  spin: { title: string; items: string[]; result: number; ms: number; holdMs: number };
+  spin: { title: string; items: string[]; result: number; openMs: number; ms: number; holdMs: number };
 }
 
 export type TrialPhase = 'walk' | 'talk' | 'spin' | 'done';
-/** Who says a line: the hero, the coffee spirit, a station id, the door keeper or the karma book. */
-export type TrialSpeaker = 'hero' | 'spirit' | 'gate' | 'book' | string;
+/** Who says a line: the hero, the coffee spirit, the Death God, a station id, the door keeper or the karma book. */
+export type TrialSpeaker = 'hero' | 'spirit' | 'reaper' | 'gate' | 'book' | string;
 /** Whose face the footer shows. */
-export type TrialPortrait = TrialNpc | 'keeper' | 'hero' | 'book';
+export type TrialPortrait = TrialNpc | 'keeper' | 'reaper' | 'hero' | 'book';
+export type TrialExpression = 'happy' | 'surprised' | 'apology';
 
 export interface TrialEvent {
   kind: TrialMood | 'clear' | 'lesson' | 'open' | 'tick' | 'land';
@@ -69,12 +105,17 @@ export interface TrialEvent {
 }
 
 export interface TrialView {
+  /** Simulation clock shared by the countdown and event effects (not the scene clock). */
+  timeMs: number;
+  island: boolean;
   phase: TrialPhase;
   stations: Array<{ id: string; name: string; npc: TrialNpc; x: number; y: number; done: boolean; /** Wall x (tiles); `melt` 0 → 1 as it goes. */ wallX: number; melt: number }>;
   gate: { name: string; x: number; y: number };
+  /** The Death God at the start of the road, or null. */
+  reaper: { name: string; x: number; y: number } | null;
   spirit: WorldPos;
   /** The footer line: who says it (name, portrait), the words, and the replies when it is a question. */
-  say: { who: TrialSpeaker; name: string; portrait: TrialPortrait; text: string; mood: TrialMood | null; /** More lines follow before the footer closes. */ more: boolean } | null;
+  say: { who: TrialSpeaker; name: string; portrait: TrialPortrait; text: string; mood: TrialMood | null; expression: TrialExpression | null; /** More lines follow before the footer closes. */ more: boolean } | null;
   /** Replies to pick from (the footer's buttons), or null. */
   choices: string[] | null;
   /** Countdown of a silly question, or null. */
@@ -82,6 +123,7 @@ export interface TrialView {
   timeTotalMs: number;
   karma: number;
   karmaRange: { min: number; max: number };
+  karmaLevels: { high: number; mid: number };
   /** Lessons collected, in order. */
   lessons: string[];
   doorOpen: boolean;
@@ -97,6 +139,8 @@ export interface TrialHooks {
   addKarma(n: number): void;
   lessons(): string[];
   addLesson(questionId: string): void;
+  /** The chapter-1 gag that knocked the hero out, if known. */
+  cause(): string | null;
   /** Stop a tap-to-walk path (someone starts talking). */
   halt(): void;
   enterDoor(): void;
@@ -106,26 +150,33 @@ interface Line {
   who: TrialSpeaker;
   text: string;
   mood?: TrialMood;
+  /** Story beat for the actor's expression, independent of scoring and sound. */
+  expression?: TrialExpression;
   /** Shown with the line: the replies to pick from (the line stays until one is picked). */
   choices?: string[];
   /** Runs when the line comes up (an empty text only runs it). */
   run?: () => void;
 }
 
-const R = 0.25;
+const R = RUN_BODY_RADIUS;
 const WALL = 1.6;
 const TRIGGER = 1.4;
 const MELT_MS = 700;
 
 export class TrialService {
-  private steer = { x: 0, y: 0 };
+  /** Direct control, shared with chapter 1. */
+  private readonly hero = new HeroWalk();
   private timeMs = 0;
   private phase: TrialPhase = 'walk';
   private spirit: WorldPos;
   private queue: Line[] = [];
   private line: Line | null = null;
   /** What the reply on screen answers: a station's question or the door keeper. */
-  private asking: 'station' | 'gate' | null = null;
+  private asking: 'station' | 'gate' | 'reaper' | null = null;
+  /** The Death God's question: which reply is the truth, and the record he reads out. */
+  private reaperAnswer: { index: number; cause: TrialCause } | null = null;
+  /** The Death God walks off after his farewell (and never shows when the road is resumed), leaving the road to the stations. */
+  private reaperLeft = false;
   private current: { station: TrialStationConfig; question: TrialQuestion } | null = null;
   private timer: { left: number; total: number } | null = null;
   private events: TrialEvent[] = [];
@@ -142,25 +193,74 @@ export class TrialService {
     private readonly move: Pick<RunConfig, 'runSpeed'>,
     private readonly config: TrialConfig,
     private readonly hooks: TrialHooks,
-    random: () => number,
+    private readonly random: () => number,
   ) {
-    this.spirit = { x: player.pos.x - 0.8, y: player.pos.y - 0.8 };
+    this.spirit = { x: player.pos.x - 1.1, y: player.pos.y + 0.5 };
     for (const s of config.stations) {
-      this.drawn[s.id] = s.questions[Math.floor(random() * s.questions.length)]!;
+      // Fresh from fainting on the street: the station asks about it (a passer-by fainting), not a random question.
+      const faint = hooks.cause() && s.afterFaint ? s.questions.find((q) => q.id === s.afterFaint) : undefined;
+      this.drawn[s.id] = faint ?? s.questions[Math.floor(random() * s.questions.length)]!;
       if (hooks.isDone(s.id)) this.melted[s.id] = MELT_MS;
     }
-    if (!config.stations.some((s) => hooks.isDone(s.id))) this.show(config.intro.map((text) => ({ who: 'spirit', text })));
+    if (!config.stations.some((s) => hooks.isDone(s.id))) {
+      if (config.reaper) this.reaperTalk(config.reaper);
+      else this.show(config.intro.map((text) => ({ who: 'spirit', text })));
+    }
+    this.reaperLeft = !config.reaper || config.stations.some((s) => hooks.isDone(s.id));
+  }
+
+  // ── the Death God's paperwork ───────────────────────────────────────────
+
+  /** "How did you die?": the chapter-1 gag (any one, when started here directly) among two silly decoys. */
+  private reaperTalk(r: TrialReaperConfig): void {
+    const kinds = Object.keys(r.causes);
+    const known = this.hooks.cause();
+    const kind = known && r.causes[known] ? known : kinds[Math.floor(this.random() * kinds.length)]!;
+    const cause = r.causes[kind]!;
+    const pool = [...new Set(r.decoys)].filter((text) => text !== cause.cause);
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(this.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j]!, pool[i]!];
+    }
+    const decoys = pool.slice(0, 2);
+    const index = Math.floor(this.random() * 3);
+    const choices = [...decoys];
+    choices.splice(index, 0, cause.cause);
+    this.reaperAnswer = { index, cause };
+    this.show([
+      ...r.greet.map((text) => ({ who: 'reaper', text })),
+      { who: 'reaper', text: r.ask, choices, run: () => { this.asking = 'reaper'; } },
+    ]);
+  }
+
+  /** Right or wrong, he reads the record, then finds out the hero only fainted; the coffee spirit takes over. */
+  private chooseReaper(i: number): boolean {
+    const r = this.config.reaper!, a = this.reaperAnswer!;
+    const right = i === a.index;
+    this.asking = null;
+    this.reaperAnswer = null;
+    this.show([
+      {
+        who: 'reaper', text: (right ? r.right : r.wrong).replace('{record}', a.cause.record), mood: right ? 'right' : 'wrong',
+        run: () => { this.events.push({ kind: right ? 'right' : 'wrong', at: this.timeMs }); },
+      },
+      ...r.twist.map((text) => ({ who: 'reaper', text, mood: 'funny' as const, expression: 'surprised' as const })),
+      { who: 'spirit', text: r.spirit, expression: 'apology' },
+      ...this.config.intro.map((text) => ({ who: 'spirit', text })),
+      { who: 'reaper', text: a.cause.quip },
+      { who: 'reaper', text: r.farewell },
+      { who: 'reaper', text: '', run: () => { this.reaperLeft = true; } },
+    ]);
+    return true;
   }
 
   setSteer(x: number, y: number): void {
     // The hero stands still while someone talks.
-    if (this.busy) x = y = 0;
-    const len = Math.hypot(x, y);
-    this.steer = len > 1e-3 ? { x: x / len, y: y / len } : { x: 0, y: 0 };
+    this.hero.set(x, y, !this.busy);
   }
 
   get steering(): boolean {
-    return this.steer.x !== 0 || this.steer.y !== 0;
+    return this.hero.steering;
   }
 
   get controlsPlayer(): boolean {
@@ -169,6 +269,11 @@ export class TrialService {
 
   get isDoorOpen(): boolean {
     return this.doorOpen;
+  }
+
+  /** The portal action may only finish the chapter after the wheel's result has been held. */
+  get canEnterDoor(): boolean {
+    return this.phase === 'done' && this.doorOpen && this.config.stations.every((s) => this.hooks.isDone(s.id));
   }
 
   /** Someone is talking, or the wheel is on: the hero stays put and taps on the world do nothing. */
@@ -185,12 +290,17 @@ export class TrialService {
   tick(dt: number): void {
     this.timeMs += dt;
     if (this.phase === 'walk') this.walk(dt);
-    // Tap-to-walk follows the nav grid, which knows nothing of the walls: hold the hero at the wall.
+    // Keep restored positions on the unfinished side too; movement checks prevent crossing during play.
     const p = this.player.pos;
-    if (p.x > this.wallX - R) p.x = this.wallX - R;
+    if (this.config.layout !== 'island' && p.x > this.wallX - R) p.x = this.wallX - R;
     for (const s of this.config.stations) if (this.hooks.isDone(s.id)) this.melted[s.id] = Math.min(MELT_MS, (this.melted[s.id] ?? 0) + dt);
+    if (this.timer && this.line?.choices) {
+      this.timer.left = Math.max(0, this.timer.left - dt);
+      // The island is a story scene: a reading timer must never dismiss its question.
+      if (this.timer.left === 0 && this.config.layout !== 'island') this.timeout();
+    }
+    // A question opened by arrive() gets its full countdown starting next tick.
     if (this.phase === 'walk') this.arrive();
-    if (this.timer && this.line?.choices && (this.timer.left -= dt) <= 0) this.timeout();
     this.spin();
     this.followSpirit(dt);
     this.events = this.events.filter((e) => this.timeMs - e.at < 1500);
@@ -198,23 +308,23 @@ export class TrialService {
 
   // ── movement ────────────────────────────────────────────────────────────
 
+  /** Chapter 1's direct control (`HeroWalk`), through this road's collision. */
   private walk(dt: number): void {
-    if (!this.steering) return;
-    this.player.clearWaypoints();
-    this.player.faceTowards({ x: this.player.pos.x + this.steer.x, y: this.player.pos.y + this.steer.y });
-    this.moveBy((this.steer.x * this.move.runSpeed * dt) / 1000, (this.steer.y * this.move.runSpeed * dt) / 1000);
+    this.hero.step(this.player, dt, this.move.runSpeed, (dx, dy) => this.moveBy(dx, dy));
   }
 
+  /** Straight on, else along the edge of the road (each axis on its own), with chapter 1's body clearance. */
   private moveBy(dx: number, dy: number): void {
     const p = this.player.pos;
-    if (this.free({ x: p.x + dx, y: p.y })) p.x += dx;
-    if (this.free({ x: p.x, y: p.y + dy })) p.y += dy;
+    const to = { x: p.x + dx, y: p.y + dy };
+    if (this.canMove(p, to)) { p.x = to.x; p.y = to.y; return; }
+    if (dx && this.canMove(p, { x: p.x + dx, y: p.y })) p.x += dx;
+    if (dy && this.canMove(p, { x: p.x, y: p.y + dy })) p.y += dy;
   }
 
-  private free(p: WorldPos): boolean {
-    if (p.x > this.wallX - R) return false;
-    for (const [ox, oy] of [[-R, -R], [R, -R], [-R, R], [R, R]] as const) if (!this.grid.isWalkable(worldToTile({ x: p.x + ox, y: p.y + oy }))) return false;
-    return true;
+  /** Keys, joystick and tap-to-walk use the same body clearance and cloud wall. */
+  canMove(from: WorldPos, to: WorldPos): boolean {
+    return !this.busy && (this.config.layout === 'island' || to.x <= this.wallX - R) && hasClearance(this.grid, from, to, R);
   }
 
   // ── the footer: one line at a time ──────────────────────────────────────
@@ -252,11 +362,13 @@ export class TrialService {
   private arrive(): void {
     const x = this.player.pos.x;
     const s = this.config.stations.find((st) => !this.hooks.isDone(st.id));
-    if (s && x >= s.x + WALL - TRIGGER) return this.ask(s);
-    if (!s && x >= this.config.gate.x - 2.5) this.gate();
+    const near = (at: WorldPos) => Math.hypot(this.player.pos.x - at.x, this.player.pos.y - at.y) < 1.8;
+    if (s && (this.config.layout === 'island' ? near(s) : x >= s.x + WALL - TRIGGER)) return this.ask(s);
+    if (!s && (this.config.layout === 'island' ? near(this.config.gate) : x >= this.config.gate.x - 2.5)) this.gate();
   }
 
   private ask(station: TrialStationConfig): void {
+    if (this.busy || this.current || this.hooks.isDone(station.id)) return;
     const question = this.drawn[station.id]!;
     this.current = { station, question };
     this.show([
@@ -270,35 +382,44 @@ export class TrialService {
 
   /** The player picks reply `i` (a station's question or the door keeper's). */
   choose(i: number): boolean {
-    if (!this.line?.choices?.[i]) return false;
+    if (!this.asking || !Number.isInteger(i) || !this.line?.choices?.[i]) return false;
     if (this.asking === 'gate') return this.chooseGate(i);
+    if (this.asking === 'reaper') return this.chooseReaper(i);
     const c = this.current, opt = c?.question.options[i];
-    if (!c || !opt) return false;
-    this.hooks.addKarma(opt.karma);
+    if (!c || !opt || this.hooks.isDone(c.station.id)) return false;
     const mood: TrialMood = opt.mood ?? (opt.karma > 0 ? 'right' : opt.karma < 0 ? 'wrong' : 'funny');
-    this.events.push({ kind: mood, station: c.station.id, at: this.timeMs });
-    this.answer([{ who: 'hero', text: opt.text }, { who: c.station.id, text: opt.reply, mood }]);
+    this.answer([
+      {
+        who: c.station.id, text: opt.reply, mood,
+        run: () => { this.events.push({ kind: mood, station: c.station.id, at: this.timeMs }); },
+      },
+    ], opt.karma);
     return true;
   }
 
   /** A silly question's countdown ran out: still passes, no karma. */
   private timeout(): void {
-    const c = this.current!;
-    this.events.push({ kind: 'funny', station: c.station.id, at: this.timeMs });
-    this.answer([{ who: c.station.id, text: this.config.timeoutLine, mood: 'funny' }]);
+    const c = this.current;
+    if (this.asking !== 'station' || !c) return;
+    this.answer([{
+      who: c.station.id, text: this.config.timeoutLine, mood: 'funny',
+      run: () => { this.events.push({ kind: 'funny', station: c.station.id, at: this.timeMs }); },
+    }]);
   }
 
   /** The reply and the keeper's answer, then the lesson from the book (the wall melts as it comes up). */
-  private answer(lines: Line[]): void {
+  private answer(lines: Line[], karma = 0): void {
     const c = this.current!;
     this.asking = null;
     this.timer = null;
-    this.show([...lines, { who: 'book', text: `Lời nhắn: ${c.question.lesson}`, run: () => this.pass(c.station, c.question) }]);
+    this.show([...lines, { who: 'book', text: `Lời nhắn: ${c.question.lesson}`, run: () => this.pass(c.station, c.question, karma) }]);
   }
 
-  private pass(station: TrialStationConfig, question: TrialQuestion): void {
-    this.hooks.markDone(station.id);
+  private pass(station: TrialStationConfig, question: TrialQuestion, karma: number): void {
+    if (this.hooks.isDone(station.id)) return;
+    this.hooks.addKarma(karma);
     this.hooks.addLesson(question.id);
+    this.hooks.markDone(station.id);
     this.events.push({ kind: 'clear', station: station.id, at: this.timeMs }, { kind: 'lesson', station: station.id, at: this.timeMs });
     this.current = null;
   }
@@ -306,6 +427,7 @@ export class TrialService {
   // ── the door ────────────────────────────────────────────────────────────
 
   private gate(): void {
+    if (this.busy || this.doorOpen || this.current || this.config.stations.some((s) => !this.hooks.isDone(s.id))) return;
     const g = this.config.gate, k = this.config.karma, karma = this.hooks.karma();
     const advice = karma >= k.high ? g.advice.high : karma >= k.mid ? g.advice.mid : g.advice.low;
     this.show([
@@ -319,15 +441,18 @@ export class TrialService {
     this.asking = null;
     const open: Line = { who: 'gate', text: '', run: () => this.open() };
     // "Let me think": she counts down and pushes the hero in anyway.
-    const after: Line[] = i === 0 ? [{ who: 'gate', text: g.readyReply }] : g.countdown.map((text) => ({ who: 'gate', text, mood: 'funny' as const }));
-    this.show([{ who: 'hero', text: i === 0 ? g.ready : g.wait }, ...after, open]);
+    const after: Line[] = i === 0 ? [{ who: 'gate', text: g.readyReply, expression: 'happy' }] : g.countdown.map((text) => ({ who: 'gate', text, mood: 'funny' as const }));
+    this.show([...after, open]);
     return true;
   }
 
   private open(): void {
+    if (this.doorOpen || this.config.stations.some((s) => !this.hooks.isDone(s.id))) return;
+    this.halt();
     this.doorOpen = true;
     this.phase = 'spin';
-    this.spinAt = this.timeMs;
+    this.spinTicks = 0;
+    this.spinAt = this.timeMs + this.config.spin.openMs;
     this.events.push({ kind: 'open', at: this.timeMs });
   }
 
@@ -339,7 +464,7 @@ export class TrialService {
 
   /** The wheel slows down as it goes (ease-out), lands on the result, holds, then the hero walks through. */
   private spin(): void {
-    if (this.spinAt === null) return;
+    if (this.spinAt === null || this.phase !== 'spin' || this.timeMs < this.spinAt) return;
     const s = this.config.spin, e = this.timeMs - this.spinAt;
     const k = Math.min(this.spinTotal, Math.floor(this.spinTotal * (1 - Math.sqrt(Math.max(0, 1 - e / s.ms)))));
     if (k > this.spinTicks) {
@@ -353,7 +478,7 @@ export class TrialService {
   }
 
   private halt(): void {
-    this.steer = { x: 0, y: 0 };
+    this.hero.stop();
     this.player.clearWaypoints();
     this.hooks.halt();
   }
@@ -363,8 +488,8 @@ export class TrialService {
   /** Follows the hero; flies over to its own station (the last one) when the hero gets close. */
   private followSpirit(dt: number): void {
     const p = this.player.pos;
-    const own = this.config.stations.find((s) => s.npc === 'spirit' && !this.hooks.isDone(s.id) && p.x >= s.x - 4);
-    const want = own ? { x: own.x, y: own.y } : { x: p.x - 0.9, y: p.y - 0.9 };
+    const own = this.config.stations.find((s) => s.npc === 'spirit' && !this.hooks.isDone(s.id) && (this.config.layout === 'island' ? Math.hypot(p.x - s.x, p.y - s.y) < 4 : p.x >= s.x - 4));
+    const want = own ? { x: own.x, y: own.y } : { x: p.x - 1.1, y: p.y + 0.5 };
     const k = 1 - Math.exp(-dt / 220);
     this.spirit = { x: this.spirit.x + (want.x - this.spirit.x) * k, y: this.spirit.y + (want.y - this.spirit.y) * k };
   }
@@ -373,6 +498,7 @@ export class TrialService {
   private speaker(who: TrialSpeaker): { name: string; portrait: TrialPortrait } {
     if (who === 'hero') return { name: 'Bạn', portrait: 'hero' };
     if (who === 'spirit') return { name: 'Thần Cà Phê', portrait: 'spirit' };
+    if (who === 'reaper') return { name: this.config.reaper?.name ?? '', portrait: 'reaper' };
     if (who === 'gate') return { name: this.config.gate.name, portrait: 'keeper' };
     if (who === 'book') return { name: 'Sổ Phúc Đức', portrait: 'book' };
     const s = this.config.stations.find((st) => st.id === who);
@@ -382,19 +508,23 @@ export class TrialService {
   view(): TrialView {
     const c = this.config, s = c.spin, l = this.line;
     return {
+      timeMs: this.timeMs,
+      island: this.config.layout === 'island',
       phase: this.phase,
       stations: c.stations.map((st) => ({ id: st.id, name: st.name, npc: st.npc, x: st.x, y: st.y, done: this.hooks.isDone(st.id), wallX: st.x + WALL, melt: (this.melted[st.id] ?? 0) / MELT_MS })),
       gate: { name: c.gate.name, x: c.gate.x, y: c.gate.y },
+      reaper: c.reaper && !this.reaperLeft ? { name: c.reaper.name, x: c.reaper.x, y: c.reaper.y } : null,
       spirit: { ...this.spirit },
-      say: l ? { who: l.who, ...this.speaker(l.who), text: l.text, mood: l.mood ?? null, more: this.queue.some((q) => !!q.text) } : null,
+      say: l ? { who: l.who, ...this.speaker(l.who), text: l.text, mood: l.mood ?? null, expression: l.expression ?? null, more: this.queue.some((q) => !!q.text) } : null,
       choices: l?.choices ? [...l.choices] : null,
       timeLeftMs: this.timer && l?.choices ? Math.max(0, this.timer.left) : null,
       timeTotalMs: this.timer?.total ?? 0,
       karma: this.hooks.karma(),
       karmaRange: { min: c.karma.min, max: c.karma.max },
+      karmaLevels: { high: c.karma.high, mid: c.karma.mid },
       lessons: this.hooks.lessons(),
       doorOpen: this.doorOpen,
-      spin: this.spinAt === null ? null : { title: s.title, items: s.items, index: this.spinTicks % s.items.length, landed: this.spinTicks >= this.spinTotal },
+      spin: this.spinAt === null || this.timeMs < this.spinAt ? null : { title: s.title, items: s.items, index: this.spinTicks % s.items.length, landed: this.spinTicks >= this.spinTotal },
       events: this.events.map((e) => ({ ...e })),
     };
   }

@@ -301,7 +301,8 @@ export class StoryService {
   }
 
   canEnterPortal(): StoryResult {
-    if (!this.active || this.chapterId !== 'S04') return no('notNow', false);
+    if (this.locked || !this.active || this.chapterId !== 'S04') return no('notNow', false);
+    if (this.trial && !this.trial.canEnterDoor) return no('notNow', false);
     return this.portalOpen ? OK : no('portalClosed');
   }
 
@@ -331,8 +332,9 @@ export class StoryService {
 
   private finishChapter(): void {
     const next = this.chapter.next;
-    // The drawn situation is kept, so replaying the story never deals the same one twice in a row.
-    this.state.story = { chapter: next, flags: {} };
+    // How chapter 1 knocked the hero out goes along to chapter 2 (the Death God asks about it); later chapters start clean.
+    const cause = this.chapterId === 'S03' ? this.state.story.scenario : undefined;
+    this.state.story = { chapter: next, flags: {}, ...(cause ? { scenario: cause } : {}) };
     this.bus.emit('story:chapterChanged', { chapter: next });
     this.travelTo = this.config.chapters[next]!.map;
     this.travelIn = this.config.whiteoutMs;
