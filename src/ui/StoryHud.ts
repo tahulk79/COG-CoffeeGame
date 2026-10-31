@@ -3,7 +3,7 @@ import { t } from '../core/i18n';
 import type { SimulationSnapshot } from '../gameplay/GameSimulation';
 import { Button } from './widgets/Button';
 import { setShown } from './components/panelVisibility';
-import { Card, INK, Pill, popIn, portrait, text, wrapText } from './components/storyWidgets';
+import { Card, INK, Pill, popIn, text, wrapText } from './components/storyWidgets';
 import { hudViewport, TOP_ROW } from './layout/HudLayout';
 import { COLORS, css, RADIUS, dur, MOTION } from './theme/tokens';
 import { drawTrialFace, trialFaceTexture } from '../components/render/trialArt';
@@ -47,17 +47,6 @@ export class StoryHud {
   private readonly bannerPill: Pill;
   private retriesSeen = -1;
   private bannerUntil = 0;
-  // Dialogue box
-  private readonly box: Phaser.GameObjects.Container;
-  private readonly boxCard: Card;
-  private readonly line: Phaser.GameObjects.Text;
-  private readonly nameTag: Pill;
-  private readonly heroPortrait: Phaser.GameObjects.Graphics;
-  private readonly dots: Phaser.GameObjects.Graphics;
-  private readonly tapHint: Phaser.GameObjects.Text;
-  private boxW = 680;
-  private boxH = 132;
-  private readonly next: Button;
   // Death card (ends chapter 1)
   private readonly card: Phaser.GameObjects.Container;
   private readonly cardBg: Card;
@@ -115,17 +104,10 @@ export class StoryHud {
   private wheelW = 420;
   private wheelH = 220;
   private readonly retry: Button;
-  // Stall talks (chapter 1) and station questions (chapter 2): the replies to pick from
-  private readonly choiceBtns: Button[];
-  private readonly choicePanel: Phaser.GameObjects.Container;
-  private readonly choiceCard: Card;
-  private readonly choiceTitle: Phaser.GameObjects.Text;
-  private choiceKey = '';
   // Chapter-1 speech bubble (hits, harmless props)
   private readonly aside: Phaser.GameObjects.Container;
   private readonly asidePill: Pill;
   private lastSnapshot: SimulationSnapshot | null = null;
-  private dialogKey = '';
   private lastAside: string | null = null;
   private readonly keyHandler = (event: KeyboardEvent) => { if (!event.repeat) this.onNext(); };
   private advancedAt = -1;
@@ -160,20 +142,9 @@ export class StoryHud {
     this.bannerPill = new Pill(scene, COLORS.coral, css(COLORS.white), 18);
     this.banner.add(this.bannerPill.root);
 
-    this.box = scene.add.container(0, 0).setDepth(1600);
-    this.boxCard = new Card(scene, this.box);
-    this.boxCard.bg.swallowClicks().object.on('pointerdown', () => this.onNext());
-    this.heroPortrait = portrait(scene);
-    this.line = scene.add.text(124, 26, '', { ...text(18, '600'), wordWrap: { width: 520 }, lineSpacing: 2 });
-    this.dots = scene.add.graphics();
-    this.tapHint = scene.add.text(0, 0, 'Chạm bất kỳ đâu để tiếp', text(12, '600', css(COLORS.woodLight))).setOrigin(1, 0.5);
-    this.next = new Button(scene, 0, 0, t('story.next'), () => this.onNext(), 'story.next', { fontSize: 16, h: 40 });
-    this.nameTag = new Pill(scene, COLORS.coral, css(COLORS.white));
-    this.box.add([this.heroPortrait, this.line, this.dots, this.tapHint, this.next.text, this.nameTag.root]);
-    this.buttons.set('story.next', this.next);
-
     this.card = scene.add.container(0, 0).setDepth(1600);
     this.cardBg = new Card(scene, this.card);
+    this.cardBg.setArt(CHAPTER2_SLICE_ASSETS.karmaPanel.key);
     this.cardBg.bg.swallowClicks().object.on('pointerdown', () => this.onNext());
     this.cardHeader = new Pill(scene, COLORS.sun, INK, 16);
     this.cardKicker = scene.add.text(0, 0, '', text(14, '700', css(COLORS.woodLight))).setOrigin(0.5, 0);
@@ -184,6 +155,8 @@ export class StoryHud {
     this.card.add([this.cardHeader.root, this.cardKicker, this.cardTitle, this.cardStars, this.accept.text, this.retry.text]);
     this.buttons.set('story.death.next', this.accept);
     this.buttons.set('story.death.retry', this.retry);
+    this.accept.setSkin(CHAPTER2_SLICE_ASSETS.actionButton.key);
+    this.retry.setSkin(CHAPTER2_SLICE_ASSETS.actionButton.key);
 
     this.runBar = scene.add.container(0, 0).setDepth(1500);
     this.runTime = new Pill(scene, COLORS.paper, INK, 24);
@@ -200,19 +173,6 @@ export class StoryHud {
     if (this.lotus) this.tracker.add(this.lotus);
     this.muteBtn = new Button(scene, 0, 0, t('story.soundOn'), () => this.toggleMute(), 'story.mute', { fontSize: 16, h: TOP_ROW.size, w: 92, variant: 'secondary' });
     this.buttons.set('story.mute', this.muteBtn);
-    this.choicePanel = scene.add.container(0, 0).setDepth(1550);
-    this.choiceCard = new Card(scene, this.choicePanel);
-    this.choiceCard.bg.swallowClicks();
-    this.choiceTitle = scene.add.text(16, 12, 'BẠN TRẢ LỜI', text(13, '800', css(COLORS.ink)));
-    this.choicePanel.add(this.choiceTitle);
-    this.choiceBtns = [0, 1, 2].map((i) => {
-      const b = new Button(scene, 0, 0, '', () => this.choose(i), `story.choice.${i}`, { fontSize: 17, h: 48, variant: 'secondary', wrap: true });
-      this.choicePanel.add(b.text);
-      this.buttons.set(`story.choice.${i}`, b);
-      return b;
-    });
-
-
     this.bookBtn = new Button(scene, 0, 0, 'Sổ Phúc Đức', () => {
       const trial = this.lastSnapshot?.story.trial;
       if (!trial || trial.phase === 'spin' || trial.phase === 'done') return;
@@ -282,7 +242,7 @@ export class StoryHud {
     scene.input.keyboard?.on('keydown-SPACE', this.keyHandler);
     scene.scale.on(Phaser.Scale.Events.RESIZE, this.layout, this);
     this.layout();
-    for (const c of [this.veil, this.chipBox, this.top, this.banner, this.box, this.card, this.aside, this.runBar, this.muteBtn.text, this.tracker, this.choicePanel, this.bookBtn.text, this.wheel]) setShown(c, false);
+    for (const c of [this.veil, this.chipBox, this.top, this.banner, this.card, this.aside, this.runBar, this.muteBtn.text, this.tracker, this.bookBtn.text, this.wheel]) setShown(c, false);
   }
 
   private onNext(): void {
@@ -323,16 +283,6 @@ export class StoryHud {
     this.drawTimerBar();
     this.banner.setPosition(vw / 2 - this.bannerPill.width / 2, this.top.y + this.topH + 14);
 
-    this.boxW = Math.min(680, usableW - 24);
-    const compact = this.boxW < 480;
-    this.heroPortrait.setScale(compact ? 0.7 : 1).setPosition(compact ? 44 : 62, compact ? 50 : 66);
-    const textX = compact ? 88 : 124;
-    this.line.setPosition(textX, 28).setWordWrapWidth(this.boxW - textX - 24);
-    this.nameTag.root.setPosition(textX - 6, -17);
-    this.boxH = Math.max(132, Math.ceil(this.line.height) + 92);
-    this.boxCard.set(this.boxW, this.boxH);
-    this.box.setPosition(safeLeft + (usableW - this.boxW) / 2, vh - this.boxH - 16 - safeBottom);
-    this.placeNext();
     this.aside.setPosition(vw / 2 - this.asidePill.width / 2, vh - this.asidePill.h - 24 - safeBottom);
 
     this.cardW = Math.min(460, vw - 32);
@@ -376,21 +326,6 @@ export class StoryHud {
     this.card.setPosition(vw / 2 - this.cardW / 2, Math.max(safeTop + 40, vh / 2 - this.cardH / 2));
     this.layoutQuest();
     this.footer.layout();
-    // Portrait: above the joystick; landscape: beside it, leaving its left corner free.
-    const landscape = vw > vh && usableW >= 600;
-    const panelW = Math.min(landscape ? 380 : 520, usableW - (landscape ? 180 : 24));
-    let choiceY = 38;
-    for (const button of this.choiceBtns) {
-      button.setWidth(panelW - 24);
-      button.text.setPosition(12, choiceY);
-      if (button.text.visible) choiceY += button.height + 10;
-    }
-    const panelH = choiceY + 4;
-    this.choiceCard.set(panelW, panelH);
-    this.choicePanel.setPosition(
-      landscape ? vw - safeRight - panelW - 12 : safeLeft + (usableW - panelW) / 2,
-      vh - safeBottom - panelH - (landscape ? 16 : 148),
-    );
   }
 
   private layoutQuest(): void {
@@ -410,11 +345,6 @@ export class StoryHud {
     this.quest.setPosition(safe.left + 12, safe.top + 12).setScale(1);
   }
 
-  private placeNext(): void {
-    this.next.text.setPosition(this.boxW - this.next.width - 18, this.boxH - this.next.height - 14);
-    this.tapHint.setPosition(this.next.text.x - 14, this.boxH - 14 - this.next.height / 2).setVisible(this.boxW >= 520);
-  }
-
   /** Countdown bar under the objective: mint while there is time, coral in the last 10 seconds. */
   private drawTimerBar(): void {
     const g = this.timerBar.clear();
@@ -424,17 +354,6 @@ export class StoryHud {
     g.fillStyle(COLORS.creamDim).fillRoundedRect(x, y, w, h, h / 2);
     if (p > 0) g.fillStyle(this.timeLeft <= 10 ? COLORS.coral : COLORS.mint).fillRoundedRect(x, y, Math.max(h, w * p), h, h / 2);
     g.lineStyle(2, COLORS.ink).strokeRoundedRect(x, y, w, h, h / 2);
-  }
-
-  /** "1 of 3" as dots at the bottom-left of the dialogue box. */
-  private drawDots(index: number, total: number): void {
-    const g = this.dots.clear();
-    if (total < 2) return;
-    const x0 = this.line.x + 4, y = this.boxH - 32;
-    for (let i = 0; i < total; i++) {
-      g.fillStyle(i === index ? COLORS.coral : COLORS.creamDim).fillCircle(x0 + i * 18, y, 5);
-      g.lineStyle(2, COLORS.ink).strokeCircle(x0 + i * 18, y, 5);
-    }
   }
 
   update(s: SimulationSnapshot): void {
@@ -449,35 +368,34 @@ export class StoryHud {
     // show nothing of it yet, the doors carry its title.
     const between = st.locked && d === null;
     const trial = st.trial;
-    this.veilRect.setAlpha(trial ? .08 : .28);
+    this.veilRect.setAlpha(.08);
     setShown(this.chipBox, st.active && !between && st.chapter !== 'S03' && !trial);
     const run = st.run;
     const running = !!run?.running && d === null;
     // Keep the play area clear of the objective card.
     setShown(this.top, false);
     setShown(this.runBar, false);
-    setShown(this.muteBtn.text, s.freeWalk && !trial && !between);
+    setShown(this.muteBtn.text, false);
     setShown(this.tracker, false);
     setShown(this.bookBtn.text, false);
-    setShown(this.quest, !!trial && !between && trial.phase !== 'spin' && trial.phase !== 'done');
+    // Chapter 2 only: there it is the control that walks the hero to the next NPC. Chapter 1's street needs no objective panel.
+    setShown(this.quest, !between && d === null && !!trial && trial.phase !== 'spin' && trial.phase !== 'done');
     if (trial) this.syncTrial(trial, between);
-    else this.footer.show(null);
+    else {
+      const choices = d === null && !between ? st.street?.choices ?? null : null;
+      const speaker = choices ? st.street?.npcs.find(n => n.say && n.id.startsWith(`${st.street?.talking}:`)) : null;
+      this.footer.show(d?.kind === 'line' ? {
+        name: 'Bạn', face: 'hero', text: d.text, mood: null,
+        more: d.index + 1 < d.total, choices: null, timeLeftMs: null,
+      } : choices ? {
+        name: 'Bạn trả lời', face: 'hero', text: speaker?.say ?? 'Bạn sẽ trả lời thế nào?',
+        mood: null, more: false, choices, timeLeftMs: null,
+      } : null);
+    }
     if (run && running) {
       const w = this.runTime.width;
       this.runTime.setText(`${Math.floor(run.aliveMs / 1000)} giây`, 44);
       if (w !== this.runTime.width) relayout = true;
-    }
-    // Stall talk or station question waiting for a reply: two or three buttons (also keys 1, 2, 3).
-    const choices = d === null && !between ? st.street?.choices ?? null : null;
-    const choicesKey = choices?.join('|') ?? '';
-    setShown(this.choicePanel, choices !== null);
-    if (choicesKey !== this.choiceKey) {
-      this.choiceKey = choicesKey;
-      this.choiceBtns.forEach((b, i) => {
-        setShown(b.text, !!choices?.[i]);
-        if (choices?.[i]) b.setLabel(`${i + 1} · ${choices[i]}`);
-      });
-      relayout = true;
     }
     // Says the state in words: an icon alone got muted by players trying to turn sound on.
     if (s.freeWalk) this.muteBtn.setLabel(this.scene.sound.mute ? t('story.soundOff') : t('story.soundOn'));
@@ -492,7 +410,7 @@ export class StoryHud {
       popIn(this.scene, this.aside, this.asidePill.width, this.asidePill.h);
     }
     this.lastAside = aside;
-    setShown(this.aside, aside !== null && !between && choices === null);
+    setShown(this.aside, aside !== null && !between && st.street?.choices == null);
 
     const objective = st.objective;
     if (this.objective.text !== objective) {
@@ -520,37 +438,15 @@ export class StoryHud {
     this.retriesSeen = st.retries;
     setShown(this.banner, this.scene.time.now < this.bannerUntil);
 
-    // Dialogue line or death card.
-    setShown(this.box, d?.kind === 'line');
     setShown(this.card, d?.kind === 'death');
-    const key = d ? `${d.kind}|${d.index}|${d.text}` : '';
-    if (d && key !== this.dialogKey) {
-      const first = !this.dialogKey.startsWith(`${d.kind}|`);
-      this.dialogKey = key;
-      if (d.kind === 'line') {
-        this.line.setText(d.text);
-        const h = Math.max(132, Math.ceil(this.line.height) + 92);
-        if (h !== this.boxH) {
-          this.boxH = h;
-          relayout = true;
-        }
-        this.nameTag.setText('Bạn', 34);
-        this.next.setLabel(d.index + 1 >= d.total ? 'Bắt đầu ▸' : t('story.next'));
-        this.drawDots(d.index, d.total);
-        if (first) {
-          this.layout();
-          popIn(this.scene, this.box, this.boxW, this.boxH);
-        }
-      } else {
-        this.showCard(d.text, st.fate);
-        relayout = false;
-        if (this.cardKey !== key) popIn(this.scene, this.card, this.cardW, this.cardH);
-        this.cardKey = key;
-      }
+    const key = d?.kind === 'death' ? `${d.kind}|${d.text}` : '';
+    if (d?.kind === 'death' && key !== this.cardKey) {
+      this.showCard(d.text, st.fate);
+      relayout = false;
+      popIn(this.scene, this.card, this.cardW, this.cardH);
     }
-    if (!d) this.dialogKey = '';
+    this.cardKey = key;
     if (relayout) this.layout();
-    if (d?.kind === 'line') this.placeNext();
   }
 
   /** Chapter 2: the tracker (stations passed, karma), the karma book and the rebirth wheel. */
@@ -674,7 +570,7 @@ export class StoryHud {
     this.scene.input.keyboard?.off('keydown-ENTER', this.keyHandler);
     this.scene.input.keyboard?.off('keydown-SPACE', this.keyHandler);
     this.scene.scale.off(Phaser.Scale.Events.RESIZE, this.layout, this);
-    for (const c of [this.veil, this.chipBox, this.top, this.banner, this.box, this.card, this.aside, this.runBar, this.muteBtn.text, this.tracker, this.choicePanel, this.bookBtn.text, this.wheel]) c.destroy();
+    for (const c of [this.veil, this.chipBox, this.top, this.banner, this.card, this.aside, this.runBar, this.muteBtn.text, this.tracker, this.bookBtn.text, this.wheel]) c.destroy();
     this.footer.destroy();
     this.bookModal.destroy();
   }

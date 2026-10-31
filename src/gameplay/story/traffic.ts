@@ -40,6 +40,9 @@ export interface TrafficConfig {
   rushFlow?: number;
   /** Vehicles per tile per lane on the road when the street opens. */
   density?: number;
+  /** The painted road runs slightly across the grid: each lane's y changes by `slope` per tile of x, from the listed y at `refX`. */
+  slope?: number;
+  refX?: number;
 }
 
 /** What a vehicle on the road carries (the street's Npc has these fields). */
@@ -79,9 +82,13 @@ export class Traffic {
     for (const dir of [-1, 1]) this.nextIn.set(dir, this.arrival(1));
   }
 
-  /** The two lanes of a direction, kerb side first (traffic keeps right: westbound in the north lanes). */
+  /**
+   * The lanes of a direction, kerb side first (traffic keeps right: westbound in the north lanes). A road of two lanes has one
+   * each way (both entries are that lane: nobody can change lane, a vehicle queues behind a slower one); four lanes, two each way.
+   */
   lanesOf(dir: number): [number, number] {
     const n = this.lanes.length;
+    if (n < 4) return dir < 0 ? [0, 0] : [n - 1, n - 1];
     return dir < 0 ? [0, 1] : [n - 1, n - 2];
   }
 
@@ -107,7 +114,7 @@ export class Traffic {
   /** The road at opening time: vehicles spread along every lane at the configured density. */
   fill(add: (kind: VehicleKind, v0: number, dir: number, lane: number, x: number) => void): void {
     const length = this.ends.to - this.ends.from, k = this.config.density ?? 0.06;
-    for (const dir of [-1, 1]) for (const lane of this.lanesOf(dir)) {
+    for (const dir of [-1, 1]) for (const lane of new Set(this.lanesOf(dir))) {
       const count = Math.round(k * length);
       for (let i = 0; i < count; i++) {
         const d = this.driver();
@@ -125,14 +132,19 @@ export class Traffic {
     return this.spec(c).len / 2;
   }
 
+  /** Where lane `lane` runs at road position `x` (the lanes follow the painted road, which is not exactly parallel to the grid). */
+  laneY(lane: number, x: number): number {
+    return this.lanes[lane]! + (this.config.slope ?? 0) * (x - (this.config.refX ?? 0));
+  }
+
   private inLane(c: Car, lane: number): boolean {
-    return Math.abs(c.y - this.lanes[lane]!) < IN_LANE || c.traffic!.lane === lane || c.traffic!.wants === lane;
+    return Math.abs(c.y - this.laneY(lane, c.x)) < IN_LANE || c.traffic!.lane === lane || c.traffic!.wants === lane;
   }
 
   /** The nearest thing ahead of `c` in `lane`: the free gap to it and its speed along the road. */
   private leader(c: Car, lane: number, cars: Car[], obstacles: Obstacle[]): { gap: number; v: number; tag?: string } {
     let best: { gap: number; v: number; tag?: string } = { gap: Infinity, v: 0 };
-    const kind = c.traffic!.kind, y = this.lanes[lane]!;
+    const kind = c.traffic!.kind, y = this.laneY(lane, c.x);
     for (const m of cars) {
       if (m === c || m.dir !== c.dir || !this.inLane(m, lane)) continue;
       const d = (m.x - c.x) * c.dir;
@@ -178,6 +190,7 @@ export class Traffic {
   /** MOBIL: whether `c` should move to its direction's other lane now. */
   private wantsChange(c: Car, cars: Car[], obstacles: Obstacle[], siren: Obstacle | null): number | null {
     const t = c.traffic!, spec = this.spec(c), [outer, inner] = this.lanesOf(c.dir);
+    if (outer === inner) return null;
     const target = t.lane === outer ? inner : outer;
     const lead = this.leader(c, t.lane, cars, obstacles), leadT = this.leader(c, target, cars, obstacles);
     // Something standing in the lane ahead (the parked ambulance, someone in the road): get out of its way early,
@@ -208,7 +221,7 @@ export class Traffic {
     let bias = (target === fav ? 0.25 : -0.25) + (stuck ? 2.5 : 0);
     if (siren && siren.dir === c.dir) {
       const behindBy = (c.x - siren.x) * c.dir;
-      if (behindBy > 0 && behindBy < 15) bias += Math.abs(siren.y - this.lanes[t.lane]!) < IN_LANE ? 3 : Math.abs(siren.y - this.lanes[target]!) < IN_LANE ? -3 : 0;
+      if (behindBy > 0 && behindBy < 15) bias += Math.abs(siren.y - this.laneY(t.lane, siren.x)) < IN_LANE ? 3 : Math.abs(siren.y - this.laneY(target, siren.x)) < IN_LANE ? -3 : 0;
     }
     const go = gain + spec.politeness * others + bias > spec.threshold;
     t.wants = !go && stuck ? target : undefined;
@@ -225,7 +238,7 @@ export class Traffic {
     const s = dt / 1000;
     for (const c of cars) {
       const t = c.traffic!;
-      if (this.ms >= t.checkMs && Math.abs(c.y - this.lanes[t.lane]!) < 0.05 && c.waitMs <= 0) {
+      if (this.ms >= t.checkMs && Math.abs(c.y - this.laneY(t.lane, c.x)) < 0.05 && c.waitMs <= 0) {
         // Stopped in a queue: look for a way round every 150 ms; rolling along, every half second or so.
         t.checkMs = this.ms + (c.speed < 0.5 ? 150 : 400 + this.random() * 400);
         const to = this.wantsChange(c, cars, obstacles, siren);
@@ -236,7 +249,7 @@ export class Traffic {
       const t = c.traffic!, before = { x: c.x, y: c.y };
       // Mid-change a vehicle answers to whatever is ahead in either lane.
       let lead = this.leader(c, t.lane, cars, obstacles);
-      const from = this.lanes.findIndex(y => Math.abs(y - c.y) < IN_LANE);
+      const from = this.lanes.findIndex((_, i) => Math.abs(this.laneY(i, c.x) - c.y) < IN_LANE);
       if (from >= 0 && from !== t.lane) { const other = this.leader(c, from, cars, obstacles); if (other.gap < lead.gap) lead = other; }
       t.stoppedFor = lead.gap < 2 && c.speed < 0.3 ? lead.tag : undefined;
       if (c.waitMs > 0) { c.waitMs -= dt; c.speed = 0; c.moving = false; continue; }
@@ -248,7 +261,7 @@ export class Traffic {
       const room = Math.max(0, lead.gap - MIN_GAP + lead.v * s);
       if (dx > room) { dx = room; c.speed = dx / Math.max(s, 1e-6); }
       c.x += c.dir * dx;
-      const ty = this.lanes[t.lane]!;
+      const ty = this.laneY(t.lane, c.x);
       if (Math.abs(c.y - ty) > 1e-3) c.y += Math.sign(ty - c.y) * Math.min(Math.abs(ty - c.y), LANE_SPEED * s);
       c.moving = Math.hypot(c.x - before.x, c.y - before.y) > 1e-4;
     }

@@ -27,6 +27,10 @@ export class RunAudio extends SynthAudio {
   private portal = false;
   private wheel = false;
   private boom = false;
+  /** Street ambience: a looping bed of traffic noise whose level follows the vehicles near the hero, birds, and who is sounding a horn. */
+  private bed: { sources: AudioBufferSourceNode[]; low: GainNode; hiss: GainNode } | null = null;
+  private nextBird = 4000;
+  private readonly honking = new Set<string>();
   constructor(scene: Phaser.Scene) {
     // Loud enough for laptop and phone speakers (measured: the first mix sat near -37 dB RMS and read as silence).
     super(scene, OUT_GAIN);
@@ -41,7 +45,7 @@ export class RunAudio extends SynthAudio {
   }
 
   /** Called every frame with the run's view: plays what changed. */
-  sync(run: RunView | null, street: StreetView | null = null, moving = false, paused = false): void {
+  sync(run: RunView | null, street: StreetView | null = null, moving = false, paused = false, hero: { x: number; y: number } | null = null): void {
     if (!this.gate(paused)) return;
     if (!run) return;
     if (street && !paused && !document.hidden) {
@@ -49,6 +53,7 @@ export class RunAudio extends SynthAudio {
       if (moving && !run.hit && !run.down && now - this.lastFoot > 330) {
         this.lastFoot = now; this.noise(.035, .035, 'lowpass', 650, 300);
       }
+      if (hero) this.ambience(street, hero, now);
       if (now - this.lastStreet > 6500) {
         this.lastStreet = now;
         this.noise(1.4, .025, 'lowpass', 450, 220);
@@ -67,7 +72,7 @@ export class RunAudio extends SynthAudio {
       if (street.heroHidden && !this.loaded) this.thud();
       if (street.wheel && !this.wheel) this.glide(450, 180, .5, 'triangle', .08);
       if (street.boom && !this.boom) this.thud();
-      if (street.portal && !this.portal) [330, 440, 660].forEach((f, i) => this.tone(f, .8, 'sine', .07, i * .12));
+      if (street.portal && !this.portal) [523.25, 659.25, 783.99].forEach((f, i) => this.tone(f, .8, 'sine', .07, i * .12));
       this.carried = street.carried; this.loaded = street.heroHidden;
       this.wheel = !!street.wheel; this.boom = !!street.boom; this.portal = !!street.portal;
     }
@@ -181,7 +186,52 @@ export class RunAudio extends SynthAudio {
     this.noise(0.12, 0.25, 'lowpass', 500, 100, delay);
   }
 
+  /** The low rumble of traffic, and the hiss of tyres above it. */
+  private startBed(): void {
+    if (this.bed) return;
+    const low = this.loopedNoise('lowpass', 380, .7), hiss = this.loopedNoise('bandpass', 1800, .7);
+    if (low && hiss) this.bed = { sources: [low.src, hiss.src], low: low.gain, hiss: hiss.gain };
+  }
+
+  /** Called every frame while the street is on screen: the bed, now and then a bird, and horns that fade with distance. */
+  private ambience(street: StreetView, hero: { x: number; y: number }, now: number): void {
+    if (this.silent) return;
+    this.startBed();
+    const t = this.ctx!.currentTime;
+    let near = 0;
+    for (const n of street.npcs) {
+      if (!n.bike || n.look === 'ambulance' || n.scale < .5) continue;
+      const dist = Math.hypot(n.x - hero.x, n.y - hero.y);
+      if (dist < 18) near++;
+      // A horn once, as the vehicle starts speaking; quieter the further it is.
+      if (n.say && !this.honking.has(n.id)) {
+        this.honking.add(n.id);
+        const level = Math.max(0, 1 - dist / 16);
+        if (level > .05) this.horn(n.look === 'bike' ? 'bike' : 'car', level);
+      }
+    }
+    for (const id of this.honking) if (!street.npcs.some(n => n.id === id && n.say)) this.honking.delete(id);
+    if (this.bed) {
+      // The street fades out as the magic circle opens: chapter 2's sky takes its rumble over (see TrialAudio).
+      const load = Math.min(near, 8), open = street.portal ? 0 : 1;
+      this.bed.low.gain.setTargetAtTime((.05 + .007 * load) * open, t, street.portal ? 2.4 : .6);
+      this.bed.hiss.gain.setTargetAtTime((.004 + .0025 * load) * open, t, street.portal ? 2.4 : .6);
+    }
+    if (now > this.nextBird) {
+      this.nextBird = now + 5000 + Math.random() * 9000;
+      const chirps = 2 + Math.floor(Math.random() * 3), base = 2600 + Math.random() * 900;
+      for (let i = 0; i < chirps; i++) this.glide(base, base + 900 + Math.random() * 500, .09, 'sine', .01, i * .13);
+    }
+  }
+
+  private horn(kind: 'bike' | 'car', level: number): void {
+    if (kind === 'bike') { this.tone(520, .1, 'square', .012 * level); this.tone(520, .1, 'square', .012 * level, .16); }
+    else { this.tone(400, .3, 'sawtooth', .014 * level); this.tone(500, .3, 'sawtooth', .014 * level); }
+  }
+
   override destroy(): void {
+    for (const src of this.bed?.sources ?? []) { try { src.stop(); } catch { /* already stopped */ } src.disconnect(); }
+    this.bed = null;
     super.destroy();
     this.stopMusic();
     this.music?.disconnect();

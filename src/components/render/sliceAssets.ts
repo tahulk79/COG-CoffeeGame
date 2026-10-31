@@ -1,5 +1,7 @@
 import type Phaser from 'phaser';
 import type { Facing } from '../../entities/Actor';
+import SLICE_BAKE from '../../data/sliceBake.json';
+import { analyzeSheet, type SheetPlan } from './sliceClean';
 
 /**
  * 2.5D art passes. Separate keys keep the legacy 4×4 hero atlas untouched.
@@ -15,7 +17,6 @@ export const SLICE_ASSETS = {
   neighbors: { key: 'slice.chapter1.neighbors.v1', url: '/assets/slice/chapter1/neighbors-v1.webp', columns: 4, rows: 4, maxEdge: 768 },
   owners: { key: 'slice.chapter1.owners.v1', url: '/assets/slice/chapter1/owners-v1.webp', columns: 4, rows: 4, maxEdge: 768 },
   housesVaried: { key: 'slice.chapter1.houses.v2', url: '/assets/slice/chapter1/houses-v2.webp', columns: 3, rows: 2, maxEdge: 1536 },
-  treesVaried: { key: 'slice.chapter1.trees.v2', url: '/assets/slice/chapter1/trees-v2.webp', columns: 3, rows: 2, maxEdge: 1024 },
   residents: { key: 'slice.chapter1.residents.v1', url: '/assets/slice/chapter1/residents-v1.webp', columns: 4, rows: 4, maxEdge: 768 },
   locals: { key: 'slice.chapter1.locals.v1', url: '/assets/slice/chapter1/locals-v1.webp', columns: 4, rows: 4, maxEdge: 768 },
   heroReactions: { key: 'slice.chapter1.hero.reactions.v1', url: '/assets/slice/chapter1/hero-reactions-v1.webp', columns: 4, rows: 2, maxEdge: 1024 },
@@ -51,15 +52,10 @@ export const CHAPTER2_SLICE_ASSETS = {
   speakerNameplate: { key: 'slice.chapter2.reference.speakerNameplate.v1', url: '/assets/slice/chapter2/reference-ui/speaker-nameplate-v1.webp', columns: 1, rows: 1, maxEdge: 1024 },
   cloudOrnament: { key: 'slice.chapter2.reference.cloudOrnament.v1', url: '/assets/slice/chapter2/reference-ui/cloud-ornament-v1.webp', columns: 1, rows: 1, maxEdge: 1024 },
   island: { key: 'slice.chapter2.reference.island.v1', url: '/assets/slice/chapter2/reference-ui/island-scene-v1.webp', columns: 1, rows: 1, maxEdge: 2048 },
-  playerPanel: { key: 'slice.chapter2.reference.playerPanel.v1', url: '/assets/slice/chapter2/reference-ui/player-panel-v1.webp', columns: 1, rows: 1, maxEdge: 2048 },
   progressPanel: { key: 'slice.chapter2.reference.progressPanel.v1', url: '/assets/slice/chapter2/reference-ui/progress-panel-v1.webp', columns: 1, rows: 1, maxEdge: 2048 },
   questPanel: { key: 'slice.chapter2.reference.questPanel.v2', url: '/assets/slice/chapter2/reference-ui/quest-panel-v2.webp', columns: 1, rows: 1, maxEdge: 2048 },
   karmaPanel: { key: 'slice.chapter2.reference.karmaPanel.v1', url: '/assets/slice/chapter2/reference-ui/karma-panel-v2.webp', columns: 1, rows: 1, maxEdge: 2048 },
-  dialoguePanel: { key: 'slice.chapter2.reference.dialoguePanel.v1', url: '/assets/slice/chapter2/reference-ui/dialogue-panel-v1.webp', columns: 1, rows: 1, maxEdge: 2048 },
   actionButton: { key: 'slice.chapter2.reference.actionButton.v1', url: '/assets/slice/chapter2/reference-ui/action-button-v1.webp', columns: 1, rows: 1, maxEdge: 2048 },
-  mapIcon: { key: 'slice.chapter2.reference.mapIcon.v1', url: '/assets/slice/chapter2/reference-ui/map-icon-v1.webp', columns: 1, rows: 1, maxEdge: 2048 },
-  bagIcon: { key: 'slice.chapter2.reference.bagIcon.v1', url: '/assets/slice/chapter2/reference-ui/bag-icon-v1.webp', columns: 1, rows: 1, maxEdge: 2048 },
-  journalIcon: { key: 'slice.chapter2.reference.journalIcon.v1', url: '/assets/slice/chapter2/reference-ui/journal-icon-v1.webp', columns: 1, rows: 1, maxEdge: 2048 },
   settingsIcon: { key: 'slice.chapter2.reference.settingsIcon.v1', url: '/assets/slice/chapter2/reference-ui/settings-icon-v1.webp', columns: 1, rows: 1, maxEdge: 2048 },
 
   scholar: { key: 'slice.chapter2.scholar.sample.v1', url: '/assets/slice/chapter2/scholar-sample-v1.webp', columns: 4, rows: 1, maxEdge: 1024 },
@@ -75,8 +71,6 @@ export const CHAPTER2_SLICE_ASSETS = {
   sky: { key: 'slice.chapter2.sky.v1', url: '/assets/slice/chapter2/sky-v1.webp', columns: 1, rows: 1, maxEdge: 2048 },
   ui: { key: 'slice.chapter2.ui.v1', url: '/assets/slice/chapter2/ui-v1.webp', columns: 4, rows: 2, maxEdge: 1024 },
 } as const;
-
-export const SLICE_TREE_NAMES = ['Cây sấu', 'Cây me', 'Cây bàng', 'Liễu ven hồ', 'Cây đa', 'Bằng lăng'] as const;
 
 export const SLICE_STALL_FRAMES: Readonly<Record<string, number>> = {
   tra_da: 0, bao: 1, pho: 2, bun_dau: 3, banh_mi: 4, cat_toc: 5, xe_om: 6, xoi: 7,
@@ -103,12 +97,6 @@ export function appearanceSeed(id: string): number {
   let value = 2166136261;
   for (const char of id) value = Math.imul(value ^ char.charCodeAt(0), 16777619);
   return value >>> 0;
-}
-
-/** Consecutive lakeside trees alternate species rather than repeating the same crown. */
-export function treeAppearance(id: string): number {
-  const number = /^tree_(\d+)$/.exec(id)?.[1];
-  return number === undefined ? appearanceSeed(id) % 6 : Math.floor(Number(number) / 4) % 6;
 }
 
 type PersonArt = { asset: 'citizens' | 'vendors' | 'workers' | 'residents' | 'locals' | 'owners' | 'neighbors'; row: number; height: number };
@@ -231,70 +219,30 @@ export function registerSliceFrames(scene: Phaser.Scene): void {
       texture.add(String(row * asset.columns + col), 0, col * w, row * h, w, h);
     }
   }
-  const BLOCK = 4;
   for (const asset of Object.values(SLICE_ASSETS)) {
-    const { columns, rows, maxEdge } = asset;
-    if (!scene.textures.exists(asset.key)) continue;
-    if (scene.textures.get(asset.key).has('0')) continue;
+    if (!scene.textures.exists(asset.key) || scene.textures.get(asset.key).has('0')) continue;
     const source = scene.textures.get(asset.key).getSourceImage() as HTMLImageElement;
+    const { w, h } = sheetCanvasSize(asset, source.width, source.height);
+    // The plan comes from `scripts/bake-slice.mjs` (alpha analysis of a static image, done once at build time); reading pixels back
+    // and analysing them on every page load cost ~0.8 s on a desktop and ~3 s on a mid-range phone. No baked plan (new or changed art): analyse here.
+    const baked = (SLICE_BAKE as unknown as Record<string, { w: number; h: number } & SheetPlan>)[asset.key];
+    let plan: SheetPlan | undefined = baked && baked.w === w && baked.h === h ? baked : undefined;
     const canvas = document.createElement('canvas');
-    const scale = Math.min(1, maxEdge / Math.max(source.width, source.height));
-    canvas.width = Math.max(columns, Math.round(source.width * scale));
-    canvas.height = Math.max(rows, Math.round(source.height * scale));
+    canvas.width = w; canvas.height = h;
     const context = canvas.getContext('2d', { willReadFrequently: true })!;
     context.imageSmoothingQuality = 'high';
-    context.drawImage(source, 0, 0, canvas.width, canvas.height);
-    const image = context.getImageData(0, 0, canvas.width, canvas.height), pixels = image.data;
-    const cuts: Array<{ frame: string; x: number; y: number; w: number; h: number }> = [];
-    for (let row = 0; row < rows; row++) for (let column = 0; column < columns; column++) {
-      const x0 = Math.floor(column * canvas.width / columns), x1 = Math.floor((column + 1) * canvas.width / columns);
-      const y0 = Math.floor(row * canvas.height / rows), y1 = Math.floor((row + 1) * canvas.height / rows);
-      const bw = Math.ceil((x1 - x0) / BLOCK), bh = Math.ceil((y1 - y0) / BLOCK);
-      const solid = new Uint8Array(bw * bh);
-      for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) if (pixels[(y * canvas.width + x) * 4 + 3]! >= 64) solid[Math.floor((y - y0) / BLOCK) * bw + Math.floor((x - x0) / BLOCK)] = 1;
-      // Connected pieces of opaque blocks (8-neighbour).
-      const piece = new Int32Array(bw * bh).fill(-1), sizes: number[] = [], edges: boolean[] = [];
-      for (let start = 0; start < solid.length; start++) {
-        if (!solid[start] || piece[start]! >= 0) continue;
-        const id = sizes.length, stack = [start];
-        let size = 0, edge = false;
-        piece[start] = id;
-        while (stack.length) {
-          const b = stack.pop()!, bx = b % bw, by = (b - bx) / bw;
-          size++;
-          if (bx === 0 || by === 0 || bx === bw - 1 || by === bh - 1) edge = true;
-          for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-            const nx = bx + dx, ny = by + dy, nb = ny * bw + nx;
-            if (nx < 0 || ny < 0 || nx >= bw || ny >= bh || !solid[nb] || piece[nb]! >= 0) continue;
-            piece[nb] = id;
-            stack.push(nb);
-          }
-        }
-        sizes.push(size);
-        edges.push(edge);
-      }
-      if (!sizes.length) continue;
-      const largest = Math.max(...sizes);
-      // Kept: the main figure, anything nearly as big, and small details floating inside the cell (not spilled in).
-      const keep = sizes.map((size, i) => size === largest || size >= largest * .3 || (!edges[i] && size >= largest * .02));
-      // One pass over the blocks: spilled pieces are erased, the frame is the box round the kept blocks.
-      let left = x1, right = x0, top = y1, bottom = y0;
-      for (let b = 0; b < piece.length; b++) {
-        const id = piece[b]!;
-        if (id < 0) continue;
-        const bx = x0 + (b % bw) * BLOCK, by = y0 + Math.floor(b / bw) * BLOCK, ex = Math.min(x1, bx + BLOCK), ey = Math.min(y1, by + BLOCK);
-        if (keep[id]) { left = Math.min(left, bx); right = Math.max(right, ex - 1); top = Math.min(top, by); bottom = Math.max(bottom, ey - 1); continue; }
-        for (let y = by; y < ey; y++) for (let x = bx; x < ex; x++) pixels[(y * canvas.width + x) * 4 + 3] = 0;
-      }
-      if (left > right || top > bottom) continue;
-      left = Math.max(x0, left - 2); right = Math.min(x1 - 1, right + 2);
-      top = Math.max(y0, top - 2); bottom = Math.min(y1 - 1, bottom + 2);
-      cuts.push({ frame: String(row * columns + column), x: left, y: top, w: right - left + 1, h: bottom - top + 1 });
-    }
-    context.putImageData(image, 0, 0);
+    context.drawImage(source, 0, 0, w, h);
+    plan ??= analyzeSheet(new Uint32Array(context.getImageData(0, 0, w, h).data.buffer), w, h, asset.columns, asset.rows);
+    for (const [x, y, ew, eh] of plan.erase) context.clearRect(x, y, ew, eh);
     // The cleaned, game-sized canvas replaces the loaded image on the GPU.
     scene.textures.remove(asset.key);
     const texture = scene.textures.addCanvas(asset.key, canvas)!;
-    for (const c of cuts) texture.add(c.frame, 0, c.x, c.y, c.w, c.h);
+    for (const [frame, x, y, cw, ch] of plan.cuts) texture.add(frame, 0, x, y, cw, ch);
   }
+}
+
+/** Size of a sheet's game canvas: the loaded image, shrunk to `maxEdge` if larger (never below one pixel per cell). */
+export function sheetCanvasSize(asset: { columns: number; rows: number; maxEdge: number }, width: number, height: number): { w: number; h: number } {
+  const scale = Math.min(1, asset.maxEdge / Math.max(width, height));
+  return { w: Math.max(asset.columns, Math.round(width * scale)), h: Math.max(asset.rows, Math.round(height * scale)) };
 }

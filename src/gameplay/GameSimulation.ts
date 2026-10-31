@@ -75,6 +75,7 @@ export interface SimulationOptions {
  */
 export class GameSimulation {
   readonly bus = new EventBus<GameEvents>();
+  readonly collisionProps: Array<WorldPos & { r: number }> = [];
   readonly world: WorldModel;
   readonly nav: NavigationService;
   readonly actions = new ActionRegistry();
@@ -116,9 +117,9 @@ export class GameSimulation {
     const runCfg = content.story.chapters.S03?.run;
     if (runCfg && content.story.chapters.S03!.map === map.id) {
       const rng = new Rng(opts.rngSeed ?? Date.now());
-      // Street trees, stacks of stools and parked motorbikes collide as their round shape, not a whole tile: nothing to snag on.
-      const ROUND: Record<string, number> = { sau_tree: 0.28, stools: 0.32, parked_bike: 0.36 };
-      const props = this.world.allObjects().filter((o) => ROUND[o.type] !== undefined)
+      // Stacks of stools and parked motorbikes collide as their round shape, not a whole tile: nothing to snag on.
+      const ROUND: Record<string, number> = { stools: 0.32, parked_bike: 0.36 };
+      const props = this.collisionProps = this.world.allObjects().filter((o) => ROUND[o.type] !== undefined)
         .map((o) => ({ x: o.footprint.x + o.footprint.w / 2, y: o.footprint.y + o.footprint.h / 2, r: ROUND[o.type]! }));
       if (this.story.active && this.story.chapterId === 'S03') this.player.pos = tileCenter(map.playerStart);
       this.run = new RunService(runCfg, this.world.grid, this.player, () => rng.next(), { w: this.world.width, h: this.world.height },

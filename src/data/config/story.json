@@ -149,10 +149,8 @@
           13.8
         ],
         "bikeLanes": [
-          8.6,
-          9.8,
-          11.2,
-          12.4
+          9.25,
+          11.5
         ],
         "walkSpeed": [
           0.8,
@@ -328,7 +326,9 @@
           },
           "flow": 1000,
           "rushFlow": 1.6,
-          "density": 0.035
+          "density": 0.035,
+          "slope": 0.0236,
+          "refX": 16
         }
       },
       "objectiveFaint": "Nằm im… giả vờ ngủ chờ xe cứu thương"

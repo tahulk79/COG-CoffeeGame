@@ -29,10 +29,13 @@ export class StreetPath {
       }
       this.revision = this.grid.revision;
     }
-    const nav = this.base.clone();
+    // The shared grid gets this call's temporary blocks and gives them back, instead of a full copy per route.
+    const nav = this.base, marked: WorldPos[] = [];
     const block = (x0: number, y0: number, x1: number, y1: number, blocked: (p: WorldPos) => boolean) => {
       for (let y = Math.max(0, Math.floor(y0 * scale)); y <= Math.min(nav.height - 1, Math.floor(y1 * scale)); y++) for (let x = Math.max(0, Math.floor(x0 * scale)); x <= Math.min(nav.width - 1, Math.floor(x1 * scale)); x++) {
-        if (blocked({ x: (x + .5) / scale, y: (y + .5) / scale })) nav.setTerrainBlocked({ x, y }, true);
+        if (!nav.isWalkable({ x, y }) || !blocked({ x: (x + .5) / scale, y: (y + .5) / scale })) continue;
+        nav.setTerrainBlocked({ x, y }, true);
+        marked.push({ x, y });
       }
     };
     for (const c of circles) {
@@ -43,7 +46,8 @@ export class StreetPath {
     const tile = (p: WorldPos) => ({ x: Math.floor(p.x * scale), y: Math.floor(p.y * scale) });
     const goal = tile(to), goals = [];
     for (let y = goal.y - 1; y <= goal.y + 1; y++) for (let x = goal.x - 1; x <= goal.x + 1; x++) if (nav.isWalkable({ x, y }) && clear({ x: (x + .5) / scale, y: (y + .5) / scale }, to)) goals.push({ x, y });
-    const route = findPath(nav, tile(from), goals);
+    let route: ReturnType<typeof findPath>;
+    try { route = findPath(nav, tile(from), goals); } finally { for (const m of marked) nav.setTerrainBlocked(m, false); }
     if (!route) return null;
     const points = route.tiles.map(t => ({ x: (t.x + .5) / scale, y: (t.y + .5) / scale }));
     points.push({ ...to });

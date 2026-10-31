@@ -101,6 +101,31 @@ export abstract class SynthAudio {
     src.onended = () => { this.voices.delete(src); src.disconnect(); flt.disconnect(); g.disconnect(); };
   }
 
+  private noiseBuffer: AudioBuffer | null = null;
+
+  /**
+   * A looping bed of brown noise through one filter and a gain (starting silent): the low rumble the chapters' ambience is built
+   * from, so the street and the sky are made of the same stuff. The caller shapes `gain` / `flt` and stops `src` when done.
+   */
+  protected loopedNoise(kind: BiquadFilterType, freq: number, q: number): { src: AudioBufferSourceNode; flt: BiquadFilterNode; gain: GainNode } | null {
+    const ctx = this.ctx, out = this.out;
+    if (!ctx || !out) return null;
+    if (!this.noiseBuffer) {
+      const buf = ctx.createBuffer(1, ctx.sampleRate * 4, ctx.sampleRate), d = buf.getChannelData(0);
+      let last = 0;
+      for (let i = 0; i < d.length; i++) { last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = last * 3.5; }
+      // Join the loop's two ends so it does not click: fade the last 50 ms into the first.
+      const n = Math.floor(ctx.sampleRate * .05);
+      for (let i = 0; i < n; i++) { const k = i / n; d[d.length - n + i] = d[d.length - n + i]! * (1 - k) + d[i]! * k; }
+      this.noiseBuffer = buf;
+    }
+    const src = ctx.createBufferSource(), flt = ctx.createBiquadFilter(), gain = ctx.createGain();
+    src.buffer = this.noiseBuffer; src.loop = true; flt.type = kind; flt.frequency.value = freq; flt.Q.value = q; gain.gain.value = 0;
+    src.connect(flt).connect(gain).connect(out);
+    src.start(0, Math.random() * 3);
+    return { src, flt, gain };
+  }
+
   protected stopVoices(): void {
     for (const voice of this.voices) { try { voice.stop(); } catch { /* already ended */ } }
     this.voices.clear();
