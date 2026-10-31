@@ -16,13 +16,42 @@ export class TrialAudio extends SynthAudio {
   private readonly music: GainNode | null = null;
 
   constructor(scene: Phaser.Scene) {
-    super(scene, 1.6);
+    // Measured: the street (chapter 1) sits near -25 dBFS RMS, the island's music was near -31: this lifts it to meet the street.
+    super(scene, 2.8);
     if (!this.ctx || !this.out) return;
     this.music = this.ctx.createGain();
-    this.music.gain.value = .28;
+    // The music comes in over a few seconds (it used to start at full level the moment the chapter loaded).
+    const now = this.ctx.currentTime;
+    this.music.gain.setValueAtTime(0, now);
+    this.music.gain.linearRampToValueAtTime(.28, now + 3.5);
     this.music.connect(this.out);
+    this.startAir(now);
     this.nextNote = this.ctx.currentTime + 0.2;
     this.timer = window.setInterval(() => this.schedule(), 50);
+  }
+
+  private air: { src: AudioBufferSourceNode; lfo: OscillatorNode } | null = null;
+
+  /**
+   * The sky's breath under the harp. It begins as the street's rumble (same noise, same filter, same level) and, over several
+   * seconds, thins into a soft wind: the one sound carries the player from chapter 1 into chapter 2. It also fills the silences
+   * between notes, which sat 40 dB down while the street never went below -29.
+   */
+  private startAir(now: number): void {
+    const noise = this.loopedNoise('lowpass', 380, .7), ctx = this.ctx;
+    if (!noise || !ctx) return;
+    // Up from nearly nothing to the street's level over a second (the street was still fading out behind the loading screen), then thinning.
+    noise.gain.gain.setValueAtTime(.002, now);
+    noise.gain.gain.exponentialRampToValueAtTime(.05, now + 1.2);
+    noise.gain.gain.exponentialRampToValueAtTime(.02, now + 8);
+    noise.flt.frequency.setValueAtTime(380, now);
+    noise.flt.frequency.exponentialRampToValueAtTime(900, now + 8);
+    // A slow swell, like gusts.
+    const lfo = ctx.createOscillator(), depth = ctx.createGain();
+    lfo.frequency.value = .07; depth.gain.value = 160;
+    lfo.connect(depth).connect(noise.flt.detune);
+    lfo.start(now);
+    this.air = { src: noise.src, lfo };
   }
 
   protected override onVisibility(): void {
@@ -71,6 +100,8 @@ export class TrialAudio extends SynthAudio {
     super.destroy();
     if (this.timer !== null) window.clearInterval(this.timer);
     this.timer = null;
+    for (const node of [this.air?.src, this.air?.lfo]) { try { node?.stop(); } catch { /* already stopped */ } node?.disconnect(); }
+    this.air = null;
     this.music?.disconnect();
   }
 }

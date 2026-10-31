@@ -13,6 +13,7 @@ import { TrialEffects } from '../components/render/trialArt';
 import { TrialAudio } from '../components/audio/TrialAudio';
 import { IncidentRunView, runPose } from '../components/render/incidentArt';
 import { RunAudio } from '../components/audio/RunAudio';
+import { StreetAmbience } from '../components/render/streetAmbience';
 import { StreetLifeView } from '../components/render/streetArt';
 import { TRANSITION_SCENE, type TransitionScene } from './TransitionScene';
 import { toggleMute } from '../core/audioPrefs';
@@ -61,6 +62,7 @@ export class WorldScene extends Phaser.Scene {
   private runView: IncidentRunView | null = null;
   private runAudio: RunAudio | null = null;
   private streetView: StreetLifeView | null = null;
+  private ambience: StreetAmbience | null = null;
   /** The magic circle's flash has played (once per visit of the street). */
   private portalFlashed = false;
   private moveKeys: Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key> | null = null;
@@ -146,6 +148,8 @@ export class WorldScene extends Phaser.Scene {
     }
     if (this.sim.street) {
       this.streetView = new StreetLifeView(this);
+      // Cloud shadows, breathing light and falling leaves belong to the painted street (the tree positions are in its picture).
+      if (this.textures.exists(STREET_SCENE.key)) this.ambience = new StreetAmbience(this);
       // Stall talks: 1 / 2 pick a reply (the HUD has the same two buttons).
       this.input.keyboard?.on('keydown-ONE', () => !this.isUiBlocked() && this.sim.story.chooseReply(0));
       this.input.keyboard?.on('keydown-TWO', () => !this.isUiBlocked() && this.sim.story.chooseReply(1));
@@ -272,6 +276,8 @@ export class WorldScene extends Phaser.Scene {
       this.runAudio = null;
       this.streetView?.destroy();
       this.streetView = null;
+      this.ambience?.destroy();
+      this.ambience = null;
       this.stickGfx = null;
       this.moveKeys = null;
       this.stick = this.look = null;
@@ -318,13 +324,14 @@ export class WorldScene extends Phaser.Scene {
     if (pose) this.playerView.setAlpha?.(s.story.street?.heroHidden ? 0 : pose.alpha);
     this.runView?.sync(s.story.run, this.sim.player.pos, !!s.story.street?.heroHidden);
     this.streetView?.sync(s.story.street, this.sim.player.pos, s.story.run?.say ?? null);
+    this.ambience?.update(delta);
     // Chapter 1: the ambulance vanishes into the magic circle in a flash of light (then the doors close on chapter 2).
     const portal = s.story.street?.portal;
     if (portal && portal.k > 0.85 && !this.portalFlashed) {
       this.portalFlashed = true;
       if (dur(MOTION.base) > 0) this.cameras.main.flash(650, 210, 245, 255);
     }
-    this.runAudio?.sync(s.story.run, s.story.street, s.player.state === 'MOVING', !!(this.scene.get('HudScene') as { modalOpen?: boolean }).modalOpen);
+    this.runAudio?.sync(s.story.run, s.story.street, s.player.state === 'MOVING', !!(this.scene.get('HudScene') as { modalOpen?: boolean }).modalOpen, s.player.pos);
     this.drawStick();
     this.worldRenderer.setPathPreview(s.player.waypoints.length ? [s.player.pos, ...s.player.waypoints] : null);
     this.storyView?.sync(s);

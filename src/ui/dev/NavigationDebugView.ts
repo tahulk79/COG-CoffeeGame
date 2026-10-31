@@ -70,7 +70,10 @@ export class NavigationDebugView {
     // Walkers at their real body radius (what the hero collides with), not one size for everybody.
     for (const n of this.sim.street?.people() ?? []) this.ring(this.live, n, n.r ?? .25, 0xffe96b);
     const config = this.sim.content.story.chapters.S03?.street;
-    if (this.sim.street && config) for (const y of config.bikeLanes) this.path([{ x: 0, y }, { x: this.sim.world.width, y }], 0xff9b52);
+    if (this.sim.street && config) for (const y of config.bikeLanes) {
+      const t = config.traffic, at = (x: number) => y + (t?.slope ?? 0) * (x - (t?.refX ?? 0));
+      this.path([{ x: 0, y: at(0) }, { x: this.sim.world.width, y: at(this.sim.world.width) }], 0xff9b52);
+    }
     const route = this.sim.street?.rescueRoute;
     if (route) {
       this.path(route.approach, 0xdd72ff); this.path([route.park, ...route.exit], 0xdd72ff);

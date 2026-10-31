@@ -56,8 +56,7 @@ async function run(name, opts, chap, cpu = 1) {
 }
 
 const phone = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3 };
-await run('desktop', { viewport: { width: 1280, height: 720 } }, '1');
-await run('phone-cpu4x', phone, '1', 4);
-await run('desktop', { viewport: { width: 1280, height: 720 } }, '2');
-await run('phone-cpu4x', phone, '2', 4);
+const only = process.env.ONLY; // e.g. ONLY=1 to skip chapter 2
+if (!only || only === '1') { await run('desktop', { viewport: { width: 1280, height: 720 } }, '1'); await run('phone-cpu4x', phone, '1', 4); }
+if (!only || only === '2') { await run('desktop', { viewport: { width: 1280, height: 720 } }, '2'); await run('phone-cpu4x', phone, '2', 4); }
 await browser.close();

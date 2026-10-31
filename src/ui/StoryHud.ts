@@ -378,7 +378,8 @@ export class StoryHud {
     setShown(this.muteBtn.text, false);
     setShown(this.tracker, false);
     setShown(this.bookBtn.text, false);
-    setShown(this.quest, !between && d === null && (trial ? trial.phase !== 'spin' && trial.phase !== 'done' : !!run?.running && !st.street?.talking));
+    // Chapter 2 only: there it is the control that walks the hero to the next NPC. Chapter 1's street needs no objective panel.
+    setShown(this.quest, !between && d === null && !!trial && trial.phase !== 'spin' && trial.phase !== 'done');
     if (trial) this.syncTrial(trial, between);
     else {
       const choices = d === null && !between ? st.street?.choices ?? null : null;
@@ -390,10 +391,6 @@ export class StoryHud {
         name: 'Bạn trả lời', face: 'hero', text: speaker?.say ?? 'Bạn sẽ trả lời thế nào?',
         mood: null, more: false, choices, timeLeftMs: null,
       } : null);
-      if (this.questText.text !== 'Dạo phố') {
-        this.questText.setText('Dạo phố');
-        this.layoutQuest();
-      }
     }
     if (run && running) {
       const w = this.runTime.width;
