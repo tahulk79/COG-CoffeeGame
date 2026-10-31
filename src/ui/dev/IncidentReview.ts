@@ -29,7 +29,7 @@ export function readIncidentReview(): { kind: HazardKind; branch: string } | nul
 /** Review controls never ship to the normal HUD; selecting a case reloads a throwaway session. */
 export function installIncidentReview(scene: WorldScene): void {
   const review = readIncidentReview();
-  if (!review) return;
+  if (!review || !scene.sim.run) return;
   scene.sim.run?.reviewHazard(review.kind, review.branch);
   const panel = document.createElement('section');
   panel.setAttribute('aria-label', 'Duyệt 12 sự cố');

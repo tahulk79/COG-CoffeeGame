@@ -1,3 +1,5 @@
+import { NavigationDebugView } from '../ui/dev/NavigationDebugView';
+import { STREET_SCENE, streetCamera } from '../data/streetSceneLayout';
 import Phaser from 'phaser';
 import { islandCamera } from '../data/islandLayout';
 import { MemoryStorage } from '../gameplay/state/SaveService';
@@ -77,6 +79,7 @@ export class WorldScene extends Phaser.Scene {
   private launchData!: WorldSceneData;
   private uiBlocked = false;
   private loadFailures = 0;
+  private navigationDebug: NavigationDebugView | null = null;
   private discardResumeDelta = false;
 
   constructor() {
@@ -249,12 +252,15 @@ export class WorldScene extends Phaser.Scene {
     if (this.scene.isActive(TRANSITION_SCENE)) (this.scene.get(TRANSITION_SCENE) as TransitionScene).open();
     // Chapter 3 is not part of this build yet: once it has loaded, a "coming soon" card replaces it.
     if (this.sim.story.chapterId === 'S05') this.showComingSoon();
+    if (import.meta.env.DEV) this.navigationDebug = new NavigationDebugView(this, this.sim);
     installTestBridge(this);
     if (import.meta.env.DEV) installIncidentReview(this);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off(Phaser.Scale.Events.RESIZE, this.frameCamera, this);
       if (!this.travelling) flush(); // travel already saved with the destination map
+      this.navigationDebug?.destroy();
+      this.navigationDebug = null;
       this.storyView = null;
       this.trialFx?.destroy();
       this.trialFx = null;
@@ -294,6 +300,7 @@ export class WorldScene extends Phaser.Scene {
     this.cameraGestures(delta);
     const s = this.sim.snapshot();
     this.session.frame = s;
+    this.navigationDebug?.update(s);
     // Chapter 1 rescue: once the hero is inside, the camera rides along with the ambulance into the magic circle.
     this.worldRenderer.follow(s.story.street?.focus ?? s.player.pos, delta);
     this.worldRenderer.focusLabels(s.player.pos, this.hoveredObject);
@@ -348,6 +355,10 @@ export class WorldScene extends Phaser.Scene {
     if (this.sim.trial && CONTENT.trials.layout === 'island') {
       const { zoom } = islandCamera(w, h);
       this.worldRenderer.frame(world.width, world.height, none, zoom);
+      return;
+    }
+    if (this.sim.street && this.textures.exists(STREET_SCENE.key)) {
+      this.worldRenderer.frame(world.width, world.height, none, streetCamera(w, h).zoom);
       return;
     }
     if (fitWholeMap()) {

@@ -1,8 +1,8 @@
+import { STREET_SCENE, streetCameraCenter } from '../../data/streetSceneLayout';
 import { CHAPTER2_SLICE_ASSETS } from './sliceAssets';
 import Phaser from 'phaser';
 import { ISLAND, islandCamera } from '../../data/islandLayout';
 import { H5_ASSETS, HERO_FACINGS, worldSprite, terrainFrame, addTerrainTile, terrainRepeat } from './h5Assets';
-import { treeAppearance, SLICE_TREE_NAMES } from './sliceAssets';
 import { STORY_ASSETS } from './storyAssets';
 import { bakeGardenObject, drawGardenEnvironment, gardenSprite, GARDEN_BACKGROUND, STONE_COLOR } from './gardenArt';
 import { bakeIncidentObject, drawIncidentEnvironment, drawIncidentObject, IncidentActorView, STREET_BACKGROUND } from './incidentArt';
@@ -385,7 +385,7 @@ export class PlaceholderRenderer implements WorldRenderer {
     // Only states that call for action (progress, ready, thirsty, done) stay on screen; names show when near/hovered.
     e.captioned = visual.progress != null;
     const labelY = e.baked?.getData('sliceProp') ? e.baked.y - e.baked.displayHeight * e.baked.originY - 6 : e.sprite ? c.y - e.sprite.displayHeight * .82 - 4 : c.y - h - 4;
-    e.label.setText(this.streetScene && o.type === 'sau_tree' ? SLICE_TREE_NAMES[treeAppearance(o.id)]! : visual.caption ?? o.label).setPosition(c.x, labelY).setVisible((e.focused || e.captioned) && visual.variant !== 'away');
+    e.label.setText(visual.caption ?? o.label).setPosition(c.x, labelY).setVisible((e.focused || e.captioned) && visual.variant !== 'away');
     e.bar.clear();
     if (visual.progress != null) {
       const w = 44;
@@ -530,11 +530,6 @@ export class PlaceholderRenderer implements WorldRenderer {
         const coversHero = actorDepth(playerPos) < e.depth && bounds.contains(playerScreen.x, playerScreen.y - 40);
         e.sprite.setAlpha(coversHero ? .42 : 1);
       }
-      if (this.streetScene && e.data.type === 'sau_tree' && e.baked) {
-        const image = e.baked, bounds = image.getBounds();
-        const coversHero = playerPos.x + playerPos.y + .1 < e.depth && playerScreen.x > bounds.left && playerScreen.x < bounds.right && playerScreen.y - 40 > bounds.top && playerScreen.y - 40 < bounds.bottom;
-        image.setAlpha(coversHero ? .42 : 1);
-      }
       const near = Math.hypot(f.x + f.w / 2 - playerPos.x, f.y + f.h / 2 - playerPos.y) <= 2;
       const focused = near || id === hoveredId;
       e.focused = focused;
@@ -622,6 +617,20 @@ export class PlaceholderRenderer implements WorldRenderer {
     const zoom = cam.zoom;
     const p = worldToScreen(pos);
     const target = { x: p.x + this.centerOffset.x + this.pan.x, y: p.y - 24 + this.centerOffset.y + this.pan.y };
+    if (this.streetScene && this.scene.textures.exists(STREET_SCENE.key)) {
+      // Frame the facades ahead of the hero; foreground roofs should not fill the phone.
+      const t = streetCameraCenter({ x: p.x, y: p.y - 150 }, cam.width / zoom, cam.height / zoom);
+      const k = this.snapNext || dur(MOTION.base) === 0 ? 1 : easeFactor(dtMs, 60);
+      this.snapNext = false;
+      const center = streetCameraCenter({ x: cam.midPoint.x + (t.x - cam.midPoint.x) * k, y: cam.midPoint.y + (t.y - cam.midPoint.y) * k }, cam.width / zoom, cam.height / zoom);
+      // At the painted edge the clamp must not strand the hero: past 30 % of the view from the centre the camera follows anyway.
+      for (const [axis, size] of [['x', cam.width], ['y', cam.height]] as const) {
+        const off = (axis === 'x' ? p.x : p.y - 150) - center[axis], room = size / zoom * .3;
+        if (Math.abs(off) > room) center[axis] += off - Math.sign(off) * room;
+      }
+      cam.centerOn(Math.round(center.x * zoom) / zoom, Math.round(center.y * zoom) / zoom);
+      return;
+    }
     if (this.forestScene && this.scene.textures.exists(CHAPTER2_SLICE_ASSETS.island.key)) {
       const vw = cam.width / zoom, vh = cam.height / zoom;
       const fit = islandCamera(this.scene.scale.width / PIXEL_RATIO, this.scene.scale.height / PIXEL_RATIO).overview;

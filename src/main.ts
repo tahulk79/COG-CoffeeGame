@@ -8,9 +8,10 @@ import { PIXEL_RATIO } from './ui/layout/pixelRatio';
 
 // Every page load starts chapter 1; in-session travel still carries progress to chapter 2.
 const params = new URLSearchParams(window.location.search);
-const mapParam = readIncidentReview() ? 'incident' : params.get('map');
+// Chapter / map shortcuts are for development only: a shipped build always starts at chapter 1.
+const mapParam = readIncidentReview() ? 'incident' : import.meta.env.DEV ? params.get('map') : null;
 // TEMP (dev test): `?chap=1|2|3` starts that chapter directly. Remove with `startChapter` in WorldScene and session.ts.
-const chapParam = ({ '1': 'S03', '2': 'S04', '3': 'S05' } as Record<string, string>)[params.get('chap') ?? ''];
+const chapParam = import.meta.env.DEV ? ({ '1': 'S03', '2': 'S04', '3': 'S05' } as Record<string, string>)[params.get('chap') ?? ''] : undefined;
 const start: WorldSceneData = { ...(mapParam && !chapParam ? { mapId: mapParam } : {}), ...(chapParam ? { startChapter: chapParam } : {}), persistent: true, restartStory: true };
 
 // Phaser draws text once into a canvas: the game font must be loaded before the world is built, or every

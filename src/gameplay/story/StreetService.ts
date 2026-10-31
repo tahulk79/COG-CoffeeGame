@@ -248,6 +248,9 @@ interface Npc {
   /** The side (1 / -1 in y) a walker is stepping aside to, kept until they have passed. */
   dodge?: number;
   dodgeUntil?: number;
+  /** Crossing the road at the zebra: the sidewalk row they are heading for, and how long it has taken (ms). `go` false: still waiting at the kerb for a gap. */
+  cross?: { toY: number; ms: number; go: boolean };
+  crossCool?: number;
   detour?: { goal: WorldPos; dir: number; ms: number; blockedMs: number };
   /** Time spent wedged with no side to step to (ms). */
   stuckMs?: number;
@@ -288,11 +291,11 @@ const GATE_REACH = 0.9;
 /** The two medics never stand closer than this (tiles): one figure on top of the other looks like one. */
 const MEDIC_GAP = 0.45;
 /** The magic circle takes this long to open before the ambulance drives into it (ms). */
-/** The back street (see CITY_BACK_STREET in chapter1Scenery.ts): its two lanes and the sidewalk in front of the shops. */
 /** Used when the chapter's street has no `traffic` block: about 85 % motorbikes, as on a Hanoi street. */
 const DEFAULT_TRAFFIC: TrafficConfig = { mix: { bike: 0.88, car: 0.12 }, flow: 1000, rushFlow: 1.6, density: 0.035 };
 
-const BACK = { lanes: [21.2, 22.8], walk: 20.1, bikes: 5, walkers: 7 } as const;
+/** The painted zebra crossing: passers-by cross the road only here. */
+export const CROSSWALK = { x: 22.8, half: 2.2 };
 /** When the ambulance turns into the street (rescue ms): it was called at once. */
 const AMBULANCE_AT = 1000;
 
@@ -388,14 +391,6 @@ export class StreetService {
     // The road opens with traffic already on it, then vehicles arrive at both ends (traffic.ts).
     this.traffic = new Traffic(config.bikeLanes, config.traffic ?? DEFAULT_TRAFFIC, this.random, { from: -19, to: this.size.w + 21 });
     this.traffic.fill((kind, v0, dir, lane, x) => this.addVehicle(kind, v0, dir, lane, x, v0 * 0.8));
-    // The quiet street behind the south shops carries traffic and a few people of its own, so the main street is less crowded.
-    for (let i = 0; i < BACK.bikes; i++) {
-      const west = i % 2 === 0;
-      this.npcs.push({ id: `backbike${i}`, look: 'bike', x: -14 + (i * 83) / BACK.bikes + this.random() * 6, y: BACK.lanes[west ? 0 : 1]!, dir: west ? -1 : 1, speed: config.bikeSpeed * (0.7 + this.random() * 0.3), bike: true, decor: true, still: false, waitMs: 0, say: null, quietUntil: 0 });
-    }
-    for (let i = 0; i < BACK.walkers; i++) {
-      this.npcs.push({ id: `backwalker${i}`, look: config.looks[(i + 2) % config.looks.length]!, x: -10 + (i * 70) / BACK.walkers + this.random() * 8, y: BACK.walk + (i % 2) * 0.25, dir: i % 2 ? 1 : -1, speed: config.walkSpeed[0] + this.random() * (config.walkSpeed[1] - config.walkSpeed[0]), bike: false, decor: true, still: false, waitMs: 0, say: null, quietUntil: 0 });
-    }
     for (const g of config.gates ?? []) {
       this.gateOpen[g.id] = 0;
       this.npcs.push({ id: `gate:${g.id}`, look: 'guard', x: g.guard.x, y: g.guard.y, dir: g.inward, speed: 0, bike: false, still: true, waitMs: 0, say: null, quietUntil: 0, home: { ...g.guard, reach: 0 }, idleMs: 1500 + this.random() * 3000 });
@@ -562,7 +557,7 @@ export class StreetService {
   }
 
   /** Everyone on foot the hero should walk round (not the bikes, not anyone hidden). */
-  people(): Array<{ x: number; y: number }> {
+  people(): Array<{ x: number; y: number; r?: number }> {
     return this.npcs.filter((n) => !n.bike && (n.scale ?? 1) > 0.01);
   }
 
@@ -668,16 +663,7 @@ export class StreetService {
         const v0 = Math.min(AMBULANCE_SPEC.v0[1], Math.sqrt(2 * VAN_BRAKE * left) + 0.4, Math.sqrt(2 * VAN_BRAKE * corner) + 2.5);
         const lead = this.leaderOf(v, AMBULANCE_SPEC.len, false);
         this.idmStep(v, AMBULANCE_SPEC, v0, lead, dt);
-        // Someone standing in its way (the side street most of all): asked to step aside, never driven through.
-        const n = lead.who, across = (q: WorldPos) => Math.abs(v.axis === 'y' ? q.x - v.x : q.y - v.y);
-        // Once given a spot off the van's line they keep it (no new route every frame).
-        if (n && !n.id.startsWith('gate:') && lead.gap < 2.5 && v.speed < 1 && (!n.goal || across(n.goal) < 1.2)) {
-          const sx = v.axis === 'y' ? 1 : 0, sy = v.axis === 'y' ? 0 : 1;
-          const k = (v.axis === 'y' ? n.x - v.x : n.y - v.y) >= 0 ? 1 : -1;
-          n.visit = undefined; n.still = true;
-          n.goal = this.spotAround(n, sx * k * 1.6, sy * k * 1.6);
-          if (!r.crowd.includes(n) && !r.yielding.includes(n)) r.yielding.push(n);
-        }
+        this.makeWay(r, v, lead);
         // Stuck in a jam on the way: it pulls up right there and the medics go the rest of the way on foot.
         this.vanStuckMs = v.speed < 0.3 ? this.vanStuckMs + dt : 0;
         if (this.vanStuckMs > 1200 && r.route.park.y === r.route.lane) this.stopVanHere(r, v);
@@ -774,11 +760,21 @@ export class StreetService {
     }
     // First leave the pickup spot and rejoin the road; only then reveal the portal ahead.
     // Pulling out: first wait for a gap in the traffic coming up behind in its lane (MOBIL-style safety check).
-    const merging = r.hidden && v && !r.portal && r.departureDistance < 0.5 && this.npcs.some(m => m.traffic && m.dir === r.dir && Math.abs(m.y - v.y) < 0.9 && (v.x - m.x) * r.dir > 0 && (v.x - m.x) * r.dir < 2 + m.speed * 1.2);
+    // Cars halted behind the van (waiting for it) do not count: it would wait for them, and they for it, for ever.
+    const merging = r.hidden && v && !r.portal && r.departureDistance < 0.5 && this.npcs.some(m => m.traffic && m.speed > 0.3 && m.dir === r.dir && Math.abs(m.y - v.y) < 0.9 && (v.x - m.x) * r.dir > 0 && (v.x - m.x) * r.dir < 2 + m.speed * 1.2);
     if (merging) v.speed = 0;
     if (r.hidden && v && !r.portal && !merging) {
       const before = { x: v.x, y: v.y };
-      this.idmStep(v, AMBULANCE_SPEC, AMBULANCE_SPEC.v0[1], this.leaderOf(v, AMBULANCE_SPEC.len, false), dt);
+      // Face the way out first: still facing into the side street, the onlookers behind it would count as "ahead" and hold it for good.
+      const out = r.route.exit[0];
+      if (out) {
+        const dx = out.x - v.x, dy = out.y - v.y;
+        v.axis = Math.abs(dy) > Math.abs(dx) ? 'y' : 'x';
+        v.dir = Math.sign(v.axis === 'y' ? dy : dx) || v.dir;
+      }
+      const lead = this.leaderOf(v, AMBULANCE_SPEC.len, false);
+      this.idmStep(v, AMBULANCE_SPEC, AMBULANCE_SPEC.v0[1], lead, dt);
+      this.makeWay(r, v, lead);
       if (r.route.exit.length) this.drive(v, r.route.exit, dt);
       else { v.axis = 'x'; v.dir = r.dir; v.x += r.dir * v.speed * dt / 1000; }
       r.departureDistance += Math.hypot(v.x - before.x, v.y - before.y);
@@ -1028,6 +1024,18 @@ export class StreetService {
     }
   }
 
+  /** Someone standing in the van's way (the side street most of all): asked to step aside, never driven through. */
+  private makeWay(r: NonNullable<StreetService['rescue']>, v: Npc, lead: { gap: number; who?: Npc }): void {
+    const n = lead.who, across = (q: WorldPos) => Math.abs(v.axis === 'y' ? q.x - v.x : q.y - v.y);
+    // Once given a spot off the van's line they keep it (no new route every frame).
+    if (!n || n.id.startsWith('gate:') || lead.gap >= 2.5 || v.speed >= 1 || (n.goal && across(n.goal) >= 1.2)) return;
+    const sx = v.axis === 'y' ? 1 : 0, sy = v.axis === 'y' ? 0 : 1;
+    const k = (v.axis === 'y' ? n.x - v.x : n.y - v.y) >= 0 ? 1 : -1;
+    n.visit = undefined; n.still = true;
+    n.goal = this.offRoad(this.spotAround(n, sx * k * 1.6, sy * k * 1.6));
+    if (!r.crowd.includes(n) && !r.yielding.includes(n)) r.yielding.push(n);
+  }
+
   private drive(v: Npc, points: WorldPos[], dt: number): void {
     const x = v.x, y = v.y;
     this.walkPath(v, points, v.speed * dt / 1000, (dx, dy) => {
@@ -1253,7 +1261,7 @@ export class StreetService {
       return;
     }
     // Pedestrians keep to the sidewalks: if one ever ends up in the car lanes it steps back to the kerb.
-    if (!n.bike && n.look !== 'medic' && this.onRoad(n.y)) {
+    if (!n.bike && n.look !== 'medic' && !n.cross && this.onRoad(n.y)) {
       const lanesNow = this.config.bikeLanes, top = lanesNow[0]! - 1.5, bottom = lanesNow[lanesNow.length - 1]! + 1.5;
       n.y = n.y - top < bottom - n.y ? top : bottom;
     }
@@ -1263,6 +1271,7 @@ export class StreetService {
       n.waitMs -= dt;
       return;
     }
+    if (!n.bike && n.look !== 'medic' && this.crossRoad(n, dt)) return;
     if (!n.bike) {
       // Along their own row of the sidewalk; what stands ahead is passed with room to spare (planned, not brushed past),
       // then back to the row.
@@ -1281,6 +1290,37 @@ export class StreetService {
     const lo = -2.5, hi = fenced ? this.hooks.limitX() - 0.6 : this.size.w + 2.5;
     if (n.x < lo) { n.x = lo; n.dir = 1; }
     else if (n.x > hi) { n.x = hi; n.dir = -1; }
+  }
+
+  /** Now and then a passer-by at the zebra crosses: waits at the kerb for a gap in the traffic, then walks over (cars give way to anyone on the road). True while this walker's move is handled here. */
+  private crossRoad(n: Npc, dt: number): boolean {
+    const bl = this.config.bikeLanes;
+    // The rescue owns the road: a walker mid-crossing gives up (and steps back to the kerb), or the van, traffic and walker wait on each other.
+    if (this.rescue && n.cross) { n.cross = undefined; return false; }
+    if (!n.cross) {
+      n.crossCool = (n.crossCool ?? this.random() * 8000) - dt;
+      if (n.crossCool > 0 || !this.walking() || this.rescue || n.visit || n.goal || n.detour || n.still || this.onRoad(n.y) || Math.abs(n.x - CROSSWALK.x) > CROSSWALK.half) return false;
+      n.crossCool = 25000 + this.random() * 20000;
+      if (this.random() < 0.5) return false;
+      const rows = this.config.lanes.filter(y => (n.y > bl[0]! ? y < bl[0]! : y > bl[bl.length - 1]!));
+      if (!rows.length) return false;
+      n.cross = { toY: rows[Math.floor(this.random() * rows.length)]!, ms: 0, go: false };
+    }
+    const c = n.cross;
+    c.ms += dt;
+    // Never stuck on the road: after a long time they step back to the kerb (the rule in `move`).
+    if (c.ms > 20000 || Math.abs(n.y - c.toY) < 0.3) { if (Math.abs(n.y - c.toY) < 0.3) n.lane = c.toY; n.cross = undefined; return false; }
+    const dx = CROSSWALK.x - n.x;
+    if (!c.go) {
+      // Walk to the crossing, then wait until nothing fast is about to reach it.
+      const clear = !this.npcs.some(v => v.traffic && v.speed > 0.4 && (CROSSWALK.x - v.x) * v.dir > -1.5 && (CROSSWALK.x - v.x) * v.dir < 4 + v.speed);
+      if (Math.abs(dx) < 0.35 && clear) c.go = true;
+      else if (c.ms > 8000 && !this.onRoad(n.y)) { n.cross = undefined; return false; }
+      else { socialStep(n, Math.abs(dx) < 0.35 ? { x: 0, y: 0 } : { x: Math.sign(dx), y: 0 }, Math.abs(dx) < 0.35 ? 0 : n.speed, this.walkEnv, dt); return true; }
+    }
+    const ex = Math.max(-0.3, Math.min(0.3, dx * 0.8)), ey = Math.sign(c.toY - n.y), el = Math.hypot(ex, ey);
+    socialStep(n, { x: ex / el, y: ey / el }, n.speed * 1.15, { ...this.walkEnv, kerb: undefined }, dt);
+    return true;
   }
 
   /** Distance to the nearest walker just ahead of `n` in its lane, going the same way, or Infinity. */
@@ -1364,7 +1404,8 @@ export class StreetService {
       n.visit = undefined; n.still = true; n.watch = true;
       // Standing in a crowd people keep a little more room round them than when walking past each other.
       n.r = Math.max(n.r ?? 0.25, 0.32);
-      n.goal = s ? { x: s.x, y: s.y } : this.spotAround(this.player.pos, n.x - this.player.pos.x, n.y - this.player.pos.y);
+      const goal = s ? { x: s.x, y: s.y } : this.spotAround(this.player.pos, n.x - this.player.pos.x, n.y - this.player.pos.y);
+      n.goal = this.onRoad(this.player.pos.y) ? goal : this.offRoad(goal);
     }
   }
 
@@ -1400,6 +1441,13 @@ export class StreetService {
     v.speed = Math.max(0, Math.min(v0 * 1.05 + 0.01, v.speed + a * s));
     const room = Math.max(0, lead.gap - 0.05 + lead.v * s);
     if (v.speed * s > room) v.speed = room / Math.max(s, 1e-6);
+  }
+
+  /** A spot moved to the nearest kerb if it is in the road: an onlooker left standing there stops the traffic, which then stops the van. */
+  private offRoad(g: WorldPos): WorldPos {
+    if (!this.onRoad(g.y)) return g;
+    const lanes = this.config.bikeLanes, top = lanes[0]! - 1.5, bottom = lanes[lanes.length - 1]! + 1.5;
+    return { x: g.x, y: g.y - top < bottom - g.y ? top : bottom };
   }
 
   /** Inside the road (where only vehicles go), with a little margin for a body. */
@@ -1722,6 +1770,8 @@ export class StreetService {
     this.talk = null;
     if (done) this.hooks.visited(t.stall.id);
   }
+
+  get rescueRoute(): RescueRoute | null { return this.rescue?.route ?? null; }
 
   view(): StreetView {
     const t = this.talk;

@@ -1,8 +1,10 @@
+import { drawStreetDetails } from './streetBackground';
+import { STREET_SCENE } from '../../data/streetSceneLayout';
 import { CITY_BACK_STREET, drawChapter1Backdrop } from './chapter1Scenery';
 import { roadDashes, streetPaver, streetKerb, streetAsphalt, streetDrain, streetManhole, STREET_PAVING } from './streetPaving';
 import { streetHouses } from './streetLayout';
 import { asphaltSurface } from './streetMaterial';
-import { SLICE_ASSETS, SLICE_STALL_FRAMES, sliceAnimalFrame, sliceCargoBikeFrame, sliceHeroFrame, sliceHeroReactionFrame, appearanceSeed, treeAppearance, sliceMotorbikeFrame } from './sliceAssets';
+import { SLICE_ASSETS, SLICE_STALL_FRAMES, sliceAnimalFrame, sliceCargoBikeFrame, sliceHeroFrame, sliceHeroReactionFrame, appearanceSeed, sliceMotorbikeFrame } from './sliceAssets';
 import { facingFrom, type Facing } from '../../entities/Actor';
 import Phaser from 'phaser';
 import { actorDepth, floorDepth, worldToScreen } from '../../utils/iso';
@@ -281,37 +283,9 @@ export function bakeImage(scene: Phaser.Scene, key: string, b: { x: number; y: n
   return scene.add.image(b.x, b.y, key).setOrigin(0).setDepth(depth);
 }
 
-/** A street tree's pit, flat on the pavement: a stone kerb round a square of soil with a few tufts. */
-function treePit(scene: Phaser.Scene, id: string, f: Footprint): void {
-  const { x, y } = f, sq = (a: number, b: number) => [[x + a, y + a], [x + b, y + a], [x + b, y + b], [x + a, y + b]];
-  const shadowKey = 'hn:foliage-shadow:v1';
-  if (!scene.textures.exists(shadowKey)) {
-    const g = scene.make.graphics({ x: 0, y: 0 }, false);
-    for (let i = 0; i < 28; i++) {
-      const angle = i * 2.39996, r = Math.sqrt(i / 28) * 72;
-      const sx = 110 + Math.cos(angle) * r, sy = 55 + Math.sin(angle) * r * .43;
-      g.fillStyle(0x343d30, .09).fillEllipse(sx, sy, 30 + i % 3 * 7, 14 + i % 3 * 3);
-      g.fillStyle(0x343d30, .09).fillEllipse(sx + 9, sy + 3, 9, 4);
-    }
-    g.generateTexture(shadowKey, 220, 110);
-    g.destroy();
-  }
-  const at = point(x + .5, y + .5);
-  scene.add.image(at.x + 32, at.y + 18, shadowKey).setScale(.85 + appearanceSeed(id) % 4 * .05).setDepth(floorDepth + .3);
-  bakeImage(scene, `hn:treepit:${id}`, screenBox([[x, y], [x + 1, y], [x, y + 1], [x + 1, y + 1]], 8, 4), floorDepth + .5, (g) => {
-    face(g, sq(.06, .94), 0xa79f8c, 1, 0);
-    face(g, sq(.1, .9), 0xd9d0bd, 1, 1);
-    face(g, sq(.22, .78), 0x7b5b40, 1, 1);
-    for (const [tx, ty] of [[.32, .4], [.62, .33], [.45, .66], [.7, .62]] as const) {
-      const p = point(x + tx, y + ty);
-      g.fillStyle(0x7fb35f).fillCircle(p.x, p.y - 1, 3);
-    }
-  });
-}
-
 /** A chapter-1 map object (street prop, parked car, barrier) as one baked image; null for types drawn elsewhere. */
 export function bakeIncidentObject(scene: Phaser.Scene, id: string, type: string, f: Footprint, variant: string, depth: number): Phaser.GameObjects.Image | null {
-  if (!['street_prop', 'stall', 'sau_tree', 'stools', 'parked_bike', 'kitten', 'car', 'barrier'].includes(type)) return null;
+  if (!['street_prop', 'stall', 'stools', 'parked_bike', 'kitten', 'car', 'barrier'].includes(type)) return null;
   const centre = point(f.x + f.w / 2, f.y + f.h / 2);
   const variantIndex = appearanceSeed(id);
   if (type === 'stall' && SLICE_STALL_FRAMES[variant] !== undefined) {
@@ -322,11 +296,6 @@ export function bakeIncidentObject(scene: Phaser.Scene, id: string, type: string
       return image.setPosition(front.x, front.y).setOrigin(.65, .97).setFlipX(true)
         .setDisplaySize((f.w + f.h) * 64, 104 + (f.w + f.h) * 32);
     }
-  }
-  if (type === 'sau_tree') {
-    treePit(scene, id, f);
-    const image = sliceProp(scene, SLICE_ASSETS.treesVaried.key, treeAppearance(id), depth);
-    if (image) return image.setPosition(centre.x, centre.y).setOrigin(.5, .98).setScale((126 + variantIndex % 33) / image.height);
   }
   if (type === 'parked_bike') {
     const image = sliceProp(scene, SLICE_ASSETS.parkedBikes.key, variantIndex % 4, depth);
@@ -474,6 +443,12 @@ function drawSky(scene: Phaser.Scene): void {
 }
 
 export function drawIncidentEnvironment(scene: Phaser.Scene, floor: FloorTileView[]): void {
+  if (scene.textures.exists(STREET_SCENE.key)) {
+    scene.add.image(STREET_SCENE.x, STREET_SCENE.y, STREET_SCENE.key).setOrigin(0)
+      .setDisplaySize(STREET_SCENE.width, STREET_SCENE.height).setDepth(floorDepth - 1);
+    drawStreetDetails(scene);
+    return;
+  }
   drawChapter1Backdrop(scene);
   drawSky(scene);
   // Everything flat (ground around the map, the map's own floor, markings, beds) is one baked layer.

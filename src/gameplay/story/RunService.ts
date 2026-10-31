@@ -88,7 +88,7 @@ export interface RunScript {
   seen?(kind: HazardKind): number;
   markSeen?(kind: HazardKind): void;
   /** People standing or walking about: the hero walks round them, never through. */
-  people?: () => Array<{ x: number; y: number }>;
+  people?: () => Array<{ x: number; y: number; r?: number }>;
   /** Small round things standing about (a street tree's trunk, a stack of stools): radius `r`, walked round like people. */
   props?: () => Array<{ x: number; y: number; r: number }>;
 }
@@ -148,8 +148,9 @@ interface Hazard extends HazardView {
 
 export const RUN_BODY_RADIUS = 0.25;
 const R = RUN_BODY_RADIUS;
-/** How close the hero gets to another person (tile units). */
-const PERSON_GAP = 0.7;
+/** Room kept between the hero's body and another person's body (tile units), and the least when squeezing past. */
+const PERSON_MARGIN = 0.2, PERSON_TOUCH = 0.02;
+const PERSON_R = 0.25;
 /** Blocked by the corner of something: a sidestep this long (tiles) round it is taken on its own. */
 const CORNER_SLIP = 1;
 /** Going round someone or something, the hero keeps to the chosen side this long (ms). */
@@ -470,7 +471,11 @@ export class RunService {
       }
       // No way round (a wall on each side, say): after pushing a moment the hero squeezes past a person, never stuck for good.
       if (!o.prop && this.walk.stillMs > 350) {
-        for (const t of [to, { x: to.x, y: from.y }, { x: from.x, y: to.y }]) if (hasClearance(this.grid, from, t, R)) return { ...t };
+        // Squeezing past: closer than the usual gap, but never into the other body.
+        const near = this.obstacles();
+        for (const t of [to, { x: to.x, y: from.y }, { x: from.x, y: to.y }]) {
+          if (hasClearance(this.grid, from, t, R) && near.every(o => Math.hypot(t.x - o.x, t.y - o.y) >= o.touch || Math.hypot(t.x - o.x, t.y - o.y) > Math.hypot(from.x - o.x, from.y - o.y))) return { ...t };
+        }
       }
       // Until then stand still rather than shuffle about (the corner step below is for walls).
       return slid > 1e-4 ? q : null;
@@ -489,9 +494,10 @@ export class RunService {
   }
 
   /** Everything round the hero walks round: people, and the small round props (trunks, stools). */
-  private obstacles(): Array<{ x: number; y: number; gap: number; prop: boolean }> {
-    const people = (this.script.people?.() ?? []).map((o) => ({ x: o.x, y: o.y, gap: PERSON_GAP, prop: false }));
-    return [...people, ...(this.script.props?.() ?? []).map((o) => ({ x: o.x, y: o.y, gap: o.r + R, prop: true }))];
+  private obstacles(): Array<{ x: number; y: number; gap: number; touch: number; prop: boolean }> {
+    // Each person keeps their own body size (a child is small, a pole carrier wide), not one gap for everybody.
+    const people = (this.script.people?.() ?? []).map((o) => ({ x: o.x, y: o.y, gap: R + (o.r ?? PERSON_R) + PERSON_MARGIN, touch: R + (o.r ?? PERSON_R) + PERSON_TOUCH, prop: false }));
+    return [...people, ...(this.script.props?.() ?? []).map((o) => ({ x: o.x, y: o.y, gap: o.r + R, touch: o.r + R, prop: true }))];
   }
 
   /** The person or prop the move from `from` to `to` walks into, if any. */
