@@ -1,0 +1,75 @@
+@import './ui-kit.css';
+@import './dialogue.css';
+@import './heaven.css';
+@import './farm.css';
+@import './cafe.css';
+
+:root{--game-font:'Baloo 2','Fredoka',system-ui,sans-serif;font-family:var(--game-font);color:#29493f;background:#edf5e7;font-synthesis:none}
+/* Bộ khung UI chung cho mọi màn (gỗ + giấy da của farm). Thay asset: gán url() vào các biến --ui-*-image, không sửa selector. */
+:root{
+ --ui-ink:#694427;--ui-ink-soft:#82633e;--ui-ink-light:#fffce9;
+ --ui-wood:#a57940;--ui-wood-dark:#76502c;--ui-wood-trim:#fff0c8;
+ --ui-paper:linear-gradient(135deg,#fffced,#f0ebcf);--ui-paper-edge:#b9c894;--ui-paper-drop:#81965b44;
+ --ui-inset:linear-gradient(#fffdf0,#fff2d4);--ui-inset-edge:#d5b780;
+ --ui-plank:repeating-linear-gradient(90deg,#e8c589 0 36px,#f1d39e 36px 38px,#e6c185 38px 40px);
+ --ui-plank-dark:repeating-linear-gradient(90deg,#e4b66c 0 48px,#edc781 48px 51px,#ddb069 51px 53px);
+ --ui-cream:linear-gradient(#fffaf0,#fff5df 65%,#fbe7bc);--ui-cream-edge:#e5c387;--ui-cream-drop:#9b703f;
+ --ui-leaf:linear-gradient(#e0eaba,#b2cc84);--ui-leaf-edge:#819855;--ui-leaf-drop:#718649;--ui-leaf-ink:#4e6737;
+ --ui-go:linear-gradient(#9cbc70,#74964e);--ui-go-edge:#d9e8b4;--ui-go-drop:#516d35;
+ --ui-gold:linear-gradient(#f8d881,#dcb15c);--ui-gold-edge:#fff0b5;--ui-gold-drop:#a67c34;
+ --ui-close:linear-gradient(#efa17b,#c77959);--ui-close-drop:#925438;
+ --ui-backdrop:#243c2a99;
+ --ui-panel-image:none;--ui-window-image:none;--ui-button-image:none;
+ /* Lượt 1 (§1.1): trạng thái + màu lặp lại nhiều lần trong farm/quán. */
+ --ui-line:#dfd0ad;--ui-muted:#927c55;
+ --ui-good:#5f8a3c;--ui-good-bg:#eef5dc;
+ --ui-bad:#b5523a;--ui-bad-bg:#fbe6dc;--ui-bad-edge:#d4a58a;
+ --ui-warn:#a8742a;--ui-warn-bg:#fff1d0;
+ --ui-off:#d6cbb1;--ui-off-edge:#c1b18e;
+ --ui-toast-bg:#fff7dfd9;
+ --ui-focus:#8cb9a1;--ui-shine:#fffdf3;--ui-sheet:#fff6e2;
+ --ui-leaf-hi:#f5f9df;--ui-close-edge:#ffe3b7;
+ --ui-coin-hi:#ffe998;--ui-coin-edge:#c18d2a;--ui-chip-edge:#51381f;
+ --ui-shadow:#213a2855;--ui-drop-soft:#6b4c2033;
+}
+*{box-sizing:border-box}
+body{margin:0;overflow:hidden}
+[hidden]{display:none!important}
+button{font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+button:focus-visible,summary:focus-visible,[role="button"]:focus-visible{outline:3px solid var(--ui-focus);outline-offset:4px}
+button:disabled{cursor:not-allowed;opacity:.6}
+[aria-busy="true"]{cursor:wait!important} /* beats scene-specific :disabled cursors */
+#game,canvas,.vignette{position:fixed;inset:0;width:100%;height:100%;display:block}
+#game{outline:none}
+.vignette{pointer-events:none;background:linear-gradient(0deg,#fff6db29,transparent 24%,transparent 85%,#fff4d614)}
+.primary{border:2px solid var(--ui-go-edge);background:var(--ui-button-image),var(--ui-go);color:var(--ui-ink-light);text-shadow:0 1px var(--ui-go-drop);box-shadow:0 4px 0 var(--ui-go-drop);padding:19px 25px;border-radius:24px;font-size:14px;font-weight:800;min-width:235px;display:flex;justify-content:space-between;gap:36px;align-items:center}
+.primary:hover{filter:brightness(1.06)}.primary:active{transform:translateY(2px);box-shadow:0 2px 0 var(--ui-go-drop)}
+.primary span{font-size:20px}
+#progress{position:fixed;bottom:0;left:0;width:100%;height:4px;background:var(--ui-line);pointer-events:none}
+#progress-fill{height:100%;background:var(--ui-go);width:0}
+#error{position:fixed;inset:30% 10%;padding:30px;background:var(--ui-paper);border:2px solid var(--ui-paper-edge);border-radius:16px;color:var(--ui-ink);z-index:10;line-height:1.8}
+#selection{position:fixed;inset:0;z-index:2;pointer-events:none;background:linear-gradient(0deg,#f4f6e9f2,transparent 36%)}
+/* Mobile-first: bảng giấy gọn ở đáy, chừa phần trên cho nhân vật 3D. */
+.creation-card{position:absolute;left:50%;bottom:max(12px,env(safe-area-inset-bottom));transform:translateX(-50%);width:calc(100% - 24px);max-width:380px;display:grid;gap:8px;padding:22px 14px 12px;background:var(--ui-paper);border:2px solid var(--ui-paper-edge);border-radius:22px;box-shadow:0 4px 0 var(--ui-paper-drop),0 14px 30px var(--ui-drop-soft);pointer-events:auto}
+.creation-card h1{position:absolute;top:0;left:50%;transform:translate(-50%,-55%);margin:0;padding:3px 20px;white-space:nowrap;font:800 20px/1.2 var(--game-font);color:var(--ui-leaf-ink);background:var(--ui-leaf);border:2px solid var(--ui-leaf-edge);border-radius:14px;box-shadow:inset 0 2px var(--ui-leaf-hi),0 3px 0 var(--ui-leaf-drop);text-shadow:0 1px var(--ui-leaf-hi)}
+.gender-switch{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:4px;background:var(--ui-good-bg);border-radius:16px}
+.gender-switch button{min-height:44px;border:0;border-radius:12px;background:transparent;color:var(--ui-ink-soft);font-size:15px;font-weight:800}
+.gender-switch button[aria-pressed=true]{background:var(--ui-gold);color:var(--ui-ink);box-shadow:0 3px 0 var(--ui-gold-drop)}
+.name-row{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.name-label{font-size:13px;font-weight:700;color:var(--ui-ink-soft)}
+#name-note{margin:0;font-size:11px;color:var(--ui-ink-soft)}
+#player-name{width:100%;padding:10px 14px;background:var(--ui-shine);border:2px solid var(--ui-paper-edge);border-radius:16px 0 0 16px;color:var(--ui-ink);font:inherit;font-size:16px;outline:none}#player-name:focus{border-color:var(--ui-leaf-edge)}#player-name:focus-visible{box-shadow:0 0 0 3px var(--ui-focus)}#player-name::placeholder{color:var(--ui-muted)}
+.creation-card .primary{min-width:0;padding:12px 22px;margin-top:2px}
+.gesture-hint{margin:0;text-align:center;font-size:12px;color:var(--ui-ink-soft)}
+.primary:disabled{opacity:.6;cursor:not-allowed}#scene-transition{position:fixed;inset:0;z-index:8;pointer-events:none;overflow:hidden;opacity:1;background:none}.slide-sheet{position:absolute;top:-20%;height:140%;width:65%;background:linear-gradient(115deg,#f8edca 10%,#d8ead2 70%,#b9d9bb);will-change:transform}.slide-sheet:after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent 0,transparent 39px,#ffffff05 40px,transparent 41px)}.slide-left{left:-10%;transform:translateX(-115%) skewX(-10deg);border-right:2px solid #ebc98d;box-shadow:15px 0 40px #748e6b33}.slide-right{right:-10%;transform:translateX(115%) skewX(-10deg);border-left:2px solid #ebc98d;background:linear-gradient(115deg,#e4efcf,#faf1d9 80%)}@media(max-width:700px){.slide-sheet{width:75%}.slide-left{left:-20%}.slide-right{right:-20%}}@media(min-width:700px){.creation-card{bottom:24px;max-width:400px;padding:24px 18px 14px}.creation-card h1{font-size:23px}}@media(max-height:550px){.creation-card{left:auto;right:12px;bottom:12px;transform:none;width:300px;gap:6px;padding:20px 12px 10px}.name-row,.gesture-hint{display:none}.gender-switch button{min-height:38px}.creation-card .primary{padding:9px 18px}}@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+#game canvas{touch-action:none}
+
+.name-controls{display:flex;min-width:0}.name-controls #player-name{min-width:0;flex:1}.name-controls #random-name{border:2px solid var(--ui-paper-edge);border-left:0;border-radius:0 18px 18px 0;padding:0 12px;background:var(--ui-gold);color:var(--ui-ink);font-size:24px;line-height:1;min-width:48px}.name-controls #random-name:hover{filter:brightness(1.06)}.name-controls #random-name:active{transform:scale(.94)}
+
+
+
+
+
+.game-currency{display:inline;white-space:nowrap}
+.game-currency>.farm-gold-coin{display:inline-grid;vertical-align:-.16em;width:1.1em;height:1.1em;margin-right:.12em;border-width:1px;font-size:.85em;line-height:1;box-shadow:inset 0 0 0 1px var(--ui-coin-hi),0 1px var(--ui-coin-edge)}

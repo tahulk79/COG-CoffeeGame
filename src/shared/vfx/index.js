@@ -1,0 +1,305 @@
+import * as THREE from 'three';
+
+// Mức chất lượng (round-1-foundation §3.2). Lưu/đọc do settings đảm nhận; ở đây chỉ giữ giá trị trong lượt.
+const QUALITY = {
+  low: { pixelRatio: 1, shadows: false, particles: 120, burst: .4, emitter: 0, shake: false, pulse: false, outline: false, chips: 4 },
+  medium: { pixelRatio: 1.25, shadows: true, particles: 400, burst: .7, emitter: .5, shake: true, pulse: true, outline: false, chips: 6 },
+  high: { pixelRatio: 1.5, shadows: true, particles: 800, burst: 1, emitter: 1, shake: true, pulse: true, outline: true, chips: 8 }
+};
+let quality = 'high';
+const qualityListeners = new Set();
+const motionQuery = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
+const reducedMotion = () => !!motionQuery?.matches;
+
+export function getQuality() { return quality; }
+export function setQuality(level) {
+  if (!QUALITY[level] || level === quality) return;
+  quality = level;
+  for (const fn of qualityListeners) fn(level);
+}
+export function onQuality(fn) { qualityListeners.add(fn); return () => qualityListeners.delete(fn); }
+export function applyRendererQuality(renderer, scene) {
+  const q = QUALITY[quality];
+  const ratio = Math.min(window.devicePixelRatio || 1, q.pixelRatio);
+  if (renderer.getPixelRatio() !== ratio) renderer.setPixelRatio(ratio);
+  if (renderer.shadowMap.enabled === q.shadows) return;
+  renderer.shadowMap.enabled = q.shadows;
+  renderer.shadowMap.needsUpdate = true;
+  // Bật/tắt bóng đổi chương trình shader: biên dịch lại một lần (chấp nhận khựng).
+  scene?.traverse(object => {
+    const list = Array.isArray(object.material) ? object.material : object.material ? [object.material] : [];
+    for (const material of list) material.needsUpdate = true;
+  });
+}
+
+// Bảng màu ấm/đất/xanh lá dịu (docs/asset-pipeline.md). size theo đơn vị thế giới.
+const KINDS = {
+  soil: { color: 0x7a5232, shape: 'dot', count: 14, life: .6, speed: 1.8, up: 2.6, gravity: -9, size: .14 },
+  water: { color: 0x86bcd8, shape: 'drop', count: 12, life: .5, speed: 1.1, up: 1.2, gravity: -9, size: .12 },
+  leaf: { color: 0x8fae6b, shape: 'leaf', count: 8, life: 1, speed: 1.4, up: 1.8, gravity: -2.2, size: .2, drag: 2 },
+  granule: { color: 0x6b4428, shape: 'dot', count: 14, life: .6, speed: 1.4, up: 2.2, gravity: -8, size: .1 },
+  cherry: { color: 0xc4473a, shape: 'dot', count: 10, life: .7, speed: 1.5, up: 2.6, gravity: -8, size: .16 },
+  dust: { color: 0xcdb48c, shape: 'soft', count: 8, life: 1.1, speed: .7, up: .3, gravity: .25, size: .34, grow: 1, drag: 1.5 },
+  steam: { color: 0xf3ead8, shape: 'soft', count: 6, life: 1.2, speed: .2, up: .7, gravity: .5, size: .26, grow: 1.4, drag: 1 },
+  sparkle: { color: 0xffe39a, shape: 'star', count: 10, life: .7, speed: 1.3, up: 1.1, gravity: 0, size: .22, drag: 2.5, additive: true },
+  coin: { color: 0xf2c14e, shape: 'coin', count: 8, life: .8, speed: 1.6, up: 3, gravity: -7, size: .2 },
+  puff: { color: 0xc4473a, shape: 'soft', count: 8, life: .5, speed: 1.1, up: .4, gravity: .3, size: .28, grow: 1.2, drag: 3 },
+  heart: { color: 0xe57a8a, shape: 'heart', count: 5, life: 1, speed: .5, up: 1, gravity: .8, size: .24, drag: 1 }
+};
+const POOL = 320; // mỗi loại; tổng số hạt sống còn bị chặn theo mức chất lượng
+
+function drawTexture(shape) {
+  const canvas = document.createElement('canvas'); canvas.width = canvas.height = 64;
+  const g = canvas.getContext('2d'); g.fillStyle = '#fff'; g.translate(32, 32);
+  if (shape === 'soft') {
+    const grad = g.createRadialGradient(0, 0, 0, 0, 0, 30);
+    grad.addColorStop(0, 'rgba(255,255,255,1)'); grad.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grad; g.fillRect(-32, -32, 64, 64);
+  } else if (shape === 'drop') {
+    g.beginPath(); g.moveTo(0, -26); g.bezierCurveTo(16, -4, 18, 20, 0, 24); g.bezierCurveTo(-18, 20, -16, -4, 0, -26); g.fill();
+  } else if (shape === 'leaf') {
+    g.rotate(.6); g.beginPath(); g.ellipse(0, 0, 12, 26, 0, 0, Math.PI * 2); g.fill();
+  } else if (shape === 'star') {
+    g.beginPath();
+    for (let i = 0; i < 8; i++) { const r = i % 2 ? 7 : 28, a = i * Math.PI / 4; g.lineTo(Math.sin(a) * r, -Math.cos(a) * r); }
+    g.fill();
+  } else if (shape === 'coin') {
+    g.beginPath(); g.arc(0, 0, 24, 0, Math.PI * 2); g.fill();
+    g.globalAlpha = .55; g.fillStyle = '#000'; g.beginPath(); g.arc(0, 0, 15, 0, Math.PI * 2); g.lineWidth = 4; g.strokeStyle = '#000'; g.stroke();
+  } else if (shape === 'heart') {
+    g.beginPath(); g.moveTo(0, 24); g.bezierCurveTo(-34, 0, -16, -28, 0, -10); g.bezierCurveTo(16, -28, 34, 0, 0, 24); g.fill();
+  } else {
+    g.beginPath(); g.arc(0, 0, 24, 0, Math.PI * 2); g.fill();
+  }
+  const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+const VERTEX = `
+attribute float size; attribute float alpha; attribute vec3 tint;
+uniform float halfHeight; varying float vAlpha; varying vec3 vTint;
+void main() {
+  vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  gl_Position = projectionMatrix * mv;
+  float depth = projectionMatrix[2][3] == -1.0 ? -mv.z : 1.0; // phối cảnh chia theo độ sâu, trực giao thì không
+  gl_PointSize = size * projectionMatrix[1][1] * halfHeight / depth;
+  vAlpha = alpha; vTint = tint;
+}`;
+const FRAGMENT = `
+uniform sampler2D map; varying float vAlpha; varying vec3 vTint;
+void main() {
+  vec4 t = texture2D(map, gl_PointCoord);
+  float a = t.a * vAlpha; if (a < .02) discard;
+  gl_FragColor = vec4(vTint * t.rgb, a);
+}`;
+
+export function createVfx({ scene }) { // camera trong spec chưa cần: kích thước hạt lấy từ projectionMatrix
+  const pools = {}, emitters = new Set(), pulses = new Map(), outlines = [], shellMaterials = new Map();
+  const bufferSize = new THREE.Vector2(), tmpColor = new THREE.Color();
+  let live = 0;
+
+  for (const [kind, def] of Object.entries(KINDS)) {
+    const geometry = new THREE.BufferGeometry();
+    const attr = (name, n) => { const a = new THREE.BufferAttribute(new Float32Array(POOL * n), n); a.setUsage(THREE.DynamicDrawUsage); geometry.setAttribute(name, a); return a; };
+    const position = attr('position', 3), tint = attr('tint', 3), size = attr('size', 1), alpha = attr('alpha', 1);
+    geometry.setDrawRange(0, 0);
+    const material = new THREE.ShaderMaterial({
+      uniforms: { map: { value: drawTexture(def.shape) }, halfHeight: { value: 400 } },
+      vertexShader: VERTEX, fragmentShader: FRAGMENT, transparent: true, depthWrite: false,
+      blending: def.additive ? THREE.AdditiveBlending : THREE.NormalBlending
+    });
+    const points = new THREE.Points(geometry, material);
+    points.frustumCulled = false; points.visible = false; points.renderOrder = 10;
+    points.onBeforeRender = renderer => { material.uniforms.halfHeight.value = renderer.getDrawingBufferSize(bufferSize).y / 2; };
+    scene.add(points);
+    pools[kind] = { def, points, geometry, material, position, tint, size, alpha, n: 0,
+      velocity: new Float32Array(POOL * 3), age: new Float32Array(POOL), life: new Float32Array(POOL), base: new Float32Array(POOL) };
+  }
+
+  function spawn(kind, pos, color, burstMode) {
+    const p = pools[kind], d = p.def;
+    if (p.n >= POOL || live >= QUALITY[quality].particles) return false;
+    const i = p.n++, i3 = i * 3; live++;
+    const angle = Math.random() * Math.PI * 2, speed = d.speed * (burstMode ? .4 + Math.random() * .6 : .3 + Math.random() * .4);
+    p.position.array[i3] = pos.x + (Math.random() - .5) * .15;
+    p.position.array[i3 + 1] = pos.y + Math.random() * .08;
+    p.position.array[i3 + 2] = pos.z + (Math.random() - .5) * .15;
+    p.velocity[i3] = Math.cos(angle) * speed;
+    p.velocity[i3 + 1] = d.up * (.6 + Math.random() * .4);
+    p.velocity[i3 + 2] = Math.sin(angle) * speed;
+    p.age[i] = 0; p.life[i] = d.life * (.75 + Math.random() * .5); p.base[i] = d.size * (.7 + Math.random() * .6);
+    tmpColor.set(color ?? d.color).multiplyScalar(.9 + Math.random() * .2);
+    p.tint.array[i3] = tmpColor.r; p.tint.array[i3 + 1] = tmpColor.g; p.tint.array[i3 + 2] = tmpColor.b;
+    p.size.array[i] = p.base[i]; p.alpha.array[i] = 0;
+    return true;
+  }
+
+  function burst(kind, pos, { count, color } = {}) {
+    if (!pools[kind] || !pos) return;
+    const n = Math.max(1, Math.round((count ?? KINDS[kind].count) * QUALITY[quality].burst * (reducedMotion() ? .5 : 1)));
+    for (let i = 0; i < n && spawn(kind, pos, color, true); i++);
+  }
+
+  function emitter(kind, pos, { rate = 8, duration = Infinity } = {}) {
+    const state = { kind, pos: { x: pos.x, y: pos.y, z: pos.z }, rate, remaining: duration, carry: 0 };
+    if (pools[kind]) emitters.add(state);
+    return {
+      move(next) { state.pos.x = next.x; state.pos.y = next.y; state.pos.z = next.z; },
+      stop() { emitters.delete(state); }
+    };
+  }
+
+  function pulse(object, { scale = 1.08, ms = 400 } = {}) {
+    if (!object || !QUALITY[quality].pulse) return;
+    const current = pulses.get(object);
+    if (current) { current.t = 0; current.ms = ms; current.scale = scale; return; }
+    pulses.set(object, { base: object.scale.clone(), t: 0, ms, scale });
+  }
+
+  function shellMaterial(color) {
+    const key = new THREE.Color(color).getHex();
+    if (!shellMaterials.has(key)) shellMaterials.set(key, new THREE.MeshBasicMaterial({ color: key, side: THREE.BackSide, depthWrite: false }));
+    return shellMaterials.get(key);
+  }
+  function outline(object, { color = 0xffe08a } = {}) {
+    const handle = { remove() {} };
+    if (!object || !QUALITY[quality].outline) return handle;
+    const material = shellMaterial(color), shells = [];
+    // shortcut: vỏ phóng quanh gốc mesh nên lệch với mesh có gốc không ở tâm và bỏ qua SkinnedMesh; đổi sang OutlinePass khi có hậu kỳ.
+    object.traverse(child => {
+      if (!child.isMesh || child.isSkinnedMesh || child.userData.vfxShell) return;
+      const shell = new THREE.Mesh(child.geometry, material);
+      shell.userData.vfxShell = true; shell.scale.setScalar(1.04); shell.raycast = () => {};
+      shells.push([child, shell]);
+    });
+    for (const [child, shell] of shells) child.add(shell);
+    const entry = { shells };
+    handle.remove = () => {
+      const index = outlines.indexOf(entry); if (index < 0) return;
+      outlines.splice(index, 1);
+      for (const [, shell] of shells) shell.removeFromParent();
+    };
+    entry.remove = handle.remove;
+    outlines.push(entry);
+    while (outlines.length > 2) outlines[0].remove();
+    return handle;
+  }
+
+  const offQuality = onQuality(() => {
+    const q = QUALITY[quality];
+    if (!q.outline) while (outlines.length) outlines[0].remove();
+    if (!q.pulse) { for (const [object, p] of pulses) object.scale.copy(p.base); pulses.clear(); }
+  });
+
+  function update(dt) {
+    if (!(dt > 0)) return;
+    const emitScale = QUALITY[quality].emitter * (reducedMotion() ? .5 : 1);
+    for (const e of emitters) {
+      if (emitScale) { e.carry += e.rate * emitScale * dt; while (e.carry >= 1) { e.carry--; spawn(e.kind, e.pos, null, false); } }
+      e.remaining -= dt; if (e.remaining <= 0) emitters.delete(e);
+    }
+    for (const kind in pools) {
+      const p = pools[kind], d = p.def;
+      if (!p.n && !p.points.visible) continue;
+      const pos = p.position.array, tint = p.tint.array, size = p.size.array, alpha = p.alpha.array, v = p.velocity;
+      const drag = d.drag ? Math.max(0, 1 - d.drag * dt) : 1;
+      for (let i = 0; i < p.n; i++) {
+        p.age[i] += dt;
+        if (p.age[i] >= p.life[i]) {
+          // Đổi chỗ với hạt cuối để vùng sống luôn liền mạch [0, n).
+          const last = --p.n, i3 = i * 3, l3 = last * 3; live--;
+          for (let k = 0; k < 3; k++) { pos[i3 + k] = pos[l3 + k]; v[i3 + k] = v[l3 + k]; tint[i3 + k] = tint[l3 + k]; }
+          p.age[i] = p.age[last]; p.life[i] = p.life[last]; p.base[i] = p.base[last];
+          i--; continue;
+        }
+        const i3 = i * 3, t = p.age[i] / p.life[i];
+        v[i3] *= drag; v[i3 + 2] *= drag; v[i3 + 1] = v[i3 + 1] * drag + d.gravity * dt;
+        pos[i3] += v[i3] * dt; pos[i3 + 1] += v[i3 + 1] * dt; pos[i3 + 2] += v[i3 + 2] * dt;
+        size[i] = p.base[i] * (1 + (d.grow || 0) * t);
+        alpha[i] = Math.min(1, t * 10, (1 - t) * 2.5);
+      }
+      p.geometry.setDrawRange(0, p.n); p.points.visible = p.n > 0;
+      if (p.n) for (const a of [p.position, p.tint, p.size, p.alpha]) { a.clearUpdateRanges?.(); a.addUpdateRange?.(0, p.n * a.itemSize); a.needsUpdate = true; }
+    }
+    for (const [object, p] of pulses) {
+      p.t += dt * 1000;
+      const k = p.t >= p.ms ? 1 : 1 + (p.scale - 1) * Math.sin(Math.PI * p.t / p.ms);
+      object.scale.copy(p.base).multiplyScalar(k);
+      if (p.t >= p.ms) pulses.delete(object);
+    }
+  }
+
+  function dispose() {
+    offQuality(); emitters.clear();
+    for (const [object, p] of pulses) object.scale.copy(p.base);
+    pulses.clear();
+    while (outlines.length) outlines[0].remove();
+    for (const material of shellMaterials.values()) material.dispose();
+    shellMaterials.clear();
+    for (const p of Object.values(pools)) { p.points.removeFromParent(); p.geometry.dispose(); p.material.uniforms.map.value.dispose(); p.material.dispose(); }
+    live = 0;
+  }
+
+  return { burst, emitter, pulse, outline, update, dispose };
+}
+
+// --- DOM: chip bay và số nổi (chuyển từ flyReward/transient của farm/ui.js) ---
+const chips = new Set();
+function chip(text, point) {
+  const el = document.createElement('span');
+  el.className = 'vfx-chip farm-reward-flight'; el.setAttribute('aria-hidden', 'true');
+  el.textContent = text; el.style.left = `${point.x}px`; el.style.top = `${point.y}px`;
+  document.body.append(el); chips.add(el);
+  return el;
+}
+function release(el) { el.remove(); chips.delete(el); }
+
+// amount/format (tuỳ chọn) cho phép cộng dồn khi vượt giới hạn chip, ví dụ "🪙 +12" thành "🪙 +20".
+export function flyTo(from, targetEl, { icon = '', text = '', amount, format = String } = {}) {
+  const label = `${icon}${icon && text ? ' ' : ''}${text}`;
+  if (chips.size >= QUALITY[quality].chips && typeof amount === 'number') {
+    for (const el of chips) {
+      if (el._fly?.target !== targetEl || el._fly.icon !== icon || typeof el._fly.amount !== 'number') continue;
+      el._fly.amount += amount;
+      el.textContent = `${icon}${icon ? ' ' : ''}+${format(el._fly.amount)}`;
+      return;
+    }
+  }
+  const start = from || { x: innerWidth / 2, y: innerHeight / 2 };
+  const rect = targetEl?.isConnected ? targetEl.getBoundingClientRect() : null;
+  const destination = rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : { x: start.x, y: start.y - 120 };
+  const el = chip(label, start);
+  el._fly = { target: targetEl, icon, amount };
+  const dx = destination.x - start.x, dy = destination.y - start.y;
+  const animation = el.animate([
+    { opacity: 0, transform: 'translate(-50%,-50%) scale(.6)' },
+    { offset: .15, opacity: 1, transform: 'translate(-50%,-120%) scale(1.1)' },
+    { offset: .55, opacity: 1, transform: `translate(calc(-50% + ${dx * .4}px),calc(-50% + ${Math.min(-65, dy * .6)}px)) scale(.95)` },
+    { opacity: .1, transform: `translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px)) scale(.35)` }
+  ], { duration: reducedMotion() ? 500 : 850, easing: 'cubic-bezier(.25,.65,.35,1)' });
+  animation.onfinish = animation.oncancel = () => {
+    release(el);
+    if (rect && targetEl.isConnected && !reducedMotion()) targetEl.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.13)' }, { transform: 'scale(1)' }], { duration: 230 });
+  };
+}
+
+export function popNumber(text, at, tone = 'good') {
+  const el = chip(text, at || { x: innerWidth / 2, y: innerHeight / 2 });
+  el.dataset.tone = tone;
+  const rise = reducedMotion() ? '-110%' : '-160%';
+  const animation = el.animate([{ opacity: 1, transform: 'translate(-50%,-90%)' }, { opacity: 0, transform: `translate(-50%,${rise})` }], { duration: 650, easing: 'ease-out' });
+  animation.onfinish = animation.oncancel = () => release(el);
+}
+
+const shaking = new WeakMap();
+export function shake(strength = 1, target = '#game canvas') {
+  if (!QUALITY[quality].shake || reducedMotion()) return;
+  const el = typeof target === 'string' ? document.querySelector(target) : target;
+  if (!el) return;
+  const a = Math.min(6, 4 * Math.max(0, strength));
+  shaking.get(el)?.cancel();
+  shaking.set(el, el.animate([
+    { transform: 'translate(0,0)' }, { transform: `translate(${a}px,${-a * .5}px)` }, { transform: `translate(${-a * .8}px,${a * .4}px)` },
+    { transform: `translate(${a * .5}px,${a * .3}px)` }, { transform: 'translate(0,0)' }
+  ], { duration: Math.min(300, 160 + 80 * strength), easing: 'ease-out' }));
+}

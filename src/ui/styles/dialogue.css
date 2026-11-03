@@ -1,0 +1,65 @@
+/* Mobile-first; colours/images come from the shared --ui-* tokens in game.css (same skin as the farm). */
+#intro-controls{position:fixed;top:max(12px,env(safe-area-inset-top));left:max(12px,env(safe-area-inset-left));right:max(12px,env(safe-area-inset-right));z-index:3;display:flex;justify-content:flex-end;pointer-events:none}
+.intro-actions{pointer-events:auto}
+.intro-actions button{display:inline-flex;align-items:center;min-height:44px;padding:6px 16px;background:var(--ui-button-image),var(--ui-cream);border:2px solid var(--ui-cream-edge);border-radius:14px;box-shadow:inset 0 2px var(--ui-shine),inset 0 -3px var(--ui-cream-edge),0 3px 0 var(--ui-cream-drop);color:var(--ui-ink);text-shadow:0 1px var(--ui-shine);font-size:13px;font-weight:800;touch-action:manipulation;transition:transform .12s}
+.intro-actions button:hover{filter:brightness(1.08)}
+.intro-actions button:active{transform:translateY(3px);box-shadow:inset 0 2px 3px var(--ui-drop-soft),0 1px var(--ui-cream-drop)}
+.intro-actions #skip span{padding-left:7px}
+
+/* Stable speaker row: no floating labels clipped by scrolling. */
+.dialogue{
+ --dialogue-accent:var(--ui-wood);position:fixed;z-index:4;left:50%;transform:translateX(-50%);
+ bottom:max(12px,env(safe-area-inset-bottom));width:calc(100% - 24px);
+ display:grid;grid-template-columns:44px minmax(0,1fr);gap:12px;padding:14px 14px 10px;
+ background:var(--ui-panel-image),var(--ui-paper);border:2px solid var(--ui-paper-edge);border-radius:18px;
+ box-shadow:0 4px 0 var(--ui-paper-drop),0 12px 30px var(--ui-drop-soft);color:var(--ui-ink);
+}
+.dialogue[data-speaker="reaper"]{--dialogue-accent:#4c5a6b}/* màu nhận diện nhân vật */
+.dialogue[data-speaker="medic"]{--dialogue-accent:var(--ui-bad)}
+.dialogue[data-speaker="player"]{--dialogue-accent:var(--ui-good)}
+.dialogue-avatar{
+ display:grid;place-items:center;align-self:start;width:44px;height:44px;margin-top:2px;
+ color:var(--ui-ink-light);text-shadow:0 2px var(--ui-leaf-drop);background:var(--ui-leaf);
+ border:2px solid var(--ui-shine);border-radius:50%;box-shadow:0 0 0 1px var(--ui-paper-edge),0 3px 0 var(--ui-leaf-drop);
+ font:800 24px/1 var(--game-font);
+}
+.dialogue-body{min-width:0}
+.dialogue-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:20px;margin:0 0 6px;padding-bottom:5px;border-bottom:1px solid var(--ui-paper-drop)}
+#speaker{margin:0;padding:0;background:none;color:var(--dialogue-accent);font-size:12px;line-height:1.4;font-weight:800;letter-spacing:.4px;overflow-wrap:anywhere}
+.dialogue-auto{flex:none;background:none;color:var(--ui-ink-soft);font-size:10px;font-weight:700;letter-spacing:.6px;white-space:nowrap}
+#caption{margin:0;min-height:44px;font-size:14px;line-height:1.55;font-weight:500;overflow-wrap:anywhere}
+.dialogue-bottom{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;margin-top:2px}
+.dialogue-hint{font-size:10px;color:var(--ui-ink-soft)}
+#dialogue-next{flex:none;width:44px;height:44px;padding:0;border:2px solid var(--ui-gold-edge);border-radius:50%;background:var(--ui-button-image),var(--ui-gold);box-shadow:0 3px 0 var(--ui-gold-drop);color:var(--ui-ink);font:800 16px/1 var(--game-font);cursor:pointer}
+#dialogue-next:hover{filter:brightness(1.06)}
+#caption-box[data-mode="manual"]{max-height:min(65dvh,540px);overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--ui-paper-edge) transparent}
+#caption-box.quiz-dialogue{width:calc(100% - 24px)}
+#dialogue-choices{display:grid;gap:0;margin:10px 0 0;border-top:1px solid var(--ui-paper-drop)}
+#dialogue-choices button{position:relative;display:grid;grid-template-columns:10px 18px minmax(0,1fr);align-items:start;gap:6px;width:100%;min-height:44px;margin:0;padding:10px 2px;border:0;border-bottom:1px solid var(--ui-paper-drop);border-radius:0;box-shadow:none;background:none;text-align:left;color:var(--ui-ink);font:500 13px/1.5 var(--game-font)}
+#dialogue-choices button::before{content:'▸';color:var(--ui-wood);opacity:0}
+#dialogue-choices button:hover,#dialogue-choices button:focus-visible{color:var(--ui-ink);background:linear-gradient(90deg,var(--ui-warn-bg),transparent)}
+#dialogue-choices button:hover::before,#dialogue-choices button:focus-visible::before{opacity:1}
+#dialogue-choices button:focus-visible{outline:3px solid var(--ui-focus);outline-offset:-3px}
+.choice-key{display:block;width:auto;height:auto;padding:0;border:0;border-radius:0;background:none;color:var(--ui-wood);font-size:11px;line-height:1.8;font-weight:750}
+#heaven-stamp{display:inline-block;transform:rotate(-3deg);margin-top:14px;padding:7px 12px;border:2px solid var(--ui-bad);color:var(--ui-bad);border-radius:3px;font-size:12px;letter-spacing:1px;font-weight:800}
+/* Touch devices: the hint names a keyboard key, so hide it where there is none. */
+@media(hover:none){.dialogue-hint{visibility:hidden}}
+/* Landscape phones: keep the scene visible above a slimmer box. */
+@media(max-height:450px){
+ .dialogue{bottom:max(8px,env(safe-area-inset-bottom));max-width:760px;padding:8px 14px 6px;grid-template-columns:38px minmax(0,1fr)}
+ .dialogue-avatar{width:38px;height:38px;font-size:20px}.dialogue-heading{min-height:18px;padding-bottom:4px;margin-bottom:4px}
+ #caption{min-height:22px;font-size:13px}#caption-box[data-mode="manual"]{max-height:72dvh}
+ .dialogue-bottom{min-height:36px}#dialogue-next{width:36px;height:36px}
+ #dialogue-choices{margin-top:6px}#dialogue-choices button{min-height:38px;padding:7px 3px;font-size:12px}
+}
+@media(min-width:701px) and (min-height:451px){
+ #intro-controls{top:max(18px,env(safe-area-inset-top));left:24px;right:24px}
+ .intro-actions button{padding:8px 18px;border-width:3px}
+ .dialogue,#caption-box.quiz-dialogue{width:min(840px,calc(100% - 48px));bottom:max(22px,env(safe-area-inset-bottom));grid-template-columns:66px minmax(0,1fr);gap:18px;padding:18px 24px 12px;border-width:3px;border-radius:22px}
+ .dialogue-avatar{width:66px;height:66px;border-width:3px;font-size:34px;margin-top:4px}
+ .dialogue-heading{gap:12px;margin-bottom:9px;padding-bottom:7px}
+ #speaker{font-size:14px}.dialogue-auto{font-size:10px}
+ #caption{font-size:16px;line-height:1.65}
+ .dialogue-bottom{min-height:38px;margin-top:6px}#dialogue-next{width:38px;height:38px}
+ #dialogue-choices button{padding:11px 5px;grid-template-columns:12px 22px minmax(0,1fr);gap:8px}
+}
