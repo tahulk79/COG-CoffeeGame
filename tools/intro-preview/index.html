@@ -1,0 +1,7 @@
+<!doctype html>
+<html lang="vi"><meta charset="utf-8"><title>Kiểm tra Màn 1</title>
+<style>body{margin:0;font:14px system-ui;background:#edf5e7}canvas{display:block;width:100vw;height:100vh}aside{position:fixed;top:12px;left:12px;padding:12px;background:#fffef3ee;max-width:450px;border-radius:8px}button,select,input{font:inherit;margin:4px;padding:6px}pre{white-space:pre-wrap;max-height:28vh;overflow:auto;font-size:11px}#time{width:260px}</style>
+<aside><label>Model <select id="model"><option value="male.glb">Nam</option><option value="girl.glb">Nữ</option></select></label><br>
+<label>Thời gian <input id="time" type="range" min="0" max="23" step="0.01" value="3.4"></label><output id="clock"></output><br>
+<button data-time="3.4">Va chạm</button><button data-time="4.45">Ngã</button><button data-time="7.8">Y tế tới</button><button data-time="8.6">Nâng</button><button data-time="9.3">Trên cáng</button><button data-time="11.5">Khiêng</button><button id="play">Phát / Dừng</button><button id="test">Chạy kiểm tra</button><details open><summary>Kết quả kiểm tra</summary><pre id="report">Đang tải model…</pre></details></aside>
+<script type="module" src="./preview.js"></script></html>

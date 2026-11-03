@@ -1,0 +1,13 @@
+male.glb: PASS
+Max step: 0.0948m/frame
+Lệch tâm cáng: 0.000401m
+Sai số bám tay: 0.000000m
+Tầm tay tối đa: 0.695 / 0.8m
+
+
+girl.glb: PASS
+Max step: 0.1127m/frame
+Lệch tâm cáng: 0.000845m
+Sai số bám tay: 0.000000m
+Tầm tay tối đa: 0.695 / 0.8m
+

@@ -3,9 +3,16 @@
   "configurations": [
     {
       "name": "game",
-      "runtimeExecutable": "/Users/macos/.nvm/versions/node/v24.18.0/bin/node",
-      "runtimeArgs": ["node_modules/vite/bin/vite.js", "--port", "5190"],
-      "port": 5190
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5173",
+        "--strictPort"
+      ],
+      "port": 5173
     }
   ]
 }
