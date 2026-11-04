@@ -23,8 +23,11 @@ function toolFor(step) {
 }
 
 // Close-up brewing bench inside the cafe dialog; returns a cleanup for the dialog to call on close.
-export function mountBench(root, { farm, service, notice, close, openPantry, fx = () => {} }) {
+export function mountBench(root, { farm, service, notice, close, openPantry, askLater = () => {}, fx = () => {} }) {
   const events = new AbortController(), signal = events.signal;
+  // First bench visit (flag `bench-intro`): one yellow line on top until the first step is done.
+  const introSeen = () => farm.peek().tutorial.seen.includes('bench-intro');
+  const intro = () => introSeen() ? [] : [el('p', 'ui-alert ui-alert--warn', 'Mỗi bước: chọn đúng, hoặc giữ nút để rót tới vạch xanh rồi thả. Sai sẽ được giải thích. 💡 Gợi ý giúp nhưng bước đó tối đa 80% điểm.')];
   let raf = 0, gauge = null, timer = 0, sound = null, waitSound = null;
   // Stops the pour/steam/whisk/extract loop and the fast-forward loop; called on every step change and on close.
   const hush = () => { sound?.stop(); waitSound?.stop(); sound = waitSound = null; };
@@ -35,9 +38,9 @@ export function mountBench(root, { farm, service, notice, close, openPantry, fx 
   root.addEventListener('keyup', e => { if (gauge && e.code === 'Space') { e.preventDefault(); gauge.pouring = false; } }, { signal });
 
   function choose() {
-    gauge = null; hush(); root.replaceChildren();
+    gauge = null; hush(); root.replaceChildren(); service.benchEnd();
     const cafe = service.refresh().cafe, tickets = service.tickets();
-    root.append(el('p', 'cafe-lead', tickets.length ? 'Chọn order để pha. Order đã có ly (✓) có thể bỏ qua.' : 'Chưa có order. Pha luyện tập: ly sẽ lên kệ chờ khách gọi đúng món.'));
+    root.append(...intro(), el('p', 'cafe-lead', tickets.length ? 'Chọn order để pha. Order đã có ly (✓) có thể bỏ qua.' : 'Chưa có order. Pha luyện tập: ly sẽ lên kệ chờ khách gọi đúng món.'));
     if (service.hand) root.append(el('p', 'cafe-warning', 'Tay bạn đang cầm ly; ly mới sẽ đặt lên kệ.'));
     const grid = el('div', 'cafe-ticket-grid');
     for (const t of tickets) {
@@ -60,6 +63,7 @@ export function mountBench(root, { farm, service, notice, close, openPantry, fx 
   }
 
   function start(recipe) {
+    service.benchStart(recipe.id);
     const cafe = service.refresh().cafe;
     const crops = CROPS.filter(c => (cafe.stock.roasted[c.id] || 0) >= recipe.beans);
     const cropId = (crops.find(c => c.id === recipe.bean) || crops[0])?.id || recipe.bean;
@@ -129,7 +133,7 @@ export function mountBench(root, { farm, service, notice, close, openPantry, fx 
     note.setAttribute('aria-live', 'polite'); note.textContent = state.memory ? 'Pha theo trí nhớ: không có gợi ý.' : step.learn || '';
     const say = (text, tone = '') => { note.textContent = text.replace(/^[✓✗△]\s*/, ''); learn.dataset.tone = tone; learn.firstChild.textContent = tone === 'bad' ? '✗' : tone === 'good' ? '✓' : '💡'; };
     const body = el('div', 'cafe-step-body');
-    layout.append(head, stepper, title, facts, stage, learn, body); root.append(layout);
+    layout.append(...intro(), head, stepper, title, facts, stage, learn, body); root.append(layout);
 
     const layered = recipe.steps.filter(s => s.layer && s.type === 'pour'), total = layered.reduce((sum, s) => sum + middle(s), 0) || 1;
     const drawCup = (live = 0) => {
@@ -145,12 +149,15 @@ export function mountBench(root, { farm, service, notice, close, openPantry, fx 
     drawCup();
     // Plays the step's outcome (pop icon, then the real waiting phase fast-forwarded) before moving on.
     // `inside` (pours only) overrides the score-based verdict so text, tone and result list agree with the gauge.
-    const next = (score, text, value = 0, icon = null, inside = null) => {
+    // `fix` = the real reason this step lost points, for the "Sửa bước này trước" line (adjust perk).
+    const next = (score, text, value = 0, icon = null, inside = null, fix = '') => {
       // Picks always pop an icon (△ = partly right); a pour without icon outside the band is a miss.
       fx((inside ?? score >= .99) ? 'good' : icon ? 'partial' : 'bad');
+      if (!introSeen()) farm.act('tutorial', 'seen', 'bench-intro');
       if (state.hinted) score = Math.min(score, .8);
       const ok = inside ?? score >= .99;
-      state.scores.push(score); state.values[state.index] = value; state.notes.push({ ok, text });
+      state.scores.push(score); state.values[state.index] = value;
+      state.notes.push({ ok, text, fix: fix || (state.hinted ? 'Bước này đã dùng gợi ý nên tối đa 80% điểm. Lần sau tự làm để đủ điểm.' : '') });
       state.hinted = false; body.inert = true; say(text, ok ? 'good' : score >= .5 && inside === null ? '' : 'bad');
       if (icon) { pop.textContent = icon; stage.dataset.anim = 'pop'; }
       const advance = () => { hush(); if (++state.index >= recipe.steps.length) finish(state); else brew(state); };
@@ -168,17 +175,17 @@ export function mountBench(root, { farm, service, notice, close, openPantry, fx 
       const options = step.type === 'bean'
         ? CROPS.map(c => ({ label: `${c.name} · ${cafe.stock.roasted[c.id] || 0} g`, icon: '🫘', crop: c.id, ok: c.id === recipe.bean ? 1 : .7, disabled: (cafe.stock.roasted[c.id] || 0) < recipe.beans, why: `Món này hợp ${preferred.name} hơn.` }))
         : (state.shuffled ||= step.options.map((o, i) => ({ ...o, grind: tool === 'grinder' ? i : null })).sort(() => Math.random() - .5));
-      let missed = false;
+      let missed = false, missedWhy = '';
       const grid = el('div', 'cafe-options'), buttons = [];
       for (const option of options) {
         const item = button('', () => {
-          if (option.ok === 0) { missed = true; item.dataset.wrong = 'true'; item.disabled = true; say(option.why, 'bad'); fx('bad'); stage.dataset.anim = 'shake'; setTimeout(() => { stage.dataset.anim = ''; }, 350); return; }
+          if (option.ok === 0) { missed = true; missedWhy ||= `Lần đầu chọn ${option.label}: ${option.why}`; item.dataset.wrong = 'true'; item.disabled = true; say(option.why, 'bad'); fx('bad'); stage.dataset.anim = 'shake'; setTimeout(() => { stage.dataset.anim = ''; }, 350); return; }
           if (tool === 'grinder') fx('grind');
           if (option.crop) state.cropId = option.crop;
           if (option.grind !== null && option.grind !== undefined) stage.dataset.grind = String(option.grind);
           state.shuffled = null;
           const score = missed ? .3 : option.ok;
-          next(score, `${score >= .99 ? '✓' : '△'} ${option.label}${option.ok < 1 ? ` — ${option.why}` : ''} ${step.learn || ''}`.trim(), 0, option.icon || '✓');
+          next(score, `${score >= .99 ? '✓' : '△'} ${option.label}${option.ok < 1 ? ` — ${option.why}` : ''} ${step.learn || ''}`.trim(), 0, option.icon || '✓', null, missedWhy || (option.ok < 1 ? option.why : ''));
         }, 'cafe-option');
         item.disabled = Boolean(option.disabled);
         if (option.icon) item.append(el('span', '', option.icon));
@@ -209,7 +216,7 @@ export function mountBench(root, { farm, service, notice, close, openPantry, fx 
       const [lo, hi] = step.target, value = shown(gauge.value, step), inside = value >= lo && value <= hi;
       const distance = inside ? 0 : value < lo ? lo - value : value - hi, score = inside ? 1 : Math.max(.1, 1 - distance / ((hi - lo) * 1.5));
       gauge = null; cancelAnimationFrame(raf); hush(); stage.dataset.pouring = 'false';
-      next(score, inside ? `✓ ${step.text}: ${amount(value, step)} — chuẩn.` : `✗ ${step.text}: ${amount(value, step)}, chuẩn ${lo}–${hi} ${step.unit}. ${step.learn}`, value, null, inside);
+      next(score, inside ? `✓ ${step.text}: ${amount(value, step)} — chuẩn.` : `✗ ${step.text}: ${amount(value, step)}, chuẩn ${lo}–${hi} ${step.unit}. ${step.learn}`, value, null, inside, inside ? '' : `${amount(value, step)}, chuẩn ${lo}–${hi} ${step.unit}. ${step.learn}`);
     }, 'cafe-primary');
     done.disabled = true;
     hold.addEventListener('pointerdown', e => { if (!gauge || gauge.demo) return; gauge.pouring = true; hold.setPointerCapture(e.pointerId); });
@@ -267,10 +274,15 @@ export function mountBench(root, { farm, service, notice, close, openPantry, fx 
   }
 
   function finish(state) {
-    const { recipe } = state, score = Math.round(state.scores.reduce((a, b) => a + b, 0) / state.scores.length * 100);
+    // Floor, not round: 89.6 must stay ★★ so a cup with a failed step cannot reach ★★★ / memory mode.
+    const { recipe } = state, score = Math.floor(state.scores.reduce((a, b) => a + b, 0) / state.scores.length * 100);
     const result = farm.act('cafe', 'brew', { recipeId: recipe.id, cropId: state.cropId, score });
     if (!result.ok) { notice(result.message, false); lacking(recipe, [result.message]); return; }
-    const earned = stars(score), target = service.addDrink({ recipeId: recipe.id, quality: result.quality, stars: earned, memory: state.memory });
+    // Adjust perk: point at the one step that lost most (lowest score, first on ties) with its real reason.
+    const worst = state.scores.reduce((w, s, i) => s < state.scores[w] ? i : w, 0), worstStep = recipe.steps[worst];
+    const miss = state.scores[worst] < 1 ? `${recipe.name}: ${worstStep.type === 'bean' ? 'Chọn hạt' : worstStep.text}` : null;
+    service.benchEnd();
+    const earned = stars(score), target = service.addDrink({ recipeId: recipe.id, quality: result.quality, stars: earned, memory: state.memory, miss });
     root.replaceChildren();
     const summary = el('div', 'cafe-result'), starRow = el('div', 'cafe-result-stars');
     // Each star is its own span so the CSS reveals them one by one (--i × 250 ms), in step with the chimes.
@@ -279,7 +291,11 @@ export function mountBench(root, { farm, service, notice, close, openPantry, fx 
     summary.append(starRow, el('strong', '', `${recipe.icon} ${recipe.name}`),
       el('p', '', `Tay nghề ${score}/100 · Chất lượng ly ${result.quality}/100`),
       el('p', 'cafe-lead', target ? `Mang ra ${target}.` : 'Chưa có khách gọi món này — ly đặt chờ trên kệ.'));
-    if (state.best < 70 && score >= 70) summary.append(el('p', 'cafe-unlock', '🎉 Barista giờ có thể tự pha món này.'));
+    if (farm.peek().lessons.learned.includes('adjust') && state.scores[worst] < 1) summary.append(el('p', 'ui-alert ui-alert--warn', `Sửa bước này trước: ${worstStep.type === 'bean' ? 'Chọn hạt' : worstStep.text} — ${state.notes[worst].fix}`));
+    if (score < 70) askLater(['adjust']);
+    // Unlock line uses the real thresholds of hired baristas (90 − Trí nhớ × 0.4), not a fixed 70.
+    const need = Math.min(...service.agents.filter(a => a.role === 'barista').map(a => a.effects?.mastery ?? Infinity));
+    if (Number.isFinite(need) && state.best < need && score >= need) summary.append(el('p', 'cafe-unlock', `🎉 Barista giờ có thể tự pha món này (cần ${need} điểm).`));
     if (state.best < 90 && score >= 90) summary.append(el('p', 'cafe-unlock', '🧠 Mở chế độ pha theo trí nhớ: ẩn công thức, thêm 20% tip.'));
     if (summary.querySelector('.cafe-unlock')) fx('unlock');
     const list = el('ul', 'cafe-notes'); for (const n of state.notes) { const li = el('li', '', n.text); li.dataset.ok = String(n.ok); list.append(li); }
@@ -293,5 +309,5 @@ export function mountBench(root, { farm, service, notice, close, openPantry, fx 
 
   const first = service.tickets().find(t => !t.covered);
   if (first) start(first.recipe); else choose();
-  return () => { gauge = null; cancelAnimationFrame(raf); clearTimeout(timer); hush(); events.abort(); };
+  return () => { gauge = null; cancelAnimationFrame(raf); clearTimeout(timer); hush(); events.abort(); service.benchEnd(); };
 }

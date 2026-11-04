@@ -1,13 +1,16 @@
+/* Readable type floor (mobile first): no text below 11px (captions) / 12px (body); secondary text colors keep ≥ 4.5:1 contrast on the cream panels. */
 @import './ui-kit.css';
 @import './dialogue.css';
 @import './heaven.css';
 @import './farm.css';
 @import './cafe.css';
+@import './hud.css';
+@import './menus.css';
 
-:root{--game-font:'Baloo 2','Fredoka',system-ui,sans-serif;font-family:var(--game-font);color:#29493f;background:#edf5e7;font-synthesis:none}
+:root{--game-font:'Baloo 2',system-ui,sans-serif;font-family:var(--game-font);color:#29493f;background:#edf5e7;font-synthesis:none}
 /* Bộ khung UI chung cho mọi màn (gỗ + giấy da của farm). Thay asset: gán url() vào các biến --ui-*-image, không sửa selector. */
 :root{
- --ui-ink:#694427;--ui-ink-soft:#82633e;--ui-ink-light:#fffce9;
+ --ui-ink:#694427;--ui-ink-soft:#6f5333;--ui-ink-light:#fffce9;
  --ui-wood:#a57940;--ui-wood-dark:#76502c;--ui-wood-trim:#fff0c8;
  --ui-paper:linear-gradient(135deg,#fffced,#f0ebcf);--ui-paper-edge:#b9c894;--ui-paper-drop:#81965b44;
  --ui-inset:linear-gradient(#fffdf0,#fff2d4);--ui-inset-edge:#d5b780;
@@ -21,7 +24,7 @@
  --ui-backdrop:#243c2a99;
  --ui-panel-image:none;--ui-window-image:none;--ui-button-image:none;
  /* Lượt 1 (§1.1): trạng thái + màu lặp lại nhiều lần trong farm/quán. */
- --ui-line:#dfd0ad;--ui-muted:#927c55;
+ --ui-line:#dfd0ad;--ui-muted:#75603f;
  --ui-good:#5f8a3c;--ui-good-bg:#eef5dc;
  --ui-bad:#b5523a;--ui-bad-bg:#fbe6dc;--ui-bad-edge:#d4a58a;
  --ui-warn:#a8742a;--ui-warn-bg:#fff1d0;
@@ -31,10 +34,22 @@
  --ui-leaf-hi:#f5f9df;--ui-close-edge:#ffe3b7;
  --ui-coin-hi:#ffe998;--ui-coin-edge:#c18d2a;--ui-chip-edge:#51381f;
  --ui-shadow:#213a2855;--ui-drop-soft:#6b4c2033;
+ /* Redesign (docs/game-redesign/04 §1.2–§3, §7). */
+ --ui-jade:#5fa596;--ui-jade-edge:#3f7c70;--ui-lacquer:#b5523a;
+ --ui-hud-bg:#fff7e3eb;--ui-nameplate-bg:#3b2a1cd9;--ui-nameplate-ink:#fff6dc;--ui-marker:#ffd25e;
+ --fs-display:clamp(22px,1.6vw,28px);--fs-title:clamp(16px,1.15vw,19px);--fs-body:clamp(14px,1vw,16px);
+ --fs-label:clamp(12px,.85vw,14px);--fs-caption:clamp(11px,.75vw,13px);--fs-number:clamp(16px,1.1vw,20px);
+ --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:24px;
+ --r-sm:10px;--r-md:14px;--r-lg:22px;--r-xl:25px;
+ --z-nameplate:3;--z-hud:5;--z-coach:6;--z-modal:7;--z-transition:8;--z-error:10;--z-toast:30;--z-incident:31;
+ --t-tap:100ms;--t-panel:200ms;--t-reward:700ms;--t-scene:600ms;
+ --ease-out:cubic-bezier(.2,.8,.2,1);--ease-back:cubic-bezier(.3,1.4,.5,1);
 }
 *{box-sizing:border-box}
 body{margin:0;overflow:hidden}
 [hidden]{display:none!important}
+/* Mobile: no pull-to-refresh/bounce while dragging the map, no auto text inflation on rotate */
+html,body{overscroll-behavior:none;-webkit-text-size-adjust:100%;text-size-adjust:100%}
 button{font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
 button:focus-visible,summary:focus-visible,[role="button"]:focus-visible{outline:3px solid var(--ui-focus);outline-offset:4px}
 button:disabled{cursor:not-allowed;opacity:.6}
@@ -47,25 +62,32 @@ button:disabled{cursor:not-allowed;opacity:.6}
 .primary span{font-size:20px}
 #progress{position:fixed;bottom:0;left:0;width:100%;height:4px;background:var(--ui-line);pointer-events:none}
 #progress-fill{height:100%;background:var(--ui-go);width:0}
-#error{position:fixed;inset:30% 10%;padding:30px;background:var(--ui-paper);border:2px solid var(--ui-paper-edge);border-radius:16px;color:var(--ui-ink);z-index:10;line-height:1.8}
+#error{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:var(--z-error);display:grid;gap:10px;width:min(400px,calc(100vw - 32px));padding:24px 20px 18px;background:var(--ui-paper);border:2px solid var(--ui-paper-edge);border-radius:var(--r-lg);color:var(--ui-ink);line-height:1.5;text-align:center}
+#error strong{font-size:var(--fs-title)}#error p{margin:0;font-size:var(--fs-body)}
+#error .error-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:8px}
+#error details{font-size:var(--fs-caption);color:var(--ui-muted)}#error code{display:block;margin-top:4px;overflow-wrap:anywhere}
+body:has(#error:not([hidden])) #game-settings-toggle{display:none}
 #selection{position:fixed;inset:0;z-index:2;pointer-events:none;background:linear-gradient(0deg,#f4f6e9f2,transparent 36%)}
+/* Mũi tên và dấu tích bám theo nhân vật đang chọn; scene ghi --fx/--fy/--fw/--fb mỗi khung hình. */
+.selection-focus{position:absolute;inset:0;pointer-events:none}
+.selection-arrow.ui-btn{position:absolute;top:var(--fy,-99px);pointer-events:auto;transform:translate(-50%,-50%);font-size:26px}.selection-arrow.ui-btn:active:not(:disabled){transform:translate(-50%,-50%) translateY(2px)}
+.selection-arrow--prev{left:calc(var(--fx,-99px) - var(--fw,0px))}.selection-arrow--next{left:calc(var(--fx,-99px) + var(--fw,0px))}
+.selection-check{position:absolute;left:var(--fx,-99px);top:var(--fb,-99px);display:grid;place-items:center;width:36px;height:36px;border:3px solid #fff;border-radius:50%;background:var(--ui-go);box-shadow:0 2px 6px #0003;color:#fff;font:800 20px/1 var(--game-font);transform:translate(-50%,-50%)}
 /* Mobile-first: bảng giấy gọn ở đáy, chừa phần trên cho nhân vật 3D. */
-.creation-card{position:absolute;left:50%;bottom:max(12px,env(safe-area-inset-bottom));transform:translateX(-50%);width:calc(100% - 24px);max-width:380px;display:grid;gap:8px;padding:22px 14px 12px;background:var(--ui-paper);border:2px solid var(--ui-paper-edge);border-radius:22px;box-shadow:0 4px 0 var(--ui-paper-drop),0 14px 30px var(--ui-drop-soft);pointer-events:auto}
-.creation-card h1{position:absolute;top:0;left:50%;transform:translate(-50%,-55%);margin:0;padding:3px 20px;white-space:nowrap;font:800 20px/1.2 var(--game-font);color:var(--ui-leaf-ink);background:var(--ui-leaf);border:2px solid var(--ui-leaf-edge);border-radius:14px;box-shadow:inset 0 2px var(--ui-leaf-hi),0 3px 0 var(--ui-leaf-drop);text-shadow:0 1px var(--ui-leaf-hi)}
-.gender-switch{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:4px;background:var(--ui-good-bg);border-radius:16px}
-.gender-switch button{min-height:44px;border:0;border-radius:12px;background:transparent;color:var(--ui-ink-soft);font-size:15px;font-weight:800}
-.gender-switch button[aria-pressed=true]{background:var(--ui-gold);color:var(--ui-ink);box-shadow:0 3px 0 var(--ui-gold-drop)}
+.creation-card{position:absolute;left:50%;bottom:max(12px,env(safe-area-inset-bottom));transform:translateX(-50%);width:calc(100% - 24px);max-width:380px;display:grid;gap:8px;padding:22px 14px 14px;background:var(--ui-paper);border:3px solid var(--ui-cream-edge);border-radius:22px;box-shadow:0 4px 0 var(--ui-paper-drop),0 14px 30px var(--ui-drop-soft);pointer-events:auto}
+.gender-switch{justify-self:center;width:min(100%,280px);margin-top:-44px;margin-bottom:4px;gap:4px;padding:4px;background:var(--ui-cream);border:2px solid var(--ui-paper-edge);border-radius:18px;box-shadow:0 3px 0 var(--ui-paper-drop)}
+.gender-switch button{min-height:42px;border:0;border-radius:14px;background:transparent;color:var(--ui-ink-soft);font-size:15px;font-weight:800}.gender-switch button span{font-size:18px}
+.gender-switch.ui-tabs--segmented .ui-tab[aria-pressed=true]{background:var(--ui-go);color:var(--ui-ink-light);box-shadow:inset 0 2px var(--ui-go-edge),0 3px 0 var(--ui-go-drop);text-shadow:0 1px var(--ui-go-drop)}
 .name-row{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .name-label{font-size:13px;font-weight:700;color:var(--ui-ink-soft)}
-#name-note{margin:0;font-size:11px;color:var(--ui-ink-soft)}
-#player-name{width:100%;padding:10px 14px;background:var(--ui-shine);border:2px solid var(--ui-paper-edge);border-radius:16px 0 0 16px;color:var(--ui-ink);font:inherit;font-size:16px;outline:none}#player-name:focus{border-color:var(--ui-leaf-edge)}#player-name:focus-visible{box-shadow:0 0 0 3px var(--ui-focus)}#player-name::placeholder{color:var(--ui-muted)}
-.creation-card .primary{min-width:0;padding:12px 22px;margin-top:2px}
-.gesture-hint{margin:0;text-align:center;font-size:12px;color:var(--ui-ink-soft)}
-.primary:disabled{opacity:.6;cursor:not-allowed}#scene-transition{position:fixed;inset:0;z-index:8;pointer-events:none;overflow:hidden;opacity:1;background:none}.slide-sheet{position:absolute;top:-20%;height:140%;width:65%;background:linear-gradient(115deg,#f8edca 10%,#d8ead2 70%,#b9d9bb);will-change:transform}.slide-sheet:after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent 0,transparent 39px,#ffffff05 40px,transparent 41px)}.slide-left{left:-10%;transform:translateX(-115%) skewX(-10deg);border-right:2px solid #ebc98d;box-shadow:15px 0 40px #748e6b33}.slide-right{right:-10%;transform:translateX(115%) skewX(-10deg);border-left:2px solid #ebc98d;background:linear-gradient(115deg,#e4efcf,#faf1d9 80%)}@media(max-width:700px){.slide-sheet{width:75%}.slide-left{left:-20%}.slide-right{right:-20%}}@media(min-width:700px){.creation-card{bottom:24px;max-width:400px;padding:24px 18px 14px}.creation-card h1{font-size:23px}}@media(max-height:550px){.creation-card{left:auto;right:12px;bottom:12px;transform:none;width:300px;gap:6px;padding:20px 12px 10px}.name-row,.gesture-hint{display:none}.gender-switch button{min-height:38px}.creation-card .primary{padding:9px 18px}}@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+#name-note{margin:0;font-size:12px;color:var(--ui-ink-soft)}
+#player-name{width:100%;padding:10px 14px;background:var(--ui-shine);border:2px solid var(--ui-paper-edge);border-radius:16px;color:var(--ui-ink);font:inherit;font-size:16px;outline:none}#player-name:focus{border-color:var(--ui-leaf-edge)}#player-name:focus-visible{box-shadow:0 0 0 3px var(--ui-focus)}#player-name::placeholder{color:var(--ui-muted)}
+.creation-card .primary{justify-self:center;justify-content:center;gap:10px;width:min(100%,260px);min-width:0;padding:12px 22px;margin-top:4px;font-size:19px}.creation-card .primary span{font-size:16px}
+.primary:disabled{opacity:.6;cursor:not-allowed}#scene-transition{position:fixed;inset:0;z-index:8;pointer-events:none;overflow:hidden;opacity:1;background:none}.slide-sheet{position:absolute;top:-20%;height:140%;width:65%;background:linear-gradient(115deg,#f8edca 10%,#d8ead2 70%,#b9d9bb);will-change:transform}.slide-sheet:after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent 0,transparent 39px,#ffffff05 40px,transparent 41px)}.slide-left{left:-10%;transform:translateX(-115%) skewX(-10deg);border-right:2px solid #ebc98d;box-shadow:15px 0 40px #748e6b33}.slide-right{right:-10%;transform:translateX(115%) skewX(-10deg);border-left:2px solid #ebc98d;background:linear-gradient(115deg,#e4efcf,#faf1d9 80%)}@media(max-width:700px){.slide-sheet{width:75%}.slide-left{left:-20%}.slide-right{right:-20%}}@media(min-width:700px){.creation-card{bottom:24px;max-width:400px;padding:24px 18px 14px}}@media(max-height:550px){.creation-card{left:auto;right:12px;bottom:12px;transform:none;width:300px;gap:6px;padding:20px 12px 10px}.name-row{display:none}.gender-switch{margin-top:-36px}.gender-switch button{min-height:38px}.creation-card .primary{padding:9px 18px}}@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 
 #game canvas{touch-action:none}
 
-.name-controls{display:flex;min-width:0}.name-controls #player-name{min-width:0;flex:1}.name-controls #random-name{border:2px solid var(--ui-paper-edge);border-left:0;border-radius:0 18px 18px 0;padding:0 12px;background:var(--ui-gold);color:var(--ui-ink);font-size:24px;line-height:1;min-width:48px}.name-controls #random-name:hover{filter:brightness(1.06)}.name-controls #random-name:active{transform:scale(.94)}
+.name-controls{position:relative;min-width:0}.name-controls #player-name{border-radius:16px;padding-right:52px}.name-controls #random-name{position:absolute;top:50%;right:6px;width:36px;height:36px;min-width:36px;min-height:36px;transform:translateY(calc(-50% - 1.5px))}.name-controls #random-name:active{transform:translateY(calc(-50% - 1.5px)) scale(.92)}.name-controls #random-name.is-rolling svg{animation:dice-roll .45s ease-out}@keyframes dice-roll{to{transform:rotate(360deg)}}
 
 
 
@@ -73,3 +95,5 @@ button:disabled{cursor:not-allowed;opacity:.6}
 
 .game-currency{display:inline;white-space:nowrap}
 .game-currency>.farm-gold-coin{display:inline-grid;vertical-align:-.16em;width:1.1em;height:1.1em;margin-right:.12em;border-width:1px;font-size:.85em;line-height:1;box-shadow:inset 0 0 0 1px var(--ui-coin-hi),0 1px var(--ui-coin-edge)}
+/* Dice keeps its 38px look inside the name field; an invisible ring brings the touch area to 46px. */
+.name-controls #random-name::before{content:'';position:absolute;inset:-4px;border-radius:50%}

@@ -1,0 +1,73 @@
+## farm-hud
+"{\"vw\":390,\"vh\":844,\"small\":[],\"covered\":[],\"offscreen\":[],\"total\":8,\"overflowText\":[]}"
+row3 plots screen [idx,x,y]: "{\"all\":[[8,-108,449],[9,-40,449],[10,29,449],[11,97,449]],\"pick\":[11,97,449]}"
+  timing tap-plot: "{\"ev\":[\"pointerdown:48ms(delay 15,proc 2)\",\"pointerup:48ms(delay 12,proc 0)\",\"click:48ms(delay 13,proc 22)\"],\"lt\":[]}"
+"strip visible: true"
+## seed-strip
+"{\"vw\":390,\"vh\":844,\"small\":[{\"l\":\"Cuộn công cụ sang trái\",\"w\":22,\"h\":42,\"x\":21,\"y\":688,\"small\":true,\"cov\":false,\"dis\":true,\"off\":false},{\"l\":\"Cuộn công cụ sang phải\",\"w\":22,\"h\":42,\"x\":347,\"y\":688,\"small\":true,\"cov\":false,\"dis\":false,\"off\":false},{\"l\":\"Bỏ chọn ô đất\",\"w\":23,\"h\":23,\"x\":359,\"y\":662,\"small\":true,\"cov\":false,\"dis\":false,\"off\":false}],\"covered\":[\"Hái quả · Kéo qua các cây ph\"],\"offscreen\":[\"Hái quả · Kéo qua các cây ph\"],\"total\":16,\"overflowText\":[]}"
+tap Vối @ 77 708
+"row3 stages: empty,empty,empty,planted"
+tap Cửa hàng @ 228 797
+  timing open-shop: "{\"ev\":[\"pointerdown:32ms(delay 12,proc 0)\",\"pointerup:32ms(delay 8,proc 0)\",\"click:32ms(delay 9,proc 8)\"],\"lt\":[]}"
+## shop
+"{\"vw\":390,\"vh\":844,\"small\":[],\"covered\":[\"Về nhân vật\",\"Chăm lại cây vừa háiChạm cây\",\"Xu vàng · Mở cửa hàng\",\"Mở túi đồ\",\"Mở cửa hàng\",\"Vào quán\",\"Quản lý3\"],\"offscreen\":[],\"total\":23,\"overflowText\":[]}"
+tap 10 xu @ 305 319
+  timing buy-press: "{\"ev\":[\"pointerdown:32ms(delay 16,proc 0)\",\"pointerup:48ms(delay 19,proc 0)\",\"click:48ms(delay 21,proc 7)\"],\"lt\":[]}"
+## shop-confirm
+"{\"vw\":390,\"vh\":844,\"small\":[{\"l\":\"Đóng xác nhận\",\"w\":32,\"h\":44,\"x\":346,\"y\":280,\"small\":true,\"cov\":false,\"dis\":false,\"off\":false},{\"l\":\"Để sau\",\"w\":120,\"h\":42,\"x\":40,\"y\":493,\"small\":true,\"cov\":false,\"dis\":false,\"off\":false},{\"l\":\"Mua ngay\",\"w\":180,\"h\":42,\"x\":170,\"y\":493,\"small\":true,\"cov\":false,\"dis\":false,\"off\":false}],\"covered\":[\"Về nhân vật\",\"Chăm lại cây vừa háiChạm cây\",\"Xu vàng · Mở cửa hàng\",\"Đóng\",\"Cây giống\",\"Vật tư\",\"Chợ\",\"Giảm số lượng\",\"Số lượng mua Cà phê vối\",\"Tăng số lượng\",\"Mua 1 Cà phê vối với giá 10 \",\"Giảm số lượng\",\"Số lượng mua Cà phê chè\",\"Tăng số lượng\",\"Mua 1 Cà phê chè với giá 20 \",\"Giảm số lượng\",\"Số lượng mua Cà phê mít\",\"Tăng số lượng\",\"Mua 1 Cà phê mít với giá 30 \",\"Mở túi đồ\",\"Mở cửa hàng\",\"Vào quán\",\"Quản lý3\"],\"offscreen\":[],\"total\":26,\"overflowText\":[]}"
+NOTFOUND Xác nhận
+  timing buy-confirm: "{\"ev\":[],\"lt\":[]}"
+"coins after buy: 1.500"
+tap Kho @ 170 797
+  timing open-kho: "{\"ev\":[\"pointerdown:32ms(delay 18,proc 0)\",\"pointerup:32ms(delay 7,proc 0)\",\"click:32ms(delay 8,proc 5)\"],\"lt\":[]}"
+## kho
+"{\"vw\":390,\"vh\":844,\"small\":[],\"covered\":[\"Về nhân vật\",\"Chăm lại cây vừa háiChạm cây\",\"Xu vàng · Mở cửa hàng\",\"Mở túi đồ\",\"Mở cửa hàng\",\"Vào quán\",\"Quản lý3\"],\"offscreen\":[],\"total\":14,\"overflowText\":[]}"
+tap Quản lý @ 344 797
+## drawer
+"{\"vw\":390,\"vh\":844,\"small\":[],\"covered\":[\"Vào quán\",\"Đến lấy hàng\",\"Trồng cây\"],\"offscreen\":[],\"total\":19,\"overflowText\":[]}"
+tap Nâng cấp @ 111 632
+  timing open-upgrade: "{\"ev\":[\"pointerdown:24ms(delay 4,proc 0)\",\"pointerup:32ms(delay 7,proc 0)\",\"click:32ms(delay 8,proc 6)\"],\"lt\":[]}"
+## upgrade
+"{\"vw\":390,\"vh\":844,\"small\":[],\"covered\":[\"Về nhân vật\",\"Chăm lại cây vừa háiChạm cây\",\"Xu vàng · Mở cửa hàng\",\"Dụng cụ · Cơ bản · Giảm thời\",\"Sân sơ chế · Cơ bản · Phơi v\",\"Mở túi đồ\",\"Mở cửa hàng\",\"Vào quán\",\"Quản lý3\"],\"offscreen\":[\"Chế biến\",\"Dụng cụ · Cơ bản · Giảm thời\",\"Sân sơ chế · Cơ bản · Phơi v\"],\"total\":18,\"overflowText\":[]}"
+tap Vào quán @ 286 797
+  timing enter-cafe: "{\"ev\":[\"pointerdown:32ms(delay 11,proc 0)\",\"pointerup:32ms(delay 5,proc 0)\",\"click:32ms(delay 6,proc 1)\"],\"lt\":[80,109,50]}"
+## cafe
+"{\"vw\":390,\"vh\":844,\"small\":[],\"covered\":[],\"offscreen\":[],\"total\":5,\"overflowText\":[]}"
+bar screen: -8 124
+  timing bar-walk: "{\"ev\":[\"pointerdown:24ms(delay 12,proc 0)\",\"pointerup:24ms(delay 8,proc 0)\",\"click:24ms(delay 9,proc 1)\"],\"lt\":[]}"
+"bench open: false"
+## bench
+"{\"vw\":390,\"vh\":844,\"small\":[],\"covered\":[],\"offscreen\":[],\"total\":5,\"overflowText\":[]}"
+tap Nông trại @ 271 798
+tap Vào quán @ 286 797
+  timing enter-cafe: "{\"ev\":[\"pointerdown:24ms(delay 7,proc 0)\",\"pointerup:32ms(delay 11,proc 0)\",\"click:32ms(delay 12,proc 4)\"],\"lt\":[]}"
+## cafe
+"{\"vw\":390,\"vh\":844,\"small\":[],\"covered\":[],\"offscreen\":[],\"total\":5,\"overflowText\":[]}"
+bar screen try 1: OFF 40 130
+bar screen try 2: OFF 40 130
+bar screen try 3: OFF 40 130
+bar screen try 4: OFF 40 130
+bar screen try 5: OFF 40 130
+"bench open: false"
+## bench
+"{\"vw\":390,\"vh\":844,\"small\":[],\"covered\":[],\"offscreen\":[],\"total\":5,\"overflowText\":[]}"
+tap Nông trại @ 271 798
+tap Vào quán @ 286 797
+  timing enter-cafe: "{\"ev\":[\"pointerdown:24ms(delay 9,proc 0)\",\"pointerup:32ms(delay 8,proc 0)\",\"click:32ms(delay 9,proc 3)\"],\"lt\":[]}"
+## cafe
+"{\"vw\":390,\"vh\":844,\"small\":[],\"covered\":[],\"offscreen\":[],\"total\":5,\"overflowText\":[]}"
+tap Mở cửa @ 133 798
+bar screen try 1: OFF 40 210
+bar screen try 2: ON 89 298
+  timing bar-tap: "{\"ev\":[\"pointerdown:32ms(delay 15,proc 0)\",\"pointerup:24ms(delay 9,proc 0)\",\"click:24ms(delay 10,proc 2)\"],\"lt\":[]}"
+"bench open: true"
+## bench
+"{\"vw\":390,\"vh\":844,\"small\":[],\"covered\":[\"Xu vàng · Mở cửa hàng\",\"Cà phê trứngCần Máy đánh trứ\",\"Cà phê muốiCần Máy đánh trứn\",\"Pour-over V60Cần Bộ V60 + ấm\",\"Đóng cửa\",\"Kho\",\"Nông trại\",\"Quản lý\"],\"offscreen\":[\"Pour-over V60Cần Bộ V60 + ấm\"],\"total\":17,\"overflowText\":[]}"
+tap Nông trại @ 271 798
+## heaven-hud
+"{\"vw\":390,\"vh\":844,\"small\":[],\"covered\":[],\"offscreen\":[],\"total\":3,\"overflowText\":[\"heaven-objective-detail:Tới gần Thần Chết và hỏi chuyệ\"]}"
+NOTFOUND Mình đang ở đâu
+## dialogue
+"{\"vw\":390,\"vh\":844,\"small\":[],\"covered\":[],\"offscreen\":[],\"total\":3,\"overflowText\":[\"dialogue-hint:Chạm để tiếp\",\"heaven-objective-detail:Tới gần Thần Chết và hỏi chuyệ\"]}"
+tap ▾ @ 339 795
+  timing dialogue-next: "{\"ev\":[32],\"lt\":[]}"

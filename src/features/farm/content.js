@@ -42,7 +42,6 @@ export const PLOTS = FIELDS.flatMap((field, fieldIndex) => Array.from({ length: 
 export const MACHINES = [
   { id: 'dryer', name: 'Sân phơi', kind: 'dryer', icon: '☀', color: '#c5ab74', position: [0, -2.5], approachOffsets: [[0,2],[-2.1,0],[2.1,0]], input: 'cherries', output: 'dried', inputCount: 600, outputCount:100, capacity:18000, duration: 30000, upgradePrice: 100 },
   { id: 'roaster', name: 'Lò rang', kind: 'roaster', icon: '♨', color: '#a87b54', position: [6, -10.5], approachOffsets: [[0,2.5],[-1,2.5],[1,2.5]], input: 'dried', output: 'roasted', inputCount: 100, outputCount:84, capacity:1000, duration: 18000, upgradePrice: 160 },
-  { id: 'grinder', name: 'Máy xay bột', kind: 'grinder', icon: '☕', color: '#718e88', position: [6, -3.5], approachOffsets: [[0,2.5],[-1,2.5],[1,2.5]], input: 'roasted', output: 'ground', inputCount: 84, outputCount:84, capacity:1000, duration: 10000, upgradePrice: 180 },
 ];
 export const STATIONS = [
   { id: 'seed-shop', name: 'Tiệm hạt giống', kind: 'shop', initialVisible: false, color: '#9b9b62', position: [12, 12], interactDistance: 2.6, approachDistance: 2.2 },
@@ -66,15 +65,33 @@ export const TOOLS = [
   { id: 'feed', icon: '✚', name: 'Bón phân', help: 'Bón một lần mỗi lứa để thêm sản lượng.' },
   { id: 'harvest', icon: '♧', name: 'Hái quả', help: 'Bấm cây có quả chín để hái.' },
 ];
+// First-time hint flags stored in farm.tutorial.seen (plus `unlock-<id>` for HUD unlock toasts).
+export const TUTORIAL_IDS = ['controls', 'quest-guide', 'cafe-intro', 'bench-intro', 'tools'];
+// Order (onboarding-flow 3.5): the first cup comes second because the café starts with 600 g of beans, so the
+// "pour, coins jump" moment lands before minute 2; dry/roast waits then overlap café time. Watering/weeding last:
+// a freshly harvested tree only needs water after ~6 minutes. Text quotes the real button labels in « ».
 export const QUESTS = [
-  { id: 'harvest', title: 'Hái lứa quả đầu tiên', detail: 'Bấm cây có biểu tượng quả chín để tới hái.', stat: 'harvested', count: 1, coins: 10, xp: 4 },
-  { id: 'water', title: 'Chăm lại cây vừa hái', detail: 'Tưới cây; cây sẽ tiếp tục cho lứa mới.', stat: 'watered', count: 1, coins: 5, xp: 3 },
-  { id: 'dry', title: 'Phơi mẻ cà phê đầu tiên', detail: 'Mang quả chín tới sân phơi và tách vỏ. Xong thì bấm giỏ trên đầu sân để nhận.', stat: 'dried', count: 1, coins: 10, xp: 4 },
-  { id: 'roast', title: 'Rang một mẻ hạt', detail: 'Mang nhân sạch tới lò rang, rồi nhận hạt rang.', stat: 'roasted', count: 1, coins: 10, xp: 4 },
-  { id: 'grind', title: 'Xay túi cà phê đầu tiên', detail: 'Đưa hạt rang vào máy xay. Túi thành phẩm sẽ hiện trên đầu máy.', stat: 'ground', count: 1, coins: 10, xp: 4 },
-  { id: 'sell', title: 'Bán thành quả của mình', detail: 'Tới quầy thu mua để bán hoặc giao đơn đặt hàng.', stat: 'sold', count: 1, coins: 15, xp: 6 },
-  { id: 'expand', title: 'Mua ruộng thứ hai', detail: 'Mua ruộng liền kề. Mỗi ruộng thêm 12 ô đất và nới rộng bản đồ.', stat: 'expanded', count: 1, coins: 10, xp: 5 },
-  { id: 'weed', title: 'Giữ vườn sạch cỏ', detail: 'Dọn cỏ trước khi cỏ dày làm cây ngừng lớn.', stat: 'weeded', count: 1, coins: 5, xp: 3 },
+  { id: 'harvest', title: 'Hái lứa quả đầu tiên', detail: 'Chạm cây có biểu tượng quả chín. Nhân vật tự tới hái.', stat: 'harvested', count: 1, coins: 10, xp: 4 },
+  { id: 'serve', title: 'Bán ly cà phê đầu tiên', detail: 'Quán đã có sẵn 600 g hạt rang. Bấm «Vào quán» → «Mở cửa», đứng ở quầy thu ngân để nhận order, pha ở quầy pha rồi bấm bàn khách.', stat: 'served', count: 1, coins: 15, xp: 6 },
+  { id: 'dry', title: 'Phơi mẻ cà phê đầu tiên', detail: 'Chạm sân phơi, chọn số phần rồi «Bắt đầu». Xong chạm giỏ trên sân để «Nhận hàng».', stat: 'dried', count: 1, coins: 10, xp: 4 },
+  { id: 'roast', title: 'Rang một mẻ hạt', detail: 'Chạm lò rang, «Bắt đầu» với nhân sạch, xong chạm giỏ để «Nhận hàng».', stat: 'roasted', count: 1, coins: 10, xp: 4 },
+  { id: 'sell', title: 'Bán thành quả của mình', detail: 'Mở «Cửa hàng» → tab «Chợ», chọn món và «Bán».', stat: 'sold', count: 1, coins: 15, xp: 6 },
+  { id: 'ship', title: 'Gửi hạt rang về quán', detail: 'Rang đủ 252 g, mở «Đơn hàng» và bấm «Chuyển về quán · 2 xu».', stat: 'delivered', count: 1, coins: 10, xp: 5 },
+  { id: 'expand', title: 'Mua ruộng thứ hai', detail: 'Chạm biển ruộng cạnh vườn. Đủ xu thì xác nhận mua.', stat: 'expanded', count: 1, coins: 10, xp: 5 },
+  { id: 'water', title: 'Chăm lại cây vừa hái', detail: 'Chạm cây có 💧 để tưới. Hết nước thì tới giếng.', stat: 'watered', count: 1, coins: 5, xp: 3 },
+  { id: 'weed', title: 'Giữ vườn sạch cỏ', detail: 'Chạm luống có 🌿 để dọn cỏ.', stat: 'weeded', count: 1, coins: 5, xp: 3 },
+];
+// HUD parts that appear as the player reaches them (onboarding-flow 3.3). Derived from saved state only, and any
+// condition being true unlocks, so an old save that already used a feature sees it at once. `id` = shortcut id.
+const reached = (p, id) => { const next = QUESTS.findIndex(q => !p.claimed.includes(q.id)); return next < 0 || next >= QUESTS.findIndex(q => q.id === id); };
+export const HUD_UNLOCKS = [
+  { id: 'cafe-play', name: 'Vào quán', help: 'Bán cà phê ở quán của bạn', when: p => p.claimed.includes('harvest') || p.stats.served > 0 || p.cafe.revenue > 0 },
+  { id: 'seed-shop', name: 'Cửa hàng', help: 'Mua cây giống, vật tư và bán ở tab Chợ', when: (p, level) => reached(p, 'sell') || p.stats.sold > 0 || (p.plots.some(t => t.unlocked && t.stage === 'empty') && !CROPS.some(c => c.level <= level && p.seeds[c.id] > 0)) },
+  { id: 'order-board', name: 'Đơn hàng', help: 'Gửi hạt rang từ farm về quán', when: p => reached(p, 'ship') || p.orders.length > 0 },
+  { id: 'upgrades', name: 'Nâng cấp', help: 'Tăng công suất trạm, kho, giếng và quán', when: (p, level) => level >= 2 || Object.values(p.upgrades).some(lv => lv > 1) },
+  { id: 'workers', name: 'Nhân viên', help: 'Thuê thợ và robot', when: (p, level) => p.claimed.includes('expand') || p.workers.length > 0 || level >= 3 },
+  { id: 'build', name: 'Xây dựng', help: 'Đặt đồ trang trí cho nông trại', when: (p, level) => p.claimed.includes('weed') || p.decorations.length > 0 || level >= 4 },
+  { id: 'tools', name: 'Công cụ ⛏️', help: 'Chọn công cụ rồi kéo qua nhiều ô', when: (p, level) => p.claimed.includes('expand') || p.fields.length >= 2 || level >= 3 },
 ];
 // Farm level 1–10 from the table, then a quadratic curve up to 999.
 export const xpForLevel = level => level <= 10 ? LEVEL_XP[level - 1] : 2800 + 850 * (level - 10) + 50 * (level - 10) ** 2;

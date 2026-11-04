@@ -1,0 +1,127 @@
+┌─────────┬─────┬───────┬───────┬────────┬─────┬─────────────┬────────┐
+│ (index) │ min │ coins │ level │ fields │ rep │ roastedFarm │ served │
+├─────────┼─────┼───────┼───────┼────────┼─────┼─────────────┼────────┤
+│ 0       │ 5   │ 157   │ 3     │ 2      │ 50  │ 3108        │ 0      │
+│ 1       │ 10  │ 208   │ 5     │ 3      │ 64  │ 8244        │ 20     │
+│ 2       │ 15  │ 177   │ 6     │ 3      │ 64  │ 15468       │ 20     │
+│ 3       │ 20  │ 521   │ 8     │ 4      │ 76  │ 10344       │ 39     │
+│ 4       │ 25  │ 165   │ 8     │ 4      │ 76  │ 22524       │ 39     │
+│ 5       │ 30  │ 1049  │ 9     │ 4      │ 90  │ 9072        │ 59     │
+│ 6       │ 35  │ 173   │ 9     │ 4      │ 90  │ 21336       │ 59     │
+│ 7       │ 40  │ 947   │ 10    │ 4      │ 99  │ 8820        │ 79     │
+│ 8       │ 45  │ 158   │ 11    │ 4      │ 99  │ 22008       │ 79     │
+│ 9       │ 50  │ 885   │ 12    │ 4      │ 99  │ 11940       │ 99     │
+│ 10      │ 55  │ 383   │ 12    │ 4      │ 99  │ 26808       │ 99     │
+│ 11      │ 60  │ 1131  │ 13    │ 4      │ 100 │ 11760       │ 119    │
+│ 12      │ 65  │ 165   │ 13    │ 4      │ 100 │ 28056       │ 119    │
+│ 13      │ 70  │ 874   │ 14    │ 4      │ 100 │ 14040       │ 139    │
+│ 14      │ 75  │ 425   │ 14    │ 4      │ 100 │ 33108       │ 139    │
+│ 15      │ 80  │ 1219  │ 15    │ 4      │ 98  │ 15540       │ 159    │
+│ 16      │ 85  │ 224   │ 15    │ 4      │ 98  │ 35616       │ 159    │
+│ 17      │ 90  │ 918   │ 15    │ 4      │ 97  │ 17400       │ 179    │
+│ 18      │ 95  │ 304   │ 16    │ 4      │ 97  │ 38904       │ 179    │
+│ 19      │ 100 │ 974   │ 16    │ 4      │ 97  │ 19152       │ 199    │
+│ 20      │ 105 │ 188   │ 17    │ 4      │ 97  │ 44184       │ 199    │
+│ 21      │ 110 │ 817   │ 17    │ 4      │ 94  │ 19404       │ 219    │
+│ 22      │ 115 │ 801   │ 17    │ 4      │ 94  │ 42084       │ 219    │
+│ 23      │ 120 │ 1318  │ 18    │ 4      │ 92  │ 14628       │ 239    │
+│ 24      │ 125 │ 358   │ 18    │ 4      │ 92  │ 35712       │ 239    │
+│ 25      │ 130 │ 494   │ 19    │ 4      │ 92  │ 19068       │ 259    │
+│ 26      │ 135 │ 446   │ 19    │ 4      │ 92  │ 34860       │ 259    │
+│ 27      │ 140 │ 566   │ 19    │ 4      │ 90  │ 9588        │ 279    │
+│ 28      │ 145 │ 550   │ 20    │ 4      │ 90  │ 28656       │ 279    │
+│ 29      │ 150 │ 462   │ 20    │ 4      │ 91  │ 14028       │ 299    │
+│ 30      │ 155 │ 426   │ 20    │ 4      │ 91  │ 35112       │ 299    │
+│ 31      │ 160 │ 1589  │ 21    │ 4      │ 92  │ 19668       │ 319    │
+│ 32      │ 165 │ 229   │ 21    │ 4      │ 92  │ 35712       │ 319    │
+│ 33      │ 170 │ 1538  │ 21    │ 4      │ 91  │ 7056        │ 339    │
+│ 34      │ 175 │ 1522  │ 21    │ 4      │ 91  │ 26376       │ 339    │
+│ 35      │ 180 │ 1071  │ 22    │ 4      │ 91  │ 14028       │ 359    │
+│ 36      │ 185 │ 1035  │ 22    │ 4      │ 91  │ 35112       │ 359    │
+│ 37      │ 190 │ 567   │ 22    │ 4      │ 88  │ 21684       │ 379    │
+│ 38      │ 195 │ 519   │ 23    │ 4      │ 88  │ 34116       │ 379    │
+│ 39      │ 200 │ 1846  │ 23    │ 4      │ 87  │ 7896        │ 399    │
+│ 40      │ 205 │ 148   │ 23    │ 4      │ 87  │ 27216       │ 399    │
+│ 41      │ 210 │ 1213  │ 23    │ 4      │ 86  │ 14628       │ 419    │
+│ 42      │ 215 │ 1165  │ 24    │ 4      │ 86  │ 35712       │ 419    │
+│ 43      │ 220 │ 485   │ 24    │ 4      │ 84  │ 21084       │ 439    │
+│ 44      │ 225 │ 437   │ 24    │ 4      │ 84  │ 33852       │ 439    │
+│ 45      │ 230 │ 1760  │ 24    │ 4      │ 82  │ 7656        │ 459    │
+│ 46      │ 235 │ 1716  │ 25    │ 4      │ 82  │ 25716       │ 459    │
+│ 47      │ 240 │ 672   │ 25    │ 4      │ 80  │ 14028       │ 479    │
+└─────────┴─────┴───────┴───────┴────────┴─────┴─────────────┴────────┘
+income {"market":22559,"cafe":3837,"shift":1717,"other":0} spend {"seeds":340,"land":590,"supplies":283,"fertilizer":1866,"upgrades":23386,"gear":1350} net 298 coinsEnd 672 level 25 harvested 1832
+cafe { arrived: 870, served: 479, lost: 277, beansUsed: 8287 } beans used by café (g) 8287 farm roasted delivered (g) 7800
+blockedHarvestTries 3 storage 168000 cherries 300 dried 0 roasted 14028 up {"soil":1,"fence":1,"pond":1,"well":1,"tools":1,"dryer":10,"roaster":9,"storage":11,"delivery":1,"cafe":9}
+0m: mua field-1 (120 xu)
+0m: lên cấp 2
+1m: lên cấp 3
+6m: mua field-2 (180 xu)
+10m: lên cấp 5
+13m: lên cấp 6
+16m: lên cấp 7
+16m: mua field-3 (300 xu)
+20m: lên cấp 8
+20m: gear phin (40 xu)
+20m: gear steamer (60 xu)
+20m: gear mixer (70 xu)
+20m: gear grinder (80 xu)
+20m: upgrade storage (90 xu)
+26m: gear phin (90 xu)
+26m: lên cấp 9
+30m: gear v60 (90 xu)
+30m: upgrade dryer (100 xu)
+30m: gear espresso (120 xu)
+30m: gear steamer (120 xu)
+30m: upgrade storage (128 xu)
+30m: upgrade cafe (140 xu)
+30m: upgrade dryer (142 xu)
+35m: lên cấp 10
+36m: upgrade roaster (160 xu)
+40m: gear grinder (160 xu)
+40m: upgrade storage (182 xu)
+40m: upgrade cafe (199 xu)
+40m: gear espresso (200 xu)
+41m: lên cấp 11
+46m: upgrade dryer (202 xu)
+50m: lên cấp 12
+50m: upgrade roaster (228 xu)
+50m: upgrade storage (258 xu)
+56m: upgrade cafe (283 xu)
+60m: lên cấp 13
+60m: upgrade dryer (287 xu)
+60m: gear espresso (320 xu)
+60m: upgrade roaster (323 xu)
+66m: upgrade storage (366 xu)
+70m: lên cấp 14
+70m: upgrade cafe (401 xu)
+76m: upgrade dryer (407 xu)
+80m: lên cấp 15
+80m: upgrade roaster (459 xu)
+80m: upgrade storage (520 xu)
+86m: upgrade cafe (570 xu)
+90m: upgrade dryer (578 xu)
+90m: lên cấp 16
+96m: upgrade roaster (651 xu)
+100m: upgrade storage (738 xu)
+103m: lên cấp 17
+106m: upgrade cafe (809 xu)
+115m: lên cấp 18
+116m: upgrade dryer (820 xu)
+120m: upgrade roaster (924 xu)
+126m: upgrade storage (1048 xu)
+126m: lên cấp 19
+136m: upgrade cafe (1148 xu)
+141m: lên cấp 20
+146m: upgrade dryer (1165 xu)
+160m: lên cấp 21
+160m: upgrade roaster (1312 xu)
+176m: upgrade storage (1488 xu)
+176m: lên cấp 22
+186m: upgrade cafe (1630 xu)
+194m: lên cấp 23
+200m: upgrade dryer (1654 xu)
+212m: lên cấp 24
+216m: upgrade roaster (1863 xu)
+230m: lên cấp 25
+236m: upgrade storage (2113 xu)

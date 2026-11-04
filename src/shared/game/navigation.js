@@ -22,11 +22,13 @@ export function* findRoute(start, destination, canStand, bounds = { minX: -12, m
     return true;
   }
   if (inRange(destination) && canStand(destination.x, destination.z) && clear(start, destination)) return [{ ...destination }];
-  function* closest(target, connect, maxDistance, requireInteraction = false) {
+  function* scan(target, connect, maxDistance, requireInteraction, radius) {
     let best = null, distance = maxDistance;
-    for (let x = 0; x < WIDTH; x++) {
+    const x0 = Math.max(0, Math.floor((target.x - radius - MIN_X) / STEP)), x1 = Math.min(WIDTH - 1, Math.ceil((target.x + radius - MIN_X) / STEP));
+    const z0 = Math.max(0, Math.floor((target.z - radius - MIN_Z) / STEP)), z1 = Math.min(HEIGHT - 1, Math.ceil((target.z + radius - MIN_Z) / STEP));
+    for (let x = x0; x <= x1; x++) {
       yield;
-      for (let z = 0; z < HEIGHT; z++) {
+      for (let z = z0; z <= z1; z++) {
         if (z % 16 === 0) yield;
         const id = key(x, z), p = point(id);
         const d = Math.hypot(p.x - target.x, p.z - target.z);
@@ -34,6 +36,12 @@ export function* findRoute(start, destination, canStand, bounds = { minX: -12, m
       }
     }
     return best;
+  }
+  // Search a 3-unit window first: any cell outside it is farther than 3, so a hit inside is the true nearest. Full grid only as fallback.
+  function* closest(target, connect, maxDistance, requireInteraction = false) {
+    const near = yield* scan(target, connect, Math.min(maxDistance, 3), requireInteraction, Math.min(maxDistance, 3));
+    if (near !== null || maxDistance <= 3) return near;
+    return yield* scan(target, connect, maxDistance, requireInteraction, Infinity);
   }
   const first = yield* closest(start, true, 1.5);
   const last = yield* closest(destination, false, Infinity, Boolean(interaction));

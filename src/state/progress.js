@@ -56,6 +56,8 @@ export function completeIntro() {
 export function resetProgress() {
   locked = true;
   try {
+    // Best effort: a full storage must not block the reset itself.
+    try { const raw = localStorage.getItem(KEY); if (raw) localStorage.setItem(`${KEY}-backup`, raw); } catch {}
     const { settings } = readProgress();
     if (settings) localStorage.setItem(KEY, JSON.stringify({ version: 1, settings }));
     else localStorage.removeItem(KEY);
@@ -63,7 +65,13 @@ export function resetProgress() {
   } catch { return false; }
 }
 
-const DEFAULT_SETTINGS = { version: 1, master: 0.8, music: 0.6, ambience: 0.7, sfx: 0.8, ui: 0.6, muted: false, quality: 'high' };
+// Mobile first: phones and weak machines start lighter; a saved choice always wins.
+function deviceQuality() {
+  const weak = (navigator.deviceMemory || 8) <= 2 || (navigator.hardwareConcurrency || 8) <= 4;
+  const touch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+  return weak ? 'low' : touch ? 'medium' : 'high';
+}
+const DEFAULT_SETTINGS = { version: 1, master: 0.8, music: 0.6, ambience: 0.7, sfx: 0.8, ui: 0.6, muted: false, quality: deviceQuality() };
 const QUALITIES = ['low', 'medium', 'high'];
 
 function normalizeSettings(raw) {

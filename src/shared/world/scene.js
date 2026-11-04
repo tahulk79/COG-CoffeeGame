@@ -4,20 +4,24 @@ import { createPlayerMotion } from '../../characters/motion.js';
 import { disposeScene } from '../three/dispose-scene.js';
 import { findRoute } from '../game/navigation.js';
 import { canOccupy, slideMove } from '../game/collision.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { fillRich } from '../../ui/icons.js';
 
-export function createAdventureScene(character, { interactions: inputInteractions, theme = 'heaven', mapBounds = null, buildActor = null, buildEnvironment = null }) {
+export function createAdventureScene(character, { interactions: inputInteractions, theme = 'heaven', mapBounds = null, buildActor = null, buildEnvironment = null, lighting = {} }) {
   const NPCS = inputInteractions.map(item => ({ ...item, position: [...item.position] }));
   const farming = theme === 'farm';
   const portalPosition = NPCS.find(npc => npc.id === 'portal')?.position || [0, 10];
   const halfWidth = farming ? 26 : 21;
   const farZ = farming ? -24 : -20;
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(farming ? '#dcebd4' : '#ecf1e6');
-  scene.fog = farming ? null : new THREE.Fog('#ecf1e6',30,65);
-  // Parallel projection keeps distant trees as legible as nearby trees.
-  const camera = farming ? new THREE.OrthographicCamera(-6.8,6.8,6.8,-6.8,.1,90) : new THREE.PerspectiveCamera(43,1,.1,90);
-  scene.add(new THREE.HemisphereLight('#fff8e3', '#94ac99', 2.8));
-  const sun = new THREE.DirectionalLight('#fff1d0', 2.4); sun.position.set(-8, 18, 9); scene.add(sun);
+  // Per-scene light (docs/game-redesign/03 §4); defaults are the old shared values so heaven/café stay as they were.
+  const light = { sky: '#fff8e3', ground: '#94ac99', ambient: 2.8, sun: '#fff1d0', sunIntensity: 2.4, background: farming ? '#dcebd4' : '#ecf1e6', ...lighting };
+  scene.background = new THREE.Color(light.background);
+  scene.fog = new THREE.Fog(light.background, farming ? 38 : 30, farming ? 80 : 65); // far edge fades into the sky, as in heaven
+  // Every scene uses heaven's follow camera (perspective, behind and above the player): deeper, roomier view.
+  const camera = new THREE.PerspectiveCamera(43, 1, .1, 120);
+  scene.add(new THREE.HemisphereLight(light.sky, light.ground, light.ambient));
+  const sun = new THREE.DirectionalLight(light.sun, light.sunIntensity); sun.position.set(-8, 18, 9); scene.add(sun);
   sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
   Object.assign(sun.shadow.camera, { left: -18, right: 18, top: 18, bottom: -18 }); sun.shadow.normalBias = .04;
   const materials = new Map();
@@ -39,34 +43,140 @@ export function createAdventureScene(character, { interactions: inputInteraction
     object.castShadow = true; object.receiveShadow = true; parent.add(object); return object;
   }
   const box = (...args) => mesh(cube, ...args);
+  // Heaven floor: soft drifting cloud, no tile grid or lines (seeded so it looks the same every visit).
+  function cloudFloor() {
+    const canvas = document.createElement('canvas'); canvas.width = canvas.height = 1024;
+    const ctx = canvas.getContext('2d');
+    let seed = 7; const rand = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+    ctx.fillStyle = '#e6d6b2'; ctx.fillRect(0, 0, 1024, 1024);
+    const blob = (x, y, r, color) => {
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, color); g.addColorStop(1, color.replace(/[\d.]+\)$/, '0)'));
+      ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    };
+    blob(512, 600, 520, 'rgba(255,246,222,.45)'); // warm glow round the central plaza
+    for (let i = 0; i < 90; i++) blob(rand() * 1024, rand() * 1024, 50 + rand() * 150, `rgba(255,255,255,${(.5 + rand() * .45).toFixed(2)})`);
+    for (let i = 0; i < 25; i++) blob(rand() * 1024, rand() * 1024, 60 + rand() * 120, 'rgba(226,206,160,.22)');
+    const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; return texture;
+  }
+  // Heaven plaza drawn from the NPC positions so it always lines up: centre disc, one ring walkway through every
+  // dais, a straight spoke from the centre to each god, and a spoke south to the portal crossing the ring.
+  function plazaFloor() {
+    const center = [0, -3], radius = 11, walk = 1.6, edge = .12;
+    const parts = { walk: [], disc: [], gold: [], pool: [] };
+    const flat = (geometry, x, y, z) => geometry.rotateX(-Math.PI / 2).translate(x, y, z);
+    const ring = (list, inner, outer, y, [x, z] = center) => list.push(flat(new THREE.RingGeometry(inner, outer, 96), x, y, z));
+    const disc = (list, r, y, [x, z] = center) => list.push(flat(new THREE.CircleGeometry(r, 96), x, y, z));
+    const strip = (list, dir, from, to, width, y, offset = 0) => {
+      const geometry = new THREE.PlaneGeometry(width, to - from).rotateX(-Math.PI / 2).rotateY(Math.atan2(dir[0], dir[1]));
+      const mid = (from + to) / 2;
+      list.push(geometry.translate(center[0] + dir[0] * mid + dir[1] * offset, y, center[1] + dir[1] * mid - dir[0] * offset));
+    };
+    const spoke = (dir, from, to, y) => {
+      strip(parts.walk, dir, from, to, walk, y);
+      for (const side of [-1, 1]) strip(parts.gold, dir, from, to, edge, y + .004, side * (walk - edge) / 2);
+    };
+    ring(parts.walk, radius - walk / 2, radius + walk / 2, .012);
+    for (const side of [-1, 1]) ring(parts.gold, radius + side * (walk - edge) / 2 - edge / 2, radius + side * (walk - edge) / 2 + edge / 2, .02);
+    for (const npc of NPCS) {
+      const dx = npc.position[0] - center[0], dz = npc.position[1] - center[1], distance = Math.hypot(dx, dz), dir = [dx / distance, dz / distance];
+      if (npc.id === 'portal') { spoke(dir, 2.9, radius + walk / 2, .024); spoke(dir, radius + walk / 2, distance - .4, .012); continue; }
+      spoke(dir, 2.9, distance - 2.6, .012);
+      disc(parts.disc, 2.5, .028, npc.position); ring(parts.gold, 2.5, 2.7, .034, npc.position);
+    }
+    disc(parts.disc, 2.9, .028); ring(parts.gold, 2.75, 2.95, .034);
+    disc(parts.pool, 1.4, .04); ring(parts.gold, 1.4, 1.52, .042);
+    const colors = { walk: '#f7efdc', disc: '#ecdcb8', gold: '#d6b56c', pool: '#d3e6df' };
+    const group = new THREE.Group(); group.userData.nonSolid = true;
+    for (const [key, list] of Object.entries(parts)) {
+      const floor = new THREE.Mesh(mergeGeometries(list), new THREE.MeshStandardMaterial({ color: colors[key], roughness: .9 }));
+      floor.receiveShadow = true; floor.userData.noPick = true; group.add(floor);
+      for (const geometry of list) geometry.dispose();
+    }
+    return group;
+  }
+  // Low-poly cloud banks round the floor's edge so the map fades into sky instead of ending on a hard line.
+  function cloudBank() {
+    const puffs = [];
+    let seed = 11; const rand = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+    const minX = -halfWidth, maxX = halfWidth, minZ = farZ - 2, maxZ = 16;
+    for (const row of [0, 1]) {
+      const pad = 1.4 + row * 3, step = 2.4 + row;
+      for (let x = minX - pad; x <= maxX + pad; x += step) puffs.push([x, minZ - pad], [x, maxZ + pad]);
+      for (let z = minZ - pad; z <= maxZ + pad; z += step) puffs.push([minX - pad, z], [maxX + pad, z]);
+    }
+    const bank = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshStandardMaterial({ color: '#fffaf0', roughness: 1, flatShading: true }), puffs.length);
+    const matrix = new THREE.Matrix4(), quaternion = new THREE.Quaternion(), euler = new THREE.Euler(), scale = new THREE.Vector3(), position = new THREE.Vector3();
+    puffs.forEach(([x, z], index) => {
+      const size = 2.2 + rand() * 1.8;
+      position.set(x + (rand() - .5), -.4 + rand() * .5, z + (rand() - .5));
+      quaternion.setFromEuler(euler.set(0, rand() * Math.PI, 0)); scale.set(size, size * (.45 + rand() * .25), size);
+      bank.setMatrixAt(index, matrix.compose(position, quaternion, scale));
+    });
+    bank.userData.nonSolid = true; bank.userData.noPick = true;
+    return bank;
+  }
   function label(text, color = '#355342', width = 3.4) {
     const iconOnly = width === .65, groundMark = text === '+';
     const canvas = document.createElement('canvas'); canvas.width = iconOnly ? 128 : 640; canvas.height = 128;
-    const ctx = canvas.getContext('2d');
-    if (!groundMark) {
-      // Màn 2: cùng khung giấy da + viền gỗ với HUD (--ui-paper / --ui-paper-edge).
-      const paper = ctx.createLinearGradient(0, 0, 0, 128); paper.addColorStop(0, '#fffbed'); paper.addColorStop(1, '#fff0d5');
-      ctx.fillStyle = farming ? '#fffaf0' : paper; ctx.beginPath(); ctx.roundRect(4, 6, canvas.width - 8, 114, iconOnly ? 40 : 57); ctx.fill();
-      ctx.strokeStyle = farming ? color : '#d5b780'; ctx.lineWidth = farming ? 5 : 7; ctx.stroke();
+    let ctx = canvas.getContext('2d');
+    // Every text label is the dark nameplate (--ui-nameplate-*): reads on grass, wood floors and the pale plaza alike.
+    const plate = !iconOnly && !groundMark;
+    const size = iconOnly ? 72 : 64;
+    if (plate) { // the plate hugs its text so every label has the same type size, long or short
+      ctx.font = `800 ${size}px "Baloo 2", system-ui`;
+      canvas.width = Math.min(1024, Math.ceil(ctx.measureText(text).width + 88)); ctx = canvas.getContext('2d');
     }
-    ctx.fillStyle = groundMark ? '#f6d981' : farming ? color : '#694427'; ctx.font = iconOnly ? '72px system-ui' : farming ? 'bold 54px system-ui' : '800 46px "Baloo 2", system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, canvas.width / 2, 66, canvas.width - 12);
+    if (!groundMark) {
+      ctx.fillStyle = plate ? '#3b2a1cd9' : '#fffaf0'; ctx.beginPath(); ctx.roundRect(4, 6, canvas.width - 8, 114, iconOnly ? 40 : 57); ctx.fill();
+      ctx.strokeStyle = color; ctx.lineWidth = plate ? 6 : 5; ctx.stroke();
+    }
+    ctx.fillStyle = groundMark ? '#f6d981' : plate ? '#fff6dc' : '#3f2c17'; ctx.font = iconOnly ? `${size}px system-ui` : `800 ${size}px "Baloo 2", system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    fillRich(ctx, text, canvas.width / 2, 66, size, canvas.width - 24, plate);
     const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace;
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
-    sprite.scale.set(width, iconOnly ? width : width / (farming ? 4 : 5), 1); return sprite;
+    sprite.scale.set(plate ? width / 5 * canvas.width / 128 : width, iconOnly ? width : width / 5, 1); return sprite;
   }
+  // Labels keep a steady on-screen size whatever the distance or zoom (docs/game-redesign/05 C1).
+  const screenLabels = [];
+  function keepOnScreen(object, pixels = 26) {
+    object.userData.baseScale = object.scale.clone(); object.userData.labelPx = pixels;
+    if (object.isSprite) object.material.sizeAttenuation = false;
+    screenLabels.push(object); return object;
+  }
+  // A fixed-size nameplate half outside the view reads as a cut word, so show it only when it fits.
+  const labelPoint = new THREE.Vector3();
+  function hideCutLabels() {
+    camera.updateMatrixWorld();
+    for (const object of screenLabels) {
+      labelPoint.setFromMatrixPosition(object.matrixWorld).project(camera);
+      const half = object.userData.labelPx * object.scale.x / object.scale.y / viewWidth; // half width in NDC
+      object.material.visible = labelPoint.z < 1 && Math.abs(labelPoint.x) + half < 1 && Math.abs(labelPoint.y) < .97; // material flag: object.visible belongs to the status logic
+    }
+  }
+  let viewHeight = 1, viewWidth = 1;
+  function fitLabel(object) {
+    const base = object.userData.baseScale, h = 2 * object.userData.labelPx / (viewHeight * camera.projectionMatrix.elements[5]);
+    object.scale.set(h * base.x / base.y, h, 1);
+  }
+  function fitLabels() { for (const object of screenLabels) fitLabel(object); }
+
   const groundTile = box(farming ? '#94ac76' : '#e7d9b8', 0, -.42, farming ? -1 : -3, halfWidth * 2, .8, farming ? 46 : 38);
+  if (!farming) groundTile.material = new THREE.MeshStandardMaterial({ map: cloudFloor(), roughness: 1 });
   if(farming&&mapBounds){groundTile.position.set((mapBounds.minX+mapBounds.maxX)/2,-.42,(mapBounds.minZ+mapBounds.maxZ)/2);groundTile.scale.set(mapBounds.maxX-mapBounds.minX,.8,mapBounds.maxZ-mapBounds.minZ);}
+  // Sân, lối, đĩa đứng, gò mây, cột, tường cổng: một slot để thay hình mà giữ khối tạm làm vùng cản (dressSlot).
+  const plaza = farming ? null : assetSlot(new THREE.Group(), `${theme}/plaza`);
   if (!farming) {
-    box('#f4ecd7', 0, .01, -3, 4, .04, 36);
-    box('#f4ecd7', 0, .015, -1, 34, .04, 3);
+    scene.add(plaza, plazaFloor(), cloudBank());
+    box('#f4ecd7', 0, .01, -3, 4, .04, 36, plaza);
+    box('#f4ecd7', 0, .015, -1, 34, .04, 3, plaza);
     for (const side of [-1, 1]) for (let z = farZ; z <= 14; z += 4) {
-      mesh(sphere, '#fff9e9', side * halfWidth, -.3, z, 2, .6, 2.4);
-      box('#d9c79c', side * (halfWidth - 1.2), .2, z, .3, .4, .3);
+      mesh(sphere, '#fff9e9', side * halfWidth, -.3, z, 2, .6, 2.4, plaza);
+      box('#d9c79c', side * (halfWidth - 1.2), .2, z, .3, .4, .3, plaza);
     }
     // Nền mây/đảo bay quanh quảng trường: chỉ để nhìn, không chặn đường.
     const surroundings = assetSlot(new THREE.Group(), `${theme}/surroundings`); surroundings.userData.nonSolid = true; scene.add(surroundings);
     const hall = label('BỘ PHẬN TRÙNG SINH · NHỚ LẤY SỐ', '#8f7951', 7);
-    hall.position.set(0, 5.5, farZ); scene.add(hall);
+    hall.position.set(0, 5.5, farZ); scene.add(keepOnScreen(hall, 22));
   }
   const environment = buildEnvironment?.({ scene, box, mesh, sphere, cube, assetSlot });
   const actors = new Map();
@@ -75,9 +185,9 @@ export function createAdventureScene(character, { interactions: inputInteraction
       const dx = npc.position[0], dz = npc.position[1] + 3;
       const distance = Math.hypot(dx, dz);
       const pathLength = Math.max(0, distance - 2.4);
-      const path = box('#f4ecd7', dx / distance * pathLength / 2, .025, -3 + dz / distance * pathLength / 2, 2.4, .025, pathLength);
+      const path = box('#f4ecd7', dx / distance * pathLength / 2, .025, -3 + dz / distance * pathLength / 2, 2.4, .025, pathLength, plaza);
       path.rotation.y = Math.atan2(dx, dz);
-      mesh(new THREE.CylinderGeometry(2.5, 2.5, .06, 32), '#e6d9b9', npc.position[0], .025, npc.position[1], 1, 1, 1);
+      mesh(new THREE.CylinderGeometry(2.5, 2.5, .06, 32), '#e6d9b9', npc.position[0], .025, npc.position[1], 1, 1, 1, plaza);
     }
     const group = new THREE.Group(); group.position.set(npc.position[0], .05, npc.position[1]);
     group.rotation.y = npc.facing || 0;
@@ -126,12 +236,14 @@ export function createAdventureScene(character, { interactions: inputInteraction
         box('#9e6451', .5, .9, .85, .2, .3, .2, visual);
       }
     }
+    const overhead = npc.kind === 'well' ? 2.6 : npc.kind === 'dryer' ? 3.1 : npc.kind === 'field' ? 1.9
+      : ['register','pickup','kiosk','bar','pantry','board','table','expansion','exit'].includes(npc.kind) ? 2.3 : 3.7;
+    let namePlate = null;
     const name = label(npc.name, farming ? '#4a3520' : npc.color, farming ? 2.6 : 3.4);
-    if(farming && !['plot','field'].includes(npc.kind)) {
-      const plate=new THREE.Mesh(new THREE.PlaneGeometry(2.6,.65),new THREE.MeshBasicMaterial({map:name.material.map,transparent:true,depthWrite:false,depthTest:false}));
-      plate.rotation.x=-Math.PI/2;plate.position.set(0,.04,npc.kind==='well' ? 1.35 : npc.kind==='dryer' ? 1.8 : 2.2);plate.renderOrder=5;plate.userData.nonSolid=true;group.add(plate);
-      name.material.map=null;name.material.dispose();
-    } else {name.position.set(0,farming ? .24 : 2.8,0);group.add(name);}
+    // Farm/café: centred over the object, text level and facing the player — same plate as heaven's gate.
+    if (farming && !['plot','field'].includes(npc.kind)) { name.position.set(0, overhead, 0); name.material.depthTest = false; name.renderOrder = 5; namePlate = name; }
+    else name.position.set(0, farming ? .24 : 2.8, 0);
+    group.add(keepOnScreen(name));
     const ring = new THREE.Mesh((farming && (npc.kind === 'plot' || npc.input) ? new THREE.RingGeometry(.92, 1, 4, 1, Math.PI/4) : new THREE.RingGeometry(.72, .85, 32)), new THREE.MeshBasicMaterial({ color: npc.color, side: THREE.DoubleSide, transparent: true, opacity: .3 }));
     if(farming && npc.input)ring.scale.set(npc.kind==='dryer' ? 2.3 : 2.7,npc.kind==='dryer' ? 1.8 : 2.3,1);
     ring.userData.nonSolid = true; ring.userData.noPick = true; ring.rotation.x = -Math.PI / 2; ring.position.y = .02; group.add(ring);
@@ -140,7 +252,11 @@ export function createAdventureScene(character, { interactions: inputInteraction
       const anchor = new THREE.Group(); anchor.name = `status:${npc.id}`; anchor.userData.nonSolid = true;
       anchor.position.y = npc.kind === 'plot' ? 2.15 : npc.kind === 'field' ? 1.75 : npc.kind === 'dryer' ? 2.4 : 4.45;
       group.add(anchor);
-      const sign = label(' ', npc.color, npc.kind === 'plot' ? .65 : 2.3); anchor.add(sign);
+      const sign = label(' ', npc.color, npc.kind === 'plot' ? .65 : 2.6);
+      if (npc.kind === 'plot') anchor.add(sign); // plot badges sit too close together to grow
+      else { // "Thu ngân", "Ô trống…", field price: same overhead plate, standing in for the name while it has something to say
+        sign.position.set(0, overhead, 0); sign.material.depthTest = false; sign.renderOrder = 5; sign.visible = false; group.add(keepOnScreen(sign));
+      }
       const floorIcon = new THREE.Mesh(new THREE.PlaneGeometry(.72, .72), new THREE.MeshBasicMaterial({ transparent: true, side: THREE.DoubleSide, depthWrite: false }));
       floorIcon.rotation.x = -Math.PI / 2; floorIcon.visible = false; anchor.add(floorIcon);
       const bag = box('#d6bc86', 0, .55, 0, .36, .42, .28, anchor);
@@ -149,8 +265,8 @@ export function createAdventureScene(character, { interactions: inputInteraction
       const badgeCanvas = document.createElement('canvas'); badgeCanvas.width = 192; badgeCanvas.height = 192;
       const badgeTexture = new THREE.CanvasTexture(badgeCanvas); badgeTexture.colorSpace = THREE.SRGBColorSpace;
       const badge = new THREE.Sprite(new THREE.SpriteMaterial({map:badgeTexture,transparent:true,depthWrite:false}));
-      badge.scale.set(1.1,1.1,1); badge.visible = false; anchor.add(badge);
-      anchor.visible = false; status = { anchor, sign, floorIcon, bag, bar, badge, badgeCanvas, badgeTexture, badgeKey:'', processing:false, jobs:[], text: null, ready: false };
+      badge.scale.set(1.4,1.4,1); badge.visible = false; anchor.add(badge); // bigger so the time/action text reads on a phone
+      anchor.visible = false; status = { anchor, sign, namePlate, floorIcon, bag, bar, badge, badgeCanvas, badgeTexture, badgeKey:'', processing:false, jobs:[], text: null, ready: false };
     }
     if (farming && ['plot','field'].includes(npc.kind)) name.visible = false;
     actors.set(npc.id, { group, ring, crop, status, ...actorHooks });
@@ -168,21 +284,23 @@ export function createAdventureScene(character, { interactions: inputInteraction
     return hinge;
   });
   if (!farming) for (const side of [-1, 1]) {
-    box('#d8c8a4', side * (halfWidth + 1.9) / 2, .6, portalPosition[1], halfWidth - 1.9, 1.2, .4);
+    box('#d8c8a4', side * (halfWidth + 1.9) / 2, .6, portalPosition[1], halfWidth - 1.9, 1.2, .4, plaza);
   }
   mesh(new THREE.TorusGeometry(1.8, .16, 8, 32, Math.PI), '#d9bd7b', 0, 3.15, 0, 1, 1, 1, portalFrame);
   const portalMaterial = new THREE.MeshBasicMaterial({ color: '#d4c9a5', transparent: true, opacity: .25, side: THREE.DoubleSide, depthWrite: false });
   const portalLight = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 3.6), portalMaterial); portalLight.position.y = 1.8; portal.add(portalLight);
-  const portalName = label('CỔNG TRÙNG SINH', '#8f7951', 3.4); portalName.position.set(0, 5.9, 0); portal.add(portalName);
+  const portalName = label('CỔNG TRÙNG SINH', '#8f7951', 3.4); portalName.position.set(0, 5.9, 0); portal.add(keepOnScreen(portalName, 30));
   const marker = new THREE.Group(); scene.add(marker);
   const markerRing = new THREE.Mesh(new THREE.RingGeometry(1.1, 1.22, 40), new THREE.MeshBasicMaterial({ color: '#bc984c', side: THREE.DoubleSide, transparent: true, opacity: .7 }));
   markerRing.rotation.x = -Math.PI / 2; markerRing.position.y = .08; marker.add(markerRing);
-  const markerArrow = mesh(new THREE.ConeGeometry(.18, .4, 4), '#bc984c', 0, 3.5, 0, 1, 1, 1, marker); markerArrow.rotation.z = Math.PI;
+  // Quest arrow (slot `<theme>/quest-arrow`, placeholder cone): floats over the interaction set by setTarget/setQuestArrow.
+  const markerArrow = assetSlot(new THREE.Group(), `${theme}/quest-arrow`); markerArrow.position.y = 3.5; marker.add(markerArrow);
+  mesh(new THREE.ConeGeometry(.18, .4, 4), '#bc984c', 0, 0, 0, farming ? 2 : 1, farming ? 2 : 1, farming ? 2 : 1, markerArrow).rotation.z = Math.PI;
   character.name = 'heaven-player'; character.position.set(0, .05, 7); character.rotation.set(0, Math.PI, 0); character.scale.setScalar(1); scene.add(character);
   const motion = createPlayerMotion(character);
   const selectedPlots=new Set(),workerTargets=new Set();
   let walkTime = 0, walkWeight = 0, targetId = 'reaper', focused = null, unlocked = farming, returning = false, doorOpen = 0;
-  const cameraOffset = new THREE.Vector3(farming ? 10 : 0, farming ? 15 : 12, farming ? 12 : 11);
+  const cameraOffset = new THREE.Vector3(0, farming ? 12.5 : 12, farming ? 11.5 : 11);
   const cameraTarget = new THREE.Vector3();
   const cameraLook = new THREE.Vector3();
   const desiredCamera = new THREE.Vector3();
@@ -217,7 +335,7 @@ export function createAdventureScene(character, { interactions: inputInteraction
     }
   }
   rebuildColliders();
-  let route = [], arrivalNpc = null, portalIntent = false;
+  let route = [], arrivalNpc = null, portalIntent = false, faceYaw = null; // faceYaw: where to turn once standing at an interaction
   let pendingRoute = null, routeIntent = null;
   const raycaster = new THREE.Raycaster();
   const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), -.03);
@@ -232,7 +350,7 @@ export function createAdventureScene(character, { interactions: inputInteraction
     return points?.length ? points.some(point=>Math.hypot(x-point.x,z-point.z)<=.65) : Math.hypot(x-npc.position[0],z-npc.position[1]) < (npc.interactDistance || 2.6);
   }
   function requestRoute(target, npcId, retries = 0) {
-    if (farming) manualCamera = null;
+    manualCamera = null;
     stopMovement();
     portalIntent = !farming && target.z >= frontLimit && Math.abs(target.x - portalPosition[0]) < 1.1;
     const npc = NPCS.find(item => item.id === npcId);
@@ -245,7 +363,7 @@ export function createAdventureScene(character, { interactions: inputInteraction
   function moveToNpc(id) {
     const npc = NPCS.find(item => item.id === id);
     if (!npc) return false;
-    if (farming) manualCamera = null;
+    manualCamera = null;
     const dx = character.position.x - npc.position[0], dz = character.position.z - npc.position[1];
     const distance = Math.hypot(dx, dz);
     if (atInteraction(npc)) { stopMovement(); arrivalNpc = id; return true; }
@@ -273,16 +391,20 @@ export function createAdventureScene(character, { interactions: inputInteraction
   function drawPlantBadge(status, progress) {
     const info = status.plantProgress; progress = Math.max(0,Math.min(1,progress));
     const seconds = Math.max(0,Math.ceil(info.remaining-(performance.now()-info.at)/1000*(info.rate ? 1 : 0)));
-    const key = `plant:${status.icon}:${status.ready}:${info.paused}:${Math.floor(progress*200)}:${seconds}`;
+    // Above a minute show whole minutes so 48 plot badges redraw (canvas + texture upload) rarely, not every second.
+    const timeLabel = seconds > 60 ? `${Math.ceil(seconds / 60)} phút` : `${seconds}s`;
+    const key = `plant:${status.icon}:${status.ready}:${info.paused}:${Math.floor(progress*40)}:${timeLabel}`;
     if (key === status.badgeKey) return; status.badgeKey = key;
     const ctx = status.badgeCanvas.getContext('2d'); ctx.clearRect(0,0,192,192);
     ctx.shadowColor = status.ready ? '#ffe478' : '#30462680'; ctx.shadowBlur = status.ready ? 12 : 4;
-    ctx.font='70px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#fff2c5';ctx.fillText(status.icon,96,62);
+    ctx.font='70px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#fff2c5';fillRich(ctx,status.icon,96,62,70);
     ctx.shadowBlur=0;ctx.beginPath();ctx.roundRect(24,118,144,19,9);ctx.fillStyle='#3c4e37';ctx.fill();
     ctx.beginPath();ctx.roundRect(27,121,Math.max(6,138*progress),13,6);ctx.fillStyle=status.ready ? '#f4cf61' : info.paused ? '#d7a65c' : '#8fc56c';ctx.fill();
-    ctx.font='bold 30px system-ui';ctx.fillStyle='#fff9dc';ctx.shadowColor='#304626';ctx.shadowBlur=3;
-    const action = status.ready ? 'Hái' : {'💧':'Tưới','🌿':'Làm cỏ','🪴':'Bón phân'}[status.icon];
-    ctx.fillText(action || (info.paused ? 'Chờ chăm' : `${seconds}s`),96,159);ctx.shadowBlur=0;
+    // Readable on phones: large bold label with a dark outline instead of a faint shadow.
+    ctx.font='900 40px system-ui';ctx.lineJoin='round';ctx.lineWidth=8;ctx.strokeStyle='#2e2416';ctx.fillStyle='#fffbe6';
+    // Ready plots already show the basket icon, so no "Hái" text under the bar.
+    const action = {'💧':'Tưới','🌿':'Làm cỏ','🪴':'Bón phân'}[status.icon], text = status.ready ? '' : action || (info.paused ? 'Chờ chăm' : timeLabel);
+    if (text) { ctx.strokeText(text,96,164);ctx.fillText(text,96,164); }
     status.badgeTexture.needsUpdate=true;
   }
   function drawProcessingBadge(status, progress, ready) {
@@ -292,12 +414,12 @@ export function createAdventureScene(character, { interactions: inputInteraction
     if(key===status.badgeKey)return;status.badgeKey=key;
     const ctx=status.badgeCanvas.getContext('2d');ctx.clearRect(0,0,192,192);
     ctx.shadowColor=ready ? '#ffe46a' : '#40312477';ctx.shadowBlur=ready ? 12 : 4;
-    ctx.font='68px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#fff4c8';ctx.fillText(ready ? '🧺' : status.icon,96,59);
+    ctx.font='68px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#fff4c8';fillRich(ctx,ready ? '🧺' : status.icon,96,59,68);
     ctx.shadowBlur=0;ctx.beginPath();ctx.roundRect(24,113,144,19,9);ctx.fillStyle='#4e4835';ctx.fill();
     ctx.beginPath();ctx.roundRect(27,116,Math.max(6,138*progress),13,6);ctx.fillStyle=ready ? '#f2cb58' : '#8cba64';ctx.fill();
-    ctx.font='bold 25px system-ui';ctx.fillStyle='#fff5d6';ctx.shadowColor='#493322';ctx.shadowBlur=3;
-    ctx.fillText(ready ? 'Nhận' : `${seconds}s`,96,153);
-    ctx.font='bold 21px system-ui';ctx.fillText(status.summary?(ready?`${status.units} mẻ xong`:status.queueCount?`${status.queueCount} mẻ chờ`:'Đang chế biến'):`${status.units || 1} mẻ${!ready && status.icon==='🔄' ? ' · Đảo' : ''}`,96,179);ctx.shadowBlur=0;
+    ctx.font='900 32px system-ui';ctx.lineJoin='round';ctx.lineWidth=7;ctx.strokeStyle='#2e2416';ctx.fillStyle='#fffbe6';
+    const head=ready ? 'Nhận' : `${seconds}s`;ctx.strokeText(head,96,152);ctx.fillText(head,96,152);
+    ctx.font='800 22px system-ui';ctx.lineWidth=5;const sub=(status.summary?(ready?`${status.units} mẻ xong`:status.queueCount?`${status.queueCount} mẻ chờ`:'Đang chế biến'):`${status.units || 1} mẻ${!ready && status.icon==='🔄' ? ' · Đảo' : ''}`);ctx.strokeText(sub,96,180);ctx.fillText(sub,96,180);
     status.badgeTexture.needsUpdate=true;
   }
   function update(dt, time, input, blocked) {
@@ -340,7 +462,12 @@ export function createAdventureScene(character, { interactions: inputInteraction
     const analog = Math.min(1, Math.hypot(input.x, input.z));
     if (analog > 0) stopMovement();
     while (route.length && Math.hypot(route[0].x - character.position.x, route[0].z - character.position.z) < .06) route.shift();
-    if (!route.length && arrivalNpc && !blocked) { arrivedNpc = arrivalNpc; arrivalNpc = null; clickMarker.visible = false; }
+    if (!route.length && arrivalNpc && !blocked) {
+      arrivedNpc = arrivalNpc; arrivalNpc = null; clickMarker.visible = false;
+      // Turn to the thing being used (counters use an explicit faceYaw toward customers) instead of keeping the last step's heading.
+      const npc = NPCS.find(item => item.id === arrivedNpc), dx = npc ? npc.position[0] - character.position.x : 0, dz = npc ? npc.position[1] - character.position.z : 0;
+      faceYaw = npc?.faceYaw ?? (Math.hypot(dx, dz) > .05 ? Math.atan2(dx, dz) : null);
+    }
     const waypoint = route[0];
     if (returning) direction.set(portalPosition[0] - character.position.x, 0, portalPosition[1] + .7 - character.position.z);
     else if (waypoint) direction.set(waypoint.x - character.position.x, 0, waypoint.z - character.position.z);
@@ -349,7 +476,7 @@ export function createAdventureScene(character, { interactions: inputInteraction
     if (returning && doorOpen < .999) direction.set(0, 0, 0);
     const moving = !blocked && direction.lengthSq() > 0;
     if (moving) {
-      if (farming) manualCamera = null;
+      manualCamera = null;
       const distance = returning || waypoint ? Math.min(direction.length(), speed * dt) : speed * dt * analog;
       direction.normalize().multiplyScalar(distance);
       const beforeX = character.position.x, beforeZ = character.position.z;
@@ -361,27 +488,32 @@ export function createAdventureScene(character, { interactions: inputInteraction
       }
       const facing = Math.atan2(direction.x, direction.z);
       character.rotation.y += Math.atan2(Math.sin(facing - character.rotation.y), Math.cos(facing - character.rotation.y)) * (1 - Math.exp(-16 * dt));
+      if (!arrivedNpc) faceYaw = null;
+    } else if (faceYaw !== null) {
+      character.rotation.y += Math.atan2(Math.sin(faceYaw - character.rotation.y), Math.cos(faceYaw - character.rotation.y)) * (1 - Math.exp(-12 * dt));
     }
     walkWeight = THREE.MathUtils.lerp(walkWeight, moving ? 1 : 0, 1 - Math.exp(-12 * dt));
     if (walkWeight > .001) walkTime += dt * 1.7;
     motion.update('walk', walkTime, walkWeight);
     const focusNpc = NPCS.find(npc => npc.id === focused);
     cameraTarget.copy(character.position);
-    if (focusNpc && !farming) cameraTarget.lerp(focusPosition.set(focusNpc.position[0], .1, focusNpc.position[1]), .35);
-    if (farming && manualCamera) cameraTarget.copy(manualCamera);
+    if (focusNpc && !farming && !manualCamera) cameraTarget.lerp(focusPosition.set(focusNpc.position[0], .1, focusNpc.position[1]), .35);
+    if (manualCamera) cameraTarget.copy(manualCamera);
     desiredCamera.copy(cameraTarget).add(cameraOffset);
     const cameraBlend = freshCamera ? 1 : 1 - Math.exp(-5 * dt);
     camera.position.lerp(desiredCamera, cameraBlend);
     cameraLook.lerp(focusPosition.set(cameraTarget.x, .9, cameraTarget.z - 1), cameraBlend);
     freshCamera = false;
     camera.lookAt(cameraLook);
+    hideCutLabels();
     const destination = NPCS.find(npc => npc.id === targetId);
     marker.visible = Boolean(destination) && !blocked;
     marker.userData.interactId = targetId;
     if (destination) marker.position.set(destination.position[0], 0, destination.position[1]);
-    markerArrow.position.y = 3.4 + Math.sin(time * 2) * .15;
+    markerArrow.position.y = 3.4 + Math.sin(time * Math.PI * 2) * .15; // 1 Hz bob
     for (const [id, actor] of actors) {
       actor.ring.material.opacity = farming ? (id === focused || selectedPlots.has(id) || workerTargets.has(id) ? 1 : 0) : id === targetId ? .6 : .2;
+      actor.ring.visible = actor.ring.material.opacity > 0; // an opacity-0 mesh still costs a draw call
       if (farming) { actor.ring.material.color.set(workerTargets.has(id)&&id!==focused&&!selectedPlots.has(id)?'#84cce4':'#ffd35a'); actor.ring.position.y = id.startsWith('plot-') ? .12 : .23; }
       if (id === 'reaper') actor.group.position.y = .08 + Math.sin(time * 1.8) * .05;
       if (actor.status?.plantProgress) {
@@ -393,7 +525,7 @@ export function createAdventureScene(character, { interactions: inputInteraction
           const now = Date.now(), done = now >= status.readyAt;
           status.badge.userData.statusAction=done ? 'collect' : status.icon==='🔄' ? 'turn' : 'select';
           drawProcessingBadge(status,(now-status.startedAt)/Math.max(1,status.readyAt-status.startedAt),done);
-          const size = done ? 1.25+Math.sin(time*3)*.035 : 1.25; status.badge.scale.set(size,size,1);
+          const size = done ? 1.5+Math.sin(time*3)*.04 : 1.5; status.badge.scale.set(size,size,1);
         }
       }
       if (actor.status?.ready) actor.status.bag.position.y = .55 + Math.sin(time * 3) * .08;
@@ -401,8 +533,7 @@ export function createAdventureScene(character, { interactions: inputInteraction
     }
     portalMaterial.color.set(unlocked ? '#9ddac4' : '#d4c9a5');
     portalMaterial.opacity = unlocked ? .5 + Math.sin(time * 2) * .12 : .2;
-    scene.updateMatrixWorld(true);
-    character.traverse(object => { if (object.isSkinnedMesh) object.skeleton.update(); });
+    scene.updateMatrixWorld();
     if (!route.length && !pendingRoute) clickMarker.visible = false;
     const enteredPortal = !farming && !blocked && unlocked && doorOpen >= .999 && character.position.z > portalPosition[1] - 1 && Math.abs(character.position.x - portalPosition[0]) < 1.1 && (input.z > 0 || portalIntent);
     const passedPortal = returning && doorOpen >= .999 && character.position.z >= portalPosition[1] + .6;
@@ -527,6 +658,10 @@ export function createAdventureScene(character, { interactions: inputInteraction
     setObjectStatus(id, { text, ready = false, progress = null, icon = null, startedAt = null, readyAt = null, plant = null, units = 0, jobs = null }) {
       const status = actors.get(id)?.status;
       if (!status) return;
+      // Undo only what the status sign did (the café hides some name plates itself), then a text status below may take the spot again.
+      if (status.plateHidden) { status.namePlate.visible = true; status.plateHidden = false; }
+      const hidePlate = () => { if (status.namePlate?.visible) { status.namePlate.visible = false; status.plateHidden = true; } }; // one overhead label at a time
+      if (status.namePlate) status.sign.visible = false;
       if (plant) {
         status.processing=false;status.plantProgress={...plant,ratio:progress,at:performance.now()};status.icon=text;status.ready=ready;
         status.anchor.visible=true;status.anchor.position.y=1.4;status.sign.visible=false;status.floorIcon.visible=false;status.bag.visible=false;status.bar.visible=false;
@@ -553,13 +688,13 @@ export function createAdventureScene(character, { interactions: inputInteraction
           item.badge.scale.set(1.25,1.25,1);
           drawProcessingBadge(item,(Date.now()-job.startedAt)/Math.max(1,job.readyAt-job.startedAt),done);
         });
-        status.processing=jobs.length>0; status.ready=false; status.anchor.visible=status.processing;
+        status.processing=jobs.length>0; status.ready=false; status.anchor.visible=status.processing;if(status.processing)hidePlate();
         status.anchor.position.y=id==='dryer' ? 2.85 : 3.75;
         status.badge.visible=false;status.sign.visible=false;status.floorIcon.visible=false;status.bag.visible=false;status.bar.visible=false;
         return;
       }
       if (icon) {
-        status.processing = Boolean(text); status.icon = icon; status.startedAt = startedAt; status.readyAt = readyAt;
+        status.processing = Boolean(text); status.icon = icon; status.startedAt = startedAt; status.readyAt = readyAt; if (status.processing) hidePlate();
         status.ready = ready; status.units=units; status.anchor.visible = status.processing;status.badge.userData.statusAction=ready ? 'collect' : icon==='🔄' ? 'turn' : 'select';
         status.anchor.position.y = id === 'dryer' ? 2.85 : 3.75;
         status.badge.visible = status.processing; status.sign.visible = false; status.bag.visible = false; status.bar.visible = false;
@@ -568,6 +703,7 @@ export function createAdventureScene(character, { interactions: inputInteraction
       }
       status.badge.visible=false;
       status.anchor.visible = Boolean(text);
+      if (!id.startsWith('plot-')) { status.sign.visible = Boolean(text && String(text).trim()); if (status.sign.visible) hidePlate(); } // one plate per object: status replaces the name
       if (farming && id.startsWith('plot-')) {
         const onGround = text === '+' || text === '🔒';
         status.sign.visible = Boolean(text) && !onGround; status.floorIcon.visible = onGround;
@@ -580,6 +716,7 @@ export function createAdventureScene(character, { interactions: inputInteraction
       if (status.text !== text) {
         const next = label(text || ' ', ready ? '#8b6e34' : '#536e54', id.startsWith('plot-') ? .65 : 2.3);
         status.sign.material.map?.dispose(); status.sign.material.map = next.material.map;
+        const base = status.sign.userData.baseScale; if (base) { base.copy(next.scale); fitLabel(status.sign); } // new text, new plate width
         status.floorIcon.material.map = next.material.map; status.floorIcon.material.needsUpdate = true;
         next.material.map = null; next.material.dispose(); status.text = text;
       }
@@ -602,7 +739,7 @@ export function createAdventureScene(character, { interactions: inputInteraction
     },
     getAssetSlots() { return [...assetSlots.keys()]; },
     panCamera(fromX, fromY, toX, toY, rect) {
-      if (!farming || !rect.width || !rect.height) return;
+      if (!rect.width || !rect.height) return;
       camera.updateMatrixWorld(true);
       const from = new THREE.Vector3(), to = new THREE.Vector3();
       raycaster.setFromCamera(new THREE.Vector2((fromX-rect.left)/rect.width*2-1, 1-(fromY-rect.top)/rect.height*2), camera);
@@ -614,12 +751,12 @@ export function createAdventureScene(character, { interactions: inputInteraction
       manualCamera.z = THREE.MathUtils.clamp(manualCamera.z + from.z-to.z, worldBounds.minZ, worldBounds.maxZ);
     },
     zoomView(delta) {
-      if (!farming) return;
-      camera.zoom = THREE.MathUtils.clamp(camera.zoom+delta,.8,1.65); camera.updateProjectionMatrix();
+      camera.zoom = THREE.MathUtils.clamp(camera.zoom+delta,.8,1.65); camera.updateProjectionMatrix(); fitLabels();
     },
-    freezeCamera() { if(farming) manualCamera=camera.position.clone().sub(cameraOffset); },
+    freezeCamera() { manualCamera=camera.position.clone().sub(cameraOffset); },
     resetCamera() { manualCamera = null; },
     setTarget(id) { targetId = id; },
+    setQuestArrow(id) { targetId = id ?? null; }, // same marker as setTarget; null hides it
     setWorkerTargets(ids){workerTargets.clear();for(const id of ids)workerTargets.add(id);},
     setPlotSelection(ids) {selectedPlots.clear();for(const id of ids)selectedPlots.add(id);},
     removePlotSelection(id) {selectedPlots.delete(id);},
@@ -628,11 +765,9 @@ export function createAdventureScene(character, { interactions: inputInteraction
     setReturning(value) { returning = value; },
     resize(width, height) {
       const aspect = width/Math.max(1,height);
-      if (farming) {
-        const half = width < 700 ? 7.5 : 6.8;
-        camera.left=-half*aspect;camera.right=half*aspect;camera.top=half;camera.bottom=-half;
-      } else { camera.aspect=aspect;camera.fov=width < 700 ? 55 : 43; }
+      camera.aspect = aspect; camera.fov = width < 700 ? 55 : 43;
       camera.updateProjectionMatrix();
+      viewHeight = height; viewWidth = width; fitLabels();
     },
     dispose() { motion.dispose(); disposeScene(scene); sun.shadow.dispose(); },
   };

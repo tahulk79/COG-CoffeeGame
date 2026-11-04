@@ -59,6 +59,24 @@ Scene và controller cung cấp `getAssetSlots()` và `replaceAsset(id, object3D
 | `farm/roaster` | Bàn sơ chế và thiết bị rang | Rộng 2; sâu 1,5; cao khoảng 2 |
 | `farm/market` | Quầy giao hàng | Rộng 2; sâu 1,5; cao khoảng 2 |
 
+### Robot nhân viên (robot-staff.md 15.4)
+
+Chưa có GLB (Blender MCP chưa kết nối): code dựng khối tạm theo bảng dưới, khi có GLB chỉ đổi hình. Robot thấp hơn người (người cao 2) để nhìn là biết robot; pivot giữa đáy, nhìn +Z, chạy bánh/đế lăn nên không cần rig chân. Mọi robot có 2 điểm (Empty trong GLB, khối tạm dùng cùng toạ độ local):
+
+- `carry_cup`: chỗ bưng 1 ly, tại (0,42; 1,0; 0,22), trùng `handCup` của người (cafe/game.js) để code đặt `npc.cup` như cũ. Chỉ 1 ly (`carry 1`); robot dọn dùng cùng điểm cho ly bẩn.
+- `icon_anchor`: đỉnh đầu + 0,25, nơi đặt icon việc/💤/❓ và vùng bấm (bán kính 0,6 quanh thân).
+
+| Slot | Nội dung thay | Kích thước tham khảo |
+|---|---|---|
+| `farm/robot` | Robot vườn `robo-n1`: thân hộp, đầu màn hình, bình tưới đeo lưng (−Z), 2 tay | Cao 1,6; thân 0,6 × 0,45; `icon_anchor` y 1,85 |
+| `cafe/robot-waiter` | Robot bưng `robo-b*`, `gift-bung`: thân trụ, khay ở tay phải | Cao 1,6; Ø thân 0,5; khay mặt y ≈ 0,92 dưới `carry_cup` |
+| `cafe/robot-cleaner` | Robot dọn `robo-d1`: thân thấp, khăn/chổi tay trái | Cao 1,3; thân 0,6 × 0,5; `carry_cup` hạ còn (0,4; 0,85; 0,22); `icon_anchor` y 1,55 |
+| `cafe/robot-barista` | Robot pha `gift-pha`, đứng sau quầy pha như barista người | Cao 1,6; thân 0,5 × 0,4; tay với tới mặt quầy y 1,17 |
+| `cafe/kiosk/unit-0`, `unit-1` (giữ id) | Kiosk kiểu robot: màn hình là mặt, 2 tay nhỏ hai bên | Đế 0,5 × 0,4 cao 1,1 + màn 0,6 × 0,6 tâm y 1,35, mặt +Z; đang dùng `cafe/kiosk.glb` |
+| `cafe/bar/autoEspresso` (giữ id) | Máy espresso tự động kiểu robot: mặt màn hình xanh có mắt, 1 tay pha | 0,7 × 0,9 × 0,5, đáy đặt trên mặt quầy y 1,17; đang dùng `fixtures.glb#bar_auto` |
+
+Màu khối tạm: robot thân kem `#e8e2d4`, khớp/đế xanh xám `#6c8885`, màn mặt `#8df0a8` (cùng màu màn `autoEspresso`) để cả bộ robot đồng bộ. Ngân sách khi làm GLB: robot 3k tris, 1 vật liệu màu đỉnh như `fixtures.glb`; dự kiến xuất `public/models/farm/robot.glb` (node `robot`) và `public/models/cafe/robots.glb` (node `robot_waiter`, `robot_cleaner`, `robot_barista`, `kiosk_robot`, `bar_auto_robot`).
+
 Màn 1 (`createIntro`) cũng trả `getAssetSlots()` / `replaceAsset()`: gắn trước `compileAsync`. Nhân vật chính, linh hồn và hai nhân viên y tế dùng rig người trong `characters/` (có animation/IK riêng) nên không phải slot; tia va chạm, mây trôi, bụi hồn, xích là hiệu ứng của game. Đèn còi chỉ nhấp nháy trên khối tạm; asset xe thật tự mang đèn.
 
 Bản lề và nhịp mở cổng được giữ ở wrapper của cánh, nên model cánh không được chứa một bản lề / animation mở thứ hai. Sau khi gắn hình mới, scene dựng lại vật cản từ bounds các mesh nằm trong chiều cao di chuyển; các cánh cổng được xử lý riêng theo trạng thái đóng / mở. Các khối cũ giữ ẩn để được giải phóng cùng scene; không tiếp tục chặn đường.
@@ -118,6 +136,15 @@ Bộ class dùng chung ở `src/ui/styles/ui-kit.css` (import đầu tiên trong
 | `ui-badge`, `--dot`, `--level`, `ui-chip` | Số đếm, chấm báo, huy hiệu cấp, nhãn nhỏ |
 | `ui-switch` (`role=switch` + `aria-checked`), `ui-slider` (`input[type=range]`) | Công tắc, thanh trượt âm lượng (vùng chạm 44 px) |
 | `vfx-chip` (`data-tone="good/bad/neutral"`) | Chip số bay về HUD của `src/shared/vfx` |
+| `ui-attention` + `ui-guide-hint` | Thẻ nhiệm vụ chưa được chạm: viền vàng nháy 1,6 s + dòng "👆 Chạm/Bấm để được dẫn đường" (chữ theo `usesTouch()` của `src/ui/dialogue.js`) |
+| `ui-new` | Chấm "Mới" góc nút HUD vừa mở; gỡ class khi bấm lần đầu |
+| `ui-toast ui-toast--unlock` | Toast mở khóa "🔓 Mở: …" (viền vàng, nảy nhẹ) |
+| `ui-coach` + `ui-coach__close` | Gợi ý điều khiển lần đầu: khung mờ giữa mép dưới, trên joystick, không chặn chạm, nút × 44 px |
+| `ui-toast__action` (`ui-btn ui-btn--sm`) | Một nút trong toast (vd «Nhắc», «Thuê robot thay»): `farmUI.notice(text, ok, { label, action })`, toast đứng 6 s, chỉ nút nhận chạm |
+| `ui-incidents` > `ui-incident` (`data-type="phone/sick/rude"`), `__icon`, `__text`, `__timer` | Bong bóng sự cố nhân viên 📱🤒😤 giữa phía trên, chạm được kể cả khi modal quán mở (`createIncidentLayer()` ở `src/ui/incidents.js` gắn lớp vào `<dialog>` đang mở) |
+| `dialogue-tip` (`data-tone="good"`) | Dòng mẹo dưới lời giải thích trong khung hội thoại; hỏi lại bài học dùng `askLesson()` ở `src/ui/lesson-prompt.js` |
+
+Các hiệu ứng mới tắt chuyển động khi `prefers-reduced-motion`.
 
 `#game-settings-toggle` (⚙️) ở góc trên phải các màn chọn nhân vật, mở đầu, thiên đàng; vị trí tự chỉnh bằng `:has()` theo HUD đang hiện, ẩn ở farm/quán (đã có ô ⚙️ riêng).
 

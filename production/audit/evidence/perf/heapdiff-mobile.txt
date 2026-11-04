@@ -1,0 +1,28 @@
+total A=72.1MB B=72.8MB diff=+0.68MB
+(code)                                   count   51476->52167   size    +238.5KB
+system / JSArrayBufferData               count    4413->4648    size     +55.2KB
+blink::HeapHashTableBacking<blink::HashT count     171->173     size     +40.0KB
+system / WeakArrayList                   count    1766->1800    size     +37.9KB
+(array)                                  count   31837->32225   size     +33.2KB
+PerformanceEventTiming                   count      72->158     size     +21.5KB
+blink::HeapHashTableBacking<blink::HashT count     181->181     size     +20.0KB
+ArrayBuffer                              count    5881->6236    size     +18.1KB
+Float32Array                             count    4870->5153    size     +16.6KB
+blink::HeapHashTableBacking<blink::HashT count       1->1       size     +14.0KB
+blink::HeapHashTableBacking<blink::HashT count     171->173     size     +12.0KB
+(number)                                 count  132312->133346  size     +11.3KB
+Object                                   count   46617->47017   size     +10.5KB
+blink::ComputedStyleBase::StyleSurroundD count     131->151     size      +6.1KB
+Array                                    count   44754->45133   size      +5.9KB
+  Mesh                     3154 -> 3165
+  BufferGeometry              0 -> 0
+  BufferAttribute           995 -> 995
+  MeshStandardMaterial      288 -> 293
+  Texture                     0 -> 0
+  CanvasTexture             284 -> 285
+  Object3D                    0 -> 0
+  Group                    1153 -> 1158
+  SkinnedMesh                11 -> 12
+  AnimationMixer              9 -> 10
+  Detached*                   0 -> 0
+  HTMLCanvasElement           1 -> 1

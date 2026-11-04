@@ -1,0 +1,10 @@
+#!/bin/zsh
+S=/private/tmp/claude-501/-Users-macos--claude-spares-spare-NWSOv6/adc7003a-e9c8-4fdd-a6bd-c12d80f84fd8/scratchpad
+if [[ $(cat $S/mode 2>/dev/null) == mouse ]]; then
+$S/c Input.dispatchMouseEvent "{\"type\":\"mouseMoved\",\"x\":$1,\"y\":$2}" >/dev/null
+$S/c Input.dispatchMouseEvent "{\"type\":\"mousePressed\",\"x\":$1,\"y\":$2,\"button\":\"left\",\"clickCount\":1}" >/dev/null; sleep ${3:-0.08}
+$S/c Input.dispatchMouseEvent "{\"type\":\"mouseReleased\",\"x\":$1,\"y\":$2,\"button\":\"left\",\"clickCount\":1}" >/dev/null
+else
+$S/c Input.dispatchTouchEvent "{\"type\":\"touchStart\",\"touchPoints\":[{\"x\":$1,\"y\":$2}]}" >/dev/null; sleep ${3:-0.08}
+$S/c Input.dispatchTouchEvent '{"type":"touchEnd","touchPoints":[]}' >/dev/null
+fi

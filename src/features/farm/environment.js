@@ -1,6 +1,35 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { FIELDS, MACHINES, FARM_BOUNDS } from './content.js';
 import { ASSET_TIERS, assetTier } from './rules.js';
+
+// Solid groups (fences): draw one merged mesh per color, but keep the original meshes as colliders with an invisible
+// material (same trick as tree trunks) so walking and pathfinding see exactly the same obstacles.
+const HIDDEN = new THREE.MeshBasicMaterial({ visible: false });
+function bakeSolid(group) {
+  const byMaterial = new Map();
+  for (const o of group.children) if (o.isMesh && o.material !== HIDDEN) (byMaterial.get(o.material) || byMaterial.set(o.material, []).get(o.material)).push(o);
+  for (const [material, parts] of byMaterial) {
+    if (parts.length < 2) continue;
+    const geometries = parts.map(o => { o.updateMatrix(); return o.geometry.clone().applyMatrix4(o.matrix); });
+    const visual = new THREE.Mesh(mergeGeometries(geometries), material);
+    visual.castShadow = true; visual.receiveShadow = true; visual.userData.nonSolid = true;
+    for (const g of geometries) g.dispose();
+    for (const o of parts) { o.material = HIDDEN; o.castShadow = o.receiveShadow = false; }
+    group.add(visual);
+  }
+}
+// Bake several static meshes sharing one material into a single mesh under `parent` (same transform space).
+function mergeMeshes(parent, parts) {
+  parts = parts.filter(o => o.isMesh);
+  if (parts.length < 2) return;
+  const geometries = parts.map(o => { o.updateMatrix(); return o.geometry.clone().applyMatrix4(o.matrix); });
+  const merged = new THREE.Mesh(mergeGeometries(geometries), parts[0].material);
+  merged.castShadow = parts[0].castShadow; merged.receiveShadow = parts[0].receiveShadow; merged.userData = { ...parts[0].userData };
+  for (const o of parts) parent.remove(o);
+  for (const g of geometries) g.dispose();
+  parent.add(merged);
+}
 
 function roundedSoil() {
   const shape = new THREE.Shape(), edge = .64, corner = .12;
@@ -40,12 +69,17 @@ export function buildFarmActor({ npc, visual, box, mesh, sphere, cube, assetSlot
       const fruits = new THREE.Group(); fruits.name = name; fruits.userData.nonSolid = true; art.add(fruits);
       for (const x of [-.22,0,.22]) mesh(sphere, name === 'fruit_ripe' ? '#b75a3a' : '#7e9c49', x, 1.1, .23, .09, .11, .09, fruits);
     }
-    const flowers=new THREE.Group();flowers.userData.nonSolid=true;crop.add(flowers);for(const x of [-.23,0,.23])mesh(sphere,'#fff5dd',x,1.06,.26,.065,.065,.065,flowers);
+    const flowers=new THREE.Group();flowers.name='blossoms';flowers.userData.nonSolid=true;crop.add(flowers);for(const x of [-.23,0,.23])mesh(sphere,'#fff5dd',x,1.06,.26,.065,.065,.065,flowers);
     const weeds = new THREE.Group(); weeds.name = 'weeds'; weeds.userData.nonSolid = true; visual.add(weeds);
     for (let i = 0; i < 8; i++) {
       const angle = i * Math.PI / 4;
       const grass = box('#748744', Math.cos(angle) * .53, .18, Math.sin(angle) * .53, .055, .28, .055, weeds); grass.rotation.z = i % 2 ? .35 : -.35;
     }
+    // Mobile: tiny or flat parts (soil, furrows, fruit, flowers, weeds) need no shadow pass; trunk and leaves still cast.
+    for (const group of [bed, flowers, weeds, ...art.children.filter(o => o.name.startsWith('fruit_'))]) group.traverse(o => { o.castShadow = false; });
+    // Mobile draw calls: 48 plots × ~28 meshes was ~730 calls/frame. Same-color parts of one plot become one mesh; groups keep their names/visibility.
+    for (const group of [furrows, weeds, flowers, ...art.children.filter(o => o.name.startsWith('fruit_'))]) mergeMeshes(group, group.children);
+    mergeMeshes(art, art.children.filter(o => o.isMesh && o.userData.nonSolid));
     return {
       crop, pickSurface: soil,
       setState(plot) {
@@ -168,6 +202,7 @@ export function buildFarmEnvironment({ scene, box, mesh, sphere, assetSlot }) {
   const back = FARM_BOUNDS.minZ+.6, front = FARM_BOUNDS.maxZ-.6;
   fenceRun(left,back,right,back); fenceRun(left,back,left,front); fenceRun(right,back,right,front);
   fenceRun(left,front,right,front);
+  bakeSolid(boundary);
   const grounds = new Map();
   for (const field of FIELDS) {
     const group = assetSlot(new THREE.Group(), `farm/${field.id}/terrain`); group.position.set(field.center[0], 0, field.center[1]); group.visible = false; scene.add(group);
@@ -182,6 +217,7 @@ export function buildFarmEnvironment({ scene, box, mesh, sphere, assetSlot }) {
     const halfX=field.footprint.halfWidth+.4,halfZ=field.footprint.halfDepth+.4,gate=1.1;
     for(const z of [-halfZ,halfZ]) {rail(-halfX,z,-gate,z);rail(gate,z,halfX,z);}
     for(const x of [-halfX,halfX]) {rail(x,-halfZ,x,-gate);rail(x,gate,x,halfZ);}
+    bakeSolid(fence);
     const gates=assetSlot(new THREE.Group(),`farm/${field.id}/gates`);fence.add(gates);
     for(const z of [-halfZ,halfZ]) box('#aa8554',0,.28,z,gate*2,.48,.07,gates);
     for(const x of [-halfX,halfX]) box('#aa8554',x,.28,0,.07,.48,gate*2,gates);

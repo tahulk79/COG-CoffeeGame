@@ -1,0 +1,13 @@
+{
+  frames: 303,
+  worstN: 4,
+  totalMs: 8037,
+  worstAvgMs: 385,
+  worstSumMs: 1538,
+  longTaskMs: 1560,
+  restAvgMs: 21.7,
+  restFps: 46,
+  p95ms: 34.2,
+  cpuMedMs: 4.5,
+  cpuP95Ms: 6
+}

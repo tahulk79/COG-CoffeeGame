@@ -1,11 +1,11 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { gltfLoader, matteBakedMetal } from '../shared/three/models.js';
 
 export const playerModel = gender => gender === 'male' ? 'male.glb' : 'girl.glb';
 
 export async function loadPlayer(filename, onProgress) {
-  const gltf = await new GLTFLoader().loadAsync(`${import.meta.env.BASE_URL}models/${filename}`, onProgress);
-  const model = gltf.scene;
+  const gltf = await gltfLoader.loadAsync(`${import.meta.env.BASE_URL}models/${filename}`, onProgress);
+  const model = matteBakedMetal(gltf.scene);
   model.updateMatrixWorld(true);
   const bounds = new THREE.Box3().setFromObject(model);
   const size = bounds.getSize(new THREE.Vector3());

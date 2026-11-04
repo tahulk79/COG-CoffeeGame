@@ -2,10 +2,17 @@ import * as THREE from 'three';
 import { createWorkActivity } from './activity.js';
 import { disposeScene } from '../../shared/three/dispose-scene.js';
 import { DECORATIONS,decorationError } from './decorations.js';
+import { loadModel } from '../../shared/three/models.js';
+// Hình Blender (decor.glb#decor_<id>); chưa tải xong hoặc lỗi thì dựng khối tạm như cũ.
+const ART={};
+const artReady=Promise.all(DECORATIONS.map(({id})=>loadModel(`farm/decor.glb#decor_${id}`).then(m=>{if(m)ART[id]=m;})));
 function model(item){
   const group=new THREE.Group();group.userData.nonSolid=item.state==='construction';group.userData.noPick=true;
   function box(color,x,y,z,w,h,d){const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({color,roughness:.85}));mesh.position.set(x,y,z);group.add(mesh);return mesh;}
-  if(item.type==='flowers'){
+  const art=ART[item.type]?.clone();
+  // Vật liệu riêng mỗi món: bóng mờ lúc đặt và trạng thái đang xây đổi màu/độ trong theo từng món.
+  if(art){art.traverse(n=>{if(n.isMesh){n.material=n.material.clone();n.castShadow=n.receiveShadow=true;}});group.add(art);}
+  else if(item.type==='flowers'){
     box('#bc9463',0,.14,0,1,.28,.8);box('#745638',0,.29,0,.9,.05,.7);
     for(const [i,x,z]of [[0,-.28,-.18],[1,.25,-.18],[2,-.2,.2],[3,.24,.2]]){
       box('#779754',x,.42,z,.045,.28,.045);
@@ -17,14 +24,18 @@ function model(item){
     const glow=box('#ffe49c',0,1.36,0,.3,.3,.3);glow.material.emissive.set('#ffd77b');glow.material.emissiveIntensity=.8;box('#725335',0,1.15,0,.4,.08,.4);
   }else{
     box('#82603c',0,.5,0,.1,1,.1);box('#bc935e',0,1.05,0,1.1,.6,.12);
-    const canvas=document.createElement('canvas');canvas.width=512;canvas.height=256;const ctx=canvas.getContext('2d');ctx.fillStyle='#fff0c8';ctx.fillRect(0,0,512,256);ctx.fillStyle='#735331';ctx.font='bold 46px "Baloo 2",sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(item.text||'Vườn cà phê',256,128,470);
-    const label=new THREE.Mesh(new THREE.PlaneGeometry(.99,.48),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(canvas)}));label.position.set(0,1.05,.066);group.add(label);
+  }
+  if(item.type==='sign'){
+    const canvas=document.createElement('canvas');canvas.width=512;canvas.height=256;const ctx=canvas.getContext('2d');ctx.fillStyle='#2e2416';ctx.fillRect(0,0,512,256);ctx.fillStyle='#fffbe6';ctx.font='900 80px "Baloo 2",sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(item.text||'Vườn cà phê',256,132,480);
+    // Nền tối chữ trắng to cho đọc được từ góc camera xa; sRGB để màu không bị nhạt.
+    const map=new THREE.CanvasTexture(canvas);map.colorSpace=THREE.SRGBColorSpace;
+    const label=new THREE.Mesh(new THREE.PlaneGeometry(.99,.48),new THREE.MeshBasicMaterial({map}));label.position.set(0,1.05,.066);group.add(label);
   }
   if(item.state==='construction'){
     group.traverse(node=>{if(node.isMesh){node.material.transparent=true;node.material.opacity=.25;}});
     for(const x of [-.65,.65])for(const z of [-.55,.55])box('#ba925d',x,.48,z,.07,.96,.07);
     for(const z of [-.55,.55])box('#d9b97f',0,.9,z,1.4,.08,.08);
-    const canvas=document.createElement('canvas');canvas.width=256;canvas.height=80;const ctx=canvas.getContext('2d');ctx.fillStyle='#fff0cd';ctx.fillRect(0,0,256,80);ctx.fillStyle='#80613a';ctx.font='bold 21px sans-serif';ctx.textAlign='center';ctx.fillText(`Đang xây · ${Math.floor(item.buildMs/item.buildDuration*100)}%`,128,31);ctx.fillStyle='#d9c9a6';ctx.fillRect(16,48,224,13);ctx.fillStyle='#91b963';ctx.fillRect(16,48,224*item.buildMs/item.buildDuration,13);
+    const canvas=document.createElement('canvas');canvas.width=256;canvas.height=80;const ctx=canvas.getContext('2d');ctx.fillStyle='#3b2a1c';ctx.fillRect(0,0,256,80);ctx.fillStyle='#fff6dc';ctx.font='bold 21px sans-serif';ctx.textAlign='center';ctx.fillText(`Đang xây · ${Math.floor(item.buildMs/item.buildDuration*100)}%`,128,31);ctx.fillStyle='#d9c9a6';ctx.fillRect(16,48,224,13);ctx.fillStyle='#91b963';ctx.fillRect(16,48,224*item.buildMs/item.buildDuration,13);
     const material=new THREE.SpriteMaterial({map:new THREE.CanvasTexture(canvas),depthWrite:false}),badge=new THREE.Sprite(material);badge.position.y=2;badge.scale.set(1.8,.56,1);group.add(badge);
   }
   group.position.set(item.x,.04,item.z);group.rotation.y=item.rotation;return group;
@@ -45,6 +56,7 @@ export function createDecorationBuilder({world,farm,player,ui,signal,defaultName
     for(const item of items){const version=`${item.state}:${item.buildMs}`,old=placed.get(item.id);if(old?.userData.version===version)continue;if(old){solidsChanged=solidsChanged||!old.userData.nonSolid;old.removeFromParent();disposeScene(old);}const group=model(item);group.userData.version=version;group.userData.decorationId=item.id;world.scene.add(group);placed.set(item.id,group);solidsChanged=solidsChanged||!group.userData.nonSolid;}
     if(solidsChanged)world.invalidateNavigation();
   }
+  artReady.then(()=>{if(signal?.aborted)return;for(const group of placed.values())group.userData.version='';sync();});
   function stopTask(){if(task)world.stopMovement();task=null;activity.update(null);for(const arm of player.userData.arms||[])arm.rotation.x=0;}
   function beginTask(id,mode){
     stopTask();const item=farm.progress.decorations.find(item=>item.id===id);if(!item)return;

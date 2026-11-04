@@ -1,0 +1,15 @@
+  2149.7ms  43.0%  (idle) :0
+   774.2ms  15.5%  (program) :0
+   507.8ms  10.2%  updateMatrixWorld chunk-2BUXAFR3.js:7265
+   394.6ms   7.9%  multiplyMatrices chunk-2BUXAFR3.js:5551
+   169.8ms   3.4%  compose chunk-2BUXAFR3.js:6005
+    75.0ms   1.5%  projectObject chunk-2BUXAFR3.js:42152
+    69.3ms   1.4%  updateMatrix chunk-2BUXAFR3.js:7242
+    39.7ms   0.8%  getParameters chunk-2BUXAFR3.js:36175
+    34.4ms   0.7%  renderObject chunk-2BUXAFR3.js:37526
+    33.0ms   0.7%  setup chunk-2BUXAFR3.js:32648
+    31.5ms   0.6%  (garbage collector) :0
+    31.4ms   0.6%  WebGLRenderer.renderBufferDirect chunk-2BUXAFR3.js:41862
+    28.2ms   0.6%  getProgram chunk-2BUXAFR3.js:42322
+    26.7ms   0.5%  setStyle chunk-2BUXAFR3.js:8085
+    25.6ms   0.5%  update scene.js:425

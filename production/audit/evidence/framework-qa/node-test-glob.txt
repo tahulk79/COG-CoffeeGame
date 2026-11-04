@@ -1,0 +1,215 @@
+TAP version 13
+# Subtest: land opens twelve cells once and requires adjacency
+ok 1 - land opens twelve cells once and requires adjacency
+  ---
+  duration_ms: 7.168459
+  type: 'test'
+  ...
+# Subtest: one seed per empty cell and no water consumed on a healthy plant
+ok 2 - one seed per empty cell and no water consumed on a healthy plant
+  ---
+  duration_ms: 3.35725
+  type: 'test'
+  ...
+# Subtest: dry plants pause, feeding is phase guarded and picking preserves perennial trees
+ok 3 - dry plants pause, feeding is phase guarded and picking preserves perennial trees
+  ---
+  duration_ms: 4.033
+  type: 'test'
+  ...
+# Subtest: reservations protect the final seed from a second actor
+ok 4 - reservations protect the final seed from a second actor
+  ---
+  duration_ms: 1.749625
+  type: 'test'
+  ...
+# Subtest: machine capacity splits work into a real queue and only finished output can be collected
+ok 5 - machine capacity splits work into a real queue and only finished output can be collected
+  ---
+  duration_ms: 20.890625
+  type: 'test'
+  ...
+# Subtest: canceling queued work returns its exact input once
+ok 6 - canceling queued work returns its exact input once
+  ---
+  duration_ms: 2.100875
+  type: 'test'
+  ...
+# Subtest: orders transfer goods exactly once without creating revenue
+ok 7 - orders transfer goods exactly once without creating revenue
+  ---
+  duration_ms: 3.435209
+  type: 'test'
+  ...
+# Subtest: hiring is capped at two farm workers and wages rise with level
+ok 8 - hiring is capped at two farm workers and wages rise with level
+  ---
+  duration_ms: 3.966292
+  type: 'test'
+  ...
+# Subtest: worker permissions persist across a reload
+ok 9 - worker permissions persist across a reload
+  ---
+  duration_ms: 4.816334
+  type: 'test'
+  ...
+# Subtest: every asset respects its level cap and farm-level requirement
+ok 10 - every asset respects its level cap and farm-level requirement
+  ---
+  duration_ms: 22.990042
+  type: 'test'
+  ...
+# Subtest: production planning accounts for held machine outputs, not just loose stock
+ok 11 - production planning accounts for held machine outputs, not just loose stock
+  ---
+  duration_ms: 1.8525
+  type: 'test'
+  ...
+# Subtest: legacy inventory, seeds and unfinished hulling survive migration once
+ok 12 - legacy inventory, seeds and unfinished hulling survive migration once
+  ---
+  duration_ms: 2.051375
+  type: 'test'
+  ...
+# Subtest: drag can retract, cannot duplicate cells and stops at available quantity
+ok 13 - drag can retract, cannot duplicate cells and stops at available quantity
+  ---
+  duration_ms: 0.094667
+  type: 'test'
+  ...
+# Subtest: routes honor obstacles and finish at a reachable interaction point
+ok 14 - routes honor obstacles and finish at a reachable interaction point
+  ---
+  duration_ms: 1.02525
+  type: 'test'
+  ...
+# Subtest: start-work pays one contract and starts useful autonomous work without a separate order
+ok 15 - start-work pays one contract and starts useful autonomous work without a separate order
+  ---
+  duration_ms: 1.395333
+  type: 'test'
+  ...
+# Subtest: assign-and-start pays and assigns the whole team atomically
+ok 16 - assign-and-start pays and assigns the whole team atomically
+  ---
+  duration_ms: 2.98075
+  type: 'test'
+  ...
+# Subtest: hired staff default to continuous work and never tire
+ok 17 - hired staff default to continuous work and never tire
+  ---
+  duration_ms: 1.148042
+  type: 'test'
+  ...
+# Subtest: wages are paid per work day, stack from the expiry, and service time accrues
+ok 18 - wages are paid per work day, stack from the expiry, and service time accrues
+  ---
+  duration_ms: 2.991708
+  type: 'test'
+  ...
+# Subtest: accepted shop order expires once and its replacement is only an offer
+ok 19 - accepted shop order expires once and its replacement is only an offer
+  ---
+  duration_ms: 2.17175
+  type: 'test'
+  ...
+# Subtest: planting selection falls back from exhausted preferred seeds and covers other varieties
+ok 20 - planting selection falls back from exhausted preferred seeds and covers other varieties
+  ---
+  duration_ms: 0.918834
+  type: 'test'
+  ...
+# Subtest: empty purchased land without seedlings gives an actionable blocker
+ok 21 - empty purchased land without seedlings gives an actionable blocker
+  ---
+  duration_ms: 1.106792
+  type: 'test'
+  ...
+# Subtest: a harvest takes the whole ripe yield and returns to recovery without an immediate second pick
+ok 22 - a harvest takes the whole ripe yield and returns to recovery without an immediate second pick
+  ---
+  duration_ms: 1.49525
+  type: 'test'
+  ...
+# Subtest: collect receives only completed batches that fit, leaving the others at the station
+ok 23 - collect receives only completed batches that fit, leaving the others at the station
+  ---
+  duration_ms: 1.2795
+  type: 'test'
+  ...
+# Subtest: saves from before the 03/11 cuts load without losing value
+ok 24 - saves from before the 03/11 cuts load without losing value
+  ---
+  duration_ms: 1.107583
+  type: 'test'
+  ...
+# Subtest: solid corners stop movement and diagonal contact slides without tunnelling
+ok 25 - solid corners stop movement and diagonal contact slides without tunnelling
+  ---
+  duration_ms: 1.153208
+  type: 'test'
+  ...
+# Subtest: six one-shot answers including wrong answers lead to review, gift and rebirth
+ok 26 - six one-shot answers including wrong answers lead to review, gift and rebirth
+  ---
+  duration_ms: 2.163625
+  type: 'test'
+  ...
+# Subtest: world routes around its rendered furniture and keeps joystick movement outside solids
+ok 27 - world routes around its rendered furniture and keeps joystick movement outside solids
+  ---
+  duration_ms: 124.805542
+  type: 'test'
+  ...
+# Không tải được farm/worker.glb, giữ khối tạm. TypeError: Cannot read properties of undefined (reading 'BASE_URL')
+#     at loadPlayer (file:///Users/macos/Desktop/V2/src/characters/load-player.js:7:62)
+#     at dressPerson (file:///Users/macos/Desktop/V2/src/characters/npc.js:23:41)
+#     at Object.update (file:///Users/macos/Desktop/V2/src/features/farm/crew.js:212:98)
+#     at TestContext.<anonymous> (file:///Users/macos/Desktop/V2/tests/worker-avoidance.test.js:71:10)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+#     at async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+# Subtest: a worker already overlapping the player can move out instead of freezing
+ok 28 - a worker already overlapping the player can move out instead of freezing
+  ---
+  duration_ms: 1.4185
+  type: 'test'
+  ...
+# Subtest: workers at exactly the same position separate without teleporting
+ok 29 - workers at exactly the same position separate without teleporting
+  ---
+  duration_ms: 0.139333
+  type: 'test'
+  ...
+# Subtest: a blocked sidestep finds another free direction and never enters a wall
+ok 30 - a blocked sidestep finds another free direction and never enters a wall
+  ---
+  duration_ms: 0.125
+  type: 'test'
+  ...
+# Subtest: avoidance respects a third person and returns no move when fully enclosed
+ok 31 - avoidance respects a third person and returns no move when fully enclosed
+  ---
+  duration_ms: 0.098
+  type: 'test'
+  ...
+# Subtest: two approaching workers pass each other and reach their destinations
+ok 32 - two approaching workers pass each other and reach their destinations
+  ---
+  duration_ms: 1.354625
+  type: 'test'
+  ...
+# Subtest: the crew update loop escapes an overlapping player and resumes its walking state
+ok 33 - the crew update loop escapes an overlapping player and resumes its walking state
+  ---
+  duration_ms: 90.705084
+  type: 'test'
+  ...
+1..33
+# tests 33
+# suites 0
+# pass 33
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 245.047416

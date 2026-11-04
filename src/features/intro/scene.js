@@ -3,6 +3,7 @@ import { createPlayerMotion } from '../../characters/motion.js';
 import { getCharacterBounds } from '../../characters/bounds.js';
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
 import { createPerson } from '../../characters/player.js';
+import { dressPerson } from '../../characters/npc.js';
 import { disposeScene } from '../../shared/three/dispose-scene.js';
 import { LANDING_TIME, LANDING_PAUSE } from './timeline.js';
 import { approachOffsetX } from './collision.js';
@@ -176,7 +177,8 @@ export function createIntro(profile, selectedPlayer) {
     const wheel = mesh(van, cylinderGeometry, '#303d36', x, .42, z, .43, .24, .43); wheel.rotation.x = Math.PI / 2;
   }
   sign(van, 'CẤP CỨU 115', -.2, 2.13, .99, 1.8, '#edeadd', '#a94f42');
-  const medics = [person('#f1eadb', true), person('#f1eadb', true)]; medics.forEach((m, i) => { m.name = `intro-medic-${i}`; street.add(m); });
+  const medics = [person('#f1eadb', true), person('#f1eadb', true)];
+  medics.forEach((m, i) => { m.name = `intro-medic-${i}`; street.add(m); dressPerson(m, i ? 'intro/medic-f.glb' : 'intro/medic-m.glb'); });
   // Medics grip local (±1.2, .9, ±.31); a replacement bed keeps its handles there.
   const stretcher = new THREE.Group(); stretcher.name = 'intro-stretcher'; street.add(stretcher);
   const bed = assetSlot(stretcher, 'intro/stretcher');
@@ -320,10 +322,17 @@ export function createIntro(profile, selectedPlayer) {
     bicycle.visible = seconds < 5.5;
     warningBoard.rotation.z = Math.sin((seconds - 3.4) * 18) * .13 * (1 - smooth(seconds, 3.4, 5));
     if (seconds < 3.4) warningBoard.rotation.z = 0;
-    warningParts.forEach((part, i) => warningBounds[i].setFromObject(part, true));
-    getCharacterBounds(hero, heroBounds);
-    hero.position.x += approachOffsetX(heroBounds, warningBounds);
-    impact.position.set(warningBounds[1].min.x, 1.9, -.55);
+    // Per-vertex skinned bounds cost ~60% of an intro frame on phones: only measure while the result is used
+    // (from 4.45 s the fallen pose overwrites the position; the impact flash ends at 3.75 s).
+    if (seconds < 4.45) {
+      warningParts.forEach((part, i) => warningBounds[i].setFromObject(part, true));
+      // A metre short of the contact point no limb reaches the sign, so the offset would be 0.
+      if (hero.position.x > contactX - 1) {
+        getCharacterBounds(hero, heroBounds);
+        hero.position.x += approachOffsetX(heroBounds, warningBounds);
+      }
+      impact.position.set(warningBounds[1].min.x, 1.9, -.55);
+    }
     impact.visible = seconds >= 3.4 && seconds < 3.75;
     impact.scale.setScalar(1 + phase(seconds, 3.4, 3.75) * .5);
     const approach = smooth(seconds, 6.4, 7.7);
@@ -348,8 +357,8 @@ export function createIntro(profile, selectedPlayer) {
       hero.position.z += (pickupZ - fallenPosition.z) * transfer + carryZ;
       hero.position.x += carryX;
     }
-    getCharacterBounds(hero, heroBounds);
     const supportWeight = smooth(seconds, 7.4, 7.9) * (1 - smooth(seconds, 9.2, 9.5));
+    if (supportWeight > 0) getCharacterBounds(hero, heroBounds); // the medics read the body only while supporting it
     medics.forEach((m, i) => {
       const side = i === 0 ? -1 : 1;
       m.visible = seconds >= 6.4 && seconds < 13.5;
@@ -427,9 +436,6 @@ export function createIntro(profile, selectedPlayer) {
     target.copy(streetFocus).lerp(heavenFocus, ascend);
     camera.lookAt(target);
     scene.updateMatrixWorld(true);
-    for (const motion of motions) {
-      motion.mixer.getRoot().traverse(object => { if (object.isSkinnedMesh) object.skeleton.update(); });
-    }
   }
   function resize(width, height) {
     const aspect = width / height;

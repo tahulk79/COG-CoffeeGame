@@ -1,0 +1,15 @@
+  2037.1ms  34.1%  (idle) :0
+   876.4ms  14.7%  (program) :0
+   319.5ms   5.3%  multiplyMatrices chunk-2BUXAFR3.js:5551
+   270.9ms   4.5%  updateMatrixWorld chunk-2BUXAFR3.js:7265
+   237.6ms   4.0%  updateMatrixWorld chunk-2BUXAFR3.js:24253
+   112.9ms   1.9%  getProgramInfoLog :0
+    97.5ms   1.6%  compose chunk-2BUXAFR3.js:6005
+    81.0ms   1.4%  texSubImage2D :0
+    63.5ms   1.1%  _SphereGeometry chunk-2BUXAFR3.js:20275
+    57.4ms   1.0%  getParameters chunk-2BUXAFR3.js:36175
+    51.7ms   0.9%  getProgram chunk-2BUXAFR3.js:42322
+    51.0ms   0.9%  (garbage collector) :0
+    48.9ms   0.8%  updateMatrix chunk-2BUXAFR3.js:7242
+    42.7ms   0.7%  clone chunk-2BUXAFR3.js:11290
+    37.8ms   0.6%  projectObject chunk-2BUXAFR3.js:42152
