@@ -13,6 +13,16 @@
 - Luật hiện hành nằm ở `gameplay.md`/`rules.md` của màn; file `*-proposal.md` là đề xuất; `docs/archive/` là lịch sử, không dùng làm đặc tả.
 - Đổi trường dữ liệu dùng chung phải sửa `docs/shared/contracts.md` cùng lúc. Đổi luật thì sửa tài liệu của màn trong cùng thay đổi.
 - Không commit ảnh chụp màn hình, log hay kết quả test vào repo.
+- `docs/design/cog-coffee-gdd.md` là GDD tổng; mục 0 là bảng trạng thái. Duyệt/bác đề xuất, commit code của một tính năng, có kết quả test/sim/playtest, hoặc thấy tài liệu lệch code thì cập nhật bảng trong cùng thay đổi, theo `docs/design/README.md`. Không ghi "Kiểm chứng" khi chưa có bằng chứng.
+
+## Thay đổi từ repo của sếp
+
+- Repo của sếp: remote `cog` (`https://github.com/tahulk79/COG-CoffeeGame`), nhánh `main`. Quy trình: `docs/design/README.md` mục "Theo dõi thay đổi".
+- Đầu phiên, nếu hook "Hộp thư thiết kế" báo có thay đổi mới: **báo người dùng ngay ở đầu câu trả lời** (commit, file, ý tưởng mới) trước khi làm việc khác.
+- Trước khi pull, merge hoặc sync từ `cog`: chạy `node scripts/design-inbox.mjs`, báo người dùng những gì sắp vào và chờ đồng ý. Sau khi đồng bộ: báo lại theo kết quả hook git (hoặc `node scripts/design-inbox.mjs --since ORIG_HEAD --ref HEAD`).
+- Ý tưởng trong `docs/design/ideas/` có Trạng thái `Mới` hoặc `Đang xem` không được triển khai vào code; chỉ triển khai khi `Đã chốt` và đã có dòng `F-xx` trong GDD.
+- Chỉ chạy `--ack` khi người dùng xác nhận đã xem.
+- Luồng làm việc: làm trên nhánh ở `origin` → PR/MR sang `cog` `main` để sếp merge → đồng bộ `cog/main` về. Không push thẳng lên `cog`; push và tạo PR chỉ khi người dùng yêu cầu.
 
 ## Thiết kế game
 

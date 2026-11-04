@@ -10,19 +10,34 @@ Giếng sát cạnh phải ruộng đầu (-3.5,-6). Xưởng ở bên phải; m
 
 ## Nhịp chăm sóc
 
-Thời gian dưới đây là nhịp game, không phải thời gian trồng ngoài đời.
+Thời gian dưới đây là nhịp game, không phải thời gian trồng ngoài đời. Số liệu đối chiếu code ngày 04/11/2026 (`content.js` `CROPS`, `CARE`, `plotCare`; `rules.js`; `model.js`); nguồn sự thật là code.
 
 | Công việc | Khi nào hiển thị/được thực hiện |
 |---|---|
-| Gieo | Dấu cộng giữa ô trống; mở chọn giống đang có, sau đó nhân vật tới trồng |
-| Tưới | Độ ẩm dưới 45%; mỗi lần tốn 1 nước, hồi lên 100% |
-| Làm cỏ | Cỏ từ 30%; dọn về 0% |
-| Bón phân | Từ 15% đến dưới 65% tiến độ lứa, chưa bón và còn phân; mỗi lứa một lần |
-| Hái | Quả chín; giữ cây để tiếp tục lứa mới |
+| Gieo | Dấu cộng giữa ô trống; chọn giống ở dải icon, nhân vật tới trồng. Cây mới: nước 50, cỏ 0, chất lượng 80, sức khỏe 100 |
+| Tưới | Nước dưới 35; mỗi lần tốn 1 lượt nước trong bình, đặt nước về **70** (chỉ mưa mới đẩy lên tới 100). Không cần tưới ở giai đoạn khô có kiểm soát (cây đã trưởng thành, tiến độ 17–23%) |
+| Làm cỏ | Cỏ từ 30; dọn về 0 |
+| Tỉa cành | Một lần mỗi lứa khi tiến độ ≤ 17%. Không tỉa: sản lượng ×0,95; có tỉa: +5 chất lượng |
+| Bón phân | Chưa bón trong lứa, còn phân, nước ≥ 30, và tiến độ 30% đến dưới 65% (cây đã trưởng thành có thêm cửa sổ 0–17%). Mỗi lứa một lần |
+| Hái | Quả chín; giữ cây để sang lứa mới |
 
-Nước giảm 0.32%/giây khi cây đang phát triển: sau khoảng 172 giây từ khi tưới đầy sẽ cần tưới tiếp. Cỏ tăng 0.22%/giây: từ nền sạch sau khoảng 137 giây sẽ cần dọn. Khi nước còn 15% hoặc cỏ đạt 75%, tăng trưởng tạm dừng; đồng hồ còn lại chỉ giảm khi đủ điều kiện. Biểu tượng ưu tiên hái → tưới → làm cỏ → bón phân. Bấm biểu tượng là nhân vật tự đi tới đúng cây và làm luôn. Hết nước thì nhắc tới giếng; hết phân vẫn có thể lớn bình thường.
+**Nhịp nước và cỏ (đất cấp 1, không mưa):** nước giảm 0,085 điểm/giây ở mọi giai đoạn, kể cả khi quả đã chín; nâng cấp đất chia mức giảm cho `1 + 0,07 × (cấp − 1)`. Tưới xong (70) khoảng **412 giây** sau mới cần tưới lại; vừa gieo (50) khoảng 176 giây. Cỏ tăng 0,035 điểm/giây: từ 0 khoảng **857 giây** mới cần làm cỏ. Nước ≤ 15 hoặc cỏ ≥ 75 thì cây ngừng lớn (trừ giai đoạn khô có kiểm soát với nước). Mưa cộng nước 0,28/giây cho cây và bể giếng.
 
-Bón phân tăng tốc 15% và thêm một quả. Không bón quá sớm, quá muộn hoặc lặp lại trong cùng lứa. Cây khỏe hiện số giây còn lại; bấm sẽ giải thích thời gian chín và mốc tưới tiếp. Quả đã chín giữ nguyên chờ hái, không âm thầm giảm nước/tăng cỏ khi người chơi vắng mặt. Sau hái giữ lại độ ẩm/cỏ, reset tiến độ và lượt bón phân. Mỗi giống có thời gian lứa đầu/tái vụ riêng: vối 60/45 giây, chè 100/70 giây, mít 140/90 giây. Tính bù khi vắng mặt tối đa 4 giờ, không làm cây chết.
+Biểu tượng ưu tiên hái → tưới → làm cỏ → bón phân. Bấm biểu tượng là nhân vật tự đi tới đúng cây và làm luôn. Bình nước rỗng thì báo hết nước; nhắc ra giếng chỉ hiện khi bể giếng cạn. Hết phân cây vẫn lớn bình thường.
+
+**Bón phân không làm cây lớn nhanh hơn**: cây được bón cho sản lượng ×1,1 và +5 chất lượng, không bón ×0,9. Sản lượng tính theo gram (`crop.yield`), không theo quả.
+
+**Sức khỏe cây** (sàn 20) giảm khi thiếu nước/cỏ nhiều, hồi chậm khi được chăm; ảnh hưởng tốc độ lớn (×(0,65 + 0,35 × sức khỏe/100)), sản lượng (×(0,7 + 0,3 × sức khỏe/100)) và chất lượng. Hàng rào hỏng nặng (độ bền < 25) cũng làm sức khỏe giảm thêm.
+
+**Thời gian lứa** (sức khỏe 100): giai đoạn cây con kéo dài `growMs`, xong chỉ chuyển sang trưởng thành, **chưa cho quả**; sau đó mỗi lứa mất `regrowMs`.
+
+| Giống | Cây con | Mỗi lứa | Lứa đầu chín sau |
+|---|---|---|---|
+| Vối | 90 s | 360 s (6 phút) | 450 s |
+| Chè | 120 s | 360 s | 480 s |
+| Mít | 150 s | 396 s | 546 s |
+
+Quả chín giữ nguyên sản lượng chờ hái, nhưng nước vẫn giảm và cỏ vẫn mọc, sức khỏe có thể giảm. Sau hái giữ lại độ ẩm/cỏ, reset tiến độ, lượt bón và lượt tỉa. Cây hiện số giây còn lại (chưa tính hệ số sức khỏe); bấm cây không có việc gì sẽ báo giai đoạn và còn bao nhiêu **phút** tới lần tưới tiếp. Tính bù khi vắng mặt tối đa **8 giờ**, không làm cây chết.
 
 ## Chế biến và UI
 

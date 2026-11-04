@@ -2,6 +2,8 @@
 
 Tài liệu tổ chức theo **màn chơi**. Bắt đầu từ [sơ đồ liên kết các màn](game-flow.md), sau đó vào thư mục của màn cần xem.
 
+Đọc nhanh toàn bộ thiết kế trong một file: [GDD tổng hợp](design/cog-coffee-gdd.md). Mục 0 của GDD là **bảng trạng thái**: thiết kế đã chốt tới đâu, code đã làm tới đâu, tài liệu còn cần sửa gì. Quy ước cập nhật: [design/README.md](design/README.md). Khi mâu thuẫn, tài liệu theo màn thắng.
+
 ## Theo màn
 
 | Màn | Thư mục | Nội dung chính |
@@ -21,9 +23,9 @@ Tài liệu tổ chức theo **màn chơi**. Bắt đầu từ [sơ đồ liên 
 | [shared/onboarding-flow.md](shared/onboarding-flow.md) | 5 phút đầu, HUD mở dần, thiên đàng là bài học |
 | [shared/robot-staff.md](shared/robot-staff.md) | Robot và nhân viên (farm + quán) |
 | [shared/ui-audio-vfx.md](shared/ui-audio-vfx.md) | UI dùng chung, âm thanh, VFX, cài đặt |
+| [shared/i18n.md](shared/i18n.md) | Đa ngôn ngữ Anh/Việt: khóa, file locale, cách thêm chuỗi |
 | [shared/design-system.md](shared/design-system.md) | Token màu, chữ, component, bố cục HUD |
 | [shared/art-direction.md](shared/art-direction.md) | Định hướng hình ảnh, ánh sáng, vật liệu |
-| [shared/i18n.md](shared/i18n.md) | Đa ngôn ngữ Anh/Việt: khóa, file locale, cách thêm chuỗi |
 | [shared/project-structure.md](shared/project-structure.md) | Cấu trúc thư mục mã nguồn |
 
 ## Asset 3D

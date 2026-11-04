@@ -1,0 +1,5 @@
+#!/bin/sh
+# Sau mỗi lần pull/merge: báo những gì vừa vào máy (tài liệu thiết kế, ý tưởng, code).
+# Bật: git config core.hooksPath .githooks
+command -v node >/dev/null 2>&1 || exit 0
+node scripts/design-inbox.mjs --since ORIG_HEAD --ref HEAD || true
