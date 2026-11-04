@@ -103,7 +103,7 @@ export async function createSelection(gender, onSelect = () => {}, onProgress) {
     female,
   ];
   characters.forEach(character => { character.traverse(o => { if (o.isMesh) o.castShadow = true; }); scene.add(character); });
-  // Focus reads through light, not size (05 §2): the other character keeps its height and steps into shade.
+  // Focus reads through light, not size: the other character keeps its height and steps into shade.
   const tints = characters.map(character => { const list = []; character.traverse(o => { if (o.isMesh) for (const m of [o.material].flat()) if (m.color && !list.some(t => t.m === m)) list.push({ m, base: m.color.clone() }); }); return list; });
   const shade = (index, k) => { for (const { m, base } of tints[index]) m.color.copy(base).multiplyScalar(k); };
   const shadows = characters.map(() => {

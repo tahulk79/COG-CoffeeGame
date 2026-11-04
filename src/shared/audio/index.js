@@ -1,4 +1,4 @@
-// Engine âm thanh dùng chung (spec: docs/design/round-1-foundation.md §2).
+// Engine âm thanh dùng chung (spec: docs/shared/ui-audio-vfx.md §2).
 // Bus music/ambience/sfx/ui → master → loa. AudioContext chỉ tạo ở lần chạm đầu tiên; không có Web Audio thì mọi hàm là no-op.
 import { SOUNDS } from './sounds.js';
 

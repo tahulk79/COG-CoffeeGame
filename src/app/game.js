@@ -153,7 +153,7 @@ function fail(error) {
   $('loading').hidden = true; $('selection').hidden = true;
   $('scene-transition').hidden = true;
   $('error').hidden = false;
-  // Friendly line + two ways out; the raw message stays one tap away for bug reports (05 §1).
+  // Friendly line + two ways out; the raw message stays one tap away for bug reports.
   const title = document.createElement('strong'), text = document.createElement('p'), actions = document.createElement('div');
   title.textContent = 'Chưa mở được thế giới 3D';
   text.textContent = 'Hãy tải lại trang. Nếu máy yếu hoặc trình duyệt đang tắt tăng tốc đồ họa, thử đồ họa thấp.';

@@ -1,2 +1,0 @@
-#!/bin/sh
-curl -s --max-time ${T:-600} -X POST --data-binary @- http://127.0.0.1:9444

@@ -85,7 +85,7 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
   const act = (action, choice) => { const result = farm.act('cafe', action, choice); refresh(); return result; };
   const walk = (entity, to, finalStep = null) => { entity.path = [...route(entity.pos, to), ...(finalStep ? [finalStep] : [])]; };
   // Brewing hands besides the player: baristas able to make something on the menu, plus the robot espresso machine.
-  // Sets the shift goal (P1) and how fast guests come (P3) in docs/design/cafe-fun-review.md.
+  // Sets the shift goal (P1) and how fast guests come (P3) in docs/screens/04-cafe/fun-review.md.
   function helpers() {
     const menu = RECIPES.filter(r => !lockReason(r, snap.cafe));
     return [...agents.values()].filter(a => a.active && a.role === 'barista' && menu.some(r => (snap.cafe.mastery[r.id]?.best || 0) >= a.effects.mastery)).length + (gear('autoEspresso') ? 1 : 0);

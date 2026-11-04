@@ -1,8 +1,0 @@
-#!/bin/zsh
-# load W H DPR mobile(true/false) -> set viewport, load mid fixture, wait for farm
-/private/tmp/claude-501/-Users-macos--claude-spares-spare-NWSOv6/adc7003a-e9c8-4fdd-a6bd-c12d80f84fd8/scratchpad/c Emulation.setDeviceMetricsOverride "{\"width\":$1,\"height\":$2,\"deviceScaleFactor\":$3,\"mobile\":$4}" >/dev/null
-/private/tmp/claude-501/-Users-macos--claude-spares-spare-NWSOv6/adc7003a-e9c8-4fdd-a6bd-c12d80f84fd8/scratchpad/c Emulation.setTouchEmulationEnabled "{\"enabled\":$4,\"maxTouchPoints\":5}" >/dev/null
-/private/tmp/claude-501/-Users-macos--claude-spares-spare-NWSOv6/adc7003a-e9c8-4fdd-a6bd-c12d80f84fd8/scratchpad/c eval "window.name='FIX:'+$(cat /Users/macos/Desktop/V2/production/audit/evidence/ux/fixture-mid-farm.json);1" >/dev/null
-/private/tmp/claude-501/-Users-macos--claude-spares-spare-NWSOv6/adc7003a-e9c8-4fdd-a6bd-c12d80f84fd8/scratchpad/c Page.reload '{}' >/dev/null
-for i in {1..30}; do sleep 1; R=$(/private/tmp/claude-501/-Users-macos--claude-spares-spare-NWSOv6/adc7003a-e9c8-4fdd-a6bd-c12d80f84fd8/scratchpad/c eval 'performance.now()<25000&&document.title.includes("Nông trại")&&!!window.__cam&&document.getElementById("farm-coins")?.textContent'); [[ $R == *1.500* ]] && break; done
-sleep 2; echo "loaded $R after $i s"

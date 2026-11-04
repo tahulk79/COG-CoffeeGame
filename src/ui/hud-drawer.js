@@ -1,6 +1,6 @@
 import { icon } from './icons.js';
 
-// Shared "Quản lý" drawer for the farm and café HUD (docs/game-redesign/04 §6): the bar keeps a few
+// Shared "Quản lý" drawer for the farm and café HUD (docs/shared/design-system.md §6): the bar keeps a few
 // actions plus this button; secondary buttons/panels are moved into `grid`/`panel` (same nodes, ids and listeners).
 export function mountHudDrawer(bar, { signal, id, label = 'Quản lý' }) {
   const button = document.createElement('button');
