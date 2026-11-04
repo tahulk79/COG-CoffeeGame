@@ -7,7 +7,7 @@
 3. Gặp ba chuyên gia về trồng cà phê, pha chế và kinh doanh theo thứ tự tùy chọn. Mỗi người có hai câu hỏi, mỗi câu có ba đáp án.
 4. Mỗi câu chỉ được trả lời một lần. Đúng hoặc sai đều lưu lựa chọn và kết quả ngay, có giải thích rồi sang câu tiếp theo. Trả lời đủ hai câu nhận dấu hoàn thành; điểm đúng/sai hiển thị riêng, không nhận lặp dấu hoặc đổi đáp án.
 5. Đủ ba dấu mới được Thần Tiếp Nhận kiểm tra hồ sơ. Hội thoại lúc này mới tiết lộ người chơi chỉ ngất, Thần Chết kéo nhầm. Có dấu đỏ “CHƯA CHẾT · CHỈ NGẤT”.
-6. Chọn một hành trang: Túi hạt giống, Gói mở rộng quán (tên cũ Bộ dụng cụ pha) hoặc Túi vốn nhỏ. Lưu lựa chọn cho chương nông trại sau.
+6. Chọn một hành trang: Túi hạt giống, Gói mở rộng quán (tên cũ Bộ dụng cụ pha) hoặc Túi vốn nhỏ. Lưu lựa chọn cho chương nông trại sau. Hành trang chọn trước khi biết loại nơi, nên khi vào farm món không dùng được ở nơi đó tự đổi thành **Túi vốn nhỏ** (+150 xu): Hạt giống ở nơi chỉ quán, Gói mở rộng quán ở nơi chỉ trồng (04/11/2026, `createFarm` trong `farm/model.js`).
 7. Tự đi về cổng. Sau câu tiễn hài hước cuối, Thần Tiếp Nhận mời «chọn nơi bắt đầu lại» và bản đồ thế giới mở ra ([02b-world-map](../02b-world-map/README.md)); chọn nơi xong nhân vật đi qua cổng và cảnh sáng dần.
 8. **Bỏ qua (04/11/2026):** nút «Bỏ qua ↗» cạnh ⚙️, chỉ hiện trước bước chọn hành trang (pha `welcome`/`learning`/`review`). Bấm lần đầu đổi chữ thành «Bỏ qua phần học? Bấm lần nữa» (4 s không bấm thì trở lại); bấm lần hai thì đóng thoại đang mở, tự lấy hành trang đầu tiên (Hạt giống), nhân vật tự đi vào cổng và mở ngay bản đồ thế giới — không hộp chọn hành trang, không lời tiễn (sửa 04/11: bớt thao tác). Câu đã trả lời vẫn tính mẹo; câu chưa trả lời không có mẹo và sẽ được hỏi lại ở nông trại/quán như câu sai.
 
@@ -24,7 +24,7 @@ Spec đầy đủ: [luồng người chơi mới](../../shared/onboarding-flow.m
 - Màn kết hiện "Mẹo đã nhận x/6 · y câu sẽ được ôn lại".
 - Lưu: không thêm trường trong `heaven`. Farm đọc `heaven.answers` qua `correctQuestionIds(heaven)` (mới, `journey.js`) và lưu kết quả ở `farm.lessons` (xem `docs/shared/contracts.md` mục 5).
 
-Cổng trùng sinh dẫn thẳng vào nông trại; quán cà phê mở từ nông trại (nút Vào quán, nhiệm vụ "Bán ly cà phê đầu tiên"). Người đã qua cổng sẽ trở lại nông trại khi tải lại trang. Hành trang chọn ở đây áp dụng một lần khi vào farm (xem `docs/screens/03-farm/rules.md` mục 9).
+Cổng trùng sinh mở bản đồ thế giới ([02b-world-map](../02b-world-map/README.md)); chọn nơi xong mới vào nông trại (nơi chỉ quán: vào thẳng quán); quán cà phê mở từ nông trại (nút Vào quán, nhiệm vụ "Bán ly cà phê đầu tiên"). Người đã qua cổng sẽ trở lại nông trại khi tải lại trang. Hành trang chọn ở đây áp dụng một lần khi vào farm (xem `docs/screens/03-farm/rules.md` mục 9).
 
 ## Điều khiển
 

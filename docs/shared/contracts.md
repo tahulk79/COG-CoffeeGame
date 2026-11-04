@@ -47,11 +47,12 @@ Chỉ `src/features/farm/model.js` được sửa số liệu. Mọi màn khác 
 | `cafe.supplies{}` | Vật tư theo đơn vị thật (ly, ml, g) | `cafe/buy`, `cafe/brew` | bench, service (quản lý tự nhập) |
 | `cafe.gear{}`, `cafe.tables[10]`, `upgrades.cafe` | Thiết bị, cấp bàn, số bàn mở (`assetValue('cafe')`) | `cafe/gear`, `cafe/table`, `upgrade` | service, cafe/game.js (bố cục) |
 | `cafe.crew[]` | `{ id, level, paidUntil }` tối đa 10. `paidUntil` cộng `CAFE_SHIFT_MS` (4 phút) mỗi lần trả; trong `advance`, khi quán không chạy/không mở hoặc vắng mặt > 60 s thì `paidUntil` được cộng bù đúng khoảng đó (giờ đã trả chỉ trôi khi quán mở) | `cafe/hire`, `train`, `fire`, `advance` (lương) | service (agent) |
-| `cafe.mastery{recipeId}` | `{ best: 0–100, made }`. Chỉ ly người chơi pha (`staff` không có) mới cập nhật | `cafe/brew` | bench (★, pha theo trí nhớ khi best ≥ 90), service (barista cần best ≥ ngưỡng) |
+| `cafe.mastery{recipeId}` | `{ best: 0–100, made }`. Chỉ ly người chơi pha (`staff` không có) mới cập nhật; ly Auto pha (`demo: true`) chỉ tăng `made`, không tăng `best` (04/11/2026) | `cafe/brew` | bench (★, pha theo trí nhớ khi best ≥ 90), service (barista cần best ≥ ngưỡng) |
 | `cafe.reputation` (10–100) | Uy tín quán. **Khác** `reputation` của farm (0–100, theo đơn giao) | `cafe/sell`, `lost`, `shift` | service (tốc độ khách, món mở) |
 | `cafe.open`, `reserve`, `served`, `lost`, `revenue`, `costs` | Trạng thái và thống kê quán | `cafe/*` | quán HUD |
-| `market` | `{ day, sold }`: ngày công hiện tại và xu giá gốc đã bán ở chợ trong ngày công đó. Save cũ không có → tạo `{ day: -1, sold: 0 }` | `refreshDaily`, `market/sell` | `saleQuote` |
+| `market` | `{ day, sold, orders }`: ngày công hiện tại, xu giá gốc đã bán ở chợ và số đơn Chợ đã giao trong ngày công đó (`orders` tối đa `ORDERS_PER_DAY = 2`, mới 04/11/2026; save cũ thiếu → 0). Save cũ không có → tạo `{ day: -1, sold: 0, orders: 0 }` | `refreshDaily`, `market/sell` | `saleQuote` |
 | (đã bỏ 03/11/2026) | `fish` (save cũ: bán 8 xu/con khi tải), `dailyTasks` (luôn `[]`), `machines.grinder` (mẻ chờ trả hạt rang), `upgrades.house`/`upgrades.grinder` (bỏ qua), worker `energy` (đặt 100), worker `restUntil` (đặt 0, **trừ** thợ đang ốm theo mục 6: giữ nguyên), worker `farmId:null` (đưa vào farm hoặc hoàn phí tuyển). Cấp công trình kẹp về tối đa 20 (quán 10) | `createFarm` khi tải | – |
+| `stats{}` | Bộ đếm cho nhiệm vụ: `harvested`, `watered`, `weeded`, `dried`, `roasted`, `ground`, `sold` (gram mọi sản phẩm), `beansSold` (gram hạt phơi/rang/xay, không tính quả chín; mới 04/11/2026, save cũ = 0), `expanded`, `orders`, `delivered`, `served` (chỉ ly của chính người chơi, không tính ly nhân viên/robot). Không đổi `version` | `harvest`, trạm, `market/sell`, `order`, `expand`, `cafe/sell` | `rewards()` (nhiệm vụ), `HUD_UNLOCKS` |
 | `upgrades.storage` | Sức chứa chung: kho farm, và khối lượng kho quán + hàng đang đi | `upgrade` | `harvest`, `collect`, `ship`, `supply` |
 
 Chỉ tồn tại trong phiên của màn quán, không lưu (model xoá khi tải): khách, kệ ly, ly trên tay, combo, ca, agent nhân viên, `brew`, `nextCustomerAt`.
@@ -63,8 +64,8 @@ Chỉ tồn tại trong phiên của màn quán, không lưu (model xoá khi t�
 | `toggle`, `reserve` | – | – |
 | `ship` | `cropId` | – |
 | `supply` | – | – |
-| `brew` | `{ recipeId, cropId, score, staff? }` | `{ quality }` |
-| `sell` | `{ recipeId, quality, stars, wait, combo, memory, table, charm, special }` | `{ price, tip }` |
+| `brew` | `{ recipeId, cropId, score, staff?, demo? }` (`demo`: ly Auto pha) | `{ quality }` |
+| `sell` | `{ recipeId, quality, stars, wait, combo, memory, table, charm, special, staff? }` | `{ price, tip }` |
 | `lost` | `'angry' \| 'busy' \| 'rude' \| 'robot'` (mục 6) | – |
 | `buy`, `gear`, `hire`, `train`, `fire` | id | – |
 | `shift` | `{ served, goal, avg }` | `{ bonus, met }` |
@@ -273,3 +274,15 @@ Quán (F-31): `cafe.supplies` bỏ `milk`, thêm `milk-dalat` (đầu 1000), `mi
 Quán: `('cafe','sell')` nhận thêm `cold?: true` → giá × 0,7 (service đã trừ 1★ trước khi gửi). Ly trong phiên có `madeAt` (ms, không lưu; dời khi quán tạm dừng). Báo cáo ca có `wasted` (số ly bỏ). `recipes.js` thêm `QUICK_MS`, `quickScore`, `FRESH_MS`, `freshFor`.
 
 Chuyển save: `workers[i].jobs` cắt còn đúng `activeJobs` (người cấp thấp có mọi việc bật → chỉ còn mảng chăm cây; robot → 1 việc), nên dữ liệu lưu luôn khớp việc thợ thật sự làm; `orders/requestDelivery` và lý do chờ dùng `activeJobs`. Act `autoplay` không ghi nhật ký hoạt động. `farm.workers` lấp đủ 3 slot trước khi hoàn phí người dự bị; `cafe.crew` quá 3 người (không tính `gift`) → giữ 3 người đầu, bỏ người dư (bộ lọc `MAX_CREW` sẵn có).
+
+## Bổ sung 04/11/2026 (triển khai audit)
+
+| Trường / khóa | Ý nghĩa | Mặc định save cũ |
+|---|---|---|
+| `farm.coins` | Trần khi nạp save **5e13** (trước 1e12) để cent vẫn là số nguyên chính xác; kho, XP, thống kê vẫn trần 1e12 | — |
+| `farm.cafe.reliefDay` | Ngày công đã nhận **hạt cứu trợ** (nơi chỉ quán: tiền < `SUPPLIER_PRICE` và hạt rang quán < 10 g → tặng `RELIEF_GRAMS = 300` g robusta chất lượng 65, nguồn `relief`, mỗi ngày công 1 lần) | −1 |
+| `ledger[].type = 'gift'` | Hành trang bị đổi thành 150 xu nay ghi sổ cái | — |
+| `godbean-progress-corrupt` | Bản thô của save hỏng/version lạ, chép **một lần** trước khi game ghi save mới (`readProgress`) | không có |
+| Hành động `lessons/defer` | «Để sau»/Esc ở câu mẹo tính là đã hỏi hôm nay (`askedDay`, `askedCount`) | — |
+| `supplierPrice(region)` (`farm/rules.js`) | Giá nhập hạt 500 g: 75 (`SUPPLIER_PRICE`) hoặc 45 ở nơi chỉ quán (`SUPPLIER_PRICE_CAFE_ONLY`); ngưỡng hạt cứu trợ dùng cùng giá | — |
+| Chỉ đọc khi mở 2 tab (`state/progress.js`) | Tab khác ghi `godbean-progress` (event `storage`) → tab này bật `readOnly`, mọi hàm save thành no-op, farm báo «Game đang mở ở tab khác — tải lại để chơi tiếp ở đây». Định dạng save không đổi | — |

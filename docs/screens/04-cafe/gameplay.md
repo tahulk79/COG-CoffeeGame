@@ -45,8 +45,9 @@ Thành thạo (điểm ly lấy phần nguyên, 89,6 vẫn là ★★): barista 
 
 ## Nguyên liệu và liên kết nông trại
 
-- **Nơi chỉ quán (F-28, Ý):** game tự vào quán khi tải, không có nút/Esc về nông trại, không có ô Đơn hàng; Kho quán bỏ "Đặt farm", hạt chỉ từ lô `starter` và "Nhập hạt ngoài". Xem [02b-world-map](../02b-world-map/README.md).
-- **Hạt rang** dùng chung kho quán của model farm. Kho quán → "Đặt farm 252 g" tạo đơn trên bảng Đơn hàng của nông trại; farm/nhân viên rang và giao như đơn hiện có. Gấp thì "Nhập hạt ngoài" 500 g / 75 xu (`SUPPLIER_PRICE`, 0,15 xu/g, đắt hơn hạt farm nên quán vẫn cần farm).
+- **Nơi chỉ quán (F-28, Ý):** game tự vào quán khi tải, không có nút/Esc về nông trại, không có ô Đơn hàng; Kho quán bỏ "Đặt farm", hạt chỉ từ lô `starter` và "Nhập hạt ngoài". **Hạt cứu trợ** (04/11/2026, chống kẹt tiền): khi tiền < 75 xu và hạt rang trong quán < 10 g, Kho quán hiện nút «Hạt cứu trợ (miễn phí, 300 g)», mỗi ngày công một lần (`farm.act('cafe','relief')`). Thẻ quán hiện nhiệm vụ hiện tại «🎯 tên · n/N» khi đã qua intro (áp dụng mọi nơi có quán). Xem [02b-world-map](../02b-world-map/README.md).
+- **Rời quán bằng phím (desktop):** nhấn **Esc hai lần trong 2,5 s** mới về nông trại; lần đầu chỉ báo "Nhấn Esc lần nữa để về nông trại" (04/11/2026, sau audit: một lần Esc lỡ tay từng thoát ca ngay). Nút Nông trại trên HUD không đổi.
+- **Hạt rang** dùng chung kho quán của model farm. Kho quán → "Đặt farm 252 g" tạo đơn trên bảng Đơn hàng của nông trại; farm/nhân viên rang và giao như đơn hiện có. Gấp thì "Nhập hạt ngoài" 500 g / 75 xu ở nơi có farm, 45 xu ở nơi chỉ quán (`supplierPrice(region)`, EC-3 04/11/2026, giá tạm chờ duyệt; 75 xu = 0,15 xu/g, đắt hơn hạt farm nên quán vẫn cần farm).
 - **Vật tư** (ly, sữa đặc, sữa tươi, đá, trứng, kem, muối, giấy lọc) nhập theo gói thật (lon 380 g, hộp 1 L, túi đá 2 kg, hộp 40 tờ giấy lọc…).
 - Thiếu nguyên liệu khi pha → màn liệt kê thứ thiếu kèm nút mở kho.
 
@@ -93,10 +94,10 @@ Trạm pha thêm (2 cấp), Quầy thu ngân 2, **Robot thu ngân (kiosk)** (tê
 
 ## Thời gian và ca làm việc
 
-- Mỗi lần mở cửa là một **ca 4 phút**: mục tiêu số ly theo sức pha: mốc Đồng = 4 + hạng sao + 6 × số tay pha (barista pha được món trên menu + robot espresso), Bạc = ⌈1,4 × Đồng⌉, Vàng = ⌈1,8 × Đồng⌉ (xem `fun-review.md` P1), **món của ca** được gọi gấp 3 lần và bán +30%.
+- Mỗi lần mở cửa là một **ca 4 phút**: mục tiêu số ly theo sức pha: mốc Đồng = 4 + hạng sao + round(3 × H), H = tay pha hiệu dụng theo phần menu pha được (chốt 04/11/2026; `shiftGoal`, `brewForce` trong `service.js`) (barista pha được món trên menu + robot espresso), Bạc = ⌈1,4 × Đồng⌉, Vàng = ⌈1,8 × Đồng⌉ (xem `fun-review.md` P1), **món của ca** được gọi gấp 3 lần và bán +30%.
 - Thẻ trạng thái có đồng hồ ca + thanh thời gian; dải phiếu order trên cùng hiện số giây còn lại và đổi màu; quầy pha hiện huy hiệu đếm ngược cho từng ly đang pha.
-- Hết ca: báo cáo (số ly, sao trung bình, doanh thu, khách bỏ về), thưởng theo mốc (cần TB ≥ 2★): Đồng 3 / Bạc 4 / Vàng 5 xu mỗi ly, tối đa 300 xu, uy tín +1/+2/+3; chưa đạt Đồng chỉ −1 uy tín khi dưới nửa mốc Đồng; nút "Mở ca mới".
-- Ly chủ quán tự pha bán ×2 giá (`OWN_CUP`, P2). Khách tới chậm hơn khi ít tay pha (+max(0, 13 − 6,5 × tay pha) s); khách gấp nhất đang chờ đúng món bạn đang pha ở quầy chỉ hao kiên nhẫn ×0,25 (P3).
+- Hết ca: báo cáo (số ly, sao trung bình, doanh thu, khách bỏ về), thưởng theo mốc (HUD ca hiện «⚠ … cần TB ★★» khi đủ ly mà TB chưa đạt, PT-11; cần TB ≥ 2★ **tính trên ly bạn tự pha**, không tính ly nhân viên/robot; bạn không pha ly nào thì chỉ xét số ly — `shiftAvg`/`shiftMissed`): Đồng 3 / Bạc 4 / Vàng 5 xu mỗi ly, tối đa 300 xu, uy tín +1/+2/+3; chưa đạt Đồng chỉ −1 uy tín khi dưới nửa mốc Đồng; nút "Mở ca mới". Đóng quán bằng tay hay hết giờ đều đi qua `endShift`: khách đang chờ về êm (👋), không tính bỏ về, không trừ uy tín; báo cáo ghi "về lúc đóng cửa N". Ly nhân viên đang bưng cũng bị dọn khi hết ca (04/11/2026).
+- Ly chủ quán tự pha bán ×2 giá (`OWN_CUP`, P2). Khách tới theo sức pha thật: công thức `arrivalGap` (GDD 7.2, NEW-2 04/11/2026), sàn = max(3, 20·(1 − độ phủ menu), 20/(1 + 1,5·H)); khách gấp nhất đang chờ đúng món bạn đang pha ở quầy chỉ hao kiên nhẫn ×0,25 (P3).
 
 ## Chưa làm (để sau)
 
@@ -112,8 +113,8 @@ Cold brew ủ trước theo mẻ, khách quen có món yêu thích, latte art, N
 
 ## Pha nhanh và ly để lâu (chốt 04/11/2026, đã code, chưa chơi thử)
 
-- **⚡ Pha nhanh** (nút lớn ở bước 1 của bàn pha, mobile first): một chạm, chờ **6 giây**, ra ly. Điểm = điểm cao nhất bạn **tự pha** món đó, kẹp trong **70–90**: món mới ★★ ngay, muốn ★★★ phải tự pha đạt 90 một lần. Pha nhanh không nâng điểm thành thạo. Ly vẫn là ly của chủ (×2 giá). Chế độ Auto luôn dùng Pha nhanh. Code: `QUICK_MS`, `quickScore` (`cafe/recipes.js`).
-- **Rót dễ hơn khi tự pha:** kim chạy từ rỗng tới đầy trong 3,2 s (trước 2,4 s); thả tay khi kim trong vạch xanh là tự chốt bước (không cần bấm «Xong»); rót lệch vẫn được điểm một phần rộng hơn (`1 − lệch / (độ rộng vạch × 2,5)`, trước × 1,5).
+- **⚡ Pha nhanh** (nút lớn ở bước 1 của bàn pha, mobile first): một chạm, chờ **6 giây**, ra ly. Điểm = điểm cao nhất bạn **tự pha** món đó, kẹp trong **40–90**: món mới chỉ ★, muốn ★★ phải tự pha đạt 70 một lần, ★★★ phải tự pha đạt 90 (đổi 04/11/2026 sau audit: sàn 70 cũ làm pha tay vô nghĩa và mốc thưởng ca "TB ≥ 2★" luôn đạt). Ly **Auto pha** vẫn bán được nhưng **không** nâng điểm thành thạo (chốt 04/11/2026), nên 2 xu không mở được ★★ cho Pha nhanh. Code: cờ `demo` trong `farm.act('cafe','brew')`. Pha nhanh không nâng điểm thành thạo. Ly vẫn là ly của chủ (×2 giá). Chế độ Auto luôn dùng Pha nhanh. Code: `QUICK_MS`, `quickScore` (`cafe/recipes.js`).
+- **Rót dễ hơn khi tự pha:** kim chạy từ rỗng tới đầy trong 3,2 s (trước 2,4 s); khi bạn tự giữ nút, kim chậm lại sao cho đi qua vạch xanh mất **tối thiểu 0,45 s** (`handRate` trong `bench.js`, PT-3 04/11/2026; trước đó vạch hẹp như liều phin 19–21 g chỉ ~0,21 s); rót mẫu, Auto và Pha nhanh giữ tốc độ cũ; thả tay khi kim trong vạch xanh là tự chốt bước (không cần bấm «Xong»); rót lệch vẫn được điểm một phần rộng hơn (`1 − lệch / (độ rộng vạch × 2,5)`, trước × 1,5).
 - **Ly có hạn tươi** (tính theo thời gian quán mở): món nóng **60 s**, món có đá **90 s**. Quá hạn → ly nguội: **−1★, giá −30%**, thông báo "(ly nguội)". Quá **gấp đôi** → ly trên kệ hoặc trên tay tự bỏ, thông báo "🗑️ … đã bỏ" (ly nhân viên đang bưng không bị bỏ). Khách bỏ về thì ly trên tay vẫn đưa được cho khách khác gọi đúng món, hoặc bấm quầy pha để đặt lên kệ.
 - **Hết ca dọn kệ:** mọi ly chưa ai nhận (kể cả ly trên tay) bị bỏ; báo cáo ca có dòng "Ly bỏ: n". Ly chỉ sống trong ca, không lưu khi tải lại.
 - Không có giới hạn số ly trên kệ và không có nút "Bỏ ly": hạn tươi đã tự giới hạn.

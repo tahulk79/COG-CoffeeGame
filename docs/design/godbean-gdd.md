@@ -78,21 +78,21 @@ Mục này trả lời ba câu hỏi: **GDD đang ở trạng thái nào**, **co
 
 | ID | Tính năng | Mục GDD | Thiết kế | Code | Kiểm chứng | Ghi chú / việc tiếp |
 |---|---|---|---|---|---|---|
-| F-01 | Chọn nhân vật | 4 | Đã chốt | Đã code | Chưa | 04/11: bỏ chọn giới tính/đặt tên, tên ngẫu nhiên theo ngôn ngữ, nút Chơi mobile-first |
-| F-02 | Intro 3D 23,5 s | 3, 4 | Đã chốt | Đã code | Chưa | Y tế, Thần Chết còn khối tạm; chưa lồng tiếng |
-| F-03 | Thiên đàng: hỏi đáp, dấu, hành trang | 5.3 | Đã chốt | Đã code | Test, Playtest 03/11 | `tests/heaven-gameplay.test.js`. 04/11: thêm nút Bỏ qua (`heaven.skipped`) — bỏ qua thì tự lấy hành trang đầu, đi thẳng vào cổng mở bản đồ; chưa commit, chưa kiểm chứng |
+| F-01 | Chọn nhân vật | 4 | Đã chốt | Đã code | Playtest 04/11 | 04/11: bỏ chọn giới tính/đặt tên, tên ngẫu nhiên theo ngôn ngữ, nút Chơi mobile-first |
+| F-02 | Intro 3D 23,5 s | 3, 4 | Đã chốt | Đã code | Playtest 04/11 | Y tế, Thần Chết còn khối tạm; chưa lồng tiếng |
+| F-03 | Thiên đàng: hỏi đáp, dấu, hành trang | 5.3 | Đã chốt | Đã code | Test, Playtest 03/11, Playtest 04/11 | `tests/heaven-gameplay.test.js`. 04/11: thêm nút Bỏ qua (`heaven.skipped`) — bỏ qua thì tự lấy hành trang đầu, đi thẳng vào cổng mở bản đồ; chưa commit, chưa kiểm chứng. 04/11 audit: chơi trọn 6 câu + Bỏ qua trên Chrome; GP-B1 Thần Chết lặp hộp nhận hồ sơ. [Audit](audits/2026-11-04-audit-toan-game.md) |
 | F-04 | Mẹo thiên đàng, hỏi lại câu sai | 5.3, A.1 | Đã chốt | Đã code | Playtest 03/11 | Lỗi mở: reload mất chế độ tự dẫn tới chuyên gia kế |
-| F-05 | Ruộng, mua đất liền kề | 6.1 | Đã chốt | Đã code | Chưa | Playtest 03/11 chưa đi tới Mua ruộng |
+| F-05 | Ruộng, mua đất liền kề | 6.1 | Đã chốt | Đã code | Playtest 04/11 | Playtest 03/11 chưa đi tới Mua ruộng. 04/11 audit: mua ruộng 2, 3 đúng luật (đi tới biển → xác nhận). [Audit](audits/2026-11-04-audit-toan-game.md). 04/11 dev: farm màn dọc mở camera thấy trọn ruộng (UX-A4), nhãn 3D ẩn sau thẻ nhiệm vụ (UX-A1) |
 | F-06 | Cây trồng, chăm sóc | 6.2, A.3 | Đã chốt | Đã code | Test | Tài liệu đã sửa theo code 04/11 |
 | F-07 | Chế biến phơi, rang | 6.3 | Đã chốt | Đã code | Test | 3 câu hỏi mở về mẻ (15.1) |
 | F-08 | Kho, chợ giảm giá theo ngày | 6.4, 10.3 | Đang chỉnh | Đã code | Sim | |
-| F-09 | Nâng cấp tới cấp 20, 3 bậc diện mạo | 6.5 | Đã chốt | Đã code | Sim | Bậc 2+ là bản sao khối tạm |
+| F-09 | Nâng cấp tới cấp 20, 3 bậc diện mạo | 6.5 | Đã chốt | Đã code | Sim, Playtest 04/11 | Bậc 2+ là bản sao khối tạm. 04/11 audit: nâng 10 công trình lên 20 trên trình duyệt (652.694 xu). [Audit](audits/2026-11-04-audit-toan-game.md) |
 | F-10 | Đơn hàng farm → quán | 6.6 | Đã chốt | Đã code | Playtest 03/11 (một phần) | |
 | F-11 | Trang trí hoa, đèn, biển tên | 6.7 | Đã chốt | Đã code | Chưa | |
 | F-12 | Công trình sản xuất phụ, trạm song song | 14.3 | Đề xuất | Chưa làm | — | Chờ duyệt `build-proposal.md` |
-| F-13 | Vòng ca quán, mục tiêu ca, uy tín | 7.1–7.3 | Đang chỉnh | Đã code | Playtest 03/11 | |
-| F-14 | 11 công thức, bàn pha theo số đo | 7.4, A.4 | Đã chốt | Đã code | Chưa | |
-| F-15 | Nâng cấp quán, tự động hóa | 7.6, A.6 | Đã chốt | Đã code | Chưa | Bố cục kiểm bằng `?debug=grid` |
+| F-13 | Vòng ca quán, mục tiêu ca, uy tín | 7.1–7.3 | Đang chỉnh | Đã code | Playtest 03/11, Playtest 04/11 | 04/11 audit: EC-2 danh tiếng theo ly không chạy (`model.js:538`) — đã sửa, có test, chưa chạy, PT-1 thuê barista làm trượt ca. [Audit](audits/2026-11-04-audit-toan-game.md). 04/11 dev: HUD ca cảnh báo cổng ★ (PT-11); giá nhập 45 xu ở nơi chỉ quán (EC-3, chờ duyệt). Test 74/74 |
+| F-14 | 11 công thức, bàn pha theo số đo | 7.4, A.4 | Đã chốt | Đã code | Playtest 04/11 | 04/11 audit: tự pha Nâu đá ★★★; vạch cân phin ~0,21 s (PT-3). [Audit](audits/2026-11-04-audit-toan-game.md) |
+| F-15 | Nâng cấp quán, tự động hóa | 7.6, A.6 | Đã chốt | Đã code | Playtest 04/11 | Bố cục kiểm bằng `?debug=grid`. 04/11 audit: mua toàn bộ thiết bị/tự động hóa/mở rộng. [Audit](audits/2026-11-04-audit-toan-game.md) |
 | F-16 | Thợ farm 3 chỗ (F-29), chỉ thị | 8.1 | Đã chốt | Đã code | Test | `tests/worker-avoidance.test.js`, `farm-gameplay.test.js` |
 | F-17 | Nhân viên quán, bảng việc | 8.2 | Đã chốt | Đã code | Chưa | |
 | F-18 | Robot, sự cố, gói thử robot | 8.3 | Đã chốt | Đã code | Chưa | 4 chỗ code khác spec chờ chốt (D-10); cần đo playtester theo robot-staff mục 12 |
@@ -105,11 +105,11 @@ Mục này trả lời ba câu hỏi: **GDD đang ở trạng thái nào**, **co
 | F-25 | Âm thanh, VFX phản hồi | 12.2 | Đã chốt | Đã code | Chưa | Chưa có nhạc nền/âm môi trường file thật |
 | F-26 | Thay khối tạm bằng asset 3D | 12.3 | Đã chốt | Một phần | Chưa | Theo `assets/registry/` |
 | F-27 | Nhóm "Để sau" (cold brew, khách quen, latte art…) | 14.4 | Đề xuất | Chưa làm | — | |
-| F-31 | Món mới (Matcha, Matcha Latte, Dirty), sữa Meiji/Dalat Milk, nước máy/Lavie, Auto pha, bàn pha mobile first | 7.4, 7.5 | Đã chốt | Đang làm | Test 04/11 | 04/11: code chưa commit; `tests/cafe-rules.test.js` qua (41/41 toàn bộ). [ý tưởng](ideas/2026-11-04-menu-mon-moi.md), [04-cafe/gameplay](../screens/04-cafe/gameplay.md) |
-| F-30 | Pha nhanh một chạm, rót dễ hơn, ly có hạn tươi | 7.4 | Đã chốt | Đang làm | Test 04/11 | 04/11: code chưa commit; `tests/cafe-rules.test.js` qua (39/39 toàn bộ); Auto pha bằng Pha nhanh. [04-cafe/gameplay](../screens/04-cafe/gameplay.md) |
-| F-29 | 3 slot đội, sao robot/nhân viên/bạn, lười-mệt, chế độ Auto | 8 | Đã chốt | Đang làm | Test 04/11 | 04/11: code chưa commit; `node --test tests/*.test.js` 39/39 qua (chưa chơi thử); farm + quán 3 slot, robot 1 việc, đa nhiệm theo cấp, Auto 3 × 10 phút. [crew-autoplay](../shared/crew-autoplay.md) |
-| F-28 | Bản đồ thế giới: chọn nơi trùng sinh, luật theo loại nơi | 4.1 | Đã chốt | Đang làm | Chưa | 04/11: chưa commit; 8 nơi (cả hai: Việt Nam, Brazil; chỉ trồng: Colombia, Kenya, Indonesia; chỉ quán: Ý, Nhật, Mỹ), loại nơi ẩn tới khi chốt, mỗi nơi 2 nhiệm vụ riêng (thưởng chưa sim); sa bàn 3D địa hình liền (bờ thoải, núi, nước trong, đổ bóng), đảo của nơi chọn bay lên khi chạm. Đã xem thử trong Brave 04/11 (chưa playtest). 04/11 chiều: thay đảo tròn bằng khối hình quốc gia trồi lên, nhãn chỉ còn tên, thẻ khi chạm chỉ ghi địa lý (địa hình, khí hậu, nhiệt độ, mưa, độ cao) — chưa xem lại. [02b-world-map](../screens/02b-world-map/README.md) |
-| F-31 | Chợ thế giới: sàn đơn hàng giữa các khu vực (NPC trước) | 6.6, 7 | Đề xuất | Chưa làm | — | [market-proposal](../screens/02b-world-map/market-proposal.md) |
+| F-31 | Món mới (Matcha, Matcha Latte, Dirty), sữa Meiji/Dalat Milk, nước máy/Lavie, Auto pha, bàn pha mobile first | 7.4, 7.5 | Đã chốt | Đang làm | Test 04/11 | 04/11: code chưa commit; `tests/cafe-rules.test.js` qua; toàn bộ `node --test tests/*.test.js` **64/64** (04/11 sau triển khai audit). [ý tưởng](ideas/2026-11-04-menu-mon-moi.md), [04-cafe/gameplay](../screens/04-cafe/gameplay.md) |
+| F-30 | Pha nhanh một chạm, rót dễ hơn, ly có hạn tươi | 7.4 | Đã chốt | Đang làm | Test 04/11 | 04/11 (sau audit): sàn Pha nhanh 70 → 40, món mới ★, ★★ khi tự pha ≥ 70 — chưa chạy test, chưa chơi thử. 04/11: code chưa commit; `tests/cafe-rules.test.js` qua (toàn bộ 64/64 ngày 04/11 sau triển khai audit); Auto pha bằng Pha nhanh. [04-cafe/gameplay](../screens/04-cafe/gameplay.md) |
+| F-29 | 3 slot đội, sao robot/nhân viên/bạn, lười-mệt, chế độ Auto | 8 | Đã chốt | Đang làm | Test 04/11, Playtest 04/11 | 04/11: code chưa commit; `node --test tests/*.test.js` 64/64 qua (04/11 sau triển khai audit; đã chơi thử Auto trên Chrome); farm + quán 3 slot, robot 1 việc, đa nhiệm theo cấp, Auto 3 × 10 phút. [crew-autoplay](../shared/crew-autoplay.md). 04/11 audit: 3 slot chặn đúng trên trình duyệt; nút Auto đè modal (UX-1). [Audit](audits/2026-11-04-audit-toan-game.md) |
+| F-28 | Bản đồ thế giới: chọn nơi trùng sinh, luật theo loại nơi | 4.1 | Đã chốt | Đang làm | Playtest 04/11 | 04/11: chưa commit; 8 nơi (cả hai: Việt Nam, Brazil; chỉ trồng: Colombia, Kenya, Indonesia; chỉ quán: Ý, Nhật, Mỹ), loại nơi ẩn tới khi chốt, mỗi nơi 2 nhiệm vụ riêng (thưởng chưa sim); sa bàn 3D địa hình liền (bờ thoải, núi, nước trong, đổ bóng), đảo của nơi chọn bay lên khi chạm. Đã xem thử trong Brave 04/11 (chưa playtest). 04/11 chiều: thay đảo tròn bằng khối hình quốc gia trồi lên, nhãn chỉ còn tên, thẻ khi chạm chỉ ghi địa lý (địa hình, khí hậu, nhiệt độ, mưa, độ cao) — chưa xem lại. [02b-world-map](../screens/02b-world-map/README.md). 04/11 audit: Việt Nam, Ý chơi được; P0 GP-A1 nơi chỉ quán kẹt tiền, GP-A2 không có thẻ nhiệm vụ. [Audit](audits/2026-11-04-audit-toan-game.md). 04/11 dev: sửa vị trí Việt Nam/Nhật trên bản đồ (PT-9), xem lại trên Chrome |
+| F-32 | Chợ thế giới: sàn đơn hàng giữa các khu vực (NPC trước) | 6.6, 7 | Đề xuất | Chưa làm | — | [market-proposal](../screens/02b-world-map/market-proposal.md) |
 
 ### 0.4 Việc cần sửa trong GDD và tài liệu
 
@@ -124,6 +124,10 @@ Mục này trả lời ba câu hỏi: **GDD đang ở trạng thái nào**, **co
 | D-07 | GDD chưa có: phạm vi bản phát hành (MVP), chỉ số đo thành công (giữ chân, thời gian phiên), mô hình kiếm tiền | GDD mục 1, 14 | Trung bình |
 | D-08 | GDD chưa có người duyệt; cần chốt người duyệt và ngày duyệt | GDD thông tin tài liệu | Thấp |
 | D-09 | Nhật ký `rules.md` có dòng "bồi dưỡng vẫn còn" mâu thuẫn quyết định bỏ cùng ngày; đánh dấu đã thay | `03-farm/rules.md` | Thấp |
+| D-12 | ~~Audit 04/11: 9.1 thiếu nguồn XP; 14.1/14.2/14.4 cũ; mã F-31 trùng~~ **Đã sửa 04/11/2026** (9.1 đủ nguồn XP, 14.x theo bảng 0.3, chợ thế giới đổi thành F-32) | GDD mục 0.3, 9.1, 14 | Xong |
+| D-13 | ~~Sim và 10.5 lỗi thời~~ sim đã khớp công thức quán và chạy lại 04/11/2026 (10.5); còn: sim chưa có nhân viên/robot và nơi chỉ trồng/chỉ quán; Phụ lục A.5/A.6 thiếu giá Meiji/Lavie/Matcha/chasen/roastery/autoEspresso. Đã sửa 7.2 (khoảng cách khách) và 8.3 (3 chỗ robot) ngày 04/11 | GDD 10.5, Phụ lục A; sim | Cao |
+| D-14 | Audit 04/11: `onboarding-flow.md` mục 3.3 còn menu 6 nút (code dùng HUD v2: thanh 4 nút + drawer Quản lý). Đã sửa 04/11: `game-flow.md` (màn 00), `02-heaven/gameplay.md` (cổng → bản đồ, hành trang đổi theo nơi), dòng "không có nút bỏ qua" ở `onboarding-flow.md` mục 11 | `shared/onboarding-flow.md` mục 3.3 | Trung bình |
+| D-15 | **Phần lớn đã sửa 04/11** (crew-autoplay.md dòng 15/71, README 02b `beansSold`, số test). Audit toàn game 04/11: `crew-autoplay.md` tự mâu thuẫn (dòng 15 «chạm bất kỳ đâu» và dòng 71 «Auto không mua bán» trái code); README 02b ghi `sold` cho nhiệm vụ Colombia/Kenya, code dùng `beansSold`; số test trong 0.3 (39/39, 41/41) cũ, hiện 43/43. Chi tiết: [audit 04/11](audits/2026-11-04-audit-toan-game.md) | `shared/crew-autoplay.md`, `02b-world-map/README.md`, GDD 0.3 | Trung bình |
 
 Câu hỏi thiết kế chưa chốt nằm ở [mục 15.1](#151-câu-hỏi-mở); không lặp ở đây.
 
@@ -165,7 +169,7 @@ Người chơi bị Thần Chết "kéo nhầm" lên thiên đàng, học nghề
 |---|---|---|---|
 | 1 | **Cuốn ngay** | Mọi thao tác có hình + tiếng ngay khi trạng thái đổi | Tiền, hàng bay về HUD; ly đầu bán được trước phút thứ 2 |
 | 2 | **Có lý do quay lại** | Luôn có việc đang chờ khi trở lại | Cây lớn khi vắng mặt (bù tối đa 4 giờ), đơn hàng, nâng cấp, luyện món lên 3★ |
-| 3 | **Hai màn phụ thuộc nhau** | Farm làm ra hạt, quán biến hạt thành doanh thu lớn hơn | Chợ giảm giá khi bán nhiều; hạt dư mang sang quán lời hơn |
+| 3 | **Hai màn phụ thuộc nhau** | Farm làm ra hạt và là nguồn thu chính (chợ); quán lời hơn **trên mỗi gram** và cho thưởng ca, nhưng bị giới hạn bởi nhịp khách | Chợ giảm giá khi bán nhiều; một ly ~20 g bán ~5 xu (≈0,25 xu/g) so với hạt rang ở chợ 0,07 xu/g; chợ chiếm ~76–85% tổng thu theo sim 04/11/2026 (10.5) |
 | 4 | **Học thật** | Chấm theo số đo thật, sai thì giải thích lý do thật | Câu hỏi thiên đàng, quầy pha rót tới vạch g/ml/°C |
 
 **Nguyên tắc thiết kế chung** (từ `AGENTS.md`):
@@ -353,18 +357,21 @@ Rời quán về farm thì quán tạm dừng hoàn toàn, vào lại chơi ti�
 ### 7.2 Khách và uy tín
 
 - Kiên nhẫn: xếp hàng 55 s, ngồi 80 s, mang đi 50 s. Hết kiên nhẫn thì bỏ về, uy tín −2, mất combo.
-- Uy tín quyết định hạng sao quán, tốc độ khách tới và mở món.
-- Khoảng cách giữa hai khách: `clamp(9 + 9 nếu chưa có ai pha tự động − (uy tín − 50) × 0,06 − số bàn × 0,6 − số kiosk, 3, 24)` giây × ngẫu nhiên 0,75–1,25.
+- Uy tín quyết định hạng sao quán, tốc độ khách tới và mở món. Uy tín là **thước sức khỏe quán**, trần 100 có chủ ý (món mở muộn nhất ở 65); mỗi ly ★★ +0,6, ★★★ +1,2, ly ★0 −0,6. Xem lại hệ số 0,6 → 0,3 chỉ khi sim cho người chơi một mình đạt 90 trong dưới 11 ca **và** playtest báo hết mục tiêu (NEW-3, 04/11/2026).
+- Khoảng cách giữa hai khách (chốt 04/11/2026, NEW-2): `gap = clamp(9 + max(0, 13 − 6,5·H) − (uy tín − 50)·0,06 − số bàn·0,6 − số kiosk, sàn, 24)` × ngẫu nhiên 0,75–1,25, với **sàn = max(3, 20·(1 − C), 20/(1 + 1,5·H))**. H = tay pha hiệu dụng = tổng phần menu mỗi barista pha được (chỉ lấy số barista bằng số trạm pha) + phần menu máy espresso tự động; C = tỉ lệ món trên menu có ít nhất một tay pha ngoài bạn. Hàm `arrivalGap`, `brewForce` trong `cafe/service.js`. Lý do: công thức cũ đếm đầu người và sàn 3 s cố định, quán nâng tối đa có ~80 khách/ca trong khi chỉ pha ~25 ly → khách bỏ về hàng loạt, uy tín về 10.
 
 ### 7.3 Mục tiêu ca
 
-| Mốc | Số ly | Thưởng (cần TB ≥ 2★) |
+| Mốc | Số ly | Thưởng (cần TB ly **bạn tự pha** ≥ 2★) |
 |---|---|---|
-| Đồng | 4 + hạng sao + 6 × số tay pha | 3 xu/ly, uy tín +1 |
+| Đồng | 4 + hạng sao + round(3 × H) (H: tay pha hiệu dụng, mục 7.2; chốt 04/11/2026, trước là 6 × số người) | 3 xu/ly, uy tín +1 |
 | Bạc | ⌈1,4 × Đồng⌉ | 4 xu/ly, uy tín +2 |
 | Vàng | ⌈1,8 × Đồng⌉ | 5 xu/ly, uy tín +3 |
 
 - Thưởng ca tối đa 300 xu. Chưa đạt Đồng chỉ −1 uy tín khi dưới nửa mốc Đồng.
+- Sao TB chỉ tính ly người chơi tự pha (không tính ly nhân viên/robot); bạn không pha ly nào thì chỉ xét số ly. Lý do (audit 04/11, PT-1): ly nhân viên ★1 kéo TB < 2★ nên thuê người làm trượt ca.
+- Cổng TB ≥ 2★ chặn cả Đồng/Bạc/Vàng (trượt cổng: không thưởng, uy tín 0, hoặc −1 nếu dưới nửa mốc Đồng). HUD ca hiện «⚠ n ly · cần TB ★★ (hiện x★)» khi đã đủ ly mốc Đồng mà TB ly bạn pha < 2★ (PT-11, 04/11/2026), thay cho «Gold ✓» gây hiểu nhầm.
+- Đóng quán bằng tay hay hết giờ: khách đang chờ **về êm** (👋), không trừ uy tín, báo cáo ca ghi số khách "về lúc đóng cửa".
 - **Món của ca** được gọi gấp 3 lần, bán +30%. Ly chủ quán tự pha bán ×2 giá.
 
 ### 7.4 Pha chế và thành thạo
@@ -375,7 +382,7 @@ Rời quán về farm thì quán tạm dừng hoàn toàn, vào lại chơi ti�
 
 ### 7.5 Nguyên liệu
 
-- **Hạt rang** dùng chung kho quán. Nguồn: đơn từ farm (252 g/đơn) hoặc **Nhập hạt ngoài** 500 g / 75 xu (đắt hơn hạt farm).
+- **Hạt rang** dùng chung kho quán. Nguồn: đơn từ farm (252 g/đơn) hoặc **Nhập hạt ngoài** 500 g: **75 xu** ở nơi có farm, **45 xu** ở nơi chỉ quán (`supplierPrice(region)`, EC-3 04/11/2026 — giá tạm, chờ Quang duyệt sau khi có sim nơi chỉ quán; lý do: ở 75 xu ly nhân viên Phin đen/Nâu đá lỗ). Nơi chỉ quán hết hạt và tiền dưới giá nhập → **hạt cứu trợ** 300 g miễn phí, mỗi ngày công một lần.
 - Save mới có sẵn **600 g hạt vối rang** (lô `starter`, ~30 ly) để ca đầu chơi ngay.
 - Vật tư nhập theo gói thật: Phụ lục A.5. Thiếu nguyên liệu khi pha thì hiện thứ thiếu kèm nút mở kho.
 
@@ -397,7 +404,7 @@ Giá chi tiết: Phụ lục A.6.
 - Tối đa **3 chỗ thợ**, trộn robot/người (F-29); robot đúng 1 việc, người 1 mảng việc, cấp 4 → 2 mảng, cấp 7 → đa nhiệm. Thuê là vào làm ngay. Phí tuyển trả một lần.
 - Lương `30 + 10 × (cấp − 1)` xu mỗi ngày công 6 phút, tự gia hạn nếu đủ xu. Hết xu thì thợ dừng an toàn.
 - Không có năng lượng, nghỉ giữa ca hay bồi dưỡng. Vắng mặt > 60 s không tiêu ngày công đã trả.
-- Thợ làm theo **Chỉ thị** (tab trong Nhân viên): Tự chăm vườn, Trồng lấp ô trống, Dùng phân bón, Tự chế biến. Có 2 thợ thì chia vùng chăm.
+- Thợ làm theo **Chỉ thị** (tab trong Nhân viên): Tự chăm vườn, Trồng lấp ô trống, Dùng phân bón, Tự chế biến. Có từ 2 thợ thì chia vùng chăm (tối đa 3 chỗ, F-29).
 - Đào tạo tối đa cấp 10, +2 mỗi chỉ số mỗi cấp.
 - Việc thợ làm không tính vào nhiệm vụ của người chơi.
 
@@ -421,7 +428,7 @@ Spec: [robot-staff.md](../shared/robot-staff.md).
 
 | | Farm | Quán |
 |---|---|---|
-| Robot | Robot vườn, dùng chung 2 chỗ thợ, tối đa 1; 15 xu/ngày công; gói 1/5/10 ngày = 15/68/113 xu; chỉ tưới, làm cỏ, chế biến, giao hàng | Robot bưng, Robot dọn; 3 xu/ca, không gói; bưng 1 ly/chuyến |
+| Robot | Robot vườn, dùng chung 3 chỗ thợ (thuê tới 3 robot, F-29), mỗi robot làm đúng 1 việc; 15 xu/ngày công; gói 1/5/10 ngày = 15/68/113 xu; chỉ tưới, làm cỏ, chế biến, giao hàng | Robot bưng, Robot dọn; 3 xu/ca, không gói; bưng 1 ly/chuyến |
 | Sự cố người | Mải chơi ~12%, Nghỉ ốm ~4% (tối đa 1/ngày công) | Mải chơi ~12%, Nghỉ ốm ~4%, Chửi khách ~5% (tối đa 1/ca) |
 | Miễn sự cố | 2 ngày công đầu, khi người chơi ở quán, uy tín < 30 | 2 ca đầu, ca gói thử robot, uy tín < 30 |
 
@@ -433,7 +440,7 @@ Gói thử robot pha (một lần): 1 ca robot pha sai thông số thật kèm b
 
 - Save mới 200 xu.
 - Ngưỡng XP cấp nông trại: `0, 30, 90, 190, 350, 600, 950, 1400, 2000, 2800…`.
-- Nguồn XP: nhiệm vụ, bán (⌊xu nhận / 2⌋).
+- Nguồn XP (theo `farm/model.js`, đối chiếu 04/11/2026): nhiệm vụ (`xp` của nhiệm vụ), đơn cửa hàng (`xp` của đơn), bán ở chợ (⌊xu nhận / 2⌋), hái một cây +6, nhận mẻ chế biến +4 mỗi mẻ, mua ruộng +10, mỗi ly bạn hoặc nhân viên pha 1 + số sao (ly robot không có XP).
 - Cấp mở giống (chè cấp 2, mít cấp 3) và giới hạn cấp nâng cấp công trình.
 
 ### 9.2 Chuỗi nhiệm vụ cố định
@@ -499,7 +506,8 @@ Giá nhân theo hệ số giống (Phụ lục A.3) và chất lượng lô.
 
 - Mỗi ngày công 6 phút, giá giảm tuyến tính từ 100% xuống sàn 30% khi đã bán 840 xu giá gốc (`MARKET_DAILY = 1200`). Ngày công mới thì hồi giá.
 - Tính theo tích phân: bán một lần hay chia nhỏ nhận như nhau. Lượng đã bán lưu trong save.
-- Mục đích: 2 ruộng bán gần đủ giá, 4 ruộng bão hòa, buộc dùng quán (trụ cột 3).
+- **Đơn Chợ** (200 g hạt rang, trả 1,2 × giá gốc, không qua giảm giá): tối đa **2 đơn mỗi ngày công** (`ORDERS_PER_DAY`, chốt 04/11/2026 sau audit EC-1; trước đó lặp vô hạn).
+- Mục đích: 2 ruộng bán gần đủ giá, 4 ruộng bão hòa, để hạt dư mang sang quán lời hơn trên mỗi gram. **Chốt 04/11/2026:** chợ vẫn là nguồn thu chính (~76–85% tổng thu theo sim 10.5, có hoặc không có barista); quán không "buộc" phải dùng vì bị giới hạn bởi nhịp khách, không phải thiếu hạt. Giảm chợ chỉ làm chậm tiến trình mà không đổi tỉ lệ, nên giữ nguyên `MARKET_DAILY = 1200`, sàn 30%.
 
 ### 10.4 Công thức giá nâng cấp
 
@@ -519,6 +527,41 @@ Giá nhân theo hệ số giống (Phụ lục A.3) và chất lượng lô.
 | Quãng trống dài nhất | 6 phút |
 
 Bón phân có đánh đổi: chậm mua ruộng lúc đầu, lời về sau. Cân bằng cần playtest thật thêm (mục 15).
+
+**Chạy lại 04/11/2026 sau khi sửa sim cho khớp code** (nơi Việt Nam, hành trang Túi vốn, không thuê người). Sim giờ dùng đúng công thức quán của `cafe/service.js`: khoảng cách khách `9 + 13 − uy tín − bàn − kiosk` (≈ 20 s), mục tiêu ca `4 + hạng`, Pha nhanh theo `quickScore`, sữa/nước theo loại đang dùng. Tự pha giả định 30 s/ly, 82 điểm (★★); Pha nhanh 6 s + 4 s bưng. Chọn cách pha bằng `BREW=mix|hand|quick`. Mỗi cách chạy 3 lượt, 60 phút:
+
+| Cách pha | Tiền ly | Thưởng ca | Ly bán / khách tới | Sao | Uy tín cuối |
+|---|---|---|---|---|---|
+| mix: tự pha ly đầu mỗi món, sau đó Pha nhanh | 534–550 | 305–352 | 71–75 / 74–77 | ★★ | 63–66 |
+| hand: luôn tự pha | 369–378 | 144 | 48 / 73–76 | ★★ | 55–56 |
+| quick: chỉ Pha nhanh, không tự pha | 442–453 | **0** | 70–73 / 72–75 | ★ | 50 |
+
+- Chợ chiếm phần lớn thu nhập: 3.951 xu/60 phút (khoảng 82–90% tổng thu), không đổi theo cách pha. Chạy 120 phút (mix): chợ 10.644, tiền ly 1.261, thưởng ca 682, cấp 18.
+- Luật Pha nhanh mới có tác dụng: chỉ Pha nhanh thì ly ★, trượt cổng "TB ≥ 2★" nên mất toàn bộ thưởng ca; tự pha mỗi món một lần rồi Pha nhanh là cách lời nhất. Luôn tự pha thì chậm hơn nhịp khách (30 s so với ~20 s), khoảng 1/3 khách còn đứng chờ khi hết ca.
+- **Có barista** (`BARISTAS=0..3`: Vy, Khoa, Phát cấp 1; model tự trả lương ca mới khi còn tiền), cách pha mix, 2 lượt mỗi mức, 60 phút:
+
+| Barista | Tiền ly | Thưởng ca | Lương | Quán ròng | Ly bán (nhân viên) | Chợ / tổng thu |
+|---|---|---|---|---|---|---|
+| 0 | 530–556 | 267–288 | 0 | 797–844 | 69–72 (0) | 82–83% |
+| 1 | 373–405 | 306–328 | 60 | 641–651 | 98–99 (83–85) | 85% |
+| 2 | 573–576 | 644 | 120 | ~1.100 | 161 (146–148) | 76% |
+| 3 | 546–553 | 491 | 180 | ~860 | 160 (149) | 79% |
+
+  - Một barista làm quán **lỗ hơn** tự làm: nhân viên nhận gần hết order, ly nhân viên giá ×1 (ly của bạn ×2), nên tiền ly giảm dù bán nhiều ly hơn. Hai barista mới lời nhờ khách đến nhanh và mục tiêu ca +6/người (thưởng ca gấp đôi). Ba barista bị chặn ở 3,2 kg hạt/giờ vì sim chỉ gửi hạt sang quán đầu mỗi ca (giới hạn của sim).
+  - Chợ vẫn chiếm 76–85% tổng thu ở mọi mức. Thử giảm chợ (không có barista): `MARKET_DAILY` 1200 → 900 và sàn 30% → 15% thì thu chợ giảm 27% (3.951 → 2.868 xu/giờ) nhưng chợ vẫn chiếm 78%, vì quán bị giới hạn bởi nhịp khách chứ không phải thiếu hạt; farm còn dư khoảng 10 kg hạt rang mỗi giờ.
+- Sim chưa có: phục vụ/thu ngân/robot, sự cố, ly nguội, nơi chỉ trồng/chỉ quán, nhiệm vụ vùng. Khách bỏ về chỉ khi hàng chờ > 6 (giả định của sim, game thật tính theo độ kiên nhẫn).
+
+- **Chạy lại 04/11/2026 sau triển khai audit** (mục tiêu ca 4 + hạng + 3 × tay pha, sao TB chỉ tính ly bạn tự pha, tối đa 2 đơn Chợ/ngày công, uy tín theo từng ly đã chạy lại; `BREW=mix`, 60 phút, 1 lượt mỗi mức):
+
+| Barista | Tiền ly | Thưởng ca | Lương | Đơn Chợ | Ca trượt/Đồng/Bạc/Vàng | Uy tín cuối | Thu/giờ |
+|---|---|---|---|---|---|---|---|
+| 0 | 616 | 321 | 0 | 32 | 0/0/5/1 | 100 | 4.893 |
+| 1 | 591 | 536 | 60 | 32 | 0/0/2/4 | 100 | 5.072 |
+| 2 | 954 | 934 | 120 | 32 | 0/0/1/5 | 87 | 5.839 |
+| 3 | 582 | 759 | 180 | 32 | 0/0/2/4 | 52 | 5.293 |
+
+  - Thuê người không còn làm trượt ca (trước: 3 barista trượt 5/6 ca, thưởng 48). 2 barista vẫn lời nhất. Chợ vẫn khoảng 3.920 xu/giờ (≈ 67–80% tổng thu).
+  - **Còn mở:** uy tín chạm 100 trong khoảng 1 giờ ở 0–1 barista (cần economy-designer xem hệ số +0,6/ly); sim chỉ giao được 1 đơn Chợ vì đơn thứ hai là arabica mà sim chỉ trồng robusta, nên chưa đo hết ảnh hưởng trần 2 đơn/ngày.
 
 ## 11. Giao diện và trải nghiệm
 
@@ -587,13 +630,13 @@ Chi tiết bảng màu, ánh sáng theo cảnh: [art-direction.md](../shared/art
 |---|---|
 | 00–01 | Chọn nhân vật, intro 3D có phụ đề |
 | 02 | Thiên đàng với mẹo, hỏi lại câu sai, hành trang |
-| 03 | 4 ruộng, 3 giống, chăm sóc, sân phơi, lò rang, chợ giảm giá, nâng cấp tới cấp 20, 2 thợ với chỉ thị, đơn hàng, trang trí |
+| 03 | 4 ruộng, 3 giống, chăm sóc, sân phơi, lò rang, chợ giảm giá, nâng cấp tới cấp 20, 3 chỗ trong đội (F-29) với chỉ thị, đơn hàng, trang trí |
 | 04 | 11 món, bàn pha theo số đo, ca 4 phút, nhân viên quán, tự động hóa |
 | Chung | Luồng người chơi mới, HUD mở dần, lưu cài đặt, robot và sự cố nhân viên, đa ngôn ngữ Anh/Việt |
 
 ### 14.2 Đang làm
 
-- Không có. Đa ngôn ngữ Anh/Việt (F-24) đã commit 04/11/2026, chờ kiểm chứng.
+- F-28 Bản đồ thế giới, F-29 Đội 3 slot và Auto, F-30 Pha nhanh, F-31 Món mới (xem bảng 0.3). Đa ngôn ngữ Anh/Việt (F-24) đã commit 04/11/2026, chờ kiểm chứng.
 
 Tiến độ chi tiết theo tính năng: [mục 0.3](#03-tiến-độ-triển-khai-theo-tính-năng).
 
@@ -608,7 +651,7 @@ Tiến độ chi tiết theo tính năng: [mục 0.3](#03-tiến-độ-triển-k
 
 ### 14.4 Để sau
 
-Cold brew theo mẻ, khách quen có món yêu thích, latte art, sữa/trứng sản xuất từ farm, bản đồ thế giới, nhạc nền và âm môi trường bằng file thật, lồng tiếng, thay khối tạm bằng asset 3D.
+Cold brew theo mẻ, khách quen có món yêu thích, latte art, sữa/trứng sản xuất từ farm, chợ thế giới giữa các khu vực (F-32; bản đồ thế giới F-28 đã chốt), nhạc nền và âm môi trường bằng file thật, lồng tiếng, thay khối tạm bằng asset 3D.
 
 ## 15. Câu hỏi mở và rủi ro
 
@@ -629,6 +672,7 @@ Theo [rules.md](../screens/03-farm/rules.md) mục 10:
 | Nhiều thay đổi 02–03/11/2026 chưa được kiểm chứng trong game | Luồng có thể lỗi dù tài liệu ghi đã triển khai | Playtest theo từng màn |
 | Code làm khác spec ở robot/sự cố (Phụ lục B) | Người làm và người chơi hiểu luật khác nhau | Chốt C-1…C-4 (D-10) |
 | Người mới thấy khó hiểu ("chả hiểu gì") | Bỏ game sớm | HUD mở dần, thẻ mục tiêu dẫn đường, ly đầu trước phút 2 |
+| Sink cuối game hữu hạn (EC-5): nâng hết farm ≈ 653 nghìn xu (~110–130 giờ chơi theo thu nhập sim), quán ≈ 7,7 nghìn, nơi chỉ quán cạn sink sau vài giờ | Cuối game tiền không còn chỗ tiêu | Chưa code. Đề xuất 3 phương án, khuyến nghị trang trí cao cấp: [03-farm/endgame-sink-proposal.md](../screens/03-farm/endgame-sink-proposal.md) — chờ Quang duyệt |
 | Khối tạm thay asset chậm | Hình ảnh kém hấp dẫn | Ưu tiên thay khối tạm dễ thấy (art-direction mục 5) |
 
 ---

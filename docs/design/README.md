@@ -8,6 +8,7 @@ Thư mục giữ **GDD** — tài liệu thiết kế tổng của game — và 
 | [ideas/](ideas/README.md) | Hộp thư ý tưởng: mỗi ý tưởng một file, có vòng đời Mới → Đang xem → Đã chốt / Bỏ |
 | [changes/](changes/README.md) | Phiếu sửa GDD/tài liệu: đổi gì (Trước/Sau) và dev cần làm gì; Chờ dev → Đang làm → Xong |
 | [progress/](progress/README.md) | Báo cáo tiến độ: mỗi kỳ một file, chỉ ghi cái mới |
+| [audits/](audits/) | Báo cáo audit toàn game (P0/P1/P2 + backlog), mỗi lần một file `YYYY-MM-DD-*.md` |
 
 ## Ba phiên làm việc và mẫu đầu ra
 

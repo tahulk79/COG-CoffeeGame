@@ -22,14 +22,14 @@ Mỗi nơi có hai nhiệm vụ riêng nối sau chuỗi chung theo loại (`REG
 |---|---|---|---|
 | `vn` | Việt Nam | `both` · Trồng + quán | Bán 30 ly phin (`served` 30 · 25) → Gửi 1 kg hạt về quán (`delivered` 1000 g · 25) |
 | `br` | Brazil | `both` | Phơi nắng 1 kg (`dried` 1000 g · 25) → Bán 40 ly cafezinho (`served` 40 · 25) |
-| `co` | Colombia | `farm` · Chỉ trồng | Hái tay 15 lần (`harvested` 15 · 45) → Xuất khẩu 1,5 kg (`sold` 1500 g · 60) |
-| `ke` | Kenya | `farm` | Rang 1 kg (`roasted` 1000 g · 45) → Bán 1 kg cho nhà xuất khẩu (`sold` 1000 g · 60) |
+| `co` | Colombia | `farm` · Chỉ trồng | Hái tay 15 lần (`harvested` 15 · 45) → Xuất khẩu 1,5 kg (`beansSold` 1500 g · 60) |
+| `ke` | Kenya | `farm` | Rang 1 kg (`roasted` 1000 g · 45) → Bán 1 kg cho nhà xuất khẩu (`beansSold` 1000 g · 60) |
 | `id` | Indonesia (Sumatra) | `farm` | Phơi 1,5 kg qua mùa mưa (`dried` 1500 g · 45) → Khai hoang thêm hai ruộng (`expanded` 2 · 60) |
 | `it` | Ý | `cafe` · Chỉ quán | Pha 10 ly espresso (`served` 10 · 45) → Qua giờ cao điểm 40 ly (`served` 40 · 60) |
 | `jp` | Nhật Bản | `cafe` | Pha tay 12 ly (`served` 12 · 50) → Thành kissaten 30 ly (`served` 30 · 70) |
 | `us` | Mỹ (Seattle) | `cafe` | Bán 25 ly mang đi (`served` 25 · 45) → Mở chuỗi 60 ly (`served` 60 · 70) |
 
-Thẻ mục tiêu dẫn đường cho nhiệm vụ riêng như nhiệm vụ gốc cùng chỉ số (`sold` → Cửa hàng/Chợ, `served` → quán, `dried`/`roasted` → trạm, `delivered` → Đơn hàng, `expanded` → biển ruộng).
+Thẻ mục tiêu dẫn đường cho nhiệm vụ riêng như nhiệm vụ gốc cùng chỉ số (`sold`/`beansSold` → Cửa hàng/Chợ, `served` → quán, `dried`/`roasted` → trạm, `delivered` → Đơn hàng, `expanded` → biển ruộng).
 
 - Một save một nơi, không đổi lại được (thẻ xác nhận nói rõ).
 - Save cũ không có `farm.region` / `startingRegion`, hoặc id lạ → `vn` (chơi y như trước).
@@ -71,3 +71,5 @@ Chuỗi nhiệm vụ theo nơi: `questsFor(region)` trong `farm/content.js`.
 - Nơi chỉ quán vẫn dựng cảnh nông trại phía sau (giữ model); tab nâng cấp quán vẫn hiện ở nơi chỉ nông trại; gợi ý quán thiếu hạt vẫn nhắc "về farm".
 - Mẹo thiên đàng không có tác dụng ở nơi thiếu một bên (chấp nhận ở v1).
 - Asset thật: địa hình, khối quốc gia, cờ, vật mốc dựng bằng code (khối tạm có chức năng). Đường biên là bản rút gọn tay (Indonesia chỉ Sumatra, Nhật chỉ Honshu–Kyushu, Mỹ chỉ phần lục địa).
+
+**Sửa 04/11/2026 (PT-9):** cờ/điểm mốc Việt Nam dời vào trong đường biên (108,3°E, 13,5°N; trước 107°E 13°N rơi vào Campuchia); đường biên Nhật Bản vẽ lại Kyushu–Honshu–Hokkaido, cờ ở Honshu (139,7°E, 35,7°N); `terrain.js` tô đất theo cả đường biên từng nơi nên khối trồi lên luôn nằm trên đất.

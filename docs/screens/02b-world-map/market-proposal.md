@@ -4,7 +4,7 @@
 |---|---|
 | Người đề xuất | Quang |
 | Ngày | 04/11/2026 |
-| Trạng thái | Đề xuất — chưa code (GDD F-31) |
+| Trạng thái | Đề xuất — chưa code (GDD F-32; đổi từ F-31 ngày 04/11/2026 vì trùng mã Món mới) |
 | Liên quan | F-28 Bản đồ thế giới ([README](README.md)), F-10 Đơn hàng farm → quán, F-08 Chợ, "Nhập hạt ngoài" của quán |
 
 ## Ý tưởng

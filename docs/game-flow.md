@@ -12,7 +12,7 @@ flowchart TD
     CHK -->|heaven.completed hoặc có farm, nơi both/farm| FARM
     CHK -->|có farm, nơi cafe| CAFE
 
-    SEL["00 · Chọn nhân vật<br/>giới tính + tên ≤ 20 ký tự"] -->|Bắt đầu: savePlayer| INTRO
+    SEL["00 · Chọn nhân vật<br/>chọn nam/nữ, tên ngẫu nhiên"] -->|Bắt đầu: savePlayer| INTRO
     INTRO["01 · Intro (Màn 1)<br/>23,5 s, có nút Bỏ qua"] -->|hết giờ / Bỏ qua: completeIntro| HEAVEN
     HEAVEN["02 · Thiên đàng<br/>3 chuyên gia · 6 câu · chọn hành trang"] -->|bước vào cổng| MAP
     MAP["02b · Bản đồ thế giới<br/>chọn nơi trùng sinh"] -->|✕ / Esc| HEAVEN
