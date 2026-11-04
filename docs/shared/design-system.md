@@ -82,7 +82,7 @@ Mỗi component có các trạng thái: **normal · hover (chỉ `@media (hover:
 | Toast | `.ui-toast` (+ `--unlock`) | Đã có. Một hàng đợi duy nhất, tối đa 2 toast cùng lúc, 3 s. Không bao giờ nằm trong vùng ngón cái (joystick/nút hành động). |
 | Coach | `.ui-coach` | Đã có. Một kênh duy nhất (bỏ toast gợi ý trùng ở desktop). |
 | Alert / badge / chip / switch / slider | đã có | Giữ, chỉ thay emoji bằng icon. |
-| Loading | `#loading` | Logo COG + ly phin nhỏ giọt (animation hiện có) + mẹo chơi luân phiên. |
+| Loading | `#loading` | Logo chữ Godbean + tagline + ly phin nhỏ giọt (animation hiện có) + mẹo chơi luân phiên. |
 | Error | `#error` | Panel `--md` có minh họa, câu thân thiện, nút "Tải lại" + "Thử đồ họa thấp", chi tiết kỹ thuật trong `<details>`. |
 
 ## 6. HUD layout (mọi cảnh dùng chung khung)

@@ -57,10 +57,10 @@ WORKER_CANDIDATES.push(
   {id:'linh',name:'Linh',color:'#a5859a',stats:{speed:75,intelligence:65,strength:45,dexterity:60,constitution:55},fee:170},
   {id:'minh',name:'Minh',color:'#8b9c65',stats:{speed:50,intelligence:65,strength:65,dexterity:50,constitution:70},fee:160},
   {id:'nam',name:'Nam',color:'#b29357',stats:{speed:60,intelligence:60,strength:60,dexterity:60,constitution:60},fee:150},
-  // Robot shares the two farm slots (max 1), never levels, and only does chores (robot-staff.md 2).
-  {id:'robo-n1',name:t('farmRules.worker.robotName'),kind:'robot',color:'#8d9aa3',stats:{speed:70,intelligence:60,strength:60,dexterity:70,constitution:60},fee:0,wage:15,jobs:['water','weed','processing','delivery']},
+  // Robots share the three farm slots, never level, and do exactly ONE chore each (crew-autoplay.md 2).
+  ...[1,2,3].map(n=>({id:`robo-n${n}`,name:t('farmRules.worker.robotName')+(n>1?` ${n}`:''),kind:'robot',color:'#8d9aa3',stats:{speed:70,intelligence:60,strength:60,dexterity:70,constitution:60},fee:0,wage:15,jobs:['water','weed','processing','delivery']})),
 );
-for(const candidate of WORKER_CANDIDATES)candidate.bio=t(`farmRules.bio.${candidate.id}`);
+for(const candidate of WORKER_CANDIDATES)candidate.bio=t(`farmRules.bio.${candidate.kind==='robot'?'robo-n1':candidate.id}`);
 // Staff sign prepaid contracts. One work day equals one crop season (6 minutes of play).
 export const WORK_DAY_MS = SEASON_MS;
 export const CONTRACT_PLANS = [{id:'day',name:t('farmRules.plan.day'),days:1,price:1},{id:'week',name:t('farmRules.plan.week'),days:7,price:6},{id:'month',name:t('farmRules.plan.month'),days:28,price:21}];
@@ -82,6 +82,23 @@ export const contractPrice = worker => workerWage(worker)*contractPlan(worker).p
 export const contractLeft = ms => ms<=0?t('farmRules.contract.expired'):ms>=WORK_DAY_MS?t('farmRules.contract.daysLeft',{days:Math.floor(ms/WORK_DAY_MS),minutes:Math.floor(ms%WORK_DAY_MS/60000)}):t('farmRules.contract.minutesLeft',{minutes:Math.ceil(ms/60000)});
 export const workerLevel = xp => Math.min(10,1+Math.floor(Math.sqrt(xp/100)));
 export const workerStat = (worker,key) => Math.min(100,worker.stats[key]+2*(workerLevel(worker.xp)-1));
+// Farm slots and job limits (crew-autoplay.md 2): 3 shared slots, any mix; a robot does exactly one job,
+// a person one job group (care · processing · delivery), two from level 4, all three from level 7 (đa nhiệm).
+export const FARM_SLOTS = 3;
+// Auto mode: 3 free runs of 10 minutes (≈ 30 minutes in all); time only counts while Auto is playing.
+export const AUTOPLAY = { runs: 3, runMs: 10 * 60000 };
+export const CARE_JOBS = ['plant','water','fertilize','weed','prune','harvest'];
+export const JOB_GROUPS = ['care','processing','delivery'];
+export const jobGroupOf = job => CARE_JOBS.includes(job) ? 'care' : job;
+export const groupLimit = w => w.kind==='robot' ? 1 : workerLevel(w.xp)>=7 ? 3 : workerLevel(w.xp)>=4 ? 2 : 1;
+export const nextGroupLevel = w => workerLevel(w.xp)>=7 ? null : workerLevel(w.xp)>=4 ? 7 : 4;
+// Jobs the worker actually does: robot = its first enabled job; person = enabled jobs inside the first `groupLimit` enabled groups.
+export function activeJobs(w) {
+  const on = WORKER_JOBS.map(([id])=>id).filter(id=>w.jobs?.[id]!==false);
+  if (w.kind==='robot') return new Set(on.slice(0,1));
+  const groups = JOB_GROUPS.filter(g=>on.some(id=>jobGroupOf(id)===g)).slice(0,groupLimit(w));
+  return new Set(on.filter(id=>groups.includes(jobGroupOf(id))));
+}
 export const WORKER_JOBS=[['plant','🌱'],['water','💧'],['fertilize','🪴'],['weed','🌿'],['prune','✂️'],['harvest','🧺'],['processing','⚙️'],['delivery','🛒']].map(([id,icon])=>[id,icon,t(`farmRules.job.${id}`)]);
 export const ACTION_LABELS = Object.fromEntries(['construct','dismantle','plant','water','weed','fertilize','harvest','refill','collect','start','turn','prune','deposit','ship','shipOrder','feedFish'].map(id=>[id,t(`farmRules.action.${id}`)]));
 
@@ -105,7 +122,7 @@ export function workerIdleReason(worker,progress,at) {
   if(batches.length){const next=Math.min(...batches.map(b=>b.readyAt));if(next<=at){
       const used=progress.lots.reduce((sum,l)=>sum+l.grams,0),free=assetValue(assetById('storage'),progress.upgrades.storage)-used,smallest=Math.min(...batches.filter(b=>b.readyAt<=at).map(b=>b.outputGrams));
       if(smallest>free)return t('farmRules.idle.storageFull',{free:formatMass(Math.max(0,free)),need:formatMass(smallest)});
-      if(worker.jobs?.processing===false)return t('farmRules.idle.processingOff');
+      if(!activeJobs(worker).has('processing'))return t('farmRules.idle.processingOff');
       if(progress.directives?.process===false)return t('farmRules.idle.directiveOff');
       return t('farmRules.idle.batchQueue');
     }

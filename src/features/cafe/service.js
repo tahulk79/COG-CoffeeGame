@@ -1,11 +1,18 @@
 import { CROPS } from '../farm/content.js';
 import { avoidanceStep } from '../../shared/game/collision.js';
 import { ASSETS, CAFE_SHIFT_MS as SHIFT_MS, INCIDENTS, assetValue } from '../farm/rules.js';
-import { RECIPES, SUPPLIES, TABLE_LEVELS, cafeRank, candidateById, lockReason, missingFor, recipeById, roleOf, staffEffects, stars } from './recipes.js';
+import { rollSlack, traitOf, dislikeOf, tiredFactor, drain, regen, MORALE } from '../../shared/game/morale.js';
+import { MAX_CREW, STAR_CAP, freshFor, resolveUses, RECIPES, SUPPLIES, TABLE_LEVELS, cafeRank, candidateById, lockReason, missingFor, recipeById, roleOf, staffEffects, stars } from './recipes.js';
 import { formatNumber, t } from '../../i18n/index.js';
 
 // Player-facing text: src/i18n/locales/cafe-recipes.js (svc.*). Layout point names below are dev-only (grid debugger) and stay Vietnamese.
 const S = (key, params) => t(`cafeRecipes.svc.${key}`, params);
+// Cup freshness (04-cafe/gameplay.md "Ly để lâu"): hot 60 s, iced 90 s of open-café time. Past that the cup is cold
+// (−1★, −30% price); past twice that it is thrown away. A cup is stamped the first time anyone looks at its age.
+const freshMs = d => freshFor(d.recipeId);
+const cupAge = d => Date.now() - (d.madeAt ??= Date.now());
+const isCold = d => cupAge(d) > freshMs(d);
+const isSpoiled = d => cupAge(d) > 2 * freshMs(d);
 
 // Floor plan shared with the 3D scene. The back counter runs along z=-10.6 with a staff lane behind it (z≈-12.15);
 // every station is a fixed slot so upgrades fill slots instead of moving things, and walkers path-find around furniture.
@@ -177,15 +184,16 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
     return { ok: true, message: `${S('ordered', { who: label(c), drink: recipe.name })}${recipe.id === shift?.special ? ' ⭐' : ''}${why}` };
   }
   const atFront = c => c.phase === 'queue' && c.inLine && !c.path.length && line().indexOf(c) < registers();
-  function takeOrder(c = line().find(atFront), patienceBonus = 1) {
+  function takeOrder(c = line().find(o => atFront(o) && !claims.has(`order:${o.id}`)), patienceBonus = 1) {
     if (!c) return { ok: false, message: snap.cafe.open ? S('noGuest') : S('closed') };
     claims.delete(`order:${c.id}`);
     return placeOrder(c, patienceBonus);
   }
   function serve(c, drink, charm = 0) {
     // Robot cups (whoever carries them) never touch the player's combo or the shift goal (robot-staff.md 5).
+    if (isCold(drink)) drink = { ...drink, stars: Math.max(0, drink.stars - 1), cold: true };
     const robot = Boolean(drink.robot), special = !robot && drink.recipeId === shift?.special;
-    const result = act('sell', { recipeId: drink.recipeId, quality: drink.quality, stars: drink.stars, wait: 1 - c.patience / c.patienceMax, combo: robot ? 0 : combo, memory: drink.memory, table: c.seat ? c.seat.table : null, charm, special, robot, staff: Boolean(drink.staff) });
+    const result = act('sell', { recipeId: drink.recipeId, quality: drink.quality, stars: drink.stars, cold: Boolean(drink.cold), wait: 1 - c.patience / c.patienceMax, combo: robot ? 0 : combo, memory: drink.memory, table: c.seat ? c.seat.table : null, charm, special, robot, staff: Boolean(drink.staff) });
     if (!result.ok) { notice(result.message, false); return false; }
     if (result.walked) {
       const why = candidateById('gift-pha')?.fixedEffects.faults[drink.recipeId] || S('robotWrong');
@@ -202,7 +210,7 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
     if (c.seat) { c.phase = 'drinking'; c.mood = mood; c.timer = 8; } else leave(c, mood);
     // Rebuilt here so numbers use the UI locale like the coin chip (model message uses raw "3.67").
     const num = n => formatNumber(n, { maximumFractionDigits: 2 });
-    notice(`${S('sale', { who: label(c), drink: recipeById(drink.recipeId).name, price: num(result.price) })}${result.tip ? S('saleTip', { tip: num(result.tip) }) : ''}${special ? S('saleSpecial') : ''}${robot ? S('saleRobot') : combo > 1 ? S('saleCombo', { n: combo }) : ''}`);
+    notice(`${S('sale', { who: label(c), drink: recipeById(drink.recipeId).name, price: num(result.price) })}${drink.cold ? S('saleCold') : ''}${result.tip ? S('saleTip', { tip: num(result.tip) }) : ''}${special ? S('saleSpecial') : ''}${robot ? S('saleRobot') : combo > 1 ? S('saleCombo', { n: combo }) : ''}`);
     return true;
   }
   function clean(table) {
@@ -231,7 +239,7 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
     for (const id of [...agents.keys()]) if (!crew.some(m => m.id === id)) { releaseJob(agents.get(id)); agents.delete(id); }
     crew.forEach(m => {
       let a = agents.get(m.id);
-      if (!a) { a = { id: m.id, person: candidateById(m.id), role: roleOf(m.id).id, pos: { ...STAFF_DOOR }, path: [], facing: 0, job: null, carry: null, spare: null, timer: 0, timerMax: 0, phoneUntil: 0, rude: null }; agents.set(m.id, a); }
+      if (!a) { a = { id: m.id, person: candidateById(m.id), role: roleOf(m.id).id, pos: { ...STAFF_DOOR }, path: [], facing: 0, job: null, carry: null, spare: null, timer: 0, timerMax: 0, phoneUntil: 0, rude: null, energy: 100, slackUntil: 0, slack: null }; agents.set(m.id, a); }
       a.level = m.level; a.robot = a.person.kind === 'robot';
       a.effects = staffEffects(a.person, a.level);
       // The trial robot barista goes home once it has made its cups; sick staff (rest > 0) sit the shift out.
@@ -257,7 +265,13 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
     a.carry = a.spare = null; a.job = null; a.timerMax = 0;
   }
   function assign(a, job) { a.job = job; claims.add(job.claim); if (job.second) claims.add(job.second.claim); walk(a, job.to); }
+  // Đa nhiệm (crew-autoplay.md 2): from level 3 an idle person also serves cups and clears tables; robots keep their one job.
+  const helps = a => !a.robot && a.level >= 3;
   function findJob(a) {
+    const own = roleJob(a);
+    return own || (helps(a) && !['waiter', 'cleaner'].includes(a.role) ? serveJob(a) : null);
+  }
+  function roleJob(a) {
     const e = a.effects;
     if (a.role === 'cashier') {
       const i = [...agents.values()].filter(o => o.role === 'cashier').indexOf(a);
@@ -271,16 +285,22 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
       const station = [...Array(stations()).keys()].find(s => !usedStations.includes(s));
       if (station === undefined) return null;
       if (e.recipes) return robotBrewJob(a, station);
-      const pending = tickets().filter(t => !t.covered && !claims.has(`brew:${t.id}`));
-      const t = pending.find(t => (snap.cafe.mastery[t.recipe.id]?.best || 0) >= e.mastery);
-      // Tell the player which drink this barista still needs to be taught.
-      a.blocked = !t && pending.length ? { recipe: pending[0].recipe, score: e.mastery } : null;
+      // The ticket the player is brewing at the bench is theirs: nobody brews the same order twice.
+      const pending = tickets().filter(t => !t.covered && !claims.has(`brew:${t.id}`) && t.id !== benchTarget);
+      const t = pending.find(t => e.only ? t.recipe.id === e.only : (snap.cafe.mastery[t.recipe.id]?.best || 0) >= e.mastery);
+      // Tell the player which drink this barista still needs to be taught (a one-drink robot has nothing to learn).
+      a.blocked = !t && pending.length && !e.only ? { recipe: pending[0].recipe, score: e.mastery } : null;
       const crop = t && [t.recipe.bean, ...CROPS.map(c => c.id)].find(id => !missingFor(t.recipe, snap.cafe, id).length);
       if (!crop) return null;
       return { type: 'brew', claim: `brew:${t.id}`, customer: t.id, recipeId: t.recipe.id, cropId: crop, station, to: { x: STATIONS[station], z: LANE_Z }, work: e.ms / 1000, score: e.score };
     }
-    if (a.role === 'waiter' || a.role === 'cleaner') {
-      if (a.role === 'waiter') {
+    if (a.role === 'waiter' || a.role === 'cleaner') return serveJob(a);
+    return null;
+  }
+  function serveJob(a) {
+    const e = a.effects;
+    {
+      if (a.role !== 'cleaner') {
         // Most impatient guest first.
         const options = shelf.filter(d => !claims.has(`drink:${d.id}`)).map(d => [d, waiting().filter(c => wants(d)(c) && !c.path.length && (c.seat || !gear('pickup'))).sort((x, y) => x.patience / x.patienceMax - y.patience / y.patienceMax)[0]]).filter(([, c]) => c);
         if (options.length) {
@@ -300,7 +320,7 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
   // taking anything, so the cup is brewed when the job starts; lacking anything → no job, ❓ with the model's reason.
   function robotBrewJob(a, station) {
     const e = a.effects, now = Date.now();
-    const t = tickets().find(t => !t.covered && !claims.has(`brew:${t.id}`) && e.recipes.includes(t.recipe.id));
+    const t = tickets().find(t => !t.covered && !claims.has(`brew:${t.id}`) && t.id !== benchTarget && e.recipes.includes(t.recipe.id));
     if (!t) { a.blocked = null; return null; }
     if (a.retryAt > now) return null;
     const result = act('brew', { recipeId: t.recipe.id, robot: 'gift' });
@@ -317,25 +337,34 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
     } else if (job.cup) {
       addToShelf(job.cup);
     } else if (job.type === 'brew') {
-      const result = act('brew', { recipeId: job.recipeId, cropId: job.cropId, score: job.score, staff: true });
-      if (result.ok) addToShelf({ recipeId: job.recipeId, quality: result.quality, stars: job.score >= 90 ? 3 : 2, memory: false, staff: true });
+      // Tired people lose 12 pts; staff cups stop at ★★, the robot barista's at ★.
+      const score = Math.max(0, job.score - (!a.robot && a.energy < MORALE.tired ? 12 : 0));
+      const result = act('brew', { recipeId: job.recipeId, cropId: job.cropId, score, staff: true });
+      if (result.ok) addToShelf({ recipeId: job.recipeId, quality: result.quality, stars: Math.min(a.robot ? STAR_CAP.robot : STAR_CAP.staff, stars(score)), memory: false, staff: true });
     } else if (job.type === 'clean') {
       if (clean(job.table)) notice(S('cleanedBy', { name: a.person.person, n: job.table + 1 }));
     }
-    claims.delete(job.claim); a.job = null;
+    claims.delete(job.claim); a.job = null; tire(a);
   }
+  const tire = a => { if (!a.robot) a.energy = drain(a.energy, traitOf(a.id)); };
   const guestSpot = c => c.seat ? seatStand(c.seat) : { x: c.pos.x - .7, z: c.pos.z };
   function updateAgent(a, dt) {
     const now = Date.now();
     // Incidents freeze the person where they stand (robot-staff.md 4); the rude bubble resolves after RUDE_WARN_MS.
     if (a.rude) { if (now >= a.rude.until) fireRude(a); return; }
     if (a.phoneUntil > now && a.active) return;
+    // A break (tired / lazy / disliked job): stand still with the excuse bubble; a tired break restores energy at the end.
+    if (!a.job && a.slackUntil > now) { a.energy = regen(a.energy, dt); return; }
+    if (a.slack) { if (a.slack === 'tired') a.energy = Math.min(100, a.energy + MORALE.breakEnergy); a.slack = null; }
     const speed = (a.effects.speed || SPEED) * boost();
     if (move(a, dt, speed)) return;
     if (!a.active) { releaseJob(a); const h = home(a); if (Math.hypot(h.x - a.pos.x, h.z - a.pos.z) > .2) walk(a, h); return; }
     const job = a.job;
     if (!job) {
+      if (!a.robot) a.energy = regen(a.energy, dt);
       const next = findJob(a);
+      const slack = next && !a.robot && a.active && rollSlack(a.energy, traitOf(a.id), dislikeOf(a.id, ['order', 'brew', 'deliver', 'clean']) === next.type);
+      if (slack) { a.slackUntil = now + slack.ms; a.slack = slack.reason; return; }
       if (next) { assign(a, next); if (next.type === 'order') tryRude(a, next.customer); }
       else { const h = home(a); if (Math.hypot(h.x - a.pos.x, h.z - a.pos.z) > .3) walk(a, h); }
       return;
@@ -363,10 +392,10 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
       a.carry = null; claims.delete(job.claim);
       const s = job.second, c2 = s && customers.find(o => o.id === s.customer && wants(a.spare)(o));
       if (c2) { Object.assign(job, { claim: s.claim, drink: s.drink, customer: s.customer, second: null }); a.carry = a.spare; a.spare = null; walk(a, guestSpot(c2)); return; }
-      releaseJob(a);
+      releaseJob(a); tire(a);
       return;
     }
-    if (!a.timerMax) { a.timerMax = job.work / boost(); a.timer = 0; }
+    if (!a.timerMax) { a.timerMax = job.work / boost() * (a.robot ? 1 : tiredFactor(a.energy)); a.timer = 0; }
     a.timer += dt;
     if (a.timer >= a.timerMax) { a.timerMax = 0; finishJob(a); }
   }
@@ -387,7 +416,7 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
       if (result.type === 'phone') { releaseJob(a); a.phoneUntil = now + INCIDENTS.phoneMs; notice(S('phone', { name }), false); }
       else { releaseJob(a); notice(S('sick', { name }), false); }
       const role = roleOf(a.id), taken = snap.cafe.crew.filter(o => !o.gift && roleOf(o.id)?.id === role.id).length;
-      onIncident({ id: a.id, name, type: result.type, replace: result.type === 'sick' && ['waiter', 'cleaner'].includes(role.id) && taken < role.max });
+      onIncident({ id: a.id, name, type: result.type, replace: result.type === 'sick' && ['waiter', 'cleaner'].includes(role.id) && taken < role.max && snap.cafe.crew.filter(o => !o.gift).length < MAX_CREW });
     }
   }
   function tryRude(a, customer) {
@@ -421,7 +450,7 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
     // The auto espresso machine brews espresso-family orders nobody has started.
     if (autoJob && now >= autoJob.readyAt) {
       const result = act('brew', { recipeId: autoJob.recipeId, cropId: autoJob.cropId, score: 70, staff: true });
-      if (result.ok) addToShelf({ recipeId: autoJob.recipeId, quality: result.quality, stars: 2, memory: false, staff: true });
+      if (result.ok) addToShelf({ recipeId: autoJob.recipeId, quality: result.quality, stars: STAR_CAP.robot, memory: false, staff: true });
       claims.delete(autoJob.claim); autoJob = null;
     }
     if (!autoJob && gear('autoEspresso') && snap.cafe.open) {
@@ -434,7 +463,7 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
     const manager = [...agents.values()].find(a => a.role === 'manager' && a.active);
     if (!manager || (restockIn -= dt) > 0) return;
     restockIn = 5;
-    const needed = new Set(RECIPES.filter(r => !lockReason(r, snap.cafe)).flatMap(r => Object.keys(r.uses)));
+    const needed = new Set(RECIPES.filter(r => !lockReason(r, snap.cafe)).flatMap(r => Object.keys(resolveUses(r.uses, snap.cafe))));
     const low = SUPPLIES.find(s => needed.has(s.id) && snap.cafe.supplies[s.id] < s.pack / 4 && snap.coins >= s.price * 3);
     if (low && act('buy', low.id).ok) notice(S('restocked', { name: manager.person.person, supply: low.name, pack: low.packLabel }));
   }
@@ -444,8 +473,15 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
     const menu = RECIPES.filter(r => !lockReason(r, snap.cafe));
     shift = { startedAt: now, endsAt: now + SHIFT_MS, goal: 4 + cafeRank(snap.cafe.reputation) + 6 * helpers(), served: 0, stars: 0, revenue: 0, lost: 0, angry: 0, rude: 0, robotWalked: 0, gift: false, misses: {}, special: menu[Math.floor(Math.random() * menu.length)].id, learning: learning() };
   }
+  function waste(drink, quiet = false) {
+    if (shift) shift.wasted = (shift.wasted || 0) + 1;
+    if (!quiet) notice(S('wasted', { drink: recipeById(drink.recipeId).name }), false);
+  }
   function endShift() {
     if (!shift) return;
+    // Closing time: cups nobody took are thrown away and counted in the report (they also never survive a reload).
+    for (const d of shelf.splice(0)) waste(d, true);
+    if (hand) { waste(hand, true); hand = null; }
     const done = shift, avg = done.served ? done.stars / done.served : 0;
     shift = null;
     // Same met rule as the model's 'shift' action; a learning shift that misses skips the action so it gets no −1.
@@ -473,6 +509,7 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
     // Rời quán thì quán đứng yên; vào lại dời mọi mốc giờ thực đi đúng thời gian vắng để ca, máy pha và sự cố chạy tiếp như chưa rời.
     resume(awayMs) {
       if (shift) { shift.startedAt += awayMs; shift.endsAt += awayMs; }
+      for (const d of [...shelf, ...(hand ? [hand] : [])]) if (d.madeAt) d.madeAt += awayMs; // cups do not cool while the café is paused
       if (autoJob) { autoJob.startedAt += awayMs; autoJob.readyAt += awayMs; }
       for (const a of agents.values()) { if (a.retryAt) a.retryAt += awayMs; if (a.phoneUntil) a.phoneUntil += awayMs; if (a.rude) a.rude.until += awayMs; }
       refresh();
@@ -480,6 +517,7 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
     abandon() { if (learning()) return 0; const left = customers.filter(c => !['drinking', 'leaving'].includes(c.phase)).length; for (let i = 0; i < left; i++) act('lost', 'busy'); return left; },
     get agents() { return [...agents.values()]; }, get autoJob() { return autoJob; }, get snap() { return snap; }, get dirty() { return dirty; }, get shift() { return shift; },
     queueLength: () => line().length,
+    isClaimed: key => claims.has(key),
     guestsAt: table => customers.filter(c => c.seat?.table === table),
     staffOn: role => [...agents.values()].some(a => a.role === role && a.active),
     toggleOpen() {
@@ -534,6 +572,9 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
       }
       for (let i = customers.length - 1; i >= 0; i--) if (customers[i].phase === 'leaving' && !customers[i].path.length) customers.splice(i, 1);
       if (shift && !shift.gift) shift.gift = snap.cafe.crew.some(m => m.gift && agents.get(m.id)?.active);
+      // Cups left too long are thrown away (the one a person is carrying is on its way and stays).
+      for (let i = shelf.length - 1; i >= 0; i--) if (isSpoiled(shelf[i]) && !claims.has(`drink:${shelf[i].id}`)) waste(shelf.splice(i, 1)[0]);
+      if (hand && isSpoiled(hand)) { waste(hand); hand = null; }
       checkIncidents(now);
       for (const a of agents.values()) updateAgent(a, dt);
       separate(dt, player);

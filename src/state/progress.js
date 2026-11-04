@@ -1,7 +1,7 @@
 import { DEFAULT_NAME } from './names.js';
 import { DEFAULT_LANG, LANGS } from '../i18n/index.js';
 
-const KEY = 'cog-coffee-progress';
+import { PROGRESS_KEY as KEY, PLAYER_KEY } from './storage-keys.js';
 // Set by resetProgress so a farm autosave in the last frames before reload cannot restore the old run.
 let locked = false;
 
@@ -21,6 +21,15 @@ export function saveHeaven(heaven) {
       chapter: Math.max(Number(previous.chapter) || 2, heaven.completed ? 3 : 2),
       heaven, startingGift: heaven.gift,
     }));
+    return true;
+  } catch { return false; }
+}
+
+// Nơi trùng sinh chọn trên bản đồ thế giới; farm chép sang `farm.region` khi tạo save.
+export function saveRegion(id) {
+  if (locked) return true;
+  try {
+    localStorage.setItem(KEY, JSON.stringify({ ...readProgress(), version: 1, startingRegion: id }));
     return true;
   } catch { return false; }
 }
@@ -99,7 +108,6 @@ export function saveSettings(settings) {
   } catch { return false; }
 }
 
-const PLAYER_KEY = 'cog-coffee-player';
 export function readPlayer() {
   try {
     const player = JSON.parse(localStorage.getItem(PLAYER_KEY));

@@ -21,7 +21,8 @@ const HEAVEN_MODELS = {
   'heaven/portal/right-leaf': 'heaven/portal.glb#portal_right_leaf',
 };
 
-export async function createHeavenGame(profile, onReborn) {
+// onPortal: có thì cổng mở bản đồ thế giới trước (app gọi lại depart/cancelPortal); không có thì đi qua cổng ngay.
+export async function createHeavenGame(profile, onReborn, onPortal) {
   const character = await loadPlayer(playerModel(profile.gender));
   const world = createHeavenScene(character);
   await attachModels(world, HEAVEN_MODELS);
@@ -31,7 +32,7 @@ export async function createHeavenGame(profile, onReborn) {
   let ui, journey, mode = null, nearest = null, activeExpert = null;
   let conversation = [], lineIndex = 0, afterConversation = null, selectedQuestion = null;
   let feedbackAction = null;
-  let departureTime = 0;
+  let departureTime = 0, farewellDone = false;
   let leading = false; // chọn "Dẫn tôi": tự đi tới chuyên gia tiếp theo, rồi Thần Tiếp Nhận
   const briefingOptions = [
     { id: 'lead', text: t('heaven.briefing.lead') },
@@ -42,6 +43,7 @@ export async function createHeavenGame(profile, onReborn) {
   function clearInput() { keyboard.clear(); touch = { x: 0, z: 0 }; world.stopMovement(); ui?.clearTouch(); }
   let questTarget = null;
   function refresh() {
+    ui.skipVisible(['welcome', 'learning', 'review'].includes(journey.phase));
     questTarget = ui.hud(journey);
     world.setTarget(questTarget);
     world.setUnlocked(journey.phase === 'return' || journey.phase === 'completed');
@@ -133,6 +135,14 @@ export async function createHeavenGame(profile, onReborn) {
     mode = 'departure'; departureTime = 0; clearInput();
     world.setFocus('portal'); world.setTarget(null); world.setReturning(true); ui.departure(0);
   }
+  function skip() {
+    if (!journey.skip()) return;
+    leading = false; mode = null; activeExpert = null; selectedQuestion = null;
+    // Bỏ qua: không hỏi hành trang, lấy món đầu; đi thẳng vào cổng, tới nơi mở bản đồ (không thoại).
+    journey.chooseGift(GIFTS[0].id);
+    world.setFocus(null); world.stopMovement(); ui.closeDialogue(); refresh(); world.moveToNpc('portal');
+  }
+  function openMap() { mode = 'map'; clearInput(); ui.closeDialogue(); world.setTarget(null); onPortal(); }
   function interact() {
     if (mode || !nearest) return;
     const npc = nearest; world.setFocus(npc.id);
@@ -146,7 +156,17 @@ export async function createHeavenGame(profile, onReborn) {
     if (npc.id === 'portal') {
       if (journey.phase === 'return') {
         const { correct, total } = journey.score; // luồng thường chuyển màn ngay, không qua ui.complete
-        talk([...FAREWELL, [CLERK, t('heaven.portal.farewell', { correct, total })]], depart);
+        const go = onPortal ? openMap : depart;
+        // Đã nghe lời tiễn (đóng bản đồ rồi vào lại) hoặc đã Bỏ qua: mở bản đồ luôn, không thoại.
+        if (farewellDone || journey.progress.skipped) go();
+        else {
+          // Có bản đồ thì câu cuối mời chọn nơi bắt đầu.
+          farewellDone = true;
+          talk([
+            ...FAREWELL, [CLERK, t('heaven.portal.farewell', { correct, total })],
+            ...(onPortal ? [[CLERK, t('heaven.portal.chooseWorld')]] : []),
+          ], go);
+        }
       }
       else talk([[CLERK, t('heaven.portal.locked')]]);
       return;
@@ -164,10 +184,10 @@ export async function createHeavenGame(profile, onReborn) {
     else question(expert);
   }
   ui = createHeavenUI(profile, {
-    interact,
+    interact, skip,
     touch: value => { touch = value; if (value.x || value.z) { world.stopMovement(); ui.hideHint(); } },
     anyClick(event) {
-      if (event.target.closest('#game-settings-toggle, #game-settings')) return;
+      if (event.target.closest('#game-settings-toggle, #game-settings, #heaven-skip')) return;
       if (mode === 'talk' || mode === 'feedback') {
         event.preventDefault(); event.stopPropagation(); nextDialogue(); return;
       }
@@ -277,6 +297,9 @@ export async function createHeavenGame(profile, onReborn) {
       if (['KeyE', 'Enter', 'Space'].includes(event.code) && !event.repeat && !event.target.closest('button')) { event.preventDefault(); interact(); }
     },
     handleKeyUp(event) { keyboard.up(event); },
+    // Bản đồ thế giới đóng: đứng lại trước cổng. Đã chọn nơi: chạy hoạt cảnh qua cổng như cũ.
+    cancelPortal() { if (mode === 'map') { world.setFocus(null); close(); } },
+    depart() { if (mode === 'map') depart(); },
     dispose() { events.abort(); clearInput(); ui.dispose(); world.dispose(); },
   };
 }

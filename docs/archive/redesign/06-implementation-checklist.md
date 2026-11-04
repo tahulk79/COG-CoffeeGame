@@ -86,7 +86,7 @@ CSS mới ở `src/ui/styles/menus.css` (nạp cuối).
 ## Bước 8 — Thiên đàng, intro, loading, lỗi, settings ◐
 - ◐ Thiên đàng: có ánh sáng riêng (`HEAVEN_LIGHT` trong `heaven/scene.js`), nắng vàng ấm, bớt đèn môi trường, nền kem; sương cùng màu nền (trước sương xám xanh cố định). Sàn bớt trắng, bóng rõ hơn một chút. **Chưa có màu nhấn ngọc trên lối đi/bệ thần**, vì phải sửa vật liệu của `heaven/plaza.glb` trong Blender
 - ☐ Mây intro: chưa làm. Mây xám là khối trong `intro/street.glb#heaven_path`, cần asset
-- ☑ Loading: logo chữ "COG" + "Chuyện một quán cà phê"; một mẹo chơi ngẫu nhiên mỗi lần tải cảnh (5 mẹo, lấy từ luật thật của game, trong `app/game.js`)
+- ☑ Loading: logo chữ "Godbean" + "Chuyện một quán cà phê"; một mẹo chơi ngẫu nhiên mỗi lần tải cảnh (5 mẹo, lấy từ luật thật của game, trong `app/game.js`)
 - ☑ Màn lỗi: tiêu đề + câu thân thiện, nút "Tải lại" và "Thử đồ họa thấp" (lưu `quality: low` rồi tải lại — đã thử, lưu đúng); lỗi kỹ thuật thu vào "Chi tiết kỹ thuật"; ẩn nút cài đặt khi đang lỗi
 - ☑ Cài đặt: mỗi âm lượng một dòng (nhãn · thanh · %), cao 50px thay vì ~90px. Thanh Nhạc/Môi trường bị ẩn là **cố ý**: `settings.js` chỉ hiện khi đã có file nhạc/âm nền
 

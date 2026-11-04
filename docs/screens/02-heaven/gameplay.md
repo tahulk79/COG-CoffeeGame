@@ -8,7 +8,8 @@
 4. Mỗi câu chỉ được trả lời một lần. Đúng hoặc sai đều lưu lựa chọn và kết quả ngay, có giải thích rồi sang câu tiếp theo. Trả lời đủ hai câu nhận dấu hoàn thành; điểm đúng/sai hiển thị riêng, không nhận lặp dấu hoặc đổi đáp án.
 5. Đủ ba dấu mới được Thần Tiếp Nhận kiểm tra hồ sơ. Hội thoại lúc này mới tiết lộ người chơi chỉ ngất, Thần Chết kéo nhầm. Có dấu đỏ “CHƯA CHẾT · CHỈ NGẤT”.
 6. Chọn một hành trang: Túi hạt giống, Gói mở rộng quán (tên cũ Bộ dụng cụ pha) hoặc Túi vốn nhỏ. Lưu lựa chọn cho chương nông trại sau.
-7. Tự đi về cổng. Sau câu tiễn hài hước cuối, nhân vật đi qua cổng và cảnh sáng dần, hiện phần kết tỉnh lại ở trần gian.
+7. Tự đi về cổng. Sau câu tiễn hài hước cuối, Thần Tiếp Nhận mời «chọn nơi bắt đầu lại» và bản đồ thế giới mở ra ([02b-world-map](../02b-world-map/README.md)); chọn nơi xong nhân vật đi qua cổng và cảnh sáng dần.
+8. **Bỏ qua (04/11/2026):** nút «Bỏ qua ↗» cạnh ⚙️, chỉ hiện trước bước chọn hành trang (pha `welcome`/`learning`/`review`). Bấm lần đầu đổi chữ thành «Bỏ qua phần học? Bấm lần nữa» (4 s không bấm thì trở lại); bấm lần hai thì đóng thoại đang mở, tự lấy hành trang đầu tiên (Hạt giống), nhân vật tự đi vào cổng và mở ngay bản đồ thế giới — không hộp chọn hành trang, không lời tiễn (sửa 04/11: bớt thao tác). Câu đã trả lời vẫn tính mẹo; câu chưa trả lời không có mẹo và sẽ được hỏi lại ở nông trại/quán như câu sai.
 
 ### Thiên đàng là bài học (chốt và triển khai 03/11/2026)
 
@@ -40,7 +41,7 @@ Cổng trùng sinh dẫn thẳng vào nông trại; quán cà phê mở từ nô
 
 ## Lưu và khôi phục
 
-Dùng key sẵn có `cog-coffee-progress`, giữ schema ngoài `version: 1` và các trường cũ. Thêm:
+Dùng key sẵn có `godbean-progress`, giữ schema ngoài `version: 1` và các trường cũ. Thêm:
 
 ```text
 heaven.version: 2
@@ -49,6 +50,7 @@ heaven.answers: { growing: [...], brewing: [...], business: [...] }
   mỗi đáp án: { questionId, optionId, correct }
 heaven.answered: số câu đã trả lời mỗi chuyên gia (dữ liệu dẫn xuất)
 heaven.passed: số câu đúng mỗi chuyên gia (dữ liệu dẫn xuất)
+heaven.skipped: boolean   — đã bấm Bỏ qua: không cần đủ ba dấu để tới bước hành trang
 heaven.revealed: boolean
 heaven.gift: null | seeds | tools | capital
 heaven.completed: boolean

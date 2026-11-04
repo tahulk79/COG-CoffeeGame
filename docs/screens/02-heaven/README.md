@@ -5,9 +5,10 @@ Chương học việc: gặp Hội đồng trùng sinh, trả lời câu hỏi v
 | | |
 |---|---|
 | Vào từ | [01 · Intro](../01-intro/README.md); hoặc mở game khi save có `introCompleted` mà chưa xong thiên đàng |
-| Ra tới | [03 · Nông trại](../03-farm/README.md) qua cổng trùng sinh |
+| Ra tới | [02b · Bản đồ thế giới](../02b-world-map/README.md) khi bước vào cổng; chọn nơi xong mới qua cổng tới farm/quán |
 | Dữ liệu ghi | `heaven` (có `answers`, `completed`, `gift`), `startingGift` (`saveHeaven`) |
 | Dữ liệu truyền | `gift` và `correctQuestionIds(heaven)` được đưa vào `createFarmGame` |
+| Hook bản đồ | `createHeavenGame(profile, onReborn, onPortal)`; trả thêm `cancelPortal()` (đóng bản đồ, đứng trước cổng) và `depart()` (đã chọn nơi, chạy hoạt cảnh qua cổng). Lời chào ở cổng chỉ nghe lần đầu |
 | Code | `src/features/heaven/`: `scene.js`, `game.js`, `ui.js`, `content.js` (NPC, câu hỏi, thoại), `journey.js` (tiến trình, `correctQuestionIds`) |
 
 ## Tài liệu

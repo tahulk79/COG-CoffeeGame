@@ -5,7 +5,7 @@ import { applyI18n, t } from './i18n/index.js';
 
 // Dịch HTML tĩnh trước khi hiện màn tải (docs/shared/i18n.md).
 applyI18n();
-document.title = `COG — ${t('html.tagline')}`;
+document.title = `Godbean: ${t('html.tagline')}`;
 
 installCurrencyIcons();
 installIcons();

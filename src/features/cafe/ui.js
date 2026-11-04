@@ -1,7 +1,8 @@
 import { CROPS, HUD_UNLOCKS } from '../farm/content.js';
+import { regionType } from '../world-map/content.js';
 import { createIncidentLayer, clock } from '../../ui/incidents.js';
 import { ASSETS, SUPPLIER_PRICE, assetValue, formatCoins, formatMass, upgradePrice } from '../farm/rules.js';
-import { recipeShort, SHIFT_TIERS, CANDIDATES, GEAR, MAX_CREW, RECIPES, STAFF_MAX, STAFF_ROLES, STAFF_STATS, SUPPLIES, TABLE_LEVELS, cafeRank, effectLines, lockReason, recipeById, roleOf, staffStat, staffWage, stars, trainCost } from './recipes.js';
+import { BRAND_QUALITY, MILKS, WATERS, recipeShort, SHIFT_TIERS, CANDIDATES, GEAR, MAX_CREW, RECIPES, STAFF_MAX, STAFF_ROLES, STAFF_STATS, SUPPLIES, TABLE_LEVELS, cafeRank, effectLines, lockReason, recipeById, roleOf, staffStat, staffWage, stars, trainCost } from './recipes.js';
 import { mountBench } from './bench.js';
 import { isSettingsOpen, openSettings } from '../../ui/settings.js';
 import { askLesson } from '../../ui/lesson-prompt.js';
@@ -21,6 +22,7 @@ const coins = n => t('cafe.coins', { n: formatCoins(n) });
 const stepLine = (step, recipe) => step.type === 'bean' ? t('cafe.book.stepBean', { bean: CROPS.find(c => c.id === recipe.bean).name }) : step.type === 'pour' ? `${step.text}: ${step.target[0]}–${step.target[1]} ${step.unit}` : `${step.text}: ${step.options.find(o => o.ok === 1).label}`;
 
 export function createCafeUI({ farm, service, profile, notice, onExit, onOrders, onWalkTable, onWalk = () => {}, onGuide = () => {}, fx = () => {} }) {
+  const farmless = regionType(farm.peek().region) === 'cafe'; // chỉ có quán: hạt chỉ nhập ngoài, không đặt farm
   const events = new AbortController(), signal = events.signal;
   let cleanup = null, view = null;
   // Heaven re-ask (onboarding-flow.md 3.1): queued by the cup result / shift report, shown once that screen closes,
@@ -84,7 +86,7 @@ export function createCafeUI({ farm, service, profile, notice, onExit, onOrders,
   // Đếm theo vai không tính thành viên gói thử (gift không chiếm chỗ).
   const roleCount = (crew, roleId) => crew.filter(m => !m.gift && roleOf(m.id)?.id === roleId).length;
   // «Thuê robot thay»: người ốm là phục vụ/tạp vụ và vai đó còn chỗ (người ốm vẫn chiếm chỗ) — robot-staff mục 4.
-  const canCover = id => { const role = roleOf(id); return ['waiter', 'cleaner'].includes(role?.id) && roleCount(service.snap.cafe.crew, role.id) < role.max && workersOpen(); };
+  const canCover = id => { const role = roleOf(id), crew = service.snap.cafe.crew; return ['waiter', 'cleaner'].includes(role?.id) && roleCount(crew, role.id) < role.max && crew.filter(m => !m.gift).length < MAX_CREW && workersOpen(); };
   // Bong bóng 📱🤒😤 trên HUD; khi modal (vd quầy pha) mở thì gắn vào dialog để vẫn chạm được.
   const incidentLayer = createIncidentLayer('cafe-incidents');
   function renderIncidents() {
@@ -122,10 +124,10 @@ export function createCafeUI({ farm, service, profile, notice, onExit, onOrders,
   const toggle = tile('🚪', t('cafe.nav.open'), () => { const r = service.toggleOpen(); notice(r.message, r.ok); refreshHud(); });
   // HUD v2 (docs/shared/design-system.md §6): bar = Mở cửa, Kho, Nông trại, Quản lý; the rest sits in the drawer.
   const nav = el('nav'); nav.id = 'cafe-main-nav'; nav.setAttribute('aria-label', t('cafe.nav.label'));
-  nav.append(toggle, tile('🧺', t('cafe.nav.pantry'), () => openPantry(), true), tile('🌱', t('cafe.nav.farm'), onExit));
+  nav.append(toggle, tile('🧺', t('cafe.nav.pantry'), () => openPantry(), true), ...(onExit ? [tile('🌱', t('cafe.nav.farm'), onExit)] : [])); // chỉ có quán: không có nút về nông trại
   document.body.append(nav);
   const drawer = mountHudDrawer(nav, { signal, id: 'cafe-drawer' });
-  drawer.grid.append(tile('🛠️', t('cafe.nav.upgrades'), () => openUpgrades(), true), tile('👥', t('cafe.nav.staff'), () => openStaff(), true), tile('📦', t('cafe.nav.orders'), onOrders, true), tile('📖', t('cafe.nav.book'), () => openBook(), true), tile('⚙️', t('cafe.nav.settings'), () => openSettings(), true));
+  drawer.grid.append(tile('🛠️', t('cafe.nav.upgrades'), () => openUpgrades(), true), tile('👥', t('cafe.nav.staff'), () => openStaff(), true), ...(farmless ? [] : [tile('📦', t('cafe.nav.orders'), onOrders, true)]), tile('📖', t('cafe.nav.book'), () => openBook(), true), tile('⚙️', t('cafe.nav.settings'), () => openSettings(), true));
 
   function refreshHud() {
     renderIncidents();
@@ -226,18 +228,45 @@ export function createCafeUI({ farm, service, profile, notice, onExit, onOrders,
         root.append(el('p', 'cafe-note', `${t('cafe.pantry.beansNote', { pending })}${coming ? t('cafe.pantry.coming', { mass: formatMass(coming) }) : ''}`));
         for (const crop of CROPS) {
           const grams = cafe.stock.roasted[crop.id] || 0, unlocked = crop.level <= farm.level;
-          const order = button(t('cafe.pantry.order'), () => act('order', crop.id, rerender)); order.disabled = !unlocked;
+          const order = farmless ? null : button(t('cafe.pantry.order'), () => act('order', crop.id, rerender)); if (order) order.disabled = !unlocked;
           root.append(row('🫘', `${crop.name} · ${formatMass(grams)}`, unlocked ? t('cafe.pantry.enough', { n: Math.floor(grams / 18) }) : t('cafe.pantry.locked', { level: crop.level }), order, grams < 60 && unlocked ? 'low' : null));
         }
         const supplier = button(coins(SUPPLIER_PRICE), () => act('supply', null, rerender)); supplier.disabled = p.coins < SUPPLIER_PRICE;
         root.append(row('📦', t('cafe.pantry.supplier'), t('cafe.pantry.supplierDetail'), supplier));
         return;
       }
+      root.append(prefsCard(cafe, rerender));
       for (const s of SUPPLIES) {
         const buy = button(coins(s.price), () => act('buy', s.id, rerender)); buy.disabled = p.coins < s.price;
         root.append(row(s.icon, `${s.name} · ${formatNumber(cafe.supplies[s.id])} ${s.unit}`, t('cafe.pantry.buyPack', { pack: s.packLabel }), buy, cafe.supplies[s.id] < s.pack / 5 ? 'low' : null));
       }
     });
+  }
+
+  // "Nguyên liệu đang dùng": one milk and one water for every drink (04-cafe/gameplay.md "Sữa và nước"). Big tap targets.
+  function prefsCard(cafe, rerender) {
+    const card = el('section', 'cafe-prefs');
+    card.append(el('h3', 'cafe-subhead', t('crew.prefs.title')), el('p', 'cafe-note', t('crew.prefs.note')));
+    const group = (key, label, ids) => {
+      const box = el('div', 'cafe-choice'); box.setAttribute('role', 'radiogroup'); box.setAttribute('aria-label', label);
+      box.append(el('span', 'cafe-choice-label', label));
+      for (const id of ids) {
+        const supply = SUPPLIES.find(s => s.id === id), q = BRAND_QUALITY[id], on = cafe.prefs[key] === id;
+        const opt = button('', () => act('prefs', { [key]: id }, rerender), 'cafe-choice-opt');
+        opt.setAttribute('role', 'radio'); opt.setAttribute('aria-checked', String(on)); opt.dataset.on = String(on);
+        opt.append(el('span', 'cafe-choice-icon', supply?.icon || '🚰'), el('strong', '', supply?.name || t('crew.prefs.tap')),
+          el('b', q >= 0 ? 'cafe-q cafe-q--up' : 'cafe-q cafe-q--down', t('crew.prefs.quality', { q: q > 0 ? `+${q}` : `${q}` })),
+          el('small', '', supply ? t('crew.prefs.stock', { price: formatCoins(supply.price), pack: supply.packLabel, n: formatNumber(cafe.supplies[id] || 0), unit: supply.unit }) : t('crew.prefs.free')));
+        box.append(opt);
+      }
+      return box;
+    };
+    card.append(group('milk', t('crew.prefs.milk'), MILKS), group('water', t('crew.prefs.water'), WATERS));
+    // The chosen brand ran out: say what is used instead, so a lower score is never a mystery.
+    const other = MILKS.find(m => m !== cafe.prefs.milk);
+    if (!(cafe.supplies[cafe.prefs.milk] > 0)) card.append(el('p', 'ui-alert ui-alert--warn', t('crew.prefs.milkOut', { brand: SUPPLIES.find(s => s.id === cafe.prefs.milk).name, other: SUPPLIES.find(s => s.id === other).name })));
+    if (cafe.prefs.water === 'lavie' && !(cafe.supplies.lavie > 0)) card.append(el('p', 'ui-alert ui-alert--warn', t('crew.prefs.lavieOut')));
+    return card;
   }
 
   let upgradeTab = 'tables';
@@ -428,6 +457,7 @@ export function createCafeUI({ farm, service, profile, notice, onExit, onOrders,
       root.append(row('☕', t('cafe.shift.served', { n: r.served }), t('cafe.shift.marks', { a: marks[0], b: marks[1], c: marks[2], avg: r.avg.toFixed(1), lost: r.lost }), null, r.tier ? 'owned' : null));
       root.append(row('🪙', t('cafe.shift.revenue', { coins: coins(r.revenue) }), r.tier ? t('cafe.shift.bonus', { medal, bonus: r.bonus, rep: r.rep }) : r.message || t('cafe.shift.noBronze')));
       root.append(row(recipeById(r.special).icon, t('cafe.shift.special', { drink: recipeById(r.special).name }), t('cafe.shift.specialDetail')));
+      if (r.wasted) root.append(row('🗑️', t('cafe.shift.wasted', { n: r.wasted }), t('cafe.shift.wastedDetail')));
       if (r.robot) root.append(robotCompare(r.robot));
       const actions = el('div', 'cafe-actions');
       actions.append(button(t('cafe.shift.again'), () => { lessonIds = null; dialog.close(); const res = service.toggleOpen(); notice(res.message, res.ok); refreshHud(); }, 'cafe-primary'), button(t('cafe.shift.rest'), () => dialog.close()));

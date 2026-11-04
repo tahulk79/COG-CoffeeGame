@@ -40,6 +40,7 @@ export function askLesson({ expert, question, onAnswer, onClose }) {
     const button = document.createElement('button'); button.type = 'button';
     const key = document.createElement('span'); key.className = 'choice-key'; key.textContent = String(index + 1);
     const text = document.createElement('span'); text.textContent = option.text;
+    button.dataset.correct = String(option.id === question.correct); // Auto mode answers like a player (crew-autoplay.md 5)
     button.append(key, text); button.addEventListener('click', () => answer(option.id));
     list.append(button);
   });

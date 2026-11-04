@@ -32,6 +32,14 @@ export function createHeavenUI(profile, callbacks) {
     $('heaven-passport-toggle').setAttribute('aria-expanded', 'false');
   }, { signal });
   $('heaven-replay').addEventListener('click', callbacks.replay, { signal });
+  // Bỏ qua: bấm lần đầu chỉ hỏi lại (như nút đặt lại trong Cài đặt), 4 s không bấm thì về như cũ.
+  let skipArmed = 0;
+  const skipLabel = () => { $('heaven-skip').firstElementChild.textContent = t(skipArmed ? 'heaven.skip.confirm' : 'heaven.skip.label'); };
+  $('heaven-skip').addEventListener('click', () => {
+    if (!skipArmed) { skipArmed = setTimeout(() => { skipArmed = 0; skipLabel(); }, 4000); skipLabel(); return; }
+    clearTimeout(skipArmed); skipArmed = 0; skipLabel(); callbacks.skip();
+  }, { signal });
+  signal.addEventListener('abort', () => clearTimeout(skipArmed));
   $('heaven-quest').addEventListener('click', callbacks.questGo, { signal });
   $('heaven-quest').addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); callbacks.questGo(); } }, { signal });
   const resetJoystick = mountJoystick($('heaven-joystick'), $('heaven-joystick-knob'), callbacks.touch, signal);
@@ -143,6 +151,7 @@ export function createHeavenUI(profile, callbacks) {
   }
   return {
     dialogue, closeDialogue, hud, prompt, hideHint,
+    skipVisible(visible) { $('heaven-skip').hidden = !visible; },
     toast(text) { $('heaven-toast').textContent = text; $('heaven-toast').hidden = false; toastUntil = performance.now() + 4500; },
     update() {
       if (toastUntil && performance.now() > toastUntil) { $('heaven-toast').hidden = true; toastUntil = 0; }
@@ -173,7 +182,7 @@ export function createHeavenUI(profile, callbacks) {
     dispose() {
       choicePulse?.cancel();
       resetJoystick(); abort.abort(); clearChoices(); $('caption-box').hidden = true; hideHint(); $('dialogue-tip').hidden = true;
-      $('heaven-hud').hidden = true; $('heaven-controls').hidden = true; $('heaven-ending').hidden = true; $('heaven-toast').hidden = true;
+      $('heaven-hud').hidden = true; $('heaven-controls').hidden = true; $('heaven-skip').hidden = true; $('heaven-ending').hidden = true; $('heaven-toast').hidden = true;
       $('dialogue-next').hidden = false; $('caption-box').classList.remove('quiz-dialogue'); delete $('caption-box').dataset.mode;
       $('heaven-return-fade').hidden = true;
     },

@@ -8,13 +8,16 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet" />
-    <title>COG — A Coffee Shop Story</title>
+    <title>Godbean: Build your own Coffee Empire!</title>
+    <meta name="description" content="Godbean: Build your own Coffee Empire! Grow, roast and brew coffee, then run your own café." />
+    <meta name="application-name" content="Godbean" />
+    <meta name="apple-mobile-web-app-title" content="Godbean" />
     <style>
       html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#edf5e7;color:#355342;font-family:'Baloo 2',system-ui,sans-serif}
       *,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}
       body.booting > :not(#loading):not(#error){visibility:hidden}
       .loading-screen{position:fixed;inset:0;z-index:5;background:radial-gradient(ellipse at 50% 40%,#fff8e4,#edf5e7 75%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;color:#355342}.loading-screen p{font-size:13px;letter-spacing:1px}.loading-screen small{font-size:10px;color:#5b7560}.coffee-loader{position:relative;width:74px;height:96px}.cup{position:absolute;bottom:0;left:4px;width:52px;height:48px;border:2px solid #8c6b36;border-radius:5px 5px 23px 23px;background:linear-gradient(0deg,#e9bd6b33,transparent)}.cup:after{content:'';position:absolute;right:-18px;top:5px;width:16px;height:24px;border:2px solid #8c6b36;border-left:0;border-radius:0 14px 14px 0}.coffee-loader>span{position:absolute;left:17px;top:18px;width:2px;height:25px;background:linear-gradient(transparent,#68877099,transparent);animation:steam 2s infinite ease-in-out}.coffee-loader>span:nth-child(2){left:30px;animation-delay:.4s}.coffee-loader>span:nth-child(3){left:43px;animation-delay:.8s}@keyframes steam{0%{transform:translateY(10px) scaleY(.5);opacity:0}45%{opacity:1}100%{transform:translateY(-18px) scaleY(1.3);opacity:0}}#load-track{width:200px;height:3px;background:#a5bf9b40;border-radius:4px;overflow:hidden}#load-fill{width:0;height:100%;background:#8c6b36;transition:width .35s ease}
-      .loading-logo{display:grid;justify-items:center;margin:0 0 6px;color:#694427;font:800 52px/1 'Baloo 2',system-ui,sans-serif;letter-spacing:6px;text-shadow:0 3px 0 #e5c387}.loading-logo small{margin-top:6px;color:#5b7560;font:700 13px/1.3 'Baloo 2',system-ui,sans-serif;letter-spacing:1px;text-shadow:none}.loading-tip{max-width:min(320px,calc(100vw - 48px));margin:10px 0 0;color:#6f5333;font-size:12px;line-height:1.5;text-align:center}.loading-tip:empty{display:none}
+      .loading-logo{display:grid;justify-items:center;margin:0 0 6px;color:#694427;font:800 52px/1 'Baloo 2',system-ui,sans-serif;letter-spacing:2px;text-shadow:0 3px 0 #e5c387}.loading-logo small{margin-top:6px;color:#5b7560;font:700 13px/1.3 'Baloo 2',system-ui,sans-serif;letter-spacing:1px;text-shadow:none}.loading-tip{max-width:min(320px,calc(100vw - 48px));margin:10px 0 0;color:#6f5333;font-size:12px;line-height:1.5;text-align:center}.loading-tip:empty{display:none}
       @media(prefers-reduced-motion:reduce){.coffee-loader>span{animation:none}}
     </style>
     <link rel="stylesheet" href="/src/ui/styles/game.css">
@@ -23,7 +26,7 @@
     <div id="game" tabindex="-1" aria-label="Màn 1: Tai nạn tại phố cổ Hà Nội" data-i18n-attr="aria-label:html.game.label"></div>
     <div class="vignette"></div>
     <section id="loading" class="loading-screen" aria-label="Đang tải trò chơi" data-i18n-attr="aria-label:html.loading.label">
-      <h1 class="loading-logo">COG<small data-i18n="html.tagline">Chuyện một quán cà phê</small></h1>
+      <h1 class="loading-logo">Godbean<small data-i18n="html.tagline">Build your own Coffee Empire!</small></h1>
       <div class="coffee-loader"><span></span><span></span><span></span><div class="cup"></div></div>
       <p data-i18n="html.loading.brewing">Đang pha một khởi đầu mới…</p>
       <div id="load-track" role="progressbar" aria-label="Tiến trình tải" data-i18n-attr="aria-label:html.loading.progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="load-fill"></div></div>
@@ -37,10 +40,8 @@
         <span class="selection-check" aria-hidden="true">✓</span>
       </div>
       <form id="player-form" class="creation-card">
-        <div class="gender-switch ui-tabs ui-tabs--segmented" role="group" aria-label="Nhân vật" data-i18n-attr="aria-label:html.selection.character"><button type="button" class="ui-tab" data-gender="male" aria-pressed="true"><span aria-hidden="true">♂</span> <span data-i18n="html.selection.male">Nam</span></button><button type="button" class="ui-tab" data-gender="female" aria-pressed="false"><span aria-hidden="true">♀</span> <span data-i18n="html.selection.female">Nữ</span></button></div>
-        <div class="name-row"><label class="name-label" for="player-name" data-i18n="html.selection.name">Tên của bạn</label><p id="name-note" data-i18n="html.selection.nameNote">Tối đa 20 ký tự</p></div>
-        <div class="name-controls"><input id="player-name" name="playerName" type="text" required maxlength="20" autocomplete="nickname" placeholder="Nhập tên nhân vật" data-i18n-attr="placeholder:html.selection.namePlaceholder" aria-describedby="name-note"><button id="random-name" class="ui-btn ui-btn--gold ui-btn--icon" type="button" aria-label="Chọn tên ngẫu nhiên" title="Tên ngẫu nhiên" data-i18n-attr="aria-label:html.selection.randomName;title:html.selection.randomNameShort"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" fill="none" stroke="currentColor" stroke-width="2"/><g fill="currentColor"><circle cx="8.5" cy="8.5" r="1.6"/><circle cx="15.5" cy="8.5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="8.5" cy="15.5" r="1.6"/><circle cx="15.5" cy="15.5" r="1.6"/></g></svg></button></div>
-        <button id="enter-game" type="submit" class="primary ui-btn ui-btn--go ui-btn--lg"><span data-i18n="html.selection.enter">Vào Game</span> <span aria-hidden="true">▶</span></button>
+        <button id="enter-game" type="submit" class="ui-btn ui-btn--lg"><span data-i18n="html.selection.enter">Vào Game</span> <span aria-hidden="true">▶</span></button>
+        <span class="tap-hand" aria-hidden="true">👆</span>
       </form>
     </section>
     <div id="scene-transition" aria-hidden="true"><div class="slide-sheet slide-left"></div><div class="slide-sheet slide-right"></div></div>
@@ -67,6 +68,7 @@
         <div id="heaven-passport" hidden><h3 data-i18n="html.heaven.passportTitle">Hồ sơ trùng sinh</h3><p id="heaven-score"></p><ul id="heaven-passport-list"></ul></div>
       </div>
     </section>
+    <button id="heaven-skip" class="ui-btn ui-btn--plain ui-btn--sm" type="button" hidden><span data-i18n="heaven.skip.label">Bỏ qua</span> <span aria-hidden="true">↗</span></button>
     <div id="heaven-controls" hidden>
       <div id="heaven-joystick" class="joystick" aria-label="Kéo joystick để di chuyển" data-i18n-attr="aria-label:html.joystick"><span id="heaven-joystick-knob"></span></div>
       <p id="heaven-hint" class="ui-coach" role="status" hidden></p>

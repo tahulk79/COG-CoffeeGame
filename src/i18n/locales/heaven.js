@@ -113,6 +113,9 @@ export default {
     'heaven.clerk.done': 'File corrected: just knocked out. Travel pack received; please head to the gate home.',
     'heaven.expert.done': 'You already have the {seal} seal. Learn to use it, not to collect paper.',
     'heaven.toast.saveFailed': 'Your browser couldn’t save progress. You can still keep playing this run.',
+    'heaven.skip.label': 'Skip',
+    'heaven.skip.confirm': 'Skip the lessons? Tap again',
+    'heaven.portal.chooseWorld': 'The Rebirth Gate is open. Where will you start your new life? Choose your place on the world map.',
 
     // HUD
     'heaven.hint.touch': 'Drag the round pad to walk · Tap a character to talk',
@@ -248,6 +251,9 @@ export default {
     'heaven.clerk.done': 'Hồ sơ đã đính chính: chỉ ngất. Hành trang đã nhận; mời con tới cổng trở về.',
     'heaven.expert.done': 'Con đã có dấu {seal} rồi. Học để dùng, không phải để sưu tầm giấy nhé.',
     'heaven.toast.saveFailed': 'Trình duyệt chưa lưu được tiến trình. Bạn vẫn chơi tiếp được trong lượt này.',
+    'heaven.skip.label': 'Bỏ qua',
+    'heaven.skip.confirm': 'Bỏ qua phần học? Bấm lần nữa',
+    'heaven.portal.chooseWorld': 'Cổng trùng sinh đã mở. Con muốn bắt đầu lại ở đâu? Hãy chọn nơi trên bản đồ thế giới.',
 
     'heaven.hint.touch': 'Kéo nút tròn để đi · Chạm nhân vật để nói chuyện',
     'heaven.hint.mouse': 'Bấm mặt đất để đi · Bấm nhân vật để tới nói chuyện',

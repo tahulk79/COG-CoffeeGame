@@ -1,12 +1,12 @@
-# Game Design Document — COG · Cà phê
+# Game Design Document — Godbean
 
 ## Thông tin tài liệu
 
 | | |
 |---|---|
-| Dự án | COG — Cà phê |
+| Dự án | **Godbean** — tagline: *Godbean: Build your own Coffee Empire!* (vi: *Xây đế chế cà phê của riêng bạn!*). Tên cũ: COG — Cà phê (đổi 04/11/2026). Repo và remote `cog` của sếp giữ tên cũ |
 | Loại tài liệu | Game Design Document (GDD) tổng hợp |
-| Phiên bản | 1.3 |
+| Phiên bản | 1.8 |
 | Cập nhật | 04/11/2026 |
 | Trạng thái tài liệu | **Bản nháp tổng hợp** — chưa có người duyệt; xem [mục 0](#0-bảng-trạng-thái) |
 | Người duyệt | _(chưa có)_ |
@@ -51,7 +51,7 @@ Mục này trả lời ba câu hỏi: **GDD đang ở trạng thái nào**, **co
 | Câu hỏi | Trả lời (04/11/2026) |
 |---|---|
 | GDD đang ở trạng thái nào? | Bản nháp tổng hợp v1.2, gom từ tài liệu theo màn; **chưa có người duyệt**. Luật cốt lõi của 5 màn đã chốt; còn 4 đề xuất chờ duyệt và 5 câu hỏi mở |
-| Code đã tới đâu? | 21/27 tính năng **Đã code**, 3 **Một phần**, 3 **Chưa làm** (bảng 0.3). Toàn bộ vòng chơi 00 → 04 chơi được |
+| Code đã tới đâu? | 21/30 tính năng **Đã code**, 3 **Một phần**, 2 **Đang làm**, 4 **Chưa làm** (bảng 0.3). Toàn bộ vòng chơi 00 → 04 chơi được |
 | Đã kiểm chứng tới đâu? | Chỉ luồng người chơi mới được playtest (3 lượt, 03/11/2026) và kinh tế đo bằng mô phỏng. Phần lớn tính năng **chưa có xác nhận chơi thật** |
 | GDD còn cần sửa gì? | 9 việc ở bảng 0.4; gấp nhất: chốt 4 chỗ code robot/sự cố làm khác spec (D-10). D-01, D-02 đã sửa ngày 04/11/2026 |
 
@@ -78,9 +78,9 @@ Mục này trả lời ba câu hỏi: **GDD đang ở trạng thái nào**, **co
 
 | ID | Tính năng | Mục GDD | Thiết kế | Code | Kiểm chứng | Ghi chú / việc tiếp |
 |---|---|---|---|---|---|---|
-| F-01 | Chọn nhân vật | 4 | Đã chốt | Đã code | Chưa | |
+| F-01 | Chọn nhân vật | 4 | Đã chốt | Đã code | Chưa | 04/11: bỏ chọn giới tính/đặt tên, tên ngẫu nhiên theo ngôn ngữ, nút Chơi mobile-first |
 | F-02 | Intro 3D 23,5 s | 3, 4 | Đã chốt | Đã code | Chưa | Y tế, Thần Chết còn khối tạm; chưa lồng tiếng |
-| F-03 | Thiên đàng: hỏi đáp, dấu, hành trang | 5.3 | Đã chốt | Đã code | Test, Playtest 03/11 | `tests/heaven-gameplay.test.js` |
+| F-03 | Thiên đàng: hỏi đáp, dấu, hành trang | 5.3 | Đã chốt | Đã code | Test, Playtest 03/11 | `tests/heaven-gameplay.test.js`. 04/11: thêm nút Bỏ qua (`heaven.skipped`) — bỏ qua thì tự lấy hành trang đầu, đi thẳng vào cổng mở bản đồ; chưa commit, chưa kiểm chứng |
 | F-04 | Mẹo thiên đàng, hỏi lại câu sai | 5.3, A.1 | Đã chốt | Đã code | Playtest 03/11 | Lỗi mở: reload mất chế độ tự dẫn tới chuyên gia kế |
 | F-05 | Ruộng, mua đất liền kề | 6.1 | Đã chốt | Đã code | Chưa | Playtest 03/11 chưa đi tới Mua ruộng |
 | F-06 | Cây trồng, chăm sóc | 6.2, A.3 | Đã chốt | Đã code | Test | Tài liệu đã sửa theo code 04/11 |
@@ -93,7 +93,7 @@ Mục này trả lời ba câu hỏi: **GDD đang ở trạng thái nào**, **co
 | F-13 | Vòng ca quán, mục tiêu ca, uy tín | 7.1–7.3 | Đang chỉnh | Đã code | Playtest 03/11 | |
 | F-14 | 11 công thức, bàn pha theo số đo | 7.4, A.4 | Đã chốt | Đã code | Chưa | |
 | F-15 | Nâng cấp quán, tự động hóa | 7.6, A.6 | Đã chốt | Đã code | Chưa | Bố cục kiểm bằng `?debug=grid` |
-| F-16 | Thợ farm 2 chỗ, chỉ thị | 8.1 | Đã chốt | Đã code | Test | `tests/worker-avoidance.test.js`, `farm-gameplay.test.js` |
+| F-16 | Thợ farm 3 chỗ (F-29), chỉ thị | 8.1 | Đã chốt | Đã code | Test | `tests/worker-avoidance.test.js`, `farm-gameplay.test.js` |
 | F-17 | Nhân viên quán, bảng việc | 8.2 | Đã chốt | Đã code | Chưa | |
 | F-18 | Robot, sự cố, gói thử robot | 8.3 | Đã chốt | Đã code | Chưa | 4 chỗ code khác spec chờ chốt (D-10); cần đo playtester theo robot-staff mục 12 |
 | F-19 | Nhiệm vụ, HUD mở dần, hướng dẫn lần đầu | 9 | Đã chốt | Đã code | Playtest 03/11 | Chưa kiểm đoạn Gửi hạt → Mua ruộng → Tưới/Làm cỏ |
@@ -105,6 +105,11 @@ Mục này trả lời ba câu hỏi: **GDD đang ở trạng thái nào**, **co
 | F-25 | Âm thanh, VFX phản hồi | 12.2 | Đã chốt | Đã code | Chưa | Chưa có nhạc nền/âm môi trường file thật |
 | F-26 | Thay khối tạm bằng asset 3D | 12.3 | Đã chốt | Một phần | Chưa | Theo `assets/registry/` |
 | F-27 | Nhóm "Để sau" (cold brew, khách quen, latte art…) | 14.4 | Đề xuất | Chưa làm | — | |
+| F-31 | Món mới (Matcha, Matcha Latte, Dirty), sữa Meiji/Dalat Milk, nước máy/Lavie, Auto pha, bàn pha mobile first | 7.4, 7.5 | Đã chốt | Đang làm | Test 04/11 | 04/11: code chưa commit; `tests/cafe-rules.test.js` qua (41/41 toàn bộ). [ý tưởng](ideas/2026-11-04-menu-mon-moi.md), [04-cafe/gameplay](../screens/04-cafe/gameplay.md) |
+| F-30 | Pha nhanh một chạm, rót dễ hơn, ly có hạn tươi | 7.4 | Đã chốt | Đang làm | Test 04/11 | 04/11: code chưa commit; `tests/cafe-rules.test.js` qua (39/39 toàn bộ); Auto pha bằng Pha nhanh. [04-cafe/gameplay](../screens/04-cafe/gameplay.md) |
+| F-29 | 3 slot đội, sao robot/nhân viên/bạn, lười-mệt, chế độ Auto | 8 | Đã chốt | Đang làm | Test 04/11 | 04/11: code chưa commit; `node --test tests/*.test.js` 39/39 qua (chưa chơi thử); farm + quán 3 slot, robot 1 việc, đa nhiệm theo cấp, Auto 3 × 10 phút. [crew-autoplay](../shared/crew-autoplay.md) |
+| F-28 | Bản đồ thế giới: chọn nơi trùng sinh, luật theo loại nơi | 4.1 | Đã chốt | Đang làm | Chưa | 04/11: chưa commit; 8 nơi (cả hai: Việt Nam, Brazil; chỉ trồng: Colombia, Kenya, Indonesia; chỉ quán: Ý, Nhật, Mỹ), loại nơi ẩn tới khi chốt, mỗi nơi 2 nhiệm vụ riêng (thưởng chưa sim); sa bàn 3D địa hình liền (bờ thoải, núi, nước trong, đổ bóng), đảo của nơi chọn bay lên khi chạm. Đã xem thử trong Brave 04/11 (chưa playtest). 04/11 chiều: thay đảo tròn bằng khối hình quốc gia trồi lên, nhãn chỉ còn tên, thẻ khi chạm chỉ ghi địa lý (địa hình, khí hậu, nhiệt độ, mưa, độ cao) — chưa xem lại. [02b-world-map](../screens/02b-world-map/README.md) |
+| F-31 | Chợ thế giới: sàn đơn hàng giữa các khu vực (NPC trước) | 6.6, 7 | Đề xuất | Chưa làm | — | [market-proposal](../screens/02b-world-map/market-proposal.md) |
 
 ### 0.4 Việc cần sửa trong GDD và tài liệu
 
@@ -134,12 +139,13 @@ Người chơi bị Thần Chết "kéo nhầm" lên thiên đàng, học nghề
 
 | | |
 |---|---|
+| Tên game | **Godbean** · tagline *Godbean: Build your own Coffee Empire!* |
 | Thể loại | Mô phỏng nông trại + quản lý quán cà phê, 3D, có cốt truyện mở đầu |
 | Nền tảng | Trình duyệt (WebGL / Three.js), ưu tiên mobile, chơi được trên PC |
 | Góc nhìn | 3D, camera chéo từ trên cao; farm dùng phép chiếu song song |
 | Điều khiển | Bấm/chạm đối tượng để nhân vật tự đi tới làm; WASD/mũi tên trên PC, joystick trên mobile |
 | Ngôn ngữ | Anh (mặc định) và Việt, đổi trong ⚙️ Cài đặt; xem [i18n.md](../shared/i18n.md) |
-| Lưu | Một save `cog-coffee-progress` trong localStorage |
+| Lưu | Một save `godbean-progress` trong localStorage |
 | Phiên chơi | Đơn vị nhịp: ngày công / vụ 6 phút, ca quán 4 phút |
 
 ### 1.3 Đối tượng người chơi
@@ -203,21 +209,24 @@ Chưa có lồng tiếng.
 flowchart LR
     SEL[00 · Chọn nhân vật] --> INTRO[01 · Intro 23,5 s]
     INTRO --> HEAVEN[02 · Thiên đàng]
-    HEAVEN -->|qua cổng| FARM[03 · Nông trại]
+    HEAVEN -->|bước vào cổng| MAP[02b · Bản đồ thế giới]
+    MAP -->|nơi cả hai / chỉ farm| FARM[03 · Nông trại]
+    MAP -->|nơi chỉ quán| CAFE
     FARM <-->|Vào quán / Nông trại| CAFE[04 · Quán cà phê]
 ```
 
-- 00 → 01 → 02 → 03 là đường một chiều. Qua cổng thiên đàng thì tải lại trang vào thẳng farm.
-- Chỉ farm ↔ quán đi hai chiều. Quán dùng chung model `farm`; farm vẫn chạy khi người chơi ở quán.
+- 00 → 01 → 02 → 02b → 03/04 là đường một chiều. Qua cổng thiên đàng thì tải lại trang vào thẳng farm (nơi chỉ quán: vào thẳng quán).
+- Chỉ farm ↔ quán đi hai chiều, và chỉ ở nơi "cả hai" (Việt Nam); xem [02b-world-map](../screens/02b-world-map/README.md). Quán dùng chung model `farm`; farm vẫn chạy khi người chơi ở quán.
 - Chi tiết điều kiện chuyển và dữ liệu đi theo: [game-flow.md](../game-flow.md).
 
 ### 4.2 Bảng màn
 
 | Màn | Thời lượng mục tiêu | Vai trò | Tài liệu |
 |---|---|---|---|
-| 00 Chọn nhân vật | < 30 s | Chọn nam/nữ, đặt tên | [00-selection](../screens/00-selection/README.md) |
+| 00 Chọn nhân vật | < 30 s | Chọn nam/nữ, tên ngẫu nhiên theo ngôn ngữ | [00-selection](../screens/00-selection/README.md) |
 | 01 Intro | 23,5 s, bỏ qua được | Mở truyện | [01-intro](../screens/01-intro/README.md) |
 | 02 Thiên đàng | ≤ 150 s | Bài học, nhận mẹo và hành trang | [02-heaven](../screens/02-heaven/README.md) |
+| 02b Bản đồ thế giới | < 30 s | Chọn nơi trùng sinh: chỉ farm / chỉ quán / cả hai | [02b-world-map](../screens/02b-world-map/README.md) |
 | 03 Nông trại | Vòng chơi chính | Trồng, chế biến, bán, thuê thợ, xây | [03-farm](../screens/03-farm/README.md) |
 | 04 Quán | Ca 4 phút | Nhận order, pha tay, bưng ly | [04-cafe](../screens/04-cafe/README.md) |
 
@@ -385,7 +394,7 @@ Giá chi tiết: Phụ lục A.6.
 
 ### 8.1 Thợ nông trại
 
-- Tối đa **2 chỗ thợ**; thuê là vào làm ngay. Phí tuyển trả một lần.
+- Tối đa **3 chỗ thợ**, trộn robot/người (F-29); robot đúng 1 việc, người 1 mảng việc, cấp 4 → 2 mảng, cấp 7 → đa nhiệm. Thuê là vào làm ngay. Phí tuyển trả một lần.
 - Lương `30 + 10 × (cấp − 1)` xu mỗi ngày công 6 phút, tự gia hạn nếu đủ xu. Hết xu thì thợ dừng an toàn.
 - Không có năng lượng, nghỉ giữa ca hay bồi dưỡng. Vắng mặt > 60 s không tiêu ngày công đã trả.
 - Thợ làm theo **Chỉ thị** (tab trong Nhân viên): Tự chăm vườn, Trồng lấp ô trống, Dùng phân bón, Tự chế biến. Có 2 thợ thì chia vùng chăm.
@@ -394,7 +403,7 @@ Giá chi tiết: Phụ lục A.6.
 
 ### 8.2 Nhân viên quán
 
-- Tối đa 10 người; giới hạn vai: 2 thu ngân, 3 barista, 3 phục vụ, 1 tạp vụ, 1 quản lý ca.
+- Tối đa **3 người** (F-29); giới hạn vai trong 3 slot: 2 thu ngân, 3 barista, 3 phục vụ, 1 tạp vụ, 1 quản lý ca. Sao ly: robot ★, nhân viên tối đa ★★, bạn ★★★. Người cấp 3 trở lên phụ bưng/dọn khi rảnh.
 - Lương theo **ca 4 phút**, chỉ trôi khi quán mở.
 - Bảng việc chung: ai rảnh tự nhận việc đúng vai, ưu tiên khách sắp hết kiên nhẫn; mỗi việc được giữ chỗ để không làm trùng.
 
@@ -563,7 +572,7 @@ Chi tiết bảng màu, ánh sáng theo cảnh: [art-direction.md](../shared/art
 |---|---|
 | Engine | Three.js, JS module |
 | Cấu trúc code | Theo màn ở `src/features/<màn>/`; xem [project-structure.md](../shared/project-structure.md) |
-| Save | Một key `cog-coffee-progress` (`version: 1`): `player`, `introCompleted`, `heaven`, `startingGift`, `farm` (`version: 3`), `settings`. Mọi hàm ghi đọc bản cũ rồi gộp |
+| Save | Một key `godbean-progress` (`version: 1`): `player`, `introCompleted`, `heaven`, `startingGift`, `farm` (`version: 3`), `settings`. Mọi hàm ghi đọc bản cũ rồi gộp |
 | Ghi farm | `commit()` sau mỗi thao tác thành công và mỗi ≥ 5 s; quán ghi qua `farm.act(...)` |
 | Tìm đường | A* lưới 0,35, chia lô theo ngân sách khung hình; dùng chung cho người chơi, thợ, khách |
 | Hiệu năng | Đồ họa mặc định theo thiết bị, tự hạ một bậc khi dưới ~25 fps kéo dài; không post-processing |
@@ -746,6 +755,11 @@ Code còn vài chỗ tự lệch nhau ở cây trồng, chưa ảnh hưởng lu�
 
 | Phiên bản | Ngày | Thay đổi |
 |---|---|---|
+| 1.8 | 04/11/2026 | Thêm F-31 (Đã chốt, Đang làm): 3 món mới, chọn sữa/nước, hạt Robusta Việt Nam/Arabica Ethiopia, Auto pha, bàn pha mobile first; 14 món |
+| 1.7 | 04/11/2026 | Đổi tên game thành **Godbean** (tagline "Build your own Coffee Empire!"): tiêu đề trang, màn tải, tiêu đề tab, README, GDD; đổi cả khóa save sang `godbean-progress` / `godbean-player` (không giữ save cũ: chơi lại từ đầu, khóa cũ bị xóa), tên file GDD thành `godbean-gdd.md`, tài liệu và lưu trữ |
+| 1.6 | 04/11/2026 | Thêm F-30 (Đã chốt, Đang làm): Pha nhanh, rót dễ hơn, ly có hạn tươi, dọn kệ hết ca |
+| 1.5 | 04/11/2026 | Thêm F-29 (Đã chốt, Đang làm): 3 slot farm/quán, sao theo người làm, lười-mệt, Auto; mục 8.1, 8.2 sửa theo |
+| 1.4 | 04/11/2026 | Thêm F-28 Bản đồ thế giới (Đã chốt, Đang làm): màn 02b ở mục 4.1, 4.2 |
 | 1.3 | 04/11/2026 | F-24 → Đã code (commit `4bd9f2e`, dịch xong 5 màn, chờ kiểm chứng); mục 1.2 sửa ngôn ngữ mặc định thành tiếng Anh cho khớp code |
 | 1.2 | 04/11/2026 | Xong D-01 (tài liệu robot/sự cố theo code), D-02 (số cây trồng theo code: lứa đầu 450/480/546 s, tưới về 70, bù vắng mặt 8 giờ, thêm tỉa cành); thêm D-10, D-11; Phụ lục B ghi 4 chỗ code khác spec |
 | 1.1 | 04/11/2026 | Thêm mục 0 Bảng trạng thái (tóm tắt, tiến độ 27 tính năng, 9 việc sửa tài liệu); robot chuyển sang Đã code theo đối chiếu code |

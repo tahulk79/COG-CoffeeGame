@@ -12,12 +12,14 @@ import { createWorkActivity } from './activity.js';
 import { orderSteps } from './orders.js';
 import { createFarmCrew, onPhone } from './crew.js';
 import { createCafeGame } from '../cafe/game.js';
-import { ASSETS,assetValue,upgradePrice,formatMass,formatCoins,phaseOf,WORKER_CANDIDATES,workerLevel,workerStat,efficiency,WORKER_JOBS,SEASON_MS,workerWage,DAY_MS,WORK_DAY_MS,assetMaxLevel,upgradeRequirement,assetTier,ASSET_TIERS,contractPlan,contractPrice,contractLeft,FERTILIZER_PRICE,SUPPLIER_PRICE,ROBOT_PACKS,packPrice } from './rules.js';
+import { activeJobs,groupLimit,nextGroupLevel,CARE_JOBS,FARM_SLOTS,ASSETS,assetValue,upgradePrice,formatMass,formatCoins,phaseOf,WORKER_CANDIDATES,workerLevel,workerStat,efficiency,WORKER_JOBS,SEASON_MS,workerWage,DAY_MS,WORK_DAY_MS,assetMaxLevel,upgradeRequirement,assetTier,ASSET_TIERS,contractPlan,contractPrice,contractLeft,FERTILIZER_PRICE,SUPPLIER_PRICE,ROBOT_PACKS,packPrice } from './rules.js';
 import { createFarm, LESSON_PERKS } from './model.js';
 import { askLesson } from '../../ui/lesson-prompt.js';
 import { usesTouch } from '../../ui/dialogue.js';
 import { toolCapacity, acceptsTool } from './tools.js';
 import { createFarmUI } from './ui.js';
+import { pickAutoTask, pickAutoErrand } from './autoplay.js';
+import { mountAutoHud } from '../../ui/autoplay-hud.js';
 import { createFarmFeedback } from './feedback.js';
 import { createVfx } from '../../shared/vfx/index.js';
 import { setListener } from '../../shared/audio/index.js';
@@ -26,11 +28,12 @@ import { buildFarmActor, buildFarmEnvironment } from './environment.js';
 import { loadFarmModels, attachFarmModels } from './assets.js';
 import { attachModels } from '../../shared/three/models.js';
 import { INTERACTIONS, PLOTS, FIELDS, CROPS, PRODUCTS, MACHINES, cropById, productById, plotCare, FARM_BOUNDS, HUD_UNLOCKS } from './content.js';
+import { regionType } from '../world-map/content.js';
 const $ = id => document.getElementById(id);
 
 // Warm highland sun over cool sky fill, ~3:1 key:fill so beds, trees and roofs get readable shadows (03 §4).
 const FARM_LIGHT = { sky: '#d9e7f2', ground: '#7d8a5a', ambient: 1.1, sun: '#ffe2b0', sunIntensity: 4.2 };
-export async function createFarmGame(profile, startingGift, persistence = { read: () => readProgress().farm, save: saveFarm }, heavenLessons = [], renderer = null) {
+export async function createFarmGame(profile, startingGift, persistence = { read: () => readProgress().farm, save: saveFarm }, heavenLessons = [], renderer = null, startingRegion) {
   const models = loadFarmModels(); // tải song song với nhân vật
   const character = await loadPlayer(playerModel(profile.gender));
   const world = createAdventureScene(character, { interactions: INTERACTIONS, theme: 'farm', mapBounds: FARM_BOUNDS, buildActor: buildFarmActor, buildEnvironment: buildFarmEnvironment, lighting: FARM_LIGHT });
@@ -50,13 +53,15 @@ export async function createFarmGame(profile, startingGift, persistence = { read
   const saved = persistence.read();
   const farm = createFarm(saved, startingGift, value => {
     if (!persistence.save(value) && !storageNotice) { storageNotice = true; ui?.notice(tr('farm.game.saveFailed'), false); }
-  }, undefined, heavenLessons);
+  }, undefined, heavenLessons, startingRegion);
+  // Loại nơi trùng sinh (02b-world-map): 'farm' không có quán, 'cafe' mở thẳng vào quán và không về được nông trại.
+  const regionKind = regionType(farm.peek().region);
   let freshLessons = farm.peek().lessons.granted.length - (saved?.lessons?.granted?.length || 0);
   const seen = id => farm.peek().tutorial.seen.includes(id);
   const markSeen = id => { if (!seen(id)) farm.act('tutorial', 'seen', id); };
   // Until the ship quest is claimed, quick sales leave the 252 g roasted it needs (playtest: selling during `sell` stalled `ship`).
   const shipCrop = p => p.orders.find(o => o.status === 'open' && o.source !== 'shop')?.cropId || 'robusta';
-  const keepForCafe = (p, product, cropId) => product === 'roasted' && !p.claimed.includes('ship') && cropId === shipCrop(p) ? 252 : 0;
+  const keepForCafe = (p, product, cropId) => regionKind === 'both' && product === 'roasted' && !p.claimed.includes('ship') && cropId === shipCrop(p) ? 252 : 0;
   const playerActivity=createWorkActivity(character);
   const crew=createFarmCrew(farm,world,character,(before,after,task)=>{
     if(!ui)return;const canvas=$('game').querySelector('canvas'),origin=cafeGame?null:world.screenPoint(task.id,canvas.getBoundingClientRect());
@@ -76,6 +81,67 @@ export async function createFarmGame(profile, startingGift, persistence = { read
     if(cafeGame){cafeGame.setTouch(value);return;}
     touch = value; if (value.x || value.z) { world.resetCamera(); world.stopMovement(); cancelWork(); }
   }, events.signal);
+  // ---- Auto mode (docs/shared/crew-autoplay.md 5): Auto plays the owner, the hand shows what it taps; any touch hands control back ----
+  let auto=false,autoSpent=0,autoWait=0,autoTarget=null,autoHudAt=0;
+  const autoHud=mountAutoHud({onToggle:()=>auto?stopAuto():startAuto()});
+  function autoStatus(){const a=farm.peek().autoplay;autoHud.status({on:auto,runs:a.runs,leftMs:Math.max(0,a.leftMs-autoSpent)});}
+  function startAuto(){const r=farm.act('autoplay','start');ui.notice(r.message,r.ok);if(!r.ok)return;auto=true;autoSpent=0;autoWait=0;autoTarget=null;autoErrand=null;autoIdle=0;autoStatus();}
+  function stopAuto(message=null){
+    if(!auto)return;auto=false;if(autoSpent)farm.act('autoplay','spend',autoSpent);autoSpent=0;autoTarget=null;autoStatus();
+    if(message)ui.notice(message,true);
+  }
+  // Only steering the character takes control back (map/3D tap, joystick); HUD, shop and menus leave Auto running (crew-autoplay.md 5).
+  document.addEventListener('pointerdown',event=>{if(auto&&event.isTrusted&&event.target.closest?.('#game canvas, #heaven-joystick'))stopAuto(tr('crew.auto.manual'));},{capture:true,signal:events.signal});
+  const MOVE_KEYS=new Set(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight']);
+  // Layers, first match wins (crew-autoplay.md 5): quiz/popup → staff incident → field job → errand → go to the café.
+  let autoErrand=null,autoIdle=0;const autoSkip=new Map();
+  // A job or errand that just failed (storage full, no room at the café…) rests 15 s, so Auto tries something else.
+  const skipped=key=>(autoSkip.get(key)||0)>Date.now();
+  const autoClaimed=(id,action)=>{const who=farm.claimed(id,action);return skipped(`${id}:${action}`)||Boolean(who&&who!=='player');};
+  const nextFieldJob=()=>pickAutoTask(farm.peek(),{level:farm.level,claimed:autoClaimed,position:character.position,positionOf:id=>world.getInteraction(id)?.position});
+  const nextErrand=()=>pickAutoErrand(farm.peek(),{regionKind,level:farm.level,skip:key=>skipped(`errand:${key}`)});
+  const cafeOpenable=()=>regionKind!=='farm'&&Boolean(unlocked?.has('cafe-play'));
+  function screenOf(pos,rect){if(!pos)return null;const point=character.position.clone().copy(pos);point.y+=1.6;point.project(world.camera);return {x:rect.left+(point.x+1)*rect.width/2,y:rect.top+(1-point.y)*rect.height/2};}
+  function autoTick(dt){
+    if(!auto){if((autoHudAt-=dt)<=0){autoHudAt=1;autoStatus();}return;}
+    autoSpent+=dt*1000;if(autoSpent>=5000){farm.act('autoplay','spend',autoSpent);autoSpent=0;}
+    if(farm.peek().autoplay.leftMs-autoSpent<=0){stopAuto(tr('crew.auto.done',{n:farm.peek().autoplay.runs}));return;}
+    if((autoHudAt-=dt)<=0){autoHudAt=.25;autoStatus();}
+    if(autoHud.quiz())return;
+    if(enteringCafe){autoHud.show(null,tr('crew.auto.toCafe'));return;} // the café scene is loading: plan nothing on the farm
+    if(cafeGame){cafeGame.autoStep(autoHud,dt,{farmWork:()=>Boolean(nextFieldJob()||nextErrand()),goFarm:regionKind==='cafe'?null:exitCafe});return;}
+    const rect=canvasRect||=$('game').querySelector('canvas').getBoundingClientRect(),now=Date.now(),p=farm.peek();
+    if(isSettingsOpen()||decorationBuilder?.active){autoHud.show(null,tr('crew.auto.waitModal'));return;}
+    if(lessonClose){autoHud.show(null,tr('crew.auto.waitModal'));return;}
+    // A worker on the phone: tap them («Nhắc») like the player would.
+    const phone=p.workers.find(w=>onPhone(w,now));
+    if(phone){autoHud.show(screenOf(crew.position(phone.id),rect),tr('crew.auto.remind',{name:phone.name}));if(!autoErrand||autoErrand.remind!==phone.id)autoErrand={remind:phone.id,at:now+1200};if(now>=autoErrand.at){autoErrand=null;noticeResult(farm.act('workers','remind',phone.id));refresh(now);}return;}
+    // The player's own window (shop, staff, orders…) stays open: Auto keeps working behind it, the hand hides.
+    const behind=ui.modalOpen;
+    if(work||pendingTool||pendingPlant||pendingStationAction||workQueue.length){if(autoTarget)autoHud.show(behind?null:world.screenPoint(autoTarget.id,rect),tr(`crew.auto.do.${autoTarget.action}`));return;}
+    // An errand in progress: the hand stays on its HUD button for a moment, then Auto does it.
+    if(autoErrand?.task){
+      const button=autoErrand.task.button==='seed-shop'?$('farm-shop-toggle'):document.querySelector(`[data-shortcut="${autoErrand.task.button}"]`);
+      autoHud.show(button&&!behind&&!button.closest('[hidden]')?autoHud.at(button):null,tr(`crew.auto.errand.${autoErrand.task.key}`));
+      if(now<autoErrand.at)return;
+      const {id,action,choice,key}=autoErrand.task;autoErrand=null;const r=farm.act(id,action,choice);noticeResult(r);if(!r.ok)autoSkip.set(`errand:${key}`,now+15000);refresh(now);autoWait=.6;return;
+    }
+    if((autoWait-=dt)>0)return;autoWait=.4;
+    // The owner never takes a job a worker holds (claims), and workers yield what the owner heads for (playerTargets).
+    autoTarget=nextFieldJob();
+    if(autoTarget){
+      autoIdle=0;const task=autoTarget;
+      if(near(task.id)){if(!begin(task.id,task.action,task.choice)){autoSkip.set(`${task.id}:${task.action}`,now+5000);autoTarget=null;}}
+      else{pendingTool=task;world.moveToNpc(task.id);world.setFocus(task.id);}
+      autoHud.show(behind?null:world.screenPoint(task.id,rect),tr(`crew.auto.do.${task.action}`));return;
+    }
+    const errand=nextErrand();
+    if(errand){autoIdle=0;autoErrand={task:errand,at:now+1400};return;}
+    // Nothing left on the farm: go sell coffee (both-region saves, once the café button is open).
+    autoIdle+=.4;
+    if(cafeOpenable()&&autoIdle>=2&&!behind){autoIdle=0;autoHud.show(autoHud.at(document.querySelector('[data-shortcut="cafe-play"]')),tr('crew.auto.toCafe'));void enterCafe();return;}
+    autoHud.show(null,tr(cafeOpenable()?'crew.auto.toCafe':'crew.auto.farmIdle'));
+  }
   function clearInput() { cafeGame?.clearInput(); keyboard.clear(); touch = { x: 0, z: 0 }; resetJoystick(); world.stopMovement(); }
   function cancelWork() {
     if (menu?.kind === 'plant') { menu = null; ui?.closeSeedStrip(); }
@@ -94,7 +160,7 @@ export async function createFarmGame(profile, startingGift, persistence = { read
   function begin(id, action, choice) {
     if (!near(id)) return false;
     if(!farm.reserve(id,action,'player',choice)){ui.notice(tr('farm.game.reserved'),false);return false;}
-    closeMenu(); clearInput();
+    if(!(auto&&ui.modalOpen)){closeMenu(); clearInput();}
     work = { id, action, choice, elapsed: 0, duration: farm.workDuration(action) };
     world.setFocus(id);return true;
   }
@@ -294,7 +360,8 @@ export async function createFarmGame(profile, startingGift, persistence = { read
           const deployed=w.farmId==='farm-0',unpaid=w.shiftUntil<=now;
           const state=!w.enabled?tr('farm.worker.paused'):unpaid?tr('farm.worker.awaitingPay'):tr('farm.worker.working');
           entries.push({...entry(`profile:${w.id}`,w.name,deployed?(unpaid?tr('farm.worker.contractEnded',{price:contractPrice(w),plan:contractPlan(w).name.toLowerCase()}):w.state||tr('farm.worker.ready')):tr('farm.worker.notDeployed'),'worker-profile',w.id,true,deployed?tr('farm.worker.manage'):tr('farm.worker.deploy'),w.kind==='robot'?'🤖':'👩‍🌾'),category:'local',staffKind:w.kind||'human',level:workerLevel(w.xp),staffState:state,staffDeployed:deployed,staffUnpaid:unpaid,staffWage:contractPrice(w)});
-        }else if(candidate.kind==='robot')entries.push({...entry(`hire:${candidate.id}`,candidate.name,tr('farm.worker.robotCard'),'worker-profile',candidate.id,true,tr('farm.worker.packFrom',{price:packPrice(candidate.wage,1)}),'🤖'),category:'robot',staffKind:'robot'});
+        // One card for the next free robot: robots are identical, each hire picks its own single job.
+        }else if(candidate.kind==='robot'&&candidate===WORKER_CANDIDATES.find(c=>c.kind==='robot'&&!p.workers.some(x=>x.id===c.id)))entries.push({...entry(`hire:${candidate.id}`,candidate.name,tr('farm.worker.robotCard'),'worker-profile',candidate.id,true,tr('farm.worker.packFrom',{price:packPrice(candidate.wage,1)}),'🤖'),category:'robot',staffKind:'robot'});
         else if(!p.rejectedCandidates.includes(candidate.id))entries.push({...entry(`hire:${candidate.id}`,candidate.name,tr('farm.worker.candidateCard'),'worker-profile',candidate.id,true,tr('farm.worker.profileFee',{fee:candidate.fee}),'🧑‍🌾'),category:'hire',staffKind:'human'});
       }
       entries.sort((a,b)=>Number(Boolean(b.staffDeployed))-Number(Boolean(a.staffDeployed)));
@@ -314,15 +381,15 @@ export async function createFarmGame(profile, startingGift, persistence = { read
     } else if(menu.kind==='worker-detail') {
       const candidate=WORKER_CANDIDATES.find(w=>w.id===menu.workerId),w=p.workers.find(w=>w.id===menu.workerId);
       if(!candidate){closeMenu();return;}
-      const robot=candidate.kind==='robot',hasRobot=p.workers.some(x=>x.kind==='robot');
+      const robot=candidate.kind==='robot';
       title=w?.name||candidate.name;icon=robot?'🤖':'👩‍🌾';footer='';subtitle=w?tr('farm.worker.subtitle',{role:robot?tr('farm.worker.roleRobot'):tr('farm.worker.roleHuman'),state:w.state||tr('farm.worker.idle')}):robot?tr('farm.worker.robotSubtitle'):tr('farm.worker.candidateSubtitle');
       // Robot packs (robot-staff.md 3): prepaid 1/5/10 work days, no hire fee. Hired robot: buy more days from the same list.
-      const packs=(action,id)=>Object.keys(ROBOT_PACKS).map(Number).map(n=>{const price=packPrice(candidate.wage,n),lock=action==='hire'&&p.workers.length>=2?tr('farm.worker.slotsFull'):action==='hire'&&hasRobot?tr('farm.worker.oneRobot'):p.coins<price?tr('farm.short.coins',{n:formatCoins(price-p.coins)}):null;
+      const packs=(action,id)=>Object.keys(ROBOT_PACKS).map(Number).map(n=>{const price=packPrice(candidate.wage,n),lock=action==='hire'&&p.workers.length>=FARM_SLOTS?tr('farm.worker.slotsFull'):p.coins<price?tr('farm.short.coins',{n:formatCoins(price-p.coins)}):null;
         return {...entry(`${action}-pack-${n}`,tr('farm.worker.pack',{n}),tr('farm.worker.packDetail',{min:n*6,rate:Math.round(price/n*10)/10})+(ROBOT_PACKS[n]?tr('farm.worker.packDiscount',{pct:ROBOT_PACKS[n]*100}):''),action,{id,pack:n},!lock,lock||tr('farm.coins',{n:price}),'🤖'),targetId:'workers',category:'training',lockReason:lock};});
       if(!w&&robot)entries.push(...packs('hire',candidate.id));
       if(w&&robot)entries.push(...packs('shift',w.id));
       if(w&&onPhone(w,now))entries.push({...entry('remind-worker',tr('farm.worker.remindTitle'),w.waitReason,'remind',w.id,true,tr('farm.game.remind'),'📱'),targetId:'workers',category:'settings'});
-      if(!w&&!robot)entries.push({...entry('hire-worker',tr('farm.worker.hire'),tr('farm.worker.hireDetail',{wage:workerWage({...candidate,xp:0})}),'hire',candidate.id,p.coins>=candidate.fee&&p.workers.length<2,tr('farm.worker.hireFee',{fee:candidate.fee}),'🤝'),targetId:'workers'});
+      if(!w&&!robot)entries.push({...entry('hire-worker',tr('farm.worker.hire'),tr('farm.worker.hireDetail',{wage:workerWage({...candidate,xp:0})}),'hire',candidate.id,p.coins>=candidate.fee&&p.workers.length<FARM_SLOTS,tr('farm.worker.hireFee',{fee:candidate.fee}),'🤝'),targetId:'workers'});
       if(!w&&!robot)entries.push(entry('reject-worker',tr('farm.worker.reject'),'', 'reject-worker',candidate.id,true,tr('farm.worker.rejectBtn'),'×'));
       else if(w){
         const lv=workerLevel(w.xp),wage=workerWage(w);
@@ -336,12 +403,13 @@ export async function createFarmGame(profile, startingGift, persistence = { read
       if(w){
         entries=entries.filter(item=>item.id!=='pay-worker');
         entries=entries.map(item=>({...item,switchValue:item.switchValue??(item.action==='autoPay'?w.autoPay:item.action==='mode'?w.workMode==='auto':undefined),category:item.category||(['train-worker'].includes(item.id)?'training':['toggle-worker'].includes(item.id)?'work':'settings')}));
-        // Robot: only water + weed in the care group; the rest is locked (model rejects it too).
-        const careJobs=robot?['water','weed']:['plant','water','fertilize','weed','prune','harvest'];
-        const careEnabled=careJobs.every(key=>w.jobs[key]);
-        entries.push({...entry('permission-care',robot?tr('farm.perm.robotCare'):tr('farm.perm.care'),robot?tr('farm.perm.robotCareDetail'):tr('farm.perm.careDetail'),'permissionGroup',{id:w.id,group:'care'},true,'','🌱'),targetId:'workers',category:'settings',switchValue:careEnabled});
+        // Switches show what the worker really does (activeJobs): a robot picks ONE job, a person as many groups as its level allows.
+        const doing=activeJobs(w),limit=groupLimit(w),next=nextGroupLevel(w);
+        entries.push({...entry('job-limit',robot?tr('crew.limit.robot'):tr('crew.limit.person',{n:limit}),robot?tr('crew.limit.robotDetail'):next?tr('crew.limit.next',{level:next,n:limit+1}):tr('crew.limit.multi'),null,null,false,'','🧩'),category:'settings',readOnly:true});
+        if(robot)for(const [job,icon]of [['water','💧'],['weed','🌿']])entries.push({...entry(`permission:${job}`,tr(`farmRules.job.${job}`),tr('crew.limit.robotPick'),'permission',{id:w.id,job},true,'',icon),targetId:'workers',category:'settings',switchValue:doing.has(job)});
+        else entries.push({...entry('permission-care',tr('farm.perm.care'),tr('farm.perm.careDetail'),'permissionGroup',{id:w.id,group:'care'},true,'','🌱'),targetId:'workers',category:'settings',switchValue:CARE_JOBS.some(key=>doing.has(key))});
         if(robot)entries.push({...entry('permission-locked',tr('farm.perm.locked'),tr('farm.perm.lockedDetail'),null,null,false,'🔒','🔒'),category:'settings',readOnly:true,lockReason:tr('farm.perm.lockedReason')});
-        for(const [job,label,detail,icon]of [['processing',tr('farm.perm.processing'),tr('farm.perm.processingDetail'),'⚙️'],['delivery',tr('farm.perm.delivery'),tr('farm.perm.deliveryDetail'),'🚚']])entries.push({...entry(`permission:${job}`,label,detail,'permission',{id:w.id,job},true,'',icon),targetId:'workers',category:'settings',switchValue:w.jobs[job]});
+        for(const [job,label,detail,icon]of [['processing',tr('farm.perm.processing'),tr('farm.perm.processingDetail'),'⚙️'],['delivery',tr('farm.perm.delivery'),tr('farm.perm.deliveryDetail'),'🚚']])entries.push({...entry(`permission:${job}`,label,detail,'permission',{id:w.id,job},true,'',icon),targetId:'workers',category:'settings',switchValue:doing.has(job)});
 
       }
     } else if (menu.id === 'cafe') {
@@ -659,19 +727,23 @@ export async function createFarmGame(profile, startingGift, persistence = { read
     if(station)return{id:'collect',target:station.id,title:tr('farm.goal.collect',{station:station.name}),detail:tr('farm.goal.collectDetail')};
     const empty=count(c=>c.empty);if(empty)return{id:'plant',title:tr('farm.goal.plant'),detail:tr('farm.goal.plantDetail',{n:empty})};
     const field=FIELDS.find(f=>farm.canExpand(f.id));if(field)return{id:'expand',title:tr('farm.goal.expand',{field:field.name}),detail:tr('farm.goal.expandDetail',{price:field.price})};
-    return{id:'serve',title:tr('farm.goal.serve'),detail:tr('farm.goal.serveDetail')};
+    return regionKind==='farm'?{id:'sell',title:tr('world.goal.sell'),detail:tr('world.goal.sellDetail')}:{id:'serve',title:tr('farm.goal.serve'),detail:tr('farm.goal.serveDetail')};
   }
   function goal(){return farm.quest||freeGoal();}
   // Where the current quest happens: a world interaction id, a HUD shortcut id (HUD_TARGETS), or null when nothing to do yet.
   // Shared by the card tap (guideQuest) and the quest arrow so both always point at the same place.
   const HUD_TARGETS=['seed-shop','cafe-play','order-board'];
+  // Nhiệm vụ riêng theo nơi (REGION_QUESTS) dẫn đường như nhiệm vụ gốc cùng chỉ số.
+  const STAT_QUEST={sold:'sell',served:'serve',harvested:'harvest',dried:'dry',roasted:'roast',delivered:'ship',expanded:'expand'};
+  const questKind=quest=>quest.id.includes('-')?STAT_QUEST[quest.stat]||quest.id:quest.id;
   function questTarget(){
     const quest=goal(),p=farm.peek();if(!quest)return null;
-    if(quest.id==='sell')return 'seed-shop';
-    if(quest.id==='serve')return 'cafe-play';
-    if(quest.id==='ship'){const crop=p.orders.find(o=>o.status==='open'&&o.source!=='shop')?.cropId||'robusta';return p.stock.roasted[crop]>=252?'order-board':p.stock.dried[crop]>=100?'roaster':'dryer';}
+    const kind=questKind(quest);
+    if(kind==='sell')return 'seed-shop';
+    if(kind==='serve')return 'cafe-play';
+    if(kind==='ship'){const crop=p.orders.find(o=>o.status==='open'&&o.source!=='shop')?.cropId||'robusta';return p.stock.roasted[crop]>=252?'order-board':p.stock.dried[crop]>=100?'roaster':'dryer';}
     const plot=test=>p.plots.find(t=>t.unlocked&&t.stage!=='empty'&&test(plotCare(t)))?.id;
-    return {harvest:plot(c=>c.ready),dry:'dryer',roast:'roaster',water:p.water?plot(c=>c.needsWater):'well',weed:plot(c=>c.needsWeeding),plant:p.plots.find(t=>t.unlocked&&t.stage==='empty')?.id,collect:quest.target,expand:(FIELDS.find(f=>!p.fields.includes(f.id)&&farm.canExpand(f.id))||FIELDS.find(f=>!p.fields.includes(f.id)))?.id}[quest.id]||null;
+    return {harvest:plot(c=>c.ready),dry:'dryer',roast:'roaster',water:p.water?plot(c=>c.needsWater):'well',weed:plot(c=>c.needsWeeding),plant:p.plots.find(t=>t.unlocked&&t.stage==='empty')?.id,collect:quest.target,expand:(FIELDS.find(f=>!p.fields.includes(f.id)&&farm.canExpand(f.id))||FIELDS.find(f=>!p.fields.includes(f.id)))?.id}[kind]||null;
   }
   // Tapping the goal card walks to what the quest needs (arrival runs interact()), so a newcomer never hunts across the map.
   function guideQuest(){
@@ -679,7 +751,7 @@ export async function createFarmGame(profile, startingGift, persistence = { read
     const target=questTarget();
     if(target==='seed-shop'){clearInput();cancelWork();menu={id:'seed-shop',kind:'station',remote:true,initialFilter:'trade'};renderMenu();return;}
     if(target==='cafe-play'){void enterCafe();return;}
-    if(quest.id==='ship'){
+    if(questKind(quest)==='ship'){
       // Not enough beans → go roast; otherwise «Đơn hàng» (which creates the 252 g order) where «Chuyển về quán · 2 xu» ships it.
       const crop=shipCrop(p);
       if(target!=='order-board'){closeUserMenu();world.moveToNpc(target);world.setFocus(target);ui.notice(tr('farm.goal.shipNeed',{crop:cropById(crop).short,have:formatMass(p.stock.roasted[crop])}),false);return;}
@@ -697,7 +769,7 @@ export async function createFarmGame(profile, startingGift, persistence = { read
   }
   function remindWorker(id){noticeResult(applyAction('workers','remind',id));refresh(Date.now());}
   // «Thuê robot thay» only when a robot can be hired right now: no robot yet and a free slot (2 workers incl. a sick one = full).
-  function canHireRobotCover(){const p=farm.peek();return p.workers.length<2&&!p.workers.some(w=>w.kind==='robot');}
+  function canHireRobotCover(){return farm.peek().workers.length<FARM_SLOTS;}
   function hireRobotCover(){if(cafeGame||lessonClose)return;clearInput();cancelWork();menu={id:null,kind:'workers',remote:true,initialFilter:'robot'};renderMenu();}
   // «Đơn hàng» from the menu button or the quest card: during the ship quest, order 252 g from the café if none is open.
   function openOrderBoard(){
@@ -778,7 +850,7 @@ export async function createFarmGame(profile, startingGift, persistence = { read
         showLoading(30,tr('farm.loading.openCafe'));
         const cafeCharacter=await loadPlayer(playerModel(profile.gender)).catch(error=>{console.warn('Không tải được nhân vật cho quán, dùng khối tạm.',error);return null;});
         loading(60,tr('farm.loading.buildCafe'));leaveFarm();
-        cafeGame=cafeKept=createCafeGame({farm,ui,profile,character:cafeCharacter,onExit:exitCafe,onMenu:id=>{menu={id,kind:id==='orders'?'orders':'station',remote:true};renderMenu();}});
+        cafeGame=cafeKept=createCafeGame({farm,ui,profile,character:cafeCharacter,onExit:regionKind==='cafe'?null:exitCafe,onMenu:id=>{menu={id,kind:id==='orders'?'orders':'station',remote:true};renderMenu();}});
         // Lift the cover once the art is in (at most 4 s on a slow network: placeholders still work).
         loading(85,tr('farm.loading.furniture'));
         await Promise.race([cafeGame.ready,new Promise(r=>setTimeout(r,4000))]);
@@ -798,11 +870,12 @@ export async function createFarmGame(profile, startingGift, persistence = { read
       // Back from a hidden tab or sleep: let the model credit the gap before crew logic renews contracts.
       if(Date.now()-farm.peek().lastAt>60000)farm.tick(Date.now());
       // The farm world is hidden behind the café: keep workers moving, tick the model at 2 Hz, skip farm HUD/badge refresh.
+      autoTick(dt);
       if(cafeGame){crew.update(dt,Date.now(),null,true);cafeGame.update(dt,time);if(time-lastRefresh>=.5){lastRefresh=time;farm.tick(Date.now());ui.coins(farm.peek().coins);if(menu)renderMenu();}ui.update();return;}
       crew.update(dt,Date.now(),[work?.id,pendingTool?.id,pendingPlant?.id,...workQueue.map(t=>t.id)].filter(Boolean));
-      const result = world.update(dt, time, keyboard.combine(touch), ui.modalOpen || Boolean(lessonClose) || Boolean(work) || Boolean(decorationBuilder?.active)||Boolean(decorationBuilder?.working)); nearest = result.nearest;decorationBuilder?.tick(dt,result.navigationFailed,ui.modalOpen);
+      const result = world.update(dt, time, keyboard.combine(touch), (ui.modalOpen&&!auto) || Boolean(lessonClose) || Boolean(work) || Boolean(decorationBuilder?.active)||Boolean(decorationBuilder?.working)); nearest = result.nearest;decorationBuilder?.tick(dt,result.navigationFailed,ui.modalOpen);
       if(coach){if(!coach.moved&&character.position.distanceTo(coach.start)>1)coach.moved=true;coach.left-=dt;if((coach.moved&&coach.acted)||coach.left<=0)endCoach();}
-      if(result.navigationFailed && pendingTool){world.removePlotSelection(pendingTool.id);pendingTool=null;nextQueuedWork();}
+      if(result.navigationFailed && pendingTool){if(auto)autoSkip.set(`${pendingTool.id}:${pendingTool.action}`,Date.now()+15000);world.removePlotSelection(pendingTool.id);pendingTool=null;nextQueuedWork();}
       if(result.navigationFailed&&pendingStationAction){pendingStationAction=null;world.setFocus(null);ui.notice(tr('farm.notice.stationUnreachable'),false);}
       const owned = farm.peek().fields;
       if (nearest?.kind === 'plot' && !owned.includes(nearest.fieldId)) nearest = null;
@@ -810,13 +883,13 @@ export async function createFarmGame(profile, startingGift, persistence = { read
       nearFarm = PLOTS.some(plot => owned.includes(plot.fieldId) && Math.hypot(character.position.x-plot.position[0],character.position.z-plot.position[1]) <= plot.interactDistance+1.5);
       if (!nearFarm){toolsOpen=false;if(!work&&!pendingTool&&!pendingPlant&&!workQueue.length)tool='auto';}
       if (nearFarm !== wasNearFarm) refresh(Date.now());
-      if (result.arrivedNpc && !work && !ui.modalOpen) {
+      if (result.arrivedNpc && !work && (!ui.modalOpen||auto)) {
         nearest = world.getInteraction(result.arrivedNpc);
         if(pendingStationAction?.id===result.arrivedNpc){const intent=pendingStationAction;pendingStationAction=null;if(intent.action==='collect'){noticeResult(applyAction(intent.id,'collect',null));refresh(Date.now());}else if(intent.action==='turn')begin(intent.id,'turn');else openMenu(intent.id,'machine');}
-        else if(pendingTool?.id===result.arrivedNpc){const task=pendingTool;pendingTool=null;if(!begin(task.id,task.action,task.choice)){world.removePlotSelection(task.id);nextQueuedWork();}}
+        else if(pendingTool?.id===result.arrivedNpc){const task=pendingTool;pendingTool=null;if(!begin(task.id,task.action,task.choice)){if(auto)autoSkip.set(`${task.id}:${task.action}`,Date.now()+5000);world.removePlotSelection(task.id);nextQueuedWork();}}
         else if (pendingPlant?.id === result.arrivedNpc) {
           const planting = pendingPlant; pendingPlant = null; begin(planting.id, 'plant', planting.cropId);
-        } else if (!(menu?.kind === 'plant' && menu.id === result.arrivedNpc)) interact();
+        } else if (!(auto&&ui.modalOpen) && !(menu?.kind === 'plant' && menu.id === result.arrivedNpc)) interact();
       }
       playerActivity.update(work?.action||null,work?work.elapsed/work.duration:0,time);
       if (work) {
@@ -825,6 +898,7 @@ export async function createFarmGame(profile, startingGift, persistence = { read
           const task = work; work = null;playerActivity.update(null);
           const done = near(task.id) ? applyAction(task.id, task.action, task.choice) : null;
           if (done) noticeResult(done);
+          if (auto && done && !done.ok) autoSkip.set(`${task.id}:${task.action}`, Date.now() + 15000);
           world.removePlotSelection(task.id);world.setFocus(null); refresh(Date.now());nextQueuedWork();
           // Re-ask cues (onboarding-flow 3.1): right after a hand harvest, or when the player walks to the well.
           if (done?.ok && task.action === 'harvest') offerLesson(['ripe']);
@@ -846,6 +920,7 @@ export async function createFarmGame(profile, startingGift, persistence = { read
       setListener(character.position, world.camera); vfx.update(dt);
     },
     handleKeyDown(event) {
+      if(auto&&event.isTrusted&&MOVE_KEYS.has(event.code)&&!event.target.closest?.('input, textarea, select'))stopAuto(tr('crew.auto.manual'));
       if (event.target.closest('input, textarea, select') || lessonClose) return; // the re-ask dialogue handles its own keys
       if(decorationBuilder?.active&&!ui.modalOpen){decorationBuilder.key(event);return;}
       if (ui.handleModalKey(event)) return;
@@ -858,11 +933,12 @@ export async function createFarmGame(profile, startingGift, persistence = { read
     replaceAsset(id,asset){if(id.startsWith('farm/worker/')||id==='farm/robot')return crew.replaceAsset(id,asset);return id.startsWith('cafe/')?cafeGame?.replaceAsset(id,asset):world.replaceAsset(id,asset);},getAssetSlots(){return [...world.getAssetSlots(),...crew.getAssetSlots(),...(cafeGame?.getAssetSlots()||[])];},
     activate() {
       ui.activate(); refresh(Date.now());
+      if (regionKind === 'cafe') { void enterCafe(); return; } // chỉ có quán: nông trại chỉ giữ dữ liệu, không chơi
       const learned = farm.peek().lessons.learned.length;
       ui.notice(freshLessons > 0 ? tr('farm.notice.lessonsActive',{n:learned}) : tr(usesTouch()?'farm.notice.welcomeTouch':'farm.notice.welcomeClick',{name:profile.name}));
       freshLessons = 0;
       if (!coach && !seen('controls')) startCoach();
     },
-    dispose() { delete window.__forceIncident; delete window.__incidentOdds; lessonClose?.();document.body.classList.remove('farm-coach-pending'); cafeKept?.dispose();decorationBuilder?.dispose();vfx.dispose();crew.dispose();playerActivity.dispose();farm.flush(); clearInput(); events.abort(); ui.dispose(); world.dispose(); $('heaven-controls').hidden = true; },
+    dispose() { stopAuto(); autoHud.dispose(); delete window.__forceIncident; delete window.__incidentOdds; lessonClose?.();document.body.classList.remove('farm-coach-pending'); cafeKept?.dispose();decorationBuilder?.dispose();vfx.dispose();crew.dispose();playerActivity.dispose();farm.flush(); clearInput(); events.abort(); ui.dispose(); world.dispose(); $('heaven-controls').hidden = true; },
   };
 }

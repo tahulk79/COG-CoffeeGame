@@ -685,7 +685,7 @@
 @media(prefers-reduced-motion:reduce){.farm-staff-swapped,.farm-staff-swap-message{animation:none}}
 
 /* Matching compact staff boxes, with salary and reserve dismissal controls. */
-.farm-main-team .farm-staff-zone-grid{grid-template-columns:repeat(2,minmax(0,1fr));max-width:360px}
+.farm-main-team .farm-staff-zone-grid{grid-template-columns:repeat(3,minmax(0,1fr));max-width:520px}
 .farm-reserve-team .farm-staff-zone-grid[data-staff-drop="reserve"]{grid-template-columns:repeat(auto-fill,minmax(145px,170px))}
 .farm-staff-tile{position:relative;min-width:0;display:flex;flex-direction:column}
 .farm-active #farm-modal[data-roster="true"] .farm-main-team .farm-staff-card,.farm-active #farm-modal[data-roster="true"] .farm-reserve-team .farm-staff-card{flex:1;width:100%;min-height:185px;padding:33px 10px 10px;gap:6px}

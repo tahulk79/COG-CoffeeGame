@@ -45,6 +45,7 @@ Thành thạo (điểm ly lấy phần nguyên, 89,6 vẫn là ★★): barista 
 
 ## Nguyên liệu và liên kết nông trại
 
+- **Nơi chỉ quán (F-28, Ý):** game tự vào quán khi tải, không có nút/Esc về nông trại, không có ô Đơn hàng; Kho quán bỏ "Đặt farm", hạt chỉ từ lô `starter` và "Nhập hạt ngoài". Xem [02b-world-map](../02b-world-map/README.md).
 - **Hạt rang** dùng chung kho quán của model farm. Kho quán → "Đặt farm 252 g" tạo đơn trên bảng Đơn hàng của nông trại; farm/nhân viên rang và giao như đơn hiện có. Gấp thì "Nhập hạt ngoài" 500 g / 75 xu (`SUPPLIER_PRICE`, 0,15 xu/g, đắt hơn hạt farm nên quán vẫn cần farm).
 - **Vật tư** (ly, sữa đặc, sữa tươi, đá, trứng, kem, muối, giấy lọc) nhập theo gói thật (lon 380 g, hộp 1 L, túi đá 2 kg, hộp 40 tờ giấy lọc…).
 - Thiếu nguyên liệu khi pha → màn liệt kê thứ thiếu kèm nút mở kho.
@@ -65,7 +66,9 @@ Thành thạo (điểm ly lấy phần nguyên, 89,6 vẫn là ★★): barista 
 - **10 bàn** 3 hàng ở nửa trái sảnh; góc sofa, WC, quầy tự phục vụ, bảng thực đơn chữ A ở lối vào (bấm để mở Sổ công thức).
 - **Tìm đường**: khách và nhân viên dùng chung lưới `findRoute` với người chơi (né quầy, bàn, ghế, cột dây), nên thêm/dời đồ không phải sửa đường đi. Ghế là vật cản nên NPC đi tới điểm ngay ngoài ghế rồi bước vào.
 
-## Đội nhân viên (tối đa 10) và bảng việc
+## Đội nhân viên (3 slot) và bảng việc
+
+- **04/11/2026 (spec [crew-autoplay](../../shared/crew-autoplay.md)):** đội **tối đa 3 người** (giới hạn vai giữ nguyên bên trong). Thuê được **Robot pha 01** (chỉ Phin đen, 50 điểm = ★, 4 xu/ca). Sao: robot ★, nhân viên tối đa ★★ (mệt −12 điểm), chỉ bạn đạt ★★★; Robot pha espresso (máy) cũng ra ★. Người từ cấp 3 rảnh việc vai mình thì phụ bưng/dọn (đa nhiệm); robot giữ 1 việc. Người có thể nghỉ vì mệt/lười/ghét việc. Ly bạn đang pha ở bàn pha không ai pha trùng; bạn chỉ nhận order chưa có thu ngân giữ. Chế độ Auto: spec mục 5. Các dòng "tối đa 10", "không có robot barista thuê được" bên dưới đã được thay bằng luật này.
 
 - 14 ứng viên có tên, tiểu sử, 4 chỉ số; giới hạn theo vai: 2 thu ngân, 3 barista, 3 phục vụ, 1 tạp vụ, 1 quản lý ca.
 - **Bảng việc chung**: mỗi người rảnh tự nhận việc đúng vai, ưu tiên khách sắp hết kiên nhẫn; mỗi việc được giữ chỗ để không ai làm trùng.
@@ -98,6 +101,22 @@ Trạm pha thêm (2 cấp), Quầy thu ngân 2, **Robot thu ngân (kiosk)** (tê
 ## Chưa làm (để sau)
 
 Cold brew ủ trước theo mẻ, khách quen có món yêu thích, latte art, NPC né nhau khi đi ngược chiều, ly hỏng do sai nhiều bước, sữa/trứng sản xuất từ nông trại.
+
+## Món mới, sữa và nước, Auto pha (F-31, chốt 04/11/2026, đã code, chưa chơi thử)
+
+- **3 món mới** (`cafe/recipes.js`): **Matcha** (3,5 xu; 2 g bột rây, nước 75–80 °C, đánh chữ W; cần **Chổi tre** 50 xu), **Matcha Latte đá** (4,5 xu; uy tín 40; matcha đánh với 30 ml nước, đá, 150 ml sữa lạnh), **Dirty** (4,5 xu; uy tín 50; cần máy espresso; 150 ml sữa lạnh + shot đôi, không khuấy). Matcha không dùng hạt: phần "nguyên liệu" 25% của chất lượng cố định 80, không bị trừ vì sai hạt.
+- **Hạt:** đổi tên hiển thị Robusta → **Robusta Việt Nam**, Arabica → **Arabica Ethiopia** (id giữ `robusta`/`arabica`); Liberica giữ.
+- **Sữa và nước** (Kho › Vật tư › "Nguyên liệu đang dùng"): chọn 1 sữa và 1 nước cho mọi món. Sữa **Meiji** 7 xu/lít, +4 chất lượng; **Dalat Milk** 5 xu/lít, +2 (mặc định, kho đầu có 1 lít). Nước **máy** miễn phí, −3; **Lavie** 2 xu/1,5 lít, +2. Hết loại đang chọn → tự dùng loại kia (sữa) hoặc nước máy (nước), Kho báo rõ. Mọi món cà phê dùng nước (phin 90 ml, espresso/latte/cappuccino/Dirty 40 ml, americano 160 ml, pour over 280 ml, matcha 70 ml, matcha latte 30 ml). Chất lượng ly = `điểm × 0,75 + hạt × 0,25 + thiết bị + hợp hạt + sữa + nước`, kẹp 0–100.
+- **🤖 Auto pha** (bước 1 của bàn pha, cạnh ⚡ Pha nhanh): trả **2 xu**, máy tự làm từng bước để bạn xem: sáng viền + giải thích đáp án đúng rồi bấm, rót tới giữa vạch xanh rồi chốt. Mỗi bước tính như dùng "Làm mẫu" (tối đa 0,8) → ly **80 điểm = ★★**, không đạt ★★★. Trong lúc Auto pha, nút điều khiển chỉ để xem. Chế độ Auto toàn game vẫn dùng ⚡ Pha nhanh (miễn phí).
+- **Giao diện mobile first (≤ 700 px):** Pha nhanh/Auto pha xếp chồng, nút cao 46–54 px; sân khấu thấp còn 170 px; đáp án 1 cột, cao 52 px; nút giữ rót rộng hết, cao 60 px; cụm điều khiển dính đáy bảng; dải thông số cuộn ngang.
+
+## Pha nhanh và ly để lâu (chốt 04/11/2026, đã code, chưa chơi thử)
+
+- **⚡ Pha nhanh** (nút lớn ở bước 1 của bàn pha, mobile first): một chạm, chờ **6 giây**, ra ly. Điểm = điểm cao nhất bạn **tự pha** món đó, kẹp trong **70–90**: món mới ★★ ngay, muốn ★★★ phải tự pha đạt 90 một lần. Pha nhanh không nâng điểm thành thạo. Ly vẫn là ly của chủ (×2 giá). Chế độ Auto luôn dùng Pha nhanh. Code: `QUICK_MS`, `quickScore` (`cafe/recipes.js`).
+- **Rót dễ hơn khi tự pha:** kim chạy từ rỗng tới đầy trong 3,2 s (trước 2,4 s); thả tay khi kim trong vạch xanh là tự chốt bước (không cần bấm «Xong»); rót lệch vẫn được điểm một phần rộng hơn (`1 − lệch / (độ rộng vạch × 2,5)`, trước × 1,5).
+- **Ly có hạn tươi** (tính theo thời gian quán mở): món nóng **60 s**, món có đá **90 s**. Quá hạn → ly nguội: **−1★, giá −30%**, thông báo "(ly nguội)". Quá **gấp đôi** → ly trên kệ hoặc trên tay tự bỏ, thông báo "🗑️ … đã bỏ" (ly nhân viên đang bưng không bị bỏ). Khách bỏ về thì ly trên tay vẫn đưa được cho khách khác gọi đúng món, hoặc bấm quầy pha để đặt lên kệ.
+- **Hết ca dọn kệ:** mọi ly chưa ai nhận (kể cả ly trên tay) bị bỏ; báo cáo ca có dòng "Ly bỏ: n". Ly chỉ sống trong ca, không lưu khi tải lại.
+- Không có giới hạn số ly trên kệ và không có nút "Bỏ ly": hạn tươi đã tự giới hạn.
 
 ## Bàn pha và chọn vật (cập nhật)
 

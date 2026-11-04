@@ -6,6 +6,7 @@
 @import './cafe.css';
 @import './hud.css';
 @import './menus.css';
+@import './world-map.css';
 
 :root{--game-font:'Baloo 2',system-ui,sans-serif;font-family:var(--game-font);color:#29493f;background:#edf5e7;font-synthesis:none}
 /* Bộ khung UI chung cho mọi màn (gỗ + giấy da của farm). Thay asset: gán url() vào các biến --ui-*-image, không sửa selector. */
@@ -71,23 +72,24 @@ body:has(#error:not([hidden])) #game-settings-toggle{display:none}
 /* Mũi tên và dấu tích bám theo nhân vật đang chọn; scene ghi --fx/--fy/--fw/--fb mỗi khung hình. */
 .selection-focus{position:absolute;inset:0;pointer-events:none}
 .selection-arrow.ui-btn{position:absolute;top:var(--fy,-99px);pointer-events:auto;transform:translate(-50%,-50%);font-size:26px}.selection-arrow.ui-btn:active:not(:disabled){transform:translate(-50%,-50%) translateY(2px)}
-.selection-arrow--prev{left:calc(var(--fx,-99px) - var(--fw,0px))}.selection-arrow--next{left:calc(var(--fx,-99px) + var(--fw,0px))}
-.selection-check{position:absolute;left:var(--fx,-99px);top:var(--fb,-99px);display:grid;place-items:center;width:36px;height:36px;border:3px solid #fff;border-radius:50%;background:var(--ui-go);box-shadow:0 2px 6px #0003;color:#fff;font:800 20px/1 var(--game-font);transform:translate(-50%,-50%)}
+.selection-arrow.ui-btn[hidden]{display:none}/* Mũi tên nằm ngay ngoài viền vòm (cách --arrow-gap), luôn trọn trong màn. */.selection-focus{--arrow-r:22px;--arrow-gap:6px}.selection-arrow--prev{left:max(calc(var(--arrow-r) + 6px),calc(var(--fx,-99px) - var(--fw,0px) - var(--arrow-r) - var(--arrow-gap)))}.selection-arrow--next{left:min(calc(100% - var(--arrow-r) - 6px),calc(var(--fx,-99px) + var(--fw,0px) + var(--arrow-r) + var(--arrow-gap)))}
+.selection-check{position:absolute;left:var(--fx,-99px);top:var(--fb,-99px);display:grid;place-items:center;width:30px;height:30px;border:3px solid #fff;border-radius:50%;background:var(--ui-go);box-shadow:0 2px 6px #0003;color:#fff;font:800 16px/1 var(--game-font);transform:translate(-50%,-50%)}
 /* Mobile-first: bảng giấy gọn ở đáy, chừa phần trên cho nhân vật 3D. */
-.creation-card{position:absolute;left:50%;bottom:max(12px,env(safe-area-inset-bottom));transform:translateX(-50%);width:calc(100% - 24px);max-width:380px;display:grid;gap:8px;padding:22px 14px 14px;background:var(--ui-paper);border:3px solid var(--ui-cream-edge);border-radius:22px;box-shadow:0 4px 0 var(--ui-paper-drop),0 14px 30px var(--ui-drop-soft);pointer-events:auto}
-.gender-switch{justify-self:center;width:min(100%,280px);margin-top:-44px;margin-bottom:4px;gap:4px;padding:4px;background:var(--ui-cream);border:2px solid var(--ui-paper-edge);border-radius:18px;box-shadow:0 3px 0 var(--ui-paper-drop)}
-.gender-switch button{min-height:42px;border:0;border-radius:14px;background:transparent;color:var(--ui-ink-soft);font-size:15px;font-weight:800}.gender-switch button span{font-size:18px}
-.gender-switch.ui-tabs--segmented .ui-tab[aria-pressed=true]{background:var(--ui-go);color:var(--ui-ink-light);box-shadow:inset 0 2px var(--ui-go-edge),0 3px 0 var(--ui-go-drop);text-shadow:0 1px var(--ui-go-drop)}
-.name-row{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
-.name-label{font-size:13px;font-weight:700;color:var(--ui-ink-soft)}
-#name-note{margin:0;font-size:12px;color:var(--ui-ink-soft)}
-#player-name{width:100%;padding:10px 14px;background:var(--ui-shine);border:2px solid var(--ui-paper-edge);border-radius:16px;color:var(--ui-ink);font:inherit;font-size:16px;outline:none}#player-name:focus{border-color:var(--ui-leaf-edge)}#player-name:focus-visible{box-shadow:0 0 0 3px var(--ui-focus)}#player-name::placeholder{color:var(--ui-muted)}
-.creation-card .primary{justify-self:center;justify-content:center;gap:10px;width:min(100%,260px);min-width:0;padding:12px 22px;margin-top:4px;font-size:19px}.creation-card .primary span{font-size:16px}
-.primary:disabled{opacity:.6;cursor:not-allowed}#scene-transition{position:fixed;inset:0;z-index:8;pointer-events:none;overflow:hidden;opacity:1;background:none}.slide-sheet{position:absolute;top:-20%;height:140%;width:65%;background:linear-gradient(115deg,#f8edca 10%,#d8ead2 70%,#b9d9bb);will-change:transform}.slide-sheet:after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent 0,transparent 39px,#ffffff05 40px,transparent 41px)}.slide-left{left:-10%;transform:translateX(-115%) skewX(-10deg);border-right:2px solid #ebc98d;box-shadow:15px 0 40px #748e6b33}.slide-right{right:-10%;transform:translateX(115%) skewX(-10deg);border-left:2px solid #ebc98d;background:linear-gradient(115deg,#e4efcf,#faf1d9 80%)}@media(max-width:700px){.slide-sheet{width:75%}.slide-left{left:-20%}.slide-right{right:-20%}}@media(min-width:700px){.creation-card{bottom:24px;max-width:400px;padding:24px 18px 14px}}@media(max-height:550px){.creation-card{left:auto;right:12px;bottom:12px;transform:none;width:300px;gap:6px;padding:20px 12px 10px}.name-row{display:none}.gender-switch{margin-top:-36px}.gender-switch button{min-height:38px}.creation-card .primary{padding:9px 18px}}@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+/* Nút Chơi cùng kiểu nút kem gỗ của game (như mũi tên, ⚙️): không đế, không màu xanh. */
+.creation-card{position:absolute;left:50%;bottom:max(40px,calc(env(safe-area-inset-bottom) + 24px));transform:translateX(-50%);width:calc(100% - 48px);max-width:260px;display:grid;pointer-events:auto}
+#enter-game{width:100%;gap:10px;font-size:18px;box-shadow:inset 0 2px var(--ui-shine),0 4px 0 var(--ui-cream-drop),0 8px 18px var(--ui-drop-soft)}#enter-game span[aria-hidden]{font-size:14px}
+#enter-game:active{box-shadow:inset 0 2px var(--ui-shine),0 1px 0 var(--ui-cream-drop)}
+/* Bàn tay gợi ý gõ vào nút Chơi; nút lún nhẹ + vòng sóng đúng nhịp gõ (1.6s). Giảm chuyển động thì rule chung tắt animation. */
+#enter-game{position:relative;animation:enter-press 1.6s ease-in-out infinite}
+#enter-game::after{content:'';position:absolute;inset:-3px;border-radius:inherit;border:3px solid var(--ui-gold-edge,#e8b03c);opacity:0;pointer-events:none;animation:enter-ripple 1.6s ease-out infinite}
+.tap-hand{position:absolute;right:-4px;bottom:-12px;font-size:34px;line-height:1;pointer-events:none;filter:drop-shadow(0 3px 2px #0004);transform-origin:30% 10%;animation:tap-hand 1.6s ease-in-out infinite}
+@keyframes tap-hand{0%,100%{transform:translate(10px,10px) rotate(-18deg)}40%{transform:translate(0,0) rotate(-18deg) scale(.92)}50%{transform:translate(0,0) rotate(-18deg) scale(.86)}65%{transform:translate(6px,6px) rotate(-18deg)}}
+@keyframes enter-press{0%,40%,65%,100%{translate:0 0}50%{translate:0 2px}}
+@keyframes enter-ripple{0%,45%{opacity:0;transform:scale(1)}50%{opacity:.9;transform:scale(1)}90%,100%{opacity:0;transform:scale(1.12,1.35)}}
+.primary:disabled{opacity:.6;cursor:not-allowed}#scene-transition{position:fixed;inset:0;z-index:8;pointer-events:none;overflow:hidden;opacity:1;background:none}.slide-sheet{position:absolute;top:-20%;height:140%;width:65%;background:linear-gradient(115deg,#f8edca 10%,#d8ead2 70%,#b9d9bb);will-change:transform}.slide-sheet:after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent 0,transparent 39px,#ffffff05 40px,transparent 41px)}.slide-left{left:-10%;transform:translateX(-115%) skewX(-10deg);border-right:2px solid #ebc98d;box-shadow:15px 0 40px #748e6b33}.slide-right{right:-10%;transform:translateX(115%) skewX(-10deg);border-left:2px solid #ebc98d;background:linear-gradient(115deg,#e4efcf,#faf1d9 80%)}@media(max-width:700px){.slide-sheet{width:75%}.slide-left{left:-20%}.slide-right{right:-20%}}@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 
 #game canvas{touch-action:none}
 
-.name-controls{position:relative;min-width:0}.name-controls #player-name{border-radius:16px;padding-right:52px}.name-controls #random-name{position:absolute;top:50%;right:6px;width:36px;height:36px;min-width:36px;min-height:36px;transform:translateY(calc(-50% - 1.5px))}.name-controls #random-name:active{transform:translateY(calc(-50% - 1.5px)) scale(.92)}.name-controls #random-name.is-rolling svg{animation:dice-roll .45s ease-out}@keyframes dice-roll{to{transform:rotate(360deg)}}
 
 
 
@@ -95,5 +97,11 @@ body:has(#error:not([hidden])) #game-settings-toggle{display:none}
 
 .game-currency{display:inline;white-space:nowrap}
 .game-currency>.farm-gold-coin{display:inline-grid;vertical-align:-.16em;width:1.1em;height:1.1em;margin-right:.12em;border-width:1px;font-size:.85em;line-height:1;box-shadow:inset 0 0 0 1px var(--ui-coin-hi),0 1px var(--ui-coin-edge)}
-/* Dice keeps its 38px look inside the name field; an invisible ring brings the touch area to 46px. */
-.name-controls #random-name::before{content:'';position:absolute;inset:-4px;border-radius:50%}
+
+/* Auto mode (docs/shared/crew-autoplay.md 5): small HUD button, pointing hand, one-line caption. */
+.autoplay-btn{position:fixed;right:16px;bottom:calc(96px + env(safe-area-inset-bottom));z-index:60;min-height:40px;padding:6px 14px;font-size:14px;font-weight:700}
+.autoplay-btn[data-on="true"]{outline:3px solid #ffd166;outline-offset:2px}
+.autoplay-hand{position:fixed;z-index:61;font-size:40px;line-height:1;transform:translate(-30%,-10%);pointer-events:none;filter:drop-shadow(0 3px 4px rgba(0,0,0,.45));animation:autoplay-tap 1s ease-in-out infinite}
+.autoplay-caption{position:fixed;left:50%;bottom:calc(150px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:61;max-width:min(92vw,520px);margin:0;padding:8px 14px;border-radius:12px;background:rgba(32,24,16,.86);color:#fff7e6;font-size:14px;line-height:1.35;text-align:center;pointer-events:none}
+@keyframes autoplay-tap{0%,100%{translate:0 0}50%{translate:0 10px}}
+@media (prefers-reduced-motion:reduce){.autoplay-hand{animation:none}}

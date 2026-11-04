@@ -100,12 +100,12 @@ const ICONS = {
 
 // Emoji (without U+FE0F) → icon name. 🪙 stays with ui/currency.js; ✓ ★ ☆ → ↗ and friends are typography, not emoji.
 const NAMES = {
-  settings: '⚙', book: '📖📚', scroll: '📜', help: '❓❔', lock: '🔒', unlock: '🔓', sound: '🔊', pin: '📌',
+  settings: '⚙', book: '📖📚', scroll: '📜', help: '❓❔', lock: '🔒', unlock: '🔓', sound: '🔊', pin: '📌🚩',
   ticket: '📋📄🧾', refresh: '🔄🔁', bulb: '💡', target: '🎯', timer: '⏱', warning: '⚠', ban: '🚫', tap: '👆',
   hand: ['👋', '🙋‍♂️', '✋', '🖐', '✊'], eye: '👀', pause: '⏸', forward: '⏭⏩', 'dot-green': '🟢', 'dot-yellow': '🟡',
   'dot-orange': '🟠', 'dot-white': '⚪', star: '⭐🌟', trophy: '🏆🎉', gift: '🎁', lesson: '🎓🧠',
   'face-happy': '😊🙂😍', 'face-sad': '😕😖', 'face-angry': '😤😠', sleep: '💤', sick: '🤒', phone: '📱', screen: '📺🖥',
-  skull: '☠', coin: '💵', crate: '📦', cart: '🛒', shop: '🏪', truck: '🚚', bag: '🎒', basket: '🧺', chair: '🪑💺🛋',
+  skull: '☠', coin: '💵💰', crate: '📦', cart: '🛒', shop: '🏪', truck: '🚚', bag: '🎒', basket: '🧺', chair: '🪑💺🛋',
   door: '🚪', bell: '🛎', sprout: '🌱', leaf: '🌿', plant: '🪴', flower: '🌸💐', water: '💧🌊', sun: '☀', cloud: '☁',
   fire: '🔥♨', thermo: '🌡', wind: '🌀', bean: '🫘', cherry: '🍒', tool: '⛏🪓🔨', wrench: '🔧🛠🧰', scissors: '✂',
   sponge: '🧽', farmer: ['👩‍🌾', '🧑‍🌾', '👨‍🌾'], robot: '🤖', people: '👥',

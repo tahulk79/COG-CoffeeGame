@@ -1,6 +1,6 @@
-# COG — Coffee Game
+# Godbean
 
-Game web 3D về trồng cà phê và vận hành quán, dùng JavaScript, Three.js và Vite. Node.js 22.12+.
+**Godbean: Build your own Coffee Empire!** — game web 3D về trồng cà phê và vận hành quán, dùng JavaScript, Three.js và Vite. Node.js 22.12+.
 
 ## Chạy
 

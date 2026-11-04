@@ -1,4 +1,4 @@
-# Kế hoạch tổng — 3D redesign COG
+# Kế hoạch tổng — 3D redesign Godbean
 
 > **Lưu trữ.** Tài liệu lịch sử, có thể đã lệch code. Không dùng làm đặc tả; xem [docs/README.md](../../README.md) để tìm tài liệu hiện hành.
 
@@ -16,7 +16,7 @@ Ngày lập: 2026-11-03. Nhánh: `feat/round-1-foundation`.
 
 ## Ràng buộc
 
-1. Không đổi luật chơi, save schema (`cog-coffee-progress` v1), id vật phẩm/slot.
+1. Không đổi luật chơi, save schema (`godbean-progress` v1), id vật phẩm/slot.
 2. Model chuẩn hoá trước khi gắn: pivot tâm đáy, +Z mặt chính, người cao 2 đơn vị (`docs/assets/scene-assets.md`).
 3. Ngân sách tris/texture theo `docs/assets/asset-pipeline.md`.
 4. **Meshy: ngân sách 922 credit** (người dùng cấp 2026-11-03), phân bổ ở `3d-progress.md`. Mọi asset làm được bằng dựng thủ tục trong Blender (0 credit) được ưu tiên.

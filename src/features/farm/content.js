@@ -1,5 +1,6 @@
 import { SEASON_MS } from './rules.js';
 import { t } from '../../i18n/index.js';
+import { regionType } from '../world-map/content.js';
 export const CROPS = [
   { id: 'robusta', name: t('farmRules.crop.robusta.name'), short: t('farmRules.crop.robusta.short'), color: '#62854b', seedPrice: 10, level: 1, growMs: 90000, regrowMs: SEASON_MS, yield: 3000, priceScale: 1, description: t('farmRules.crop.robusta.desc') },
   { id: 'arabica', name: t('farmRules.crop.arabica.name'), short: t('farmRules.crop.arabica.short'), color: '#4f806d', seedPrice: 20, level: 2, growMs: 120000, regrowMs: SEASON_MS, yield: 2600, priceScale: 1.3, description: t('farmRules.crop.arabica.desc') },
@@ -84,11 +85,32 @@ export const QUESTS = [
 ];
 // HUD parts that appear as the player reaches them (onboarding-flow 3.3). Derived from saved state only, and any
 // condition being true unlocks, so an old save that already used a feature sees it at once. `id` = shortcut id.
-const reached = (p, id) => { const next = QUESTS.findIndex(q => !p.claimed.includes(q.id)); return next < 0 || next >= QUESTS.findIndex(q => q.id === id); };
+// Chuỗi nhiệm vụ theo nơi trùng sinh (docs/screens/02b-world-map/README.md): chỉ nông trại bỏ việc của quán,
+// chỉ quán giữ việc quán; mỗi nơi thêm hai mục cuối riêng (REGION_QUESTS). Phần đầu của Việt Nam giữ đúng chuỗi cũ.
+// Cân bằng: nơi chỉ có một bên (không có nguồn hạt rẻ / không có đầu ra giá cao) nhận thưởng nhiệm vụ cao hơn nơi có cả hai.
+const q = (id, stat, count, coins, xp) => ({ id, stat, count, coins, xp });
+export const REGION_QUESTS = {
+  vn: [q('vn-phin', 'served', 30, 25, 10), q('vn-ship', 'delivered', 1000, 25, 10)],
+  br: [q('br-sun', 'dried', 1000, 25, 10), q('br-cafezinho', 'served', 40, 25, 10)],
+  co: [q('co-pick', 'harvested', 15, 45, 12), q('co-export', 'sold', 1500, 60, 15)],
+  ke: [q('ke-roast', 'roasted', 1000, 45, 12), q('ke-auction', 'sold', 1000, 60, 15)],
+  id: [q('id-dry', 'dried', 1500, 45, 12), q('id-expand', 'expanded', 2, 60, 15)],
+  it: [q('it-espresso', 'served', 10, 45, 12), q('it-rush', 'served', 40, 60, 15)],
+  jp: [q('jp-craft', 'served', 12, 50, 12), q('jp-kissaten', 'served', 30, 70, 15)],
+  us: [q('us-togo', 'served', 25, 45, 12), q('us-chain', 'served', 60, 70, 15)],
+};
+const CAFE_QUESTS = ['serve', 'ship'];
+export const questsFor = region => {
+  const type = regionType(region);
+  const base = type === 'farm' ? QUESTS.filter(q => !CAFE_QUESTS.includes(q.id)) : type === 'cafe' ? QUESTS.filter(q => q.id === 'serve') : QUESTS;
+  return [...base, ...(REGION_QUESTS[region] || []).map(q => ({ ...q, title: t(`world.quest.${q.id}.title`), detail: t(`world.quest.${q.id}.detail`) }))];
+};
+// Mốc `id` đã tới trong chuỗi của nơi này; nơi không có nhiệm vụ đó thì chưa bao giờ tới.
+const reached = (p, id) => { const quests = questsFor(p.region), at = quests.findIndex(q => q.id === id); if (at < 0) return false; const next = quests.findIndex(q => !p.claimed.includes(q.id)); return next < 0 || next >= at; };
 export const HUD_UNLOCKS = [
-  { id: 'cafe-play', name: t('farmRules.hud.cafePlay.name'), help: t('farmRules.hud.cafePlay.help'), when: p => p.claimed.includes('harvest') || p.stats.served > 0 || p.cafe.revenue > 0 },
+  { id: 'cafe-play', name: t('farmRules.hud.cafePlay.name'), help: t('farmRules.hud.cafePlay.help'), when: p => regionType(p.region) === 'both' && (p.claimed.includes('harvest') || p.stats.served > 0 || p.cafe.revenue > 0) },
   { id: 'seed-shop', name: t('farmRules.hud.seedShop.name'), help: t('farmRules.hud.seedShop.help'), when: (p, level) => reached(p, 'sell') || p.stats.sold > 0 || (p.plots.some(t => t.unlocked && t.stage === 'empty') && !CROPS.some(c => c.level <= level && p.seeds[c.id] > 0)) },
-  { id: 'order-board', name: t('farmRules.hud.orderBoard.name'), help: t('farmRules.hud.orderBoard.help'), when: p => reached(p, 'ship') || p.orders.length > 0 },
+  { id: 'order-board', name: t('farmRules.hud.orderBoard.name'), help: t('farmRules.hud.orderBoard.help'), when: p => regionType(p.region) === 'both' && (reached(p, 'ship') || p.orders.length > 0) },
   { id: 'upgrades', name: t('farmRules.hud.upgrades.name'), help: t('farmRules.hud.upgrades.help'), when: (p, level) => level >= 2 || Object.values(p.upgrades).some(lv => lv > 1) },
   { id: 'workers', name: t('farmRules.hud.workers.name'), help: t('farmRules.hud.workers.help'), when: (p, level) => p.claimed.includes('expand') || p.workers.length > 0 || level >= 3 },
   { id: 'build', name: t('farmRules.hud.build.name'), help: t('farmRules.hud.build.help'), when: (p, level) => p.claimed.includes('weed') || p.decorations.length > 0 || level >= 4 },

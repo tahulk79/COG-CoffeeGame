@@ -302,7 +302,7 @@ Chi tiết trong [contracts](contracts.md) mục 5. Tóm tắt:
 
 ## 9. Checklist nghiệm thu
 
-Chạy trên **khung điện thoại 390 × 844 (cảm ứng)** và **desktop 1440 × 900 (chuột)** trừ khi ghi khác. Save mới = xóa `cog-coffee-progress`.
+Chạy trên **khung điện thoại 390 × 844 (cảm ứng)** và **desktop 1440 × 900 (chuột)** trừ khi ghi khác. Save mới = xóa `godbean-progress`.
 
 | # | Kịch bản | Bước | Mong đợi (trước → sau) |
 |---|---|---|---|

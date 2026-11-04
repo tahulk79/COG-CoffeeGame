@@ -2,10 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createFarm } from '../src/features/farm/model.js';
 import { PLOTS,FIELDS,MACHINES,QUESTS,plotCare } from '../src/features/farm/content.js';
-import { ASSETS,workerLevel,workerWage,SEASON_MS,WORK_DAY_MS,contractPrice,assetMaxLevel } from '../src/features/farm/rules.js';
+import { activeJobs,jobGroupOf,groupLimit,ASSETS,workerLevel,workerWage,SEASON_MS,WORK_DAY_MS,contractPrice,assetMaxLevel } from '../src/features/farm/rules.js';
 import { productionNeed } from '../src/features/farm/orders.js';
 import { editDragSelection } from '../src/features/farm/tools.js';
 import { findRoute } from '../src/shared/game/navigation.js';
+import { slackChance,slackReason,tiredFactor,rollSlack } from '../src/shared/game/morale.js';
+import { pickAutoErrand } from '../src/features/farm/autoplay.js';
 const AT=100000;
 const fresh=()=>createFarm(null,'capital',()=>{},AT);
 function withLots(lots){const saved=fresh().progress;saved.lots=lots.map((lot,i)=>({id:`fixture-${i}`,quality:80,createdAt:AT,origin:'fixture',...lot}));return createFarm(saved,null,()=>{},AT);}
@@ -80,9 +82,9 @@ test('orders transfer goods exactly once without creating revenue',()=>{
  assert.equal(restored.progress.cafe.stock.roasted.robusta,cafeBefore+order.grams);
  assert.equal(restored.progress.orders.find(o=>o.id===order.id).status,'delivered');
 });
-test('hiring is capped at two farm workers and wages rise with level',()=>{
+test('hiring is capped at three farm workers and wages rise with level',()=>{
  // Shift hiring: hires go straight to the farm (no reserve bench); day wage D = 30 + 10 × (level − 1), one work day per payment, stacking.
- const farm=rich();for(const id of ['an','binh'])assert.equal(farm.act('workers','hire',id,AT).ok,true);
+ const farm=rich();for(const id of ['an','binh','dung'])assert.equal(farm.act('workers','hire',id,AT).ok,true);
  assert.equal(farm.act('workers','hire','chi',AT).ok,false);assert.ok(farm.progress.workers.every(w=>w.farmId==='farm-0'));
  assert.equal(farm.act('workers','deploy','an',AT).ok,false,'cannot move a worker to a reserve bench');
  assert.equal(farm.act('workers','dismiss','an',AT).ok,true);assert.equal(farm.act('workers','hire','chi',AT).ok,true);
@@ -194,14 +196,52 @@ test('collect receives only completed batches that fit, leaving the others at th
 });
 
 test('saves from before the 03/11 cuts load without losing value',()=>{
- // Fish → coins at 8 each, queued farm-grinder input → roasted beans, reserve workers → hire fee back, asset levels clamp to 20.
+ // Fish → coins at 8 each, queued farm-grinder input → roasted beans, reserve workers fill the 3 slots, asset levels clamp to 20.
  const saved=rich().progress,coins=saved.coins;
  saved.fish={count:5,readyAt:AT,fedUntil:AT};
  saved.machines.grinder={batch:{id:'g1',cropId:'robusta',quantity:2,inputGrams:168,outputGrams:168,startedAt:AT,readyAt:AT+10000,quality:80},extraBatches:[]};
  saved.workers=['an','binh','chi'].map((id,i)=>({id,name:id,xp:0,energy:40,restUntil:AT+9000,farmId:i<1?'farm-0':null,jobs:{},cargo:[],enabled:true,autoPay:true,shiftUntil:0}));
  saved.deploymentVersion=1;saved.upgrades.dryer=55;
  const roasted=saved.stock.roasted.robusta,farm=createFarm(saved,null,()=>{},AT),p=farm.progress;
- assert.equal(p.workers.length,2);assert.ok(p.workers.every(w=>w.farmId==='farm-0'&&w.energy===100&&w.restUntil===0));
- assert.equal(p.coins,coins+5*8+180,'fish sold + chi fee refunded');
+ assert.equal(p.workers.length,3,'three slots: nobody is dropped');assert.ok(p.workers.every(w=>w.farmId==='farm-0'&&w.energy===100&&w.restUntil===0));
+ assert.equal(p.coins,coins+5*8,'fish sold, no fee refunded');
  assert.equal(p.stock.roasted.robusta,roasted+168);assert.equal(p.upgrades.dryer,20);assert.equal(p.machines.grinder,undefined);
+});
+
+test('crew slots: three hires cover care, processing and delivery; robots do one job; people multitask by level',()=>{
+ const farm=rich();
+ for(const id of ['an','robo-n1','robo-n2'])assert.equal(farm.act('workers','hire',{id,pack:1},AT).ok,true);
+ const [an,r1,r2]=farm.progress.workers;
+ assert.deepEqual([...activeJobs(an)].map(jobGroupOf).filter((g,i,a)=>a.indexOf(g)===i),['care']);
+ assert.equal(activeJobs(r1).size,1);assert.equal(activeJobs(r2).size,1);assert.notEqual([...activeJobs(r1)][0],[...activeJobs(r2)][0]);
+ // Level 1 person: a second area is refused; robot: turning a job on turns the other off.
+ assert.equal(farm.act('workers','permission',{id:'an',job:'processing'},AT).ok,false);
+ assert.equal(farm.act('workers','permission',{id:'robo-n1',job:'weed'},AT).ok,true);
+ assert.deepEqual([...activeJobs(farm.progress.workers[1])],['weed']);
+ assert.equal(groupLimit({kind:'human',xp:0}),1);assert.equal(groupLimit({kind:'human',xp:900}),2);assert.equal(groupLimit({kind:'human',xp:3600}),3);
+});
+test('morale: slack odds stay in [0, 0.6] and tired people work slower',()=>{
+ assert.equal(slackChance(100,'diligent',false),.02);assert.ok(Math.abs(slackChance(0,'lazy',true)-.6)<1e-9);
+ assert.equal(slackReason(20,true),'tired');assert.equal(slackReason(80,true),'dislike');assert.equal(slackReason(80,false),'lazy');
+ assert.equal(tiredFactor(100),1);assert.ok(Math.abs(tiredFactor(0)-1.4)<1e-9);
+ assert.equal(rollSlack(100,'normal',false,()=>.99),null);assert.deepEqual(rollSlack(10,'normal',false,()=>0),{reason:'tired',ms:10000});
+});
+test('auto errands: ship a ready café order first, buy seeds only when plots are empty and none are left',()=>{
+ const p=JSON.parse(JSON.stringify(rich().progress));
+ p.orders=[{id:'o1',source:'cafe',status:'open',cropId:'robusta',grams:252,workers:[]}];p.stock.roasted.robusta=300;p.coins=50;
+ assert.equal(pickAutoErrand(p,{regionKind:'both',level:1})?.action,'shipOrder');
+ p.orders=[];p.order={...p.order,quantity:1e9};p.cafe.stock.roasted={robusta:0};
+ assert.equal(pickAutoErrand(p,{regionKind:'both',level:1})?.action,'ship','café low on beans: send roasted beans');
+ assert.equal(pickAutoErrand(p,{regionKind:'farm',level:1})?.action,'sell','farm-only region sells instead');
+ p.stock.roasted.robusta=0;for(const c of Object.keys(p.seeds))p.seeds[c]=0;p.plots.forEach((t,i)=>{if(i<3){t.unlocked=true;t.stage='empty';}});
+ const buy=pickAutoErrand(p,{regionKind:'both',level:1});
+ assert.equal(buy?.action,'buySeed');assert.ok(buy.choice.quantity>=1&&buy.choice.quantity<=3);
+ p.coins=20;assert.equal(pickAutoErrand(p,{regionKind:'both',level:1}),null,'keeps 20 coins in hand');
+});
+test('old saves: a level-1 person with every job on keeps only one job area, a robot only one job',()=>{
+ const saved=rich().progress;
+ saved.workers=[{id:'an',name:'An',xp:0,farmId:'farm-0',jobs:{},cargo:[],enabled:true,autoPay:true,shiftUntil:0},{id:'robo-n1',name:'Robot',xp:0,farmId:'farm-0',jobs:{},cargo:[],enabled:true,autoPay:true,shiftUntil:0}];
+ const [an,robot]=createFarm(saved,null,()=>{},AT).progress.workers;
+ assert.deepEqual(Object.entries(an.jobs).filter(([,on])=>on).map(([id])=>jobGroupOf(id)).filter((g,i,a)=>a.indexOf(g)===i),['care']);
+ assert.equal(Object.values(robot.jobs).filter(Boolean).length,1);
 });

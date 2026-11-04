@@ -58,7 +58,9 @@ test('the crew update loop escapes an overlapping player and resumes its walking
   const previousDocument=globalThis.document;
   // Canvas drawing is irrelevant to movement; keep the real crew and farm logic.
   globalThis.document={createElement:()=>({getContext:()=>new Proxy({},{get:()=>()=>{},set:()=>true})})};
-  let crew;
+  let crew;const random=Math.random;
+  // Staff morale rolls a break with Math.random at job start (crew-autoplay.md 4); keep this movement test deterministic.
+  Math.random=()=>.99;
   try{
     const at=Date.now(),farm=createFarm(null,'capital',()=>{},at);
     farm.act('workers','hire','an',at);farm.act('workers','startWork','an',at);
@@ -75,5 +77,5 @@ test('the crew update loop escapes an overlapping player and resumes its walking
     assert.ok(actor.position.distanceTo(start)>.9,'worker must physically move away from the player');
     assert.ok(Math.hypot(actor.position.x-player.position.x,actor.position.z-player.position.z)>=.85);
     assert.match(farm.progress.workers[0].state,/^Going to /,'walking must replace the stale avoidance message');
-  }finally{crew?.dispose();if(previousDocument===undefined)delete globalThis.document;else globalThis.document=previousDocument;}
+  }finally{Math.random=random;crew?.dispose();if(previousDocument===undefined)delete globalThis.document;else globalThis.document=previousDocument;}
 });

@@ -1,4 +1,4 @@
-import { formatMass,formatCoins,workerLevel,workerStat,workerWage,contractPlan,contractPrice,contractLeft,WORK_DAY_MS,WORKER_CANDIDATES,packPrice } from './rules.js';
+import { formatMass,formatCoins,workerLevel,workerStat,workerWage,contractPlan,contractPrice,contractLeft,WORK_DAY_MS,WORKER_CANDIDATES,packPrice,FARM_SLOTS } from './rules.js';
 import { clock } from '../../ui/incidents.js';
 import { editDragSelection } from './tools.js';
 import { CROPS, TOOLS, xpForLevel } from './content.js';
@@ -565,7 +565,7 @@ minus.disabled=config.maximum<1||n<=1;plus.disabled=config.maximum<1||n>=Math.mi
           card.addEventListener('pointerdown',event=>{if(event.button!==0||!event.isPrimary)return;staffDrag={pointer:event.pointerId,id,card,x:event.clientX,y:event.clientY,ghost:null};},options);
         }
         main.querySelector('small').textContent=tr('farm.ui.mainSlots',{n:mainGrid.children.length});
-        while(mainGrid.children.length<2){const slot=document.createElement('div');slot.className='farm-staff-empty-slot';slot.dataset.staffDrop='main';slot.textContent=tr('farm.ui.emptySlot',{n:mainGrid.children.length+1});mainGrid.append(slot);}
+        while(mainGrid.children.length<FARM_SLOTS){const slot=document.createElement('div');slot.className='farm-staff-empty-slot';slot.dataset.staffDrop='main';slot.textContent=tr('farm.ui.emptySlot',{n:mainGrid.children.length+1});mainGrid.append(slot);}
         main.append(mainGrid);list.append(main);
       }
       if(kind==='bag') for(let i=entries.length;i<Math.ceil(Math.max(1,entries.length)/6)*6;i++){const empty=document.createElement('div');empty.className='farm-bag-empty';empty.setAttribute('aria-hidden','true');$('farm-modal-items').append(empty);}

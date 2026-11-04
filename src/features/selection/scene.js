@@ -3,7 +3,7 @@ import { loadPlayer } from '../../characters/load-player.js';
 import { disposeScene } from '../../shared/three/dispose-scene.js';
 import { loadModel } from '../../shared/three/models.js';
 
-const FRAME_HEIGHT = 2.9; // bệ + nhân vật ~1.8m + khoảng thở rộng để người không chiếm hết khung
+const FRAME_HEIGHT = 3.5; // bệ + nhân vật ~1.8m + khoảng thở rộng: người chiếm ~55% khung, thấy được cảnh quanh
 const PEDESTAL = .12;
 const STAGE_Z = 2.2; // đứng lên phía trước hiên để hàng rào lùi xa sau lưng (sàn kéo tới z≈6)
 
@@ -25,13 +25,13 @@ export async function createSelection(gender, onSelect = () => {}, onProgress) {
   scene.fog = new THREE.Fog('#edf5e7', 8, 20); // sương sữa phủ dần từ hàng rào ra xa; khoảng cách đặt lại theo camera trong resize
   const camera = new THREE.PerspectiveCamera(34, 1, .1, 120);
   camera.position.set(0, 1.55, 5.7); camera.lookAt(0, 1, 0);
-  scene.add(new THREE.HemisphereLight('#f5f8ff', '#c3cfbc', 1.8));
-  const light = new THREE.DirectionalLight('#fff4e4', 2.2); light.position.set(-3, 6, STAGE_Z + 5); light.target.position.set(0, 0, STAGE_Z); scene.add(light, light.target);
+  scene.add(new THREE.HemisphereLight('#f5f8ff', '#c3cfbc', 1.45));
+  const light = new THREE.DirectionalLight('#fff4e4', 1.9); light.position.set(-3, 6, STAGE_Z + 5); light.target.position.set(0, 0, STAGE_Z); scene.add(light, light.target);
   // Bóng đổ thật lên bệ và sàn để nhân vật bám đất, không như dán lên nền.
   light.castShadow = true; light.shadow.mapSize.set(1024, 1024); light.shadow.bias = -.0005; light.shadow.normalBias = .02;
   Object.assign(light.shadow.camera, { left: -4, right: 4, top: 4, bottom: -2, near: 1, far: 20 });
   const fill = new THREE.DirectionalLight('#e5efff', .9); fill.position.set(4, 2, 3); scene.add(fill);
-  const rim = new THREE.DirectionalLight('#dcf5ef', 2.6); rim.position.set(1, 3, -3); scene.add(rim);
+  const rim = new THREE.DirectionalLight('#dcf5ef', 2.1); rim.position.set(1, 3, -3); scene.add(rim);
   const softCanvas = document.createElement('canvas'); softCanvas.width = softCanvas.height = 128;
   const ctx = softCanvas.getContext('2d');
   const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
@@ -116,9 +116,9 @@ export async function createSelection(gender, onSelect = () => {}, onProgress) {
   const beamCtx = beamCanvas.getContext('2d');
   const arch = () => { beamCtx.beginPath(); beamCtx.moveTo(10, 256); beamCtx.lineTo(10, 64); beamCtx.arc(64, 64, 54, Math.PI, 0); beamCtx.lineTo(118, 256); };
   const beamGradient = beamCtx.createLinearGradient(0, 0, 0, 256);
-  beamGradient.addColorStop(0, 'rgba(255,226,140,.06)'); beamGradient.addColorStop(1, 'rgba(255,214,110,.3)');
+  beamGradient.addColorStop(0, 'rgba(255,226,140,0)'); beamGradient.addColorStop(1, 'rgba(255,214,110,.16)');
   arch(); beamCtx.fillStyle = beamGradient; beamCtx.fill();
-  beamCtx.shadowColor = 'rgba(255,200,80,.8)'; beamCtx.shadowBlur = 6; beamCtx.lineWidth = 3; beamCtx.strokeStyle = 'rgba(240,184,64,.95)'; arch(); beamCtx.stroke();
+  beamCtx.shadowColor = 'rgba(255,200,80,.5)'; beamCtx.shadowBlur = 4; beamCtx.lineWidth = 2; beamCtx.strokeStyle = 'rgba(232,176,60,.7)'; arch(); beamCtx.stroke();
   const beamTexture = new THREE.CanvasTexture(beamCanvas);
   const plainTop = new THREE.Color('#d8c6a8'), goldTop = new THREE.Color('#f3d27a');
   const pedestals = characters.map(() => {
@@ -196,21 +196,21 @@ export async function createSelection(gender, onSelect = () => {}, onProgress) {
       shadows[index].material.opacity = .14 + focus * .1;
       const pedestal = pedestals[index], glow = focus * focus;
       pedestal.base.position.set(character.position.x, 0, character.position.z); pedestal.base.scale.setScalar(character.scale.x);
-      pedestal.top.color.lerpColors(plainTop, goldTop, glow); pedestal.top.emissiveIntensity = glow * .35;
+      pedestal.top.color.lerpColors(plainTop, goldTop, glow); pedestal.top.emissiveIntensity = glow * .18;
       const pulse = reduced ? 1 : .85 + Math.sin(time * 2.4) * .15;
-      pedestal.ring.material.opacity = glow * pulse; pedestal.halo.material.opacity = glow * .3 * pulse; pedestal.beam.material.opacity = glow;
+      pedestal.ring.material.opacity = glow * .75 * pulse; pedestal.halo.material.opacity = glow * .16 * pulse; pedestal.beam.material.opacity = glow * .6;
       pedestal.ring.visible = pedestal.halo.visible = pedestal.beam.visible = glow > .01;
     });
     haze.material.opacity = reduced ? .85 : .83 + Math.sin(time * .7) * .04;
     dust.rotation.y = reduced ? 0 : time * .025;
     dust.position.y = reduced ? 0 : Math.sin(time * .3) * .12;
   }
-  // Toạ độ màn hình của người đang chọn để HTML đặt mũi tên (ngang thắt lưng) và dấu tích (mép trước bệ).
+  // Toạ độ màn hình của người đang chọn để HTML đặt mũi tên (ngang thắt lưng, sát viền vòm sáng) và dấu tích (mép trước bệ).
   const anchorPoint = new THREE.Vector3();
   function anchor(width, height) {
     const character = characters[target], x = character.position.x, z = character.position.z;
     const project = (px, py, pz) => { anchorPoint.set(px, py, pz).project(camera); return [(anchorPoint.x + 1) / 2 * width, (1 - anchorPoint.y) / 2 * height]; };
-    const [fx, fy] = project(x, PEDESTAL + 1, z), [side] = project(x + .78, PEDESTAL + 1, z), [, fb] = project(x, 0, z + .66);
+    const [fx, fy] = project(x, PEDESTAL + 1, z), [side] = project(x + .62, PEDESTAL + 1, z), [, fb] = project(x, 0, z + .66);
     return { fx, fy, fw: side - fx, fb };
   }
   const raycaster = new THREE.Raycaster();
@@ -229,13 +229,11 @@ export async function createSelection(gender, onSelect = () => {}, onProgress) {
   function resize(width, height) {
     camera.aspect = width / height;
     camera.fov = width < 700 ? 40 : 30; // ống kính hẹp: nền bị nén lại phía sau, sàn gỗ không chiếm nửa màn
-    const phoneLandscape = height < 500 && width > height;
-    // Khung nhân vật = từ mép trên tới mép trên bảng tạo nhân vật; bảng còn ẩn (chưa đo được) thì ước 300px.
+    // Khung nhân vật = từ mép trên tới mép trên nút Chơi; nút còn ẩn (chưa đo được) thì ước ~110px.
     const card = document.getElementById('player-form')?.getBoundingClientRect();
-    const bottom = phoneLandscape ? height - 48 : card?.height ? card.top - 64 : height - 344; // chừa tab Nam/Nữ nhô lên trên bảng + dấu tích dưới bệ
-    const top = height * .06, room = Math.max(bottom - top, height * .4);
-    // Bề ngang dành cho nhân vật: xoay ngang thì chỉ phần bên trái bảng (bảng ở bên phải).
-    const free = phoneLandscape ? (card?.width ? card.left : width * .6) : width;
+    const bottom = Math.min(card?.height ? card.top - 56 : height - 130, height * .74); // chừa dấu tích dưới bệ; không cho người phình hết màn
+    const top = height * .1, room = Math.max(bottom - top, height * .4);
+    const free = width; // nút Chơi nằm giữa đáy nên nhân vật dùng hết bề ngang
     const tanHalf = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
     // Lùi camera vừa đủ để nhân vật (kèm khoảng thở) lấp đúng khoảng trống đó; camera ngang tầm ngực để sàn không phình ra.
     const distance = FRAME_HEIGHT * height / (room * 2 * tanHalf);

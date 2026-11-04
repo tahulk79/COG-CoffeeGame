@@ -4,19 +4,22 @@ Mô tả đúng code hiện tại (lượt 1). Ai đổi một trường dưới
 
 ## 1. Kho lưu trình duyệt
 
+Đổi tên 04/11/2026 (COG → Godbean): **không chuyển save cũ**, game chơi lại từ đầu. Khi tải, `src/state/storage-keys.js` xóa khóa cũ `cog-coffee-progress`, `cog-coffee-player`, `cog-coffee-progress-backup`.
+
 | Key localStorage | Nội dung | Ghi | Đọc |
 |---|---|---|---|
-| `cog-coffee-player` | `{ gender: 'male'\|'female', name: string ≤ 20 }` | `savePlayer` (app/game.js lúc vào game) | `readPlayer` (app/game.js) |
-| `cog-coffee-progress` | Save chính, `version: 1` (xem dưới) | `completeIntro`, `saveHeaven`, `saveFarm`, **`saveSettings` (mới)** | `readProgress`, **`readSettings` (mới)** |
+| `godbean-player` | `{ gender: 'male'\|'female', name: string ≤ 20 }` | `savePlayer` (app/game.js lúc vào game; `name` = `randomName(gender)` theo ngôn ngữ) | `readPlayer` (app/game.js) |
+| `godbean-progress` | Save chính, `version: 1` (xem dưới) | `completeIntro`, `saveHeaven`, `saveFarm`, **`saveSettings` (mới)** | `readProgress`, **`readSettings` (mới)** |
 
 Tất cả hàm nằm ở `src/state/progress.js`. Mọi hàm ghi đều đọc lại bản cũ rồi `{...previous, ...}` nên trường của màn khác được giữ nguyên. `readProgress` trả `{}` nếu `version !== 1`.
 
-### Trường cấp 1 của `cog-coffee-progress`
+### Trường cấp 1 của `godbean-progress`
 
 | Trường | Kiểu | Ai ghi | Ai đọc |
 |---|---|---|---|
 | `version` | `1` | mọi hàm ghi | `readProgress` |
 | `introCompleted`, `chapter`, `accident` | bool, số, chuỗi | `completeIntro`, `saveHeaven`, `saveFarm` | app/game.js (chọn màn khởi động) |
+| `startingRegion` | id địa điểm (`world-map/content.js`) | `saveRegion` (app/game.js khi bấm "Trùng sinh ở đây" trên bản đồ; có rồi thì bản đồ mở thẳng thẻ kết quả) | app/game.js → `createFarmGame(..., startingRegion)` → `createFarm`; chỉ dùng khi tạo save farm mới |
 | `heaven`, `startingGift` | object, `'seeds'\|'tools'\|'capital'` | `saveHeaven` | heaven, app/game.js → `createFarm(saved, startingGift)`; **(spec 03/11)** app/game.js còn đọc `heaven.answers` qua `correctQuestionIds` để truyền `heavenLessons` (mục 5) |
 | `farm` | object farm `version: 3` (mục 2) | `saveFarm` qua `onSave` của `createFarm` | `createFarm` |
 | **`settings`** | object (mục 4) | **`saveSettings`** | **`readSettings`** |
@@ -35,6 +38,7 @@ Chỉ `src/features/farm/model.js` được sửa số liệu. Mọi màn khác 
 
 | Trường | Ý nghĩa | Ghi (hàm `act`) | Đọc |
 |---|---|---|---|
+| `region` | Nơi trùng sinh (`'vn'`, `'ke'`, `'it'`…), cố định theo save. Save mới lấy `startingRegion`; save cũ thiếu / id lạ hoặc đang khóa → `'vn'`. Không đổi `version` | `createFarm` (6 tham số: `…, heavenLessons, startingRegion`) | `regionType()` ở farm/content (HUD mở dần, `questsFor`), farm/model (đơn quán tự sinh chỉ khi `both`), farm/game, cafe/ui ([02b-world-map](../screens/02b-world-map/README.md)) |
 | `coins` | Ví chung, làm tròn 0,01 | `money()` trong mọi `act` | farm HUD, quán (giá, lương, nhập hàng) |
 | `stock[product][crop]`, `lots[]` | Kho farm theo gram. `lots` là nguồn thật, `stock` dựng lại từ lots | thu hoạch, trạm, bán, `shipOrder`, `cafe/ship` | farm UI, đơn hàng |
 | `cafe.stock`, `cafe.lots[]` | Kho quán (chỉ có `roasted`) | chuyến giao về tới nơi (`advance`), `cafe/supply`, `cafe/brew` (lấy ra) | bench (`missingFor`), service |
@@ -249,3 +253,23 @@ Spec: [robot-staff](robot-staff.md). Vòng 3 chỉ đổi dữ liệu tĩnh `rob
 - `take(product, cropId, grams, location, only)`: lô `gift` luôn lấy sau cùng; `only = 'gift'` chỉ lấy lô gift.
 
 **Trường hợp biên:** cấp gói chỉ khi `state === 'locked'`, đặt `state = 'ready'` trước khi thêm crew/lô để không cấp đôi. Thành viên `gift` thừa (`fire` từ dev tools) → bước 4 dọn. Gói tặng không thêm toast: dòng 🎁 gộp vào toast mở khóa `workers` sẵn có (`farm/game.js:536–539`, onboarding-flow 3.3).
+
+## 7. 3 slot đội, giới hạn việc, Auto (04/11/2026, đã code, chưa kiểm chứng)
+
+Spec: [crew-autoplay](crew-autoplay.md). Ghi đè mục 6: hàng `('workers','hire')` (không còn "2 chỗ, tối đa 1 robot") và bước chuyển save 6 (không còn xóa robot thứ hai). Không tăng `version`.
+
+| Nơi | Thêm / đổi | Ghi chú |
+|---|---|---|
+| `farm/rules.js` | `FARM_SLOTS = 3`, `AUTOPLAY = { runs: 3, runMs: 600000 }`, `CARE_JOBS`, `JOB_GROUPS`, `jobGroupOf`, `groupLimit`, `nextGroupLevel`, `activeJobs(w)` | `activeJobs` là nguồn duy nhất cho "thợ làm việc gì" (crew.js, Thiết lập) |
+| `farm/rules.js` `WORKER_CANDIDATES` | `robo-n1`, `robo-n2`, `robo-n3` (cùng chỉ số, bio dùng khóa `robo-n1`) | Nhiều robot cùng lúc |
+| `cafe/recipes.js` | `MAX_CREW = 3`; ứng viên `robo-p1` (barista robot, `wage 4`, `fixedEffects { ms 15000, score 50, only 'phin-den', speed 2.2 }`); `STAR_CAP = { robot 1, staff 2, player 3 }` | `fixedEffects.only` = món duy nhất robot pha |
+| save `farm.autoplay` | `{ runs: 0–3, leftMs: 0–600000 }`; thiếu → `{ runs: 3, leftMs: 0 }` | Ghi bằng `act('autoplay','start')` (còn `leftMs` thì chạy tiếp, không thì `runs − 1`, `leftMs = runMs`; hết lượt → fail) và `act('autoplay','spend', ms)` (trừ, kẹp 0; ms kẹp 0–60000) |
+| save `workers[i].jobs` | không đổi kiểu | Thuê mới: người bật **1 mảng** đội đang thiếu, robot bật **1 việc**. `('workers','permission')` robot: bật việc mới tắt hết việc khác; người: bật mảng mới vượt `groupLimit` → fail. `permissionGroup care` kiểm như vậy |
+| `cafe/service.js` | `isClaimed(key)` | Auto đọc bảng giữ chỗ |
+| Không lưu | năng lượng `energy`, `slackUntil`, `slack` trên actor farm/agent quán | Mỗi lần tải bắt đầu lại 100 |
+
+Quán (F-31): `cafe.supplies` bỏ `milk`, thêm `milk-dalat` (đầu 1000), `milk-meiji`, `lavie`, `matcha`; `cafe.gear.chasen` (0–1); save mới `cafe.prefs = { milk: 'milk-meiji'|'milk-dalat', water: 'tap'|'lavie' }` (thiếu/lạ → `milk-dalat`, `tap`). Act mới `('cafe','prefs', { milk? , water? })`, `('cafe','autoBrew')` (−`AUTO_BREW_COST` 2 xu). Công thức vẫn ghi `milk`/`water`; `resolveUses(uses, cafe)` đổi thành vật tư thật, `ingredientBonus` cộng chất lượng. Không cần chuyển save (đổi tên game đã xóa save cũ).
+
+Quán: `('cafe','sell')` nhận thêm `cold?: true` → giá × 0,7 (service đã trừ 1★ trước khi gửi). Ly trong phiên có `madeAt` (ms, không lưu; dời khi quán tạm dừng). Báo cáo ca có `wasted` (số ly bỏ). `recipes.js` thêm `QUICK_MS`, `quickScore`, `FRESH_MS`, `freshFor`.
+
+Chuyển save: `workers[i].jobs` cắt còn đúng `activeJobs` (người cấp thấp có mọi việc bật → chỉ còn mảng chăm cây; robot → 1 việc), nên dữ liệu lưu luôn khớp việc thợ thật sự làm; `orders/requestDelivery` và lý do chờ dùng `activeJobs`. Act `autoplay` không ghi nhật ký hoạt động. `farm.workers` lấp đủ 3 slot trước khi hoàn phí người dự bị; `cafe.crew` quá 3 người (không tính `gift`) → giữ 3 người đầu, bỏ người dư (bộ lọc `MAX_CREW` sẵn có).
