@@ -9,6 +9,7 @@
 | Màn liên quan | <00 Chọn nhân vật / 01 Intro / 02 Thiên đàng / 03 Nông trại / 04 Quán / Chung> |
 | Mục GDD | <để trống; đội phát triển điền> |
 | Mã tính năng | <để trống; điền F-xx khi Đã chốt> |
+| Cập nhật | <dd/mm — một câu: vừa thêm / đổi gì. Sửa dòng này mỗi lần sửa file> |
 
 ## Ý tưởng
 

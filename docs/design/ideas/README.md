@@ -5,8 +5,10 @@ Nơi sếp và cả nhóm gửi ý tưởng mới cho game. Mỗi ý tưởng l�
 ## Gửi một ý tưởng
 
 1. Chép [_template.md](_template.md) thành `YYYY-MM-DD-ten-ngan.md` (chữ thường, không dấu, gạch ngang). Ví dụ `2026-11-05-khach-quen.md`.
-2. Điền **Người đề xuất**, **Ngày**, phần **Ý tưởng** và **Vì sao**. Để Trạng thái là `Mới`.
+2. Điền **Người đề xuất**, **Ngày**, phần **Ý tưởng** và **Vì sao**. Để Trạng thái là `Mới`, dòng **Cập nhật** ghi `dd/mm — gửi mới`.
 3. Commit với tiêu đề bắt đầu bằng `idea:`, ví dụ `idea: khách quen có món yêu thích`, rồi push.
+
+Sửa lại ý tưởng đã gửi (thêm chi tiết, đổi trạng thái, ghi quyết định) thì **luôn sửa dòng Cập nhật** thành một câu nói vừa đổi gì; hộp thư thiết kế in câu này khi đồng bộ về, khỏi phải đọc lại cả file.
 
 Không cần sửa GDD khi gửi ý tưởng. Ý tưởng chưa chốt **không** được triển khai vào code.
 
