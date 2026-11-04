@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { createPerson } from '../../characters/player.js';
 import { dressPerson } from '../../characters/npc.js';
 import { MACHINES,CROPS,PLOTS,FIELDS,plotCare } from './content.js';
+import { t as tr } from '../../i18n/index.js';
 import { ACTION_LABELS,workerStat,workerLevel,efficiency,SEASON_MS,workerWage,workerIdleReason } from './rules.js';
 
 const productionOrders=p=>p.orders.filter(o=>o.source!=='shop');
@@ -153,7 +154,7 @@ export function createFarmCrew(farm,world,player,onReward=()=>{},onIncident=()=>
     actor.task=t;actor.elapsed=0;actor.route=[];// People move, so routes only avoid static colliders; meetings are resolved locally while walking.
     actor.search=world.createWorkerRoute(actor.group.position,t.id);
     if(!actor.search){release(actor);return;}
-    farm.workerUpdate(w.id,{state:`Đi ${ACTION_LABELS[t.action]?.toLowerCase()||'làm việc'}`});
+    farm.workerUpdate(w.id,{state:tr('farm.crew.heading',{action:ACTION_LABELS[t.action]?.toLowerCase()||tr('farm.crew.work')})});
   }
   function dispatch(p,at){
     // Keep room for the smallest finished batch so harvesting never starves collection.
@@ -226,11 +227,11 @@ export function createFarmCrew(farm,world,player,onReward=()=>{},onIncident=()=>
           const tree=p.plots.find(t=>t.id===a.task.id),care=tree?plotCare(tree):null;
           const obsolete=care&&(a.task.action==='plant'&&!care.empty||a.task.action==='harvest'&&!care.ready||a.task.action==='water'&&!care.needsWater||a.task.action==='weed'&&!care.needsWeeding||a.task.action==='fertilize'&&!care.canFeed||a.task.action==='prune'&&tree.pruned);
           const machine=p.machines[a.task.id],batchJobs=machine?[machine.batch,...machine.extraBatches].filter(Boolean):[],staleMachine=machine&&(a.task.action==='collect'&&!batchJobs.some(j=>j.readyAt<=at)||a.task.action==='turn'&&!batchJobs.some(j=>!j.turned&&at>=(j.startedAt+j.readyAt)/2&&at<j.readyAt)||a.task.action==='start'&&p.stock[MACHINES.find(m=>m.id===a.task.id).input][a.task.choice.cropId]<MACHINES.find(m=>m.id===a.task.id).inputCount*a.task.choice.quantity);
-          if(obsolete||staleMachine){release(a);dispatchAt=0;farm.workerUpdate(w.id,{state:'Chủ đã làm xong · Chuyển việc khác'});}
-        }a.activity.setBonus(null);if(!a.task||a.search||a.route.length)a.activity.status(w.state||'Chuẩn bị làm việc',0);
-        if(a.task&&playerTargets.has(a.task.id)){release(a);farm.workerUpdate(w.id,{state:'Nhường người chơi'});continue;}
+          if(obsolete||staleMachine){release(a);dispatchAt=0;farm.workerUpdate(w.id,{state:tr('farm.crew.ownerDone')});}
+        }a.activity.setBonus(null);if(!a.task||a.search||a.route.length)a.activity.status(w.state||tr('farm.crew.preparing'),0);
+        if(a.task&&playerTargets.has(a.task.id)){release(a);farm.workerUpdate(w.id,{state:tr('farm.crew.yield')});continue;}
         if(a.task&&w.jobs?.[jobGroup(a.task)]===false){release(a);}
-        if(!w.enabled){if(a.task)release(a);farm.workerUpdate(w.id,{state:'Tạm dừng'});continue;}
+        if(!w.enabled){if(a.task)release(a);farm.workerUpdate(w.id,{state:tr('farm.crew.paused')});continue;}
         // Shift hiring (03/11/2026): workers no longer tire, rest or need a coin boost.
         if(w.shiftUntil<=at){if(a.task)release(a);farm.workerUpdate(w.id,{state:workerIdleReason(w,p,at)});continue;}
         // Sick or on the phone: stand still and drop the claimed job (phone ends on «Nhắc» or after 40 s).
@@ -239,7 +240,7 @@ export function createFarmCrew(farm,world,player,onReward=()=>{},onIncident=()=>
         if(!a.task){const approaching=[...actors.values()].find(other=>other!==a&&other.task&&Math.hypot(other.group.position.x-a.group.position.x,other.group.position.z-a.group.position.z)<1.65);if(approaching)stepAside(a,dt,approaching.group.position,playerAway);farm.workerUpdate(w.id,{state:workerIdleReason(w,p,at)});continue;}
         if(a.search){
           const deadline=performance.now()+.7;
-          do{const result=a.search.next();if(result.done){a.route=result.value;a.search=null;if(!a.route.length&&!world.atInteraction(a.task.id,a.group.position)){cooldowns.set(key(a.task),at+4000);farm.workerUpdate(w.id,{waitReason:'Chưa có lối tới mục tiêu · Đang thử việc khác',waitUntil:at+4000});release(a);}break;}}while(performance.now()<deadline);
+          do{const result=a.search.next();if(result.done){a.route=result.value;a.search=null;if(!a.route.length&&!world.atInteraction(a.task.id,a.group.position)){cooldowns.set(key(a.task),at+4000);farm.workerUpdate(w.id,{waitReason:tr('farm.crew.noPath'),waitUntil:at+4000});release(a);}break;}}while(performance.now()<deadline);
           continue;
         }
         while(a.route.length&&Math.hypot(a.route[0].x-a.group.position.x,a.route[0].z-a.group.position.z)<.05)a.route.shift();
@@ -250,7 +251,7 @@ export function createFarmCrew(farm,world,player,onReward=()=>{},onIncident=()=>
           const ghost=(a.ghostUntil||0)>at,occupied=!ghost&&((!playerAway&&Math.hypot(player.position.x-x,player.position.z-z)<.85)||[...actors.values()].some(other=>other!==a&&Math.hypot(other.group.position.x-x,other.group.position.z-z)<.85));
           // A step clipping a corner slides along it (same as the player) instead of counting as blocked.
           let tx=x,tz=z;if(!occupied&&!world.canStand(x,z)){const probe={x:a.group.position.x,z:a.group.position.z};slideMove(probe,x-probe.x,z-probe.z,world.canStand);if(Math.hypot(probe.x-a.group.position.x,probe.z-a.group.position.z)>.002){tx=probe.x;tz=probe.z;}}
-          if(!occupied&&world.canStand(tx,tz)){farm.workerUpdate(w.id,{state:`Đi ${ACTION_LABELS[a.task.action]?.toLowerCase()||'làm việc'}`});a.group.position.x=tx;a.group.position.z=tz;turn(a,Math.atan2(dx,dz),dt);a.walk+=dt*8;a.blocked=0;a.replans=0;a.side=0;for(const [i,leg]of a.group.userData.legs.entries())leg.rotation.x=Math.sin(a.walk+i*Math.PI)*.3;}
+          if(!occupied&&world.canStand(tx,tz)){farm.workerUpdate(w.id,{state:tr('farm.crew.heading',{action:ACTION_LABELS[a.task.action]?.toLowerCase()||tr('farm.crew.work')})});a.group.position.x=tx;a.group.position.z=tz;turn(a,Math.atan2(dx,dz),dt);a.walk+=dt*8;a.blocked=0;a.replans=0;a.side=0;for(const [i,leg]of a.group.userData.legs.entries())leg.rotation.x=Math.sin(a.walk+i*Math.PI)*.3;}
           else{
             a.blocked+=dt;
             const other=[...actors.values()].find(other=>other!==a&&Math.hypot(other.group.position.x-x,other.group.position.z-z)<1.05);
@@ -260,7 +261,7 @@ export function createFarmCrew(farm,world,player,onReward=()=>{},onIncident=()=>
               else if(a.id>other.id||a.blocked>.6)moved=stepAside(a,dt,other.group.position,playerAway);
             }else if(!playerAway&&Math.hypot(player.position.x-x,player.position.z-z)<1.05)moved=stepAside(a,dt,player.position,playerAway);
             const byPerson=Boolean(other)||!playerAway&&Math.hypot(player.position.x-x,player.position.z-z)<1.05;
-            farm.workerUpdate(w.id,{state:moved?'Đang tránh người phía trước':byPerson?'Chờ lối trống':'Đổi đường tránh vật cản'});
+            farm.workerUpdate(w.id,{state:moved?tr('farm.crew.avoiding'):byPerson?tr('farm.crew.waitClear'):tr('farm.crew.reroute')});
             // Side-stepping resets `blocked`, so a person standing on the target spot could loop forever; this timer survives side-steps.
             a.personWait=byPerson?(a.personWait||0)+dt:0;if(a.personWait>1.5){a.personWait=0;a.ghostUntil=at+1500;}
             if(a.blocked>.8){
@@ -268,13 +269,13 @@ export function createFarmCrew(farm,world,player,onReward=()=>{},onIncident=()=>
               // People: a one-tile lane has no detour, so pass through them briefly (never walls).
               if(byPerson)a.ghostUntil=at+1200;
               // Static obstacle (trunk, fence): replan from here; give the job up after 3 failed replans.
-              else if(++a.replans>3){cooldowns.set(key(a.task),at+4000);farm.workerUpdate(w.id,{waitReason:'Vướng vật cản · Đang thử việc khác',waitUntil:at+4000});release(a);}
+              else if(++a.replans>3){cooldowns.set(key(a.task),at+4000);farm.workerUpdate(w.id,{waitReason:tr('farm.crew.blocked'),waitUntil:at+4000});release(a);}
               else{a.route=[];a.search=world.createWorkerRoute(a.group.position.clone(),a.task.id);}
             }
           }
           continue;
         }
-        if(!world.atInteraction(a.task.id,a.group.position)){cooldowns.set(key(a.task),at+4000);farm.workerUpdate(w.id,{waitReason:'Chưa có lối tới mục tiêu · Đang thử việc khác',waitUntil:at+4000});release(a);continue;}
+        if(!world.atInteraction(a.task.id,a.group.position)){cooldowns.set(key(a.task),at+4000);farm.workerUpdate(w.id,{waitReason:tr('farm.crew.noPath'),waitUntil:at+4000});release(a);continue;}
         const duration=farm.workDuration(a.task.action,w)/(.7+.35*workerStat(w,'speed')/100+.25*workerStat(w,'dexterity')/100);
         a.elapsed+=dt;a.activity.update(a.task.action,a.elapsed/duration,at/1000,0);farm.workerUpdate(w.id,{state:`${ACTION_LABELS[a.task.action]} · ${Math.min(100,Math.round(a.elapsed/duration*100))}%`});
         a.group.rotation.z=Math.sin(a.elapsed*5)*.025;

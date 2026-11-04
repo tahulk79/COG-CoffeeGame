@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { ACTION_LABELS } from './rules.js';
+import { t } from '../../i18n/index.js';
 // Shared world feedback for the player and employees; it stays outside asset geometry/collision.
 export function createWorkActivity(parent,personName='') {
   const root=new THREE.Group();root.userData.nonSolid=true;root.userData.noPick=true;parent.add(root);
@@ -23,7 +24,7 @@ export function createWorkActivity(parent,personName='') {
   return {
     setBonus(price){
       bonus.visible=price!==null;if(price===null||price===bonusPrice)return;bonusPrice=price;
-      const ctx=bonusCanvas.getContext('2d');ctx.clearRect(0,0,256,96);ctx.fillStyle='#3b2a1cd9';ctx.strokeStyle='#d9a944';ctx.lineWidth=5;ctx.beginPath();ctx.roundRect(4,4,248,85,30);ctx.fill();ctx.stroke();ctx.fillStyle='#69411f';ctx.font='bold 32px system-ui';ctx.textAlign='center';ctx.fillStyle='#f7ca46';ctx.strokeStyle='#b9801d';ctx.lineWidth=3;ctx.beginPath();ctx.arc(35,47,18,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle='#98611b';ctx.font='bold 24px Georgia';ctx.fillText('₫',35,55);ctx.fillStyle='#fff6dc';ctx.font='bold 29px system-ui';ctx.fillText(`${price} · Làm tiếp`,148,58,188);bonusTexture.needsUpdate=true;
+      const ctx=bonusCanvas.getContext('2d');ctx.clearRect(0,0,256,96);ctx.fillStyle='#3b2a1cd9';ctx.strokeStyle='#d9a944';ctx.lineWidth=5;ctx.beginPath();ctx.roundRect(4,4,248,85,30);ctx.fill();ctx.stroke();ctx.fillStyle='#69411f';ctx.font='bold 32px system-ui';ctx.textAlign='center';ctx.fillStyle='#f7ca46';ctx.strokeStyle='#b9801d';ctx.lineWidth=3;ctx.beginPath();ctx.arc(35,47,18,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle='#98611b';ctx.font='bold 24px Georgia';ctx.fillText('₫',35,55);ctx.fillStyle='#fff6dc';ctx.font='bold 29px system-ui';ctx.fillText(t('farm.activity.continue',{price}),148,58,188);bonusTexture.needsUpdate=true;
     },
     status(text,fatigue=0){
       root.visible=true;tool.visible=false;const value=Math.round(fatigue),key=`status:${text}:${value}`;if(key===lastKey)return;lastKey=key;
@@ -36,7 +37,7 @@ export function createWorkActivity(parent,personName='') {
       tool.rotation.z=Math.sin(time*6)*.3;tool.rotation.x=action==='water'?-.5:Math.sin(time*5)*.15;
       const ratio=Math.max(0,Math.min(1,progress)),key=`${action}:${Math.round(ratio*50)}:${Math.round(fatigue)}`;
       if(key===lastKey)return;lastKey=key;
-      const ctx=canvas.getContext('2d');ctx.clearRect(0,0,256,128);ctx.fillStyle='#3b2a1cd9';ctx.strokeStyle='#a78048';ctx.lineWidth=4;ctx.beginPath();ctx.roundRect(5,8,246,103,20);ctx.fill();ctx.stroke();ctx.fillStyle='#fff6dc';ctx.font='bold 26px system-ui';ctx.textAlign='center';ctx.fillText(ACTION_LABELS[action]||'Làm việc',128,48);if(personName){ctx.font='18px system-ui';ctx.fillText(personName,128,105,235);}ctx.fillStyle='#695139';ctx.beginPath();ctx.roundRect(25,68,206,17,8);ctx.fill();ctx.fillStyle='#8fbd59';ctx.beginPath();ctx.roundRect(28,71,Math.max(5,200*ratio),11,5);ctx.fill();texture.needsUpdate=true;
+      const ctx=canvas.getContext('2d');ctx.clearRect(0,0,256,128);ctx.fillStyle='#3b2a1cd9';ctx.strokeStyle='#a78048';ctx.lineWidth=4;ctx.beginPath();ctx.roundRect(5,8,246,103,20);ctx.fill();ctx.stroke();ctx.fillStyle='#fff6dc';ctx.font='bold 26px system-ui';ctx.textAlign='center';ctx.fillText(ACTION_LABELS[action]||t('farm.activity.working'),128,48);if(personName){ctx.font='18px system-ui';ctx.fillText(personName,128,105,235);}ctx.fillStyle='#695139';ctx.beginPath();ctx.roundRect(25,68,206,17,8);ctx.fill();ctx.fillStyle='#8fbd59';ctx.beginPath();ctx.roundRect(28,71,Math.max(5,200*ratio),11,5);ctx.fill();texture.needsUpdate=true;
     },
     dispose(){bonus.removeFromParent();bonusTexture.dispose();bonusMaterial.dispose();root.removeFromParent();texture.dispose();material.dispose();geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());},
   };

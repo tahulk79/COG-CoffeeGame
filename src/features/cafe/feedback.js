@@ -1,6 +1,7 @@
 // Cầu nối hình + âm của quán (round-1-foundation §4.2, §4.3). Chỉnh độ mạnh hay đổi âm chỉ sửa ở đây.
 import { loop, sfx } from '../../shared/audio/index.js';
 import { popNumber } from '../../shared/vfx/index.js';
+import { t, formatNumber } from '../../i18n/index.js';
 
 // game.js gắn vfx, object(id) → nhóm 3D của điểm tương tác, screenAt(pos) và player khi vào quán; gỡ (null) khi rời.
 let ctx = null;
@@ -13,7 +14,8 @@ const coinsAt = () => {
   const rect = document.getElementById('farm-coins')?.getBoundingClientRect();
   return rect && { x: rect.left + rect.width / 2, y: rect.bottom + 14 };
 };
-const HOLD_LOOP = { '°C': 'bench.steam', phút: 'bench.whisk' };
+// Theo dụng cụ (bench toolFor), không theo đơn vị hiển thị: đơn vị có thể được dịch.
+const HOLD_LOOP = { steamer: 'bench.steam', whisk: 'bench.whisk' };
 
 const TABLE = {
   // ---- Quán (§4.2) ----
@@ -28,13 +30,13 @@ const TABLE = {
     if (stars >= 3) burst('heart', pos, 6);
     sfx('cafe.serve'); sfx('coin.gain');
   },
-  angry: ({ pos }) => { burst('puff', pos, 8); popNumber('−2 uy tín', ctx?.screenAt(pos), 'bad'); sfx('cafe.angry', { at: at3(pos) }); },
+  angry: ({ pos }) => { burst('puff', pos, 8); popNumber(t('cafe.fx.repLoss'), ctx?.screenAt(pos), 'bad'); sfx('cafe.angry', { at: at3(pos) }); },
   clean: ({ pos }) => { burst('sparkle', pos, 6); sfx('cafe.clean', { at: at3(pos) }); },
   call: () => { pulse('pickup'); sfx('cafe.call'); },
   shift: ({ met }) => { if (met) burst('sparkle', ctx?.player.position, 30); sfx(met ? 'cafe.shift-good' : 'cafe.shift-bad'); },
   buy: ({ ok, spent }) => {
     if (!ok) { sfx('ui.deny'); return; }
-    if (spent > 0) { sfx('ui.buy'); popNumber(`−${spent.toLocaleString('vi-VN', { maximumFractionDigits: 2 })} xu`, coinsAt(), 'bad'); }
+    if (spent > 0) { sfx('ui.buy'); popNumber(t('cafe.fx.spent', { n: formatNumber(spent, { maximumFractionDigits: 2 }) }), coinsAt(), 'bad'); }
   },
   open: () => sfx('ui.open'),
   close: () => sfx('ui.close'),
@@ -57,7 +59,7 @@ const TABLE = {
       const id = setInterval(() => sfx('bench.scoop'), 300);
       return { set() {}, stop() { clearInterval(id); } };
     }
-    return loop(HOLD_LOOP[unit] || (tool === 'espresso' ? 'bench.extract' : 'bench.pour'));
+    return loop(HOLD_LOOP[tool] || (tool === 'espresso' ? 'bench.extract' : 'bench.pour'));
   },
   wait: () => loop('bench.wait'),
 };

@@ -23,6 +23,7 @@ Tài liệu tổ chức theo **màn chơi**. Bắt đầu từ [sơ đồ liên 
 | [shared/ui-audio-vfx.md](shared/ui-audio-vfx.md) | UI dùng chung, âm thanh, VFX, cài đặt |
 | [shared/design-system.md](shared/design-system.md) | Token màu, chữ, component, bố cục HUD |
 | [shared/art-direction.md](shared/art-direction.md) | Định hướng hình ảnh, ánh sáng, vật liệu |
+| [shared/i18n.md](shared/i18n.md) | Đa ngôn ngữ Anh/Việt: khóa, file locale, cách thêm chuỗi |
 | [shared/project-structure.md](shared/project-structure.md) | Cấu trúc thư mục mã nguồn |
 
 ## Asset 3D

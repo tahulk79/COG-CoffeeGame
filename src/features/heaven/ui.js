@@ -1,4 +1,5 @@
-import { EXPERTS } from './content.js';
+import { EXPERTS, NPCS } from './content.js';
+import { t } from '../../i18n/index.js';
 import { setAvatar, showDialogue, usesTouch } from '../../ui/dialogue.js';
 import { mountJoystick } from '../../ui/joystick.js';
 
@@ -16,7 +17,7 @@ export function createHeavenUI(profile, callbacks) {
   $('heaven-controls').hidden = false;
   // Gợi ý điều khiển khi vào: tắt sau lần di chuyển đầu hoặc 10 s, không lưu.
   let hintUntil = performance.now() + 10000;
-  $('heaven-hint').textContent = usesTouch() ? 'Kéo nút tròn để đi · Chạm nhân vật để nói chuyện' : 'Bấm mặt đất để đi · Bấm nhân vật để tới nói chuyện';
+  $('heaven-hint').textContent = t(usesTouch() ? 'heaven.hint.touch' : 'heaven.hint.mouse');
   $('heaven-hint').hidden = false;
   function hideHint() { $('heaven-hint').hidden = true; hintUntil = 0; }
   $('heaven-interact').addEventListener('click', callbacks.interact, { signal });
@@ -57,16 +58,16 @@ export function createHeavenUI(profile, callbacks) {
     showDialogue([0, speaker, line], profile);
     $('caption-box').dataset.mode = 'manual';
     $('caption-box').classList.toggle('quiz-dialogue', Boolean(options.choices));
-    document.querySelector('.dialogue-auto').textContent = options.tag || 'HỘI THOẠI';
-    if (options.choices) document.querySelector('.dialogue-hint').textContent = 'Chọn một đáp án'; // còn lại: showDialogue đặt theo thiết bị
+    document.querySelector('.dialogue-auto').textContent = options.tag || t('heaven.dialogue.tag');
+    if (options.choices) document.querySelector('.dialogue-hint').textContent = t('heaven.dialogue.pickAnswer'); // còn lại: showDialogue đặt theo thiết bị
     $('dialogue-tip').hidden = !options.tip;
     $('dialogue-tip').textContent = options.tip || '';
     $('dialogue-tip').dataset.tone = options.tipGood ? 'good' : '';
     if (options.icon) setAvatar(options.icon);
     $('dialogue-next').hidden = Boolean(options.choices);
     $('dialogue-next').textContent = '▾';
-    $('dialogue-next').title = options.nextLabel || 'Tiếp hội thoại';
-    $('dialogue-next').setAttribute('aria-label', options.nextLabel || 'Tiếp hội thoại');
+    $('dialogue-next').title = options.nextLabel || t('heaven.dialogue.next');
+    $('dialogue-next').setAttribute('aria-label', options.nextLabel || t('heaven.dialogue.next'));
     $('dialogue-next').disabled = false;
     $('heaven-stamp').hidden = !options.stamp;
     $('heaven-stamp').textContent = options.stamp || '';
@@ -96,20 +97,20 @@ export function createHeavenUI(profile, callbacks) {
     const { phase, progress, seals } = journey;
     let title, detail, target;
     if (phase === 'welcome') {
-      title = 'Mình đang ở đâu?'; detail = 'Tới gần Thần Chết và hỏi chuyện.'; target = 'reaper';
+      title = t('heaven.hud.welcome.title'); detail = t('heaven.hud.welcome.detail'); target = 'reaper';
     } else if (phase === 'learning') {
       const expert = EXPERTS.find(item => !seals.some(seal => seal.id === item.id));
-      title = 'Ba dấu để trở về'; detail = `Gặp ${expert.name} · ${progress.answered[expert.id]}/${expert.questions.length} câu đã trả lời.`; target = expert.id;
+      title = t('heaven.hud.learning.title'); detail = t('heaven.hud.learning.detail', { expert: expert.name, answered: progress.answered[expert.id], total: expert.questions.length }); target = expert.id;
     } else if (phase === 'review') {
-      title = 'Kiểm tra hồ sơ'; detail = 'Đưa ba dấu cho Thần Tiếp Nhận ở khu bên phải quảng trường.'; target = 'clerk';
+      title = t('heaven.hud.review.title'); detail = t('heaven.hud.review.detail'); target = 'clerk';
     } else if (phase === 'gift') {
-      title = 'Một chuyến học thử'; detail = 'Gặp Thần Tiếp Nhận để chọn hành trang mang về.'; target = 'clerk';
+      title = t('heaven.hud.gift.title'); detail = t('heaven.hud.gift.detail'); target = 'clerk';
     } else if (phase === 'return') {
-      title = 'Lên đường trùng sinh'; detail = 'Đi tới Cổng trùng sinh để bắt đầu nông trại.'; target = 'portal';
-    } else { title = 'Một khởi đầu mới'; detail = 'Bạn đã trở về trần gian.'; target = null; }
+      title = t('heaven.hud.return.title'); detail = t('heaven.hud.return.detail'); target = 'portal';
+    } else { title = t('heaven.hud.completed.title'); detail = t('heaven.hud.completed.detail'); target = null; }
     $('heaven-objective').textContent = title; $('heaven-objective-detail').textContent = detail;
     $('heaven-seal-count').textContent = `${seals.length} / ${EXPERTS.length}`;
-    $('heaven-passport-toggle').setAttribute('aria-label', `Hồ sơ: ${seals.length} trên ${EXPERTS.length} dấu chứng nhận. Bấm để xem chi tiết.`);
+    $('heaven-passport-toggle').setAttribute('aria-label', t('heaven.hud.passportLabel', { count: seals.length, total: EXPERTS.length }));
     $('heaven-seals').replaceChildren();
     for (const expert of EXPERTS) {
       const seal = document.createElement('span');
@@ -118,14 +119,14 @@ export function createHeavenUI(profile, callbacks) {
       $('heaven-seals').append(seal);
     }
     const score = journey.score;
-    $('heaven-score').textContent = `${score.correct} đúng · ${score.wrong} sai · ${score.answered}/${score.total} câu`;
+    $('heaven-score').textContent = t('heaven.hud.score', score);
     $('heaven-passport-list').replaceChildren();
     for (const expert of EXPERTS) {
       const row = document.createElement('li');
       const passed = seals.some(seal => seal.id === expert.id);
       row.dataset.earned = String(passed);
       const icon = document.createElement('span'); icon.textContent = passed ? '✓' : expert.icon;
-      const text = document.createElement('span'); text.textContent = `${expert.seal} · ${progress.answered[expert.id]}/${expert.questions.length} đã trả lời · ${progress.passed[expert.id]} đúng`;
+      const text = document.createElement('span'); text.textContent = t('heaven.hud.passportRow', { seal: expert.seal, answered: progress.answered[expert.id], total: expert.questions.length, passed: progress.passed[expert.id] });
       row.append(icon, text); $('heaven-passport-list').append(row);
     }
     return target;
@@ -136,8 +137,8 @@ export function createHeavenUI(profile, callbacks) {
     if (id === promptId) return;
     promptId = id;
     if (id) {
-      $('heaven-interact-name').textContent = npc.id === 'portal' ? 'Cổng trùng sinh' : npc.name;
-      $('heaven-interact').setAttribute('aria-label', `${npc.id === 'portal' ? 'Tương tác' : 'Nói chuyện với'} ${npc.name}`);
+      $('heaven-interact-name').textContent = npc.id === 'portal' ? NPCS.find(item => item.id === 'portal').name : npc.name;
+      $('heaven-interact').setAttribute('aria-label', t(npc.id === 'portal' ? 'heaven.prompt.interact' : 'heaven.prompt.talk', { name: npc.name }));
     }
   }
   return {
@@ -160,7 +161,7 @@ export function createHeavenUI(profile, callbacks) {
       closeDialogue(); $('heaven-controls').hidden = true;
       $('heaven-return-fade').hidden = true;
       $('heaven-ending').hidden = false;
-      $('heaven-final-score').textContent = `${score.correct}/${score.total} câu đúng · ${score.wrong} câu sai\nMẹo đã nhận ${score.correct}/${score.total} · ${score.total - score.correct} câu sẽ được ôn lại ở nông trại/quán`;
+      $('heaven-final-score').textContent = t('heaven.ending.score', score);
       $('heaven-gift-summary').textContent = `${gift.icon} ${gift.name} — ${gift.description}`;
       $('heaven-replay').focus({ preventScroll: true });
     },

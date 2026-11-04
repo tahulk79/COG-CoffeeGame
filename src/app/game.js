@@ -8,6 +8,7 @@ import { lowerQuality, mountSettings } from '../ui/settings.js';
 import { attachModels } from '../shared/three/models.js';
 import { correctQuestionIds } from '../features/heaven/journey.js';
 import { loading } from '../ui/loading.js';
+import { t } from '../i18n/index.js';
 
 const INTRO_MODELS = {
   'intro/reaper': 'heaven/reaper.glb',
@@ -67,26 +68,26 @@ function nextDialogue() {
 }
 async function enterFarm(gift, heavenLessons = []) {
   state = 'transition'; previous = null; showControls(false);
-  $('loading').hidden = false; loading(40, 'Trùng sinh · trở về nông trại');
+  $('loading').hidden = false; loading(40, t('app.loading.rebirthFarm'));
   let nextScene;
   try {
     const { createFarmGame } = await import('../features/farm/game.js');
     nextScene = await createFarmGame(player, gift, undefined, heavenLessons, renderer);
     nextScene.resize(window.innerWidth, window.innerHeight);
-    loading(85, 'Chuẩn bị nông trại');
+    loading(85, t('app.loading.prepareFarm'));
     await renderer.compileAsync(nextScene.scene, nextScene.camera);
     activeScene?.dispose(); activeScene = nextScene;
     activeScene.activate(); state = 'farm'; previous = null;
     vignette.style.opacity = '0'; $('loading').hidden = true;
-    $('game').setAttribute('aria-label', 'Nông trại cà phê — Gameplay chính');
-    document.title = 'COG — Nông trại cà phê';
+    $('game').setAttribute('aria-label', t('app.game.farmLabel'));
+    document.title = t('app.title.farm');
     $('game').focus({ preventScroll: true });
     renderer.setAnimationLoop(document.hidden ? null : frame);
   } catch (error) { nextScene?.dispose(); fail(error); }
 }
 async function enterHeaven() {
   state = 'transition'; previous = null; showControls(false);
-  $('loading').hidden = false; loading(40, 'Mở quảng trường thiên đàng');
+  $('loading').hidden = false; loading(40, t('app.loading.openHeaven'));
   renderer.toneMappingExposure = 1.05;
   let nextScene;
   try {
@@ -94,13 +95,13 @@ async function enterHeaven() {
     // Use heaven's in-memory progress so lessons survive when localStorage is blocked.
     nextScene = await createHeavenGame(player, (gift, heaven) => { void enterFarm(gift, correctQuestionIds(heaven)); });
     nextScene.resize(window.innerWidth, window.innerHeight);
-    loading(85, 'Chuẩn bị màn chơi');
+    loading(85, t('app.loading.prepareLevel'));
     await renderer.compileAsync(nextScene.scene, nextScene.camera);
     activeScene?.dispose(); activeScene = nextScene;
     state = 'heaven'; previous = null;
     vignette.style.opacity = '0'; $('loading').hidden = true;
-    $('game').setAttribute('aria-label', 'Thiên đàng — Hội đồng trùng sinh');
-    document.title = 'COG — Hội đồng trùng sinh';
+    $('game').setAttribute('aria-label', t('app.game.heavenLabel'));
+    document.title = t('app.title.heaven');
     if ($('heaven-ending').hidden) $('game').focus({ preventScroll: true });
     renderer.setAnimationLoop(document.hidden ? null : frame);
   } catch (error) { nextScene?.dispose(); fail(error); }
@@ -155,20 +156,20 @@ function fail(error) {
   $('error').hidden = false;
   // Friendly line + two ways out; the raw message stays one tap away for bug reports.
   const title = document.createElement('strong'), text = document.createElement('p'), actions = document.createElement('div');
-  title.textContent = 'Chưa mở được thế giới 3D';
-  text.textContent = 'Hãy tải lại trang. Nếu máy yếu hoặc trình duyệt đang tắt tăng tốc đồ họa, thử đồ họa thấp.';
+  title.textContent = t('app.error.title');
+  text.textContent = t('app.error.text');
   const action = (label, style, run) => { const button = document.createElement('button'); button.type = 'button'; button.className = `ui-btn ${style}`; button.textContent = label; button.addEventListener('click', run); return button; };
   actions.className = 'error-actions';
-  actions.append(action('Tải lại', 'ui-btn--go', () => location.reload()), action('Thử đồ họa thấp', 'ui-btn--plain', () => { saveSettings({ ...readSettings(), quality: 'low' }); location.reload(); }),
+  actions.append(action(t('app.error.reload'), 'ui-btn--go', () => location.reload()), action(t('app.error.lowGraphics'), 'ui-btn--plain', () => { saveSettings({ ...readSettings(), quality: 'low' }); location.reload(); }),
     // A damaged save can fail on every load; resetProgress keeps a backup copy of the old run.
-    action('Chơi lại từ đầu', 'ui-btn--plain', event => {
+    action(t('app.error.restart'), 'ui-btn--plain', event => {
       // Two taps, like the settings reset: the first only asks.
       const button = event.currentTarget;
-      if (!button.dataset.armed) { button.dataset.armed = '1'; button.textContent = 'Bấm lần nữa để xóa tiến trình'; return; }
-      if (resetProgress()) location.reload(); else button.textContent = 'Chưa xóa được tiến trình';
+      if (!button.dataset.armed) { button.dataset.armed = '1'; button.textContent = t('app.error.restartConfirm'); return; }
+      if (resetProgress()) location.reload(); else button.textContent = t('app.error.restartFailed');
     }));
   const details = document.createElement('details'), summary = document.createElement('summary'), code = document.createElement('code');
-  summary.textContent = 'Chi tiết kỹ thuật'; code.textContent = error.message; details.append(summary, code);
+  summary.textContent = t('app.error.details'); code.textContent = error.message; details.append(summary, code);
   $('error').replaceChildren(title, text, actions, details);
 }
 async function initialize() {
@@ -181,7 +182,7 @@ async function initialize() {
     renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = .95;
     events.signal.addEventListener('abort', onQuality(() => applyRendererQuality(renderer, activeScene?.scene)), { once: true });
     mountSettings({ onOpen: () => activeScene?.clearInput?.() }); // sau onQuality để mức đã lưu áp vào renderer
-    $('game').append(renderer.domElement); resize(); loading(20, 'Khởi tạo đồ họa');
+    $('game').append(renderer.domElement); resize(); loading(20, t('app.loading.initGraphics'));
     const saved = readProgress();
     if (saved.heaven?.completed || saved.farm) {
       document.body.classList.remove('booting');
@@ -192,17 +193,17 @@ async function initialize() {
       await enterHeaven(); return;
     }
     const { createSelection } = await import('../features/selection/scene.js');
-    loading(45, 'Tải nhân vật');
+    loading(45, t('app.loading.characters'));
     activeScene = await createSelection(player.gender, showGender, progress => {
-      if (progress.total > 0) loading(45 + Math.round(progress.loaded / progress.total * 35), 'Tải nhân vật');
+      if (progress.total > 0) loading(45 + Math.round(progress.loaded / progress.total * 35), t('app.loading.characters'));
     });
     resize();
-    loading(85, 'Chuẩn bị màn chọn');
+    loading(85, t('app.loading.prepareSelection'));
     await renderer.compileAsync(activeScene.scene, activeScene.camera);
     $('player-name').value = player.name; showGender(player.gender);
     $('loading').hidden = true; $('selection').hidden = false; resize(); // bảng đã hiện mới đo được để canh nhân vật
     document.body.classList.remove('booting');
-    $('game').setAttribute('aria-label', 'Chọn nhân vật');
+    $('game').setAttribute('aria-label', t('selection.ariaLabel'));
     state = 'selection'; previous = null;
     renderer.setAnimationLoop(document.hidden ? null : frame);
   } catch (error) { fail(error); }
@@ -213,7 +214,7 @@ async function enterIntro(event) {
   state = 'transition';
   player.name = $('player-name').value.trim().slice(0, 20) || DEFAULT_NAME;
   savePlayer({ gender: player.gender, name: player.name });
-  $('selection').hidden = true; $('loading').hidden = false; loading(60, 'Chuẩn bị màn chơi');
+  $('selection').hidden = true; $('loading').hidden = false; loading(60, t('app.loading.prepareLevel'));
   try {
     const { createIntro } = await import('../features/intro/scene.js');
     const selection = activeScene, character = selection.takePlayer();
@@ -221,11 +222,11 @@ async function enterIntro(event) {
     renderer.toneMappingExposure = 1.15;
     activeScene = createIntro(player, character); resize();
     await attachModels(activeScene, INTRO_MODELS);
-    loading(85, 'Chuẩn bị màn chơi');
+    loading(85, t('app.loading.prepareLevel'));
     await renderer.compileAsync(activeScene.scene, activeScene.camera);
-    loading(100, 'Sẵn sàng');
+    loading(100, t('app.loading.ready'));
     activeScene.update(START_TIME);
-    $('game').setAttribute('aria-label', `Màn 1 — ${player.name}`);
+    $('game').setAttribute('aria-label', t('intro.ariaLabel', { name: player.name }));
     $('loading').hidden = true; $('selection').hidden = true;
     document.body.classList.remove('booting');
     start();

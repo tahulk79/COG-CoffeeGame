@@ -4,6 +4,7 @@ import { EXPERTS } from '../heaven/content.js';
 import { answerText } from '../heaven/journey.js';
 import { OWN_CUP,SHIFT_TIERS,SUPPLIES,GEAR,MAX_CREW,STAFF_MAX,TABLE_LEVELS,MAX_TABLES,staffWage,trainCost,roleOf,candidateById,recipeById,missingFor,gearBonus } from '../cafe/recipes.js';
 import { DAY_MS,SEASON_MS,OFFLINE_MS,CAFE_SHIFT_MS,FERTILIZER_PRICE,SUPPLIER_PRICE,ASSETS,assetMaxLevel,upgradeRequirement,capacityScale,efficiency,upgradePrice,assetValue,WORKER_CANDIDATES,workerLevel,workerStat,WORKER_JOBS,workerWage,formatMass,WORK_DAY_MS,contractPlan,contractPrice,marketValue,ROBOT_PACKS,packPrice,INCIDENTS,incidentOdds } from './rules.js';
+import { t } from '../../i18n/index.js';
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const finite=(n,fallback=0)=>Number.isFinite(n)?n:fallback;
 const integer=(n,max=1e12)=>Math.floor(clamp(finite(n),0,max));
@@ -62,7 +63,7 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
     reservoir:modern?clamp(finite(saved.reservoir,60),0,10000):60,durability:modern?clamp(finite(saved.durability,100),0,100):100,
     rejectedCandidates:Array.isArray(saved?.rejectedCandidates)?saved.rejectedCandidates.filter(id=>WORKER_CANDIDATES.some(w=>w.id===id&&w.kind!=='robot')):[],
     // restUntil survives a reload only while the worker is on a fired sick incident (otherwise reload would cure them after shiftUntil moved).
-    workers:modern?objects(saved.workers).filter(w=>WORKER_CANDIDATES.some(c=>c.id===w.id)).map((w,index)=>{const c=WORKER_CANDIDATES.find(c=>c.id===w.id),incident=incidentOf(w.incident,['none','phone','sick']);return {...clone(w),kind:c.kind||'human',incident,stats:clone(c.stats),farmId:saved.deploymentVersion===1?(w.farmId==='farm-0'?'farm-0':null):index<2?'farm-0':null,xp:c.kind==='robot'?0:integer(w.xp),enabled:w.enabled!==false,energy:100,restUntil:incident?.type==='sick'&&incident.done?finite(w.restUntil):0,role:['auto','care','processing'].includes(w.role)?w.role:'auto'};}):[],
+    workers:modern?objects(saved.workers).filter(w=>WORKER_CANDIDATES.some(c=>c.id===w.id)).map((w,index)=>{const c=WORKER_CANDIDATES.find(c=>c.id===w.id),incident=incidentOf(w.incident,['none','phone','sick']);return {...clone(w),name:c.name,bio:c.bio,kind:c.kind||'human',incident,stats:clone(c.stats),farmId:saved.deploymentVersion===1?(w.farmId==='farm-0'?'farm-0':null):index<2?'farm-0':null,xp:c.kind==='robot'?0:integer(w.xp),enabled:w.enabled!==false,energy:100,restUntil:incident?.type==='sick'&&incident.done?finite(w.restUntil):0,role:['auto','care','processing'].includes(w.role)?w.role:'auto'};}):[],
     cafe:modern&&saved.cafe&&typeof saved.cafe==='object'&&!Array.isArray(saved.cafe)?clone(saved.cafe):{stock:emptyStock(),lots:[],shipments:[],open:false,reputation:50,served:0,lost:0,revenue:0,costs:0,autoSupply:true,reserve:false},
     today:saved?.today?clone(saved.today):{day:0,harvested:0,processed:0,revenue:0},
     market:{day:finite(saved?.market?.day,-1),sold:Math.max(0,finite(saved?.market?.sold))},
@@ -138,7 +139,7 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
     const waiter=roleOf('gift-bung');if(waiter&&cafe.crew.filter(m=>!m.gift&&roleOf(m.id)?.id===waiter.id).length<waiter.max)cafe.crew.push(member('gift-bung'));
     add('roasted','robusta',200,70,at,'cafe','gift'); // ignores storage capacity on purpose; the next delivery waits instead
     cafe.supplies.cup+=GIFT_CUPS;cafe.supplies.condensed+=50*GIFT_CUPS;cafe.supplies.ice+=150*GIFT_CUPS;
-    log('🎁 Tặng 1 ca robot pha + robot bưng ở quán · Vào quán, Mở cửa',at);return true;
+    log(t('farmRules.log.giftTrial'),at);return true;
   }
   // Coins a brewed cup cost in beans (base market price) and supplies (pack price), for the trial report.
   const cupCost=(recipe,crop,uses)=>recipe.beans*productById('roasted').price*crop.priceScale+Object.entries(uses).reduce((s,[id,n])=>{const x=SUPPLIES.find(x=>x.id===id);return s+(x?n*x.price/x.pack:0);},0);
@@ -164,16 +165,16 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
   if(!(modern&&saved.cafe))add('roasted','robusta',600,70,now,'cafe','starter');
   // Shift hiring has no reserve bench: fill the two farm slots, refund the hire fee of anyone left over.
   for(const w of progress.workers)if(w.farmId!=='farm-0'&&progress.workers.filter(x=>x.farmId==='farm-0').length<2)w.farmId='farm-0';
-  for(const w of progress.workers.filter(x=>x.farmId!=='farm-0')){money(WORKER_CANDIDATES.find(c=>c.id===w.id)?.fee||0,'refund',now,w.name);log(`${w.name} rời đội dự bị (đã bỏ) · hoàn phí tuyển`,now);}
+  for(const w of progress.workers.filter(x=>x.farmId!=='farm-0')){money(WORKER_CANDIDATES.find(c=>c.id===w.id)?.fee||0,'refund',now,w.name);log(t('farmRules.log.benchRemoved',{name:w.name}),now);}
   progress.workers=progress.workers.filter(w=>w.farmId==='farm-0');
-  if(extraRobots.length)log('Farm chỉ giữ 1 robot · robot dư đã rời đội (gói trả trước không hoàn)',now);
+  if(extraRobots.length)log(t('farmRules.log.extraRobots'),now);
   // Cut systems (03/11/2026): fish are sold once at the old price; queued farm-grinder batches give back their roasted beans.
-  if(integer(saved?.fish?.count)>0){money(integer(saved.fish.count)*8,'sale',now,'Ao cá đã bỏ · bán cá');log(`Ao cá không còn nuôi cá · đã bán ${integer(saved.fish.count)} cá`,now);}
+  if(integer(saved?.fish?.count)>0){money(integer(saved.fish.count)*8,'sale',now,t('farmRules.ledger.fishSold'));log(t('farmRules.log.fishSold',{n:integer(saved.fish.count)}),now);}
   for(const j of jobsOf({batch:saved?.machines?.grinder?.batch||null,extraBatches:saved?.machines?.grinder?.extraBatches||[]}))if(cropById(j.cropId)&&integer(j.inputGrams)>0)add('roasted',j.cropId,integer(j.inputGrams),finite(j.quality,80),now,'farm','grinder-refund');
   // The heaven gift is granted exactly once, including saves that stored it before gifts had an effect.
   if(progress.gift&&!progress.giftApplied){
-    const gift={seeds:()=>{progress.seeds.robusta+=6;progress.fertilizer+=6;return '6 hạt vối và 6 phân bón';},tools:()=>{progress.upgrades.cafe=Math.max(2,progress.upgrades.cafe);return 'thiết bị quán cấp 2';},capital:()=>{progress.coins+=150;return '150 xu';}}[progress.gift];
-    if(gift)log(`Quà từ thiên đàng: ${gift()}.`,now);
+    const gift={seeds:()=>{progress.seeds.robusta+=6;progress.fertilizer+=6;return t('farmRules.gift.seeds');},tools:()=>{progress.upgrades.cafe=Math.max(2,progress.upgrades.cafe);return t('farmRules.gift.tools');},capital:()=>{progress.coins+=150;return t('farmRules.gift.capital');}}[progress.gift];
+    if(gift)log(t('farmRules.log.heavenGift',{gift:gift()}),now);
     progress.giftApplied=true;
   }
   // One-time lesson rewards, guarded by `granted` so reloads and replayed chapters never pay twice.
@@ -181,12 +182,12 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
     const fresh=progress.lessons.learned.filter(id=>!progress.lessons.granted.includes(id));if(!fresh.length)return;
     const cafe=progress.cafe;
     for(const id of fresh){
-      if(id==='costs')money(30,'quest',at,'Mẹo thiên đàng: Sổ thu chi');
+      if(id==='costs')money(30,'quest',at,t('farmRules.ledger.costsTip'));
       if(id==='customer')cafe.reputation=Math.min(100,cafe.reputation+3);
       if(id==='recipe')for(const r of ['phin-den','nau-da']){const m=cafe.mastery[r]||(cafe.mastery[r]={best:0,made:0});m.best=Math.max(m.best,40);}
       progress.lessons.granted.push(id);
     }
-    log(`Mẹo từ thiên đàng: ${fresh.map(id=>LESSON_PERKS[id].name).join(', ')}.`,at);
+    log(t('farmRules.log.heavenTips',{names:fresh.map(id=>LESSON_PERKS[id].name).join(', ')}),at);
   }
   // Old saves without tutorial flags: mark hints the player has clearly outgrown (contracts.md 5, step 4).
   if(!Array.isArray(saved?.tutorial?.seen)&&saved){
@@ -244,8 +245,8 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
     at=Math.max(lastTick,at);if(at===lastTick)return false;
     const elapsed=at-lastTick,from=Math.max(lastTick,at-OFFLINE_MS),seconds=(at-from)/1000;
     refreshDaily(at);
-    for(const order of progress.orders){if(!order.deadline)order.deadline=at+DAY_MS*8;if(order.status==='open'&&at>order.deadline){order.status='expired';log('Đơn quán quá hạn',at);}}
-    if(progress.order?.accepted&&at>progress.order.deadline){progress.orders.push({...progress.order,grams:progress.order.quantity,status:'expired',source:'shop',day:weatherAt(at).day,workers:progress.order.workers||[]});log('Đơn shop quá hạn',at);progress.orderIndex++;progress.order=makeOrder(at);}
+    for(const order of progress.orders){if(!order.deadline)order.deadline=at+DAY_MS*8;if(order.status==='open'&&at>order.deadline){order.status='expired';log(t('farmRules.log.cafeOrderExpired'),at);}}
+    if(progress.order?.accepted&&at>progress.order.deadline){progress.orders.push({...progress.order,grams:progress.order.quantity,status:'expired',source:'shop',day:weatherAt(at).day,workers:progress.order.workers||[]});log(t('farmRules.log.shopOrderExpired'),at);progress.orderIndex++;progress.order=makeOrder(at);}
 
     const weather=weatherAt(at),rain=weather.raining?seconds*.28:0;
     progress.reservoir=Math.min(reservoirCapacity(),progress.reservoir+seconds*(.06+.025*(progress.upgrades.well-1))+rain);
@@ -270,7 +271,7 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
     }
     // Old fresh fruit loses value, not all inventory. Handle elapsed time once per lot.
     for(const lot of progress.lots)if(lot.product==='cherries'&&at-lot.createdAt>DAY_MS)lot.quality=Math.max(20,lot.quality-seconds*.003);
-    for(const trip of progress.cafe.shipments.filter(t=>t.readyAt<=at)){for(const l of trip.lots)add(l.product,l.cropId,l.grams,l.quality,trip.readyAt,'cafe',l.origin);log(`Quán đã nhận ${trip.lots.reduce((sum,l)=>sum+l.grams,0)} g cà phê · Hoàn tất vận chuyển`,trip.readyAt);const order=progress.orders.find(o=>o.id===trip.orderId);if(order){order.status='delivered';const onTime=trip.readyAt<=order.deadline;order.rating=onTime?5:3;progress.reputation=clamp(progress.reputation+(onTime?2:-1),0,100);log(`Quán nhận đơn · ${order.rating} sao · Uy tín ${progress.reputation}`,trip.readyAt);}}
+    for(const trip of progress.cafe.shipments.filter(t=>t.readyAt<=at)){for(const l of trip.lots)add(l.product,l.cropId,l.grams,l.quality,trip.readyAt,'cafe',l.origin);log(t('farmRules.log.cafeReceived',{grams:trip.lots.reduce((sum,l)=>sum+l.grams,0)}),trip.readyAt);const order=progress.orders.find(o=>o.id===trip.orderId);if(order){order.status='delivered';const onTime=trip.readyAt<=order.deadline;order.rating=onTime?5:3;progress.reputation=clamp(progress.reputation+(onTime?2:-1),0,100);log(t('farmRules.log.orderRated',{stars:order.rating,rep:progress.reputation}),trip.readyAt);}}
     progress.cafe.shipments=progress.cafe.shipments.filter(t=>t.readyAt>at);
     // Staff only work while the game runs, so a gap (closed game, hidden tab) pauses paid contract time instead of burning it.
     // Sick leave pauses with the contract, so a worker away for hours is still sick for the same time left.
@@ -286,7 +287,7 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
     if(['ready','active'].includes(gift.state)&&!progress.cafe.crew.some(s=>s.gift))gift.state='done';
     else if(gift.state==='ready'&&cafeActive&&progress.cafe.open)gift.state='active';
     lastTick=at;progress.lastAt=at;
-    if(elapsed>60000)progress.offline={seconds:Math.floor(Math.min(elapsed,OFFLINE_MS)/1000),message:'Cây, mẻ đã xếp và chuyến giao tiếp tục; hợp đồng nhân viên tạm dừng khi bạn vắng mặt, quán không tự bán.'};
+    if(elapsed>60000)progress.offline={seconds:Math.floor(Math.min(elapsed,OFFLINE_MS)/1000),message:t('farmRules.offline')};
     return true;
   }
   function adjacent(id){const f=FIELDS.find(f=>f.id===id);return f&&FIELDS.some(n=>owned.includes(n.id)&&Math.abs(n.row-f.row)+Math.abs(n.col-f.col)===1);}
@@ -294,20 +295,20 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
   for(const worker of progress.workers){for(const l of worker.cargo||[])if(productById(l.product)&&cropById(l.cropId)&&l.grams>0)add(l.product,l.cropId,l.grams,finite(l.quality,80),now,'farm',l.origin);worker.cargo=[];}
   // Resting (sick) workers are skipped; the error only comes when nobody is left. Returns the team that actually started.
   function startTeam(all,at){
-    if(!all.length)return {error:'Chưa có nhân viên sẵn sàng · Bố trí người hoặc bấm icon xu trên người đang nghỉ.'};
-    const team=all.filter(w=>!(w.restUntil>at)),resting=all.find(w=>w.restUntil>at);if(!team.length)return {error:`${resting.name} đang nghỉ ${Math.ceil((resting.restUntil-at)/1000)}s.`};
+    if(!all.length)return {error:t('farmRules.err.noStaffReady')};
+    const team=all.filter(w=>!(w.restUntil>at)),resting=all.find(w=>w.restUntil>at);if(!team.length)return {error:t('farmRules.err.resting',{name:resting.name,seconds:Math.ceil((resting.restUntil-at)/1000)})};
     const cost=team.reduce((sum,w)=>sum+(w.shiftUntil>at?0:contractPrice(w)),0);
-    if(progress.coins<cost)return {error:`Cần ${cost} xu ký hợp đồng cho đội trước khi bắt đầu.`};
-    for(const w of team){if(w.shiftUntil<=at)signContract(w,at);w.enabled=true;w.state='Đã nhận việc · Chuẩn bị di chuyển';}
+    if(progress.coins<cost)return {error:t('farmRules.err.teamContract',{cost})};
+    for(const w of team){if(w.shiftUntil<=at)signContract(w,at);w.enabled=true;w.state=t('farmRules.state.accepted');}
     return {cost,team};
   }
   function saleQuote(product,cropId,grams){
     const item=productById(product),crop=cropById(cropId);
-    if(!item||!crop||!Number.isSafeInteger(grams)||grams<1||grams>progress.stock[product][cropId])return {ok:false,message:'Số gram bán không hợp lệ.'};
-    if(product==='roasted'&&progress.cafe.reserve&&Object.values(progress.stock.roasted).reduce((sum,n)=>sum+n,0)-grams<demand().needed)return {ok:false,message:'Hạt rang đang được giữ cho quán.'};
+    if(!item||!crop||!Number.isSafeInteger(grams)||grams<1||grams>progress.stock[product][cropId])return {ok:false,message:t('farmRules.err.badSaleGrams')};
+    if(product==='roasted'&&progress.cafe.reserve&&Object.values(progress.stock.roasted).reduce((sum,n)=>sum+n,0)-grams<demand().needed)return {ok:false,message:t('farmRules.err.roastedReserved')};
     let left=grams,weighted=0;
     for(const lot of progress.lots.filter(l=>l.product===product&&l.cropId===cropId).sort((a,b)=>a.createdAt-b.createdAt)){const amount=Math.min(left,lot.grams);weighted+=amount*lot.quality;left-=amount;if(!left)break;}
-    if(left)return {ok:false,message:'Kho không đủ hàng.'};
+    if(left)return {ok:false,message:t('farmRules.err.notEnoughStock')};
     const base=grams*item.price*crop.priceScale*(.7+.3*weighted/grams/100),value=Math.round(marketValue(progress.market.sold,base)*100)/100;
     // discounted: the market already bought enough this work day to cut this sale by 5%+ (drives the UI note).
     return {ok:true,value,base,full:Math.round(base*100)/100,discounted:value<base*.95};
@@ -347,64 +348,64 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
     workDuration(action,worker=null){const base={water:1.8,weed:2.2,fertilize:1.8,harvest:2.5,refill:1.5,collect:1.5,start:1.5,turn:1.8,prune:2.5,ship:2,plant:2.2,clear:2.5}[action]||4;return base/efficiency(worker?workerLevel(worker.xp):progress.upgrades.tools);},
     act(id,action,choice,at=Date.now(),owner='player'){
       at=Math.max(lastTick,finite(at,Date.now()));advance(at);const fail=message=>({ok:false,message});let message='',collected=false,extra={};
-      const claimant=api.claimed(id,action);if(claimant&&claimant!==owner)return fail('Nhân viên đang thực hiện việc này.');
+      const claimant=api.claimed(id,action);if(claimant&&claimant!==owner)return fail(t('farmRules.err.staffBusy'));
       const resourceKey=action==='plant'?`seed:${choice}`:action==='fertilize'?'fertilizer':null;
-      if(resourceKey){const held=[...resources.entries()].filter(([who,r])=>who!==owner&&r.key===resourceKey).reduce((sum,[,r])=>sum+r.amount,0),available=action==='plant'?progress.seeds[choice]||0:progress.fertilizer;if(available-held<1)return fail('Vật tư đã được giữ cho việc khác.');}
+      if(resourceKey){const held=[...resources.entries()].filter(([who,r])=>who!==owner&&r.key===resourceKey).reduce((sum,[,r])=>sum+r.amount,0),available=action==='plant'?progress.seeds[choice]||0:progress.fertilizer;if(available-held<1)return fail(t('farmRules.err.suppliesHeld'));}
       const p=progress.plots.find(p=>p.id===id),m=MACHINES.find(m=>m.id===id),field=FIELDS.find(f=>f.id===id);
       if(id==='decorations'){
         if(action==='construct'||action==='demolish'){
-          const item=progress.decorations.find(item=>item.id===choice?.id);if(!item)return fail('Đồ trang trí không còn ở đây.');
-          if(action==='demolish'){progress.decorations=progress.decorations.filter(value=>value.id!==item.id);message='Đã phá dỡ trang trí. Không hoàn lại xu.';}
-          else{if(item.state==='complete')return fail('Đồ trang trí đã xây xong.');const ms=choice.ms;if(!Number.isFinite(ms)||ms<=0||ms>1000)return fail('Thời gian thi công không hợp lệ.');item.buildMs=Math.min(item.buildDuration,item.buildMs+ms);if(item.buildMs>=item.buildDuration)item.state='complete';message=item.state==='complete'?'Đã xây xong trang trí.':'Đang thi công.';}
+          const item=progress.decorations.find(item=>item.id===choice?.id);if(!item)return fail(t('farmRules.err.decorGone'));
+          if(action==='demolish'){progress.decorations=progress.decorations.filter(value=>value.id!==item.id);message=t('farmRules.msg.decorDemolished');}
+          else{if(item.state==='complete')return fail(t('farmRules.err.decorBuilt'));const ms=choice.ms;if(!Number.isFinite(ms)||ms<=0||ms>1000)return fail(t('farmRules.err.badBuildTime'));item.buildMs=Math.min(item.buildDuration,item.buildMs+ms);if(item.buildMs>=item.buildDuration)item.state='complete';message=item.state==='complete'?t('farmRules.msg.decorComplete'):t('farmRules.msg.decorBuilding');}
         }else{
-        if(action!=='place'||!choice||typeof choice!=='object')return fail('Chọn món trang trí và vị trí trước.');
+        if(action!=='place'||!choice||typeof choice!=='object')return fail(t('farmRules.err.decorPick'));
         const reason=decorationError(progress.decorations,choice);if(reason)return fail(reason);
-        const spec=DECORATIONS.find(item=>item.id===choice.type);if(progress.coins<spec.price)return fail(`Thiếu ${spec.price-progress.coins} xu để đặt ${spec.name}.`);
-        money(-spec.price,'decoration',at,spec.name);progress.decorations.push({id:nextId('decor'),type:spec.id,x:choice.x,z:choice.z,rotation:choice.rotation,text:String(choice.text||'').trim().slice(0,24),state:'construction',buildMs:0,buildDuration:spec.id==='lamp'?6000:5000});message=`Đã đặt nền ${spec.name}. Nhân vật sẽ tới thi công.`;
+        const spec=DECORATIONS.find(item=>item.id===choice.type);if(progress.coins<spec.price)return fail(t('farmRules.err.decorCoins',{n:spec.price-progress.coins,name:spec.name}));
+        money(-spec.price,'decoration',at,spec.name);progress.decorations.push({id:nextId('decor'),type:spec.id,x:choice.x,z:choice.z,rotation:choice.rotation,text:String(choice.text||'').trim().slice(0,24),state:'construction',buildMs:0,buildDuration:spec.id==='lamp'?6000:5000});message=t('farmRules.msg.decorPlaced',{name:spec.name});
         }
       }else if(id==='orders'){
         const order=progress.orders.find(o=>o.id===(typeof choice==='object'?choice?.orderId:choice));
-        if(!order||order.status!=='open')return fail('Đơn đã giao hoặc đang vận chuyển.');
-        if(action==='startCrew'){const result=startTeam(progress.workers.filter(w=>w.farmId==='farm-0'),at);if(result.error)return fail(result.error);order.workers=result.team.map(w=>w.id);message=`Đã giao đơn cho ${result.team.map(w=>w.name).join(', ')}${result.cost?` · Lương ${result.cost} xu`:''}.`;}else if(action==='requestDelivery'){if(progress.stock.roasted[order.cropId]<order.grams||!order.workers.some(id=>progress.workers.some(w=>w.id===id&&w.farmId==='farm-0'&&w.jobs.delivery)))return fail('Cần đủ hàng và có nhân viên phụ trách giao.');order.deliveryRequested=true;message='Đã giao việc vận chuyển cho nhân viên.';}else if(action==='assign'){
-          const w=progress.workers.find(w=>w.id===choice.workerId);if(!w||w.farmId!=='farm-0')return fail('Bố trí nhân viên vào nông trại trước.');
+        if(!order||order.status!=='open')return fail(t('farmRules.err.orderClosed'));
+        if(action==='startCrew'){const result=startTeam(progress.workers.filter(w=>w.farmId==='farm-0'),at);if(result.error)return fail(result.error);order.workers=result.team.map(w=>w.id);message=t('farmRules.msg.orderAssigned',{names:result.team.map(w=>w.name).join(', '),cost:result.cost});}else if(action==='requestDelivery'){if(progress.stock.roasted[order.cropId]<order.grams||!order.workers.some(id=>progress.workers.some(w=>w.id===id&&w.farmId==='farm-0'&&w.jobs.delivery)))return fail(t('farmRules.err.needStockAndCourier'));order.deliveryRequested=true;message=t('farmRules.msg.deliveryAssigned');}else if(action==='assign'){
+          const w=progress.workers.find(w=>w.id===choice.workerId);if(!w||w.farmId!=='farm-0')return fail(t('farmRules.err.deployFirst'));
           if(!order.workers.includes(w.id)){const started=startTeam([w],at);if(started.error)return fail(started.error);}
-          order.workers=order.workers.includes(w.id)?order.workers.filter(id=>id!==w.id):[...order.workers,w.id];message='Đã cập nhật nhân viên phụ trách đơn.';
+          order.workers=order.workers.includes(w.id)?order.workers.filter(id=>id!==w.id):[...order.workers,w.id];message=t('farmRules.msg.orderStaffUpdated');
         }else if(action==='shipOrder'){
-          if(progress.stock.roasted[order.cropId]<order.grams)return fail('Chưa đủ hạt rang cho đơn.');if(progress.coins<2)return fail('Cần 2 xu cước giao.');
+          if(progress.stock.roasted[order.cropId]<order.grams)return fail(t('farmRules.err.orderNotEnoughRoasted'));if(progress.coins<2)return fail(t('farmRules.err.freight'));
           const incoming=progress.cafe.shipments.reduce((s,t)=>s+t.lots.reduce((n,l)=>n+l.grams,0),0),stored=progress.cafe.lots.reduce((s,l)=>s+l.grams,0);
-          if(incoming+stored+order.grams>storageCapacity())return fail('Kho quán đầy, cần phục vụ bớt.');
-          const lots=take('roasted',order.cropId,order.grams);money(-2,'delivery',at,'Chuyển về quán');progress.cafe.shipments.push({id:nextId('trip'),orderId:order.id,lots,startedAt:at,readyAt:at+10000/efficiency(progress.upgrades.delivery)});order.status='transit';progress.stats.delivered+=order.grams;message='Đã chuyển về quán đúng số lượng của đơn. Hàng đang trên đường.';
-        }else return fail('Không có thao tác đơn hàng.');
+          if(incoming+stored+order.grams>storageCapacity())return fail(t('farmRules.err.cafeStorageFull'));
+          const lots=take('roasted',order.cropId,order.grams);money(-2,'delivery',at,t('farmRules.ledger.shipToCafe'));progress.cafe.shipments.push({id:nextId('trip'),orderId:order.id,lots,startedAt:at,readyAt:at+10000/efficiency(progress.upgrades.delivery)});order.status='transit';progress.stats.delivered+=order.grams;message=t('farmRules.msg.orderShipped');
+        }else return fail(t('farmRules.err.noOrderAction'));
       }else if(action==='upgrade'){
-        const asset=ASSETS.find(a=>a.id===id);if(!asset)return fail('Không có hạng mục nâng cấp.');
+        const asset=ASSETS.find(a=>a.id===id);if(!asset)return fail(t('farmRules.err.noUpgrade'));
         const lv=progress.upgrades[id],price=upgradePrice(id,lv);
-        if(lv>=assetMaxLevel(asset))return fail(`${asset.name} đã đạt cấp tối đa ${assetMaxLevel(asset)}.`);
-        if(level()<upgradeRequirement(lv+1))return fail(`Cần nông trại cấp ${upgradeRequirement(lv+1)}.`);
-        if(progress.coins<price)return fail(`Còn thiếu ${Math.ceil(price-progress.coins)} xu.`);
+        if(lv>=assetMaxLevel(asset))return fail(t('farmRules.err.maxLevel',{name:asset.name,max:assetMaxLevel(asset)}));
+        if(level()<upgradeRequirement(lv+1))return fail(t('farmRules.err.needFarmLevel',{n:upgradeRequirement(lv+1)}));
+        if(progress.coins<price)return fail(t('farmRules.err.shortCoins',{n:Math.ceil(price-progress.coins)}));
         money(-price,'upgrade',at,asset.name);progress.upgrades[id]++;progress.canLevel=progress.upgrades.well;
         if(progress.machines[id])progress.machines[id].level=progress.upgrades[id];
-        message=`${asset.name} cấp ${lv+1} · ${asset.benefit}.`;
+        message=t('farmRules.msg.upgraded',{name:asset.name,level:lv+1,benefit:asset.benefit});
       }else if(id==='workers'){
         if(action==='rejectCandidate'){
           const candidate=WORKER_CANDIDATES.find(w=>w.id===choice);
-          if(!candidate||candidate.kind==='robot'||progress.workers.some(w=>w.id===choice))return fail('Ứng viên không còn trong danh sách tuyển dụng.');
+          if(!candidate||candidate.kind==='robot'||progress.workers.some(w=>w.id===choice))return fail(t('farmRules.err.candidateGone'));
           if(!progress.rejectedCandidates.includes(choice))progress.rejectedCandidates.push(choice);
-          message=`Đã từ chối ứng viên ${candidate.name}.`;
+          message=t('farmRules.msg.rejected',{name:candidate.name});
         }else if(action==='hire'){
           // Two shared slots (robots count), at most one robot. Robots skip the hire fee and prepay a pack instead; `pack` is ignored for people.
           const hireId=idOf(choice),candidate=WORKER_CANDIDATES.find(w=>w.id===hireId),robot=candidate?.kind==='robot',pack=robot?Number(choice?.pack??1):1;
-          if(!candidate||progress.rejectedCandidates.includes(hireId)||progress.workers.some(w=>w.id===hireId))return fail('Ứng viên không còn trong danh sách tuyển dụng.');
-          if(progress.workers.length>=2)return fail(robot?'Đã đủ 2 thợ. Cho một người nghỉ trước khi thuê robot.':'Farm đã đủ 2 thợ. Cho một người nghỉ việc trước khi thuê.');
-          if(robot&&progress.workers.some(isRobot))return fail('Farm chỉ thuê được 1 robot.');
-          if(!Object.hasOwn(ROBOT_PACKS,pack))return fail('Chọn gói 1, 5 hoặc 10 ngày công.');
+          if(!candidate||progress.rejectedCandidates.includes(hireId)||progress.workers.some(w=>w.id===hireId))return fail(t('farmRules.err.candidateGone'));
+          if(progress.workers.length>=2)return fail(t(robot?'farmRules.err.fullRobot':'farmRules.err.fullHire'));
+          if(robot&&progress.workers.some(isRobot))return fail(t('farmRules.err.oneRobot'));
+          if(!Object.hasOwn(ROBOT_PACKS,pack))return fail(t('farmRules.err.packChoice'));
           const price=robot?packPrice(candidate.wage,pack):candidate.fee;
-          if(progress.coins<price)return fail(robot?`Còn thiếu ${Math.ceil(price-progress.coins)} xu.`:'Chưa đủ xu tuyển nhân viên.');
+          if(progress.coins<price)return fail(robot?t('farmRules.err.shortCoins',{n:Math.ceil(price-progress.coins)}):t('farmRules.err.hireCoins'));
           if(!robot)money(-candidate.fee,'hire',at,candidate.name);
-          const worker={...clone(candidate),kind:robot?'robot':'human',incident:null,xp:0,energy:100,health:100,cargo:[],jobs:Object.fromEntries(WORKER_JOBS.map(([id])=>[id,canDo(candidate,id)])),preferredCrop:'robusta',workMode:'auto',farmId:'farm-0',autoPay:true,role:'auto',enabled:true,hiredAt:at,serviceMs:0,paidDays:0,shiftUntil:0,restUntil:0,state:'Chờ phân việc'};
+          const worker={...clone(candidate),kind:robot?'robot':'human',incident:null,xp:0,energy:100,health:100,cargo:[],jobs:Object.fromEntries(WORKER_JOBS.map(([id])=>[id,canDo(candidate,id)])),preferredCrop:'robusta',workMode:'auto',farmId:'farm-0',autoPay:true,role:'auto',enabled:true,hiredAt:at,serviceMs:0,paidDays:0,shiftUntil:0,restUntil:0,state:t('farmRules.state.waiting')};
           progress.workers.push(worker);if(robot)signContract(worker,at,pack);
-          message=robot?`${candidate.name} đã vào trang trại · gói ${pack} ngày công ${price} xu.`:`${candidate.name} đã vào trang trại.`;
+          message=robot?t('farmRules.msg.robotJoined',{name:candidate.name,pack,price}):t('farmRules.msg.joined',{name:candidate.name});
         }else{
-          const w=progress.workers.find(w=>w.id===choice?.id||w.id===choice);if(!w)return fail('Chưa thuê nhân viên này.');
+          const w=progress.workers.find(w=>w.id===choice?.id||w.id===choice);if(!w)return fail(t('farmRules.err.notHired'));
           if(action==='dismiss'){
             // Ending a contract early frees the slot; prepaid days are not refunded.
             claims.forEach((who,key)=>{if(who===w.id)claims.delete(key);});resources.delete(w.id);
@@ -412,277 +413,277 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
             for(const task of progress.dailyTasks)task.workers=task.workers.filter(id=>id!==w.id);
             progress.workers=progress.workers.filter(person=>person.id!==w.id);
             if(!isRobot(w)&&!progress.rejectedCandidates.includes(w.id))progress.rejectedCandidates.push(w.id);
-            message=`Đã xóa ${w.name} khỏi đội ngũ.`;
+            message=t('farmRules.msg.dismissed',{name:w.name});
           }else if(action==='moveStaff'){
-            if(!choice.deploy)return fail('Không còn đội dự bị · muốn thôi thì bấm Cho nghỉ việc.');
+            if(!choice.deploy)return fail(t('farmRules.err.noBench'));
             const replacement=choice.replaceId?progress.workers.find(person=>person.id===choice.replaceId):null;
-            if(choice.replaceId&&(!replacement||replacement.farmId!=='farm-0'||replacement.id===w.id))return fail('Vị trí thợ chính đã thay đổi.');
-            if(choice.deploy&&w.farmId==='farm-0')return fail('Nhân viên đã là thợ chính.');
-            if(choice.deploy&&!replacement&&progress.workers.filter(person=>person.farmId==='farm-0').length>=2)return fail('Đã đủ 2 thợ chính. Kéo vào người muốn thay.');
+            if(choice.replaceId&&(!replacement||replacement.farmId!=='farm-0'||replacement.id===w.id))return fail(t('farmRules.err.slotChanged'));
+            if(choice.deploy&&w.farmId==='farm-0')return fail(t('farmRules.err.alreadyMain'));
+            if(choice.deploy&&!replacement&&progress.workers.filter(person=>person.farmId==='farm-0').length>=2)return fail(t('farmRules.err.mainFull'));
             const removed=choice.deploy?replacement:w;
-            if(removed){removed.farmId=null;removed.state='Dự bị';claims.forEach((who,key)=>{if(who===removed.id)claims.delete(key);});resources.delete(removed.id);}
-            if(choice.deploy){w.farmId='farm-0';w.state='Chờ bạn giao việc';}
+            if(removed){removed.farmId=null;removed.state=t('farmRules.state.bench');claims.forEach((who,key)=>{if(who===removed.id)claims.delete(key);});resources.delete(removed.id);}
+            if(choice.deploy){w.farmId='farm-0';w.state=t('farmRules.state.awaitingYou');}
             if(replacement)for(const order of progress.orders.filter(order=>order.status==='open'))order.workers=order.workers.map(id=>id===replacement.id?w.id:id).filter((id,index,ids)=>ids.indexOf(id)===index);
-            message=choice.deploy?(replacement?`${w.name} thay ${replacement.name} làm thợ chính.`:`${w.name} đã vào đội thợ chính.`):`${w.name} chuyển về dự bị.`;
+            message=choice.deploy?(replacement?t('farmRules.msg.replaced',{name:w.name,old:replacement.name}):t('farmRules.msg.joinedMain',{name:w.name})):t('farmRules.msg.toBench',{name:w.name});
           }
           else if(action==='startWork'){
-            if(!w.farmId&&progress.workers.filter(person=>person.farmId==='farm-0').length>=2)return fail('Farm đã đủ hai người; đổi bố trí trước.');
+            if(!w.farmId&&progress.workers.filter(person=>person.farmId==='farm-0').length>=2)return fail(t('farmRules.err.farmFullSwap'));
             const result=startTeam([w],at);if(result.error)return fail(result.error);w.farmId='farm-0';
             const hasAssigned=progress.orders.some(o=>o.status==='open'&&o.workers.includes(w.id));
-            if(!hasAssigned)w.workMode='auto';message=`${w.name} bắt đầu làm${result.cost?` · Đã trả ${result.cost} xu/ca`:''}.`;
+            if(!hasAssigned)w.workMode='auto';message=t('farmRules.msg.startedWork',{name:w.name,cost:result.cost});
           }else if(action==='deploy'){
-            if(w.farmId==='farm-0')return fail('Thợ đang làm ở farm · muốn thôi thì bấm Cho nghỉ việc.');
-            else{if(progress.workers.filter(w=>w.farmId==='farm-0').length>=2)return fail('Nông trại đủ 2 người. Cho một người về đội dự bị trước.');w.farmId='farm-0';w.state='Chờ bạn giao việc';}
-            message=w.farmId?'Đã bố trí vào nông trại.':'Đã chuyển về đội dự bị.';
-          }else if(action==='autoPay'){w.autoPay=!w.autoPay;message=w.autoPay?'Tự gia hạn khi hợp đồng sắp hết.':'Hết hạn hợp đồng sẽ dừng việc, chờ bạn gia hạn.';}
-          else if(action==='toggle'){w.enabled=!w.enabled;message=w.enabled?'Đã tiếp tục ca.':'Tạm dừng sau thao tác hiện tại.';}
-          else if(action==='mode'){w.workMode=w.workMode==='auto'?'assigned':'auto';message=w.workMode==='assigned'?'Chỉ làm đơn và nhiệm vụ bạn giao.':'Tự chăm và chế biến theo nhu cầu.';}
+            if(w.farmId==='farm-0')return fail(t('farmRules.err.alreadyWorking'));
+            else{if(progress.workers.filter(w=>w.farmId==='farm-0').length>=2)return fail(t('farmRules.err.farmFullBench'));w.farmId='farm-0';w.state=t('farmRules.state.awaitingYou');}
+            message=w.farmId?t('farmRules.msg.deployed'):t('farmRules.msg.benched');
+          }else if(action==='autoPay'){w.autoPay=!w.autoPay;message=w.autoPay?t('farmRules.msg.autoPayOn'):t('farmRules.msg.autoPayOff');}
+          else if(action==='toggle'){w.enabled=!w.enabled;message=w.enabled?t('farmRules.msg.resumed'):t('farmRules.msg.paused');}
+          else if(action==='mode'){w.workMode=w.workMode==='auto'?'assigned':'auto';message=w.workMode==='assigned'?t('farmRules.msg.modeAssigned'):t('farmRules.msg.modeAuto');}
           else if(action==='permissionGroup'){
-            if(choice.group!=='care')return fail('Nhóm việc không hợp lệ.');
+            if(choice.group!=='care')return fail(t('farmRules.err.badGroup'));
             const keys=['plant','water','fertilize','weed','prune','harvest'].filter(key=>canDo(w,key)),enabled=!keys.every(key=>w.jobs[key]);
             for(const key of keys)w.jobs[key]=enabled;
-            message=`Đã ${enabled?'bật':'tắt'} chăm cây và thu hoạch.`;
+            message=t(enabled?'farmRules.msg.careOn':'farmRules.msg.careOff');
           }
-          else if(action==='permission'){if(!WORKER_JOBS.some(([key])=>key===choice.job))return fail('Nhóm việc không hợp lệ.');if(!canDo(w,choice.job))return fail('Robot không làm việc này.');w.jobs[choice.job]=!w.jobs[choice.job];message=`Đã ${w.jobs[choice.job]?'bật':'tắt'} nhóm việc.`;}
-          else if(action==='seed'){if(!cropById(choice.cropId)||cropById(choice.cropId).level>level())return fail('Chưa mở giống này.');w.preferredCrop=choice.cropId;w.preferredCropExplicit=true;message='Đã chọn giống nhân viên sẽ trồng.';}
-          else if(action==='role'){w.role=choice.role;message='Đã đổi ưu tiên công việc.';}
+          else if(action==='permission'){if(!WORKER_JOBS.some(([key])=>key===choice.job))return fail(t('farmRules.err.badGroup'));if(!canDo(w,choice.job))return fail(t('farmRules.err.robotCant'));w.jobs[choice.job]=!w.jobs[choice.job];message=t(w.jobs[choice.job]?'farmRules.msg.jobOn':'farmRules.msg.jobOff');}
+          else if(action==='seed'){if(!cropById(choice.cropId)||cropById(choice.cropId).level>level())return fail(t('farmRules.err.cropLocked'));w.preferredCrop=choice.cropId;w.preferredCropExplicit=true;message=t('farmRules.msg.seedChosen');}
+          else if(action==='role'){w.role=choice.role;message=t('farmRules.msg.roleChanged');}
           else if(action==='train'){
-            if(isRobot(w))return fail('Robot không đào tạo được.');
-            if(workerLevel(w.xp)>=10)return fail('Nhân viên đã đạt cấp 10.');const fee=40*workerLevel(w.xp);if(progress.coins<fee)return fail('Chưa đủ xu đào tạo.');
-            money(-fee,'training',at,w.name);w.xp=100*workerLevel(w.xp)**2;message=`${w.name} lên cấp ${workerLevel(w.xp)}.`;
+            if(isRobot(w))return fail(t('farmRules.err.robotNoTrain'));
+            if(workerLevel(w.xp)>=10)return fail(t('farmRules.err.workerMax'));const fee=40*workerLevel(w.xp);if(progress.coins<fee)return fail(t('farmRules.err.trainCoins'));
+            money(-fee,'training',at,w.name);w.xp=100*workerLevel(w.xp)**2;message=t('farmRules.msg.levelUp',{name:w.name,level:workerLevel(w.xp)});
           }else if(action==='shift'){
             // Allowed while sick: pays and extends shiftUntil, sickness stays. Robots may buy a pack; auto-renew sends no pack (= 1 day).
-            const pack=isRobot(w)?Number(choice?.pack??1):1;if(!Object.hasOwn(ROBOT_PACKS,pack))return fail('Chọn gói 1, 5 hoặc 10 ngày công.');
-            const plan=contractPlan(w),price=shiftPrice(w,pack);if(progress.coins<price)return fail(isRobot(w)?`Còn thiếu ${Math.ceil(price-progress.coins)} xu.`:`Cần ${price} xu ký hợp đồng ${plan.name.toLowerCase()} cho ${w.name}.`);
-            signContract(w,at,pack);message=isRobot(w)?`${w.name}: gói ${pack} ngày công · ${price} xu.`:`${w.name}: hợp đồng ${plan.name.toLowerCase()} · ${price} xu · thêm ${plan.days} ngày làm việc.`;
+            const pack=isRobot(w)?Number(choice?.pack??1):1;if(!Object.hasOwn(ROBOT_PACKS,pack))return fail(t('farmRules.err.packChoice'));
+            const plan=contractPlan(w),price=shiftPrice(w,pack);if(progress.coins<price)return fail(isRobot(w)?t('farmRules.err.shortCoins',{n:Math.ceil(price-progress.coins)}):t('farmRules.err.contractCoins',{price,plan:plan.name.toLowerCase(),name:w.name}));
+            signContract(w,at,pack);message=isRobot(w)?t('farmRules.msg.robotPack',{name:w.name,pack,price}):t('farmRules.msg.contractSigned',{name:w.name,plan:plan.name.toLowerCase(),price,days:plan.days});
           }else if(action==='incident'){
             // Fires this shift's rolled incident; exemptions are checked now (staff count may have changed since the roll). Always marks done.
-            const i=w.incident;if(!i||i.done)return fail('Không có sự cố.');const left=w.shiftUntil-at;if(left>i.due)return fail('Chưa tới lúc.');
+            const i=w.incident;if(!i||i.done)return fail(t('farmRules.err.noIncident'));const left=w.shiftUntil-at;if(left>i.due)return fail(t('farmRules.err.notYet'));
             const holdsOrder=progress.orders.some(o=>o.status==='open'&&o.workers.includes(w.id));
             // Late by > 10 s = the moment passed while the farm loop was not running (player away): cancel, never postpone.
             const applied=['phone','sick'].includes(i.type)&&!isRobot(w)&&i.for>INCIDENTS.grace&&!cafeActive&&i.due-left<=10000&&progress.cafe.reputation>=INCIDENTS.minRep&&!(i.type==='sick'&&progress.workers.length===1&&holdsOrder);
             i.done=true;
-            if(applied&&i.type==='phone'){w.waitUntil=at+INCIDENTS.phoneMs;w.waitReason='📱 Mải chơi điện thoại · Chạm để nhắc';}
-            if(applied&&i.type==='sick'){w.restUntil=at+WORK_DAY_MS;w.shiftUntil+=WORK_DAY_MS;log(`${w.name} nghỉ ốm ngày công này, không tính lương.`,at);}
-            extra={type:i.type,applied};message=!applied?'':i.type==='sick'?`🤒 ${w.name} nghỉ ốm ngày công này, không tính lương.`:`📱 ${w.name} đang mải chơi điện thoại · Chạm để nhắc.`;
+            if(applied&&i.type==='phone'){w.waitUntil=at+INCIDENTS.phoneMs;w.waitReason=t('farmRules.state.phone');}
+            if(applied&&i.type==='sick'){w.restUntil=at+WORK_DAY_MS;w.shiftUntil+=WORK_DAY_MS;log(t('farmRules.log.sick',{name:w.name}),at);}
+            extra={type:i.type,applied};message=!applied?'':i.type==='sick'?t('farmRules.msg.sick',{name:w.name}):t('farmRules.msg.phone',{name:w.name});
           }else if(action==='remind'){
-            if(w.incident?.type!=='phone'||!(w.waitUntil>at))return fail(`${w.name} đang làm việc.`);
-            w.waitUntil=0;w.waitReason='';message=`${w.name} cất điện thoại, làm việc tiếp.`;
+            if(w.incident?.type!=='phone'||!(w.waitUntil>at))return fail(t('farmRules.err.working',{name:w.name}));
+            w.waitUntil=0;w.waitReason='';message=t('farmRules.msg.phoneAway',{name:w.name});
           }else if(action==='contractPlan'){
-            const plans=['day','week','month'];w.contractPlan=plans[(plans.indexOf(contractPlan(w).id)+1)%plans.length];message=`Gói hợp đồng của ${w.name}: ${contractPlan(w).name} · ${contractPrice(w)} xu.`;
-          }else return fail('Không có thao tác này.');
+            const plans=['day','week','month'];w.contractPlan=plans[(plans.indexOf(contractPlan(w).id)+1)%plans.length];message=t('farmRules.msg.planChanged',{name:w.name,plan:contractPlan(w).name,price:contractPrice(w)});
+          }else return fail(t('farmRules.err.noAction'));
         }
       }else if(id==='cafe'){
         const cafe=progress.cafe;
-        if(action==='toggle'){cafe.open=!cafe.open;message=cafe.open?'Quán mở cửa. Ra quầy thu ngân nhận order.':'Quán đã đóng cửa.';}
-        else if(action==='reserve'){cafe.reserve=!cafe.reserve;message=cafe.reserve?'Giữ hạt theo dự báo quán.':'Cho phép bán cả phần dự trữ.';}
+        if(action==='toggle'){cafe.open=!cafe.open;message=cafe.open?t('farmRules.msg.cafeOpen'):t('farmRules.msg.cafeClosed');}
+        else if(action==='reserve'){cafe.reserve=!cafe.reserve;message=cafe.reserve?t('farmRules.msg.reserveOn'):t('farmRules.msg.reserveOff');}
         else if(action==='ship'){
-          const crop=cropById(choice);if(!crop)return fail('Chọn loại hạt rang.');
+          const crop=cropById(choice);if(!crop)return fail(t('farmRules.err.pickRoasted'));
           const grams=Math.min(progress.stock.roasted[crop.id],Math.round(1000*capacityScale(progress.upgrades.delivery)));
-          if(!grams)return fail('Farm chưa có hạt rang.');
+          if(!grams)return fail(t('farmRules.err.noRoasted'));
           const cafeMass=cafe.lots.reduce((s,l)=>s+l.grams,0)+cafe.shipments.reduce((s,t)=>s+t.lots.reduce((n,l)=>n+l.grams,0),0);
-          if(cafeMass+grams>storageCapacity())return fail('Kho quán không đủ chỗ; phục vụ bớt trước khi giao.');
-          if(progress.coins<2)return fail('Cần 2 xu cước giao.');
-          const lots=take('roasted',crop.id,grams);money(-2,'delivery',at,'Cước chuyển hạt');cafe.shipments.push({id:nextId('trip'),lots,startedAt:at,readyAt:at+10000/efficiency(progress.upgrades.delivery)});progress.stats.delivered+=grams;message=`Đang giao ${grams} g; hàng không còn trong kho farm.`;
+          if(cafeMass+grams>storageCapacity())return fail(t('farmRules.err.cafeNoRoom'));
+          if(progress.coins<2)return fail(t('farmRules.err.freight'));
+          const lots=take('roasted',crop.id,grams);money(-2,'delivery',at,t('farmRules.ledger.freight'));cafe.shipments.push({id:nextId('trip'),lots,startedAt:at,readyAt:at+10000/efficiency(progress.upgrades.delivery)});progress.stats.delivered+=grams;message=t('farmRules.msg.shipping',{grams});
         }else if(action==='supply'){
-          const grams=500,price=SUPPLIER_PRICE;if(progress.coins<price)return fail(`Cần ${price} xu nhập 500 g hạt rang.`);
-          if(cafe.lots.reduce((s,l)=>s+l.grams,0)+grams>storageCapacity())return fail('Kho quán đầy.');
-          money(-price,'supplier',at,'Nhập hạt dự phòng');add('roasted','robusta',grams,65,at,'cafe','supplier');message='Đã nhập 500 g hạt rang dự phòng cho quán.';
+          const grams=500,price=SUPPLIER_PRICE;if(progress.coins<price)return fail(t('farmRules.err.supplyCoins',{price}));
+          if(cafe.lots.reduce((s,l)=>s+l.grams,0)+grams>storageCapacity())return fail(t('farmRules.err.cafeFull'));
+          money(-price,'supplier',at,t('farmRules.ledger.supplier'));add('roasted','robusta',grams,65,at,'cafe','supplier');message=t('farmRules.msg.supplied');
         }else if(action==='brew'){
           const g=progress.robotGift,robot=choice?.robot==='gift',recipe=recipeById(choice?.recipeId);
           // The gift robot brews only from 'gift' beans (robusta) with its fixed mistakes: score 50, double condensed milk.
-          const crop=robot?cropById('robusta'):cropById(choice?.cropId);if(!recipe||!crop)return fail('Chọn món và loại hạt.');
+          const crop=robot?cropById('robusta'):cropById(choice?.cropId);if(!recipe||!crop)return fail(t('farmRules.err.pickRecipeBean'));
           const uses=robot&&recipe.uses.condensed?{...recipe.uses,condensed:recipe.uses.condensed*2}:recipe.uses;
           if(robot){
-            if(!cafe.crew.some(m=>m.id==='gift-pha'&&m.paidUntil>at)||g.cups>=GIFT_CUPS||!GIFT_RECIPES.includes(recipe.id))return fail('Robot pha không nhận món này.');
+            if(!cafe.crew.some(m=>m.id==='gift-pha'&&m.paidUntil>at)||g.cups>=GIFT_CUPS||!GIFT_RECIPES.includes(recipe.id))return fail(t('farmRules.err.robotRecipe'));
             // Check everything before taking anything.
-            const lacking=[...(cafe.lots.filter(l=>l.origin==='gift'&&l.product==='roasted'&&l.cropId===crop.id).reduce((s,l)=>s+l.grams,0)<recipe.beans?[`${recipe.beans} g hạt gói thử`]:[]),...Object.entries(uses).filter(([id,n])=>(cafe.supplies[id]||0)<n).map(([id])=>SUPPLIES.find(s=>s.id===id)?.name.toLowerCase()||id)];
-            if(lacking.length)return fail(`Thiếu ${lacking.join(', ')}.`);
-          }else{const missing=missingFor(recipe,cafe,crop.id);if(missing.length)return fail(`Thiếu ${missing.join(', ')}.`);}
+            const lacking=[...(cafe.lots.filter(l=>l.origin==='gift'&&l.product==='roasted'&&l.cropId===crop.id).reduce((s,l)=>s+l.grams,0)<recipe.beans?[t('farmRules.msg.trialBeans',{grams:recipe.beans})]:[]),...Object.entries(uses).filter(([id,n])=>(cafe.supplies[id]||0)<n).map(([id])=>SUPPLIES.find(s=>s.id===id)?.name.toLowerCase()||id)];
+            if(lacking.length)return fail(t('farmRules.err.missing',{list:lacking.join(', ')}));
+          }else{const missing=missingFor(recipe,cafe,crop.id);if(missing.length)return fail(t('farmRules.err.missing',{list:missing.join(', ')}));}
           const score=robot?50:clamp(finite(choice.score),0,100),lots=take('roasted',crop.id,recipe.beans,'cafe',robot?'gift':null);
           for(const [supply,amount]of Object.entries(uses))cafe.supplies[supply]-=amount;
           if(!choice.staff&&!robot){const m=cafe.mastery[recipe.id]||(cafe.mastery[recipe.id]={best:0,made:0});m.best=Math.max(m.best,score);m.made++;}
           if(robot){g.cups++;g.tally.robot.cost+=cupCost(recipe,crop,uses);}else if(g.state==='active'&&!choice.staff)g.tally.you.cost+=cupCost(recipe,crop,uses);
           const beanFit=crop.id===recipe.bean?0:-5;
-          extra={quality:Math.round(clamp(score*.75+qualityOf(lots)*.25+gearBonus(recipe,cafe.gear)+beanFit,0,100))};message=`Đã pha ${recipe.name}.`;
+          extra={quality:Math.round(clamp(score*.75+qualityOf(lots)*.25+gearBonus(recipe,cafe.gear)+beanFit,0,100))};message=t('farmRules.msg.brewed',{name:recipe.name});
         }else if(action==='sell'){
-          const recipe=recipeById(choice?.recipeId);if(!recipe)return fail('Không rõ món.');
+          const recipe=recipeById(choice?.recipeId);if(!recipe)return fail(t('farmRules.err.unknownRecipe'));
           const g=progress.robotGift,robot=choice.robot===true,tally=g.state==='active'?g.tally:null;
           // A robot cup: 25% of customers refuse it (no pay, lost reason 'robot'); otherwise it pays without stars/combo/extras and never counts as the player's serve.
-          if(robot&&Math.random()<.25){loseCustomer('robot');if(tally){tally.robot.cups++;tally.robot.walked++;}extra={walked:true,reason:'robot'};message='Khách chê ly robot · bỏ về';}
+          if(robot&&Math.random()<.25){loseCustomer('robot');if(tally){tally.robot.cups++;tally.robot.walked++;}extra={walked:true,reason:'robot'};message=t('farmRules.msg.robotRefused');}
           else{
           const quality=clamp(finite(choice.quality),0,100),stars=clamp(integer(choice.stars),0,3),wait=clamp(finite(choice.wait),0,1),combo=robot?0:clamp(integer(choice.combo),0,5);
           const comfort=Number.isInteger(choice.table)&&choice.table>=0&&choice.table<MAX_TABLES?TABLE_LEVELS[cafe.tables[choice.table]-1].tip:0;
           const price=Math.round(recipe.price*(.6+.4*quality/100)*(choice.special&&!robot?1.3:1)*(cafe.gear.roastery?1.1:1)*(!robot&&!choice.staff?OWN_CUP:1)*100)/100,tip=Math.round(recipe.price*(robot?(1-wait)*.1:Math.max(0,stars-1)*.15+(1-wait)*.1+combo*.04+(choice.memory?.2:0)+comfort+clamp(finite(choice.charm),0,.1))*100)/100;
           money(price+tip,'cafe-sale',at,recipe.name);cafe.revenue+=price+tip;cafe.served++;if(!robot){progress.stats.served++;progress.xp+=1+stars;}cafe.reputation=clamp(cafe.reputation+(stars-1)*.6,10,100);
           if(tally&&(robot||!choice.staff)){const t=robot?tally.robot:tally.you;t.cups++;t.stars+=stars;t.paid+=price+tip;}
-          extra={price,tip};message=`${recipe.name} · ${price} xu${tip?` + tip ${tip}`:''}`;
+          extra={price,tip};message=t('farmRules.msg.sold',{name:recipe.name,price,tip});
           }
         }else if(action==='lost'){
-          loseCustomer(choice);message=choice==='rude'?'Khách bỏ về vì bị lỡ lời · Uy tín −2':'Khách đã bỏ về.';
+          loseCustomer(choice);message=choice==='rude'?t('farmRules.msg.lostRude'):t('farmRules.msg.lost');
         }else if(action==='giftReport'){
           progress.robotGift.reported=true;
         }else if(action==='incident'){
           // Fires a café member's rolled incident (service calls it when paidUntil − now ≤ due). skip: the shift's one rude incident is used up.
-          const m=cafe.crew.find(m=>m.id===choice?.id),i=m?.incident;if(!i||i.done)return fail('Không có sự cố.');if(m.paidUntil-at>i.due)return fail('Chưa tới lúc.');
+          const m=cafe.crew.find(m=>m.id===choice?.id),i=m?.incident;if(!i||i.done)return fail(t('farmRules.err.noIncident'));if(m.paidUntil-at>i.due)return fail(t('farmRules.err.notYet'));
           const giftOn=cafe.crew.some(s=>s.gift&&s.paidUntil>at&&!s.rest);
           const applied=i.type!=='none'&&!choice.skip&&candidateById(m.id).kind!=='robot'&&i.for>INCIDENTS.grace&&cafeActive&&cafe.open&&!giftOn&&cafe.reputation>=INCIDENTS.minRep;
           i.done=true;if(applied&&i.type==='sick')m.rest=CAFE_SHIFT_MS;
           extra={type:i.type,applied};
         }else if(action==='buy'){
-          const supply=SUPPLIES.find(s=>s.id===choice);if(!supply)return fail('Không có nguyên liệu này.');if(progress.coins<supply.price)return fail(`Thiếu ${Math.round((supply.price-progress.coins)*100)/100} xu.`);
-          money(-supply.price,'cafe-cost',at,supply.name);cafe.costs+=supply.price;cafe.supplies[supply.id]+=supply.pack;message=`Đã nhập ${supply.name} · ${supply.packLabel}.`;
+          const supply=SUPPLIES.find(s=>s.id===choice);if(!supply)return fail(t('farmRules.err.noSupply'));if(progress.coins<supply.price)return fail(t('farmRules.err.missingCoins',{n:Math.round((supply.price-progress.coins)*100)/100}));
+          money(-supply.price,'cafe-cost',at,supply.name);cafe.costs+=supply.price;cafe.supplies[supply.id]+=supply.pack;message=t('farmRules.msg.bought',{name:supply.name,pack:supply.packLabel});
         }else if(action==='gear'){
-          const gear=GEAR.find(g=>g.id===choice);if(!gear)return fail('Không có thiết bị này.');const lv=cafe.gear[gear.id];if(lv>=gear.prices.length)return fail('Đã đạt cấp tối đa.');
-          const price=gear.prices[lv];if(progress.coins<price)return fail(`Thiếu ${Math.round((price-progress.coins)*100)/100} xu.`);
-          money(-price,'upgrade',at,gear.name);cafe.gear[gear.id]++;message=`${gear.name} lên cấp ${cafe.gear[gear.id]}.`;
+          const gear=GEAR.find(g=>g.id===choice);if(!gear)return fail(t('farmRules.err.noGear'));const lv=cafe.gear[gear.id];if(lv>=gear.prices.length)return fail(t('farmRules.err.atMax'));
+          const price=gear.prices[lv];if(progress.coins<price)return fail(t('farmRules.err.missingCoins',{n:Math.round((price-progress.coins)*100)/100}));
+          money(-price,'upgrade',at,gear.name);cafe.gear[gear.id]++;message=t('farmRules.msg.levelUp',{name:gear.name,level:cafe.gear[gear.id]});
         }else if(action==='hire'){
           // Hiring a new person, or paying a new day for someone whose shift ended.
           // Robots hire per shift like people (no packs: a `pack` field is ignored), only once the farm Staff button is open. Gift robots are never for hire.
-          const hireId=idOf(choice),person=candidateById(hireId),role=roleOf(hireId);if(!person)return fail('Không có ứng viên này.');
-          if(person.giftOnly)return fail('Robot này chỉ có trong gói thử.');
-          if(person.kind==='robot'&&!workersOpen())return fail('Mở Nhân viên ở farm trước.');
-          const member=cafe.crew.find(m=>m.id===person.id);if(member?.paidUntil>at)return fail(`${person.person} đang trong ca.`);
+          const hireId=idOf(choice),person=candidateById(hireId),role=roleOf(hireId);if(!person)return fail(t('farmRules.err.noCandidate'));
+          if(person.giftOnly)return fail(t('farmRules.err.giftOnly'));
+          if(person.kind==='robot'&&!workersOpen())return fail(t('farmRules.err.openStaffFirst'));
+          const member=cafe.crew.find(m=>m.id===person.id);if(member?.paidUntil>at)return fail(t('farmRules.err.onShift',{name:person.person}));
           const crew=cafe.crew.filter(m=>!m.gift); // gift robots do not take crew or role slots
-          if(!member&&crew.length>=MAX_CREW)return fail(`Quán tối đa ${MAX_CREW} nhân viên.`);
-          if(!member&&crew.filter(m=>roleOf(m.id).id===role.id).length>=role.max)return fail(`Đã đủ ${role.max} ${role.name.toLowerCase()}.`);
-          const wage=staffWage(role,member?.level||1,person);if(progress.coins<wage)return fail(`Cần ${wage} xu trả lương ca đầu.`);
+          if(!member&&crew.length>=MAX_CREW)return fail(t('farmRules.err.crewMax',{n:MAX_CREW}));
+          if(!member&&crew.filter(m=>roleOf(m.id).id===role.id).length>=role.max)return fail(t('farmRules.err.roleFull',{n:role.max,role:role.name.toLowerCase()}));
+          const wage=staffWage(role,member?.level||1,person);if(progress.coins<wage)return fail(t('farmRules.err.firstWage',{wage}));
           money(-wage,'wage',at,person.person);const target=member||{id:person.id,level:1,paidUntil:0,shifts:0,incident:null,rest:0,gift:false};if(!member)cafe.crew.push(target);
-          target.paidUntil=at+CAFE_SHIFT_MS;cafeShiftPaid(target,at);message=`${person.person} (${role.name}) đã vào ca · ${wage} xu/ca.`;
+          target.paidUntil=at+CAFE_SHIFT_MS;cafeShiftPaid(target,at);message=t('farmRules.msg.cafeHired',{name:person.person,role:role.name,wage});
         }else if(action==='train'){
-          const member=cafe.crew.find(m=>m.id===choice);if(!member)return fail('Thuê nhân viên trước khi đào tạo.');if(member.gift||candidateById(member.id).kind==='robot')return fail('Robot không đào tạo được.');if(member.level>=STAFF_MAX)return fail('Đã đạt cấp tối đa.');
-          const cost=trainCost(member.level);if(progress.coins<cost)return fail(`Thiếu ${Math.round((cost-progress.coins)*100)/100} xu.`);
-          money(-cost,'training',at,candidateById(member.id).person);member.level++;message=`${candidateById(member.id).person} lên cấp ${member.level}.`;
+          const member=cafe.crew.find(m=>m.id===choice);if(!member)return fail(t('farmRules.err.hireBeforeTrain'));if(member.gift||candidateById(member.id).kind==='robot')return fail(t('farmRules.err.robotNoTrain'));if(member.level>=STAFF_MAX)return fail(t('farmRules.err.atMax'));
+          const cost=trainCost(member.level);if(progress.coins<cost)return fail(t('farmRules.err.missingCoins',{n:Math.round((cost-progress.coins)*100)/100}));
+          money(-cost,'training',at,candidateById(member.id).person);member.level++;message=t('farmRules.msg.levelUp',{name:candidateById(member.id).person,level:member.level});
         }else if(action==='shift'){
           // End-of-shift reward; the scene reports its counts, bounded so a tampered report cannot mint coins.
           // Three tiers from the bronze goal (cafe-fun-review P1); the model derives the tier itself from the clamped counts.
           const served=clamp(integer(choice?.served),0,200),goal=clamp(integer(choice?.goal),1,200),good=finite(choice?.avg)>=2;
           const tier=!good?0:served>=Math.ceil(goal*SHIFT_TIERS[2])?3:served>=Math.ceil(goal*SHIFT_TIERS[1])?2:served>=goal?1:0;
           const bonus=Math.min(300,served*[0,3,4,5][tier]),rep=tier||(served<Math.ceil(goal/2)?-1:0);
-          if(bonus)money(bonus,'cafe-sale',at,'Thưởng ca');cafe.reputation=clamp(cafe.reputation+rep,10,100);
-          const medal=['','Đồng','Bạc','Vàng'][tier];
-          extra={bonus,met:tier>0,tier,rep};message=tier?`Đạt mốc ${medal} · thưởng ${bonus} xu · Uy tín +${rep}`:`Chưa đạt mốc Đồng${rep?' · Uy tín −1':' · không trừ uy tín'}`;
+          if(bonus)money(bonus,'cafe-sale',at,t('farmRules.ledger.shiftBonus'));cafe.reputation=clamp(cafe.reputation+rep,10,100);
+          const medal=tier?t(`farmRules.msg.medal.${tier}`):'';
+          extra={bonus,met:tier>0,tier,rep};message=tier?t('farmRules.msg.shiftMet',{medal,bonus,rep}):t(rep?'farmRules.msg.shiftMissedRep':'farmRules.msg.shiftMissed');
         }else if(action==='table'){
           const i=integer(choice),indoor=assetValue(ASSETS.find(a=>a.id==='cafe'),progress.upgrades.cafe);
           // Indoor tables open with the café upgrade; the two garden tables (10, 11) with Sân vườn.
-          if(!Number.isInteger(choice)||i<0||i>=MAX_TABLES||(i<10?i>=indoor:!cafe.gear.terrace))return fail('Bàn chưa mở.');
-          const lv=cafe.tables[i];if(lv>=TABLE_LEVELS.length)return fail('Bàn đã tối đa.');const price=TABLE_LEVELS[lv].price;
-          if(progress.coins<price)return fail(`Thiếu ${Math.round((price-progress.coins)*100)/100} xu.`);
-          money(-price,'upgrade',at,`Bàn ${i+1}`);cafe.tables[i]++;message=`Bàn ${i+1}: ${TABLE_LEVELS[cafe.tables[i]-1].name}.`;
+          if(!Number.isInteger(choice)||i<0||i>=MAX_TABLES||(i<10?i>=indoor:!cafe.gear.terrace))return fail(t('farmRules.err.tableLocked'));
+          const lv=cafe.tables[i];if(lv>=TABLE_LEVELS.length)return fail(t('farmRules.err.tableMax'));const price=TABLE_LEVELS[lv].price;
+          if(progress.coins<price)return fail(t('farmRules.err.missingCoins',{n:Math.round((price-progress.coins)*100)/100}));
+          money(-price,'upgrade',at,t('farmRules.ledger.table',{n:i+1}));cafe.tables[i]++;message=t('farmRules.msg.tableUp',{n:i+1,name:TABLE_LEVELS[cafe.tables[i]-1].name});
         }else if(action==='fire'){
-          if(!cafe.crew.some(m=>m.id===choice))return fail('Chưa thuê người này.');if(cafe.crew.some(m=>m.id===choice&&m.gift))return fail('Robot gói thử tự rời quán khi hết ca.');cafe.crew=cafe.crew.filter(m=>m.id!==choice);message=`${candidateById(choice).person} đã nghỉ việc.`;
+          if(!cafe.crew.some(m=>m.id===choice))return fail(t('farmRules.err.notHiredPerson'));if(cafe.crew.some(m=>m.id===choice&&m.gift))return fail(t('farmRules.err.giftLeaves'));cafe.crew=cafe.crew.filter(m=>m.id!==choice);message=t('farmRules.msg.quit',{name:candidateById(choice).person});
         }else if(action==='order'){
-          const crop=cropById(choice);if(!crop||crop.level>level())return fail('Giống này chưa mở ở nông trại.');
-          if(progress.orders.filter(o=>o.source!=='shop'&&['open','transit'].includes(o.status)).length>=4)return fail('Nông trại đang có 4 đơn; chờ giao bớt.');
-          progress.orders.push({id:nextId('order'),day:weatherAt(at).day,cropId:crop.id,grams:252,status:'open',workers:[],deadline:at+DAY_MS*8,createdAt:at,source:'cafe'});message=`Đã gửi đơn 252 g hạt rang ${crop.short} sang nông trại.`;
-        }else return fail('Không có thao tác quán này.');
+          const crop=cropById(choice);if(!crop||crop.level>level())return fail(t('farmRules.err.cropNotFarm'));
+          if(progress.orders.filter(o=>o.source!=='shop'&&['open','transit'].includes(o.status)).length>=4)return fail(t('farmRules.err.farmOrdersFull'));
+          progress.orders.push({id:nextId('order'),day:weatherAt(at).day,cropId:crop.id,grams:252,status:'open',workers:[],deadline:at+DAY_MS*8,createdAt:at,source:'cafe'});message=t('farmRules.msg.orderSent',{crop:crop.short});
+        }else return fail(t('farmRules.err.noCafeAction'));
       }else if(id==='lessons'){
         const lesson=lessonOf(choice?.questionId),L=progress.lessons;
-        if(action!=='answer'||!lesson)return fail('Không có câu hỏi này.');
-        const {question}=lesson;if(L.learned.includes(question.id))return fail('Bạn đã thuộc mẹo này.');
-        if(!askable(question.id,at))return fail('Hôm nay đã ôn rồi · quay lại ngày công sau.');
-        if(!question.options.some(o=>o.id===choice.optionId))return fail('Chọn một đáp án.');
+        if(action!=='answer'||!lesson)return fail(t('farmRules.err.noQuestion'));
+        const {question}=lesson;if(L.learned.includes(question.id))return fail(t('farmRules.err.knownTip'));
+        if(!askable(question.id,at))return fail(t('farmRules.err.reviewedToday'));
+        if(!question.options.some(o=>o.id===choice.optionId))return fail(t('farmRules.err.pickAnswer'));
         const correct=choice.optionId===question.correct,day=workDay(at),perk=LESSON_PERKS[question.id];
         if(L.askedDay!==day){L.askedDay=day;L.askedCount=0;}L.askedCount++;
-        if(correct){L.learned.push(question.id);grantLessons(at);extra={correct,explanation:answerText(question,true),perk:{id:question.id,...perk}};message=`🎓 Mẹo mới: ${perk.name} · ${perk.effect}`;}
-        else{L.asked[question.id]=day;extra={correct,explanation:answerText(question,false)};message='Chưa nhận mẹo · sẽ được hỏi lại ngày công sau.';}
+        if(correct){L.learned.push(question.id);grantLessons(at);extra={correct,explanation:answerText(question,true),perk:{id:question.id,...perk}};message=t('farmRules.msg.newTip',{name:perk.name,effect:perk.effect});}
+        else{L.asked[question.id]=day;extra={correct,explanation:answerText(question,false)};message=t('farmRules.msg.tipMissed');}
       }else if(id==='tutorial'){
-        if(action!=='seen'||!tutorialId(choice))return fail('Không có hướng dẫn này.');
+        if(action!=='seen'||!tutorialId(choice))return fail(t('farmRules.err.noTutorial'));
         if(!progress.tutorial.seen.includes(choice))progress.tutorial.seen.push(choice);
       }else if(id==='fence'&&action==='repair'){
-        if(progress.coins<5)return fail('Cần 5 xu bảo trì.');money(-5,'maintenance',at,'Hàng rào');progress.durability=100;message='Đã bảo trì hàng rào.';
+        if(progress.coins<5)return fail(t('farmRules.err.repairCoins'));money(-5,'maintenance',at,t('farmRules.asset.fence.name'));progress.durability=100;message=t('farmRules.msg.fenceRepaired');
       }else if(field){
-        if(action!=='expand'||owned.includes(id)||!adjacent(id))return fail('Mở ruộng liền kề trước.');if(progress.coins<field.price)return fail(`Cần ${field.price} xu.`);
-        money(-field.price,'land',at,field.name);owned.push(id);for(const tree of progress.plots)tree.unlocked=owned.includes(PLOTS.find(c=>c.id===tree.id).fieldId);progress.stats.expanded++;progress.xp+=10;message=`Đã mở ${field.name}: 12 ô.`;
+        if(action!=='expand'||owned.includes(id)||!adjacent(id))return fail(t('farmRules.err.adjacentFirst'));if(progress.coins<field.price)return fail(t('farmRules.err.needCoins',{n:field.price}));
+        money(-field.price,'land',at,field.name);owned.push(id);for(const tree of progress.plots)tree.unlocked=owned.includes(PLOTS.find(c=>c.id===tree.id).fieldId);progress.stats.expanded++;progress.xp+=10;message=t('farmRules.msg.fieldOpened',{name:field.name});
       }else if(p){
-        if(!p.unlocked)return fail('Ruộng chưa được mở.');const care=plotCare(p);
+        if(!p.unlocked)return fail(t('farmRules.err.fieldLocked'));const care=plotCare(p);
         if(action==='plant'){
-          const crop=cropById(choice);if(!crop||p.stage!=='empty'||crop.level>level()||!progress.seeds[crop.id])return fail('Cần ô trống và cây giống phù hợp.');
-          progress.seeds[crop.id]--;Object.assign(p,{cropId:crop.id,stage:'planted',mature:false,growthMs:0,water:50,weeds:0,fertilized:false,readyYield:0,remainingFruit:0,secondPick:0,quality:80,health:100,pruned:false});message='Đã trồng cây giống. Cây kiến thiết trước khi cho vụ đầu.';
+          const crop=cropById(choice);if(!crop||p.stage!=='empty'||crop.level>level()||!progress.seeds[crop.id])return fail(t('farmRules.err.needPlotSeed'));
+          progress.seeds[crop.id]--;Object.assign(p,{cropId:crop.id,stage:'planted',mature:false,growthMs:0,water:50,weeds:0,fertilized:false,readyYield:0,remainingFruit:0,secondPick:0,quality:80,health:100,pruned:false});message=t('farmRules.msg.planted');
         }else if(action==='clear'){
-          if(p.stage==='empty')return fail('Ô đã trống.');Object.assign(p,{stage:'empty',mature:false,growthMs:0,readyYield:0,remainingFruit:0,secondPick:0,fertilized:false});message='Đã cuốc bỏ cây; không hoàn cây giống.';
+          if(p.stage==='empty')return fail(t('farmRules.err.plotEmpty'));Object.assign(p,{stage:'empty',mature:false,growthMs:0,readyYield:0,remainingFruit:0,secondPick:0,fertilized:false});message=t('farmRules.msg.cleared');
         }else if(action==='water'){
-          if(!care.needsWater)return fail('Cây chưa cần tưới.');
-          const w=progress.workers.find(w=>w.id===owner);if(w){if(!w.water)return fail('Nhân viên cần lấy nước.');w.water--;}else{if(!progress.water)return fail('Bình hết nước; tới giếng.');progress.water--;}
-          p.water=70;if(owner==='player')progress.stats.watered++;message='Đã tưới vừa đủ cho cây.';
+          if(!care.needsWater)return fail(t('farmRules.err.noWaterNeed'));
+          const w=progress.workers.find(w=>w.id===owner);if(w){if(!w.water)return fail(t('farmRules.err.workerNeedsWater'));w.water--;}else{if(!progress.water)return fail(t('farmRules.err.canEmpty'));progress.water--;}
+          p.water=70;if(owner==='player')progress.stats.watered++;message=t('farmRules.msg.watered');
         }else if(action==='weed'){
-          if(!care.needsWeeding)return fail('Chưa cần làm cỏ.');p.weeds=0;if(owner==='player')progress.stats.weeded++;message='Đã làm cỏ.';
+          if(!care.needsWeeding)return fail(t('farmRules.err.noWeedNeed'));p.weeds=0;if(owner==='player')progress.stats.weeded++;message=t('farmRules.msg.weeded');
         }else if(action==='fertilize'){
-          if(!care.canFeed||!progress.fertilizer)return fail('Cây chưa đúng giai đoạn bón hoặc thiếu phân.');progress.fertilizer--;p.fertilized=true;message='Đã bón đủ liều vụ này.';
+          if(!care.canFeed||!progress.fertilizer)return fail(t('farmRules.err.cantFeed'));progress.fertilizer--;p.fertilized=true;message=t('farmRules.msg.fed');
         }else if(action==='prune'){
-          if(!p.mature||p.stage==='ready'||p.growthMs/cropById(p.cropId).regrowMs>.17||p.pruned)return fail('Chỉ tỉa một lần trong đợt phục hồi.');p.pruned=true;message='Đã tỉa cành phục hồi tán.';
+          if(!p.mature||p.stage==='ready'||p.growthMs/cropById(p.cropId).regrowMs>.17||p.pruned)return fail(t('farmRules.err.pruneOnce'));p.pruned=true;message=t('farmRules.msg.pruned');
         }else if(action==='harvest'){
-          if(!care.ready)return fail('Quả chưa chín.');if(usedStorage()+p.readyYield>storageCapacity())return fail(`Kho còn ${storageCapacity()-usedStorage()} g, đợt hái cần ${p.readyYield} g. Bán, chế biến hoặc nâng kho trước.`);
+          if(!care.ready)return fail(t('farmRules.err.notRipe'));if(usedStorage()+p.readyYield>storageCapacity())return fail(t('farmRules.err.harvestStorage',{left:storageCapacity()-usedStorage(),need:p.readyYield}));
           const amount=p.readyYield;
           add('cherries',p.cropId,amount,owner==='player'&&progress.lessons.learned.includes('ripe')?p.quality+5:p.quality,at,'farm',p.id); // add() caps at 100
           if(owner==='player')progress.stats.harvested++;progress.today.harvested+=amount;progress.xp+=6;
           Object.assign(p,{stage:'growing',growthMs:0,readyYield:0,remainingFruit:0,secondPick:0,fertilized:false,pruned:false,season:p.season+1});
-          collected=true;message=`Đã hái ${amount} g quả chín; cây tiếp tục sống.`;
-        }else return fail('Không có việc này.');
+          collected=true;message=t('farmRules.msg.harvested',{grams:amount});
+        }else return fail(t('farmRules.err.noJob'));
       }else if(m){
         const state=progress.machines[id],lv=progress.upgrades[id],jobs=jobsOf(state);
         if(action==='start'){
-          const crop=cropById(typeof choice==='object'?choice?.cropId:choice);if(!crop)return fail('Chọn loại cà phê.');
+          const crop=cropById(typeof choice==='object'?choice?.cropId:choice);if(!crop)return fail(t('farmRules.err.pickCoffee'));
           const available=Math.floor(progress.stock[m.input][crop.id]/m.inputCount),asked=typeof choice==='object'?integer(choice.quantity):available;
-          if(!asked||asked>available)return fail(`Thiếu nguyên liệu; mỗi đơn vị cần ${m.inputCount} g.`);
-          if(jobs.length>=48)return fail('Hàng chờ đã đầy, chờ hoặc nhận thành phẩm.');
+          if(!asked||asked>available)return fail(t('farmRules.err.noInput',{n:m.inputCount}));
+          if(jobs.length>=48)return fail(t('farmRules.err.queueFull'));
           const perBatch=Math.max(1,Math.floor(m.capacity*capacityScale(lv)/m.inputCount));
           // Queue what fits in the 48-batch line instead of refusing the whole request (large stocks used to block processing forever).
           const requested=Math.min(asked,(48-jobs.length)*perBatch);
           const inputLots=take(m.input,crop.id,requested*m.inputCount),quality=qualityOf(inputLots);
           let left=requested,startAt=Math.max(at,...jobs.map(j=>j.readyAt)),duration=Math.round(m.duration/efficiency(lv));
           while(left){const n=Math.min(left,perBatch);jobs.push({id:nextId('batch'),cropId:crop.id,quantity:n,inputGrams:n*m.inputCount,outputGrams:n*m.outputCount,quality,origin:inputLots.map(l=>l.id).join(','),startedAt:startAt,readyAt:startAt+duration,turned:false});left-=n;startAt+=duration;}
-          putJobs(state,jobs);message=requested<asked?`Đã xếp ${requested}/${asked} phần; hàng chờ đủ 48 mẻ, phần còn lại giữ trong kho.`:'Đã giữ nguyên liệu và xếp mẻ theo công suất trạm.';
+          putJobs(state,jobs);message=requested<asked?t('farmRules.msg.queuedPartial',{done:requested,asked}):t('farmRules.msg.queued');
         }else if(action==='collect'){
-          const ready=jobs.filter(j=>j.readyAt<=at&&(!choice||j.id===choice));if(!ready.length)return fail('Mẻ này chưa hoàn tất hoặc đã được nhận.');
+          const ready=jobs.filter(j=>j.readyAt<=at&&(!choice||j.id===choice));if(!ready.length)return fail(t('farmRules.err.batchNotReady'));
           let space=storageCapacity()-usedStorage();const done=[];
           for(const job of ready){if(job.outputGrams<=space){done.push(job);space-=job.outputGrams;}}
-          if(!done.length){const required=Math.min(...ready.map(j=>j.outputGrams));return fail(`Kho đang chứa ${formatMass(usedStorage())} / ${formatMass(storageCapacity())}, chỉ còn trống ${formatMass(Math.max(0,space))}. Mẻ nhỏ nhất cần ${formatMass(required)}: thiếu ${formatMass(Math.max(0,required-space))} chỗ. Hãy bán bớt hàng, chuyển cà phê về quán hoặc nâng cấp kho. Thành phẩm vẫn được giữ tại trạm.`);}
+          if(!done.length){const required=Math.min(...ready.map(j=>j.outputGrams));return fail(t('farmRules.err.collectStorage',{used:formatMass(usedStorage()),cap:formatMass(storageCapacity()),free:formatMass(Math.max(0,space)),need:formatMass(required),short:formatMass(Math.max(0,required-space))}));}
           const mass=done.reduce((sum,j)=>sum+j.outputGrams,0);
           for(const j of done)add(m.output,j.cropId,j.outputGrams,j.quality,at,'farm',j.origin||id);
-          if(owner==='player')progress.stats[m.output]+=mass;progress.today.processed+=mass;progress.xp+=4*done.length;putJobs(state,jobs.filter(j=>!done.includes(j)));message=`Đã nhận ${done.length} mẻ · ${formatMass(mass)} ${productById(m.output).name.toLowerCase()} vào kho.${done.length<ready.length?` Còn ${ready.length-done.length} mẻ chờ tại trạm vì kho chưa đủ chỗ.`:''}`;collected=true;
+          if(owner==='player')progress.stats[m.output]+=mass;progress.today.processed+=mass;progress.xp+=4*done.length;putJobs(state,jobs.filter(j=>!done.includes(j)));message=t('farmRules.msg.collected',{n:done.length,mass:formatMass(mass),product:productById(m.output).name.toLowerCase(),left:ready.length-done.length});collected=true;
         }else if(action==='turn'&&id==='dryer'){
-          const j=jobs.find(j=>!j.turned&&at>=(j.startedAt+j.readyAt)/2&&at<j.readyAt);if(!j)return fail('Chưa đến lúc đảo.');j.turned=true;j.quality=Math.min(100,j.quality+2);message='Đã đảo đều mẻ phơi; chất lượng đồng đều hơn.';
+          const j=jobs.find(j=>!j.turned&&at>=(j.startedAt+j.readyAt)/2&&at<j.readyAt);if(!j)return fail(t('farmRules.err.notTurnTime'));j.turned=true;j.quality=Math.min(100,j.quality+2);message=t('farmRules.msg.turned');
         }else if(action==='cancel'){
-          const j=jobs.find(j=>j.id===choice&&j.startedAt>at);if(!j)return fail('Chỉ hủy mẻ chưa chạy.');add(m.input,j.cropId,j.inputGrams,j.quality,at,'farm','returned');putJobs(state,jobs.filter(job=>job!==j));message='Đã hủy mẻ chờ và trả nguyên liệu.';
-        }else return fail('Không có thao tác này.');
+          const j=jobs.find(j=>j.id===choice&&j.startedAt>at);if(!j)return fail(t('farmRules.err.cancelQueued'));add(m.input,j.cropId,j.inputGrams,j.quality,at,'farm','returned');putJobs(state,jobs.filter(job=>job!==j));message=t('farmRules.msg.cancelled');
+        }else return fail(t('farmRules.err.noAction'));
       }else if(id==='directives'){
-        const d=progress.directives,names={care:'Tự chăm vườn',plant:'Trồng lấp ô trống',process:'Tự chế biến',fertilize:'Dùng phân bón'};
-        if(action==='toggle'&&names[choice]){d[choice]=!d[choice];message=`${names[choice]}: ${d[choice]?'bật':'tắt'}.`;}
-        else if(action==='crop'){const allowed=CROPS.filter(c=>c.level<=level()),next=allowed[(allowed.findIndex(c=>c.id===d.plantCrop)+1)%allowed.length];d.plantCrop=next.id;message=`Giống trồng lấp ô: ${next.name}.`;}
-        else return fail('Không có chỉ thị này.');
+        const d=progress.directives,names=Object.fromEntries(['care','plant','process','fertilize'].map(k=>[k,t(`farmRules.directive.${k}`)]));
+        if(action==='toggle'&&names[choice]){d[choice]=!d[choice];message=t('farmRules.msg.directive',{name:names[choice],state:t(d[choice]?'farmRules.msg.on':'farmRules.msg.off')});}
+        else if(action==='crop'){const allowed=CROPS.filter(c=>c.level<=level()),next=allowed[(allowed.findIndex(c=>c.id===d.plantCrop)+1)%allowed.length];d.plantCrop=next.id;message=t('farmRules.msg.directiveCrop',{name:next.name});}
+        else return fail(t('farmRules.err.noDirective'));
       }else if(id==='well'&&action==='refill'){
         const w=progress.workers.find(w=>w.id===owner),current=w?.water||(!w?progress.water:0),needed=waterCapacity()-current,amount=Math.min(needed,Math.floor(progress.reservoir));
-        if(amount<1)return fail('Bình đã đầy hoặc cần chờ nước hồi; ao có cá giữ lại 15 nước.');progress.reservoir-=amount;if(w)w.water=current+amount;else progress.water=current+amount;message=`Đã lấy ${amount} lượt nước.`;
+        if(amount<1)return fail(t('farmRules.err.wellEmpty'));progress.reservoir-=amount;if(w)w.water=current+amount;else progress.water=current+amount;message=t('farmRules.msg.refilled',{n:amount});
       }else if(id==='seed-shop'){
         const quantity=typeof choice==='object'&&choice!==null?choice.quantity:1;
-        if(!Number.isInteger(quantity)||quantity<1||quantity>99)return fail('Số lượng mua phải từ 1 đến 99.');
+        if(!Number.isInteger(quantity)||quantity<1||quantity>99)return fail(t('farmRules.err.qty'));
         if(action==='buySeed'){
           const c=cropById(typeof choice==='object'?choice.cropId:choice);
-          if(!c||c.level>level()||progress.coins<c.seedPrice*quantity)return fail('Thiếu xu hoặc chưa mở giống.');
-          money(-c.seedPrice*quantity,'seedling',at,c.name);progress.seeds[c.id]+=quantity;message=`+${quantity} cây giống ${c.short}.`;
+          if(!c||c.level>level()||progress.coins<c.seedPrice*quantity)return fail(t('farmRules.err.seedCoins'));
+          money(-c.seedPrice*quantity,'seedling',at,c.name);progress.seeds[c.id]+=quantity;message=t('farmRules.msg.seedBought',{n:quantity,crop:c.short});
         }else if(action==='fertilizer'){
-          if(progress.coins<FERTILIZER_PRICE*quantity)return fail('Chưa đủ xu.');
-          money(-FERTILIZER_PRICE*quantity,'fertilizer',at,'Phân');progress.fertilizer+=quantity;message=`+${quantity} túi phân.`;
-        }else return fail('Không có mặt hàng này.');
+          if(progress.coins<FERTILIZER_PRICE*quantity)return fail(t('farmRules.err.coins'));
+          money(-FERTILIZER_PRICE*quantity,'fertilizer',at,t('farmRules.ledger.fertilizer'));progress.fertilizer+=quantity;message=t('farmRules.msg.fertBought',{n:quantity});
+        }else return fail(t('farmRules.err.noItem'));
       }else if(id==='market'){
         if(action==='acceptOrder'){
           if(!progress.order.accepted){progress.order.accepted=true;progress.order.deadline=at+8*DAY_MS;}
-          progress.order.workers=[];message='Đã nhận đơn bán ở Chợ. Bạn tự chuẩn bị đủ hàng rồi quay lại bán lấy xu.';
+          progress.order.workers=[];message=t('farmRules.msg.marketAccepted');
         }else if(action==='order'){
-          const o=progress.order;if(choice&&choice!==o.id)return fail('Đơn đã thay đổi, mở lại danh sách.');if(progress.stock[o.product][o.cropId]<o.quantity)return fail('Chưa đủ hàng.');
-          if(o.product==='roasted'&&progress.cafe.reserve&&Object.values(progress.stock.roasted).reduce((s,n)=>s+n,0)-o.quantity<demand().needed)return fail('Phần hạt này đang giữ cho quán; có thể tắt giữ hàng tại quán.');
-          progress.orders.push({...o,grams:o.quantity,status:'delivered',source:'shop',rating:5,day:weatherAt(at).day,workers:o.workers||[]});take(o.product,o.cropId,o.quantity);money(o.reward,'order',at,'Đơn thu mua');progress.stats.sold+=o.quantity;progress.stats.orders++;log('Giao đơn shop đúng hạn',at);progress.xp+=o.xp;progress.orderIndex++;progress.order=makeOrder(at);message='Đã giao đơn thu mua.';
+          const o=progress.order;if(choice&&choice!==o.id)return fail(t('farmRules.err.orderChanged'));if(progress.stock[o.product][o.cropId]<o.quantity)return fail(t('farmRules.err.notEnoughGoods'));
+          if(o.product==='roasted'&&progress.cafe.reserve&&Object.values(progress.stock.roasted).reduce((s,n)=>s+n,0)-o.quantity<demand().needed)return fail(t('farmRules.err.reservedForCafe'));
+          progress.orders.push({...o,grams:o.quantity,status:'delivered',source:'shop',rating:5,day:weatherAt(at).day,workers:o.workers||[]});take(o.product,o.cropId,o.quantity);money(o.reward,'order',at,t('farmRules.ledger.buyOrder'));progress.stats.sold+=o.quantity;progress.stats.orders++;log(t('farmRules.log.shopOnTime'),at);progress.xp+=o.xp;progress.orderIndex++;progress.order=makeOrder(at);message=t('farmRules.msg.orderDelivered');
         }else if(action==='sell'){
           const [product,cropId]=String(typeof choice==='object'?choice.item:choice).split(':'),item=productById(product);
           const grams=typeof choice==='object'?choice.grams:progress.stock[product]?.[cropId]||0;
           const quote=saleQuote(product,cropId,grams);
           if(!quote.ok)return fail(quote.message);
           // XP follows coins earned so splitting a sale into 1 g clicks gains nothing.
-          take(product,cropId,grams);money(quote.value,'sale',at,item.name);progress.market.sold+=quote.base;progress.stats.sold+=grams;progress.xp+=Math.floor(quote.value/2);message=`Bán ${grams} g · +${quote.value} xu.`;
-        }else return fail('Không có giao dịch.');
-      }else return fail('Không có điểm tương tác.');
-      if(!['permission','mode','role','seed','autoPay','reserve','toggle','crop','brew','sell','lost','buy','shift','answer','seen','incident','remind','giftReport'].includes(action)){const person=progress.workers.find(w=>w.id===owner);log(`${person?person.name:'Bạn'}: ${message}`,at);}
+          take(product,cropId,grams);money(quote.value,'sale',at,item.name);progress.market.sold+=quote.base;progress.stats.sold+=grams;progress.xp+=Math.floor(quote.value/2);message=t('farmRules.msg.sale',{grams,value:quote.value});
+        }else return fail(t('farmRules.err.noTrade'));
+      }else return fail(t('farmRules.err.noSpot'));
+      if(!['permission','mode','role','seed','autoPay','reserve','toggle','crop','brew','sell','lost','buy','shift','answer','seen','incident','remind','giftReport'].includes(action)){const person=progress.workers.find(w=>w.id===owner);log(`${person?person.name:t('farmRules.log.you')}: ${message}`,at);}
       progress.workRevision++;const earned=rewards();grantGift(at);commit(at);return {ok:true,message,collected,quests:earned,...extra};
     },
   };

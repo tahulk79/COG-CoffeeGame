@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { t } from '../../i18n/index.js';
 
 // The street around the café, code-built: Vietnamese tube houses (limewash walls, balconies with railings, green
 // shutters, shop fronts with signs, AC units, water tanks), a brick-paved sidewalk with trees, motorbikes and power
@@ -10,7 +11,7 @@ const WALLS = ['#f1e4c6', '#e9d3ae', '#f3dca4', '#dfe8dc', '#f1d2c2', '#ece3d2',
 const ROOFS = ['#a65a40', '#98503a', '#b0664a', '#8f5a42'];
 const SHUTTERS = ['#4f7a62', '#5a8a6e', '#3e6a7a', '#7a5a3a'];
 const AWNINGS = ['#c0473b', '#3f7a5a', '#d9a53b', '#3e6a91', '#b5583a'];
-const SIGNS = [['PHỞ BÒ', '#c0392b'], ['BÁNH MÌ', '#d9a53b'], ['TẠP HÓA', '#2e6b8a'], ['SỬA XE', '#3f6f4a'], ['HỚT TÓC', '#7a3e8a'], ['TRÀ SỮA', '#c2577a'], ['CƠM TẤM', '#a8492f'], ['NHÀ THUỐC', '#2f7a5a']];
+const SIGNS = ['#c0392b', '#d9a53b', '#2e6b8a', '#3f6f4a', '#7a3e8a', '#c2577a', '#a8492f', '#2f7a5a'].map((bg, i) => [t('cafe.street.signs')[i], bg]);
 
 function canvasTexture(size, draw, repeat = true) {
   const canvas = document.createElement('canvas'); canvas.width = canvas.height = size;

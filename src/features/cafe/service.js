@@ -2,6 +2,10 @@ import { CROPS } from '../farm/content.js';
 import { avoidanceStep } from '../../shared/game/collision.js';
 import { ASSETS, CAFE_SHIFT_MS as SHIFT_MS, INCIDENTS, assetValue } from '../farm/rules.js';
 import { RECIPES, SUPPLIES, TABLE_LEVELS, cafeRank, candidateById, lockReason, missingFor, recipeById, roleOf, staffEffects, stars } from './recipes.js';
+import { formatNumber, t } from '../../i18n/index.js';
+
+// Player-facing text: src/i18n/locales/cafe-recipes.js (svc.*). Layout point names below are dev-only (grid debugger) and stay Vietnamese.
+const S = (key, params) => t(`cafeRecipes.svc.${key}`, params);
 
 // Floor plan shared with the 3D scene. The back counter runs along z=-10.6 with a staff lane behind it (z≈-12.15);
 // every station is a fixed slot so upgrades fill slots instead of moving things, and walkers path-find around furniture.
@@ -81,7 +85,7 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
   const registers = () => 1 + gear('register2'), stations = () => 1 + gear('station');
   const line = () => customers.filter(c => c.phase === 'queue');
   const waiting = () => customers.filter(c => ['toSeat', 'seated', 'toPickup', 'pickup'].includes(c.phase));
-  const label = c => c.seat ? `Bàn ${c.seat.table + 1}` : 'Mang đi';
+  const label = c => c.seat ? S('table', { n: c.seat.table + 1 }) : S('takeaway');
   const act = (action, choice) => { const result = farm.act('cafe', action, choice); refresh(); return result; };
   const walk = (entity, to, finalStep = null) => { entity.path = [...route(entity.pos, to), ...(finalStep ? [finalStep] : [])]; };
   // Brewing hands besides the player: baristas able to make something on the menu, plus the robot espresso machine.
@@ -135,11 +139,11 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
       const free = learning();
       if (!free) act('lost', 'angry');
       combo = 0; if (shift) { shift.lost++; shift.angry++; }
-      notice(free ? 'Một khách chờ lâu quá nên bỏ về · đang tập nên chưa trừ uy tín' : 'Một khách chờ lâu quá nên bỏ về · Uy tín −2', false); fx('angry', { pos: { ...c.pos } });
+      notice(free ? S('angryFree') : S('angry'), false); fx('angry', { pos: { ...c.pos } });
     }
   }
   function spawn() {
-    if (line().length >= MAX_LINE + registers()) { act('lost', 'busy'); if (shift) shift.lost++; notice('Hàng quá dài, khách mới quay đi · Uy tín −1', false); fx('turned', { pos: DOOR }); return; }
+    if (line().length >= MAX_LINE + registers()) { act('lost', 'busy'); if (shift) shift.lost++; notice(S('lineFull'), false); fx('turned', { pos: DOOR }); return; }
     fx('enter', { pos: DOOR });
     const side = Math.random() < .5 ? -1 : 1, start = streetEnd(side);
     const c = { id: ++seq, color: COLORS[seq % COLORS.length], phase: 'enter', inLine: false, pos: { x: start.x, z: start.z + (Math.random() - .5) * .6 }, path: [{ x: side * .4, z: SIDEWALK_Z }, DOOR, GATE],
@@ -169,12 +173,12 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
     c.recipeId = recipe.id; c.seat = seat; c.kiosk = null; c.inLine = false;
     if (seat) { c.phase = 'toSeat'; walk(c, seatStand(seat), seatPos(seat)); c.patience = c.patienceMax = PATIENCE.seated * tableLevel(seat.table).patience * patienceBonus * learner(); }
     else { c.phase = 'toPickup'; walk(c, pickupSpot(customers.filter(o => ['toPickup', 'pickup'].includes(o.phase)).length % 8)); c.patience = c.patienceMax = PATIENCE.pickup * learner(); }
-    const why = seat ? '' : dirty.size ? ' · có bàn chưa dọn, khách chờ mang đi' : ' · hết ghế, khách chờ mang đi';
-    return { ok: true, message: `${label(c)} gọi ${recipe.name}${recipe.id === shift?.special ? ' ⭐' : ''}${why}` };
+    const why = seat ? '' : dirty.size ? S('whyDirty') : S('whyFull');
+    return { ok: true, message: `${S('ordered', { who: label(c), drink: recipe.name })}${recipe.id === shift?.special ? ' ⭐' : ''}${why}` };
   }
   const atFront = c => c.phase === 'queue' && c.inLine && !c.path.length && line().indexOf(c) < registers();
   function takeOrder(c = line().find(atFront), patienceBonus = 1) {
-    if (!c) return { ok: false, message: snap.cafe.open ? 'Chưa có khách tới quầy.' : 'Quán đang đóng cửa. Bấm Mở cửa để đón khách.' };
+    if (!c) return { ok: false, message: snap.cafe.open ? S('noGuest') : S('closed') };
     claims.delete(`order:${c.id}`);
     return placeOrder(c, patienceBonus);
   }
@@ -184,10 +188,10 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
     const result = act('sell', { recipeId: drink.recipeId, quality: drink.quality, stars: drink.stars, wait: 1 - c.patience / c.patienceMax, combo: robot ? 0 : combo, memory: drink.memory, table: c.seat ? c.seat.table : null, charm, special, robot, staff: Boolean(drink.staff) });
     if (!result.ok) { notice(result.message, false); return false; }
     if (result.walked) {
-      const why = candidateById('gift-pha')?.fixedEffects.faults[drink.recipeId] || 'pha sai thông số';
+      const why = candidateById('gift-pha')?.fixedEffects.faults[drink.recipeId] || S('robotWrong');
       if (shift) shift.robotWalked++;
       leave(c, '😖'); fx('angry', { pos: { ...c.pos } });
-      notice(`Khách chê ly robot: ${why} · bỏ về`, false);
+      notice(S('robotRefused', { why }), false);
       return true;
     }
     if (!robot) combo = drink.stars >= 2 ? Math.min(5, combo + 1) : 0;
@@ -196,9 +200,9 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
     reward(c.pos, paid); fx('serve', { pos: { ...c.pos }, stars: drink.stars, paid });
     const mood = ['😕', '🙂', '😊', '😍'][drink.stars];
     if (c.seat) { c.phase = 'drinking'; c.mood = mood; c.timer = 8; } else leave(c, mood);
-    // Rebuilt here so numbers use vi-VN like the coin chip (model message uses raw "3.67").
-    const vi = n => n.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
-    notice(`${label(c)}: ${recipeById(drink.recipeId).name} · ${vi(result.price)} xu${result.tip ? ` + tip ${vi(result.tip)}` : ''}${special ? ' · ⭐ món của ca' : ''}${robot ? ' · ly robot' : combo > 1 ? ` · Combo x${combo}` : ''}`);
+    // Rebuilt here so numbers use the UI locale like the coin chip (model message uses raw "3.67").
+    const num = n => formatNumber(n, { maximumFractionDigits: 2 });
+    notice(`${S('sale', { who: label(c), drink: recipeById(drink.recipeId).name, price: num(result.price) })}${result.tip ? S('saleTip', { tip: num(result.tip) }) : ''}${special ? S('saleSpecial') : ''}${robot ? S('saleRobot') : combo > 1 ? S('saleCombo', { n: combo }) : ''}`);
     return true;
   }
   function clean(table) {
@@ -316,7 +320,7 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
       const result = act('brew', { recipeId: job.recipeId, cropId: job.cropId, score: job.score, staff: true });
       if (result.ok) addToShelf({ recipeId: job.recipeId, quality: result.quality, stars: job.score >= 90 ? 3 : 2, memory: false, staff: true });
     } else if (job.type === 'clean') {
-      if (clean(job.table)) notice(`${a.person.person} đã dọn Bàn ${job.table + 1}.`);
+      if (clean(job.table)) notice(S('cleanedBy', { name: a.person.person, n: job.table + 1 }));
     }
     claims.delete(job.claim); a.job = null;
   }
@@ -380,8 +384,8 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
       const result = act('incident', { id: a.id });
       if (!result.ok || !result.applied) continue;
       const name = a.person.person;
-      if (result.type === 'phone') { releaseJob(a); a.phoneUntil = now + INCIDENTS.phoneMs; notice(`📱 ${name} mải chơi điện thoại · Chạm để nhắc`, false); }
-      else { releaseJob(a); notice(`🤒 ${name} nghỉ ốm ca này, không tính lương`, false); }
+      if (result.type === 'phone') { releaseJob(a); a.phoneUntil = now + INCIDENTS.phoneMs; notice(S('phone', { name }), false); }
+      else { releaseJob(a); notice(S('sick', { name }), false); }
       const role = roleOf(a.id), taken = snap.cafe.crew.filter(o => !o.gift && roleOf(o.id)?.id === role.id).length;
       onIncident({ id: a.id, name, type: result.type, replace: result.type === 'sick' && ['waiter', 'cleaner'].includes(role.id) && taken < role.max });
     }
@@ -403,14 +407,14 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
     claims.delete(`order:${c.id}`);
     // Unlike a guest who waited too long, this keeps the player's combo and is counted in shift.rude, not shift.angry.
     leave(c, '😤'); act('lost', 'rude'); if (shift) shift.lost++;
-    notice(`😤 ${a.person.person} lỡ lời, khách bỏ về · Uy tín −2`, false); fx('angry', { pos: { ...c.pos } });
+    notice(S('rude', { name: a.person.person }), false); fx('angry', { pos: { ...c.pos } });
   }
   function addToShelf(drink) {
     drink.id = ++drinkSeq;
     fx('cup', { pos: PASS });
     // With a pickup counter, take-away cups go straight to the screen and the guest collects them.
     const guest = gear('pickup') && customers.find(c => !c.seat && c.phase === 'pickup' && wants(drink)(c));
-    if (guest) { notice(`📺 Mời khách số ${guest.id} nhận ${recipeById(drink.recipeId).name}`); fx('call'); serve(guest, drink); return; }
+    if (guest) { notice(S('callDrink', { id: guest.id, drink: recipeById(drink.recipeId).name })); fx('call'); serve(guest, drink); return; }
     shelf.push(drink);
   }
   function updateMachines(now) {
@@ -432,7 +436,7 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
     restockIn = 5;
     const needed = new Set(RECIPES.filter(r => !lockReason(r, snap.cafe)).flatMap(r => Object.keys(r.uses)));
     const low = SUPPLIES.find(s => needed.has(s.id) && snap.cafe.supplies[s.id] < s.pack / 4 && snap.coins >= s.price * 3);
-    if (low && act('buy', low.id).ok) notice(`${manager.person.person} đã nhập ${low.name} (${low.packLabel}).`);
+    if (low && act('buy', low.id).ok) notice(S('restocked', { name: manager.person.person, supply: low.name, pack: low.packLabel }));
   }
 
   // ---- Shifts: a timed goal with a special drink keeps every opening short and rewarding ----
@@ -446,7 +450,7 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
     shift = null;
     // Same met rule as the model's 'shift' action; a learning shift that misses skips the action so it gets no −1.
     const missed = !(done.served >= done.goal && avg >= 2);
-    const result = done.learning && missed ? { met: false, message: 'Ca tập đầu tiên chưa đạt mục tiêu · không trừ uy tín' } : act('shift', { served: done.served, goal: done.goal, avg });
+    const result = done.learning && missed ? { met: false, message: S('learnShiftMiss') } : act('shift', { served: done.served, goal: done.goal, avg });
     fx('shift', { met: Boolean(result.met) });
     const robot = done.gift ? giftReport(done) : null;
     onShiftEnd({ ...done, avg, bonus: result.bonus || 0, met: Boolean(result.met), tier: result.tier || 0, rep: result.rep ?? 0, message: result.message, robot });
@@ -459,7 +463,7 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
     const side = (x, walked = 0) => ({ cups: x.cups, walked, avg: x.cups > walked ? x.stars / (x.cups - walked) : 0, paid: round2(x.paid), cost: round2(x.cost), profit: round2(x.paid - x.cost) });
     const fault = Object.entries(done.misses).sort((x, y) => y[1] - x[1])[0]?.[0] || null;
     const faults = Object.entries(candidateById('gift-pha')?.fixedEffects.faults || {}).map(([id, why]) => ({ recipe: recipeById(id).name, why }));
-    return { you: { ...side(t.you), fault }, robot: { ...side(t.robot, t.robot.walked), faults }, hint: 'Luyện Phin đen tới ★★ (70 điểm) để barista người tự pha thay robot.' };
+    return { you: { ...side(t.you), fault }, robot: { ...side(t.robot, t.robot.walked), faults }, hint: S('giftHint') };
   }
 
   return {
@@ -517,14 +521,14 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
           if (Math.hypot(spot.x - goal.x, spot.z - goal.z) > .05) c.path = [spot];
         }
         move(c, dt);
-        if (c.phase === 'kiosk' && !c.path.length && (c.timer -= dt) <= 0) { const r = placeOrder(c); notice(`🖥️ Robot thu ngân: ${r.message}`); }
+        if (c.phase === 'kiosk' && !c.path.length && (c.timer -= dt) <= 0) { const r = placeOrder(c); notice(S('kioskOrder', { message: r.message })); }
         else if (['queue', 'seated', 'pickup'].includes(c.phase) && (c.phase !== 'queue' || !c.path.length) && (c.patience -= c.id === benchTarget ? dt * .25 : dt) <= 0) leave(c, '😠', true);
         else if (c.phase === 'toSeat' && !c.path.length) { c.phase = 'seated'; c.facing = SLOT[c.seat.slot][2]; }
         else if (c.phase === 'toPickup' && !c.path.length) {
           c.phase = 'pickup'; c.facing = Math.PI;
           // A cup may already be waiting on the pass for this take-away order.
           const i = gear('pickup') ? shelf.findIndex(d => wants(d)(c) && !claims.has(`drink:${d.id}`)) : -1;
-          if (i >= 0) { notice(`📺 Mời khách số ${c.id} nhận ly`); fx('call'); serve(c, shelf.splice(i, 1)[0]); }
+          if (i >= 0) { notice(S('callCup', { id: c.id })); fx('call'); serve(c, shelf.splice(i, 1)[0]); }
         }
         else if (c.phase === 'drinking' && (c.timer -= dt) <= 0) leave(c, '👋');
       }
@@ -551,32 +555,33 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
       const r = takeOrder(); if (r.ok) { notice(r.message, true); orderedAt = Date.now(); } return r.ok;
     },
     arrivePickup() {
-      if (!gear('pickup')) { notice('Ô trống: mua Quầy nhận đồ trong Nâng cấp › Tự động.', false); return; }
+      if (!gear('pickup')) { notice(S('pickupLocked'), false); return; }
       const c = hand && customers.find(c => !c.seat && wants(hand)(c));
       if (c) { if (serve(c, hand)) hand = null; return; }
-      notice(hand ? 'Không có khách mang đi gọi món này.' : 'Quầy nhận đồ: ly mang đi tự lên màn hình gọi số.');
+      notice(hand ? S('pickupNoGuest') : S('pickupInfo'));
     },
     // The player walked to a table: serve the held cup if someone there ordered it, otherwise clear used cups.
     arriveTable(table) {
-      if (!isOpen(table)) { notice(table >= INDOOR_TABLES ? 'Bàn sân vườn · mua Sân vườn trong Nâng cấp › Mở rộng.' : 'Bàn chưa mở · Nâng cấp Bàn ghế để mở thêm.', false); return; }
+      if (!isOpen(table)) { notice(table >= INDOOR_TABLES ? S('gardenLocked') : S('tableLocked'), false); return; }
       const here = customers.filter(c => c.seat?.table === table && ['seated', 'toSeat'].includes(c.phase));
       const c = hand && here.find(wants(hand));
       if (c) { if (serve(c, hand)) hand = null; return; }
       const cleaned = clean(table);
-      if (cleaned) { notice(`Đã dọn ${cleaned} chỗ ở Bàn ${table + 1}. Bàn sẵn sàng đón khách.`); return; }
-      notice(hand ? `Bàn ${table + 1} không gọi ${recipeById(hand.recipeId).name}.` : here.length ? `Bàn ${table + 1} đang chờ ${here.map(g => recipeById(g.recipeId).name).join(', ')}` : `Bàn ${table + 1} đang trống.`, !hand);
+      if (cleaned) { notice(S('tableCleaned', { count: cleaned, n: table + 1 })); return; }
+      const n = table + 1;
+      notice(hand ? S('tableNotOrdered', { n, drink: recipeById(hand.recipeId).name }) : here.length ? S('tableWaiting', { n, drinks: here.map(g => recipeById(g.recipeId).name).join(', ') }) : S('tableEmpty', { n }), !hand);
     },
     // Returns true when the player only picked up a finished cup instead of opening the bench.
     arriveBar() {
       // Holding a cup nobody ordered: tapping the bar sets it down on the shelf instead of trapping the hand.
-      if (hand && !waiting().some(wants(hand))) { addToShelf(hand); notice(`Đã đặt ${recipeById(hand.recipeId).name} lên kệ.`); hand = null; return true; }
+      if (hand && !waiting().some(wants(hand))) { addToShelf(hand); notice(S('shelved', { drink: recipeById(hand.recipeId).name })); hand = null; return true; }
       const free = shelf.filter(d => !claims.has(`drink:${d.id}`));
       if (hand || !free.length) return false;
       const order = waiting();
       const pick = free.find(d => order.some(wants(d))) || free[0];
       hand = shelf.splice(shelf.indexOf(pick), 1)[0];
       const c = order.find(wants(hand));
-      notice(`Đã cầm ${recipeById(hand.recipeId).name}${c ? ` · mang tới ${label(c)}` : ''}`);
+      notice(`${S('holding', { drink: recipeById(hand.recipeId).name })}${c ? S('bringTo', { who: label(c) }) : ''}`);
       fx('pickup');
       return true;
     },
@@ -591,8 +596,8 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
     // «Nhắc» / tapping the person: back to work now (phone) or the rude remark is stopped in time. Returns true if it did something.
     remind(id) {
       const a = agents.get(id);
-      if (a?.rude) { a.rude = null; notice(`Đã kịp can ${a.person.person} · khách không phật lòng`); return true; }
-      if (a?.phoneUntil > Date.now()) { a.phoneUntil = 0; notice(`${a.person.person} cất điện thoại, làm tiếp`); return true; }
+      if (a?.rude) { a.rude = null; notice(S('remindRude', { name: a.person.person })); return true; }
+      if (a?.phoneUntil > Date.now()) { a.phoneUntil = 0; notice(S('remindPhone', { name: a.person.person })); return true; }
       return false;
     },
     // miss: the player's lowest-scoring step on this cup (bench), counted for the trial report's "your main mistake".

@@ -1,5 +1,6 @@
 import { cropById } from './content.js';
 import { formatMass } from './rules.js';
+import { t } from '../../i18n/index.js';
 export function orderSteps(order,p) {
   const c=order.cropId,stock=p.stock,trees=p.plots.filter(t=>t.unlocked&&t.stage!=='empty'&&t.cropId===c);
   const jobs=id=>[p.machines[id].batch,...p.machines[id].extraBatches].filter(j=>j&&j.cropId===c);
@@ -9,11 +10,11 @@ export function orderSteps(order,p) {
   const cherryNeeded=Math.ceil(Math.max(0,greenNeeded-stock.dried[c]-greenPending)/100)*600;
   const packed=order.status==='transit'||order.status==='delivered';
   return [
-    {label:`Trồng/chăm ${cropById(c).short}`,done:packed||trees.length>0,detail:trees.length?`${trees.length} cây hiện có`:'Cần cây giống và ô trống'},
-    {label:'Hái quả chín',done:packed||cherryNeeded<=stock.cherries[c],detail:`Có ${formatMass(stock.cherries[c])} · Còn cần ${formatMass(Math.max(0,cherryNeeded-stock.cherries[c]))}`},
-    {label:'Phơi và tách vỏ',done:packed||greenNeeded<=stock.dried[c],detail:`Nhân sạch ${formatMass(stock.dried[c])} · ${jobs('dryer').length} mẻ đang xếp`},
-    {label:'Rang hạt',done:packed||roasted>=order.grams,detail:`${formatMass(roasted)}/${formatMass(order.grams)} · ${jobs('roaster').length} mẻ đang xếp`},
-    {label:'Giao sang quán',done:order.status==='delivered',detail:order.status==='transit'?'Đang vận chuyển':order.status==='delivered'?'Quán đã nhận':'Bạn bấm Giao khi đủ hàng'},
+    {label:t('farmRules.step.plant',{crop:cropById(c).short}),done:packed||trees.length>0,detail:trees.length?t('farmRules.step.plantHave',{n:trees.length}):t('farmRules.step.plantNeed')},
+    {label:t('farmRules.step.harvest'),done:packed||cherryNeeded<=stock.cherries[c],detail:t('farmRules.step.harvestDetail',{have:formatMass(stock.cherries[c]),need:formatMass(Math.max(0,cherryNeeded-stock.cherries[c]))})},
+    {label:t('farmRules.step.dry'),done:packed||greenNeeded<=stock.dried[c],detail:t('farmRules.step.dryDetail',{have:formatMass(stock.dried[c]),n:jobs('dryer').length})},
+    {label:t('farmRules.step.roast'),done:packed||roasted>=order.grams,detail:t('farmRules.step.roastDetail',{have:formatMass(roasted),need:formatMass(order.grams),n:jobs('roaster').length})},
+    {label:t('farmRules.step.ship'),done:order.status==='delivered',detail:order.status==='transit'?t('farmRules.step.transit'):order.status==='delivered'?t('farmRules.step.delivered'):t('farmRules.step.tapShip')},
   ];
 }
 

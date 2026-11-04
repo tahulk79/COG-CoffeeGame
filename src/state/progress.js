@@ -1,4 +1,5 @@
 import { DEFAULT_NAME } from './names.js';
+import { DEFAULT_LANG, LANGS } from '../i18n/index.js';
 
 const KEY = 'cog-coffee-progress';
 // Set by resetProgress so a farm autosave in the last frames before reload cannot restore the old run.
@@ -71,7 +72,7 @@ function deviceQuality() {
   const touch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
   return weak ? 'low' : touch ? 'medium' : 'high';
 }
-const DEFAULT_SETTINGS = { version: 1, master: 0.8, music: 0.6, ambience: 0.7, sfx: 0.8, ui: 0.6, muted: false, quality: deviceQuality() };
+const DEFAULT_SETTINGS = { version: 1, master: 0.8, music: 0.6, ambience: 0.7, sfx: 0.8, ui: 0.6, muted: false, quality: deviceQuality(), lang: DEFAULT_LANG };
 const QUALITIES = ['low', 'medium', 'high'];
 
 function normalizeSettings(raw) {
@@ -82,6 +83,7 @@ function normalizeSettings(raw) {
   }
   if (typeof value.muted === 'boolean') settings.muted = value.muted;
   if (QUALITIES.includes(value.quality)) settings.quality = value.quality;
+  if (LANGS.includes(value.lang)) settings.lang = value.lang;
   return settings;
 }
 

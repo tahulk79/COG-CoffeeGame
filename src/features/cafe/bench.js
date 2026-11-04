@@ -1,24 +1,36 @@
 import { CROPS } from '../farm/content.js';
 import { RECIPES, lockReason, missingFor, stars } from './recipes.js';
 import { art } from './art.js';
+import { t, formatNumber } from '../../i18n/index.js';
 
 const el = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text != null) node.textContent = text; return node; };
 const button = (text, onClick, className = '') => { const node = el('button', className, text); node.type = 'button'; node.addEventListener('click', onClick); return node; };
 const decimals = step => step.max <= 30 ? 1 : 0;
-const amount = (value, step) => `${value.toLocaleString('vi-VN', { maximumFractionDigits: decimals(step) })} ${step.unit}`;
+const amount = (value, step) => `${formatNumber(value, { maximumFractionDigits: decimals(step) })} ${step.unit}`;
 // The reading as the player sees it; band cue, sound, ✓/✗ and the result list all judge this value.
 const shown = (value, step) => { const k = 10 ** decimals(step); return Math.round(value * k) / k; };
 const starText = n => '★'.repeat(n) + '☆'.repeat(3 - n);
 const middle = step => (step.target[0] + step.target[1]) / 2;
 const TOOL_ART = { beans: 'beans', grinder: 'grinder', scoop: 'scoop', kettle: 'kettle', espresso: '', coffee: 'coffee', can: 'can', milk: 'milk', cream: 'cream', salt: 'salt', steamer: 'pitcher', whisk: 'whisk' };
-// Technique steps show the real tool being used.
-const handArt = text => [[/Nén/, 'tamper'], [/giấy/, 'filter'], [/nắp/, 'lid'], [/đá/i, 'ice'], [/trứng/i, 'egg'], [/bọt/i, 'pitcher']].find(([re]) => re.test(text))?.[1] || 'spoon';
+// Technique steps show the real tool being used. Judged by the options' icons, not the step text, since the text is translated:
+// tamp ⬇️, filter paper 📄, phin lid ✋, egg 🟡, milk foam ☁️, ice = 🧊 with a 🚫 "no ice" choice; anything else stirs with a spoon.
+const HAND_ART = [['⬇️', 'tamper'], ['📄', 'filter'], ['✋', 'lid'], ['🟡', 'egg'], ['☁️', 'pitcher']];
+const handArt = step => {
+  if (step.hand) return step.hand; // recipes.js gắn id ngôn-ngữ-trung-lập
+  const icons = (step.options || []).map(o => o.icon);
+  if (icons.includes('🧊') && icons.includes('🚫')) return 'ice';
+  return HAND_ART.find(([icon]) => icons.includes(icon))?.[1] || 'spoon';
+};
 function toolFor(step) {
+  if (step.tool) return step.tool; // recipes.js gắn id ngôn-ngữ-trung-lập
   if (step.type === 'bean') return 'beans';
-  if (step.type === 'pick') return step.text === 'Chọn độ xay' ? 'grinder' : 'hands';
+  // Grind options are the only picks without icons (recipes.js GRINDS).
+  if (step.type === 'pick') return step.options.every(o => !o.icon) ? 'grinder' : 'hands';
   if (step.unit === '°C') return 'steamer';
-  if (step.unit === 'phút') return 'whisk';
-  if (step.icon === '☕') return step.text.startsWith('Chiết') ? 'espresso' : 'coffee';
+  // Pours are weighed in g/ml; the only other unit is minutes of whisking (label may be translated).
+  if (!['g', 'ml'].includes(step.unit)) return 'whisk';
+  // The espresso shot is weighed in grams; phin coffee poured over a drink is in ml.
+  if (step.icon === '☕') return step.unit === 'g' ? 'espresso' : 'coffee';
   return { '🫘': 'scoop', '🥫': 'can', '🥛': 'milk', '🍶': 'cream', '🧂': 'salt' }[step.icon] || 'kettle';
 }
 
@@ -27,7 +39,7 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
   const events = new AbortController(), signal = events.signal;
   // First bench visit (flag `bench-intro`): one yellow line on top until the first step is done.
   const introSeen = () => farm.peek().tutorial.seen.includes('bench-intro');
-  const intro = () => introSeen() ? [] : [el('p', 'ui-alert ui-alert--warn', 'Mỗi bước: chọn đúng, hoặc giữ nút để rót tới vạch xanh rồi thả. Sai sẽ được giải thích. 💡 Gợi ý giúp nhưng bước đó tối đa 80% điểm.')];
+  const intro = () => introSeen() ? [] : [el('p', 'ui-alert ui-alert--warn', t('cafe.bench.intro'))];
   let raf = 0, gauge = null, timer = 0, sound = null, waitSound = null;
   // Stops the pour/steam/whisk/extract loop and the fast-forward loop; called on every step change and on close.
   const hush = () => { sound?.stop(); waitSound?.stop(); sound = waitSound = null; };
@@ -40,23 +52,23 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
   function choose() {
     gauge = null; hush(); root.replaceChildren(); service.benchEnd();
     const cafe = service.refresh().cafe, tickets = service.tickets();
-    root.append(...intro(), el('p', 'cafe-lead', tickets.length ? 'Chọn order để pha. Order đã có ly (✓) có thể bỏ qua.' : 'Chưa có order. Pha luyện tập: ly sẽ lên kệ chờ khách gọi đúng món.'));
-    if (service.hand) root.append(el('p', 'cafe-warning', 'Tay bạn đang cầm ly; ly mới sẽ đặt lên kệ.'));
+    root.append(...intro(), el('p', 'cafe-lead', tickets.length ? t('cafe.bench.pickOrder') : t('cafe.bench.noOrders')));
+    if (service.hand) root.append(el('p', 'cafe-warning', t('cafe.bench.handFull')));
     const grid = el('div', 'cafe-ticket-grid');
-    for (const t of tickets) {
-      const item = button('', () => start(t.recipe), 'cafe-ticket');
-      item.dataset.covered = String(t.covered);
-      item.append(el('span', 'cafe-ticket-icon', t.recipe.icon), el('strong', '', t.recipe.name), el('small', '', `${t.label}${t.covered ? ' · ✓ đã có ly' : ''}`));
-      const bar = el('i', 'cafe-patience'); bar.style.setProperty('--ratio', t.ratio); item.append(bar);
+    for (const ticket of tickets) {
+      const item = button('', () => start(ticket.recipe), 'cafe-ticket');
+      item.dataset.covered = String(ticket.covered);
+      item.append(el('span', 'cafe-ticket-icon', ticket.recipe.icon), el('strong', '', ticket.recipe.name), el('small', '', `${ticket.label}${ticket.covered ? t('cafe.bench.covered') : ''}`));
+      const bar = el('i', 'cafe-patience'); bar.style.setProperty('--ratio', ticket.ratio); item.append(bar);
       grid.append(item);
     }
     if (tickets.length) root.append(grid);
-    root.append(el('h3', 'cafe-subhead', 'Pha luyện tập'));
+    root.append(el('h3', 'cafe-subhead', t('cafe.bench.practice')));
     const practice = el('div', 'cafe-ticket-grid');
     for (const recipe of RECIPES) {
       const reason = lockReason(recipe, cafe), best = cafe.mastery[recipe.id]?.best || 0;
       const item = button('', () => start(recipe), 'cafe-ticket'); item.disabled = Boolean(reason);
-      item.append(el('span', 'cafe-ticket-icon', reason ? '🔒' : recipe.icon), el('strong', '', recipe.name), el('small', '', reason || `${starText(stars(best))} · ${recipe.price} xu`));
+      item.append(el('span', 'cafe-ticket-icon', reason ? '🔒' : recipe.icon), el('strong', '', recipe.name), el('small', '', reason || `${starText(stars(best))} · ${t('cafe.coins', { n: recipe.price })}`));
       practice.append(item);
     }
     root.append(practice);
@@ -75,11 +87,11 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
 
   function lacking(recipe, missing) {
     gauge = null; hush(); root.replaceChildren();
-    root.append(el('p', 'cafe-warning', `Chưa đủ nguyên liệu cho ${recipe.name}:`));
+    root.append(el('p', 'cafe-warning', t('cafe.bench.lacking', { drink: recipe.name })));
     const list = el('ul', 'cafe-missing'); for (const item of missing) list.append(el('li', '', item)); root.append(list);
-    root.append(el('p', 'cafe-lead', 'Hạt rang đặt từ nông trại (rẻ, cần thời gian) hoặc nhập ngoài (đắt, có ngay). Sữa, đá, ly… nhập trong kho.'));
+    root.append(el('p', 'cafe-lead', t('cafe.bench.lackingLead')));
     const actions = el('div', 'cafe-actions');
-    actions.append(button('🧺 Mở kho nguyên liệu', openPantry, 'cafe-primary'), button('◀ Chọn món khác', choose));
+    actions.append(button(t('cafe.bench.openPantry'), openPantry, 'cafe-primary'), button(t('cafe.bench.otherDrink'), choose));
     root.append(actions);
   }
 
@@ -88,29 +100,29 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
     gauge = null; cancelAnimationFrame(raf); clearTimeout(timer); hush(); root.replaceChildren();
     const layout = el('div', 'cafe-brew');
     const head = el('div', 'cafe-step-head');
-    head.append(el('strong', '', `${recipe.icon} ${recipe.name}`), el('small', '', `Bước ${state.index + 1}/${recipe.steps.length}`));
-    if (state.index === 0) head.append(button('◀ Đổi món', choose, 'cafe-link'));
+    head.append(el('strong', '', `${recipe.icon} ${recipe.name}`), el('small', '', t('cafe.bench.step', { n: state.index + 1, total: recipe.steps.length })));
+    if (state.index === 0) head.append(button(t('cafe.bench.change'), choose, 'cafe-link'));
     if (state.canMemory && state.index === 0) {
       const toggle = el('label', 'cafe-memory'), box = el('input'); box.type = 'checkbox'; box.checked = state.memory;
       box.addEventListener('change', () => { state.memory = box.checked; brew(state); });
-      toggle.append(box, ' Pha theo trí nhớ (+20% tip)'); head.append(toggle);
-    } else if (state.memory) head.append(el('small', 'cafe-memory', '🧠 Pha theo trí nhớ'));
+      toggle.append(box, t('cafe.bench.memoryToggle')); head.append(toggle);
+    } else if (state.memory) head.append(el('small', 'cafe-memory', t('cafe.bench.memory')));
     // Step pills replace the side card so the bench stays one centred column at any width.
     // Numbered dots always fit on one line; the current step's name is the big title below them.
     const stepper = el('ol', 'cafe-stepper');
-    recipe.steps.forEach((s, i) => { const li = el('li', '', i < state.index ? '✓' : `${i + 1}`); li.title = s.type === 'bean' ? 'Chọn hạt' : s.text; li.dataset.state = i < state.index ? 'done' : i === state.index ? 'now' : ''; stepper.append(li); });
-    const title = el('h3', 'cafe-step-title', step.type === 'bean' ? 'Chọn loại hạt' : step.text);
+    recipe.steps.forEach((s, i) => { const li = el('li', '', i < state.index ? '✓' : `${i + 1}`); li.title = s.type === 'bean' ? t('cafe.bench.bean') : s.text; li.dataset.state = i < state.index ? 'done' : i === state.index ? 'now' : ''; stepper.append(li); });
+    const title = el('h3', 'cafe-step-title', step.type === 'bean' ? t('cafe.bench.beanTitle') : step.text);
     const facts = el('div', 'cafe-chips'); facts.hidden = state.memory;
-    for (const [key, text] of [['Tỉ lệ', recipe.card.ratio], ['Độ xay', recipe.card.grind], ['Nhiệt độ', recipe.card.temp], ['Thời gian', recipe.card.time]]) { const chip = el('span'); chip.append(el('b', '', key), text); facts.append(chip); }
+    for (const [key, text] of [[t('cafe.card.ratio'), recipe.card.ratio], [t('cafe.card.grind'), recipe.card.grind], [t('cafe.card.temp'), recipe.card.temp], [t('cafe.card.time'), recipe.card.time]]) { const chip = el('span'); chip.append(el('b', '', key), text); facts.append(chip); }
 
     // The stage: three columns on a counter — tool | brewer + cup + scale | instrument (thermometer or shot timer).
     const vessel = recipe.gear.v60 ? 'v60' : recipe.gear.espresso ? 'portafilter' : 'phin';
     const stage = el('div', 'cafe-stage'); stage.dataset.tool = tool;
     const scooped = recipe.steps.slice(0, state.index).some(s => toolFor(s) === 'scoop');
-    const showBrewer = ['scoop', 'espresso'].includes(tool) || (tool === 'kettle' && vessel !== 'portafilter') || (tool === 'hands' && /Nén|giấy|nắp/i.test(step.text));
+    const showBrewer = ['scoop', 'espresso'].includes(tool) || (tool === 'kettle' && vessel !== 'portafilter') || (tool === 'hands' && ['tamper', 'filter', 'lid'].includes(handArt(step)));
     stage.style.setProperty('--bed', scooped ? 1 : 0);
     const row = el('div', 'cafe-stage-row');
-    const toolNode = art(tool === 'hands' ? handArt(step.text) : TOOL_ART[tool], 'cafe-tool');
+    const toolNode = art(tool === 'hands' ? handArt(step) : TOOL_ART[tool], 'cafe-tool');
     const vesselNode = el('div', 'cafe-vessel');
     if (tool === 'espresso') vesselNode.append(art('machine', 'cafe-machine'));
     if (showBrewer) vesselNode.append(art(vessel, 'cafe-brewer'));
@@ -122,7 +134,7 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
     const instrument = el('div', 'cafe-instrument');
     const mercury = el('i'), dial = el('output');
     if (tool === 'steamer') { const thermo = el('div', 'cafe-thermo'); thermo.append(mercury); instrument.append(thermo, el('small', '', '°C')); }
-    else if (tool === 'espresso') { const clock = el('div', 'cafe-timer'); clock.append(dial); instrument.append(clock, el('small', '', 'giây chiết')); }
+    else if (tool === 'espresso') { const clock = el('div', 'cafe-timer'); clock.append(dial); instrument.append(clock, el('small', '', t('cafe.bench.extractSec'))); }
     row.append(toolNode, vesselNode, instrument);
     const stream = el('i', 'cafe-stream'), drips = el('i', 'cafe-drips'), steam = el('div', 'cafe-steam');
     for (let i = 0; i < 3; i++) steam.append(el('i'));
@@ -130,7 +142,7 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
     stage.append(row, stream, drips, steam, pop, wait);
     // The "why" card: the real-world reason for this step, then the feedback after the player acts.
     const learn = el('div', 'cafe-learn'), note = el('p'); learn.append(el('span', '', '💡'), note);
-    note.setAttribute('aria-live', 'polite'); note.textContent = state.memory ? 'Pha theo trí nhớ: không có gợi ý.' : step.learn || '';
+    note.setAttribute('aria-live', 'polite'); note.textContent = state.memory ? t('cafe.bench.memoryNote') : step.learn || '';
     const say = (text, tone = '') => { note.textContent = text.replace(/^[✓✗△]\s*/, ''); learn.dataset.tone = tone; learn.firstChild.textContent = tone === 'bad' ? '✗' : tone === 'good' ? '✓' : '💡'; };
     const body = el('div', 'cafe-step-body');
     layout.append(...intro(), head, stepper, title, facts, stage, learn, body); root.append(layout);
@@ -157,14 +169,14 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
       if (state.hinted) score = Math.min(score, .8);
       const ok = inside ?? score >= .99;
       state.scores.push(score); state.values[state.index] = value;
-      state.notes.push({ ok, text, fix: fix || (state.hinted ? 'Bước này đã dùng gợi ý nên tối đa 80% điểm. Lần sau tự làm để đủ điểm.' : '') });
+      state.notes.push({ ok, text, fix: fix || (state.hinted ? t('cafe.bench.hintCap') : '') });
       state.hinted = false; body.inert = true; say(text, ok ? 'good' : score >= .5 && inside === null ? '' : 'bad');
       if (icon) { pop.textContent = icon; stage.dataset.anim = 'pop'; }
       const advance = () => { hush(); if (++state.index >= recipe.steps.length) finish(state); else brew(state); };
       const afterPop = () => {
         if (!step.wait) { advance(); return; }
-        stage.dataset.anim = 'wait'; waitSound = fx('wait'); wait.replaceChildren(el('strong', '', `⏩ ${step.wait[0]}`), el('small', '', `Thực tế ${step.wait[1]} · đang tua nhanh`), el('i'));
-        const skip = button('Bỏ qua ⏭', () => { clearTimeout(timer); advance(); }, 'cafe-link'); wait.append(skip); skip.focus({ preventScroll: true });
+        stage.dataset.anim = 'wait'; waitSound = fx('wait'); wait.replaceChildren(el('strong', '', `⏩ ${step.wait[0]}`), el('small', '', t('cafe.bench.real', { time: step.wait[1] })), el('i'));
+        const skip = button(t('cafe.bench.skip'), () => { clearTimeout(timer); advance(); }, 'cafe-link'); wait.append(skip); skip.focus({ preventScroll: true });
         timer = setTimeout(advance, 2600);
       };
       timer = setTimeout(afterPop, icon ? 900 : 350);
@@ -173,13 +185,13 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
     if (step.type === 'bean' || step.type === 'pick') {
       const cafe = service.snap.cafe, preferred = CROPS.find(c => c.id === recipe.bean);
       const options = step.type === 'bean'
-        ? CROPS.map(c => ({ label: `${c.name} · ${cafe.stock.roasted[c.id] || 0} g`, icon: '🫘', crop: c.id, ok: c.id === recipe.bean ? 1 : .7, disabled: (cafe.stock.roasted[c.id] || 0) < recipe.beans, why: `Món này hợp ${preferred.name} hơn.` }))
+        ? CROPS.map(c => ({ label: `${c.name} · ${cafe.stock.roasted[c.id] || 0} g`, icon: '🫘', crop: c.id, ok: c.id === recipe.bean ? 1 : .7, disabled: (cafe.stock.roasted[c.id] || 0) < recipe.beans, why: t('cafe.bench.beanWhy', { bean: preferred.name }) }))
         : (state.shuffled ||= step.options.map((o, i) => ({ ...o, grind: tool === 'grinder' ? i : null })).sort(() => Math.random() - .5));
       let missed = false, missedWhy = '';
       const grid = el('div', 'cafe-options'), buttons = [];
       for (const option of options) {
         const item = button('', () => {
-          if (option.ok === 0) { missed = true; missedWhy ||= `Lần đầu chọn ${option.label}: ${option.why}`; item.dataset.wrong = 'true'; item.disabled = true; say(option.why, 'bad'); fx('bad'); stage.dataset.anim = 'shake'; setTimeout(() => { stage.dataset.anim = ''; }, 350); return; }
+          if (option.ok === 0) { missed = true; missedWhy ||= t('cafe.bench.firstPick', { label: option.label, why: option.why }); item.dataset.wrong = 'true'; item.disabled = true; say(option.why, 'bad'); fx('bad'); stage.dataset.anim = 'shake'; setTimeout(() => { stage.dataset.anim = ''; }, 350); return; }
           if (tool === 'grinder') fx('grind');
           if (option.crop) state.cropId = option.crop;
           if (option.grind !== null && option.grind !== undefined) stage.dataset.grind = String(option.grind);
@@ -195,7 +207,7 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
         buttons.push([item, option]); grid.append(item);
       }
       body.append(grid);
-      if (!state.memory) body.append(button('💡 Gợi ý (tối đa 80% điểm bước)', () => {
+      if (!state.memory) body.append(button(t('cafe.bench.hint'), () => {
         state.hinted = true; const [item, option] = buttons.find(([, o]) => o.ok === 1 && !o.disabled) || [];
         if (item) { item.dataset.hint = 'true'; say(`${option.label}: ${option.why}`); }
       }, 'cafe-link'));
@@ -209,23 +221,24 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
     band.style.left = `${step.target[0] / step.max * 100}%`; band.style.width = `${(step.target[1] - step.target[0]) / step.max * 100}%`; band.hidden = state.memory;
     meter.append(band, level);
     const readout = el('output', 'cafe-readout');
-    const goal = el('small', '', state.memory ? 'Nhớ lại lượng chuẩn' : `Chuẩn: ${step.target[0]}–${step.target[1]} ${step.unit}`);
-    const verb = step.unit === '°C' ? 'đánh nóng' : step.unit === 'phút' ? 'đánh bông' : tool === 'espresso' ? 'chiết' : tool === 'scoop' ? 'xúc bột' : tool === 'salt' ? 'rắc' : 'rót';
-    const hold = button(`${step.icon} Giữ để ${verb}`, () => {}, 'cafe-hold');
-    const done = button('Xong ✓', () => {
+    const goal = el('small', '', state.memory ? t('cafe.bench.recall') : t('cafe.bench.target', { lo: step.target[0], hi: step.target[1], unit: step.unit }));
+    const verb = t(`cafe.bench.verb.${{ steamer: 'steam', whisk: 'whisk', espresso: 'extract', scoop: 'scoop', salt: 'sprinkle' }[tool] || 'pour'}`);
+    const hold = button(t('cafe.bench.hold', { icon: step.icon, verb }), () => {}, 'cafe-hold');
+    const done = button(t('cafe.bench.done'), () => {
       const [lo, hi] = step.target, value = shown(gauge.value, step), inside = value >= lo && value <= hi;
       const distance = inside ? 0 : value < lo ? lo - value : value - hi, score = inside ? 1 : Math.max(.1, 1 - distance / ((hi - lo) * 1.5));
       gauge = null; cancelAnimationFrame(raf); hush(); stage.dataset.pouring = 'false';
-      next(score, inside ? `✓ ${step.text}: ${amount(value, step)} — chuẩn.` : `✗ ${step.text}: ${amount(value, step)}, chuẩn ${lo}–${hi} ${step.unit}. ${step.learn}`, value, null, inside, inside ? '' : `${amount(value, step)}, chuẩn ${lo}–${hi} ${step.unit}. ${step.learn}`);
+      const miss = inside ? '' : t('cafe.bench.pourMiss', { amount: amount(value, step), lo, hi, unit: step.unit, learn: step.learn });
+      next(score, inside ? t('cafe.bench.pourOk', { text: step.text, amount: amount(value, step) }) : `✗ ${step.text}: ${miss}`, value, null, inside, miss);
     }, 'cafe-primary');
     done.disabled = true;
     hold.addEventListener('pointerdown', e => { if (!gauge || gauge.demo) return; gauge.pouring = true; hold.setPointerCapture(e.pointerId); });
     for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) hold.addEventListener(type, () => { if (gauge && !gauge.demo) gauge.pouring = false; });
     const controls = el('div', 'cafe-actions'); controls.append(hold, done);
-    if (!state.memory) controls.append(button('👀 Xem mẫu', () => {
+    if (!state.memory) controls.append(button(t('cafe.bench.demo'), () => {
       if (!gauge || gauge.demo) return;
       state.hinted = true; gauge.value = from; gauge.demo = { target: middle(step), until: 0 };
-      say(`Mẫu: dừng ở khoảng ${amount(middle(step), step)}. ${step.learn}`);
+      say(t('cafe.bench.demoNote', { amount: amount(middle(step), step), learn: step.learn }));
     }, 'cafe-link'));
     // Controls panel: target and live reading on one line, the gauge, then the buttons.
     const reading = el('div', 'cafe-reading'); reading.append(goal, readout);
@@ -280,7 +293,7 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
     if (!result.ok) { notice(result.message, false); lacking(recipe, [result.message]); return; }
     // Adjust perk: point at the one step that lost most (lowest score, first on ties) with its real reason.
     const worst = state.scores.reduce((w, s, i) => s < state.scores[w] ? i : w, 0), worstStep = recipe.steps[worst];
-    const miss = state.scores[worst] < 1 ? `${recipe.name}: ${worstStep.type === 'bean' ? 'Chọn hạt' : worstStep.text}` : null;
+    const miss = state.scores[worst] < 1 ? `${recipe.name}: ${worstStep.type === 'bean' ? t('cafe.bench.bean') : worstStep.text}` : null;
     service.benchEnd();
     const earned = stars(score), target = service.addDrink({ recipeId: recipe.id, quality: result.quality, stars: earned, memory: state.memory, miss });
     root.replaceChildren();
@@ -289,25 +302,25 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
     [...starText(earned)].forEach((s, i) => { const span = el('span', '', s); span.style.setProperty('--i', i); starRow.append(span); });
     fx('stars', { count: earned });
     summary.append(starRow, el('strong', '', `${recipe.icon} ${recipe.name}`),
-      el('p', '', `Tay nghề ${score}/100 · Chất lượng ly ${result.quality}/100`),
-      el('p', 'cafe-lead', target ? `Mang ra ${target}.` : 'Chưa có khách gọi món này — ly đặt chờ trên kệ.'));
-    if (farm.peek().lessons.learned.includes('adjust') && state.scores[worst] < 1) summary.append(el('p', 'ui-alert ui-alert--warn', `Sửa bước này trước: ${worstStep.type === 'bean' ? 'Chọn hạt' : worstStep.text} — ${state.notes[worst].fix}`));
+      el('p', '', t('cafe.bench.score', { score, quality: result.quality })),
+      el('p', 'cafe-lead', target ? t('cafe.bench.serveTo', { target }) : t('cafe.bench.toShelf')));
+    if (farm.peek().lessons.learned.includes('adjust') && state.scores[worst] < 1) summary.append(el('p', 'ui-alert ui-alert--warn', t('cafe.bench.fixFirst', { step: worstStep.type === 'bean' ? t('cafe.bench.bean') : worstStep.text, fix: state.notes[worst].fix })));
     if (score < 70) askLater(['adjust']);
     // Unlock line uses the real thresholds of hired baristas (90 − Trí nhớ × 0.4), not a fixed 70.
     const need = Math.min(...service.agents.filter(a => a.role === 'barista').map(a => a.effects?.mastery ?? Infinity));
-    if (Number.isFinite(need) && state.best < need && score >= need) summary.append(el('p', 'cafe-unlock', `🎉 Barista giờ có thể tự pha món này (cần ${need} điểm).`));
-    if (state.best < 90 && score >= 90) summary.append(el('p', 'cafe-unlock', '🧠 Mở chế độ pha theo trí nhớ: ẩn công thức, thêm 20% tip.'));
+    if (Number.isFinite(need) && state.best < need && score >= need) summary.append(el('p', 'cafe-unlock', t('cafe.bench.baristaUnlock', { need })));
+    if (state.best < 90 && score >= 90) summary.append(el('p', 'cafe-unlock', t('cafe.bench.memoryUnlock')));
     if (summary.querySelector('.cafe-unlock')) fx('unlock');
     const list = el('ul', 'cafe-notes'); for (const n of state.notes) { const li = el('li', '', n.text); li.dataset.ok = String(n.ok); list.append(li); }
     summary.append(el('p', 'cafe-story', recipe.story), list);
     const actions = el('div', 'cafe-actions');
-    const carry = button('🚶 Mang ly đi', close, 'cafe-primary');
-    actions.append(carry, button('Pha ly khác', choose));
+    const carry = button(t('cafe.bench.carry'), close, 'cafe-primary');
+    actions.append(carry, button(t('cafe.bench.another'), choose));
     summary.append(actions); root.append(summary);
     carry.focus({ preventScroll: true });
   }
 
-  const first = service.tickets().find(t => !t.covered);
+  const first = service.tickets().find(ticket => !ticket.covered);
   if (first) start(first.recipe); else choose();
   return () => { gauge = null; cancelAnimationFrame(raf); clearTimeout(timer); hush(); events.abort(); service.benchEnd(); };
 }

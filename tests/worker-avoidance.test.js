@@ -74,6 +74,6 @@ test('the crew update loop escapes an overlapping player and resumes its walking
     for(let frame=1;frame<=100;frame++)crew.update(.02,at+frame*20);
     assert.ok(actor.position.distanceTo(start)>.9,'worker must physically move away from the player');
     assert.ok(Math.hypot(actor.position.x-player.position.x,actor.position.z-player.position.z)>=.85);
-    assert.match(farm.progress.workers[0].state,/^Đi /,'walking must replace the stale avoidance message');
+    assert.match(farm.progress.workers[0].state,/^Going to /,'walking must replace the stale avoidance message');
   }finally{crew?.dispose();if(previousDocument===undefined)delete globalThis.document;else globalThis.document=previousDocument;}
 });

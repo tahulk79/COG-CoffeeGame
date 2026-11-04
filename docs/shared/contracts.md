@@ -84,13 +84,14 @@ settings: {
   version: 1,
   master: 0.8, music: 0.6, ambience: 0.7, sfx: 0.8, ui: 0.6, // 0–1
   muted: false,
-  quality: 'high' // 'low' | 'medium' | 'high'
+  quality: 'high', // 'low' | 'medium' | 'high'
+  lang: 'en'        // 'en' | 'vi' — mặc định 'en' (04/11/2026), xem i18n.md
 }
 ```
 
 | Việc | Ai | Hàm |
 |---|---|---|
-| Đọc và chuẩn hoá | `src/ui/settings.js` lúc khởi động | `readSettings()` luôn trả object đủ trường: số phải hữu hạn, kẹp về 0–1, sai thì lấy mặc định; `muted` phải đúng kiểu bool; `quality` ngoài danh sách thì về `'high'` |
+| Đọc và chuẩn hoá | `src/ui/settings.js` lúc khởi động | `readSettings()` luôn trả object đủ trường: số phải hữu hạn, kẹp về 0–1, sai thì lấy mặc định; `muted` phải đúng kiểu bool; `quality` ngoài danh sách thì về `'high'`; `lang` ngoài `'en'`/`'vi'` thì về `'en'` |
 | Ghi | Chỉ `src/ui/settings.js` | `saveSettings(settings)` → `true/false`. Ghi khi thả thanh trượt hoặc đổi công tắc, không ghi trong lúc đang kéo |
 | Áp dụng | `src/ui/settings.js` | `setVolume(bus, v)`, `setMuted(b)`, `setQuality(level)`. vfx phát `onQuality` → `applyRendererQuality(renderer)` trong app/game.js |
 
@@ -101,6 +102,7 @@ settings: {
 **Trường hợp biên**
 - localStorage không ghi được: cài đặt vẫn áp dụng trong lượt chơi. Hộp cài đặt hiện một dòng `ui-alert--warn` “Chưa lưu được cài đặt” một lần.
 - Lúc chưa có save (màn chọn nhân vật): `saveSettings` tạo `{ version: 1, settings }`. Không có `introCompleted/heaven/farm` nên app/game.js vẫn vào màn chọn nhân vật như cũ.
+- **Ngôn ngữ:** `src/i18n/index.js` đọc `settings.lang` thẳng từ localStorage một lần lúc tải trang. Đổi ngôn ngữ trong hộp cài đặt thì `saveSettings` rồi `location.reload()`; ghi lỗi thì hiện dòng cảnh báo và không tải lại. Save cũ không có `lang` → tiếng Anh.
 - Các bật/tắt HUD trong Cài đặt farm (Nhật ký, Nhắc việc) **vẫn chỉ trong lượt chơi**, không nằm trong `settings`.
 
 ## 5. Luồng người chơi mới: `farm.lessons`, `farm.tutorial` (03/11/2026, đã triển khai phần dữ liệu)
