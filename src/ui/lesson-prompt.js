@@ -1,0 +1,97 @@
+import { EXPERTS } from '../features/heaven/content.js';
+import { setAvatar, showDialogue, usesTouch } from './dialogue.js';
+import { sfx } from '../shared/audio/index.js';
+
+const $ = id => document.getElementById(id);
+
+/** Chuyên gia + câu gốc theo questionId (nguồn duy nhất: heaven/content.js); null nếu không có. */
+export function findLesson(questionId) {
+  for (const expert of EXPERTS) {
+    const question = expert.questions.find(item => item.id === questionId);
+    if (question) return { expert, question };
+  }
+  return null;
+}
+
+/**
+ * Hỏi lại một câu thiên đàng trong khung hội thoại đáy màn hình (#caption-box). Khóa/mở nhập liệu là việc của nơi gọi.
+ * Cách gọi: lockInput(); askLesson({ ...findLesson('ripe'), onAnswer: optionId => farm.act('lessons', 'answer', { questionId: 'ripe', optionId }), onClose: unlockInput });
+ * onAnswer(optionId) trả { correct, explanation, perk? } (perk: chuỗi hoặc { name, effect }; thiếu thì lấy question.perk); trả null/undefined thì đóng ngay.
+ * onClose() gọi đúng một lần khi khung đóng: sau khi xem kết quả, hoặc "Để sau"/Esc (không gọi onAnswer, không ghi gì).
+ * Trả về hàm đóng ngay (gọi khi rời màn).
+ */
+export function askLesson({ expert, question, onAnswer, onClose }) {
+  const box = $('caption-box'), list = $('dialogue-choices'), next = $('dialogue-next'), tip = $('dialogue-tip');
+  const hint = box.querySelector('.dialogue-hint');
+  const abort = new AbortController();
+  const restoreFocus = document.activeElement;
+  let phase = 'question';
+
+  showDialogue([0, expert.name, question.text], { name: expert.name });
+  setAvatar(expert.icon);
+  box.dataset.mode = 'manual';
+  box.classList.add('quiz-dialogue', 'lesson-dialogue');
+  box.querySelector('.dialogue-auto').textContent = 'ÔN LẠI';
+  hint.textContent = usesTouch() ? 'Chọn một đáp án' : 'Chọn một đáp án · Esc để sau';
+  next.hidden = true;
+  list.replaceChildren(); list.hidden = false;
+  question.options.forEach((option, index) => {
+    const button = document.createElement('button'); button.type = 'button';
+    const key = document.createElement('span'); key.className = 'choice-key'; key.textContent = String(index + 1);
+    const text = document.createElement('span'); text.textContent = option.text;
+    button.append(key, text); button.addEventListener('click', () => answer(option.id));
+    list.append(button);
+  });
+  const later = document.createElement('button'); later.type = 'button'; later.className = 'dialogue-later'; later.textContent = 'Để sau';
+  later.addEventListener('click', close);
+  list.append(later);
+  box.scrollTop = 0;
+  // Không focus đáp án: Enter vừa dùng để qua hội thoại trước không được chọn luôn đáp án 1.
+  box.tabIndex = -1; box.focus({ preventScroll: true });
+
+  addEventListener('keydown', event => {
+    if (event.target.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+    const enter = ['Enter', 'Space', 'KeyE'].includes(event.code) && !event.target.closest?.('button');
+    if (phase === 'question' && enter || event.repeat) { if (enter) { event.preventDefault(); event.stopPropagation(); } return; }
+    const option = phase === 'question' && question.options[Number(event.key) - 1];
+    const done = event.code === 'Escape' || phase === 'result' && enter;
+    if (!option && !done) return;
+    event.preventDefault(); event.stopPropagation();
+    if (option) answer(option.id); else close();
+  }, { capture: true, signal: abort.signal });
+
+  function answer(optionId) {
+    if (phase !== 'question') return;
+    const result = onAnswer(optionId);
+    if (!result) { close(); return; }
+    sfx(result.correct ? 'bench.good' : 'bench.bad');
+    phase = 'result';
+    list.replaceChildren(); list.hidden = true;
+    box.classList.remove('quiz-dialogue');
+    box.querySelector('.dialogue-auto').textContent = result.correct ? 'CHÍNH XÁC' : 'CHƯA ĐÚNG';
+    $('caption').textContent = result.explanation;
+    const perk = result.perk ?? question.perk;
+    const label = typeof perk === 'string' ? perk : perk ? `${perk.name} · ${perk.effect}` : '';
+    tip.textContent = result.correct ? `🎓 Mẹo mới: ${label}` : 'Chưa nhận mẹo · sẽ hỏi lại vào ngày công sau.';
+    tip.hidden = result.correct && !label;
+    tip.dataset.tone = result.correct ? 'good' : '';
+    hint.textContent = usesTouch() ? 'Chạm để đóng' : 'Enter hoặc bấm để đóng';
+    next.hidden = false; next.setAttribute('aria-label', 'Đóng'); next.title = 'Đóng';
+    box.scrollTop = 0;
+    next.focus({ preventScroll: true });
+    // Thêm sau lượt click hiện tại nên chính cú chọn đáp án không đóng khung.
+    document.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); close(); }, { capture: true, signal: abort.signal });
+  }
+
+  function close() {
+    if (phase === 'closed') return;
+    phase = 'closed'; abort.abort();
+    list.replaceChildren(); list.hidden = true; tip.hidden = true;
+    box.hidden = true; box.classList.remove('quiz-dialogue', 'lesson-dialogue'); delete box.dataset.mode;
+    next.hidden = false; next.setAttribute('aria-label', 'Tiếp hội thoại'); next.title = 'Tiếp hội thoại';
+    if (restoreFocus?.isConnected && !restoreFocus.closest('[hidden]')) restoreFocus.focus({ preventScroll: true });
+    else $('game')?.focus({ preventScroll: true });
+    onClose?.();
+  }
+  return close;
+}

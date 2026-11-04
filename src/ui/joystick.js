@@ -1,7 +1,7 @@
 export function mountJoystick(base, knob, onChange, signal) {
   let pointer = null;
   function reset() {
-    const previous = pointer; pointer = null;
+    const previous = pointer; pointer = null; base.classList.remove('is-active');
     if (previous !== null && base.hasPointerCapture(previous)) base.releasePointerCapture(previous);
     knob.style.transform = 'translate(0px, 0px)'; onChange({ x: 0, z: 0 });
   }
@@ -16,7 +16,7 @@ export function mountJoystick(base, knob, onChange, signal) {
   }
   base.addEventListener('pointerdown', event => {
     if (pointer !== null || event.button !== 0) return;
-    event.preventDefault(); pointer = event.pointerId; base.setPointerCapture(pointer); steer(event);
+    event.preventDefault(); pointer = event.pointerId; base.setPointerCapture(pointer); base.classList.add('is-active'); steer(event);
   }, { signal });
   base.addEventListener('pointermove', event => { if (event.pointerId === pointer) { event.preventDefault(); steer(event); } }, { signal });
   for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) base.addEventListener(type, event => { if (event.pointerId === pointer) reset(); }, { signal });

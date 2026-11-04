@@ -1,0 +1,708 @@
+
+### casual  {"sessions":[[20,10]],"days":"mỗi ngày","brew":35,"score":75,"sell":"market","upgrades":"cheap","prune":false}
+┌─────────┬─────┬───────────┬───────┬──────────┬───────────┬───────┬─────┬────────┬─────────┬──────────────┬────────┬──────┬─────────────┬───────────────┐
+│ (index) │ day │ playedMin │ coins │ invested │ net_value │ level │ rep │ fields │ recipes │ roastedFarmG │ served │ lost │ tiers       │ up            │
+├─────────┼─────┼───────────┼───────┼──────────┼───────────┼───────┼─────┼────────┼─────────┼──────────────┼────────┼──────┼─────────────┼───────────────┤
+│ 0       │ 1   │ 10        │ 224   │ 290      │ 514       │ 4     │ 49  │ 3      │ 2       │ 600          │ 5      │ 2    │ '1/0/0/0'   │ 'd1 r1 s1 c1' │
+│ 1       │ 3   │ 30        │ 185   │ 290      │ 475       │ 6     │ 42  │ 3      │ 2       │ 1200         │ 14     │ 8    │ '3/0/0/0'   │ 'd1 r1 s1 c1' │
+│ 2       │ 7   │ 70        │ 194   │ 590      │ 784       │ 7     │ 34  │ 4      │ 2       │ 1500         │ 33     │ 18   │ '7/0/0/0'   │ 'd1 r1 s1 c1' │
+│ 3       │ 14  │ 140       │ 1030  │ 1110     │ 2140      │ 9     │ 29  │ 4      │ 3       │ 1404         │ 67     │ 33   │ '9/5/0/0'   │ 'd1 r1 s2 c1' │
+│ 4       │ 30  │ 300       │ 1327  │ 4019     │ 5346      │ 13    │ 11  │ 4      │ 7       │ 900          │ 143    │ 73   │ '14/16/0/0' │ 'd5 r3 s5 c4' │
+└─────────┴─────┴───────────┴───────┴──────────┴───────────┴───────┴─────┴────────┴─────────┴──────────────┴────────┴──────┴─────────────┴───────────────┘
+income {"market":4404,"shopOrder":0,"cafe":1152,"shift":246,"quest":0} spend {"seeds":760,"fert":30,"land":590,"upgrades":2399,"gear":1030,"tables":0,"supplies":50,"ship":6,"supplier":0}
+stat {"cupsServed":143,"cupsLost":73,"shifts":30,"tiers":[14,16,0,0],"harvests":271,"shopOrders":0}
+d1 0m: mua field-1 120
+d1 0.1m: mua field-2 180
+d1 0.2m: cấp 2
+d1 1.6m: cấp 3
+d1 6m: cấp 4
+d2 13.7m: cấp 5
+d3 26m: cấp 6
+d5 46m: cấp 7
+d7 60m: mua field-3 300
+d8 72.3m: cấp 8
+d8 76m: gear phin 40
+d9 86m: gear steamer 60
+d10 96m: gear mixer 70
+d11 100.2m: cấp 9
+d11 106m: gear grinder 80
+d12 116m: up storage 90
+d13 126m: gear phin 90
+d14 136m: gear v60 90
+d14 136m: mở món v60
+d15 141.1m: cấp 10
+d15 146m: up dryer 100
+d16 156m: gear espresso 120
+d16 156m: mở món espresso
+d16 156m: mở món americano
+d16 156m: mở món cappuccino
+d16 156m: mở món latte
+d17 166m: gear steamer 120
+d18 176m: up storage 128
+d19 181.8m: cấp 11
+d19 186m: up cafe 140
+d20 196m: up dryer 142
+d21 206m: up roaster 160
+d22 216m: gear grinder 160
+d23 226m: up storage 182
+d24 232.5m: cấp 12
+d24 236m: up cafe 199
+d25 246m: gear espresso 200
+d26 256m: up dryer 202
+d27 266m: up roaster 228
+d28 274.2m: cấp 13
+d28 276m: up storage 258
+d29 286m: up cafe 283
+d30 296m: up dryer 287
+
+### regular  {"sessions":[[20,30]],"days":"mỗi ngày","brew":30,"score":80,"sell":"market","upgrades":"cheap","prune":false}
+┌─────────┬─────┬───────────┬───────┬──────────┬───────────┬───────┬─────┬────────┬─────────┬──────────────┬────────┬──────┬─────────────┬─────────────────┐
+│ (index) │ day │ playedMin │ coins │ invested │ net_value │ level │ rep │ fields │ recipes │ roastedFarmG │ served │ lost │ tiers       │ up              │
+├─────────┼─────┼───────────┼───────┼──────────┼───────────┼───────┼─────┼────────┼─────────┼──────────────┼────────┼──────┼─────────────┼─────────────────┤
+│ 0       │ 1   │ 30        │ 247   │ 290      │ 537       │ 6     │ 58  │ 3      │ 4       │ 1200         │ 20     │ 3    │ '1/2/0/0'   │ 'd1 r1 s1 c1'   │
+│ 1       │ 3   │ 90        │ 807   │ 930      │ 1737      │ 9     │ 65  │ 4      │ 5       │ 1500         │ 58     │ 12   │ '5/4/0/0'   │ 'd1 r1 s2 c1'   │
+│ 2       │ 7   │ 210       │ 2344  │ 2561     │ 4905      │ 12    │ 59  │ 4      │ 9       │ 1500         │ 130    │ 38   │ '14/7/0/0'  │ 'd3 r2 s4 c3'   │
+│ 3       │ 14  │ 420       │ 496   │ 10161    │ 10657     │ 17    │ 43  │ 4      │ 7       │ 1500         │ 256    │ 89   │ '25/17/0/0' │ 'd7 r6 s8 c7'   │
+│ 4       │ 30  │ 900       │ 340   │ 23213    │ 23553     │ 24    │ 31  │ 4      │ 7       │ 900          │ 544    │ 205  │ '33/49/8/0' │ 'd10 r9 s10 c9' │
+└─────────┴─────┴───────────┴───────┴──────────┴───────────┴───────┴─────┴────────┴─────────┴──────────────┴────────┴──────┴─────────────┴─────────────────┘
+income {"market":18774,"shopOrder":0,"cafe":4606,"shift":1139,"quest":0} spend {"seeds":980,"fert":90,"land":590,"upgrades":21273,"gear":1350,"tables":0,"supplies":258,"ship":28,"supplier":0}
+stat {"cupsServed":544,"cupsLost":205,"shifts":90,"tiers":[33,49,8,0],"harvests":1096,"shopOrders":0}
+d1 0m: mua field-1 120
+d1 0.1m: mua field-2 180
+d1 0.2m: cấp 2
+d1 1.6m: cấp 3
+d1 6m: cấp 4
+d1 10m: mở món bac-xiu
+d1 10m: mở món phin-mit
+d1 13.6m: cấp 5
+d1 23.8m: cấp 6
+d2 34.9m: cấp 7
+d2 40m: mua field-3 300
+d2 46m: gear phin 40
+d2 46m: cấp 8
+d2 56m: gear steamer 60
+d3 66m: gear mixer 70
+d3 66m: mở món trung
+d3 66m: mở món muoi
+d3 70m: cấp 9
+d3 76m: gear grinder 80
+d3 86m: up storage 90
+d4 96m: gear phin 90
+d4 101.1m: cấp 10
+d4 106m: gear v60 90
+d4 106m: mở món v60
+d4 116m: up dryer 100
+d5 124.1m: cấp 11
+d5 126m: gear espresso 120
+d5 126m: mở món espresso
+d5 126m: mở món americano
+d5 126m: mở món cappuccino
+d5 126m: mở món latte
+d5 136m: gear steamer 120
+d5 146m: up storage 128
+d6 156m: up cafe 140
+d6 165.9m: cấp 12
+d6 166m: up dryer 142
+d6 176m: up roaster 160
+d7 186m: gear grinder 160
+d7 196m: up storage 182
+d7 206m: up cafe 199
+d8 210.6m: cấp 13
+d8 216m: gear espresso 200
+d8 226m: up dryer 202
+d8 236m: up roaster 228
+d9 241.1m: cấp 14
+d9 246m: up storage 258
+d9 256m: up cafe 283
+d9 266m: up dryer 287
+d10 276m: gear espresso 320
+d10 286m: up roaster 323
+d10 291.9m: cấp 15
+d10 296m: up storage 366
+d11 306m: up cafe 401
+d11 316m: up dryer 407
+d11 326m: up roaster 459
+d12 336m: up storage 520
+d12 336m: cấp 16
+d12 346m: up cafe 570
+d12 356m: up dryer 578
+d13 366m: up roaster 651
+d13 386m: up storage 738
+d14 394.2m: cấp 17
+d14 416m: up cafe 809
+d15 446m: up dryer 820
+d15 446m: cấp 18
+d16 476m: up roaster 924
+d17 506m: cấp 19
+d18 526m: up storage 1048
+d19 566m: up cafe 1148
+d20 573.2m: cấp 20
+d21 606m: up dryer 1165
+d22 640.1m: cấp 21
+d22 656m: up roaster 1312
+d24 706m: cấp 22
+d24 716m: up storage 1488
+d26 776m: up cafe 1630
+d26 776m: cấp 23
+d28 836m: up dryer 1654
+d29 856m: cấp 24
+d30 896m: up roaster 1863
+
+### engaged  {"sessions":[[8,30],[13,30],[20,30]],"days":"mỗi ngày","brew":25,"score":85,"sell":"market","upgrades":"cheap","prune":true}
+┌─────────┬─────┬───────────┬───────┬──────────┬───────────┬───────┬─────┬────────┬─────────┬──────────────┬────────┬──────┬──────────────┬───────────────────┐
+│ (index) │ day │ playedMin │ coins │ invested │ net_value │ level │ rep │ fields │ recipes │ roastedFarmG │ served │ lost │ tiers        │ up                │
+├─────────┼─────┼───────────┼───────┼──────────┼───────────┼───────┼─────┼────────┼─────────┼──────────────┼────────┼──────┼──────────────┼───────────────────┤
+│ 0       │ 1   │ 90        │ 1427  │ 930      │ 2357      │ 10    │ 100 │ 4      │ 6       │ 1500         │ 80     │ 1    │ '0/9/0/0'    │ 'd1 r1 s2 c1'     │
+│ 1       │ 3   │ 270       │ 3679  │ 4019     │ 7698      │ 14    │ 96  │ 4      │ 11      │ 1500         │ 237    │ 9    │ '5/22/0/0'   │ 'd5 r3 s5 c4'     │
+│ 2       │ 7   │ 630       │ 629   │ 16578    │ 17207     │ 21    │ 77  │ 4      │ 11      │ 900          │ 509    │ 96   │ '31/32/0/0'  │ 'd9 r8 s9 c8'     │
+│ 3       │ 14  │ 1260      │ 1513  │ 32635    │ 34148     │ 28    │ 71  │ 4      │ 11      │ 1404         │ 979    │ 257  │ '62/64/0/0'  │ 'd11 r10 s11 c10' │
+│ 4       │ 30  │ 2700      │ 4450  │ 69585    │ 74035     │ 41    │ 72  │ 4      │ 11      │ 1488         │ 2046   │ 637  │ '86/184/0/0' │ 'd14 r12 s15 c10' │
+└─────────┴─────┴───────────┴───────┴──────────┴───────────┴───────┴─────┴────────┴─────────┴──────────────┴────────┴──────┴──────────────┴───────────────────┘
+income {"market":54193,"shopOrder":0,"cafe":17943,"shift":4341,"quest":0} spend {"seeds":1120,"fert":440,"land":590,"upgrades":67645,"gear":1350,"tables":0,"supplies":1144,"ship":128,"supplier":0}
+stat {"cupsServed":2046,"cupsLost":637,"shifts":270,"tiers":[86,184,0,0],"harvests":3207,"shopOrders":0}
+d1 0m: mua field-1 120
+d1 0.1m: mua field-2 180
+d1 0.2m: cấp 2
+d1 1.6m: cấp 3
+d1 6m: cấp 4
+d1 10m: mở món bac-xiu
+d1 10m: mở món phin-mit
+d1 13.1m: cấp 5
+d1 23.4m: cấp 6
+d1 34.4m: cấp 7
+d1 40m: mua field-3 300
+d1 46m: gear phin 40
+d1 46m: cấp 8
+d1 56m: gear steamer 60
+d1 66m: gear mixer 70
+d1 66m: cấp 9
+d1 66m: mở món trung
+d1 66m: mở món muoi
+d1 76m: gear grinder 80
+d1 86m: up storage 90
+d1 86m: cấp 10
+d2 96m: gear phin 90
+d2 106m: gear v60 90
+d2 106m: mở món v60
+d2 116m: up dryer 100
+d2 123.7m: cấp 11
+d2 126m: gear espresso 120
+d2 126m: mở món espresso
+d2 126m: mở món americano
+d2 126m: mở món cappuccino
+d2 126m: mở món latte
+d2 136m: gear steamer 120
+d2 146m: up storage 128
+d2 150m: cấp 12
+d2 156m: up cafe 140
+d2 166m: up dryer 142
+d2 176m: up roaster 160
+d3 186m: gear grinder 160
+d3 193.6m: cấp 13
+d3 196m: up storage 182
+d3 206m: up cafe 199
+d3 216m: gear espresso 200
+d3 226m: up dryer 202
+d3 236m: up roaster 228
+d3 236m: cấp 14
+d3 246m: up storage 258
+d3 256m: up cafe 283
+d3 266m: up dryer 287
+d4 276m: gear espresso 320
+d4 284.6m: cấp 15
+d4 286m: up roaster 323
+d4 296m: up storage 366
+d4 306m: up cafe 401
+d4 316m: up dryer 407
+d4 325.1m: cấp 16
+d4 326m: up roaster 459
+d4 336m: up storage 520
+d4 346m: up cafe 570
+d4 356m: up dryer 578
+d5 366m: up roaster 651
+d5 374.4m: cấp 17
+d5 376m: up storage 738
+d5 386m: up cafe 809
+d5 416m: up dryer 820
+d5 433.7m: cấp 18
+d5 446m: up roaster 924
+d6 486m: up storage 1048
+d6 493.8m: cấp 19
+d6 526m: up cafe 1148
+d7 556m: cấp 20
+d7 566m: up dryer 1165
+d7 616m: up roaster 1312
+d7 623.3m: cấp 21
+d8 676m: up storage 1488
+d8 686m: cấp 22
+d9 726m: up cafe 1630
+d9 756m: cấp 23
+d9 786m: up dryer 1654
+d10 842m: cấp 24
+d10 856m: up roaster 1863
+d11 920m: cấp 25
+d11 936m: up storage 2113
+d12 1000m: cấp 26
+d12 1016m: up cafe 2315
+d13 1084.3m: cấp 27
+d13 1106m: up dryer 2348
+d14 1176m: cấp 28
+d14 1206m: up roaster 2646
+d15 1276m: cấp 29
+d15 1306m: up storage 2795
+d16 1375.3m: cấp 30
+d16 1426m: up dryer 3105
+d17 1470m: cấp 31
+d18 1556m: up storage 3571
+d18 1583.6m: cấp 32
+d19 1691.2m: cấp 33
+d19 1696m: up roaster 3756
+d21 1806m: cấp 34
+d21 1826m: up dryer 3968
+d22 1921.9m: cấp 35
+d23 1986m: up storage 4442
+d23 2036m: cấp 36
+d25 2165.1m: cấp 37
+d25 2166m: up dryer 4936
+d26 2276m: cấp 38
+d27 2346m: up roaster 4968
+d27 2412.5m: cấp 39
+d29 2546m: up storage 5409
+d29 2546m: cấp 40
+d30 2693.5m: cấp 41
+
+### minmax  {"sessions":[[8,30],[13,30],[20,30]],"days":"mỗi ngày","brew":20,"score":92,"sell":"shopOrder","upgrades":"roi","prune":true,"liberica":true}
+┌─────────┬─────┬───────────┬───────┬──────────┬───────────┬───────┬─────┬────────┬─────────┬──────────────┬────────┬──────┬─────────────┬────────────────┐
+│ (index) │ day │ playedMin │ coins │ invested │ net_value │ level │ rep │ fields │ recipes │ roastedFarmG │ served │ lost │ tiers       │ up             │
+├─────────┼─────┼───────────┼───────┼──────────┼───────────┼───────┼─────┼────────┼─────────┼──────────────┼────────┼──────┼─────────────┼────────────────┤
+│ 0       │ 1   │ 90        │ 2317  │ 1020     │ 3337      │ 10    │ 100 │ 4      │ 7       │ 300          │ 99     │ 0    │ '0/7/2/0'   │ 'd1 r1 s1 c1'  │
+│ 1       │ 3   │ 270       │ 573   │ 9895     │ 10468     │ 15    │ 99  │ 4      │ 11      │ 300          │ 297    │ 1    │ '0/25/2/0'  │ 'd1 r2 s1 c10' │
+│ 2       │ 7   │ 630       │ 14999 │ 9895     │ 24894     │ 22    │ 100 │ 4      │ 11      │ 300          │ 689    │ 23   │ '0/61/2/0'  │ 'd1 r2 s1 c10' │
+│ 3       │ 14  │ 1260      │ 40167 │ 9895     │ 50062     │ 31    │ 98  │ 4      │ 11      │ 900          │ 1369   │ 69   │ '0/124/2/0' │ 'd1 r2 s1 c10' │
+│ 4       │ 30  │ 2700      │ 98394 │ 9895     │ 108289    │ 45    │ 100 │ 4      │ 11      │ 900          │ 2931   │ 171  │ '0/268/2/0' │ 'd1 r2 s1 c10' │
+└─────────┴─────┴───────────┴───────┴──────────┴───────────┴───────┴─────┴────────┴─────────┴──────────────┴────────┴──────┴─────────────┴────────────────┘
+income {"market":72333,"shopOrder":32,"cafe":29944,"shift":8815,"quest":0} spend {"seeds":1200,"fert":170,"land":590,"upgrades":7655,"gear":1650,"tables":0,"supplies":1674,"ship":180,"supplier":0}
+stat {"cupsServed":2931,"cupsLost":171,"shifts":270,"tiers":[0,268,2,0],"harvests":3645,"shopOrders":1}
+d1 0m: mua field-1 120
+d1 0.1m: mua field-2 180
+d1 0.2m: cấp 2
+d1 1.6m: cấp 3
+d1 6m: cấp 4
+d1 10m: mở món bac-xiu
+d1 10m: mở món phin-mit
+d1 16m: cấp 5
+d1 26m: cấp 6
+d1 30.1m: mua field-3 300
+d1 33.9m: cấp 7
+d1 36m: gear phin 40
+d1 46m: gear steamer 60
+d1 46m: cấp 8
+d1 56m: gear mixer 70
+d1 56m: mở món trung
+d1 56m: mở món muoi
+d1 61.4m: cấp 9
+d1 66m: gear grinder 80
+d1 76m: gear phin 90
+d1 76m: cấp 10
+d1 86m: gear v60 90
+d1 86m: mở món v60
+d2 96m: gear espresso 120
+d2 96m: cấp 11
+d2 96m: mở món espresso
+d2 96m: mở món americano
+d2 96m: mở món cappuccino
+d2 96m: mở món latte
+d2 106m: gear steamer 120
+d2 116m: up cafe 140
+d2 126m: up roaster 160
+d2 132.7m: cấp 12
+d2 136m: gear grinder 160
+d2 146m: up cafe 199
+d2 156m: gear espresso 200
+d2 166m: up cafe 283
+d2 170.1m: cấp 13
+d2 176m: gear roastery 300
+d3 186m: gear espresso 320
+d3 196m: up cafe 401
+d3 196m: cấp 14
+d3 206m: up cafe 570
+d3 216m: up cafe 809
+d3 226m: up cafe 1148
+d3 236m: up cafe 1630
+d3 240.6m: cấp 15
+d3 266m: up cafe 2315
+d4 276m: cấp 16
+d4 316m: cấp 17
+d5 363.4m: cấp 18
+d5 410m: cấp 19
+d6 470m: cấp 20
+d6 520m: cấp 21
+d7 576m: cấp 22
+d8 640m: cấp 23
+d8 686m: cấp 24
+d9 746m: cấp 25
+d10 832.6m: cấp 26
+d11 903m: cấp 27
+d11 966m: cấp 28
+d12 1035.8m: cấp 29
+d13 1130m: cấp 30
+d14 1206m: cấp 31
+d15 1290m: cấp 32
+d16 1380.6m: cấp 33
+d17 1466m: cấp 34
+d18 1570m: cấp 35
+d19 1651.6m: cấp 36
+d20 1756m: cấp 37
+d21 1870m: cấp 38
+d22 1965.6m: cấp 39
+d23 2066m: cấp 40
+d25 2184.4m: cấp 41
+d26 2286m: cấp 42
+d27 2410.7m: cấp 43
+d29 2533.8m: cấp 44
+d30 2651.3m: cấp 45
+
+### rich  {"sessions":[[20,30]],"days":"mỗi ngày","brew":30,"score":80,"sell":"market","upgrades":"all","prune":false,"startCoins":1000000}
+┌─────────┬─────┬───────────┬────────┬──────────┬───────────┬───────┬─────┬────────┬─────────┬──────────────┬────────┬──────┬─────────────┬───────────────────┐
+│ (index) │ day │ playedMin │ coins  │ invested │ net_value │ level │ rep │ fields │ recipes │ roastedFarmG │ served │ lost │ tiers       │ up                │
+├─────────┼─────┼───────────┼────────┼──────────┼───────────┼───────┼─────┼────────┼─────────┼──────────────┼────────┼──────┼─────────────┼───────────────────┤
+│ 0       │ 1   │ 30        │ 988917 │ 10462    │ 999379    │ 7     │ 33  │ 4      │ 7       │ 1200         │ 15     │ 13   │ '3/0/0/0'   │ 'd4 r4 s4 c4'     │
+│ 1       │ 3   │ 90        │ 955953 │ 45123    │ 1001076   │ 9     │ 11  │ 4      │ 7       │ 1500         │ 45     │ 42   │ '4/5/0/0'   │ 'd9 r9 s9 c9'     │
+│ 2       │ 7   │ 210       │ 861324 │ 142865   │ 1004189   │ 13    │ 11  │ 4      │ 7       │ 1500         │ 104    │ 101  │ '5/16/0/0'  │ 'd13 r13 s13 c10' │
+│ 3       │ 14  │ 420       │ 639422 │ 370385   │ 1009807   │ 17    │ 11  │ 4      │ 7       │ 1500         │ 205    │ 209  │ '9/33/0/0'  │ 'd17 r17 s17 c10' │
+│ 4       │ 30  │ 900       │ 359565 │ 662729   │ 1022294   │ 24    │ 11  │ 4      │ 7       │ 1500         │ 437    │ 452  │ '17/73/0/0' │ 'd20 r20 s20 c10' │
+└─────────┴─────┴───────────┴────────┴──────────┴───────────┴───────┴─────┴────────┴─────────┴──────────────┴────────┴──────┴─────────────┴───────────────────┘
+income {"market":19023,"shopOrder":0,"cafe":3934,"shift":1095,"quest":0} spend {"seeds":1540,"fert":60,"land":590,"upgrades":653689,"gear":3650,"tables":4800,"supplies":177,"ship":22,"supplier":0}
+stat {"cupsServed":437,"cupsLost":452,"shifts":90,"tiers":[17,73,0,0],"harvests":1113,"shopOrders":0}
+d1 0m: mua field-1 120
+d1 0.1m: mua field-2 180
+d1 0.2m: mua field-3 300
+d1 0.2m: cấp 2
+d1 1.5m: cấp 3
+d1 6m: gear phin 40
+d1 6m: up well 60
+d1 6m: gear steamer 60
+d1 6m: table 0 60
+d1 6m: table 1 60
+d1 6m: table 2 60
+d1 6m: gear mixer 70
+d1 6m: up tools 75
+d1 6m: up fence 80
+d1 6m: gear grinder 80
+d1 6m: up soil 90
+d1 6m: up storage 90
+d1 6m: gear v60 90
+d1 6m: up pond 100
+d1 6m: up dryer 100
+d1 6m: up delivery 100
+d1 6m: gear espresso 120
+d1 6m: up cafe 140
+d1 6m: gear station 150
+d1 6m: up roaster 160
+d1 6m: gear pickup 160
+d1 6m: gear register2 180
+d1 6m: gear kiosk 200
+d1 6m: gear roastery 300
+d1 6m: gear autoEspresso 350
+d1 6m: gear terrace 400
+d1 6m: cấp 4
+d1 6m: mở món espresso
+d1 6m: mở món americano
+d1 6m: mở món cappuccino
+d1 6m: mở món latte
+d1 6m: mở món v60
+d1 12.8m: cấp 5
+d1 16m: table 3 60
+d1 16m: table 10 60
+d1 16m: table 11 60
+d1 16m: up well 86
+d1 16m: gear phin 90
+d1 16m: up tools 107
+d1 16m: up fence 114
+d1 16m: gear steamer 120
+d1 16m: table 0 120
+d1 16m: table 1 120
+d1 16m: table 2 120
+d1 16m: up soil 128
+d1 16m: up storage 128
+d1 16m: up pond 142
+d1 16m: up dryer 142
+d1 16m: up delivery 142
+d1 16m: gear grinder 160
+d1 16m: up cafe 199
+d1 16m: gear espresso 200
+d1 16m: up roaster 228
+d1 16m: gear station 260
+d1 16m: gear kiosk 300
+d1 20.1m: cấp 6
+d1 26m: table 4 60
+d1 26m: table 3 120
+d1 26m: table 10 120
+d1 26m: table 11 120
+d1 26m: up well 121
+d1 26m: up tools 152
+d1 26m: up fence 162
+d1 26m: up soil 182
+d1 26m: up storage 182
+d1 26m: up pond 202
+d1 26m: up dryer 202
+d1 26m: up delivery 202
+d1 26m: table 0 220
+d1 26m: table 1 220
+d1 26m: table 2 220
+d1 26m: up cafe 283
+d1 26m: gear espresso 320
+d1 26m: up roaster 323
+d1 26m: cấp 7
+d2 36m: table 4 120
+d2 36m: up well 172
+d2 36m: up tools 215
+d2 36m: table 3 220
+d2 36m: table 10 220
+d2 36m: table 11 220
+d2 36m: up fence 230
+d2 36m: up soil 258
+d2 36m: up storage 258
+d2 36m: up pond 287
+d2 36m: up dryer 287
+d2 36m: up delivery 287
+d2 36m: up cafe 401
+d2 36m: up roaster 459
+d2 36m: cấp 8
+d2 46m: table 5 60
+d2 46m: table 4 220
+d2 46m: up well 244
+d2 46m: up tools 305
+d2 46m: up fence 326
+d2 46m: up soil 366
+d2 46m: up storage 366
+d2 46m: up pond 407
+d2 46m: up dryer 407
+d2 46m: up delivery 407
+d2 46m: up cafe 570
+d2 46m: up roaster 651
+d2 56m: table 6 60
+d2 56m: table 5 120
+d2 56m: up well 347
+d2 56m: up tools 434
+d2 56m: up fence 462
+d2 56m: up soil 520
+d2 56m: up storage 520
+d2 56m: up pond 578
+d2 56m: up dryer 578
+d2 56m: up delivery 578
+d2 56m: up cafe 809
+d2 56m: up roaster 924
+d2 56m: cấp 9
+d3 66m: table 7 60
+d3 66m: table 6 120
+d3 66m: table 5 220
+d3 66m: up well 492
+d3 66m: up tools 615
+d3 66m: up fence 656
+d3 66m: up soil 738
+d3 66m: up storage 738
+d3 66m: up pond 820
+d3 66m: up dryer 820
+d3 66m: up delivery 820
+d3 66m: up cafe 1148
+d3 66m: up roaster 1312
+d3 76m: table 7 120
+d3 76m: table 6 220
+d3 76m: up well 699
+d3 76m: up tools 874
+d3 76m: up fence 932
+d3 76m: up soil 1048
+d3 76m: up storage 1048
+d3 76m: up pond 1165
+d3 76m: up dryer 1165
+d3 76m: up delivery 1165
+d3 76m: up cafe 1630
+d3 76m: up roaster 1863
+d3 86m: table 8 60
+d3 86m: table 7 220
+d4 94.5m: cấp 10
+d4 96m: table 8 120
+d4 96m: up well 992
+d4 96m: up tools 1240
+d4 96m: up fence 1323
+d4 96m: up soil 1488
+d4 96m: up storage 1488
+d4 96m: up pond 1654
+d4 96m: up dryer 1654
+d4 96m: up delivery 1654
+d4 96m: up cafe 2315
+d4 96m: up roaster 2646
+d4 106m: table 9 60
+d4 106m: table 8 220
+d4 116m: table 9 120
+d4 116m: up well 1409
+d4 116m: up tools 1761
+d4 116m: up fence 1878
+d4 116m: up soil 2113
+d4 116m: up storage 2113
+d4 116m: up pond 2348
+d4 116m: up dryer 2348
+d4 116m: up delivery 2348
+d4 116m: up roaster 3756
+d4 116m: cấp 11
+d5 126m: table 9 220
+d6 160.2m: cấp 12
+d6 166m: up well 1863
+d6 166m: up tools 2329
+d6 166m: up fence 2484
+d6 166m: up soil 2795
+d6 166m: up storage 2795
+d6 166m: up pond 3105
+d6 166m: up dryer 3105
+d6 166m: up delivery 3105
+d6 166m: up roaster 4968
+d7 203.3m: cấp 13
+d7 206m: up well 2381
+d7 206m: up tools 2976
+d7 206m: up fence 3174
+d7 206m: up soil 3571
+d7 206m: up storage 3571
+d7 206m: up pond 3968
+d7 206m: up dryer 3968
+d7 206m: up delivery 3968
+d7 206m: up roaster 6348
+d8 236m: up well 2962
+d8 236m: up tools 3702
+d8 236m: up fence 3949
+d8 236m: up soil 4442
+d8 236m: up storage 4442
+d8 236m: up pond 4936
+d8 236m: up dryer 4936
+d8 236m: up delivery 4936
+d8 236m: up roaster 7897
+d8 236m: cấp 14
+d10 286m: up well 3606
+d10 286m: up tools 4508
+d10 286m: up fence 4808
+d10 286m: up soil 5409
+d10 286m: up storage 5409
+d10 286m: up pond 6010
+d10 286m: up dryer 6010
+d10 286m: up delivery 6010
+d10 286m: up roaster 9616
+d10 286m: cấp 15
+d12 333.4m: cấp 16
+d12 336m: up well 4314
+d12 336m: up tools 5392
+d12 336m: up fence 5752
+d12 336m: up soil 6471
+d12 336m: up storage 6471
+d12 336m: up pond 7190
+d12 336m: up dryer 7190
+d12 336m: up delivery 7190
+d12 336m: up roaster 11503
+d13 386m: up well 5085
+d13 386m: up tools 6356
+d13 386m: up fence 6780
+d13 386m: up soil 7627
+d13 386m: up storage 7627
+d13 386m: up pond 8475
+d13 386m: up dryer 8475
+d13 386m: up delivery 8475
+d13 386m: up roaster 13559
+d13 386m: cấp 17
+d15 441.1m: cấp 18
+d15 446m: up well 5920
+d15 446m: up tools 7399
+d15 446m: up fence 7893
+d15 446m: up soil 8879
+d15 446m: up storage 8879
+d15 446m: up pond 9866
+d15 446m: up dryer 9866
+d15 446m: up delivery 9866
+d15 446m: up roaster 15785
+d17 501.2m: cấp 19
+d17 506m: up well 6817
+d17 506m: up tools 8522
+d17 506m: up fence 9090
+d17 506m: up soil 10226
+d17 506m: up storage 10226
+d17 506m: up pond 11362
+d17 506m: up dryer 11362
+d17 506m: up delivery 11362
+d17 506m: up roaster 18179
+d19 565.2m: cấp 20
+d19 566m: up well 7779
+d19 566m: up tools 9723
+d19 566m: up fence 10372
+d19 566m: up soil 11668
+d19 566m: up storage 11668
+d19 566m: up pond 12964
+d19 566m: up dryer 12964
+d19 566m: up delivery 12964
+d19 566m: up roaster 20743
+d22 632m: cấp 21
+d24 701.7m: cấp 22
+d26 766m: cấp 23
+d29 850.6m: cấp 24
+
+### irregular  {"sessions":[[20,30]],"days":"1,2,5,6,10,14,15,21,28,30","brew":30,"score":80,"sell":"market","upgrades":"cheap","prune":false}
+┌─────────┬─────┬───────────┬───────┬──────────┬───────────┬───────┬─────┬────────┬─────────┬──────────────┬────────┬──────┬─────────────┬───────────────┐
+│ (index) │ day │ playedMin │ coins │ invested │ net_value │ level │ rep │ fields │ recipes │ roastedFarmG │ served │ lost │ tiers       │ up            │
+├─────────┼─────┼───────────┼───────┼──────────┼───────────┼───────┼─────┼────────┼─────────┼──────────────┼────────┼──────┼─────────────┼───────────────┤
+│ 0       │ 1   │ 30        │ 247   │ 290      │ 537       │ 6     │ 58  │ 3      │ 4       │ 1200         │ 20     │ 3    │ '1/2/0/0'   │ 'd1 r1 s1 c1' │
+│ 1       │ 3   │ 60        │ 412   │ 690      │ 1102      │ 8     │ 66  │ 4      │ 4       │ 1200         │ 40     │ 6    │ '2/4/0/0'   │ 'd1 r1 s1 c1' │
+│ 2       │ 7   │ 120       │ 1743  │ 1210     │ 2953      │ 10    │ 67  │ 4      │ 7       │ 900          │ 77     │ 17   │ '7/5/0/0'   │ 'd2 r1 s2 c1' │
+│ 3       │ 14  │ 180       │ 2481  │ 2020     │ 4501      │ 12    │ 63  │ 4      │ 10      │ 900          │ 113    │ 31   │ '11/7/0/0'  │ 'd3 r2 s3 c2' │
+│ 4       │ 30  │ 300       │ 2727  │ 5028     │ 7755      │ 15    │ 61  │ 4      │ 10      │ 900          │ 186    │ 56   │ '19/11/0/0' │ 'd5 r4 s6 c4' │
+└─────────┴─────┴───────────┴───────┴──────────┴───────────┴───────┴─────┴────────┴─────────┴──────────────┴────────┴──────┴─────────────┴───────────────┘
+income {"market":6669,"shopOrder":0,"cafe":1564,"shift":231,"quest":0} spend {"seeds":980,"fert":20,"land":590,"upgrades":3088,"gear":1350,"tables":0,"supplies":92,"ship":8,"supplier":0}
+stat {"cupsServed":186,"cupsLost":56,"shifts":30,"tiers":[19,11,0,0],"harvests":376,"shopOrders":0}
+d1 0m: mua field-1 120
+d1 0.1m: mua field-2 180
+d1 0.2m: cấp 2
+d1 1.6m: cấp 3
+d1 6m: cấp 4
+d1 10m: mở món bac-xiu
+d1 10m: mở món phin-mit
+d1 13.6m: cấp 5
+d1 23.8m: cấp 6
+d2 34.9m: cấp 7
+d2 40m: mua field-3 300
+d2 46m: gear phin 40
+d2 46m: cấp 8
+d2 56m: gear steamer 60
+d5 66m: gear mixer 70
+d5 66m: mở món trung
+d5 66m: mở món muoi
+d5 70m: cấp 9
+d5 76m: gear grinder 80
+d5 86m: up storage 90
+d6 96m: gear phin 90
+d6 101.1m: cấp 10
+d6 106m: gear v60 90
+d6 106m: mở món v60
+d6 116m: up dryer 100
+d10 126m: gear espresso 120
+d10 126m: mở món espresso
+d10 126m: mở món americano
+d10 126m: mở món cappuccino
+d10 126m: mở món latte
+d10 136m: gear steamer 120
+d10 140m: cấp 11
+d10 146m: up storage 128
+d14 156m: up cafe 140
+d14 165.2m: cấp 12
+d14 166m: up dryer 142
+d14 176m: up roaster 160
+d15 186m: gear grinder 160
+d15 196m: up storage 182
+d15 203.3m: cấp 13
+d15 206m: up cafe 199
+d21 216m: gear espresso 200
+d21 226m: up dryer 202
+d21 233.8m: cấp 14
+d21 236m: up roaster 228
+d28 246m: up storage 258
+d28 256m: up cafe 283
+d28 266m: up dryer 287
+d30 276m: gear espresso 320
+d30 284.4m: cấp 15
+d30 286m: up roaster 323
+d30 296m: up storage 366

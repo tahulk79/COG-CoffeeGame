@@ -23,9 +23,13 @@ export const GEAR = [
   // Automation fills fixed counter slots, so layout and walking lanes never change when they are bought.
   { id: 'station', name: 'Trạm pha thêm', icon: '🧰', group: 'auto', start: 0, prices: [150, 260], detail: 'Mỗi trạm thêm 1 barista pha cùng lúc (tối đa 3 trạm).' },
   { id: 'register2', name: 'Quầy thu ngân 2', icon: '🧾', group: 'auto', start: 0, prices: [180], detail: 'Hai thu ngân nhận order cùng lúc, hàng chờ đi nhanh gấp đôi.' },
-  { id: 'kiosk', name: 'Kiosk tự order', icon: '🖥️', group: 'auto', start: 0, prices: [200, 300], detail: 'Khách tự gọi món trên màn hình, không cần thu ngân. Mỗi cấp thêm 1 máy.' },
+  // Renamed to robots (robot-staff.md 1); ids and rules unchanged so saves keep their levels.
+  { id: 'kiosk', name: 'Robot thu ngân (kiosk)', icon: '🖥️', group: 'auto', start: 0, prices: [200, 300], detail: 'Khách tự gọi món trên màn hình robot, không cần thu ngân. Mỗi cấp thêm 1 máy.' },
   { id: 'pickup', name: 'Quầy nhận đồ + màn hình gọi số', icon: '📺', group: 'auto', start: 0, prices: [160], detail: 'Khách mang đi tự tới lấy ly khi màn hình gọi số.' },
-  { id: 'autoEspresso', name: 'Máy espresso tự động', icon: '🤖', group: 'auto', start: 0, prices: [350], detail: 'Tự pha Espresso, Americano (70 điểm) khi có order, không cần barista.' },
+  // Expansions open the reserved floor plots (Sân vườn, Góc rang); group 'expand' is the «Mở rộng» upgrade tab.
+  { id: 'terrace', name: 'Sân vườn', icon: '🌿', group: 'expand', start: 0, prices: [400], detail: 'Mở khu sân vườn trước quán: thêm 2 bàn ngoài trời.' },
+  { id: 'roastery', name: 'Góc rang tại quán', icon: '🔥', group: 'expand', start: 0, prices: [300], detail: 'Rang hạt tươi tại quán: mọi món bán thêm 10% giá.' },
+  { id: 'autoEspresso', name: 'Robot pha espresso', icon: '🤖', group: 'auto', start: 0, prices: [350], detail: 'Tự pha Espresso, Americano (70 điểm) khi có order, không cần barista.' },
 ];
 
 // Staff train from level 1 to STAFF_MAX; each level adds +6 to every stat and work effects come from the stats.
@@ -40,6 +44,7 @@ export const STAFF_ROLES = [
   { id: 'cleaner', name: 'Tạp vụ', icon: '🧽', wage: 5, max: 1, color: '#6f8fb0', detail: 'Ưu tiên dọn bàn có ly bẩn để khách mới ngồi được.' },
   { id: 'manager', name: 'Quản lý ca', icon: '📋', wage: 15, max: 1, color: '#8a5a33', detail: 'Cả đội làm nhanh hơn; tự nhập nguyên liệu khi kho sắp hết.' },
 ];
+const ROBOT_WAITER = { speed: 2.4, tip: 0, carry: 1 };
 export const CANDIDATES = [
   { id: 'mai', role: 'cashier', person: 'Mai', avatar: '👩‍💼', stats: { speed: 55, skill: 40, charm: 65, memory: 60 }, bio: 'Nhanh nhẹn, nhớ mặt khách quen, luôn cười chào.' },
   { id: 'lan', role: 'cashier', person: 'Lan', avatar: '👩', stats: { speed: 65, skill: 35, charm: 55, memory: 50 }, bio: 'Bấm máy tính tiền nhanh nhất phố.' },
@@ -55,27 +60,44 @@ export const CANDIDATES = [
   { id: 'tu', role: 'cleaner', person: 'Cô Tư', avatar: '👵', stats: { speed: 50, skill: 60, charm: 50, memory: 48 }, bio: 'Dọn kỹ, xếp ghế ngay ngắn.' },
   { id: 'quang', role: 'manager', person: 'Quang', avatar: '🧔', stats: { speed: 50, skill: 55, charm: 70, memory: 68 }, bio: 'Từng quản lý chuỗi quán, giữ nhịp cả đội.' },
   { id: 'hanh', role: 'manager', person: 'Hạnh', avatar: '👩‍🦰', stats: { speed: 45, skill: 60, charm: 75, memory: 64 }, bio: 'Lo xa: kho chưa hết đã đặt hàng.' },
+  // Robots (robot-staff.md 2): fixedEffects instead of stat formulas, flat wage, never trained, no incidents.
+  // stats only mirror fixedEffects for the staff sheet meters. giftOnly = trial gift members, never for hire.
+  ...['01', '02', '03'].map(n => ({ id: `robo-b${Number(n)}`, role: 'waiter', person: `Robot bưng ${n}`, avatar: '🤖', kind: 'robot', wage: 3, fixedEffects: ROBOT_WAITER, stats: { speed: 36, skill: 0, charm: 0, memory: 0 }, bio: 'Bưng 1 ly mỗi chuyến, chậm hơn người, không nhận tip, không bao giờ nghỉ.' })),
+  { id: 'robo-d1', role: 'cleaner', person: 'Robot dọn 01', avatar: '🤖', kind: 'robot', wage: 3, fixedEffects: { speed: 2.4, cleanMs: 3200 }, stats: { speed: 36, skill: 36, charm: 0, memory: 0 }, bio: 'Dọn bàn đều tay, không mệt, không bao giờ nghỉ.' },
+  { id: 'gift-pha', role: 'barista', person: 'Robot pha (thử)', avatar: '🤖', kind: 'robot', giftOnly: true, wage: 0, stats: { speed: 20, skill: 0, charm: 0, memory: 0 }, bio: 'Robot của gói thử: pha theo cài đặt sẵn, không biết chỉnh.',
+    // faults: the fixed real mistakes it makes (robot-staff.md 5), shown when a guest refuses its cup and in the shift report.
+    fixedEffects: { ms: 14000, score: 50, recipes: ['phin-den', 'nau-da'], cups: 10, speed: 2.2,
+      faults: { 'phin-den': 'Nước sôi 100 °C + bột mịn → chiết quá, đắng gắt', 'nau-da': 'Gấp đôi sữa đặc → ngọt gắt, át vị cà phê' } } },
+  { id: 'gift-bung', role: 'waiter', person: 'Robot bưng (thử)', avatar: '🤖', kind: 'robot', giftOnly: true, wage: 0, fixedEffects: ROBOT_WAITER, stats: { speed: 36, skill: 0, charm: 0, memory: 0 }, bio: 'Robot của gói thử: bưng như robot bưng thường.' },
 ];
 export const roleOf = id => STAFF_ROLES.find(r => r.id === CANDIDATES.find(c => c.id === id)?.role);
 export const candidateById = id => CANDIDATES.find(c => c.id === id);
 export const staffStat = (person, level, key) => Math.min(100, person.stats[key] + 6 * (level - 1));
 export function staffEffects(person, level) {
   const s = key => staffStat(person, level, key);
+  if (person.kind === 'robot') return person.fixedEffects;
   if (person.role === 'cashier') return { delay: 3.2 - s('speed') * .022, patience: 1 + s('charm') / 400 };
-  if (person.role === 'waiter') return { speed: 1.6 + s('speed') * .022, tip: s('charm') / 1000 };
+  // People carry up to 2 cups a trip; robots 1 (the main edge of a person over a robot).
+  if (person.role === 'waiter') return { speed: 1.6 + s('speed') * .022, tip: s('charm') / 1000, carry: 2 };
   if (person.role === 'cleaner') return { speed: 1.6 + s('speed') * .022, cleanMs: 4200 - s('skill') * 28 };
   if (person.role === 'manager') return { boost: 1 + (s('charm') + s('memory')) / 1400, restock: true };
   return { ms: 16000 - s('speed') * 100, score: Math.round(50 + s('skill') * .4), mastery: Math.round(90 - s('memory') * .4), speed: 2.2 };
 }
 export function effectLines(person, level) {
   const e = staffEffects(person, level), n = person.person;
+  if (person.kind === 'robot') {
+    if (person.role === 'barista') return [['Tốc độ', `${(e.ms / 1000).toFixed(1)} giây/ly`], ['Tay nghề', `Cố định ${e.score} điểm, chỉ Phin đen nóng và Cà phê sữa đá, tối đa ${e.cups} ly`]];
+    if (person.role === 'cleaner') return [['Tốc độ', `Đi ${e.speed.toFixed(1)} m/s`], ['Dọn bàn', `1 bàn trong ${(e.cleanMs / 1000).toFixed(1)} giây`]];
+    return [['Tốc độ', `Đi ${e.speed.toFixed(1)} m/s`], ['Bưng', `${e.carry} ly mỗi chuyến · không có tip`]];
+  }
   if (person.role === 'cashier') return [['Tốc độ', `Nhận 1 order mỗi ${e.delay.toFixed(1)} giây`], ['Giao tiếp', `Khách do ${n} xếp chỗ chờ lâu hơn ${Math.round((e.patience - 1) * 100)}%`]];
-  if (person.role === 'waiter') return [['Tốc độ', `Đi ${e.speed.toFixed(1)} m/s`], ['Giao tiếp', `Ly do ${n} bưng thêm tip ${(e.tip * 100).toFixed(1)}%`]];
+  if (person.role === 'waiter') return [['Tốc độ', `Đi ${e.speed.toFixed(1)} m/s`], ['Giao tiếp', `Ly do ${n} bưng thêm tip ${(e.tip * 100).toFixed(1)}%`], ['Bưng', `Tối đa ${e.carry} ly mỗi chuyến`]];
   if (person.role === 'cleaner') return [['Tốc độ', `Đi ${e.speed.toFixed(1)} m/s`], ['Khéo tay', `Dọn 1 bàn trong ${(e.cleanMs / 1000).toFixed(1)} giây`]];
   if (person.role === 'manager') return [['Giao tiếp + Trí nhớ', `Cả đội nhanh hơn ${Math.round((e.boost - 1) * 100)}%`], ['Kho', 'Tự nhập nguyên liệu khi sắp hết']];
   return [['Tốc độ', `${(e.ms / 1000).toFixed(1)} giây/ly`], ['Khéo tay', `Tay nghề ${e.score} điểm`], ['Trí nhớ', `Pha được món bạn luyện từ ${e.mastery} điểm`]];
 }
-export const staffWage = (role, level = 1) => Math.round(role.wage * (1 + .25 * (level - 1)));
+// Robots earn their flat candidate wage at any level; pass `person` everywhere a wage is shown or paid.
+export const staffWage = (role, level = 1, person = null) => person?.kind === 'robot' ? person.wage : Math.round(role.wage * (1 + .25 * (level - 1)));
 export const trainCost = level => 40 * level;
 
 // Per-table upgrades: seats, comfort (seated patience multiplier) and tip bonus.
@@ -85,7 +107,11 @@ export const TABLE_LEVELS = [
   { name: 'Ghế đệm + đèn bàn', seats: 4, patience: 1.25, tip: .1, price: 120, detail: 'Khách chờ lâu hơn 25%, tip +10%.' },
   { name: 'Sofa + hoa tươi', seats: 4, patience: 1.4, tip: .2, price: 220, detail: 'Khách chờ lâu hơn 40%, tip +20%.' },
 ];
-export const MAX_TABLES = 10;
+// A cup the owner brews by hand sells at OWN_CUP × the base price (cafe-fun-review P2): skill keeps paying late game.
+export const OWN_CUP = 2;
+// Shift goal tiers as multiples of the bronze goal: [bronze, silver, gold] (cafe-fun-review P1).
+export const SHIFT_TIERS = [1, 1.4, 1.8];
+export const MAX_TABLES = 12; // 10 indoor/porch + 2 in the garden (Sân vườn)
 
 // Grind options carry no emoji; the bench draws a particle-size sample instead.
 const GRINDS = [['Mịn như bột mì', ''], ['Vừa mịn như đường cát', ''], ['Vừa thô như muối hạt', ''], ['Thô như muối hột to', '']];
@@ -122,6 +148,9 @@ const espressoSteps = () => [
   pour('Chiết shot 25–30 giây', '☕', 'g', [33, 39], 60, 'Tỉ lệ 1:2 — 18 g bột cho khoảng 36 g espresso, nước 92–94 °C.', '#4a2a17'),
 ];
 
+// Short names for order bubbles and order tickets (several drinks share one icon, so the name is what tells them apart).
+const SHORT = { 'phin-den': 'Phin đen', 'nau-da': 'Sữa đá', 'bac-xiu': 'Bạc xỉu', 'phin-mit': 'Phin mít', espresso: 'Espresso', americano: 'Americano', cappuccino: 'Cappuccino', latte: 'Latte', trung: 'CF trứng', muoi: 'CF muối', v60: 'V60' };
+export const recipeShort = id => SHORT[id] || recipeById(id)?.name || '';
 export const RECIPES = [
   { id: 'phin-den', name: 'Phin đen nóng', icon: '☕', price: 2.5, beans: 20, bean: 'robusta', uses: { cup: 1 }, gear: { phin: 1 }, reputation: 0,
     card: { ratio: '1 : 4 (20 g bột : ~90 ml nước)', tool: 'Phin nhôm/inox', grind: 'Vừa thô', temp: '92–96 °C', time: '4–5 phút nhỏ giọt' },
@@ -144,6 +173,10 @@ export const RECIPES = [
         { label: 'Không đá', icon: '🚫', ok: 0, why: 'Bạc xỉu là món đá; không đá sẽ ngấy.' },
       ] },
       pour('Rót cà phê phin lên trên', '☕', 'ml', [25, 35], 60, 'Khoảng 30 ml cà phê phin là đủ, không lấn vị sữa.', '#6b4325')] },
+  { id: 'phin-mit', name: 'Phin cà phê mít', icon: '🫘', price: 3.5, beans: 20, bean: 'liberica', uses: { cup: 1 }, gear: { phin: 1 }, reputation: 55,
+    card: { ratio: '1 : 4 (20 g bột : ~90 ml nước)', tool: 'Phin nhôm/inox', grind: 'Vừa thô', temp: '92–96 °C', time: '4–5 phút nhỏ giọt' },
+    story: 'Cà phê mít (Liberica, nhóm Excelsa) chỉ chiếm phần nhỏ sản lượng Việt Nam; hạt to, hương trái cây chín, thường được pha phin riêng hoặc trộn để thêm hương.',
+    steps: [bean('Cà phê mít ít đắng hơn vối, thơm mùi trái cây chín; pha phin đậm vẫn dễ uống.'), ...phinSteps(20, 70).slice(1)] },
   { id: 'espresso', name: 'Espresso', icon: '☕', price: 3, beans: 18, bean: 'arabica', uses: { cup: 1 }, gear: { espresso: 1 }, reputation: 0,
     card: { ratio: '1 : 2 (18 g bột → 36 g)', tool: 'Máy espresso 9 bar', grind: 'Mịn', temp: '92–94 °C', time: '25–30 giây' },
     story: 'Ra đời ở Ý đầu thế kỷ 20: nước nóng nén qua bột mịn cho ly nhỏ, đậm và có lớp crema.',

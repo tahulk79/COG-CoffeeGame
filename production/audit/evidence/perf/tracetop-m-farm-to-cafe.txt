@@ -1,0 +1,15 @@
+  1555.6ms  30.6%  (idle) :0
+   612.7ms  12.1%  (program) :0
+   564.6ms  11.1%  getProgramInfoLog :0
+   230.6ms   4.5%  updateMatrixWorld chunk-2BUXAFR3.js:7265
+   183.3ms   3.6%  multiplyMatrices chunk-2BUXAFR3.js:5551
+   151.3ms   3.0%  renderObject chunk-2BUXAFR3.js:37526
+    88.5ms   1.7%  texSubImage2D :0
+    79.4ms   1.6%  applyBoneTransform chunk-2BUXAFR3.js:13587
+    60.3ms   1.2%  (garbage collector) :0
+    55.0ms   1.1%  updateMatrix chunk-2BUXAFR3.js:7242
+    51.2ms   1.0%  projectObject chunk-2BUXAFR3.js:42152
+    50.6ms   1.0%  setup chunk-2BUXAFR3.js:32648
+    44.7ms   0.9%  setProgram chunk-2BUXAFR3.js:42425
+    41.3ms   0.8%  WebGLRenderer.renderBufferDirect chunk-2BUXAFR3.js:41862
+    30.9ms   0.6%  setValueM4 chunk-2BUXAFR3.js:34935

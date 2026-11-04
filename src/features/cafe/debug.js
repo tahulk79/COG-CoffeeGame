@@ -5,6 +5,15 @@ import { LAYOUT_ROUTES, layoutPoints } from './service.js';
 const STEP = .35;
 const finish = search => { let step; do step = search.next(); while (!step.done); return step.value; };
 
+// Incident debugger (open with ?debug=incident, robot-staff.md 14): café side of window.__forceIncident / __incidentOdds.
+// Restores whatever the farm scene had set when the café closes.
+export function mountIncidentDebug(farm) {
+  const before = { force: window.__forceIncident, odds: window.__incidentOdds };
+  window.__forceIncident = (id, type) => farm.debugIncident('cafe', id, type);
+  window.__incidentOdds = id => farm.incidentOdds('cafe', id);
+  return { dispose() { window.__forceIncident = before.force; window.__incidentOdds = before.odds; } };
+}
+
 // Grid debugger (open the cafe with ?debug=grid): walkable cells green, blocked red, layout points as markers,
 // audited routes as lines. Press G to redraw after an upgrade changes the furniture.
 export function mountGridDebug(world, bounds, interactions) {

@@ -1,0 +1,15 @@
+  4340.3ms  30.4%  (idle) :0
+  2309.6ms  16.2%  (program) :0
+  1846.9ms  12.9%  applyBoneTransform chunk-2BUXAFR3.js:13587
+   906.1ms   6.3%  multiplyMatrices chunk-2BUXAFR3.js:5551
+   303.7ms   2.1%  fromBufferAttribute chunk-2BUXAFR3.js:4763
+   293.9ms   2.1%  getVertexPosition chunk-2BUXAFR3.js:13522
+   266.8ms   1.9%  _Vector3 chunk-2BUXAFR3.js:2934
+   228.0ms   1.6%  applyMatrix4 chunk-2BUXAFR3.js:4362
+   217.5ms   1.5%  updateMatrixWorld chunk-2BUXAFR3.js:7265
+   169.7ms   1.2%  (garbage collector) :0
+   141.5ms   1.0%  getProgramInfoLog :0
+   134.6ms   0.9%  applyMatrix4 chunk-2BUXAFR3.js:2342
+    94.2ms   0.7%  denormalize chunk-2BUXAFR3.js:527
+    90.1ms   0.6%  setProgram chunk-2BUXAFR3.js:42425
+    86.2ms   0.6%  frame game.js:124

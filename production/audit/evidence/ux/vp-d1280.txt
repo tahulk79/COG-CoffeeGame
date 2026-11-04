@@ -1,0 +1,53 @@
+NOTFOUND Để sau
+## farm-hud
+"{\"vw\":1280,\"vh\":720,\"small\":[],\"covered\":[],\"offscreen\":[],\"total\":8,\"overflowText\":[]}"
+row3 plots screen [idx,x,y]: "{\"all\":[[8,298,390],[9,375,390],[10,452,390],[11,529,390]],\"pick\":[11,529,390]}"
+  timing tap-plot: "{\"ev\":[\"pointerdown:48ms(delay 2,proc 2)\",\"pointerup:40ms(delay 0,proc 0)\",\"click:40ms(delay 0,proc 19)\"],\"lt\":[]}"
+"strip visible: true"
+## seed-strip
+"{\"vw\":1280,\"vh\":720,\"small\":[{\"l\":\"Cuộn công cụ sang trái\",\"w\":22,\"h\":42,\"x\":407,\"y\":561,\"small\":true,\"cov\":false,\"dis\":true,\"off\":false},{\"l\":\"Cuộn công cụ sang phải\",\"w\":22,\"h\":42,\"x\":851,\"y\":561,\"small\":true,\"cov\":false,\"dis\":false,\"off\":false},{\"l\":\"Bỏ chọn ô đất\",\"w\":23,\"h\":23,\"x\":863,\"y\":532,\"small\":true,\"cov\":false,\"dis\":false,\"off\":false}],\"covered\":[\"Cuốc bỏ cây · Bỏ cây, không \"],\"offscreen\":[],\"total\":17,\"overflowText\":[]}"
+tap Vối @ 466 581
+"row3 stages: empty,empty,empty,planted"
+tap Cửa hàng @ 1089 670
+  timing open-shop: "{\"ev\":[\"pointerdown:48ms(delay 1,proc 0)\",\"pointerup:40ms(delay 0,proc 0)\",\"click:40ms(delay 0,proc 7)\"],\"lt\":[]}"
+## shop
+"{\"vw\":1280,\"vh\":720,\"small\":[],\"covered\":[\"Về nhân vật\",\"Chăm lại cây vừa háiChạm cây\",\"Xu vàng · Mở cửa hàng\",\"Mở túi đồ\",\"Mở cửa hàng\",\"Vào quán\",\"Quản lý4\"],\"offscreen\":[],\"total\":23,\"overflowText\":[]}"
+tap 10 xu @ 577 277
+  timing buy-press: "{\"ev\":[\"pointerdown:48ms(delay 1,proc 0)\",\"pointerup:40ms(delay 0,proc 0)\",\"click:40ms(delay 0,proc 5)\"],\"lt\":[]}"
+## shop-confirm
+"{\"vw\":1280,\"vh\":720,\"small\":[{\"l\":\"Đóng xác nhận\",\"w\":32,\"h\":44,\"x\":800,\"y\":218,\"small\":true,\"cov\":false,\"dis\":false,\"off\":false},{\"l\":\"Để sau\",\"w\":127,\"h\":42,\"x\":476,\"y\":431,\"small\":true,\"cov\":false,\"dis\":false,\"off\":false},{\"l\":\"Mua ngay\",\"w\":191,\"h\":42,\"x\":613,\"y\":431,\"small\":true,\"cov\":false,\"dis\":false,\"off\":false}],\"covered\":[\"Về nhân vật\",\"Chăm lại cây vừa háiChạm cây\",\"Xu vàng · Mở cửa hàng\",\"Đóng\",\"Cây giống\",\"Vật tư\",\"Chợ\",\"Giảm số lượng\",\"Số lượng mua Cà phê vối\",\"Tăng số lượng\",\"Mua 1 Cà phê vối với giá 10 \",\"Giảm số lượng\",\"Số lượng mua Cà phê chè\",\"Tăng số lượng\",\"Mua 1 Cà phê chè với giá 20 \",\"Giảm số lượng\",\"Số lượng mua Cà phê mít\",\"Tăng số lượng\",\"Mua 1 Cà phê mít với giá 30 \",\"Mở túi đồ\",\"Mở cửa hàng\",\"Vào quán\",\"Quản lý4\"],\"offscreen\":[],\"total\":26,\"overflowText\":[]}"
+tap Mua ngay @ 709 452
+  timing buy-confirm: "{\"ev\":[\"pointerdown:48ms(delay 1,proc 0)\",\"pointerup:40ms(delay 0,proc 0)\",\"click:40ms(delay 0,proc 7)\"],\"lt\":[]}"
+"coins after buy: 1.490"
+tap Kho @ 1019 670
+  timing open-kho: "{\"ev\":[\"pointerdown:48ms(delay 1,proc 0)\",\"pointerup:48ms(delay 0,proc 0)\",\"click:48ms(delay 0,proc 5)\"],\"lt\":[]}"
+## kho
+"{\"vw\":1280,\"vh\":720,\"small\":[],\"covered\":[\"Về nhân vật\",\"Chăm lại cây vừa háiChạm cây\",\"Xu vàng · Mở cửa hàng\",\"Mở túi đồ\",\"Mở cửa hàng\",\"Vào quán\",\"Quản lý4\"],\"offscreen\":[],\"total\":14,\"overflowText\":[]}"
+tap Quản lý @ 1229 670
+## drawer
+"{\"vw\":1280,\"vh\":720,\"small\":[],\"covered\":[\"Vào quán\",\"Đến lấy hàng\",\"Mở công cụ\"],\"offscreen\":[],\"total\":19,\"overflowText\":[]}"
+tap Nâng cấp @ 1001 508
+  timing open-upgrade: "{\"ev\":[\"pointerdown:48ms(delay 1,proc 0)\",\"pointerup:40ms(delay 0,proc 0)\",\"click:40ms(delay 0,proc 6)\"],\"lt\":[]}"
+## upgrade
+"{\"vw\":1280,\"vh\":720,\"small\":[],\"covered\":[\"Về nhân vật\",\"Chăm lại cây vừa háiChạm cây\",\"Xu vàng · Mở cửa hàng\",\"Quán\",\"Lò rang · Cơ bản · Tăng khối\",\"Kho bảo quản · Cơ bản · Tăng\",\"Vận chuyển · Cơ bản · Giao đ\",\"Mở túi đồ\",\"Mở cửa hàng\",\"Vào quán\",\"Quản lý4\"],\"offscreen\":[\"Lò rang · Cơ bản · Tăng khối\",\"Kho bảo quản · Cơ bản · Tăng\",\"Vận chuyển · Cơ bản · Giao đ\"],\"total\":23,\"overflowText\":[]}"
+NOTFOUND Để sau
+tap Vào quán @ 1159 670
+  timing enter-cafe: "{\"ev\":[\"pointerdown:48ms(delay 2,proc 0)\",\"pointerup:40ms(delay 0,proc 0)\",\"click:40ms(delay 0,proc 0)\"],\"lt\":[60,99,62]}"
+## cafe
+"{\"vw\":1280,\"vh\":720,\"small\":[],\"covered\":[],\"offscreen\":[],\"total\":5,\"overflowText\":[]}"
+tap Mở cửa @ 1022 670
+bar screen try 1: OFF 411 210
+bar screen try 2: OFF 582 210
+bar screen try 3: ON 639 341
+  timing bar-tap: "{\"ev\":[\"pointerdown:48ms(delay 1,proc 0)\",\"pointerup:40ms(delay 0,proc 0)\",\"click:40ms(delay 0,proc 1)\"],\"lt\":[]}"
+"bench open: true"
+## bench
+"{\"vw\":1280,\"vh\":720,\"small\":[],\"covered\":[\"Xu vàng · Mở cửa hàng\",\"Đóng cửa\",\"Kho\",\"Nông trại\",\"Quản lý\"],\"offscreen\":[],\"total\":17,\"overflowText\":[]}"
+tap Nông trại @ 1160 670
+## heaven-hud
+"{\"vw\":1280,\"vh\":720,\"small\":[],\"covered\":[],\"offscreen\":[],\"total\":3,\"overflowText\":[]}"
+NOTFOUND Mình đang ở đâu
+## dialogue
+"{\"vw\":1280,\"vh\":720,\"small\":[],\"covered\":[],\"offscreen\":[],\"total\":3,\"overflowText\":[\"dialogue-hint:Enter hoặc bấm để tiếp\"]}"
+tap ▾ @ 1011 659
+  timing dialogue-next: "{\"ev\":[48],\"lt\":[]}"

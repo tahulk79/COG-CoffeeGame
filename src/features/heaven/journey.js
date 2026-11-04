@@ -1,8 +1,19 @@
 import { EXPERTS, GIFTS } from './content.js';
 
-export function createJourney(saved, onSave) {
+// Same wording as the heaven result box; the farm re-ask reuses it.
+export function answerText(question, correct) {
+  const rightAnswer = question.options.find(option => option.id === question.correct).text;
+  return correct ? question.explanation : `${question.wrong} Đáp án đúng: ${rightAnswer} ${question.explanation}`;
+}
+
+// Question ids answered correctly in a saved heaven record (any format); missing/corrupt → [].
+export function correctQuestionIds(heaven) {
+  return Object.values(normalizeAnswers(heaven)).flat().filter(record => record.correct).map(record => record.questionId);
+}
+
+function normalizeAnswers(saved) {
   const source = saved && typeof saved === 'object' ? saved : {};
-  const answers = Object.fromEntries(EXPERTS.map(expert => {
+  return Object.fromEntries(EXPERTS.map(expert => {
     const records = [];
     if (source.version === 2) {
       for (const question of expert.questions) {
@@ -17,6 +28,11 @@ export function createJourney(saved, onSave) {
     }
     return [expert.id, records];
   }));
+}
+
+export function createJourney(saved, onSave) {
+  const source = saved && typeof saved === 'object' ? saved : {};
+  const answers = normalizeAnswers(source);
   const allAnswered = EXPERTS.every(expert => answers[expert.id].length === expert.questions.length);
   const revealed = allAnswered && source.revealed === true;
   const gift = revealed && GIFTS.some(item => item.id === source.gift) ? source.gift : null;
@@ -63,8 +79,7 @@ export function createJourney(saved, onSave) {
       const correct = optionId === question.correct;
       progress.answers[id].push({ questionId, optionId, correct });
       commit();
-      const rightAnswer = question.options.find(option => option.id === question.correct).text;
-      return { correct, text: correct ? question.explanation : `${question.wrong} Đáp án đúng: ${rightAnswer} ${question.explanation}` };
+      return { correct, text: answerText(question, correct) };
     },
     reveal() {
       if (phase() !== 'review') return;

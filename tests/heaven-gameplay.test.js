@@ -46,7 +46,8 @@ test('six one-shot answers including wrong answers lead to review, gift and rebi
 });
 
 test('world routes around its rendered furniture and keeps joystick movement outside solids', () => {
-  const context = { fillRect() {}, fillText() {}, beginPath() {}, roundRect() {}, fill() {}, stroke() {} };
+  const gradient = { addColorStop() {} }; // label art now uses gradients
+  const context = { fillRect() {}, fillText() {}, beginPath() {}, roundRect() {}, fill() {}, stroke() {}, createLinearGradient: () => gradient, createRadialGradient: () => gradient, measureText: () => ({ width: 10 }), save() {}, restore() {}, translate() {}, rotate() {}, scale() {}, clearRect() {}, moveTo() {}, lineTo() {}, arc() {}, closePath() {}, drawImage() {}, strokeText() {} };
   globalThis.document = { createElement: () => ({ width: 0, height: 0, getContext: () => context }) };
   const character = createPerson('#fff'); character.animations = [];
   const world = createHeavenScene(character);
@@ -55,7 +56,7 @@ test('world routes around its rendered furniture and keeps joystick movement out
   world.scene.updateMatrixWorld(true);
   world.scene.traverse(object => {
     if (!object.isMesh || object.material?.transparent) return;
-    for (let parent = object; parent; parent = parent.parent) if (parent === character || parent.name === 'portal-doors') return;
+    for (let parent = object; parent; parent = parent.parent) if (parent === character || parent.name === 'portal-doors' || parent.userData.nonSolid) return; // same skip as the scene's colliders
     const box = new THREE.Box3().setFromObject(object);
     if (box.max.y > .15 && box.min.y < 2.1) solids.push({ minX: box.min.x, maxX: box.max.x, minZ: box.min.z, maxZ: box.max.z });
   });

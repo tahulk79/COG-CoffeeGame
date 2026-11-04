@@ -19,7 +19,7 @@ Session chính là **điều phối**. Subagent không gọi được nhau: mọ
 
 ## Quy trình
 0. **Mục tiêu.** Có yêu cầu thì dùng. Không có thì đọc `docs/design/*` (mục "Cần chốt", "Thứ tự triển khai") và chọn việc giúp người chơi cuốn/quay lại nhiều nhất.
-1. **game-designer** → spec + `contracts.md` + checklist nghiệm thu + chia việc. Đọc lại spec, sửa chỗ mơ hồ trước khi đi tiếp.
+1. **game-designer** → spec + `contracts.md` + checklist nghiệm thu + chia việc. Sau đó tự soát spec theo `.claude/skills/design-review/SKILL.md` (spec đụng xu/giá/thưởng thì thêm `.claude/skills/balance-check/SKILL.md`), không hỏi người dùng. Có mục CHẶN hoặc NGHIÊM TRỌNG → giao game-designer sửa rồi soát lại, tối đa 2 vòng; còn sót thì ghi vào bàn giao.
 2. **Song song:** economy-integrator (nếu hợp đồng đổi) ∥ ui-stylist (nếu cần class/biến UI mới) ∥ asset-3d (model, animation, flipbook, icon nếu có) ∥ vfx-artist (hiệu ứng mới; nếu cần sửa `app/game.js` thì chạy sau integrator) ∥ sound-designer (âm mới, engine).
 3. **Song song:** farm-dev ∥ cafe-dev. Mỗi brief gồm: đường dẫn spec, hàm mới của integrator, class mới của ui-stylist, GLB/icon mới của asset-3d, API hiệu ứng của vfx-artist, id âm của sound-designer và chỗ cần gọi.
 4. **gameplay-reviewer.** Tự kiểm chứng từng lỗi bằng cách đọc code trước khi giao sửa; bỏ lỗi không tái hiện được. Giao sửa cho đúng agent theo vùng file. Tối đa 2 vòng.

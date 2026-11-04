@@ -1,0 +1,28 @@
+#!/bin/zsh
+S=/private/tmp/claude-501/-Users-macos--claude-spares-spare-NWSOv6/adc7003a-e9c8-4fdd-a6bd-c12d80f84fd8/scratchpad; E=/Users/macos/Desktop/V2/production/audit/evidence/ux
+L=$1; O=$E/vp-$L.txt; : > $O
+T() { echo "## $1" >> $O; $S/c eval "$(cat $S/targets.js)" >> $O; }
+M() { $S/c eval 'JSON.stringify({ev:__ev.filter(e=>["click","pointerup","pointerdown"].includes(e.n)).map(e=>e.n+":"+e.d+"ms(delay "+e.delay+",proc "+e.proc+")"),lt:__lt.map(l=>l.d)})' | sed "s/^/  timing $1: /" >> $O; }
+R() { $S/c eval '__ev.length=0;__lt.length=0;1' >/dev/null; }
+$S/c eval "document.querySelector(\".ui-coach__close\")?.click();1" >/dev/null; $S/tb "Để sau" >> $O; sleep 1
+$S/c shot $E/$L-1-farm-hud.jpg >/dev/null; T farm-hud
+P=$($S/c eval '(()=>{const a=[0,1,2,3].map(c=>[8+c,...__proj(-7.4-2.25+c*1.5,0,-3.1-1.5+2*1.5)]);const v=a.filter(([i,x,y])=>x>30&&x<innerWidth-30&&y>80&&y<innerHeight-150).sort((p,q)=>Math.abs(p[1]-innerWidth/2)-Math.abs(q[1]-innerWidth/2));return JSON.stringify({all:a,pick:v[0]||null})})()')
+echo "row3 plots screen [idx,x,y]: $P" >> $O
+XY=$(echo $P | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const a=JSON.parse(JSON.parse(s));process.stdout.write(a.pick?a.pick.slice(1).join(" "):"0 0")})')
+R; $S/tap ${=XY}; sleep 0.25; M tap-plot; sleep 2.5
+$S/c eval '"strip visible: "+!document.getElementById("farm-seed-strip").hidden' >> $O
+$S/c shot $E/$L-2-seed-strip.jpg >/dev/null; T seed-strip
+$S/tb "Vối" >> $O; sleep 5
+$S/c eval '(()=>{const f=JSON.parse(localStorage["cog-coffee-progress"]).farm;return "row3 stages: "+f.plots.slice(8,12).map(p=>p.stage).join(",")})()' >> $O
+R; $S/tb "Cửa hàng" >> $O; sleep 0.3; M open-shop; sleep 1.2
+$S/c shot $E/$L-3-shop.jpg >/dev/null; T shop
+R; $S/tb "10 xu" >> $O; sleep 0.4; M buy-press; sleep 1
+$S/c shot $E/$L-3b-shop-confirm.jpg >/dev/null; T shop-confirm
+R; $S/tb "Mua ngay" >> $O; sleep 0.4; M buy-confirm; sleep 0.8
+$S/c eval '"coins after buy: "+document.getElementById("farm-coins").textContent' >> $O
+$S/c eval '[...document.querySelectorAll("dialog[open]")].forEach(d=>d.close());1' >/dev/null
+$S/tb "×" >/dev/null; sleep 0.8
+R; $S/tb "Kho" >> $O; sleep 0.3; M open-kho; sleep 1; $S/c shot $E/$L-4-kho.jpg >/dev/null; T kho; $S/tb "×" >/dev/null; sleep 0.8
+$S/tb "Quản lý" >> $O; sleep 1; $S/c shot $E/$L-5-drawer.jpg >/dev/null; T drawer
+R; $S/tb "Nâng cấp" >> $O; sleep 0.3; M open-upgrade; sleep 1; $S/c shot $E/$L-6-upgrade.jpg >/dev/null; T upgrade; $S/tb "×" >/dev/null; sleep 0.8
+echo done $O

@@ -11,9 +11,12 @@ import { ACTION_LABELS,workerStat,workerLevel,efficiency,SEASON_MS,workerWage,wo
 
 const productionOrders=p=>p.orders.filter(o=>o.source!=='shop');
 const PLOT_IDS=new Set(PLOTS.map(plot=>plot.id));
+// Phone incident in effect (the 4 s job cooldowns also use waitUntil, so check the reason too).
+export const onPhone=(w,at)=>w.incident?.type==='phone'&&w.waitUntil>at&&w.waitReason?.startsWith('📱');
 // Split tree work so workers never tend neighbouring trees: one field each when there are enough fields,
 // otherwise the fields' 4 columns are cut into contiguous strips (one field, two workers → columns 1–2 | 3–4).
 // Only workers able to work right now count, so a partner covers the whole farm while the other rests or is off contract.
+// A robot owns a strip too, but score() lets people into it for the jobs the robot cannot do.
 function plotZones(p,at){
   const team=p.workers.filter(w=>w.farmId==='farm-0'&&w.enabled&&w.shiftUntil>at&&w.restUntil<=at).map(w=>w.id).sort(),zones=new Map();
   if(team.length<2)return zones;
@@ -25,11 +28,22 @@ function plotZones(p,at){
   });
   return zones;
 }
+// Placeholder for slot `farm/robot` (scene-assets.md): box body, screen face, back water tank, wheel blocks as `legs`, status light on top.
+function createRobot(){
+  const group=new THREE.Group(),geometry=new THREE.BoxGeometry(1,1,1);
+  const box=(color,x,y,z,w,h,d)=>{const mesh=new THREE.Mesh(geometry,new THREE.MeshStandardMaterial({color,roughness:.45,metalness:.5}));mesh.position.set(x,y,z);mesh.scale.set(w,h,d);mesh.castShadow=true;group.add(mesh);return mesh;};
+  box('#e8e2d4',0,.95,0,.6,.7,.45);box('#6c8885',0,1.42,0,.5,.3,.36);box('#8df0a8',0,1.42,.185,.42,.2,.02);box('#6c8885',0,1,-.3,.3,.45,.16);
+  for(const x of [-.38,.38])box('#6c8885',x,1,0,.12,.5,.14);
+  group.userData.legs=[-.17,.17].map(x=>box('#6c8885',x,.3,0,.2,.6,.3));
+  const light=new THREE.Mesh(new THREE.SphereGeometry(.07,8,6),new THREE.MeshBasicMaterial({color:'#8df0a8'}));light.position.y=1.65;light.userData.nonSolid=true;group.add(light);group.userData.light=light;
+  return group;
+}
 // Workers use the same action command and colliders as the player. Jobs are claimed before travel.
-export function createFarmCrew(farm,world,player,onReward=()=>{}) {
+// onIncident(worker, result): a rolled incident just took effect (result.type 'phone' | 'sick', result.message).
+export function createFarmCrew(farm,world,player,onReward=()=>{},onIncident=()=>{}) {
   const actors=new Map(),cooldowns=new Map(),waitingSince=new Map(),renewRetry=new Map();let dispatchAt=0,lastRevision=-1,dispatchProgress=null,freeStorage=0,playerTargets=new Set(),zones=new Map(),collectReserve=0;
   const positionOf=id=>world.getInteraction(id)?.position;
-  const jobGroup=t=>['start','collect','turn'].includes(t.action)?'processing':['ship','shipOrder'].includes(t.action)?'delivery':t.action==='feedFish'?'fish':t.action;
+  const jobGroup=t=>['start','collect','turn'].includes(t.action)?'processing':['ship','shipOrder'].includes(t.action)?'delivery':t.action;
   const key=t=>`${t.id}:${t.action}`;
   // Ease toward the heading like the player does; snapping each frame made blocked workers spin.
   function turn(actor,angle,dt){const r=actor.group.rotation;r.y+=Math.atan2(Math.sin(angle-r.y),Math.cos(angle-r.y))*(1-Math.exp(-10*dt));}
@@ -68,7 +82,6 @@ export function createFarmCrew(farm,world,player,onReward=()=>{}) {
         if(n)result.push({id:m.id,action:'start',choice:{cropId:c.id,quantity:Math.min(n,Math.floor(m.capacity/m.inputCount))},priority:m.id==='dryer'?5:3});
       }
     }
-    if(p.fish.count&&p.fish.fedUntil<=at&&p.coins>=3)result.push({id:'pond',action:'feedFish',priority:4});
     for(const order of productionOrders(p))if(order.status==='open'&&order.deliveryRequested&&p.stock.roasted[order.cropId]>=order.grams)result.push({id:'roaster',action:'shipOrder',choice:order.id,priority:5});
     for(const task of result)if(!waitingSince.has(key(task)))waitingSince.set(key(task),at);
     return result.filter(t=>!playerTargets.has(t.id)&&(cooldowns.get(key(t))||0)<at&&!farm.claimed(t.id,t.action));
@@ -115,7 +128,8 @@ export function createFarmCrew(farm,world,player,onReward=()=>{}) {
     if(t.action==='harvest'&&p.plots.find(tree=>tree.id===t.id).readyYield+collectReserve>freeStorage)return -Infinity;
     if(t.action==='collect'){const state=p.machines[t.id];if(![state.batch,...state.extraBatches].filter(Boolean).some(j=>j.readyAt<=Date.now()&&j.outputGrams<=freeStorage))return -Infinity;}
     if(w.jobs?.[jobGroup(t)]===false||!assignment(w,t,p))return -Infinity;
-    if(PLOT_IDS.has(t.id)&&zones.get(w.id)?.has(t.id)===false)return -Infinity;
+    // Zones only bind jobs the owner can do: a robot's strip stays open to people for harvest/plant/fertilize/prune.
+    if(PLOT_IDS.has(t.id)&&zones.get(w.id)?.has(t.id)===false&&p.workers.find(o=>zones.get(o.id)?.has(t.id))?.jobs?.[jobGroup(t)]!==false)return -Infinity;
     const order=productionOrders(p).find(o=>o.status==='open'&&o.workers.includes(w.id)&&p.stock.roasted[o.cropId]<o.grams);
     const cropId=t.action==='plant'?plantingCrop(w,p):null;
     if(t.action==='plant'&&(!p.seeds[cropId]||CROPS.find(c=>c.id===cropId)?.level>farm.level))return -Infinity;
@@ -145,7 +159,7 @@ export function createFarmCrew(farm,world,player,onReward=()=>{}) {
     // Keep room for the smallest finished batch so harvesting never starves collection.
     const readyOutputs=MACHINES.flatMap(m=>[p.machines[m.id].batch,...p.machines[m.id].extraBatches].filter(j=>j&&j.readyAt<=at).map(j=>j.outputGrams));collectReserve=readyOutputs.length?Math.min(...readyOutputs):0;
     dispatchProgress=p;zones=plotZones(p,at);freeStorage=Math.max(0,farm.storageCapacity-p.lots.reduce((sum,l)=>sum+l.grams,0));
-    const idle=[...actors.values()].filter(a=>!a.task).map(a=>({a,w:p.workers.find(w=>w.id===a.id)})).filter(({w})=>w?.enabled&&at>=w.restUntil);
+    const idle=[...actors.values()].filter(a=>!a.task).map(a=>({a,w:p.workers.find(w=>w.id===a.id)})).filter(({w})=>w?.enabled&&at>=w.restUntil&&!onPhone(w,at));
     const available=tasks(p,at);
     // With two workers, enumerate both assignments instead of racing for the closest job.
     let best=[],bestScore=-Infinity;
@@ -186,36 +200,42 @@ export function createFarmCrew(farm,world,player,onReward=()=>{}) {
       const hit=hits[0];if(!hit)return null;
       let node=hit.object,bonus=false;while(node&&!node.userData.workerId){bonus=bonus||node.userData.bonus===true;node=node.parent;}return node?{id:node.userData.workerId,bonus}:null;
     },
-    getAssetSlots(){return [...actors.keys()].map(id=>`farm/worker/${id}`);},
-    replaceAsset(id,model){const actor=actors.get(id.replace('farm/worker/',''));if(!actor||!model?.isObject3D)return false;for(const child of actor.group.children)child.visible=false;actor.group.add(model);return true;},
+    getAssetSlots(){return [...actors.values()].map(a=>a.robot?'farm/robot':`farm/worker/${a.id}`);},
+    replaceAsset(id,model){const actor=id==='farm/robot'?[...actors.values()].find(a=>a.robot):actors.get(id.replace('farm/worker/',''));if(!actor||!model?.isObject3D)return false;for(const child of actor.group.children)child.visible=false;if(actor.light)actor.light.visible=true;actor.group.add(model);return true;},
     update(dt,at,playerBusy=null,playerAway=false){
       world.prepareNavigation();
       playerTargets=new Set(Array.isArray(playerBusy)?playerBusy:[playerBusy?.id].filter(Boolean));
-      let p=farm.progress;
+      let p=farm.peek();
       for(const [id,actor]of actors)if(!p.workers.some(w=>w.id===id&&w.farmId==='farm-0')){release(actor);actor.activity.dispose();actor.group.removeFromParent();disposeScene(actor.group);actors.delete(id);}
       for(const w of p.workers.filter(w=>w.farmId==='farm-0')){
         if(!actors.has(w.id)){
-          const group=createPerson(w.color);dressPerson(group,'farm/worker.glb');group.userData.nonSolid=true;group.userData.workerId=w.id;group.name=`farm-worker:${w.id}`;group.userData.assetSlot=`farm/worker/${w.id}`;
-          group.position.set(-2+actors.size*2,.05,-6);world.scene.add(group);actors.set(w.id,{id:w.id,group,activity:createWorkActivity(group,w.name),task:null,route:[],search:null,elapsed:0,walk:0,blocked:0,replans:0});
+          const robot=w.kind==='robot',group=robot?createRobot():createPerson(w.color);if(!robot)dressPerson(group,'farm/worker.glb');group.userData.nonSolid=true;group.userData.workerId=w.id;group.name=`farm-worker:${w.id}`;group.userData.assetSlot=robot?'farm/robot':`farm/worker/${w.id}`;
+          group.position.set(-2+actors.size*2,.05,-6);world.scene.add(group);actors.set(w.id,{id:w.id,robot,light:group.userData.light,group,activity:createWorkActivity(group,w.name),task:null,route:[],search:null,elapsed:0,walk:0,blocked:0,replans:0});
         }
         farm.employmentTick(w.id,dt);
+        // Fire this shift's rolled incident when due; the model cancels it while the player is at the café or once the moment has passed.
+        if(w.incident&&!w.incident.done&&w.shiftUntil-at<=w.incident.due){const fired=farm.act('workers','incident',w.id,at);if(fired.ok&&fired.applied)onIncident(w,fired);}
         // A worker left inside a collider (new trunk, layout change) can't step or plan out; nudge to the nearest free spot.
         {const pos=actors.get(w.id)?.group.position;if(pos&&!world.canStand(pos.x,pos.z))outer:for(let r=.2;r<=1.6;r+=.2)for(let i=0;i<16;i++){const x=pos.x+Math.cos(i*Math.PI/8)*r,z=pos.z+Math.sin(i*Math.PI/8)*r;if(world.canStand(x,z)){pos.x=x;pos.z=z;break outer;}}}
         // Auto-renew in the last 30 s (or right after expiry); a failed renewal retries every 10 s, never every frame.
         if(w.autoPay&&w.shiftUntil-at<30000&&(renewRetry.get(w.id)||0)<=at){const renewed=farm.act('workers','shift',w.id,at);if(!renewed.ok)renewRetry.set(w.id,at+10000);}
         const a=actors.get(w.id);
+        // Robot status light: red = stopped/out of pack, yellow = idle or waiting, green = working.
+        a.light?.material.color.set(!w.enabled||w.shiftUntil<=at?'#a94d31':a.task?'#8df0a8':'#ffe18a');
         if(a.task&&a.task.action!=='refill'){
           const tree=p.plots.find(t=>t.id===a.task.id),care=tree?plotCare(tree):null;
           const obsolete=care&&(a.task.action==='plant'&&!care.empty||a.task.action==='harvest'&&!care.ready||a.task.action==='water'&&!care.needsWater||a.task.action==='weed'&&!care.needsWeeding||a.task.action==='fertilize'&&!care.canFeed||a.task.action==='prune'&&tree.pruned);
           const machine=p.machines[a.task.id],batchJobs=machine?[machine.batch,...machine.extraBatches].filter(Boolean):[],staleMachine=machine&&(a.task.action==='collect'&&!batchJobs.some(j=>j.readyAt<=at)||a.task.action==='turn'&&!batchJobs.some(j=>!j.turned&&at>=(j.startedAt+j.readyAt)/2&&at<j.readyAt)||a.task.action==='start'&&p.stock[MACHINES.find(m=>m.id===a.task.id).input][a.task.choice.cropId]<MACHINES.find(m=>m.id===a.task.id).inputCount*a.task.choice.quantity);
           if(obsolete||staleMachine){release(a);dispatchAt=0;farm.workerUpdate(w.id,{state:'Chủ đã làm xong · Chuyển việc khác'});}
-        }a.activity.setBonus(w.energy<=30||w.restUntil>at?Math.ceil(workerWage(w)/2):null);if(!a.task||a.search||a.route.length)a.activity.status(w.state||'Chuẩn bị làm việc',100-w.energy);
+        }a.activity.setBonus(null);if(!a.task||a.search||a.route.length)a.activity.status(w.state||'Chuẩn bị làm việc',0);
         if(a.task&&playerTargets.has(a.task.id)){release(a);farm.workerUpdate(w.id,{state:'Nhường người chơi'});continue;}
         if(a.task&&w.jobs?.[jobGroup(a.task)]===false){release(a);}
         if(!w.enabled){if(a.task)release(a);farm.workerUpdate(w.id,{state:'Tạm dừng'});continue;}
-        if(w.energy<=20&&w.restUntil<=at){release(a);farm.workerUpdate(w.id,{restUntil:at+30000/efficiency(p.upgrades.house),state:'Nghỉ giữa ca'});a.activity.status('Nghỉ giữa ca',100-w.energy);continue;}
-        if(w.restUntil>at){farm.workerUpdate(w.id,{state:`Nghỉ ${Math.ceil((w.restUntil-at)/1000)}s`,energy:Math.min(100,w.energy+dt*1.5)});continue;}
+        // Shift hiring (03/11/2026): workers no longer tire, rest or need a coin boost.
         if(w.shiftUntil<=at){if(a.task)release(a);farm.workerUpdate(w.id,{state:workerIdleReason(w,p,at)});continue;}
+        // Sick or on the phone: stand still and drop the claimed job (phone ends on «Nhắc» or after 40 s).
+        const phone=onPhone(w,at);
+        if(phone||w.restUntil>at){if(a.task)release(a);farm.workerUpdate(w.id,{state:phone?w.waitReason:workerIdleReason(w,p,at)});continue;}
         if(!a.task){const approaching=[...actors.values()].find(other=>other!==a&&other.task&&Math.hypot(other.group.position.x-a.group.position.x,other.group.position.z-a.group.position.z)<1.65);if(approaching)stepAside(a,dt,approaching.group.position,playerAway);farm.workerUpdate(w.id,{state:workerIdleReason(w,p,at)});continue;}
         if(a.search){
           const deadline=performance.now()+.7;
@@ -225,12 +245,12 @@ export function createFarmCrew(farm,world,player,onReward=()=>{}) {
         while(a.route.length&&Math.hypot(a.route[0].x-a.group.position.x,a.route[0].z-a.group.position.z)<.05)a.route.shift();
         const next=a.route[0];
         if(next){
-          const dx=next.x-a.group.position.x,dz=next.z-a.group.position.z,distance=Math.hypot(dx,dz),step=Math.min(distance,dt*2.5*(.75+.5*workerStat(w,'speed')/100)*(.6+.4*w.energy/100));
+          const dx=next.x-a.group.position.x,dz=next.z-a.group.position.z,distance=Math.hypot(dx,dz),step=Math.min(distance,dt*2.5*(.75+.5*workerStat(w,'speed')/100)*1);
           const x=a.group.position.x+dx/distance*step,z=a.group.position.z+dz/distance*step;
           const ghost=(a.ghostUntil||0)>at,occupied=!ghost&&((!playerAway&&Math.hypot(player.position.x-x,player.position.z-z)<.85)||[...actors.values()].some(other=>other!==a&&Math.hypot(other.group.position.x-x,other.group.position.z-z)<.85));
           // A step clipping a corner slides along it (same as the player) instead of counting as blocked.
           let tx=x,tz=z;if(!occupied&&!world.canStand(x,z)){const probe={x:a.group.position.x,z:a.group.position.z};slideMove(probe,x-probe.x,z-probe.z,world.canStand);if(Math.hypot(probe.x-a.group.position.x,probe.z-a.group.position.z)>.002){tx=probe.x;tz=probe.z;}}
-          if(!occupied&&world.canStand(tx,tz)){farm.workerUpdate(w.id,{energy:Math.max(0,w.energy-dt*.045),state:`Đi ${ACTION_LABELS[a.task.action]?.toLowerCase()||'làm việc'}`});a.group.position.x=tx;a.group.position.z=tz;turn(a,Math.atan2(dx,dz),dt);a.walk+=dt*8;a.blocked=0;a.replans=0;a.side=0;for(const [i,leg]of a.group.userData.legs.entries())leg.rotation.x=Math.sin(a.walk+i*Math.PI)*.3;}
+          if(!occupied&&world.canStand(tx,tz)){farm.workerUpdate(w.id,{state:`Đi ${ACTION_LABELS[a.task.action]?.toLowerCase()||'làm việc'}`});a.group.position.x=tx;a.group.position.z=tz;turn(a,Math.atan2(dx,dz),dt);a.walk+=dt*8;a.blocked=0;a.replans=0;a.side=0;for(const [i,leg]of a.group.userData.legs.entries())leg.rotation.x=Math.sin(a.walk+i*Math.PI)*.3;}
           else{
             a.blocked+=dt;
             const other=[...actors.values()].find(other=>other!==a&&Math.hypot(other.group.position.x-x,other.group.position.z-z)<1.05);
@@ -241,6 +261,8 @@ export function createFarmCrew(farm,world,player,onReward=()=>{}) {
             }else if(!playerAway&&Math.hypot(player.position.x-x,player.position.z-z)<1.05)moved=stepAside(a,dt,player.position,playerAway);
             const byPerson=Boolean(other)||!playerAway&&Math.hypot(player.position.x-x,player.position.z-z)<1.05;
             farm.workerUpdate(w.id,{state:moved?'Đang tránh người phía trước':byPerson?'Chờ lối trống':'Đổi đường tránh vật cản'});
+            // Side-stepping resets `blocked`, so a person standing on the target spot could loop forever; this timer survives side-steps.
+            a.personWait=byPerson?(a.personWait||0)+dt:0;if(a.personWait>1.5){a.personWait=0;a.ghostUntil=at+1500;}
             if(a.blocked>.8){
               a.blocked=0;
               // People: a one-tile lane has no detour, so pass through them briefly (never walls).
@@ -254,13 +276,13 @@ export function createFarmCrew(farm,world,player,onReward=()=>{}) {
         }
         if(!world.atInteraction(a.task.id,a.group.position)){cooldowns.set(key(a.task),at+4000);farm.workerUpdate(w.id,{waitReason:'Chưa có lối tới mục tiêu · Đang thử việc khác',waitUntil:at+4000});release(a);continue;}
         const duration=farm.workDuration(a.task.action,w)/(.7+.35*workerStat(w,'speed')/100+.25*workerStat(w,'dexterity')/100);
-        a.elapsed+=dt;a.activity.update(a.task.action,a.elapsed/duration,at/1000,100-w.energy);farm.workerUpdate(w.id,{state:`${ACTION_LABELS[a.task.action]} · ${Math.min(100,Math.round(a.elapsed/duration*100))}%`});
+        a.elapsed+=dt;a.activity.update(a.task.action,a.elapsed/duration,at/1000,0);farm.workerUpdate(w.id,{state:`${ACTION_LABELS[a.task.action]} · ${Math.min(100,Math.round(a.elapsed/duration*100))}%`});
         a.group.rotation.z=Math.sin(a.elapsed*5)*.025;
         if(a.elapsed>=duration){
           const before=farm.progress;
           const result=farm.act(a.task.action==='shipOrder'?'orders':a.task.action==='ship'?'cafe':a.task.id,a.task.action,a.task.choice,at,w.id);
           if(result.ok){waitingSince.delete(key(a.task));onReward(before,farm.progress,a.task);dispatchAt=0;}
-          if(result.ok)farm.workerUpdate(w.id,{xp:w.xp+5,energy:Math.max(0,w.energy-.6*(1.3-workerStat(w,'constitution')/200))});
+          if(result.ok)farm.workerUpdate(w.id,{xp:w.xp+5});
           else{cooldowns.set(key(a.task),at+4000);farm.workerUpdate(w.id,{waitReason:result.message,waitUntil:at+4000,state:result.message});}
           a.group.rotation.z=0;release(a);
         }

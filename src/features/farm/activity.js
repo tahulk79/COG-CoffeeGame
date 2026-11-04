@@ -19,14 +19,16 @@ export function createWorkActivity(parent,personName='') {
   const bonusMaterial=new THREE.SpriteMaterial({map:bonusTexture,transparent:true,depthWrite:false});
   const bonus=new THREE.Sprite(bonusMaterial);bonus.position.y=3.5;bonus.scale.set(1.65,.62,1);bonus.userData.bonus=true;bonus.userData.nonSolid=true;bonus.visible=false;parent.add(bonus);let bonusPrice=null;
   let lastKey='';root.visible=false;
+  // Worker plates use the shared dark nameplate colours (--ui-nameplate-bg / -ink) like every world label.
   return {
     setBonus(price){
       bonus.visible=price!==null;if(price===null||price===bonusPrice)return;bonusPrice=price;
-      const ctx=bonusCanvas.getContext('2d');ctx.clearRect(0,0,256,96);ctx.fillStyle='#ffe286';ctx.strokeStyle='#ad7332';ctx.lineWidth=5;ctx.beginPath();ctx.roundRect(4,4,248,85,30);ctx.fill();ctx.stroke();ctx.fillStyle='#69411f';ctx.font='bold 32px system-ui';ctx.textAlign='center';ctx.fillStyle='#f7ca46';ctx.strokeStyle='#b9801d';ctx.lineWidth=3;ctx.beginPath();ctx.arc(35,47,18,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle='#98611b';ctx.font='bold 24px Georgia';ctx.fillText('₫',35,55);ctx.fillStyle='#69411f';ctx.font='bold 29px system-ui';ctx.fillText(`${price} · Làm tiếp`,148,58,188);bonusTexture.needsUpdate=true;
+      const ctx=bonusCanvas.getContext('2d');ctx.clearRect(0,0,256,96);ctx.fillStyle='#3b2a1cd9';ctx.strokeStyle='#d9a944';ctx.lineWidth=5;ctx.beginPath();ctx.roundRect(4,4,248,85,30);ctx.fill();ctx.stroke();ctx.fillStyle='#69411f';ctx.font='bold 32px system-ui';ctx.textAlign='center';ctx.fillStyle='#f7ca46';ctx.strokeStyle='#b9801d';ctx.lineWidth=3;ctx.beginPath();ctx.arc(35,47,18,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle='#98611b';ctx.font='bold 24px Georgia';ctx.fillText('₫',35,55);ctx.fillStyle='#fff6dc';ctx.font='bold 29px system-ui';ctx.fillText(`${price} · Làm tiếp`,148,58,188);bonusTexture.needsUpdate=true;
     },
     status(text,fatigue=0){
       root.visible=true;tool.visible=false;const value=Math.round(fatigue),key=`status:${text}:${value}`;if(key===lastKey)return;lastKey=key;
-      const ctx=canvas.getContext('2d');ctx.clearRect(0,0,256,128);ctx.fillStyle='#fff0dc';ctx.beginPath();ctx.roundRect(3,3,250,120,18);ctx.fill();ctx.textAlign='center';ctx.fillStyle=value>=80?'#a94d31':'#634627';ctx.font='bold 24px system-ui';ctx.fillText(`${personName} · Mệt ${value}%`,128,32,235);ctx.font='19px system-ui';const short=text.split('→');ctx.fillText(short[0],128,62,235);if(short[1])ctx.fillText('→ '+short[1],128,85,235);ctx.fillStyle='#c8b78e';ctx.fillRect(19,100,218,10);ctx.fillStyle=value>=80?'#d77950':'#87ac59';ctx.fillRect(19,100,218*value/100,10);texture.needsUpdate=true;
+      const ctx=canvas.getContext('2d');ctx.clearRect(0,0,256,128);ctx.fillStyle='#3b2a1cd9';ctx.beginPath();ctx.roundRect(3,3,250,120,18);ctx.fill();ctx.textAlign='center';ctx.fillStyle=value>=80?'#a94d31':'#634627';// Workers no longer tire: name + current job only, larger and darker for phones.
+      ctx.fillStyle='#fff6dc';ctx.font='900 28px system-ui';ctx.fillText(personName,128,36,235);ctx.font='bold 22px system-ui';const short=text.split('→');ctx.fillText(short[0],128,72,235);if(short[1])ctx.fillText('→ '+short[1],128,100,235);texture.needsUpdate=true;
     },
     update(action,progress=0,time=0,fatigue=0){
       root.visible=Boolean(action);if(!action)return;tool.visible=true;
@@ -34,7 +36,7 @@ export function createWorkActivity(parent,personName='') {
       tool.rotation.z=Math.sin(time*6)*.3;tool.rotation.x=action==='water'?-.5:Math.sin(time*5)*.15;
       const ratio=Math.max(0,Math.min(1,progress)),key=`${action}:${Math.round(ratio*50)}:${Math.round(fatigue)}`;
       if(key===lastKey)return;lastKey=key;
-      const ctx=canvas.getContext('2d');ctx.clearRect(0,0,256,128);ctx.fillStyle='#fff0cb';ctx.strokeStyle='#a78048';ctx.lineWidth=4;ctx.beginPath();ctx.roundRect(5,8,246,103,20);ctx.fill();ctx.stroke();ctx.fillStyle='#674829';ctx.font='bold 26px system-ui';ctx.textAlign='center';ctx.fillText(ACTION_LABELS[action]||'Làm việc',128,48);if(personName){ctx.font='18px system-ui';ctx.fillText(`${personName} · Mệt ${Math.round(fatigue)}%`,128,105,235);}ctx.fillStyle='#695139';ctx.beginPath();ctx.roundRect(25,68,206,17,8);ctx.fill();ctx.fillStyle='#8fbd59';ctx.beginPath();ctx.roundRect(28,71,Math.max(5,200*ratio),11,5);ctx.fill();texture.needsUpdate=true;
+      const ctx=canvas.getContext('2d');ctx.clearRect(0,0,256,128);ctx.fillStyle='#3b2a1cd9';ctx.strokeStyle='#a78048';ctx.lineWidth=4;ctx.beginPath();ctx.roundRect(5,8,246,103,20);ctx.fill();ctx.stroke();ctx.fillStyle='#fff6dc';ctx.font='bold 26px system-ui';ctx.textAlign='center';ctx.fillText(ACTION_LABELS[action]||'Làm việc',128,48);if(personName){ctx.font='18px system-ui';ctx.fillText(personName,128,105,235);}ctx.fillStyle='#695139';ctx.beginPath();ctx.roundRect(25,68,206,17,8);ctx.fill();ctx.fillStyle='#8fbd59';ctx.beginPath();ctx.roundRect(28,71,Math.max(5,200*ratio),11,5);ctx.fill();texture.needsUpdate=true;
     },
     dispose(){bonus.removeFromParent();bonusTexture.dispose();bonusMaterial.dispose();root.removeFromParent();texture.dispose();material.dispose();geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());},
   };

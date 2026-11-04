@@ -8,9 +8,10 @@ export function installCurrencyIcons(root=document.body) {
     else{const walker=document.createTreeWalker(node,NodeFilter.SHOW_TEXT);while(walker.nextNode())texts.push(walker.currentNode);}
     for(const text of texts){
       const parent=text.parentElement;
-      if(!parent||parent.closest(excluded)||!/(?:\bxu\b|🪙)/u.test(text.data))continue;
+      // \b chỉ hiểu ASCII nên "xu" trong "xuống/xuất" bị khớp; dùng ranh giới chữ Unicode.
+      if(!parent||parent.closest(excluded)||!/(?:(?<![\p{L}\p{N}])xu(?![\p{L}\p{N}])|🪙)/u.test(text.data))continue;
       if(parent.previousElementSibling?.classList.contains('farm-gold-coin')||[...parent.children].some(child=>child.classList.contains('farm-gold-coin')))continue;
-      const fragment=document.createDocumentFragment(),pattern=/(?:\d[\d.,]*\s*xu\b|\bxu\b|🪙)/gu;
+      const fragment=document.createDocumentFragment(),pattern=/(?:(?:(?<![\p{L}\d])[+\-−])?\d[\d.,]*\s*xu(?![\p{L}\p{N}])|(?<![\p{L}\p{N}])xu(?![\p{L}\p{N}])|🪙)/gu;
       let end=0;
       for(const match of text.data.matchAll(pattern)){
         fragment.append(text.data.slice(end,match.index));

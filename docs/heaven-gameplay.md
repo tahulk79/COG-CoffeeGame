@@ -7,16 +7,31 @@
 3. Gặp ba chuyên gia về trồng cà phê, pha chế và kinh doanh theo thứ tự tùy chọn. Mỗi người có hai câu hỏi, mỗi câu có ba đáp án.
 4. Mỗi câu chỉ được trả lời một lần. Đúng hoặc sai đều lưu lựa chọn và kết quả ngay, có giải thích rồi sang câu tiếp theo. Trả lời đủ hai câu nhận dấu hoàn thành; điểm đúng/sai hiển thị riêng, không nhận lặp dấu hoặc đổi đáp án.
 5. Đủ ba dấu mới được Thần Tiếp Nhận kiểm tra hồ sơ. Hội thoại lúc này mới tiết lộ người chơi chỉ ngất, Thần Chết kéo nhầm. Có dấu đỏ “CHƯA CHẾT · CHỈ NGẤT”.
-6. Chọn một hành trang: hạt giống, dụng cụ pha hoặc túi vốn. Lưu lựa chọn cho chương nông trại sau.
+6. Chọn một hành trang: Túi hạt giống, Gói mở rộng quán (tên cũ Bộ dụng cụ pha) hoặc Túi vốn nhỏ. Lưu lựa chọn cho chương nông trại sau.
 7. Tự đi về cổng. Sau câu tiễn hài hước cuối, nhân vật đi qua cổng và cảnh sáng dần, hiện phần kết tỉnh lại ở trần gian.
 
-Cổng trùng sinh dẫn thẳng vào nông trại. Quán bán cà phê là phần tiếp theo, chưa triển khai. Người đã qua cổng sẽ trở lại nông trại khi tải lại trang.
+### Thiên đàng là bài học (chốt và triển khai 03/11/2026)
+
+Spec đầy đủ: [luồng người chơi mới](design/onboarding-flow.md) mục 3.1, 4.1. Thay đổi so với luồng trên:
+
+- **Câu đúng cho mẹo có tác dụng thật** ở farm/quán: `ripe` → hái tay +5 chất lượng; `water` → bình tưới +2; `recipe` → Phin đen nóng và Cà phê sữa đá bắt đầu ★ (điểm luyện tối thiểu 40); `adjust` → màn kết quả ly đánh dấu "Sửa bước này trước"; `costs` → +30 xu một lần; `customer` → uy tín quán +3 một lần. Hộp kết quả mỗi câu ghi tên mẹo và tác dụng; câu sai ghi "Chưa nhận mẹo · sẽ được hỏi lại ở nông trại/quán".
+- **Câu sai được học lại** ở farm/quán đúng lúc liên quan (sau lần hái tay, ngày mưa/ra giếng, báo cáo cuối ca, ly dưới 70 điểm, khách bỏ về), tối đa 1 câu mỗi ngày công 6 phút, hoặc ôn chủ động ở Sổ tay thiên đàng trong Hướng dẫn farm. Chấm bằng chính `content.js`.
+- Chơi lại chương không xóa mẹo đã thuộc ở farm; thưởng một lần không trả lại.
+- **Thoại gọn:** `WELCOME` 5 → 3 câu; lời chào chuyên gia gộp vào hộp câu hỏi đầu; `REVEAL` 7 → 4; `FAREWELL` 3 → 2. Tổng 32 → 23 hộp; mục tiêu ≤ 150 s từ lúc vào tới khi qua cổng.
+- Bước nhận hồ sơ: focus mặc định vào "Dẫn tôi tới chuyên gia tiếp theo"; chọn dẫn thì sau chuyên gia cuối tự đi tới Thần Tiếp Nhận.
+- **Thẻ quà ghi số thật:** Túi hạt giống "+6 hạt cà phê vối và 6 túi phân bón"; **Gói mở rộng quán** (đã chốt đổi tên từ "Bộ dụng cụ pha", id `tools` giữ nguyên) "Quán lên cấp 2: mở sẵn 4 bàn thay vì 3"; Túi vốn nhỏ "+150 xu".
+- Màn kết hiện "Mẹo đã nhận x/6 · y câu sẽ được ôn lại".
+- Lưu: không thêm trường trong `heaven`. Farm đọc `heaven.answers` qua `correctQuestionIds(heaven)` (mới, `journey.js`) và lưu kết quả ở `farm.lessons` (xem `docs/design/contracts.md` mục 5).
+
+Cổng trùng sinh dẫn thẳng vào nông trại; quán cà phê mở từ nông trại (nút Vào quán, nhiệm vụ "Bán ly cà phê đầu tiên"). Người đã qua cổng sẽ trở lại nông trại khi tải lại trang. Hành trang chọn ở đây áp dụng một lần khi vào farm (xem `docs/farm-operations-guide.md` mục 9).
 
 ## Điều khiển
 
 - Desktop: bấm mặt đất để đi tới vị trí đó; bấm NPC để tìm đường tới gần và tự mở hội thoại. Bấm điểm mới để đổi đích.
 - Nhân vật tìm đường trên lưới và rút gọn các đoạn thẳng nhìn thấy nhau, tránh collider của bàn, NPC và biên bản đồ. Có thêm WASD và phím mũi tên làm điều khiển bổ sung.
 - Mobile: joystick analog ở góc trái, có vùng chết ở tâm và tốc độ theo độ kéo. Thả tay, hủy pointer hoặc mất focus thì dừng. Joystick hủy đường đi tự động đang có.
+- **Gợi ý điều khiển khi vào (triển khai 03/11/2026):** desktop giữ dòng "Bấm mặt đất để đi · Bấm nhân vật để tới nói chuyện"; mobile thêm "Kéo nút tròn để đi · Chạm nhân vật để nói chuyện". Tắt khi đã di chuyển một lần hoặc sau 10 s; không lưu.
+- **Gợi ý tiếp hội thoại theo thiết bị:** cảm ứng "Chạm để tiếp", chuột/bàn phím "Enter hoặc bấm để tiếp", đang có câu hỏi/quà "Chọn một đáp án". Không còn ẩn gợi ý trên `hover: none` (`dialogue.css`).
 - Có thể bấm nút tương tác khi đứng gần NPC, hoặc dùng E / Enter / Space.
 - Trong hội thoại thường và phần giải thích đáp án, bấm bất kỳ đâu để tiếp; sự kiện được xử lý một lần, không bấm xuyên xuống mặt đất.
 - Khi đang trả lời câu hỏi hoặc chọn quà, chỉ nút lựa chọn / phím 1–3 mới đi tiếp. Bấm ra ngoài giữ nguyên câu hỏi và nháy nhẹ viền khung; không hiện ô cảnh báo hay thông báo đỏ.

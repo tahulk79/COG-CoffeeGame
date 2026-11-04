@@ -1,5 +1,5 @@
 import { EXPERTS } from './content.js';
-import { showDialogue } from '../../ui/dialogue.js';
+import { setAvatar, showDialogue, usesTouch } from '../../ui/dialogue.js';
 import { mountJoystick } from '../../ui/joystick.js';
 
 const $ = id => document.getElementById(id);
@@ -11,8 +11,14 @@ export function createHeavenUI(profile, callbacks) {
   let toastUntil = 0;
   let promptId = null;
   let choicePulse = null;
+  let openedAt = 0;
   $('heaven-hud').hidden = false;
   $('heaven-controls').hidden = false;
+  // Gợi ý điều khiển khi vào: tắt sau lần di chuyển đầu hoặc 10 s, không lưu.
+  let hintUntil = performance.now() + 10000;
+  $('heaven-hint').textContent = usesTouch() ? 'Kéo nút tròn để đi · Chạm nhân vật để nói chuyện' : 'Bấm mặt đất để đi · Bấm nhân vật để tới nói chuyện';
+  $('heaven-hint').hidden = false;
+  function hideHint() { $('heaven-hint').hidden = true; hintUntil = 0; }
   $('heaven-interact').addEventListener('click', callbacks.interact, { signal });
   $('heaven-passport-toggle').addEventListener('click', () => {
     const open = $('heaven-passport').hidden;
@@ -25,6 +31,8 @@ export function createHeavenUI(profile, callbacks) {
     $('heaven-passport-toggle').setAttribute('aria-expanded', 'false');
   }, { signal });
   $('heaven-replay').addEventListener('click', callbacks.replay, { signal });
+  $('heaven-quest').addEventListener('click', callbacks.questGo, { signal });
+  $('heaven-quest').addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); callbacks.questGo(); } }, { signal });
   const resetJoystick = mountJoystick($('heaven-joystick'), $('heaven-joystick-knob'), callbacks.touch, signal);
   document.addEventListener('click', callbacks.anyClick, { capture: true, signal });
   function clearChoices() { $('dialogue-choices').replaceChildren(); $('dialogue-choices').hidden = true; }
@@ -34,7 +42,12 @@ export function createHeavenUI(profile, callbacks) {
       const button = document.createElement('button'); button.type = 'button';
       const number = document.createElement('span'); number.className = 'choice-key'; number.textContent = String(index + 1);
       const text = document.createElement('span'); text.textContent = option.text;
+      if (option.default) button.dataset.default = '';
       button.append(number, text); button.addEventListener('click', () => onSelect(option.id));
+      // Enter giữ/vừa dùng để qua câu trước không được bấm luôn lựa chọn mặc định.
+      button.addEventListener('keydown', event => {
+        if (['Enter', 'Space'].includes(event.code) && (event.repeat || performance.now() - openedAt < 300)) event.preventDefault();
+      });
       $('dialogue-choices').append(button);
     });
   }
@@ -45,8 +58,11 @@ export function createHeavenUI(profile, callbacks) {
     $('caption-box').dataset.mode = 'manual';
     $('caption-box').classList.toggle('quiz-dialogue', Boolean(options.choices));
     document.querySelector('.dialogue-auto').textContent = options.tag || 'HỘI THOẠI';
-    document.querySelector('.dialogue-hint').textContent = options.choiceHint || (options.choices ? 'Chọn câu trả lời' : 'Bấm bất kỳ đâu để tiếp');
-    if (options.icon) $('dialogue-avatar').textContent = options.icon;
+    if (options.choices) document.querySelector('.dialogue-hint').textContent = 'Chọn một đáp án'; // còn lại: showDialogue đặt theo thiết bị
+    $('dialogue-tip').hidden = !options.tip;
+    $('dialogue-tip').textContent = options.tip || '';
+    $('dialogue-tip').dataset.tone = options.tipGood ? 'good' : '';
+    if (options.icon) setAvatar(options.icon);
     $('dialogue-next').hidden = Boolean(options.choices);
     $('dialogue-next').textContent = '▾';
     $('dialogue-next').title = options.nextLabel || 'Tiếp hội thoại';
@@ -58,8 +74,11 @@ export function createHeavenUI(profile, callbacks) {
     promptId = null;
     if (options.choices) choices(options.choices, options.onSelect);
     else clearChoices();
-    $('caption-box').scrollTop = 0;
-    const focus = $('dialogue-choices').querySelector('button') || $('dialogue-next');
+    $('caption-box').querySelector('.dialogue-body').scrollTop = 0;
+    openedAt = performance.now();
+    // Đáp án không nhận tiêu điểm sẵn (Enter không chọn nhầm); chọn bằng chạm/bấm hoặc phím 1–3. Lựa chọn điều hướng có `default` thì vẫn focus.
+    const focus = options.choices ? $('dialogue-choices').querySelector('button[data-default]') || $('caption-box') : $('dialogue-next');
+    if (focus.id === 'caption-box') focus.tabIndex = -1;
     focus.focus({ preventScroll: true });
   }
   function closeDialogue() {
@@ -122,9 +141,12 @@ export function createHeavenUI(profile, callbacks) {
     }
   }
   return {
-    dialogue, closeDialogue, hud, prompt,
+    dialogue, closeDialogue, hud, prompt, hideHint,
     toast(text) { $('heaven-toast').textContent = text; $('heaven-toast').hidden = false; toastUntil = performance.now() + 4500; },
-    update() { if (toastUntil && performance.now() > toastUntil) { $('heaven-toast').hidden = true; toastUntil = 0; } },
+    update() {
+      if (toastUntil && performance.now() > toastUntil) { $('heaven-toast').hidden = true; toastUntil = 0; }
+      if (hintUntil && performance.now() > hintUntil) hideHint();
+    },
     clearTouch: resetJoystick,
     pulseChoices() {
       choicePulse?.cancel();
@@ -138,7 +160,7 @@ export function createHeavenUI(profile, callbacks) {
       closeDialogue(); $('heaven-controls').hidden = true;
       $('heaven-return-fade').hidden = true;
       $('heaven-ending').hidden = false;
-      $('heaven-final-score').textContent = `${score.correct}/${score.total} câu đúng · ${score.wrong} câu sai`;
+      $('heaven-final-score').textContent = `${score.correct}/${score.total} câu đúng · ${score.wrong} câu sai\nMẹo đã nhận ${score.correct}/${score.total} · ${score.total - score.correct} câu sẽ được ôn lại ở nông trại/quán`;
       $('heaven-gift-summary').textContent = `${gift.icon} ${gift.name} — ${gift.description}`;
       $('heaven-replay').focus({ preventScroll: true });
     },
@@ -149,7 +171,7 @@ export function createHeavenUI(profile, callbacks) {
     },
     dispose() {
       choicePulse?.cancel();
-      resetJoystick(); abort.abort(); clearChoices(); $('caption-box').hidden = true;
+      resetJoystick(); abort.abort(); clearChoices(); $('caption-box').hidden = true; hideHint(); $('dialogue-tip').hidden = true;
       $('heaven-hud').hidden = true; $('heaven-controls').hidden = true; $('heaven-ending').hidden = true; $('heaven-toast').hidden = true;
       $('dialogue-next').hidden = false; $('caption-box').classList.remove('quiz-dialogue'); delete $('caption-box').dataset.mode;
       $('heaven-return-fade').hidden = true;

@@ -1,6 +1,6 @@
 import { readProgress, readSettings, resetProgress, saveSettings } from '../state/progress.js';
 import { setVolume, setMuted, hasContent, sfx } from '../shared/audio/index.js';
-import { setQuality } from '../shared/vfx/index.js';
+import { getQuality, setQuality } from '../shared/vfx/index.js';
 
 const SLIDERS = [['master', 'Tổng'], ['music', 'Nhạc'], ['ambience', 'Môi trường'], ['sfx', 'Hiệu ứng'], ['ui', 'Giao diện']];
 const QUALITY = [
@@ -13,6 +13,7 @@ const PREVIEW = { sfx: 'coin.gain', ui: 'ui.click' };
 let dialog = null;
 let settings = null;
 let openHandler = () => {};
+let qualityChosen = false;
 
 function persist() {
   if (!saveSettings(settings)) dialog.querySelector('.ui-alert--warn').hidden = false;
@@ -27,8 +28,8 @@ function render() {
     input.nextElementSibling.value = `${input.value}%`;
     if (bus === 'music' || bus === 'ambience') input.closest('.ui-row').hidden = !hasContent(bus);
   }
-  for (const tab of dialog.querySelectorAll('[data-quality]')) tab.setAttribute('aria-pressed', String(tab.dataset.quality === settings.quality));
-  dialog.querySelector('#game-settings-quality').textContent = QUALITY.find(([id]) => id === settings.quality)[2];
+  for (const tab of dialog.querySelectorAll('[data-quality]')) tab.setAttribute('aria-pressed', String(tab.dataset.quality === getQuality()));
+  dialog.querySelector('#game-settings-quality').textContent = QUALITY.find(([id]) => id === getQuality())[2];
   const saved = readProgress();
   dialog.querySelector('[data-reset]').hidden = !(saved.introCompleted || saved.farm);
   dialog.querySelector('[data-reset-confirm]').hidden = true;
@@ -101,8 +102,9 @@ export function mountSettings({ onOpen } = {}) {
   });
   for (const tab of dialog.querySelectorAll('[data-quality]')) {
     tab.addEventListener('click', () => {
-      if (settings.quality === tab.dataset.quality) return;
+      if (getQuality() === tab.dataset.quality) return;
       settings.quality = tab.dataset.quality;
+      qualityChosen = true;
       setQuality(settings.quality);
       render();
       persist();
@@ -116,6 +118,17 @@ export function mountSettings({ onOpen } = {}) {
     location.reload();
   });
   document.getElementById('game-settings-toggle')?.addEventListener('click', openSettings);
+}
+
+// Called by the frame monitor when the game stays slow; never overrides a level the player picked this session.
+export function lowerQuality() {
+  if (!settings || qualityChosen) return false;
+  const next = { high: 'medium', medium: 'low' }[getQuality()];
+  if (!next) return false;
+  setQuality(next);
+  if (dialog?.open) render();
+  // Session only: settings.quality keeps the saved level and persist() never writes this one, so a slow moment cannot permanently lower the player's graphics.
+  return true;
 }
 
 export function openSettings() {

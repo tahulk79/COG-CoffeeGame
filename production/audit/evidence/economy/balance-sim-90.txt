@@ -1,0 +1,72 @@
+┌─────────┬─────┬───────┬───────┬────────┬─────┬─────────────┬────────┐
+│ (index) │ min │ coins │ level │ fields │ rep │ roastedFarm │ served │
+├─────────┼─────┼───────┼───────┼────────┼─────┼─────────────┼────────┤
+│ 0       │ 5   │ 157   │ 3     │ 2      │ 50  │ 3108        │ 0      │
+│ 1       │ 10  │ 205   │ 5     │ 3      │ 64  │ 8244        │ 20     │
+│ 2       │ 15  │ 174   │ 6     │ 3      │ 64  │ 15468       │ 20     │
+│ 3       │ 20  │ 549   │ 8     │ 4      │ 78  │ 10344       │ 40     │
+│ 4       │ 25  │ 193   │ 8     │ 4      │ 78  │ 22524       │ 40     │
+│ 5       │ 30  │ 1079  │ 9     │ 4      │ 91  │ 9072        │ 60     │
+│ 6       │ 35  │ 203   │ 9     │ 4      │ 91  │ 21336       │ 60     │
+│ 7       │ 40  │ 968   │ 10    │ 4      │ 99  │ 8820        │ 80     │
+│ 8       │ 45  │ 179   │ 11    │ 4      │ 99  │ 22008       │ 80     │
+│ 9       │ 50  │ 916   │ 12    │ 4      │ 100 │ 11940       │ 100    │
+│ 10      │ 55  │ 414   │ 12    │ 4      │ 100 │ 26808       │ 100    │
+│ 11      │ 60  │ 1148  │ 13    │ 4      │ 100 │ 11760       │ 120    │
+│ 12      │ 65  │ 182   │ 13    │ 4      │ 100 │ 28056       │ 120    │
+│ 13      │ 70  │ 906   │ 14    │ 4      │ 100 │ 14040       │ 140    │
+│ 14      │ 75  │ 457   │ 14    │ 4      │ 100 │ 33108       │ 140    │
+│ 15      │ 80  │ 1231  │ 15    │ 4      │ 99  │ 15540       │ 160    │
+│ 16      │ 85  │ 236   │ 15    │ 4      │ 99  │ 35616       │ 160    │
+│ 17      │ 90  │ 922   │ 15    │ 4      │ 97  │ 17400       │ 180    │
+└─────────┴─────┴───────┴───────┴────────┴─────┴─────────────┴────────┘
+income {"market":7055,"cafe":1374,"shift":600,"other":0} spend {"seeds":340,"land":590,"supplies":95,"fertilizer":678,"upgrades":5445,"gear":1350} net 530 coinsEnd 922 level 15 harvested 644
+cafe { arrived: 272, served: 180, lost: 52, beansUsed: 3112 } beans used by café (g) 3112 farm roasted delivered (g) 2400
+blockedHarvestTries 3 storage 124800 cherries 120 dried 0 roasted 17400 up {"soil":1,"fence":1,"pond":1,"well":1,"tools":1,"dryer":6,"roaster":5,"storage":7,"delivery":1,"cafe":6}
+0m: mua field-1 (120 xu)
+0m: lên cấp 2
+1m: lên cấp 3
+6m: mua field-2 (180 xu)
+10m: lên cấp 5
+13m: lên cấp 6
+16m: lên cấp 7
+16m: mua field-3 (300 xu)
+20m: lên cấp 8
+20m: gear phin (40 xu)
+20m: gear steamer (60 xu)
+20m: gear mixer (70 xu)
+20m: gear grinder (80 xu)
+20m: upgrade storage (90 xu)
+26m: gear phin (90 xu)
+26m: lên cấp 9
+30m: gear v60 (90 xu)
+30m: upgrade dryer (100 xu)
+30m: gear espresso (120 xu)
+30m: gear steamer (120 xu)
+30m: upgrade storage (128 xu)
+30m: upgrade cafe (140 xu)
+30m: upgrade dryer (142 xu)
+35m: lên cấp 10
+36m: upgrade roaster (160 xu)
+40m: gear grinder (160 xu)
+40m: upgrade storage (182 xu)
+40m: upgrade cafe (199 xu)
+40m: gear espresso (200 xu)
+41m: lên cấp 11
+46m: upgrade dryer (202 xu)
+50m: lên cấp 12
+50m: upgrade roaster (228 xu)
+50m: upgrade storage (258 xu)
+56m: upgrade cafe (283 xu)
+60m: lên cấp 13
+60m: upgrade dryer (287 xu)
+60m: gear espresso (320 xu)
+60m: upgrade roaster (323 xu)
+66m: upgrade storage (366 xu)
+70m: lên cấp 14
+70m: upgrade cafe (401 xu)
+76m: upgrade dryer (407 xu)
+80m: lên cấp 15
+80m: upgrade roaster (459 xu)
+80m: upgrade storage (520 xu)
+86m: upgrade cafe (570 xu)
