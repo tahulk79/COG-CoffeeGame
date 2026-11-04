@@ -39,7 +39,7 @@ Dựa trên `02` (lỗi), `03` (art direction "Phố Nắng Cà Phê"), `04` (de
 
 | Hạng mục | Thay đổi | File |
 |---|---|---|
-| Loading (P2-9) | Thêm logo chữ COG (SVG inline) phía trên ly phin; một dòng mẹo chơi lấy từ mảng tĩnh; giữ thanh tiến độ | `index.html` |
+| Loading (P2-9) | Thêm logo chữ Godbean (SVG inline) phía trên ly phin; một dòng mẹo chơi lấy từ mảng tĩnh; giữ thanh tiến độ | `index.html` |
 | Lỗi (P1-12) | Panel `--md` có minh họa ly đổ; nút "Tải lại" (`location.reload`) và "Thử đồ họa thấp" (lưu quality `low` qua `saveSettings` rồi tải lại); thông báo lỗi kỹ thuật cho vào `<details>`; ẩn nút cài đặt | `app/game.js` `fail()`, `index.html` |
 
 ## 2. Chọn nhân vật

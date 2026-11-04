@@ -12,8 +12,9 @@
 - Mỗi màn có `docs/screens/<NN-màn>/README.md` ghi vào/ra, dữ liệu và code; thư mục khớp `src/features/<màn>/`.
 - Luật hiện hành nằm ở `gameplay.md`/`rules.md` của màn; file `*-proposal.md` là đề xuất; `docs/archive/` là lịch sử, không dùng làm đặc tả.
 - Đổi trường dữ liệu dùng chung phải sửa `docs/shared/contracts.md` cùng lúc. Đổi luật thì sửa tài liệu của màn trong cùng thay đổi.
+- **Làm gì cũng ghi lại để thống kê**: mỗi thay đổi (code, tài liệu, công cụ, cấu hình) ghi một dòng vào báo cáo tiến độ **theo ngày** `docs/design/progress/YYYY-MM-DD-<người>.md` (theo `_template.md`). Mỗi ngày một file: làm nhiều lần trong ngày thì thêm gạch đầu dòng vào file của ngày đó, chưa có thì tạo mới. Không cần ghi giờ.
 - Không commit ảnh chụp màn hình, log hay kết quả test vào repo.
-- `docs/design/cog-coffee-gdd.md` là GDD tổng; mục 0 là bảng trạng thái. Duyệt/bác đề xuất, commit code của một tính năng, có kết quả test/sim/playtest, hoặc thấy tài liệu lệch code thì cập nhật bảng trong cùng thay đổi, theo `docs/design/README.md`. Không ghi "Kiểm chứng" khi chưa có bằng chứng.
+- `docs/design/godbean-gdd.md` là GDD tổng; mục 0 là bảng trạng thái. Duyệt/bác đề xuất, commit code của một tính năng, có kết quả test/sim/playtest, hoặc thấy tài liệu lệch code thì cập nhật bảng trong cùng thay đổi, theo `docs/design/README.md`. Không ghi "Kiểm chứng" khi chưa có bằng chứng.
 
 ## Thay đổi từ repo của sếp
 
@@ -28,7 +29,7 @@
 
 - Đây là game, không phải website/dashboard. Thiết kế giao diện và tương tác theo ngữ cảnh game.
 - Ưu tiên thế giới 3D, thao tác trên đối tượng, phản hồi thu hoạch và HUD nhỏ gọn. Không thay gameplay bằng các thẻ thông tin hoặc form web luôn mở.
-- Shop, kho và nâng cấp mở bằng modal game giữa màn hình, có nút đóng và khóa di chuyển khi mở.
+- Shop, kho và nâng cấp mở bằng modal game giữa màn hình, có nút đóng và khóa di chuyển khi mở. Ngoại lệ: khi chế độ Auto bật, nhân vật vẫn tự đi/làm việc phía sau modal (`docs/shared/crew-autoplay.md` mục 5).
 - Bản đồ, kích thước luống, nhân vật và công trình phải có tỷ lệ cân đối, đường đi rõ và vật cản hợp lý.
 - Khối tạm vẫn phải thể hiện chức năng, trạng thái và điểm tương tác để sau này thay asset mà không viết lại luật chơi.
 

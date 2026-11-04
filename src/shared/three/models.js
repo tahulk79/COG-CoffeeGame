@@ -1,7 +1,7 @@
 import { MeshBasicMaterial } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
-import { markCached } from './dispose-scene.js';
+import { markCached, disposeScene } from './dispose-scene.js';
 
 // Every GLB is meshopt-compressed (scripts/optimize-models.mjs); load them all through this loader.
 export const gltfLoader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
@@ -48,4 +48,19 @@ export function dressSlot(slot, model, cast = false) {
 // slots: { 'slot/id':'feature/file.glb' | 'file.glb#node' }; target có replaceAsset như các cảnh hiện có.
 export function attachModels(target, slots) {
   return Promise.all(Object.entries(slots).map(([slot, path]) => loadModel(path).then(model => model && target.replaceAsset(slot, model))));
+}
+
+// Xả GLB đã cache theo tiền tố ('selection/'): chỉ gọi cho asset không cảnh nào khác dùng. Gọi sau khi cảnh dùng nó đã dispose.
+export function releaseModels(prefix) {
+  const base = `${import.meta.env.BASE_URL}models/${prefix}`;
+  for (const [url, promise] of cache) {
+    if (!url.startsWith(base)) continue;
+    cache.delete(url);
+    promise.then(root => {
+      if (!root) return;
+      const textures = new Set();
+      root.traverse(o => { for (const m of o.material ? [o.material].flat() : []) for (const v of Object.values(m)) if (v?.isTexture) textures.add(v); });
+      disposeScene(root); textures.forEach(tex => tex.image?.close?.()); // texture markCached: disposeScene không close ImageBitmap
+    });
+  }
 }

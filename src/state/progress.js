@@ -1,19 +1,33 @@
 import { DEFAULT_NAME } from './names.js';
 import { DEFAULT_LANG, LANGS } from '../i18n/index.js';
 
-const KEY = 'cog-coffee-progress';
+import { PROGRESS_KEY as KEY, PLAYER_KEY } from './storage-keys.js';
 // Set by resetProgress so a farm autosave in the last frames before reload cannot restore the old run.
 let locked = false;
+// Tab khác đã ghi save: tab này không ghi nữa để khỏi đè (không đổi định dạng save).
+let readOnly = false;
+export const isReadOnly = () => readOnly;
+export function watchOtherTabs(onConflict, signal) {
+  addEventListener('storage', event => {
+    if (event.key !== KEY || event.newValue === null || readOnly) return;
+    readOnly = true; onConflict?.();
+  }, { signal });
+}
 
 export function readProgress() {
+  let raw = null;
   try {
-    const value = JSON.parse(localStorage.getItem(KEY));
-    return value?.version === 1 && typeof value === 'object' && !Array.isArray(value) ? value : {};
-  } catch { return {}; }
+    raw = localStorage.getItem(KEY);
+    const value = JSON.parse(raw);
+    if (value?.version === 1 && typeof value === 'object' && !Array.isArray(value)) return value;
+  } catch { /* unreadable: fall through to backup */ }
+  // Keep the unreadable save once so the next write cannot destroy it; never overwrite an existing -corrupt.
+  if (raw) try { if (localStorage.getItem(`${KEY}-corrupt`) === null) localStorage.setItem(`${KEY}-corrupt`, raw); } catch { /* storage full */ }
+  return {};
 }
 
 export function saveHeaven(heaven) {
-  if (locked) return true;
+  if (locked || readOnly) return true;
   try {
     const previous = readProgress();
     localStorage.setItem(KEY, JSON.stringify({
@@ -25,8 +39,17 @@ export function saveHeaven(heaven) {
   } catch { return false; }
 }
 
+// Nơi trùng sinh chọn trên bản đồ thế giới; farm chép sang `farm.region` khi tạo save.
+export function saveRegion(id) {
+  if (locked || readOnly) return true;
+  try {
+    localStorage.setItem(KEY, JSON.stringify({ ...readProgress(), version: 1, startingRegion: id }));
+    return true;
+  } catch { return false; }
+}
+
 export function saveFarm(farm) {
-  if (locked) return true;
+  if (locked || readOnly) return true;
   try {
     const previous = readProgress();
     localStorage.setItem(KEY, JSON.stringify({ ...previous, version: 1, introCompleted: true, chapter: Math.max(3, Number(previous.chapter) || 3), farm }));
@@ -35,11 +58,9 @@ export function saveFarm(farm) {
 }
 
 export function completeIntro() {
-  if (locked) return true;
+  if (locked || readOnly) return true;
   try {
-    const raw = localStorage.getItem(KEY);
-    const stored = raw ? JSON.parse(raw) : null;
-    const previous = stored?.version === 1 && typeof stored === 'object' ? stored : {};
+    const previous = readProgress();
     localStorage.setItem(KEY, JSON.stringify({
       ...previous,
       version: 1,
@@ -93,13 +114,13 @@ export function readSettings() {
 }
 
 export function saveSettings(settings) {
+  if (readOnly) return true;
   try {
     localStorage.setItem(KEY, JSON.stringify({ ...readProgress(), version: 1, settings: normalizeSettings(settings) }));
     return true;
   } catch { return false; }
 }
 
-const PLAYER_KEY = 'cog-coffee-player';
 export function readPlayer() {
   try {
     const player = JSON.parse(localStorage.getItem(PLAYER_KEY));

@@ -26,7 +26,7 @@ const WATCH = ['docs/design', 'docs/screens', 'docs/shared', 'docs/game-flow.md'
 const IDEAS = 'docs/design/ideas';
 const CHANGES = 'docs/design/changes';
 const PROGRESS = 'docs/design/progress';
-const GDD = 'docs/design/cog-coffee-gdd.md';
+const GDD = 'docs/design/godbean-gdd.md';
 const OPEN_STATES = ['Mới', 'Đang xem'];
 const OPEN_CHANGES = ['Chờ dev', 'Đang làm'];
 

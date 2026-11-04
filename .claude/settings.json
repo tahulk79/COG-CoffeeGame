@@ -1,6 +1,31 @@
 {
+  "permissions": {
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(rm -fr *)",
+      "Bash(git push --force*)",
+      "Bash(git push -f *)",
+      "Bash(git push cog *)",
+      "Bash(git reset --hard*)",
+      "Bash(git clean -f*)",
+      "Bash(git clean -df*)",
+      "Bash(sudo *)",
+      "Read(**/.env*)",
+      "Edit(**/.env*)"
+    ]
+  },
   "hooks": {
     "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && echo '[AI studio] Khôi phục sau compact:' && cat docs/ai-studio/PROGRESS.md 2>/dev/null; git status --short | head -30",
+            "timeout": 10
+          }
+        ]
+      },
       {
         "hooks": [
           {
@@ -12,5 +37,16 @@
         ]
       }
     ]
+  },
+  "extraKnownMarketplaces": {
+    "ponytail": {
+      "source": {
+        "source": "github",
+        "repo": "DietrichGebert/ponytail"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "ponytail@ponytail": true
   }
 }

@@ -353,8 +353,8 @@
 .farm-active .farm-profile .farm-xp-track{width:100%;box-sizing:border-box}
 .farm-active #farm-right-hud{width:310px;max-width:48vw;gap:10px}
 .farm-active #farm-right-hud .farm-resources{flex-wrap:nowrap;width:100%;max-width:none;gap:6px;align-items:center}
-.farm-active #farm-right-hud .farm-resources>span{display:flex;align-items:center;gap:5px;white-space:nowrap;padding:7px 10px;border-width:2px;font-size:15px}
-.farm-active #farm-right-hud .farm-resources strong{font-size:14px}
+.farm-active #farm-right-hud .farm-resources>span{min-width:0;max-width:100%;display:flex;align-items:center;gap:5px;white-space:nowrap;padding:7px 10px;border-width:2px;font-size:15px}
+.farm-active #farm-right-hud .farm-resources strong{min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:14px}
 .farm-gold-coin{display:inline-grid;place-items:center;flex:none;width:21px;height:21px;box-sizing:border-box;border:2px solid #c78a14;border-radius:50%;background:linear-gradient(135deg,#fff2a2,#f7c33c 48%,#dfa019);box-shadow:inset 0 0 0 2px #ffe27b,0 1px 1px #8a5b2633;color:#9b5c08;font:bold 14px/1 Georgia;text-shadow:0 1px #ffe99a}
 .farm-active #farm-quick-nav{display:grid;grid-template-columns:72px;align-self:flex-end;gap:5px;pointer-events:auto}
 .farm-active #farm-quick-nav button{position:static;inset:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;width:100%;min-width:0;min-height:58px;padding:5px 2px;border:1px solid var(--ui-cream-edge);border-radius:10px;background:var(--ui-sheet);color:var(--ui-ink-soft);box-shadow:0 2px 4px var(--ui-drop-soft);cursor:pointer}
@@ -685,7 +685,7 @@
 @media(prefers-reduced-motion:reduce){.farm-staff-swapped,.farm-staff-swap-message{animation:none}}
 
 /* Matching compact staff boxes, with salary and reserve dismissal controls. */
-.farm-main-team .farm-staff-zone-grid{grid-template-columns:repeat(2,minmax(0,1fr));max-width:360px}
+.farm-main-team .farm-staff-zone-grid{grid-template-columns:repeat(3,minmax(0,1fr));max-width:520px}
 .farm-reserve-team .farm-staff-zone-grid[data-staff-drop="reserve"]{grid-template-columns:repeat(auto-fill,minmax(145px,170px))}
 .farm-staff-tile{position:relative;min-width:0;display:flex;flex-direction:column}
 .farm-active #farm-modal[data-roster="true"] .farm-main-team .farm-staff-card,.farm-active #farm-modal[data-roster="true"] .farm-reserve-team .farm-staff-card{flex:1;width:100%;min-height:185px;padding:33px 10px 10px;gap:6px}
@@ -1017,7 +1017,7 @@
 .farm-station-empty>strong{font:800 17px/1.4 var(--game-font);color:var(--ui-muted)}
 .farm-station-empty>small{max-width:310px;font:500 12px/1.7 var(--game-font);color:var(--ui-muted)}
 
-.farm-active #farm-right-hud .farm-resources>.farm-coin{display:flex;align-items:center;gap:6px;white-space:nowrap;margin:0;padding:8px 11px;border:2px solid var(--ui-cream-edge);border-radius:22px;background:var(--ui-cream);box-shadow:inset 0 2px var(--ui-shine),0 3px var(--ui-cream-drop);color:var(--ui-ink-soft);font-family:var(--game-font);cursor:pointer}
+.farm-active #farm-right-hud .farm-resources>.farm-coin{min-width:0;max-width:100%;display:flex;align-items:center;gap:6px;white-space:nowrap;margin:0;padding:8px 11px;border:2px solid var(--ui-cream-edge);border-radius:22px;background:var(--ui-cream);box-shadow:inset 0 2px var(--ui-shine),0 3px var(--ui-cream-drop);color:var(--ui-ink-soft);font-family:var(--game-font);cursor:pointer}
 .farm-active #farm-right-hud .farm-resources>.farm-coin:hover{background:var(--ui-cream);filter:brightness(1.05)}
 .farm-active #farm-right-hud .farm-resources>.farm-coin:active{transform:translateY(2px);box-shadow:inset 0 2px var(--ui-shine),0 1px var(--ui-cream-drop)}
 .farm-active #farm-right-hud .farm-resources>.farm-coin:focus-visible{outline:3px solid var(--ui-focus);outline-offset:3px}

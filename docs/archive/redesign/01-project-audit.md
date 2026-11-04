@@ -18,7 +18,7 @@ Ngày: 2026-11-03 · Nhánh: `feat/round-1-foundation` (working tree có nhiều
 
 `src/app/game.js` là state machine: `loading → selection → playing (intro) → heaven → farm`. Quán (`cafe`) không phải state riêng: `features/farm/game.js` tạo `createCafeGame` lồng trong farm (`cafeGame`), đổi qua `enterCafe()` / nút "Nông trại".
 
-- Vào thẳng cảnh dựa trên `localStorage['cog-coffee-progress']` (`state/progress.js`, schema `version:1`).
+- Vào thẳng cảnh dựa trên `localStorage['godbean-progress']` (`state/progress.js`, schema `version:1`).
 - Mỗi cảnh có `scene, camera, update, resize, dispose`; chuyển cảnh = loading screen + `compileAsync` + `dispose` cảnh cũ.
 - Hiệu ứng chuyển: `#scene-transition` (2 tấm trượt) + fade vignette. Không có transition riêng cho modal ngoài CSS.
 

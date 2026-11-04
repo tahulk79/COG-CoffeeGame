@@ -18,7 +18,7 @@ export function setQuality(level) {
   for (const fn of qualityListeners) fn(level);
 }
 export function onQuality(fn) { qualityListeners.add(fn); return () => qualityListeners.delete(fn); }
-export function applyRendererQuality(renderer, scene) {
+export function applyRendererQuality(renderer, ...scenes) {
   const q = QUALITY[quality];
   const ratio = Math.min(window.devicePixelRatio || 1, q.pixelRatio);
   if (renderer.getPixelRatio() !== ratio) renderer.setPixelRatio(ratio);
@@ -26,7 +26,7 @@ export function applyRendererQuality(renderer, scene) {
   renderer.shadowMap.enabled = q.shadows;
   renderer.shadowMap.needsUpdate = true;
   // Bật/tắt bóng đổi chương trình shader: biên dịch lại một lần (chấp nhận khựng).
-  scene?.traverse(object => {
+  for (const scene of scenes) scene?.traverse(object => {
     const list = Array.isArray(object.material) ? object.material : object.material ? [object.material] : [];
     for (const material of list) material.needsUpdate = true;
   });

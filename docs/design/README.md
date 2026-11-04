@@ -4,10 +4,11 @@ Thư mục giữ **GDD** — tài liệu thiết kế tổng của game — và 
 
 | File | Nội dung |
 |---|---|
-| [cog-coffee-gdd.md](cog-coffee-gdd.md) | GDD tổng hợp. Mục 0 là bảng trạng thái |
+| [godbean-gdd.md](godbean-gdd.md) | GDD tổng hợp. Mục 0 là bảng trạng thái |
 | [ideas/](ideas/README.md) | Hộp thư ý tưởng: mỗi ý tưởng một file, có vòng đời Mới → Đang xem → Đã chốt / Bỏ |
 | [changes/](changes/README.md) | Phiếu sửa GDD/tài liệu: đổi gì (Trước/Sau) và dev cần làm gì; Chờ dev → Đang làm → Xong |
 | [progress/](progress/README.md) | Báo cáo tiến độ: mỗi kỳ một file, chỉ ghi cái mới |
+| [audits/](audits/) | Báo cáo audit toàn game (P0/P1/P2 + backlog), mỗi lần một file `YYYY-MM-DD-*.md` |
 
 ## Ba phiên làm việc và mẫu đầu ra
 
@@ -43,7 +44,7 @@ Câu trả lời luôn kèm **ngày đối chiếu code lần cuối** (Thông t
 ## Quan hệ với tài liệu khác
 
 ```text
-design/cog-coffee-gdd.md      tổng quan + trạng thái (đọc trước)
+design/godbean-gdd.md      tổng quan + trạng thái (đọc trước)
         │ trỏ tới
         ▼
 screens/<màn>/rules.md, gameplay.md   luật chi tiết, nguồn sự thật

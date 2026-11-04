@@ -25,6 +25,7 @@ export function disposeScene(scene) {
   const textures = new Set();
   const skeletons = new Set();
   scene.traverse(object => {
+    if (object.isLight && object.shadow?.map) object.shadow.dispose(); // shadow map là render target, không tự giải phóng
     if (object.skeleton) skeletons.add(object.skeleton); // mỗi bản clone có skeleton riêng
     if (object.geometry?.userData.keep) return;
     if (object.geometry) geometries.add(object.geometry);

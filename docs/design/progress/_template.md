@@ -9,7 +9,7 @@
 | Cập nhật | <một câu: điều quan trọng nhất kỳ này> |
 
 <!-- Chỉ ghi cái MỚI kể từ báo cáo trước. Không chép lại việc đã báo, không dán log/diff.
-     Mục nào không có gì thì XÓA cả mục. Mỗi dòng một việc, tối đa một câu. -->
+     Mục nào không có gì thì XÓA cả mục. Một file cho cả ngày: lần làm sau trong ngày thêm gạch đầu dòng vào đây. Mỗi dòng một việc, tối đa một câu. -->
 
 ## Xong
 

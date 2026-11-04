@@ -46,7 +46,7 @@ Giữ các biến `--ui-*` hiện có. Thêm biến cho những màu đang viế
 
 | Cũ (file) | Mới |
 |---|---|
-| `.primary` (#enter-game, index.html) | `.ui-btn ui-btn--go ui-btn--lg` |
+| `.primary` (#enter-game, index.html) | `.ui-btn ui-btn--lg` (kem gỗ, 04/11) |
 | `#random-name` | `.ui-btn ui-btn--gold ui-btn--icon` |
 | `.gender-switch` + `button[aria-pressed]` | `.ui-tabs ui-tabs--segmented` + `.ui-tab` |
 | `.intro-actions button`, `#skip` | `.ui-btn ui-btn--plain ui-btn--sm` |
@@ -387,7 +387,7 @@ Không ai sở hữu `src/shared/world/scene.js` trong lượt này. Toạ độ
 
 ## 8. Checklist nghiệm thu (playtester)
 
-Quy ước: “KT” = kinh tế không đổi, tức xu, kho, XP sau thao tác phải bằng đúng con số trước khi có lượt 1. Mở DevTools → Application → localStorage `cog-coffee-progress` để xem save.
+Quy ước: “KT” = kinh tế không đổi, tức xu, kho, XP sau thao tác phải bằng đúng con số trước khi có lượt 1. Mở DevTools → Application → localStorage `godbean-progress` để xem save.
 
 | # | Kịch bản | Bước | Mong đợi trước → sau |
 |---|---|---|---|

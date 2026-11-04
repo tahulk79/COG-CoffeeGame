@@ -31,7 +31,8 @@ Người chơi trồng/chăm/hái cà phê → phơi và tách vỏ → rang →
 
 ## 3. Nhân viên: thuê theo ca (đơn giản hóa 03/11/2026)
 
-- Tối đa **2 thợ**, thuê là vào làm ngay tại farm; **không còn đội dự bị**, không kéo thả. Muốn đổi người: bấm × trên ô thợ hoặc "Cho nghỉ việc" trong hồ sơ (không hoàn phí tuyển và lương đã trả), rồi thuê người khác.
+- **3 slot, trộn robot/người tùy ý (04/11/2026, spec [crew-autoplay](../../shared/crew-autoplay.md)).** Robot làm **đúng 1 việc** (tưới/làm cỏ/chế biến/giao); người làm **1 mảng** (chăm cây · chế biến · giao), cấp 4 → 2 mảng, cấp 7 → đa nhiệm cả 3. Thuê mới tự nhận mảng đội đang thiếu. Người có thể nghỉ vì mệt 😮‍💨 / lười 🥱 / ghét việc 🙅 (công thức ở spec mục 4). Các dòng "2 thợ", "tối đa 1 robot" bên dưới đã được thay bằng luật này.
+- Thuê là vào làm ngay tại farm; **không còn đội dự bị**, không kéo thả. Muốn đổi người: bấm × trên ô thợ hoặc "Cho nghỉ việc" trong hồ sơ (không hoàn phí tuyển và lương đã trả), rồi thuê người khác.
 - Phí tuyển trả một lần khi thuê. **Lương D = `30 + 10 × (cấp − 1)` xu cho mỗi ngày công 6 phút**, tự trả khi còn dưới 30 giây nếu bật Tự gia hạn (mặc định bật) và đủ xu; trả thêm khi còn hạn sẽ **cộng dồn** từ lúc hết hạn. Hết xu thì thợ dừng an toàn, trả lại việc/vật tư đang giữ, báo ở Cần xử lý.
 - **Không còn năng lượng, nghỉ giữa ca hay bồi dưỡng**: thợ làm liên tục trong thời gian đã trả. Nâng cấp "Phúc lợi nhân viên" bị bỏ cùng.
 - Vắng mặt (tắt game/ẩn tab > 60 s) không tiêu ngày công đã trả.
@@ -120,6 +121,8 @@ Người chơi trồng/chăm/hái cà phê → phơi và tách vỏ → rang →
 - **Thứ tự nhiệm vụ đầu game (đổi và triển khai 03/11/2026):** Hái → **Bán ly cà phê đầu tiên** (`stats.served`, quán đã có 600 g hạt `starter`) → Phơi → Rang → Bán → **Gửi hạt rang về quán** (`stats.delivered`) → Mua ruộng 2 → Tưới → Làm cỏ. Bán ly lên vị trí 2 để phản hồi rót đúng vạch/tiền nhảy tới trước phút thứ 2; liên kết farm → quán vẫn dạy ở Gửi hạt. Bấm thẻ Gửi hạt: thiếu 252 g thì dẫn tới lò rang/sân phơi, đủ thì đặt đơn 252 g (nếu chưa có) và mở danh sách đơn để bấm «Chuyển về quán · 2 xu»; thẻ Bán ly mở quán. Tưới/làm cỏ để cuối vì cây vừa hái khoảng 6–8 phút sau mới khát. Chữ nhiệm vụ trích đúng nhãn nút; bảng chữ ở [onboarding-flow](../../shared/onboarding-flow.md) mục 3.4. Save cũ giữ `claimed`, không trả/xóa thưởng.
 - **Bấm thẻ mục tiêu** (HUD trái, có dấu ›) để nhân vật tự đi tới đúng chỗ: cây cần hái/tưới/làm cỏ, sân phơi/lò rang (có mẻ xong thì nhận luôn), biển ruộng kế tiếp; nhiệm vụ Bán mở Cửa hàng → Chợ. Chưa có việc để làm thì báo còn bao lâu và gợi ý việc khác trong lúc chờ. **Lần đầu:** thẻ nhấp nháy, có dòng "👆 Chạm/Bấm để được dẫn đường" và mũi chỉ 3D trên mục tiêu; tắt khi chạm thẻ lần đầu hoặc nhận nhiệm vụ Rang.
 
+- **Theo nơi trùng sinh (F-28, 04/11/2026):** chuỗi trên là của Việt Nam (cả hai). Nơi chỉ nông trại bỏ Bán ly đầu/Gửi hạt và thêm Bán 1 kg cho nhà xuất khẩu; nơi chỉ quán chỉ còn Bán ly đầu + Phục vụ 20 khách. Nút Vào quán, bảng Đơn hàng và đơn quán tự sinh chỉ có ở nơi cả hai. Chi tiết: [02b-world-map](../02b-world-map/README.md).
+
 ## 8. Quy tắc UI/UX chung
 
 - Đây là game 3D: tương tác công trình/ô đất, HUD nhỏ; không dùng dashboard phủ map thay gameplay.
@@ -189,6 +192,8 @@ Các mục dưới đây **chưa phải luật đã triển khai/chấp thuận*
 - [Bản đề xuất ban đầu](../../archive/farm/farm-cafe-gameplay-plan.md): ý tưởng cũ, các phần mâu thuẫn đã được thay thế.
 
 ## Nhật ký quyết định
+
+- **04/11/2026 (3 slot, sao, lười, Auto — spec [crew-autoplay](../../shared/crew-autoplay.md)):** Quang chốt: farm và quán mỗi nơi 3 slot (nhiều robot được); robot 1 việc / ★, nhân viên 1 mảng, đa nhiệm theo cấp / tối đa ★★, có lười-mệt-ghét việc; người chơi mọi việc / ★★★; không ai làm trùng việc; chế độ Auto 3 lượt × 10 phút có bàn tay chỉ chỗ bấm. Đã code, chưa kiểm chứng.
 
 - **03/11/2026 (robot vs nhân viên, vòng 3):** Soát vòng 3 thấy hai chỗ áp đảo ở farm; người dùng chốt. (1) **Miễn trừ "thợ người duy nhất giữ đơn" chỉ áp khi farm có đúng 1 thợ (không robot, không người thứ hai) và chỉ miễn Nghỉ ốm; Mải chơi vẫn xảy ra.** Lý do: farm luôn có 2 đơn mở, nên luật cũ cho (người, robot) và (người, người) chia mỗi người một đơn né gần hết sự cố farm; giữ miễn ốm cho farm một người vì ốm là sự cố duy nhất làm đứt chuỗi đơn cả ngày công. (2) **Robot vườn speed 20 → 70, dexterity 40 → 70** — đảo câu "chậm hơn người ~20%" đã chốt ở vòng 1 (chỉ cho Robot vườn; robot quán vẫn chậm hơn ~20%). Lý do: robot chậm + chỉ làm tập con việc người + chênh lương nhỏ hơn giá trị tay hái → người thứ hai luôn hơn; nay robot làm việc vặt nhanh hơn người cấp 1 ~5–6% nhưng vẫn không trồng/bón/tỉa/hái, thành đánh đổi theo quy mô farm. Chỉ số/lương robot chỉnh theo số đo playtester (ngưỡng ở robot-staff mục 12) vì `balance-sim.mjs` chưa có mô hình thợ; không chặn triển khai.
 

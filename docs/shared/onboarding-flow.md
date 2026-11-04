@@ -302,7 +302,7 @@ Chi tiết trong [contracts](contracts.md) mục 5. Tóm tắt:
 
 ## 9. Checklist nghiệm thu
 
-Chạy trên **khung điện thoại 390 × 844 (cảm ứng)** và **desktop 1440 × 900 (chuột)** trừ khi ghi khác. Save mới = xóa `cog-coffee-progress`.
+Chạy trên **khung điện thoại 390 × 844 (cảm ứng)** và **desktop 1440 × 900 (chuột)** trừ khi ghi khác. Save mới = xóa `godbean-progress`.
 
 | # | Kịch bản | Bước | Mong đợi (trước → sau) |
 |---|---|---|---|
@@ -353,7 +353,7 @@ Chạy trên **khung điện thoại 390 × 844 (cảm ứng)** và **desktop 14
 
 ## 11. Ngoài phạm vi
 
-Không đổi luật kinh tế, giá, sản lượng, lương. Không thêm nút bỏ qua thiên đàng (đã chốt là bài học). Không làm pinch zoom (farm chưa có, không thêm trong spec này). Không lưu bật/tắt bảng HUD qua lần mở game (vẫn là điểm chưa chốt ở guide mục 9).
+Không đổi luật kinh tế, giá, sản lượng, lương. ~~Không thêm nút bỏ qua thiên đàng (đã chốt là bài học).~~ Đã thay 04/11/2026: có nút «Bỏ qua» bấm 2 lần (`02-heaven/gameplay.md` bước 8); câu sai/bỏ qua được hỏi lại ở farm/quán. Không làm pinch zoom (farm chưa có, không thêm trong spec này). Không lưu bật/tắt bảng HUD qua lần mở game (vẫn là điểm chưa chốt ở guide mục 9).
 
 ## Sau triển khai (03/11/2026)
 

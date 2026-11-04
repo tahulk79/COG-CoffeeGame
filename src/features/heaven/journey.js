@@ -35,11 +35,13 @@ export function createJourney(saved, onSave) {
   const source = saved && typeof saved === 'object' ? saved : {};
   const answers = normalizeAnswers(source);
   const allAnswered = EXPERTS.every(expert => answers[expert.id].length === expert.questions.length);
-  const revealed = allAnswered && source.revealed === true;
+  // Bỏ qua (nút ⏭ ở thiên đàng): không cần đủ dấu, vào thẳng chọn hành trang; câu chưa trả lời không thành mẹo.
+  const skipped = source.skipped === true;
+  const revealed = (allAnswered || skipped) && source.revealed === true;
   const gift = revealed && GIFTS.some(item => item.id === source.gift) ? source.gift : null;
   let progress = {
     version: 2, metReaper: source.metReaper === true || Object.values(answers).some(records => records.length > 0),
-    answers, revealed, gift, completed: Boolean(gift && source.completed === true),
+    answers, skipped, revealed, gift, completed: Boolean(gift && source.completed === true),
   };
   const counts = correctOnly => Object.fromEntries(EXPERTS.map(expert => [expert.id, progress.answers[expert.id].filter(record => !correctOnly || record.correct).length]));
   const snapshot = () => ({
@@ -50,8 +52,8 @@ export function createJourney(saved, onSave) {
   function commit() { onSave(snapshot()); }
   const seals = () => EXPERTS.filter(expert => progress.answers[expert.id].length === expert.questions.length);
   function phase() {
-    if (!progress.metReaper) return 'welcome';
-    if (seals().length < EXPERTS.length) return 'learning';
+    if (!progress.skipped && !progress.metReaper) return 'welcome';
+    if (!progress.skipped && seals().length < EXPERTS.length) return 'learning';
     if (!progress.revealed) return 'review';
     if (!progress.gift) return 'gift';
     return progress.completed ? 'completed' : 'return';
@@ -82,6 +84,10 @@ export function createJourney(saved, onSave) {
       commit();
       return { correct, text: answerText(question, correct) };
     },
+    skip() {
+      if (!['welcome', 'learning', 'review'].includes(phase())) return false;
+      progress.skipped = true; progress.metReaper = true; progress.revealed = true; commit(); return true;
+    },
     reveal() {
       if (phase() !== 'review') return;
       progress.revealed = true; commit();
@@ -95,7 +101,7 @@ export function createJourney(saved, onSave) {
       progress.completed = true; commit(); return true;
     },
     reset() {
-      progress = { version: 2, metReaper: false, answers: Object.fromEntries(EXPERTS.map(expert => [expert.id, []])), revealed: false, gift: null, completed: false };
+      progress = { version: 2, metReaper: false, answers: Object.fromEntries(EXPERTS.map(expert => [expert.id, []])), skipped: false, revealed: false, gift: null, completed: false };
       commit();
     },
   };

@@ -1,5 +1,5 @@
 import { CROPS } from '../farm/content.js';
-import { RECIPES, lockReason, missingFor, stars } from './recipes.js';
+import { AUTO_BREW_COST, QUICK_MS, RECIPES, lockReason, missingFor, quickScore, stars } from './recipes.js';
 import { art } from './art.js';
 import { t, formatNumber } from '../../i18n/index.js';
 
@@ -11,7 +11,7 @@ const amount = (value, step) => `${formatNumber(value, { maximumFractionDigits: 
 const shown = (value, step) => { const k = 10 ** decimals(step); return Math.round(value * k) / k; };
 const starText = n => '★'.repeat(n) + '☆'.repeat(3 - n);
 const middle = step => (step.target[0] + step.target[1]) / 2;
-const TOOL_ART = { beans: 'beans', grinder: 'grinder', scoop: 'scoop', kettle: 'kettle', espresso: '', coffee: 'coffee', can: 'can', milk: 'milk', cream: 'cream', salt: 'salt', steamer: 'pitcher', whisk: 'whisk' };
+const TOOL_ART = { matcha: 'matcha', heat: 'kettle', beans: 'beans', grinder: 'grinder', scoop: 'scoop', kettle: 'kettle', espresso: '', coffee: 'coffee', can: 'can', milk: 'milk', cream: 'cream', salt: 'salt', steamer: 'pitcher', whisk: 'whisk' };
 // Technique steps show the real tool being used. Judged by the options' icons, not the step text, since the text is translated:
 // tamp ⬇️, filter paper 📄, phin lid ✋, egg 🟡, milk foam ☁️, ice = 🧊 with a 🚫 "no ice" choice; anything else stirs with a spoon.
 const HAND_ART = [['⬇️', 'tamper'], ['📄', 'filter'], ['✋', 'lid'], ['🟡', 'egg'], ['☁️', 'pitcher']];
@@ -98,10 +98,24 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
   function brew(state) {
     const { recipe } = state, step = recipe.steps[state.index], tool = toolFor(step);
     gauge = null; cancelAnimationFrame(raf); clearTimeout(timer); hush(); root.replaceChildren();
-    const layout = el('div', 'cafe-brew');
+    const layout = el('div', 'cafe-brew'); layout.dataset.auto = String(Boolean(state.auto)); // Auto pha: the step controls are watch-only
     const head = el('div', 'cafe-step-head');
     head.append(el('strong', '', `${recipe.icon} ${recipe.name}`), el('small', '', t('cafe.bench.step', { n: state.index + 1, total: recipe.steps.length })));
-    if (state.index === 0) head.append(button(t('cafe.bench.change'), choose, 'cafe-link'));
+    if (state.index === 0 && !state.auto) head.append(button(t('cafe.bench.change'), choose, 'cafe-link')); // Auto pha is paid for: no swapping the dish
+    // ⚡ Quick brew (04-cafe/gameplay.md "Pha nhanh"): one tap instead of the steps, for phones and for Auto.
+    // 🤖 Auto pha: pay AUTO_BREW_COST to watch every step done right, at the demo cap (each step ≤ 0.8 → ★★).
+    if (state.index === 0 && !state.auto) {
+      const actions = el('div', 'cafe-brew-modes');
+      actions.append(button(t('crew.quick.btn', { stars: starText(stars(quickScore(state.best))), s: QUICK_MS / 1000 }), () => quick(state), 'cafe-primary cafe-quick'),
+        button(t('crew.autobrew.btn', { cost: AUTO_BREW_COST }), () => {
+          // The fee is charged in finish(), once the cup exists; here only check the player can afford it.
+          const coins = farm.peek().coins;
+          if (coins < AUTO_BREW_COST) { notice(t('farmRules.err.missingCoins', { n: Math.round((AUTO_BREW_COST - coins) * 100) / 100 }), false); return; }
+          state.auto = true; brew(state);
+        }, 'cafe-autobrew'));
+      head.append(actions);
+    }
+    if (state.auto) head.append(el('p', 'cafe-auto-note', t('crew.autobrew.note')));
     if (state.canMemory && state.index === 0) {
       const toggle = el('label', 'cafe-memory'), box = el('input'); box.type = 'checkbox'; box.checked = state.memory;
       box.addEventListener('change', () => { state.memory = box.checked; brew(state); });
@@ -116,10 +130,10 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
     for (const [key, text] of [[t('cafe.card.ratio'), recipe.card.ratio], [t('cafe.card.grind'), recipe.card.grind], [t('cafe.card.temp'), recipe.card.temp], [t('cafe.card.time'), recipe.card.time]]) { const chip = el('span'); chip.append(el('b', '', key), text); facts.append(chip); }
 
     // The stage: three columns on a counter — tool | brewer + cup + scale | instrument (thermometer or shot timer).
-    const vessel = recipe.gear.v60 ? 'v60' : recipe.gear.espresso ? 'portafilter' : 'phin';
+    const vessel = recipe.gear.chasen ? 'chawan' : recipe.gear.v60 ? 'v60' : recipe.gear.espresso ? 'portafilter' : 'phin';
     const stage = el('div', 'cafe-stage'); stage.dataset.tool = tool;
     const scooped = recipe.steps.slice(0, state.index).some(s => toolFor(s) === 'scoop');
-    const showBrewer = ['scoop', 'espresso'].includes(tool) || (tool === 'kettle' && vessel !== 'portafilter') || (tool === 'hands' && ['tamper', 'filter', 'lid'].includes(handArt(step)));
+    const showBrewer = ['scoop', 'espresso', 'matcha'].includes(tool) || (tool === 'kettle' && vessel !== 'portafilter') || (tool === 'hands' && ['tamper', 'filter', 'lid', 'chasen', 'sieve'].includes(handArt(step)));
     stage.style.setProperty('--bed', scooped ? 1 : 0);
     const row = el('div', 'cafe-stage-row');
     const toolNode = art(tool === 'hands' ? handArt(step) : TOOL_ART[tool], 'cafe-tool');
@@ -133,7 +147,7 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
     vesselNode.append(cup, scale);
     const instrument = el('div', 'cafe-instrument');
     const mercury = el('i'), dial = el('output');
-    if (tool === 'steamer') { const thermo = el('div', 'cafe-thermo'); thermo.append(mercury); instrument.append(thermo, el('small', '', '°C')); }
+    if (tool === 'steamer' || tool === 'heat') { const thermo = el('div', 'cafe-thermo'); thermo.append(mercury); instrument.append(thermo, el('small', '', '°C')); }
     else if (tool === 'espresso') { const clock = el('div', 'cafe-timer'); clock.append(dial); instrument.append(clock, el('small', '', t('cafe.bench.extractSec'))); }
     row.append(toolNode, vesselNode, instrument);
     const stream = el('i', 'cafe-stream'), drips = el('i', 'cafe-drips'), steam = el('div', 'cafe-steam');
@@ -212,6 +226,11 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
         if (item) { item.dataset.hint = 'true'; say(`${option.label}: ${option.why}`); }
       }, 'cafe-link'));
       grid.querySelector('button:not(:disabled)')?.focus({ preventScroll: true });
+      if (state.auto) {
+        // Highlight the right answer, explain it, then tap it (the best bean in stock if the recipe's bean ran out).
+        const [item, option] = buttons.filter(([, o]) => !o.disabled && o.ok > 0).sort(([, a], [, b]) => b.ok - a.ok)[0] || [];
+        if (item) { item.dataset.hint = 'true'; say(`🤖 ${option.label}: ${option.why}`); timer = setTimeout(() => { state.hinted = true; item.click(); }, 1500); }
+      }
       return;
     }
 
@@ -222,11 +241,12 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
     meter.append(band, level);
     const readout = el('output', 'cafe-readout');
     const goal = el('small', '', state.memory ? t('cafe.bench.recall') : t('cafe.bench.target', { lo: step.target[0], hi: step.target[1], unit: step.unit }));
-    const verb = t(`cafe.bench.verb.${{ steamer: 'steam', whisk: 'whisk', espresso: 'extract', scoop: 'scoop', salt: 'sprinkle' }[tool] || 'pour'}`);
+    const verb = t(`cafe.bench.verb.${{ heat: 'heat', steamer: 'steam', whisk: 'whisk', espresso: 'extract', scoop: 'scoop', salt: 'sprinkle' }[tool] || 'pour'}`);
     const hold = button(t('cafe.bench.hold', { icon: step.icon, verb }), () => {}, 'cafe-hold');
     const done = button(t('cafe.bench.done'), () => {
+      if (!gauge) return; // the pour already auto-locked this step
       const [lo, hi] = step.target, value = shown(gauge.value, step), inside = value >= lo && value <= hi;
-      const distance = inside ? 0 : value < lo ? lo - value : value - hi, score = inside ? 1 : Math.max(.1, 1 - distance / ((hi - lo) * 1.5));
+      const distance = inside ? 0 : value < lo ? lo - value : value - hi, score = inside ? 1 : Math.max(.1, 1 - distance / ((hi - lo) * 2.5));
       gauge = null; cancelAnimationFrame(raf); hush(); stage.dataset.pouring = 'false';
       const miss = inside ? '' : t('cafe.bench.pourMiss', { amount: amount(value, step), lo, hi, unit: step.unit, learn: step.learn });
       next(score, inside ? t('cafe.bench.pourOk', { text: step.text, amount: amount(value, step) }) : `✗ ${step.text}: ${miss}`, value, null, inside, miss);
@@ -234,6 +254,12 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
     done.disabled = true;
     hold.addEventListener('pointerdown', e => { if (!gauge || gauge.demo) return; gauge.pouring = true; hold.setPointerCapture(e.pointerId); });
     for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) hold.addEventListener(type, () => { if (gauge && !gauge.demo) gauge.pouring = false; });
+    // Letting go inside the green band locks the step, so a pour is one gesture; outside it you can top up, then «Xong».
+    hold.addEventListener('pointerup', () => {
+      if (!gauge || gauge.demo) return;
+      const v = shown(gauge.value, step);
+      if (v >= step.target[0] && v <= step.target[1]) timer = setTimeout(() => { if (gauge && !done.disabled) done.click(); }, 250);
+    });
     const controls = el('div', 'cafe-actions'); controls.append(hold, done);
     if (!state.memory) controls.append(button(t('cafe.bench.demo'), () => {
       if (!gauge || gauge.demo) return;
@@ -244,7 +270,9 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
     const reading = el('div', 'cafe-reading'); reading.append(goal, readout);
     body.classList.add('cafe-controls'); body.append(reading, meter, controls);
     hold.focus({ preventScroll: true });
-    const rate = (step.max - from) / 2.4;
+    if (state.auto) { gauge.auto = { target: middle(step), wait: 1, released: false }; say(t('crew.autobrew.pour', { amount: amount(middle(step), step), learn: step.learn })); }
+    const rate = (step.max - from) / 3.2; // 3.2 s from empty to full: easier to stop on a phone
+    const handRate = Math.min(rate, (step.target[1] - step.target[0]) / .45); // PT-3: the band takes >= 0.45 s to cross when held by hand
     let last = performance.now(), zone = '';
     const tick = now => {
       if (!gauge) return;
@@ -254,7 +282,11 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
         // The demo pours to the target, holds briefly, then empties so the player does it themselves.
         if (!demo.until) { gauge.pouring = true; gauge.value = Math.min(demo.target, gauge.value + rate * .7 * dt); if (gauge.value >= demo.target) { demo.until = now + 900; gauge.pouring = false; } }
         else if (now >= demo.until) { gauge.value = from; gauge.demo = null; }
-      } else if (gauge.pouring) gauge.value = Math.min(step.max, gauge.value + rate * dt);
+      } else if (gauge.auto) {
+        // Auto pha: hold to the middle of the band, let go, then lock the step.
+        if (gauge.auto.wait > 0) gauge.auto.wait -= dt;
+        else if (!gauge.auto.released) { gauge.pouring = true; gauge.value = Math.min(gauge.auto.target, gauge.value + rate * .8 * dt); if (gauge.value >= gauge.auto.target) { gauge.pouring = false; gauge.auto.released = true; state.hinted = true; timer = setTimeout(() => done.click(), 700); } }
+      } else if (gauge.pouring) gauge.value = Math.min(step.max, gauge.value + handRate * dt);
       const ratio = (gauge.value - from) / (step.max - from);
       // The sound follows the hand (and the demo); its pitch/flow tracks the reading.
       if (gauge.pouring && !sound) sound = fx('hold', { tool, unit: step.unit });
@@ -286,10 +318,23 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
     raf = requestAnimationFrame(tick);
   }
 
-  function finish(state) {
+  // Quick brew: QUICK_MS of waiting, then the cup. Score = your best hand score on this drink, kept within 40–90:
+  // a new drink is ★, ★★ after one hand cup ≥ 70, ★★★ after 90. Quick never raises mastery past what you earned.
+  function quick(state) {
+    if (!introSeen()) farm.act('tutorial', 'seen', 'bench-intro');
+    gauge = null; cancelAnimationFrame(raf); clearTimeout(timer); hush(); root.replaceChildren();
+    const box = el('div', 'cafe-result'), meter = el('progress'); meter.max = QUICK_MS; meter.value = 0;
+    box.append(el('strong', '', `${state.recipe.icon} ${state.recipe.name}`), el('p', 'cafe-lead', t('crew.quick.brewing')), meter); root.append(box);
+    const began = performance.now();
+    const tick = now => { meter.value = now - began; if (now - began < QUICK_MS) raf = requestAnimationFrame(tick); else finish(state, quickScore(state.best)); };
+    raf = requestAnimationFrame(tick);
+  }
+
+  function finish(state, quickResult = null) {
     // Floor, not round: 89.6 must stay ★★ so a cup with a failed step cannot reach ★★★ / memory mode.
-    const { recipe } = state, score = Math.floor(state.scores.reduce((a, b) => a + b, 0) / state.scores.length * 100);
-    const result = farm.act('cafe', 'brew', { recipeId: recipe.id, cropId: state.cropId, score });
+    const { recipe } = state, quickBrew = quickResult !== null, score = quickBrew ? quickResult : Math.floor(state.scores.reduce((a, b) => a + b, 0) / state.scores.length * 100);
+    if (state.auto) { const paid = farm.act('cafe', 'autoBrew', null); notice(paid.message, paid.ok); if (!paid.ok) { lacking(recipe, [paid.message]); return; } }
+    const result = farm.act('cafe', 'brew', { recipeId: recipe.id, cropId: state.cropId, score, demo: Boolean(state.auto) });
     if (!result.ok) { notice(result.message, false); lacking(recipe, [result.message]); return; }
     // Adjust perk: point at the one step that lost most (lowest score, first on ties) with its real reason.
     const worst = state.scores.reduce((w, s, i) => s < state.scores[w] ? i : w, 0), worstStep = recipe.steps[worst];
@@ -304,8 +349,8 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
     summary.append(starRow, el('strong', '', `${recipe.icon} ${recipe.name}`),
       el('p', '', t('cafe.bench.score', { score, quality: result.quality })),
       el('p', 'cafe-lead', target ? t('cafe.bench.serveTo', { target }) : t('cafe.bench.toShelf')));
-    if (farm.peek().lessons.learned.includes('adjust') && state.scores[worst] < 1) summary.append(el('p', 'ui-alert ui-alert--warn', t('cafe.bench.fixFirst', { step: worstStep.type === 'bean' ? t('cafe.bench.bean') : worstStep.text, fix: state.notes[worst].fix })));
-    if (score < 70) askLater(['adjust']);
+    if (farm.peek().lessons.learned.includes('adjust') && state.scores[worst] < 1 && !state.auto) summary.append(el('p', 'ui-alert ui-alert--warn', t('cafe.bench.fixFirst', { step: worstStep.type === 'bean' ? t('cafe.bench.bean') : worstStep.text, fix: state.notes[worst].fix })));
+    if (score < 70 && !quickBrew) askLater(['adjust']);
     // Unlock line uses the real thresholds of hired baristas (90 − Trí nhớ × 0.4), not a fixed 70.
     const need = Math.min(...service.agents.filter(a => a.role === 'barista').map(a => a.effects?.mastery ?? Infinity));
     if (Number.isFinite(need) && state.best < need && score >= need) summary.append(el('p', 'cafe-unlock', t('cafe.bench.baristaUnlock', { need })));

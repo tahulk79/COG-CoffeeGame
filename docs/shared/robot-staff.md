@@ -2,6 +2,8 @@
 
 Trạng thái: **đã duyệt 03/11/2026 (vòng 2: robot farm dùng chung 2 chỗ, gói trả trước chỉ robot farm, ly robot không mất combo; vòng 3: miễn trừ 4 chỉ áp cho farm đúng 1 thợ và chỉ nghỉ ốm, Robot vườn speed 70 / dexterity 70), đã triển khai trong code (đối chiếu 04/11/2026, xem mục 0).** Chưa playtest; chỉ số/lương Robot vườn vẫn chỉnh theo số đo playtester (mục 12, "Đo sau triển khai"). Số thu nhập lấy từ `/balance-check` 03/11 (`scripts/balance-sim.mjs`); số lương/giá tính tay từ code. Hợp đồng dữ liệu: [contracts](contracts.md) mục 6. Luật farm: [farm-operations-guide.md](../screens/03-farm/rules.md) mục 3. Quán: [cafe-gameplay.md](../screens/04-cafe/gameplay.md).
 
+> **Đã thay một phần (04/11/2026):** số slot (farm 2 → 3, tối đa 1 robot → nhiều robot, quán 10 → 3), robot làm đúng 1 việc, robot pha thuê được và sao theo người làm nằm ở [crew-autoplay](crew-autoplay.md). Sự cố (mục 4), gói trả trước (mục 3), gói thử robot (mục 5) giữ nguyên.
+
 ## 0. Đối chiếu code (04/11/2026)
 
 Toàn bộ spec dưới đây **đã có trong code** (`farm/rules.js` `robo-n1`, `ROBOT_PACKS`, `INCIDENTS`; `farm/model.js` `rollIncident`, `robotGift`; `cafe/recipes.js` `robo-b*`, `robo-d1`, `gift-*`; `cafe/service.js`, `cafe/ui.js`, `farm/ui.js`). Đã đọc code, chưa chạy game hay test. Các câu sai so với code đã sửa thẳng trong file này. Những chỗ code **làm khác spec về hành vi** chưa sửa, chờ người dùng chốt bên nào đúng:

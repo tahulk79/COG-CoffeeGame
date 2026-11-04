@@ -1,10 +1,11 @@
 import { DECORATIONS,decorationError } from './decorations.js';
-import { CROPS,FIELDS,PLOTS,MACHINES,PRODUCTS,QUESTS,CARE,TUTORIAL_IDS,HUD_UNLOCKS,plotCare,cropById,productById,levelFor } from './content.js';
+import { CROPS,FIELDS,PLOTS,MACHINES,PRODUCTS,questsFor,CARE,TUTORIAL_IDS,HUD_UNLOCKS,plotCare,cropById,productById,levelFor } from './content.js';
 import { EXPERTS } from '../heaven/content.js';
 import { answerText } from '../heaven/journey.js';
-import { OWN_CUP,SHIFT_TIERS,SUPPLIES,GEAR,MAX_CREW,STAFF_MAX,TABLE_LEVELS,MAX_TABLES,staffWage,trainCost,roleOf,candidateById,recipeById,missingFor,gearBonus } from '../cafe/recipes.js';
-import { DAY_MS,SEASON_MS,OFFLINE_MS,CAFE_SHIFT_MS,FERTILIZER_PRICE,SUPPLIER_PRICE,ASSETS,assetMaxLevel,upgradeRequirement,capacityScale,efficiency,upgradePrice,assetValue,WORKER_CANDIDATES,workerLevel,workerStat,WORKER_JOBS,workerWage,formatMass,WORK_DAY_MS,contractPlan,contractPrice,marketValue,ROBOT_PACKS,packPrice,INCIDENTS,incidentOdds } from './rules.js';
+import { AUTO_BREW_COST,resolveUses,ingredientBonus,MILKS,WATERS,DEFAULT_PREFS,OWN_CUP,SHIFT_TIERS,SUPPLIES,GEAR,MAX_CREW,STAFF_MAX,TABLE_LEVELS,MAX_TABLES,staffWage,trainCost,roleOf,candidateById,recipeById,missingFor,gearBonus } from '../cafe/recipes.js';
+import { AUTOPLAY,FARM_SLOTS,activeJobs,jobGroupOf,groupLimit,nextGroupLevel,JOB_GROUPS,CARE_JOBS,DAY_MS,SEASON_MS,OFFLINE_MS,CAFE_SHIFT_MS,FERTILIZER_PRICE,supplierPrice,ORDERS_PER_DAY,RELIEF_GRAMS,ASSETS,assetMaxLevel,upgradeRequirement,capacityScale,efficiency,upgradePrice,assetValue,WORKER_CANDIDATES,workerLevel,workerStat,WORKER_JOBS,workerWage,formatMass,WORK_DAY_MS,contractPlan,contractPrice,marketValue,ROBOT_PACKS,packPrice,INCIDENTS,incidentOdds } from './rules.js';
 import { t } from '../../i18n/index.js';
+import { regionId,regionType } from '../world-map/content.js';
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const finite=(n,fallback=0)=>Number.isFinite(n)?n:fallback;
 const integer=(n,max=1e12)=>Math.floor(clamp(finite(n),0,max));
@@ -21,6 +22,8 @@ const lessonOf=id=>{const expert=EXPERTS.find(e=>e.questions.some(q=>q.id===id))
 export const LESSON_PERKS=Object.fromEntries(EXPERTS.flatMap(e=>e.questions.map(q=>[q.id,q.perk])));
 const tutorialId=id=>TUTORIAL_IDS.includes(id)||typeof id==='string'&&/^unlock-[a-z-]+$/.test(id);
 // Robots vs people (robot-staff.md, contracts.md 6). Robot traits always come from the candidate lists, never the save.
+// Turning on a job group the person does not do yet must stay within groupLimit (crew-autoplay.md 2).
+const overLimit=(w,group)=>{const groups=new Set([...activeJobs(w)].map(jobGroupOf));if(groups.has(group)||groups.size<groupLimit(w))return null;const next=nextGroupLevel(w);return t('crew.err.groupLimit',{n:groupLimit(w),level:workerLevel(w.xp),next:next||'—'});};
 const isRobot=w=>WORKER_CANDIDATES.find(c=>c.id===w?.id)?.kind==='robot';
 const canDo=(w,job)=>{const jobs=WORKER_CANDIDATES.find(c=>c.id===w.id)?.jobs;return !jobs||jobs.includes(job);};
 const idOf=choice=>choice&&typeof choice==='object'?choice.id:choice;
@@ -30,7 +33,9 @@ function rollIncident(count,length,odds){const u=Math.random(),type=u<odds.sick?
 const sickNow=(w,at)=>w.incident?.type==='sick'&&w.incident.done&&w.restUntil>at;
 const GIFT_RECIPES=['phin-den','nau-da'],GIFT_CUPS=10;
 
-export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLessons=[]) {
+export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLessons=[],startingRegion) {
+  // Nơi trùng sinh: save có sẵn giữ nơi của nó (save cũ thiếu → Việt Nam); save mới lấy nơi chọn trên bản đồ.
+  const region=regionId(saved?saved.region:startingRegion),QUESTS=questsFor(region);
   const modern=saved?.version===3,legacy=saved?.version===2,valid=modern||legacy||saved?.version===1;
   const owned=Array.isArray(saved?.fields)?saved.fields.filter(id=>FIELDS.some(f=>f.id===id)):['field-0'];
   if(!owned.includes('field-0'))owned.unshift('field-0');
@@ -49,26 +54,29 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
     askedDay:Number.isSafeInteger(savedLessons.askedDay)?savedLessons.askedDay:-1,askedCount:integer(savedLessons.askedCount,99),
   };
   const progress={
+    region,
     lessons,tutorial:{seen:Array.isArray(saved?.tutorial?.seen)?saved.tutorial.seen.filter((id,i,list)=>tutorialId(id)&&list.indexOf(id)===i).slice(0,100):[]},
     decorations:objects(saved?.decorations).filter(item=>DECORATIONS.some(spec=>spec.id===item.type)&&[item.x,item.z,item.rotation].every(Number.isFinite)).slice(0,100).map(item=>({...item,text:String(item.text||'').slice(0,24),state:item.state==='construction'?'construction':'complete',buildMs:Math.max(0,Number(item.buildMs)||0),buildDuration:Math.max(1000,Number(item.buildDuration)||5000)})),
     staffRoutineVersion:1,workRevision:integer(saved?.workRevision),version:3,timingVersion:3,deploymentVersion:1,gift:saved?.gift||startingGift||null,fields:owned,archivedLand:clone(saved?.archivedLand||{fields:[],plots:[]}),
-    coins:saved?Math.round(clamp(finite(saved.coins,200),0,1e12)*100)/100:200,giftApplied:saved?.giftApplied===true,xp:integer(saved?.xp),upgrades,
+    coins:saved?Math.round(clamp(finite(saved.coins,200),0,5e13)*100)/100:200,giftApplied:saved?.giftApplied===true,xp:integer(saved?.xp),upgrades,
     seeds:Object.fromEntries(CROPS.map(c=>[c.id,integer(legacy||modern?saved.seeds?.[c.id]:c.id==='robusta'?(saved?.version===1?integer(saved.seeds):6):0)])),
     fertilizer:valid?integer(saved.fertilizer):6,water:valid?Math.min(integer(saved.water),6+4*(upgrades.well-1)+2*lessons.learned.includes('water')):6+2*lessons.learned.includes('water'),canLevel:upgrades.well,
     legacyBackup:modern?(saved.legacyBackup||null):valid?clone(saved):null,
     stock,lots:modern?clone(objects(saved.lots)):[],sequence:integer(saved?.sequence),
-    stats:Object.fromEntries(['harvested','watered','weeded','dried','roasted','ground','sold','expanded','orders','delivered','served'].map(k=>[k,integer(saved?.stats?.[k])])),
+    stats:Object.fromEntries(['harvested','watered','weeded','dried','roasted','ground','sold','beansSold','expanded','orders','delivered','served'].map(k=>[k,integer(saved?.stats?.[k])])),
     claimed:Array.isArray(saved?.claimed)?saved.claimed.filter(id=>QUESTS.some(q=>q.id===id)):[],
     orderIndex:integer(saved?.orderIndex),order:null,lastAt:Math.min(now,finite(saved?.lastAt,now)),epoch:finite(saved?.epoch,now),
     reservoir:modern?clamp(finite(saved.reservoir,60),0,10000):60,durability:modern?clamp(finite(saved.durability,100),0,100):100,
     rejectedCandidates:Array.isArray(saved?.rejectedCandidates)?saved.rejectedCandidates.filter(id=>WORKER_CANDIDATES.some(w=>w.id===id&&w.kind!=='robot')):[],
     // restUntil survives a reload only while the worker is on a fired sick incident (otherwise reload would cure them after shiftUntil moved).
     workers:modern?objects(saved.workers).filter(w=>WORKER_CANDIDATES.some(c=>c.id===w.id)).map((w,index)=>{const c=WORKER_CANDIDATES.find(c=>c.id===w.id),incident=incidentOf(w.incident,['none','phone','sick']);return {...clone(w),name:c.name,bio:c.bio,kind:c.kind||'human',incident,stats:clone(c.stats),farmId:saved.deploymentVersion===1?(w.farmId==='farm-0'?'farm-0':null):index<2?'farm-0':null,xp:c.kind==='robot'?0:integer(w.xp),enabled:w.enabled!==false,energy:100,restUntil:incident?.type==='sick'&&incident.done?finite(w.restUntil):0,role:['auto','care','processing'].includes(w.role)?w.role:'auto'};}):[],
-    cafe:modern&&saved.cafe&&typeof saved.cafe==='object'&&!Array.isArray(saved.cafe)?clone(saved.cafe):{stock:emptyStock(),lots:[],shipments:[],open:false,reputation:50,served:0,lost:0,revenue:0,costs:0,autoSupply:true,reserve:false},
+    cafe:modern&&saved.cafe&&typeof saved.cafe==='object'&&!Array.isArray(saved.cafe)?clone(saved.cafe):{stock:emptyStock(),lots:[],shipments:[],open:false,reputation:50,served:0,lost:0,revenue:0,costs:0,autoSupply:true,reserve:false,reliefDay:-1},
     today:saved?.today?clone(saved.today):{day:0,harvested:0,processed:0,revenue:0},
-    market:{day:finite(saved?.market?.day,-1),sold:Math.max(0,finite(saved?.market?.sold))},
+    market:{day:finite(saved?.market?.day,-1),sold:Math.max(0,finite(saved?.market?.sold)),orders:Math.max(0,integer(saved?.market?.orders))},
     orders:modern?clone(objects(saved.orders)):[],dailyTasks:[],lastOrderDay:modern?integer(saved.lastOrderDay):0,lastTaskCycle:modern?integer(saved.lastTaskCycle):0,contractVersion:1,
     // Farm-wide standing orders for staff; work no longer depends on a café order existing.
+    // Auto mode (crew-autoplay.md 5): free runs left and time left in the current run; only ticks while Auto plays.
+    autoplay:{runs:clamp(integer(saved?.autoplay?.runs??AUTOPLAY.runs),0,AUTOPLAY.runs),leftMs:clamp(finite(saved?.autoplay?.leftMs),0,AUTOPLAY.runMs)},
     directives:{care:saved?.directives?.care!==false,plant:saved?.directives?.plant!==false,plantCrop:cropById(saved?.directives?.plantCrop)?.id||'robusta',process:saved?.directives?.process!==false,fertilize:saved?.directives?.fertilize!==false},
     journal:clone(objects(saved?.journal)).slice(-60),reputation:clamp(finite(saved?.reputation,50),0,100),
     ledger:modern?objects(saved.ledger).slice(-60):[],offline:null,
@@ -97,6 +105,8 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
     const cafe=progress.cafe;delete cafe.customers;delete cafe.brew;delete cafe.extraBrews;delete cafe.nextCustomerAt;
     cafe.reputation=clamp(finite(cafe.reputation,50),10,100);
     cafe.supplies=Object.fromEntries(SUPPLIES.map(s=>[s.id,integer(cafe.supplies?cafe.supplies[s.id]:s.start,1e7)]));
+    // Pantry choice of milk brand and brew water (04-cafe/gameplay.md "Sữa và nước").
+    cafe.prefs={milk:MILKS.includes(cafe.prefs?.milk)?cafe.prefs.milk:DEFAULT_PREFS.milk,water:WATERS.includes(cafe.prefs?.water)?cafe.prefs.water:DEFAULT_PREFS.water};
     cafe.gear=Object.fromEntries(GEAR.map(g=>[g.id,clamp(integer(cafe.gear?.[g.id]??g.start),g.start,g.prices.length)]));
     // Crew is a list of hired candidates (max 10); older saves stored one person per role.
     const legacyCrew=Object.entries(cafe.staff||{}).map(([role,s])=>({...s,id:{cashier:'mai',waiter:'tuan',barista:'khoa'}[role]}));
@@ -112,9 +122,8 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
     progress.robotGift=g&&typeof g==='object'?{state:['locked','ready','active','done'].includes(g.state)?g.state:'done',cups:clamp(integer(g.cups),0,GIFT_CUPS),walkRep:clamp(finite(g.walkRep),0,2),reported:g.reported===true,tally:g.state!=='locked'||g.tally&&typeof g.tally==='object'?{you:tallyOf(g.tally?.you),robot:tallyOf(g.tally?.robot,true)}:null}:{state:'locked',cups:0,walkRep:0,reported:false,tally:null};
     if(['ready','active'].includes(progress.robotGift.state)&&!cafe.crew.some(m=>m.gift))progress.robotGift.state='done';
   }
-  // Farm keeps at most one robot (first in saved order); prepaid packs are not refunded, robot fee is 0.
-  const extraRobots=progress.workers.filter(w=>w.kind==='robot').slice(1);progress.workers=progress.workers.filter(w=>!extraRobots.includes(w));
-  let deployed=0;for(const worker of progress.workers){if(worker.farmId==='farm-0'&&++deployed>2)worker.farmId=null;if(saved.staffRoutineVersion!==1){worker.autoPay=true;worker.workMode='auto';}if(saved.contractVersion!==1&&finite(worker.shiftUntil)>now)worker.shiftUntil=now+WORK_DAY_MS;worker.contractPlan=contractPlan(worker).id;worker.autoPay=worker.autoPay===true;worker.workMode=worker.workMode==='auto'?'auto':'assigned';worker.jobs=Object.fromEntries(WORKER_JOBS.map(([id])=>[id,worker.jobs?.[id]!==false&&canDo(worker,id)]));worker.preferredCrop=cropById(worker.preferredCrop)?.id||'robusta';worker.cargo=Array.isArray(worker.cargo)?worker.cargo:[];worker.water=integer(worker.water,42);worker.shiftUntil=finite(worker.shiftUntil);worker.restUntil=finite(worker.restUntil);worker.health=clamp(finite(worker.health,100),20,100);}
+  // Three shared slots; saved job switches are trimmed to what the worker can do at its level (crew-autoplay.md 2).
+  let deployed=0;for(const worker of progress.workers){if(worker.farmId==='farm-0'&&++deployed>FARM_SLOTS)worker.farmId=null;if(saved.staffRoutineVersion!==1){worker.autoPay=true;worker.workMode='auto';}if(saved.contractVersion!==1&&finite(worker.shiftUntil)>now)worker.shiftUntil=now+WORK_DAY_MS;worker.contractPlan=contractPlan(worker).id;worker.autoPay=worker.autoPay===true;worker.workMode=worker.workMode==='auto'?'auto':'assigned';worker.jobs=Object.fromEntries(WORKER_JOBS.map(([id])=>[id,worker.jobs?.[id]!==false&&canDo(worker,id)]));{const keep=activeJobs({...worker,kind:isRobot(worker)?'robot':'human'});for(const key of Object.keys(worker.jobs))worker.jobs[key]=keep.has(key);}worker.preferredCrop=cropById(worker.preferredCrop)?.id||'robusta';worker.cargo=Array.isArray(worker.cargo)?worker.cargo:[];worker.water=integer(worker.water,42);worker.shiftUntil=finite(worker.shiftUntil);worker.restUntil=finite(worker.restUntil);worker.health=clamp(finite(worker.health,100),20,100);}
   // Prepaid contract: extends from now or from the current end, whichever is later.
   // Robots buy prepaid packs (1/5/10 work days); people pay one day and roll that day's incident. A sick worker stays sick.
   const shiftPrice=(w,pack=1)=>isRobot(w)?packPrice(workerWage(w),pack):contractPrice(w);
@@ -163,18 +172,20 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
   if(modern){rebuildStock();rebuildStock('cafe');}
   // A new cafe starts with a little roasted coffee so the first order can be brewed before the farm delivers.
   if(!(modern&&saved.cafe))add('roasted','robusta',600,70,now,'cafe','starter');
-  // Shift hiring has no reserve bench: fill the two farm slots, refund the hire fee of anyone left over.
-  for(const w of progress.workers)if(w.farmId!=='farm-0'&&progress.workers.filter(x=>x.farmId==='farm-0').length<2)w.farmId='farm-0';
+  // Shift hiring has no reserve bench: fill the three farm slots (robots count, several allowed), refund the hire fee of anyone left over.
+  for(const w of progress.workers)if(w.farmId!=='farm-0'&&progress.workers.filter(x=>x.farmId==='farm-0').length<FARM_SLOTS)w.farmId='farm-0';
   for(const w of progress.workers.filter(x=>x.farmId!=='farm-0')){money(WORKER_CANDIDATES.find(c=>c.id===w.id)?.fee||0,'refund',now,w.name);log(t('farmRules.log.benchRemoved',{name:w.name}),now);}
   progress.workers=progress.workers.filter(w=>w.farmId==='farm-0');
-  if(extraRobots.length)log(t('farmRules.log.extraRobots'),now);
   // Cut systems (03/11/2026): fish are sold once at the old price; queued farm-grinder batches give back their roasted beans.
   if(integer(saved?.fish?.count)>0){money(integer(saved.fish.count)*8,'sale',now,t('farmRules.ledger.fishSold'));log(t('farmRules.log.fishSold',{n:integer(saved.fish.count)}),now);}
   for(const j of jobsOf({batch:saved?.machines?.grinder?.batch||null,extraBatches:saved?.machines?.grinder?.extraBatches||[]}))if(cropById(j.cropId)&&integer(j.inputGrams)>0)add('roasted',j.cropId,integer(j.inputGrams),finite(j.quality,80),now,'farm','grinder-refund');
   // The heaven gift is granted exactly once, including saves that stored it before gifts had an effect.
   if(progress.gift&&!progress.giftApplied){
-    const gift={seeds:()=>{progress.seeds.robusta+=6;progress.fertilizer+=6;return t('farmRules.gift.seeds');},tools:()=>{progress.upgrades.cafe=Math.max(2,progress.upgrades.cafe);return t('farmRules.gift.tools');},capital:()=>{progress.coins+=150;return t('farmRules.gift.capital');}}[progress.gift];
-    if(gift)log(t('farmRules.log.heavenGift',{gift:gift()}),now);
+    let gift;const gifts={seeds:()=>{progress.seeds.robusta+=6;progress.fertilizer+=6;return t('farmRules.gift.seeds');},tools:()=>{progress.upgrades.cafe=Math.max(2,progress.upgrades.cafe);return t('farmRules.gift.tools');},capital:()=>{money(150,'gift',now,t('farmRules.gift.capital'));return t('farmRules.gift.capital');}};
+    // The gift is picked before the region type is known (audit 04/11): one the region cannot use becomes the capital purse.
+    const type=regionType(region),kind=(progress.gift==='seeds'&&type==='cafe')||(progress.gift==='tools'&&type==='farm')?'capital':progress.gift;
+    gift=gifts[kind];
+    if(gift){const text=gift();log(kind!==progress.gift?t('farmRules.log.giftSwapped',{gift:t(`farmRules.gift.${progress.gift}`)}):t('farmRules.log.heavenGift',{gift:text}),now);}
     progress.giftApplied=true;
   }
   // One-time lesson rewards, guarded by `granted` so reloads and replayed chapters never pay twice.
@@ -218,6 +229,7 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
   const storageCapacity=()=>assetValue(ASSETS.find(a=>a.id==='storage'),progress.upgrades.storage);
   const waterCapacity=()=>6+4*(progress.upgrades.well-1)+2*progress.lessons.learned.includes('water');
   const workDay=at=>Math.floor(Math.max(0,at-progress.epoch)/WORK_DAY_MS);
+  const reliefReady=at=>regionType(progress.region)==='cafe'&&progress.coins<supplierPrice(progress.region)&&progress.cafe.lots.filter(l=>l.product==='roasted').reduce((s,l)=>s+l.grams,0)<10&&progress.cafe.reliefDay!==workDay(at);
   // A lesson can be re-asked if not learned, not answered wrong this work day, and no re-ask was answered yet this work day.
   function askable(id,at){const L=progress.lessons,day=workDay(at);return QUESTION_IDS.includes(id)&&!L.learned.includes(id)&&L.asked[id]!==day&&(L.askedDay===day?L.askedCount:0)<1;}
   const reservoirCapacity=()=>Math.round(60*capacityScale(progress.upgrades.pond));
@@ -233,29 +245,43 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
   function refreshDaily(at){
     const day=weatherAt(at).day;if(progress.today.day!==day)progress.today={day,harvested:0,processed:0,revenue:0};
     // Market prices recover once per work day (6 minutes) so selling every minute earns nothing extra.
-    if(progress.market.day!==workDay(at))progress.market={day:workDay(at),sold:0};
+    if(progress.market.day!==workDay(at))progress.market={day:workDay(at),sold:0,orders:0};
     if(day===progress.lastOrderDay)return;
     // Cafe orders are staff work: only raise them once a main worker can take them, at most 2 open at a time.
     const available=CROPS.filter(c=>c.level<=level()),active=progress.orders.filter(o=>['open','transit'].includes(o.status)).length;
-    if(progress.workers.some(w=>w.farmId==='farm-0'))for(let i=0;i<2-active;i++)progress.orders.push({id:nextId('order'),day,cropId:available[(day-1+i)%available.length].id,grams:i?168:252,status:'open',workers:[],deadline:at+DAY_MS*8,createdAt:at});
+    if(regionType(region)==='both'&&progress.workers.some(w=>w.farmId==='farm-0'))for(let i=0;i<2-active;i++)progress.orders.push({id:nextId('order'),day,cropId:available[(day-1+i)%available.length].id,grams:i?168:252,status:'open',workers:[],deadline:at+DAY_MS*8,createdAt:at});
     progress.orders=progress.orders.filter(o=>o.status!=='delivered'||day-o.day<7).slice(-30);
     progress.lastOrderDay=day;
   }
+  // Clock went backwards (device clock fixed or save from a faster clock): move every absolute time by d (<0) so timers keep their remaining duration.
+  function shiftTimes(d){
+    const bump=(o,keys)=>{for(const k of keys)if(o[k]>0)o[k]+=d;};
+    progress.epoch+=d;
+    for(const m of MACHINES)for(const j of jobsOf(progress.machines[m.id]))bump(j,['startedAt','readyAt']);
+    for(const t of progress.cafe.shipments)bump(t,['startedAt','readyAt']);
+    for(const o of progress.orders)bump(o,['deadline','createdAt']);bump(progress.order,['deadline']);
+    for(const w of progress.workers)bump(w,['shiftUntil','restUntil','waitUntil','hiredAt']);
+    for(const s of progress.cafe.crew)bump(s,['paidUntil']);
+    for(const l of progress.lots)bump(l,['createdAt']);
+  }
+  // Seconds of rain in [a,b] by the day cycle in weatherAt (a long absence can span a dry and a rainy day).
+  function rainSeconds(a,b){let ms=0;for(let x=a;x<b;){const d=Math.max(0,Math.floor((x-progress.epoch)/DAY_MS)),end=Math.min(b,progress.epoch+(d+1)*DAY_MS);if(d%7===3||d%7===4)ms+=end-x;x=end;}return ms/1000;}
   function advance(at){
+    if(lastTick-at>60000){shiftTimes(at-lastTick);lastTick=progress.lastAt=at;}
     at=Math.max(lastTick,at);if(at===lastTick)return false;
     const elapsed=at-lastTick,from=Math.max(lastTick,at-OFFLINE_MS),seconds=(at-from)/1000;
     refreshDaily(at);
     for(const order of progress.orders){if(!order.deadline)order.deadline=at+DAY_MS*8;if(order.status==='open'&&at>order.deadline){order.status='expired';log(t('farmRules.log.cafeOrderExpired'),at);}}
     if(progress.order?.accepted&&at>progress.order.deadline){progress.orders.push({...progress.order,grams:progress.order.quantity,status:'expired',source:'shop',day:weatherAt(at).day,workers:progress.order.workers||[]});log(t('farmRules.log.shopOrderExpired'),at);progress.orderIndex++;progress.order=makeOrder(at);}
 
-    const weather=weatherAt(at),rain=weather.raining?seconds*.28:0;
+    const rainSec=rainSeconds(from,at),rain=rainSec*.28;
     progress.reservoir=Math.min(reservoirCapacity(),progress.reservoir+seconds*(.06+.025*(progress.upgrades.well-1))+rain);
     progress.durability=Math.max(0,progress.durability-seconds*.0001/efficiency(progress.upgrades.fence));
     for(const p of progress.plots){
       if(!p.unlocked||p.stage==='empty')continue;
       const crop=cropById(p.cropId),ratio=p.growthMs/(p.mature?crop.regrowMs:crop.growMs),dry=p.mature&&ratio>=.17&&ratio<.23;
       const loss=CARE.waterPerSecond/efficiency(progress.upgrades.soil),waterEnd=clamp(p.water+rain-seconds*loss,0,100),weedsEnd=clamp(p.weeds+seconds*CARE.weedsPerSecond,0,100);
-      const activeWater=dry||weather.raining?seconds:clamp((p.water-CARE.waterStopsGrowth)/loss,0,seconds);
+      const activeWater=dry?seconds:Math.min(seconds,rainSec+clamp((p.water-CARE.waterStopsGrowth)/loss,0,seconds-rainSec));
       const activeWeeds=clamp((CARE.weedsStopGrowth-p.weeds)/CARE.weedsPerSecond,0,seconds);
       const active=Math.min(activeWater,activeWeeds),stress=seconds-active;
       p.health=clamp(p.health-stress*.0008+active*.0003-(progress.durability<25?seconds*.0002:0),20,100);
@@ -317,7 +343,7 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
     saleQuote,
     get progress(){return clone(progress);},
     // Live state for per-frame readers (crew loop, plot checks): read only, never mutate; use act/workerUpdate to change it.
-    peek(){return progress;},get level(){return level();},get waterCapacity(){return waterCapacity();},get quest(){return QUESTS.find(q=>!progress.claimed.includes(q.id))||null;},
+    peek(){return progress;},reliefReady(at=Date.now()){return reliefReady(at);},get level(){return level();},get waterCapacity(){return waterCapacity();},get quest(){return QUESTS.find(q=>!progress.claimed.includes(q.id))||null;},
     get demand(){return demand();},get weather(){return weatherAt(lastTick);},get storageCapacity(){return storageCapacity();},
     setCafeActive(value){cafeActive=value;},
     // Lesson the UI may re-ask now among `ids` (in order), as {expert, question} from heaven/content.js, or null.
@@ -366,7 +392,7 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
       }else if(id==='orders'){
         const order=progress.orders.find(o=>o.id===(typeof choice==='object'?choice?.orderId:choice));
         if(!order||order.status!=='open')return fail(t('farmRules.err.orderClosed'));
-        if(action==='startCrew'){const result=startTeam(progress.workers.filter(w=>w.farmId==='farm-0'),at);if(result.error)return fail(result.error);order.workers=result.team.map(w=>w.id);message=t('farmRules.msg.orderAssigned',{names:result.team.map(w=>w.name).join(', '),cost:result.cost});}else if(action==='requestDelivery'){if(progress.stock.roasted[order.cropId]<order.grams||!order.workers.some(id=>progress.workers.some(w=>w.id===id&&w.farmId==='farm-0'&&w.jobs.delivery)))return fail(t('farmRules.err.needStockAndCourier'));order.deliveryRequested=true;message=t('farmRules.msg.deliveryAssigned');}else if(action==='assign'){
+        if(action==='startCrew'){const result=startTeam(progress.workers.filter(w=>w.farmId==='farm-0'),at);if(result.error)return fail(result.error);order.workers=result.team.map(w=>w.id);message=t('farmRules.msg.orderAssigned',{names:result.team.map(w=>w.name).join(', '),cost:result.cost});}else if(action==='requestDelivery'){if(progress.stock.roasted[order.cropId]<order.grams||!order.workers.some(id=>progress.workers.some(w=>w.id===id&&w.farmId==='farm-0'&&activeJobs(w).has('delivery'))))return fail(t('farmRules.err.needStockAndCourier'));order.deliveryRequested=true;message=t('farmRules.msg.deliveryAssigned');}else if(action==='assign'){
           const w=progress.workers.find(w=>w.id===choice.workerId);if(!w||w.farmId!=='farm-0')return fail(t('farmRules.err.deployFirst'));
           if(!order.workers.includes(w.id)){const started=startTeam([w],at);if(started.error)return fail(started.error);}
           order.workers=order.workers.includes(w.id)?order.workers.filter(id=>id!==w.id):[...order.workers,w.id];message=t('farmRules.msg.orderStaffUpdated');
@@ -395,13 +421,16 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
           // Two shared slots (robots count), at most one robot. Robots skip the hire fee and prepay a pack instead; `pack` is ignored for people.
           const hireId=idOf(choice),candidate=WORKER_CANDIDATES.find(w=>w.id===hireId),robot=candidate?.kind==='robot',pack=robot?Number(choice?.pack??1):1;
           if(!candidate||progress.rejectedCandidates.includes(hireId)||progress.workers.some(w=>w.id===hireId))return fail(t('farmRules.err.candidateGone'));
-          if(progress.workers.length>=2)return fail(t(robot?'farmRules.err.fullRobot':'farmRules.err.fullHire'));
-          if(robot&&progress.workers.some(isRobot))return fail(t('farmRules.err.oneRobot'));
+          if(progress.workers.length>=FARM_SLOTS)return fail(t(robot?'farmRules.err.fullRobot':'farmRules.err.fullHire'));
           if(!Object.hasOwn(ROBOT_PACKS,pack))return fail(t('farmRules.err.packChoice'));
           const price=robot?packPrice(candidate.wage,pack):candidate.fee;
           if(progress.coins<price)return fail(robot?t('farmRules.err.shortCoins',{n:Math.ceil(price-progress.coins)}):t('farmRules.err.hireCoins'));
           if(!robot)money(-candidate.fee,'hire',at,candidate.name);
           const worker={...clone(candidate),kind:robot?'robot':'human',incident:null,xp:0,energy:100,health:100,cargo:[],jobs:Object.fromEntries(WORKER_JOBS.map(([id])=>[id,canDo(candidate,id)])),preferredCrop:'robusta',workMode:'auto',farmId:'farm-0',autoPay:true,role:'auto',enabled:true,hiredAt:at,serviceMs:0,paidDays:0,shiftUntil:0,restUntil:0,state:t('farmRules.state.waiting')};
+          // Start on the job the team lacks (robot: one job; person: one group) so three hires cover care, processing and delivery.
+          const covered=new Set(progress.workers.flatMap(o=>[...activeJobs(o)].map(jobGroupOf)));
+          if(robot){const job=candidate.jobs.find(j=>!covered.has(jobGroupOf(j)))||'water';for(const key of Object.keys(worker.jobs))worker.jobs[key]=key===job;}
+          else{const group=JOB_GROUPS.find(g=>!covered.has(g))||'care';for(const key of Object.keys(worker.jobs))worker.jobs[key]=jobGroupOf(key)===group;}
           progress.workers.push(worker);if(robot)signContract(worker,at,pack);
           message=robot?t('farmRules.msg.robotJoined',{name:candidate.name,pack,price}):t('farmRules.msg.joined',{name:candidate.name});
         }else{
@@ -419,7 +448,7 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
             const replacement=choice.replaceId?progress.workers.find(person=>person.id===choice.replaceId):null;
             if(choice.replaceId&&(!replacement||replacement.farmId!=='farm-0'||replacement.id===w.id))return fail(t('farmRules.err.slotChanged'));
             if(choice.deploy&&w.farmId==='farm-0')return fail(t('farmRules.err.alreadyMain'));
-            if(choice.deploy&&!replacement&&progress.workers.filter(person=>person.farmId==='farm-0').length>=2)return fail(t('farmRules.err.mainFull'));
+            if(choice.deploy&&!replacement&&progress.workers.filter(person=>person.farmId==='farm-0').length>=FARM_SLOTS)return fail(t('farmRules.err.mainFull'));
             const removed=choice.deploy?replacement:w;
             if(removed){removed.farmId=null;removed.state=t('farmRules.state.bench');claims.forEach((who,key)=>{if(who===removed.id)claims.delete(key);});resources.delete(removed.id);}
             if(choice.deploy){w.farmId='farm-0';w.state=t('farmRules.state.awaitingYou');}
@@ -427,26 +456,30 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
             message=choice.deploy?(replacement?t('farmRules.msg.replaced',{name:w.name,old:replacement.name}):t('farmRules.msg.joinedMain',{name:w.name})):t('farmRules.msg.toBench',{name:w.name});
           }
           else if(action==='startWork'){
-            if(!w.farmId&&progress.workers.filter(person=>person.farmId==='farm-0').length>=2)return fail(t('farmRules.err.farmFullSwap'));
+            if(!w.farmId&&progress.workers.filter(person=>person.farmId==='farm-0').length>=FARM_SLOTS)return fail(t('farmRules.err.farmFullSwap'));
             const result=startTeam([w],at);if(result.error)return fail(result.error);w.farmId='farm-0';
             const hasAssigned=progress.orders.some(o=>o.status==='open'&&o.workers.includes(w.id));
             if(!hasAssigned)w.workMode='auto';message=t('farmRules.msg.startedWork',{name:w.name,cost:result.cost});
           }else if(action==='deploy'){
             if(w.farmId==='farm-0')return fail(t('farmRules.err.alreadyWorking'));
-            else{if(progress.workers.filter(w=>w.farmId==='farm-0').length>=2)return fail(t('farmRules.err.farmFullBench'));w.farmId='farm-0';w.state=t('farmRules.state.awaitingYou');}
+            else{if(progress.workers.filter(w=>w.farmId==='farm-0').length>=FARM_SLOTS)return fail(t('farmRules.err.farmFullBench'));w.farmId='farm-0';w.state=t('farmRules.state.awaitingYou');}
             message=w.farmId?t('farmRules.msg.deployed'):t('farmRules.msg.benched');
           }else if(action==='autoPay'){w.autoPay=!w.autoPay;message=w.autoPay?t('farmRules.msg.autoPayOn'):t('farmRules.msg.autoPayOff');}
           else if(action==='toggle'){w.enabled=!w.enabled;message=w.enabled?t('farmRules.msg.resumed'):t('farmRules.msg.paused');}
           else if(action==='mode'){w.workMode=w.workMode==='auto'?'assigned':'auto';message=w.workMode==='assigned'?t('farmRules.msg.modeAssigned'):t('farmRules.msg.modeAuto');}
           else if(action==='permissionGroup'){
             if(choice.group!=='care')return fail(t('farmRules.err.badGroup'));
-            const keys=['plant','water','fertilize','weed','prune','harvest'].filter(key=>canDo(w,key)),enabled=!keys.every(key=>w.jobs[key]);
+            const keys=CARE_JOBS.filter(key=>canDo(w,key)),enabled=!keys.every(key=>w.jobs[key]);
+            if(enabled){const blocked=overLimit(w,'care');if(blocked)return fail(blocked);}
             for(const key of keys)w.jobs[key]=enabled;
             message=t(enabled?'farmRules.msg.careOn':'farmRules.msg.careOff');
           }
-          else if(action==='permission'){if(!WORKER_JOBS.some(([key])=>key===choice.job))return fail(t('farmRules.err.badGroup'));if(!canDo(w,choice.job))return fail(t('farmRules.err.robotCant'));w.jobs[choice.job]=!w.jobs[choice.job];message=t(w.jobs[choice.job]?'farmRules.msg.jobOn':'farmRules.msg.jobOff');}
+          else if(action==='permission'){if(!WORKER_JOBS.some(([key])=>key===choice.job))return fail(t('farmRules.err.badGroup'));if(!canDo(w,choice.job))return fail(t('farmRules.err.robotCant'));
+            // Robot: switching a job on switches its other job off (one job only). Person: no new group beyond the level limit.
+            if(!w.jobs[choice.job]){if(isRobot(w))for(const key of Object.keys(w.jobs))w.jobs[key]=false;else{const blocked=overLimit(w,jobGroupOf(choice.job));if(blocked)return fail(blocked);}}
+            w.jobs[choice.job]=!w.jobs[choice.job];message=t(w.jobs[choice.job]?'farmRules.msg.jobOn':'farmRules.msg.jobOff');}
           else if(action==='seed'){if(!cropById(choice.cropId)||cropById(choice.cropId).level>level())return fail(t('farmRules.err.cropLocked'));w.preferredCrop=choice.cropId;w.preferredCropExplicit=true;message=t('farmRules.msg.seedChosen');}
-          else if(action==='role'){w.role=choice.role;message=t('farmRules.msg.roleChanged');}
+          else if(action==='role'){if(!['auto','care','processing'].includes(choice?.role))return fail(t('farmRules.err.badGroup'));w.role=choice.role;message=t('farmRules.msg.roleChanged');}
           else if(action==='train'){
             if(isRobot(w))return fail(t('farmRules.err.robotNoTrain'));
             if(workerLevel(w.xp)>=10)return fail(t('farmRules.err.workerMax'));const fee=40*workerLevel(w.xp);if(progress.coins<fee)return fail(t('farmRules.err.trainCoins'));
@@ -478,22 +511,27 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
         if(action==='toggle'){cafe.open=!cafe.open;message=cafe.open?t('farmRules.msg.cafeOpen'):t('farmRules.msg.cafeClosed');}
         else if(action==='reserve'){cafe.reserve=!cafe.reserve;message=cafe.reserve?t('farmRules.msg.reserveOn'):t('farmRules.msg.reserveOff');}
         else if(action==='ship'){
-          const crop=cropById(choice);if(!crop)return fail(t('farmRules.err.pickRoasted'));
-          const grams=Math.min(progress.stock.roasted[crop.id],Math.round(1000*capacityScale(progress.upgrades.delivery)));
+          const crop=cropById(choice?.cropId||choice);if(!crop)return fail(t('farmRules.err.pickRoasted'));
+          const grams=Math.min(progress.stock.roasted[crop.id],Math.floor(choice?.grams)||Infinity,Math.round(1000*capacityScale(progress.upgrades.delivery)));
           if(!grams)return fail(t('farmRules.err.noRoasted'));
           const cafeMass=cafe.lots.reduce((s,l)=>s+l.grams,0)+cafe.shipments.reduce((s,t)=>s+t.lots.reduce((n,l)=>n+l.grams,0),0);
           if(cafeMass+grams>storageCapacity())return fail(t('farmRules.err.cafeNoRoom'));
           if(progress.coins<2)return fail(t('farmRules.err.freight'));
           const lots=take('roasted',crop.id,grams);money(-2,'delivery',at,t('farmRules.ledger.freight'));cafe.shipments.push({id:nextId('trip'),lots,startedAt:at,readyAt:at+10000/efficiency(progress.upgrades.delivery)});progress.stats.delivered+=grams;message=t('farmRules.msg.shipping',{grams});
         }else if(action==='supply'){
-          const grams=500,price=SUPPLIER_PRICE;if(progress.coins<price)return fail(t('farmRules.err.supplyCoins',{price}));
+          const grams=500,price=supplierPrice(progress.region);if(progress.coins<price)return fail(t('farmRules.err.supplyCoins',{price}));
           if(cafe.lots.reduce((s,l)=>s+l.grams,0)+grams>storageCapacity())return fail(t('farmRules.err.cafeFull'));
           money(-price,'supplier',at,t('farmRules.ledger.supplier'));add('roasted','robusta',grams,65,at,'cafe','supplier');message=t('farmRules.msg.supplied');
+        }else if(action==='relief'){
+          // Rescue for a café-only region with no beans and no money to restock; once per work day.
+          if(!reliefReady(at))return fail(t(cafe.reliefDay===workDay(at)?'farmRules.err.reliefUsed':'farmRules.err.reliefNotNeeded',{price:supplierPrice(progress.region)}));
+          if(cafe.lots.reduce((s,l)=>s+l.grams,0)+RELIEF_GRAMS>storageCapacity())return fail(t('farmRules.err.cafeFull'));
+          add('roasted','robusta',RELIEF_GRAMS,65,at,'cafe','relief');cafe.reliefDay=workDay(at);message=t('farmRules.msg.relief');
         }else if(action==='brew'){
           const g=progress.robotGift,robot=choice?.robot==='gift',recipe=recipeById(choice?.recipeId);
           // The gift robot brews only from 'gift' beans (robusta) with its fixed mistakes: score 50, double condensed milk.
           const crop=robot?cropById('robusta'):cropById(choice?.cropId);if(!recipe||!crop)return fail(t('farmRules.err.pickRecipeBean'));
-          const uses=robot&&recipe.uses.condensed?{...recipe.uses,condensed:recipe.uses.condensed*2}:recipe.uses;
+          const uses=resolveUses(robot&&recipe.uses.condensed?{...recipe.uses,condensed:recipe.uses.condensed*2}:recipe.uses,cafe);const brandBonus=ingredientBonus(recipe,cafe); // before the supplies are taken, so the brand matches what goes in
           if(robot){
             if(!cafe.crew.some(m=>m.id==='gift-pha'&&m.paidUntil>at)||g.cups>=GIFT_CUPS||!GIFT_RECIPES.includes(recipe.id))return fail(t('farmRules.err.robotRecipe'));
             // Check everything before taking anything.
@@ -502,10 +540,12 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
           }else{const missing=missingFor(recipe,cafe,crop.id);if(missing.length)return fail(t('farmRules.err.missing',{list:missing.join(', ')}));}
           const score=robot?50:clamp(finite(choice.score),0,100),lots=take('roasted',crop.id,recipe.beans,'cafe',robot?'gift':null);
           for(const [supply,amount]of Object.entries(uses))cafe.supplies[supply]-=amount;
-          if(!choice.staff&&!robot){const m=cafe.mastery[recipe.id]||(cafe.mastery[recipe.id]={best:0,made:0});m.best=Math.max(m.best,score);m.made++;}
+          // Auto pha (demo) cups sell but never raise mastery, so 2 coins cannot unlock ★★ Pha nhanh (chốt 04/11).
+          if(!choice.staff&&!robot){const m=cafe.mastery[recipe.id]||(cafe.mastery[recipe.id]={best:0,made:0});if(!choice.demo)m.best=Math.max(m.best,score);m.made++;}
           if(robot){g.cups++;g.tally.robot.cost+=cupCost(recipe,crop,uses);}else if(g.state==='active'&&!choice.staff)g.tally.you.cost+=cupCost(recipe,crop,uses);
-          const beanFit=crop.id===recipe.bean?0:-5;
-          extra={quality:Math.round(clamp(score*.75+qualityOf(lots)*.25+gearBonus(recipe,cafe.gear)+beanFit,0,100))};message=t('farmRules.msg.brewed',{name:recipe.name});
+          // Matcha uses no beans: its 25% "ingredient" share is a fixed 80 instead of a bean lot, and no bean-fit penalty.
+          const beanFit=!recipe.beans||crop.id===recipe.bean?0:-5,base=recipe.beans?qualityOf(lots):80;
+          extra={quality:Math.round(clamp(score*.75+base*.25+gearBonus(recipe,cafe.gear)+beanFit+brandBonus,0,100))};message=t('farmRules.msg.brewed',{name:recipe.name});
         }else if(action==='sell'){
           const recipe=recipeById(choice?.recipeId);if(!recipe)return fail(t('farmRules.err.unknownRecipe'));
           const g=progress.robotGift,robot=choice.robot===true,tally=g.state==='active'?g.tally:null;
@@ -514,8 +554,8 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
           else{
           const quality=clamp(finite(choice.quality),0,100),stars=clamp(integer(choice.stars),0,3),wait=clamp(finite(choice.wait),0,1),combo=robot?0:clamp(integer(choice.combo),0,5);
           const comfort=Number.isInteger(choice.table)&&choice.table>=0&&choice.table<MAX_TABLES?TABLE_LEVELS[cafe.tables[choice.table]-1].tip:0;
-          const price=Math.round(recipe.price*(.6+.4*quality/100)*(choice.special&&!robot?1.3:1)*(cafe.gear.roastery?1.1:1)*(!robot&&!choice.staff?OWN_CUP:1)*100)/100,tip=Math.round(recipe.price*(robot?(1-wait)*.1:Math.max(0,stars-1)*.15+(1-wait)*.1+combo*.04+(choice.memory?.2:0)+comfort+clamp(finite(choice.charm),0,.1))*100)/100;
-          money(price+tip,'cafe-sale',at,recipe.name);cafe.revenue+=price+tip;cafe.served++;if(!robot){progress.stats.served++;progress.xp+=1+stars;}cafe.reputation=clamp(cafe.reputation+(stars-1)*.6,10,100);
+          const price=Math.round(recipe.price*(.6+.4*quality/100)*(choice.cold?.7:1)*(choice.special&&!robot?1.3:1)*(cafe.gear.roastery?1.1:1)*(!robot&&!choice.staff?OWN_CUP:1)*100)/100,tip=Math.round(recipe.price*(robot?(1-wait)*.1:Math.max(0,stars-1)*.15+(1-wait)*.1+combo*.04+(choice.memory?.2:0)+comfort+clamp(finite(choice.charm),0,.1))*100)/100;
+          money(price+tip,'cafe-sale',at,recipe.name);cafe.revenue+=price+tip;cafe.served++;if(!robot){if(!choice.staff)progress.stats.served++;progress.xp+=1+stars;}cafe.reputation=clamp(cafe.reputation+(stars-1)*.6,10,100); // quests count only your own cups (GDD 9.2)
           if(tally&&(robot||!choice.staff)){const t=robot?tally.robot:tally.you;t.cups++;t.stars+=stars;t.paid+=price+tip;}
           extra={price,tip};message=t('farmRules.msg.sold',{name:recipe.name,price,tip});
           }
@@ -530,6 +570,13 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
           const applied=i.type!=='none'&&!choice.skip&&candidateById(m.id).kind!=='robot'&&i.for>INCIDENTS.grace&&cafeActive&&cafe.open&&!giftOn&&cafe.reputation>=INCIDENTS.minRep;
           i.done=true;if(applied&&i.type==='sick')m.rest=CAFE_SHIFT_MS;
           extra={type:i.type,applied};
+        }else if(action==='autoBrew'){
+          if(progress.coins<AUTO_BREW_COST)return fail(t('farmRules.err.missingCoins',{n:Math.round((AUTO_BREW_COST-progress.coins)*100)/100}));
+          money(-AUTO_BREW_COST,'cafe-cost',at,t('crew.autobrew.ledger'));cafe.costs+=AUTO_BREW_COST;message=t('crew.autobrew.paid',{cost:AUTO_BREW_COST});
+        }else if(action==='prefs'){
+          if(choice?.milk!==undefined){if(!MILKS.includes(choice.milk))return fail(t('farmRules.err.noSupply'));cafe.prefs.milk=choice.milk;}
+          if(choice?.water!==undefined){if(!WATERS.includes(choice.water))return fail(t('farmRules.err.noSupply'));cafe.prefs.water=choice.water;}
+          message=t('crew.prefs.saved');
         }else if(action==='buy'){
           const supply=SUPPLIES.find(s=>s.id===choice);if(!supply)return fail(t('farmRules.err.noSupply'));if(progress.coins<supply.price)return fail(t('farmRules.err.missingCoins',{n:Math.round((supply.price-progress.coins)*100)/100}));
           money(-supply.price,'cafe-cost',at,supply.name);cafe.costs+=supply.price;cafe.supplies[supply.id]+=supply.pack;message=t('farmRules.msg.bought',{name:supply.name,pack:supply.packLabel});
@@ -579,14 +626,21 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
         }else return fail(t('farmRules.err.noCafeAction'));
       }else if(id==='lessons'){
         const lesson=lessonOf(choice?.questionId),L=progress.lessons;
-        if(action!=='answer'||!lesson)return fail(t('farmRules.err.noQuestion'));
+        if(!['answer','defer'].includes(action)||!lesson)return fail(t('farmRules.err.noQuestion'));
         const {question}=lesson;if(L.learned.includes(question.id))return fail(t('farmRules.err.knownTip'));
         if(!askable(question.id,at))return fail(t('farmRules.err.reviewedToday'));
+        if(action==='defer'){if(L.askedDay!==workDay(at)){L.askedDay=workDay(at);L.askedCount=0;}L.askedCount++;} // defer: counts as asked today, no result, no reward
+        else{
         if(!question.options.some(o=>o.id===choice.optionId))return fail(t('farmRules.err.pickAnswer'));
         const correct=choice.optionId===question.correct,day=workDay(at),perk=LESSON_PERKS[question.id];
         if(L.askedDay!==day){L.askedDay=day;L.askedCount=0;}L.askedCount++;
         if(correct){L.learned.push(question.id);grantLessons(at);extra={correct,explanation:answerText(question,true),perk:{id:question.id,...perk}};message=t('farmRules.msg.newTip',{name:perk.name,effect:perk.effect});}
-        else{L.asked[question.id]=day;extra={correct,explanation:answerText(question,false)};message=t('farmRules.msg.tipMissed');}
+        else{L.asked[question.id]=day;extra={correct,explanation:answerText(question,false)};message=t('farmRules.msg.tipMissed');}}
+      }else if(id==='autoplay'){
+        const a=progress.autoplay;
+        if(action==='start'){if(a.leftMs<=0){if(a.runs<=0)return fail(t('crew.auto.none'));a.runs--;a.leftMs=AUTOPLAY.runMs;}message=t('crew.auto.started',{min:Math.ceil(a.leftMs/60000),runs:a.runs});}
+        else if(action==='spend')a.leftMs=Math.max(0,a.leftMs-clamp(finite(choice),0,60000));
+        else return fail(t('crew.auto.none'));
       }else if(id==='tutorial'){
         if(action!=='seen'||!tutorialId(choice))return fail(t('farmRules.err.noTutorial'));
         if(!progress.tutorial.seen.includes(choice))progress.tutorial.seen.push(choice);
@@ -645,7 +699,8 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
         }else if(action==='turn'&&id==='dryer'){
           const j=jobs.find(j=>!j.turned&&at>=(j.startedAt+j.readyAt)/2&&at<j.readyAt);if(!j)return fail(t('farmRules.err.notTurnTime'));j.turned=true;j.quality=Math.min(100,j.quality+2);message=t('farmRules.msg.turned');
         }else if(action==='cancel'){
-          const j=jobs.find(j=>j.id===choice&&j.startedAt>at);if(!j)return fail(t('farmRules.err.cancelQueued'));add(m.input,j.cropId,j.inputGrams,j.quality,at,'farm','returned');putJobs(state,jobs.filter(job=>job!==j));message=t('farmRules.msg.cancelled');
+          const j=jobs.find(j=>j.id===choice&&j.startedAt>at);if(!j)return fail(t('farmRules.err.cancelQueued'));add(m.input,j.cropId,j.inputGrams,j.quality,at,'farm','returned');const rest=jobs.filter(job=>job!==j);let cursor=Math.max(at,...rest.filter(job=>job.startedAt<=at).map(job=>job.readyAt));for(const job of rest.filter(job=>job.startedAt>at).sort((a,b)=>a.startedAt-b.startedAt)){const dur=job.readyAt-job.startedAt;job.startedAt=cursor;job.readyAt=cursor+dur;cursor=job.readyAt;}putJobs(state,rest); // close the gap left by the cancelled batch
+          message=t('farmRules.msg.cancelled');
         }else return fail(t('farmRules.err.noAction'));
       }else if(id==='directives'){
         const d=progress.directives,names=Object.fromEntries(['care','plant','process','fertilize'].map(k=>[k,t(`farmRules.directive.${k}`)]));
@@ -671,23 +726,24 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
           if(!progress.order.accepted){progress.order.accepted=true;progress.order.deadline=at+8*DAY_MS;}
           progress.order.workers=[];message=t('farmRules.msg.marketAccepted');
         }else if(action==='order'){
-          const o=progress.order;if(choice&&choice!==o.id)return fail(t('farmRules.err.orderChanged'));if(progress.stock[o.product][o.cropId]<o.quantity)return fail(t('farmRules.err.notEnoughGoods'));
+          if(progress.market.orders>=ORDERS_PER_DAY)return fail(t('farmRules.err.orderCap'));const o=progress.order;if(choice&&choice!==o.id)return fail(t('farmRules.err.orderChanged'));if(progress.stock[o.product][o.cropId]<o.quantity)return fail(t('farmRules.err.notEnoughGoods'));
           if(o.product==='roasted'&&progress.cafe.reserve&&Object.values(progress.stock.roasted).reduce((s,n)=>s+n,0)-o.quantity<demand().needed)return fail(t('farmRules.err.reservedForCafe'));
-          progress.orders.push({...o,grams:o.quantity,status:'delivered',source:'shop',rating:5,day:weatherAt(at).day,workers:o.workers||[]});take(o.product,o.cropId,o.quantity);money(o.reward,'order',at,t('farmRules.ledger.buyOrder'));progress.stats.sold+=o.quantity;progress.stats.orders++;log(t('farmRules.log.shopOnTime'),at);progress.xp+=o.xp;progress.orderIndex++;progress.order=makeOrder(at);message=t('farmRules.msg.orderDelivered');
+          progress.orders.push({...o,grams:o.quantity,status:'delivered',source:'shop',rating:5,day:weatherAt(at).day,workers:o.workers||[]});take(o.product,o.cropId,o.quantity);money(o.reward,'order',at,t('farmRules.ledger.buyOrder'));progress.stats.sold+=o.quantity;if(o.product!=='cherries')progress.stats.beansSold+=o.quantity;progress.stats.orders++;progress.market.orders++;log(t('farmRules.log.shopOnTime'),at);progress.xp+=o.xp;progress.orderIndex++;progress.order=makeOrder(at);message=t('farmRules.msg.orderDelivered');
         }else if(action==='sell'){
           const [product,cropId]=String(typeof choice==='object'?choice.item:choice).split(':'),item=productById(product);
           const grams=typeof choice==='object'?choice.grams:progress.stock[product]?.[cropId]||0;
           const quote=saleQuote(product,cropId,grams);
           if(!quote.ok)return fail(quote.message);
           // XP follows coins earned so splitting a sale into 1 g clicks gains nothing.
-          take(product,cropId,grams);money(quote.value,'sale',at,item.name);progress.market.sold+=quote.base;progress.stats.sold+=grams;progress.xp+=Math.floor(quote.value/2);message=t('farmRules.msg.sale',{grams,value:quote.value});
+          take(product,cropId,grams);money(quote.value,'sale',at,item.name);progress.market.sold+=quote.base;progress.stats.sold+=grams;if(product!=='cherries')progress.stats.beansSold+=grams;progress.xp+=Math.floor(quote.value/2);message=t('farmRules.msg.sale',{grams,value:quote.value});
         }else return fail(t('farmRules.err.noTrade'));
       }else return fail(t('farmRules.err.noSpot'));
-      if(!['permission','mode','role','seed','autoPay','reserve','toggle','crop','brew','sell','lost','buy','shift','answer','seen','incident','remind','giftReport'].includes(action)){const person=progress.workers.find(w=>w.id===owner);log(`${person?person.name:t('farmRules.log.you')}: ${message}`,at);}
+      if(id!=='autoplay'&&!['permission','mode','role','seed','autoPay','reserve','toggle','crop','brew','sell','lost','buy','shift','answer','seen','incident','remind','giftReport'].includes(action)){const person=progress.workers.find(w=>w.id===owner);log(`${person?person.name:t('farmRules.log.you')}: ${message}`,at);}
       progress.workRevision++;const earned=rewards();grantGift(at);commit(at);return {ok:true,message,collected,quests:earned,...extra};
     },
   };
   // Gift after the load-time advance so offline time is not added to the gift shift.
+  if(finite(saved?.lastAt,now)>now)shiftTimes(now-saved.lastAt);
   refreshDaily(now);advance(now);grantGift(now);commit(now);return api;
 }
 // Migration ids are independent from new lot ids and need no persisted counter.

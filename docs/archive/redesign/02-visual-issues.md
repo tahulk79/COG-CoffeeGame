@@ -150,7 +150,7 @@ Nhận định chung: nền tảng (token gỗ/giấy, font, khung modal) đã c
 | P2-6 | Ô trống trong túi đồ chiếm nửa modal; nâng cấp kho trộn trong túi | `06-farm-bag-390x844` | `features/farm/ui.js` | Lưới cố định + nâng cấp kho tách tab/nút riêng |
 | P2-7 | Settings giống form web; chỉ 3/5 slider âm thanh | `08-settings-390x844` | `ui/settings.js` | Hàng gọn có icon; xác nhận có cố ý ẩn nhạc/môi trường |
 | P2-8 | Thiên đàng 29 fps @ desktop high lúc đầu (115 draw) | `03-heaven-1440x900` | — | Đo lại bằng skill perf; có thể do warm-up |
-| P2-9 | Loading không có logo/tên game, nền trống | `00-loading-390x844` | `index.html` | Logo COG + minh họa nhẹ, mẹo chơi luân phiên |
+| P2-9 | Loading không có logo/tên game, nền trống | `00-loading-390x844` | `index.html` | Logo Godbean + minh họa nhẹ, mẹo chơi luân phiên |
 | P2-10 | Quest tracker vẫn hiện mục tiêu cũ khi đang nói chuyện | `24-heaven-choices-390x844` | `features/heaven/ui.js` | Ẩn hoặc làm mờ tracker khi hội thoại mở |
 | P2-11 | Lựa chọn hội thoại dạng danh sách đánh số kiểu form | `24-*`, `23-*` | `ui/dialogue.js`, `lesson-prompt.js` | Nút lựa chọn dạng thẻ game, có trạng thái nhấn/chọn |
 | P2-12 | Hồ sơ ứng viên: tiêu đề thẻ lặp lại nhãn nút ("Thuê nhân viên" + nút giá; "Từ chối" ×2); thanh chỉ số kiểu web | `18-*` | `features/farm/ui.js` | Một nút chính có giá, một nút phụ; thanh chỉ số theo token |
