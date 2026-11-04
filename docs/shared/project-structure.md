@@ -31,6 +31,9 @@ src/
     motion.js                  Animation người chơi
     bounds.js                  Đo model có rig sau khi đồng bộ xương
     player.js                  Dựng NPC bằng hình khối
+  i18n/
+    index.js                   t(), ngôn ngữ hiện tại, dịch HTML tĩnh (xem shared/i18n.md)
+    locales/                   Bảng chuỗi en + vi theo màn (html, common, selection, intro, heaven, farm, farm-rules, cafe, cafe-recipes)
   state/
     progress.js                Lưu/đọc tiến trình và hồ sơ người chơi
     names.js                   Tên mặc định và tên ngẫu nhiên

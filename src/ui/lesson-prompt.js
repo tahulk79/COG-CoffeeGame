@@ -1,6 +1,7 @@
 import { EXPERTS } from '../features/heaven/content.js';
 import { setAvatar, showDialogue, usesTouch } from './dialogue.js';
 import { sfx } from '../shared/audio/index.js';
+import { t } from '../i18n/index.js';
 
 const $ = id => document.getElementById(id);
 
@@ -31,8 +32,8 @@ export function askLesson({ expert, question, onAnswer, onClose }) {
   setAvatar(expert.icon);
   box.dataset.mode = 'manual';
   box.classList.add('quiz-dialogue', 'lesson-dialogue');
-  box.querySelector('.dialogue-auto').textContent = 'ÔN LẠI';
-  hint.textContent = usesTouch() ? 'Chọn một đáp án' : 'Chọn một đáp án · Esc để sau';
+  box.querySelector('.dialogue-auto').textContent = t('ui.lesson.review');
+  hint.textContent = usesTouch() ? t('ui.lesson.pick') : t('ui.lesson.pickKeys');
   next.hidden = true;
   list.replaceChildren(); list.hidden = false;
   question.options.forEach((option, index) => {
@@ -42,7 +43,7 @@ export function askLesson({ expert, question, onAnswer, onClose }) {
     button.append(key, text); button.addEventListener('click', () => answer(option.id));
     list.append(button);
   });
-  const later = document.createElement('button'); later.type = 'button'; later.className = 'dialogue-later'; later.textContent = 'Để sau';
+  const later = document.createElement('button'); later.type = 'button'; later.className = 'dialogue-later'; later.textContent = t('ui.lesson.later');
   later.addEventListener('click', close);
   list.append(later);
   box.scrollTop = 0;
@@ -68,15 +69,15 @@ export function askLesson({ expert, question, onAnswer, onClose }) {
     phase = 'result';
     list.replaceChildren(); list.hidden = true;
     box.classList.remove('quiz-dialogue');
-    box.querySelector('.dialogue-auto').textContent = result.correct ? 'CHÍNH XÁC' : 'CHƯA ĐÚNG';
+    box.querySelector('.dialogue-auto').textContent = result.correct ? t('ui.lesson.correct') : t('ui.lesson.wrong');
     $('caption').textContent = result.explanation;
     const perk = result.perk ?? question.perk;
     const label = typeof perk === 'string' ? perk : perk ? `${perk.name} · ${perk.effect}` : '';
-    tip.textContent = result.correct ? `🎓 Mẹo mới: ${label}` : 'Chưa nhận mẹo · sẽ hỏi lại vào ngày công sau.';
+    tip.textContent = result.correct ? t('ui.lesson.newTip', { label }) : t('ui.lesson.noTip');
     tip.hidden = result.correct && !label;
     tip.dataset.tone = result.correct ? 'good' : '';
-    hint.textContent = usesTouch() ? 'Chạm để đóng' : 'Enter hoặc bấm để đóng';
-    next.hidden = false; next.setAttribute('aria-label', 'Đóng'); next.title = 'Đóng';
+    hint.textContent = usesTouch() ? t('ui.lesson.tapClose') : t('ui.lesson.pressClose');
+    next.hidden = false; next.setAttribute('aria-label', t('common.close')); next.title = t('common.close');
     box.scrollTop = 0;
     next.focus({ preventScroll: true });
     // Thêm sau lượt click hiện tại nên chính cú chọn đáp án không đóng khung.
@@ -88,7 +89,7 @@ export function askLesson({ expert, question, onAnswer, onClose }) {
     phase = 'closed'; abort.abort();
     list.replaceChildren(); list.hidden = true; tip.hidden = true;
     box.hidden = true; box.classList.remove('quiz-dialogue', 'lesson-dialogue'); delete box.dataset.mode;
-    next.hidden = false; next.setAttribute('aria-label', 'Tiếp hội thoại'); next.title = 'Tiếp hội thoại';
+    next.hidden = false; next.setAttribute('aria-label', t('ui.dialogue.next')); next.title = t('ui.dialogue.next');
     if (restoreFocus?.isConnected && !restoreFocus.closest('[hidden]')) restoreFocus.focus({ preventScroll: true });
     else $('game')?.focus({ preventScroll: true });
     onClose?.();

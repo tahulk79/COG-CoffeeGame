@@ -95,6 +95,7 @@ Giữ nguyên: mọi `id` (JS tra theo id), `.farm-gold-coin`/`.game-currency` (
   - `body:has(#heaven-hud:not([hidden]))`: xuống dưới `.seal-hud` (top ≈ 64 px);
   - `body.farm-active`: ẩn, vì farm và quán đã có nút riêng.
 - **Hộp cài đặt chung** `<dialog id="game-settings" class="ui-modal ui-modal--sm">` (tạo trong `src/ui/settings.js`):
+  - Mục đầu **🌐 Ngôn ngữ**: tab English / Tiếng Việt (mặc định English). Bấm tab khác → lưu `settings.lang` và tải lại trang. Chi tiết: [i18n.md](i18n.md).
   - Âm thanh: công tắc Tắt tiếng; thanh trượt Tổng, Hiệu ứng, Giao diện (0–100 %). Thanh Nhạc/Môi trường **chỉ hiện khi** `hasContent('music'|'ambience')` là true (lượt này chưa có file nên ẩn).
   - Đồ họa: `.ui-tabs--segmented` Thấp / Vừa / Cao, kèm một dòng mô tả.
   - Kéo thanh trượt thì áp dụng ngay. Thả thanh Hiệu ứng thì phát thử `coin.gain`, thả thanh Giao diện thì phát `ui.click`. Ghi save khi thả.

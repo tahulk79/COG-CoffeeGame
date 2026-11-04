@@ -2,6 +2,7 @@ import { Vector3 } from 'three';
 import { sfx } from '../../shared/audio/index.js';
 import { popNumber, shake } from '../../shared/vfx/index.js';
 import { formatCoins } from './rules.js';
+import { t } from '../../i18n/index.js';
 
 // Bảng §4.1 của docs/shared/ui-audio-vfx.md: chỉnh độ mạnh/âm của farm ở đúng một chỗ này.
 // sound: id âm · burst: [[loại hạt, số hạt]] · emit: [loại, giây] · pulse: nảy vật 3D · shake: độ rung · spend: có tiếng coin.spend khi mất xu
@@ -69,7 +70,7 @@ export function createFarmFeedback({ vfx, world, character }) {
     if (delta > 0) sounds.push('coin.gain');
     if (delta < 0) {
       if (spec.spend) sounds.push('coin.spend');
-      popNumber(`−${formatCoins(-delta)} xu`, coinPoint(), 'bad');
+      popNumber(t('farm.fx.coinsMinus',{n:formatCoins(-delta)}), coinPoint(), 'bad');
     }
     const self = { x: character.position.x, y: 1.2, z: character.position.z };
     if (levelUp) {
@@ -89,7 +90,7 @@ export function createFarmFeedback({ vfx, world, character }) {
     if (event === 'arrive') { sfx('farm.arrive'); return; }
     if (event === 'crew') {
       const spent = (data.before?.coins ?? 0) - (data.after?.coins ?? 0);
-      if (spent > 0) popNumber(`−${formatCoins(spent)} xu`, coinPoint(), 'bad'); // nhân viên trả cước giao đơn
+      if (spent > 0) popNumber(t('farm.fx.coinsMinus',{n:formatCoins(spent)}), coinPoint(), 'bad'); // nhân viên trả cước giao đơn
       const spec = CREW[data.task?.action]; if (!spec) return;
       const at = point(data.task.id);
       sfx(spec[0], { at, volume: .5 });

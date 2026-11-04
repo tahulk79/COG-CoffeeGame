@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && node scripts/design-inbox.mjs --hook 2>/dev/null || true",
+            "timeout": 20,
+            "statusMessage": "Kiểm tra hộp thư thiết kế từ repo của sếp"
+          }
+        ]
+      }
+    ]
+  }
+}

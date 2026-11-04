@@ -1,13 +1,10 @@
 import { readProgress, readSettings, resetProgress, saveSettings } from '../state/progress.js';
 import { setVolume, setMuted, hasContent, sfx } from '../shared/audio/index.js';
 import { getQuality, setQuality } from '../shared/vfx/index.js';
+import { getLang, LANGS, t } from '../i18n/index.js';
 
-const SLIDERS = [['master', 'Tổng'], ['music', 'Nhạc'], ['ambience', 'Môi trường'], ['sfx', 'Hiệu ứng'], ['ui', 'Giao diện']];
-const QUALITY = [
-  ['low', 'Thấp', 'Tắt bóng, ít hạt. Mượt hơn trên máy yếu.'],
-  ['medium', 'Vừa', 'Có bóng, hạt vừa phải.'],
-  ['high', 'Cao', 'Đầy đủ bóng và hiệu ứng.'],
-];
+const SLIDERS = ['master', 'music', 'ambience', 'sfx', 'ui'].map(bus => [bus, t(`settings.bus.${bus}`)]);
+const QUALITY = ['low', 'medium', 'high'].map(id => [id, t(`settings.quality.${id}`), t(`settings.quality.${id}.desc`)]);
 const PREVIEW = { sfx: 'coin.gain', ui: 'ui.click' };
 
 let dialog = null;
@@ -28,6 +25,7 @@ function render() {
     input.nextElementSibling.value = `${input.value}%`;
     if (bus === 'music' || bus === 'ambience') input.closest('.ui-row').hidden = !hasContent(bus);
   }
+  for (const tab of dialog.querySelectorAll('[data-lang]')) tab.setAttribute('aria-pressed', String(tab.dataset.lang === getLang()));
   for (const tab of dialog.querySelectorAll('[data-quality]')) tab.setAttribute('aria-pressed', String(tab.dataset.quality === getQuality()));
   dialog.querySelector('#game-settings-quality').textContent = QUALITY.find(([id]) => id === getQuality())[2];
   const saved = readProgress();
@@ -50,26 +48,31 @@ export function mountSettings({ onOpen } = {}) {
   dialog.setAttribute('aria-labelledby', 'game-settings-title');
   dialog.innerHTML = `
     <div class="ui-modal__window">
-      <header class="ui-modal__head"><h2 class="ui-modal__title" id="game-settings-title">Cài đặt</h2></header>
-      <button type="button" class="ui-close" aria-label="Đóng">×</button>
+      <header class="ui-modal__head"><h2 class="ui-modal__title" id="game-settings-title">${t('settings.title')}</h2></header>
+      <button type="button" class="ui-close" aria-label="${t('common.close')}">×</button>
       <div class="ui-modal__body">
-        <p class="ui-alert ui-alert--warn" hidden>Chưa lưu được cài đặt</p>
-        <h3>🔊 Âm thanh</h3>
-        <div class="ui-row"><span id="game-settings-muted">Tắt tiếng</span><button type="button" class="ui-switch" role="switch" aria-labelledby="game-settings-muted"></button></div>
+        <p class="ui-alert ui-alert--warn" hidden>${t('settings.saveFailed')}</p>
+        <h3>🌐 ${t('settings.language')}</h3>
+        <div class="ui-tabs ui-tabs--segmented" role="group" aria-label="${t('settings.language')}">
+          ${LANGS.map(id => `<button type="button" class="ui-tab" data-lang="${id}" lang="${id}">${t(`settings.lang.${id}`)}</button>`).join('')}
+        </div>
+        <p class="ui-modal__subtitle">${t('settings.language.note')}</p>
+        <h3>🔊 ${t('settings.audio')}</h3>
+        <div class="ui-row"><span id="game-settings-muted">${t('settings.mute')}</span><button type="button" class="ui-switch" role="switch" aria-labelledby="game-settings-muted"></button></div>
         ${SLIDERS.map(([bus, label]) => `<label class="ui-row"><span>${label}</span><input type="range" class="ui-slider" min="0" max="100" step="1" data-bus="${bus}"><output></output></label>`).join('')}
-        <h3>🖼️ Đồ họa</h3>
-        <div class="ui-tabs ui-tabs--segmented" role="group" aria-label="Chất lượng đồ họa">
+        <h3>🖼️ ${t('settings.graphics')}</h3>
+        <div class="ui-tabs ui-tabs--segmented" role="group" aria-label="${t('settings.graphicsQuality')}">
           ${QUALITY.map(([id, label]) => `<button type="button" class="ui-tab" data-quality="${id}">${label}</button>`).join('')}
         </div>
         <p class="ui-modal__subtitle" id="game-settings-quality"></p>
         <section data-reset hidden>
-          <h3>🔄 Tiến trình</h3>
-          <button type="button" class="ui-btn ui-btn--plain" data-reset-ask>Chơi lại từ màn chọn nhân vật</button>
+          <h3>🔄 ${t('settings.progress')}</h3>
+          <button type="button" class="ui-btn ui-btn--plain" data-reset-ask>${t('settings.reset')}</button>
           <div class="ui-alert ui-alert--bad" data-reset-confirm hidden>
-            <p>Xoá toàn bộ tiến trình (xu, nông trại, quán) và bắt đầu lại từ màn chọn nhân vật? Không hoàn tác được. Cài đặt âm thanh và đồ họa được giữ.</p>
+            <p>${t('settings.reset.confirm')}</p>
             <div class="ui-modal__foot">
-              <button type="button" class="ui-btn ui-btn--plain" data-reset-cancel>Huỷ</button>
-              <button type="button" class="ui-btn ui-btn--gold" data-reset-go>Xoá và chơi lại</button>
+              <button type="button" class="ui-btn ui-btn--plain" data-reset-cancel>${t('common.cancel')}</button>
+              <button type="button" class="ui-btn ui-btn--gold" data-reset-go>${t('settings.reset.go')}</button>
             </div>
           </div>
         </section>
@@ -110,11 +113,21 @@ export function mountSettings({ onOpen } = {}) {
       persist();
     });
   }
+  // Ngôn ngữ cố định trong một lần tải trang (docs/shared/i18n.md): lưu rồi tải lại. Tiến trình đã được lưu sau mỗi thao tác.
+  for (const tab of dialog.querySelectorAll('[data-lang]')) {
+    tab.addEventListener('click', () => {
+      if (tab.dataset.lang === getLang()) return;
+      // Chỉ đổi bản trong bộ nhớ khi ghi được, để persist() sau này không lén lưu ngôn ngữ chưa áp dụng.
+      if (!saveSettings({ ...settings, lang: tab.dataset.lang })) { const warn = dialog.querySelector('.ui-alert--warn'); warn.textContent = t('settings.saveFailed'); warn.hidden = false; return; }
+      settings.lang = tab.dataset.lang;
+      location.reload();
+    });
+  }
   const confirmBox = dialog.querySelector('[data-reset-confirm]'), askButton = dialog.querySelector('[data-reset-ask]');
   askButton.addEventListener('click', () => { askButton.hidden = true; confirmBox.hidden = false; dialog.querySelector('[data-reset-cancel]').focus(); });
   dialog.querySelector('[data-reset-cancel]').addEventListener('click', () => { confirmBox.hidden = true; askButton.hidden = false; askButton.focus(); });
   dialog.querySelector('[data-reset-go]').addEventListener('click', () => {
-    if (!resetProgress()) { const warn = dialog.querySelector('.ui-alert--warn'); warn.textContent = 'Chưa xoá được tiến trình'; warn.hidden = false; return; }
+    if (!resetProgress()) { const warn = dialog.querySelector('.ui-alert--warn'); warn.textContent = t('settings.reset.failed'); warn.hidden = false; return; }
     location.reload();
   });
   document.getElementById('game-settings-toggle')?.addEventListener('click', openSettings);

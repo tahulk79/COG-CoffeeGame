@@ -6,6 +6,7 @@ import { findRoute } from '../game/navigation.js';
 import { canOccupy, slideMove } from '../game/collision.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { fillRich } from '../../ui/icons.js';
+import { t } from '../../i18n/index.js';
 
 export function createAdventureScene(character, { interactions: inputInteractions, theme = 'heaven', mapBounds = null, buildActor = null, buildEnvironment = null, lighting = {} }) {
   const NPCS = inputInteractions.map(item => ({ ...item, position: [...item.position] }));
@@ -175,7 +176,7 @@ export function createAdventureScene(character, { interactions: inputInteraction
     }
     // Nền mây/đảo bay quanh quảng trường: chỉ để nhìn, không chặn đường.
     const surroundings = assetSlot(new THREE.Group(), `${theme}/surroundings`); surroundings.userData.nonSolid = true; scene.add(surroundings);
-    const hall = label('BỘ PHẬN TRÙNG SINH · NHỚ LẤY SỐ', '#8f7951', 7);
+    const hall = label(t('shared.heaven.hallSign'), '#8f7951', 7);
     hall.position.set(0, 5.5, farZ); scene.add(keepOnScreen(hall, 22));
   }
   const environment = buildEnvironment?.({ scene, box, mesh, sphere, cube, assetSlot });
@@ -289,7 +290,7 @@ export function createAdventureScene(character, { interactions: inputInteraction
   mesh(new THREE.TorusGeometry(1.8, .16, 8, 32, Math.PI), '#d9bd7b', 0, 3.15, 0, 1, 1, 1, portalFrame);
   const portalMaterial = new THREE.MeshBasicMaterial({ color: '#d4c9a5', transparent: true, opacity: .25, side: THREE.DoubleSide, depthWrite: false });
   const portalLight = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 3.6), portalMaterial); portalLight.position.y = 1.8; portal.add(portalLight);
-  const portalName = label('CỔNG TRÙNG SINH', '#8f7951', 3.4); portalName.position.set(0, 5.9, 0); portal.add(keepOnScreen(portalName, 30));
+  const portalName = label(t('shared.heaven.portalSign'), '#8f7951', 3.4); portalName.position.set(0, 5.9, 0); portal.add(keepOnScreen(portalName, 30));
   const marker = new THREE.Group(); scene.add(marker);
   const markerRing = new THREE.Mesh(new THREE.RingGeometry(1.1, 1.22, 40), new THREE.MeshBasicMaterial({ color: '#bc984c', side: THREE.DoubleSide, transparent: true, opacity: .7 }));
   markerRing.rotation.x = -Math.PI / 2; markerRing.position.y = .08; marker.add(markerRing);
@@ -392,7 +393,7 @@ export function createAdventureScene(character, { interactions: inputInteraction
     const info = status.plantProgress; progress = Math.max(0,Math.min(1,progress));
     const seconds = Math.max(0,Math.ceil(info.remaining-(performance.now()-info.at)/1000*(info.rate ? 1 : 0)));
     // Above a minute show whole minutes so 48 plot badges redraw (canvas + texture upload) rarely, not every second.
-    const timeLabel = seconds > 60 ? `${Math.ceil(seconds / 60)} phút` : `${seconds}s`;
+    const timeLabel = seconds > 60 ? t('shared.badge.minutes', { n: Math.ceil(seconds / 60) }) : `${seconds}s`;
     const key = `plant:${status.icon}:${status.ready}:${info.paused}:${Math.floor(progress*40)}:${timeLabel}`;
     if (key === status.badgeKey) return; status.badgeKey = key;
     const ctx = status.badgeCanvas.getContext('2d'); ctx.clearRect(0,0,192,192);
@@ -403,7 +404,7 @@ export function createAdventureScene(character, { interactions: inputInteraction
     // Readable on phones: large bold label with a dark outline instead of a faint shadow.
     ctx.font='900 40px system-ui';ctx.lineJoin='round';ctx.lineWidth=8;ctx.strokeStyle='#2e2416';ctx.fillStyle='#fffbe6';
     // Ready plots already show the basket icon, so no "Hái" text under the bar.
-    const action = {'💧':'Tưới','🌿':'Làm cỏ','🪴':'Bón phân'}[status.icon], text = status.ready ? '' : action || (info.paused ? 'Chờ chăm' : timeLabel);
+    const action = {'💧':t('shared.badge.water'),'🌿':t('shared.badge.weed'),'🪴':t('shared.badge.fertilize')}[status.icon], text = status.ready ? '' : action || (info.paused ? t('shared.badge.waitCare') : timeLabel);
     if (text) { ctx.strokeText(text,96,164);ctx.fillText(text,96,164); }
     status.badgeTexture.needsUpdate=true;
   }
@@ -418,8 +419,8 @@ export function createAdventureScene(character, { interactions: inputInteraction
     ctx.shadowBlur=0;ctx.beginPath();ctx.roundRect(24,113,144,19,9);ctx.fillStyle='#4e4835';ctx.fill();
     ctx.beginPath();ctx.roundRect(27,116,Math.max(6,138*progress),13,6);ctx.fillStyle=ready ? '#f2cb58' : '#8cba64';ctx.fill();
     ctx.font='900 32px system-ui';ctx.lineJoin='round';ctx.lineWidth=7;ctx.strokeStyle='#2e2416';ctx.fillStyle='#fffbe6';
-    const head=ready ? 'Nhận' : `${seconds}s`;ctx.strokeText(head,96,152);ctx.fillText(head,96,152);
-    ctx.font='800 22px system-ui';ctx.lineWidth=5;const sub=(status.summary?(ready?`${status.units} mẻ xong`:status.queueCount?`${status.queueCount} mẻ chờ`:'Đang chế biến'):`${status.units || 1} mẻ${!ready && status.icon==='🔄' ? ' · Đảo' : ''}`);ctx.strokeText(sub,96,180);ctx.fillText(sub,96,180);
+    const head=ready ? t('shared.badge.collect') : `${seconds}s`;ctx.strokeText(head,96,152);ctx.fillText(head,96,152);
+    ctx.font='800 22px system-ui';ctx.lineWidth=5;const sub=(status.summary?(ready?t('shared.badge.batchesDone',{n:status.units}):status.queueCount?t('shared.badge.batchesQueued',{n:status.queueCount}):t('shared.badge.processing')):`${t('shared.badge.batches',{n:status.units || 1})}${!ready && status.icon==='🔄' ? t('shared.badge.turnSuffix') : ''}`);ctx.strokeText(sub,96,180);ctx.fillText(sub,96,180);
     status.badgeTexture.needsUpdate=true;
   }
   function update(dt, time, input, blocked) {

@@ -4,7 +4,8 @@ import { readProgress, saveHeaven } from '../../state/progress.js';
 import { createHeavenScene } from './scene.js';
 import { createJourney } from './journey.js';
 import { createHeavenUI } from './ui.js';
-import { EXPERTS, GIFTS, WELCOME, REVEAL, FAREWELL } from './content.js';
+import { EXPERTS, GIFTS, CLERK, WELCOME, REVEAL, FAREWELL } from './content.js';
+import { t } from '../../i18n/index.js';
 import { attachModels, dressSlot, loadModel } from '../../shared/three/models.js';
 import { sfx } from '../../shared/audio/index.js';
 
@@ -33,8 +34,8 @@ export async function createHeavenGame(profile, onReborn) {
   let departureTime = 0;
   let leading = false; // chọn "Dẫn tôi": tự đi tới chuyên gia tiếp theo, rồi Thần Tiếp Nhận
   const briefingOptions = [
-    { id: 'lead', text: 'Nhận hồ sơ · Dẫn tôi tới chuyên gia tiếp theo' },
-    { id: 'explore', text: 'Nhận hồ sơ · Tôi tự khám phá' },
+    { id: 'lead', text: t('heaven.briefing.lead') },
+    { id: 'explore', text: t('heaven.briefing.explore') },
   ];
   let touch = { x: 0, z: 0 };
   const keyboard = createMovementInput();
@@ -50,9 +51,9 @@ export async function createHeavenGame(profile, onReborn) {
     world.setFocus(null); clearInput(); ui.closeDialogue(); refresh();
   }
   function showLine() {
-    const [speaker, text] = conversation[lineIndex];
+    const [speaker, text, stamp] = conversation[lineIndex];
     ui.dialogue(speaker, text, {
-      stamp: speaker === 'THẦN TIẾP NHẬN' && text.includes('CHƯA CHẾT') ? 'CHƯA CHẾT · CHỈ NGẤT' : null,
+      stamp: stamp === 'notDead' ? t('heaven.stamp.notDead') : null,
     });
   }
   function talk(lines, onDone = close) {
@@ -62,8 +63,8 @@ export async function createHeavenGame(profile, onReborn) {
   function briefing() {
     clearInput(); mode = 'briefing';
     const expert = EXPERTS.find(item => journey.question(item.id));
-    ui.dialogue('THẦN CHẾT', `Đây là hồ sơ của em. Gặp ba chuyên gia, mỗi người hai câu; đúng sai đều được ghi lại. Bắt đầu với ${expert.name} nhé. Anh chỉ đường, không chỉ đáp án đâu!`, {
-      tag: 'NHẬN NHIỆM VỤ',
+    ui.dialogue('THẦN CHẾT', t('heaven.briefing.line', { expert: expert.name }), {
+      tag: t('heaven.briefing.tag'),
       choices: briefingOptions.map(option => (option.id === 'lead' ? { ...option, default: true } : option)),
       onSelect: acceptBriefing,
     });
@@ -72,12 +73,12 @@ export async function createHeavenGame(profile, onReborn) {
     if (mode !== 'briefing' || !briefingOptions.some(option => option.id === id)) return;
     const expert = EXPERTS.find(item => journey.question(item.id));
     journey.meetReaper(); close();
-    ui.toast(`Đã nhận hồ sơ · Gặp ${expert.name} để bắt đầu.`);
+    ui.toast(t('heaven.toast.briefing', { expert: expert.name }));
     leading = id === 'lead';
     if (leading) world.moveToNpc(expert.id);
   }
   function finishExpert(expert) {
-    ui.toast(`Nhận dấu · ${expert.seal} · ${journey.progress.passed[expert.id]}/${expert.questions.length} đúng`); close();
+    ui.toast(t('heaven.toast.seal', { seal: expert.seal, passed: journey.progress.passed[expert.id], total: expert.questions.length })); close();
     if (leading) world.moveToNpc(EXPERTS.find(item => journey.question(item.id))?.id ?? 'clerk');
   }
   function question(expert) {
@@ -87,7 +88,7 @@ export async function createHeavenGame(profile, onReborn) {
     const number = journey.progress.answered[expert.id] + 1;
     // Lời chào gộp vào hộp câu đầu (không còn hộp riêng).
     ui.dialogue(expert.name, number === 1 ? `${expert.greeting}\n\n${current.text}` : current.text, {
-      icon: expert.icon, tag: `CÂU ${number} / ${expert.questions.length}`,
+      icon: expert.icon, tag: t('heaven.question.tag', { number, total: expert.questions.length }),
       choices: current.options, onSelect: id => answer(id),
     });
   }
@@ -101,17 +102,17 @@ export async function createHeavenGame(profile, onReborn) {
     feedbackAction = () => question(expert);
     const { name, effect } = selectedQuestion.perk;
     ui.dialogue(expert.name, result.text, {
-      icon: expert.icon, tag: result.correct ? 'CHÍNH XÁC' : 'ĐÃ GHI NHẬN CÂU SAI',
-      nextLabel: 'Tiếp tục ▸',
-      tip: result.correct ? `🎓 Mẹo: ${name} · ${effect}` : `Chưa nhận mẹo ${name} (${effect}) · sẽ được hỏi lại ở nông trại/quán`,
+      icon: expert.icon, tag: t(result.correct ? 'heaven.feedback.correct' : 'heaven.feedback.wrong'),
+      nextLabel: t('heaven.feedback.next'),
+      tip: t(result.correct ? 'heaven.feedback.tipGood' : 'heaven.feedback.tipMissed', { name, effect }),
       tipGood: result.correct,
-      stamp: !journey.question(expert.id) ? `XONG PHẦN THI · ${journey.progress.passed[expert.id]}/${expert.questions.length} ĐÚNG` : null,
+      stamp: !journey.question(expert.id) ? t('heaven.feedback.stamp', { passed: journey.progress.passed[expert.id], total: expert.questions.length }) : null,
     });
   }
   function gifts() {
     clearInput(); mode = 'gift';
-    ui.dialogue('THẦN TIẾP NHẬN', 'Chọn một món mang về. Miễn phí lần này thôi, đừng quay lên đổi trả nhé.', {
-      icon: '▤', tag: 'HÀNH TRANG',
+    ui.dialogue(CLERK, t('heaven.gift.line'), {
+      icon: '▤', tag: t('heaven.gift.tag'),
       choices: GIFTS.map(gift => ({ id: gift.id, text: `${gift.icon} ${gift.name} — ${gift.description}` })),
       onSelect: id => chooseGift(id),
     });
@@ -119,7 +120,7 @@ export async function createHeavenGame(profile, onReborn) {
   function chooseGift(id) {
     if (mode !== 'gift' || !journey.chooseGift(id)) return;
     const gift = GIFTS.find(item => item.id === id);
-    close(); ui.toast(`Đã nhận ${gift.name} · Đi tới Cổng trùng sinh.`);
+    close(); ui.toast(t('heaven.toast.gift', { gift: gift.name }));
     world.moveToNpc('portal'); // luôn tự đi: `leading` không lưu qua reload, bước cuối chỉ còn một đích
   }
   function end() {
@@ -138,28 +139,28 @@ export async function createHeavenGame(profile, onReborn) {
     if (npc.id === 'reaper') {
       if (journey.phase === 'welcome') talk(WELCOME, briefing);
       else if (journey.phase === 'learning') briefing();
-      else talk([['THẦN CHẾT', journey.phase === 'return' ? 'Đi thẳng tới cổng nhé. Anh vừa kiểm tra địa chỉ… hai lần.' : 'Cứ theo dấu vàng mà đi. Anh vận chuyển, không làm bài hộ được.']]);
+      else talk([['THẦN CHẾT', t(journey.phase === 'return' ? 'heaven.reaper.return' : 'heaven.reaper.learning')]]);
       return;
     }
-    if (journey.phase === 'welcome') { talk([['THẦN CHẾT', 'Khoan! Hỏi anh trước đã. Đừng tự nộp hồ sơ khi chưa biết mình bị giao tới đâu.']]); return; }
+    if (journey.phase === 'welcome') { talk([['THẦN CHẾT', t('heaven.reaper.welcomeFirst')]]); return; }
     if (npc.id === 'portal') {
       if (journey.phase === 'return') {
         const { correct, total } = journey.score; // luồng thường chuyển màn ngay, không qua ui.complete
-        talk([...FAREWELL, ['THẦN TIẾP NHẬN', `Mẹo đã nhận ${correct}/${total} · ${total - correct} câu sẽ được ôn lại ở nông trại/quán.`]], depart);
+        talk([...FAREWELL, [CLERK, t('heaven.portal.farewell', { correct, total })]], depart);
       }
-      else talk([['THẦN TIẾP NHẬN', 'Cổng chưa mở. Cần đủ ba dấu, kiểm tra hồ sơ và nhận hành trang trước đã.']]);
+      else talk([[CLERK, t('heaven.portal.locked')]]);
       return;
     }
     if (npc.id === 'clerk') {
-      if (journey.phase === 'learning') talk([['THẦN TIẾP NHẬN', `Hồ sơ mới có ${journey.seals.length}/3 dấu. Gặp đủ ba chuyên gia rồi quay lại nhé.`]]);
+      if (journey.phase === 'learning') talk([[CLERK, t('heaven.clerk.learning', { count: journey.seals.length })]]);
       else if (journey.phase === 'review') talk(REVEAL, () => { journey.reveal(); refresh(); gifts(); });
       else if (journey.phase === 'gift') gifts();
-      else talk([['THẦN TIẾP NHẬN', 'Hồ sơ đã đính chính: chỉ ngất. Hành trang đã nhận; mời con tới cổng trở về.']]);
+      else talk([[CLERK, t('heaven.clerk.done')]]);
       return;
     }
     const expert = EXPERTS.find(item => item.id === npc.id);
     if (!expert) return;
-    if (!journey.question(expert.id)) talk([[expert.name, `Con đã có dấu ${expert.seal.toLowerCase()} rồi. Học để dùng, không phải để sưu tầm giấy nhé.`]]);
+    if (!journey.question(expert.id)) talk([[expert.name, t('heaven.expert.done', { seal: expert.seal.toLowerCase() })]]);
     else question(expert);
   }
   ui = createHeavenUI(profile, {
@@ -220,7 +221,7 @@ export async function createHeavenGame(profile, onReborn) {
   let storageNoticeShown = false;
   journey = createJourney(readProgress().heaven, progress => {
     if (!saveHeaven(progress) && !storageNoticeShown) {
-      storageNoticeShown = true; ui.toast('Trình duyệt chưa lưu được tiến trình. Bạn vẫn chơi tiếp được trong lượt này.');
+      storageNoticeShown = true; ui.toast(t('heaven.toast.saveFailed'));
     }
   });
   world.reset(journey.phase); refresh();

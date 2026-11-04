@@ -668,7 +668,8 @@
 .farm-main-team .farm-staff-zone-grid{gap:12px}
 .farm-reserve-team .farm-staff-zone-grid[data-staff-drop="reserve"]{padding:0;border:0;background:none;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));min-height:70px}
 .farm-active #farm-modal[data-roster="true"] .farm-main-team .farm-staff-card{min-height:210px;padding-top:43px;border:2px solid var(--ui-paper-edge);background:var(--ui-paper);box-shadow:0 4px var(--ui-paper-drop);transition:border-color .15s,box-shadow .15s,opacity .15s}
-.farm-main-team .farm-staff-card::before{content:'THỢ CHÍNH ' attr(data-slot);display:block;color:var(--ui-good);font-size:12px;font-weight:800;letter-spacing:1px}
+.farm-main-team .farm-staff-card::before{content:'MAIN WORKER ' attr(data-slot);display:block;color:var(--ui-good);font-size:12px;font-weight:800;letter-spacing:1px}
+:lang(vi) .farm-main-team .farm-staff-card::before{content:'THỢ CHÍNH ' attr(data-slot)}
 .farm-active #farm-modal[data-roster="true"] .farm-reserve-team .farm-staff-card{min-height:175px;border:1px solid var(--ui-off-edge);background:var(--ui-sheet);box-shadow:0 2px var(--ui-drop-soft)}
 .farm-active #farm-modal[data-roster="true"] .farm-reserve-team .farm-staff-card .farm-item-icon{background:var(--ui-off);filter:saturate(.65);width:40px;height:40px;font-size:28px}
 .farm-active #farm-modal[data-roster="true"] .farm-reserve-team .farm-item-action{background:var(--ui-cream);border-color:var(--ui-cream-edge);color:var(--ui-ink-soft);text-shadow:none;box-shadow:0 2px var(--ui-cream-drop)}

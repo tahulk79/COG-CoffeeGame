@@ -16,6 +16,7 @@ import { setListener } from '../../shared/audio/index.js';
 import { isSettingsOpen } from '../../ui/settings.js';
 import { fillRich } from '../../ui/icons.js';
 import { buildStreet } from './street.js';
+import { t } from '../../i18n/index.js';
 
 // Separate playable world; the farm model owns inventory and transit so changing maps cannot copy goods.
 // Warm indoor fill with a softer key than the farm, so the room reads as a lamp-lit café, not an open field (03 §4).
@@ -26,17 +27,17 @@ export function createCafeGame({ farm, ui, onMenu, onExit, profile, character })
   // The player works counters from the staff lane behind them, like real staff.
   // interactDistance must cover every approach point plus the 0.65 arrival slack, or arrival never registers.
   const interactions = [
-    { id: 'bar', name: 'Quầy pha chế', kind: 'bar', position: [BAR_X, COUNTER_Z], faceYaw: 0, interactDistance: 3.8, approachOffsets: STATIONS.map(x => [x - BAR_X, back]), color: '#a67a48' },
-    { id: 'register', name: 'Thu ngân', kind: 'register', position: [REGISTER_X, COUNTER_Z], faceYaw: 0, interactDistance: 3, approachOffsets: REGISTERS.map(x => [x - REGISTER_X, back]), color: '#b88a4c' },
-    { id: 'pickup', name: 'Quầy nhận đồ', kind: 'pickup', position: [PICKUP_X, COUNTER_Z], faceYaw: 0, interactDistance: 2.4, approachOffsets: [[0, back]], color: '#8a7a55' },
-    { id: 'kiosk', name: 'Robot thu ngân (kiosk)', kind: 'kiosk', position: [KIOSK_X, -6.6], interactDistance: 2.2, approachOffsets: [[0, 1.2]], color: '#6f8fb0' },
-    { id: 'pantry', name: 'Kho nguyên liệu', kind: 'pantry', position: [-14.95, -10.5], interactDistance: 2, approachOffsets: [[1.35, 0]], color: '#8c7a55' },
-    { id: 'board', name: 'Sổ công thức', kind: 'board', position: [3, 5], interactDistance: 2, approachOffsets: [[0, 1.3]], color: '#54776a' },
-    ...TABLES.map(([x, z], i) => ({ id: `table-${i}`, name: `Bàn ${i + 1}`, kind: 'table', position: [x, z], interactDistance: 2.3, approachOffsets: [[1.6, 0], [-1.6, 0], [0, 1.6], [0, -1.6]], color: '#af8c58' })),
+    { id: 'bar', name: t('cafe.spot.bar'), kind: 'bar', position: [BAR_X, COUNTER_Z], faceYaw: 0, interactDistance: 3.8, approachOffsets: STATIONS.map(x => [x - BAR_X, back]), color: '#a67a48' },
+    { id: 'register', name: t('cafe.spot.register'), kind: 'register', position: [REGISTER_X, COUNTER_Z], faceYaw: 0, interactDistance: 3, approachOffsets: REGISTERS.map(x => [x - REGISTER_X, back]), color: '#b88a4c' },
+    { id: 'pickup', name: t('cafe.spot.pickup'), kind: 'pickup', position: [PICKUP_X, COUNTER_Z], faceYaw: 0, interactDistance: 2.4, approachOffsets: [[0, back]], color: '#8a7a55' },
+    { id: 'kiosk', name: t('cafe.spot.kiosk'), kind: 'kiosk', position: [KIOSK_X, -6.6], interactDistance: 2.2, approachOffsets: [[0, 1.2]], color: '#6f8fb0' },
+    { id: 'pantry', name: t('cafe.spot.pantry'), kind: 'pantry', position: [-14.95, -10.5], interactDistance: 2, approachOffsets: [[1.35, 0]], color: '#8c7a55' },
+    { id: 'board', name: t('cafe.spot.board'), kind: 'board', position: [3, 5], interactDistance: 2, approachOffsets: [[0, 1.3]], color: '#54776a' },
+    ...TABLES.map(([x, z], i) => ({ id: `table-${i}`, name: t('cafe.table.name', { n: i + 1 }), kind: 'table', position: [x, z], interactDistance: 2.3, approachOffsets: [[1.6, 0], [-1.6, 0], [0, 1.6], [0, -1.6]], color: '#af8c58' })),
     // Reserved floor for later upgrades; the sign explains what will open there.
-    { id: 'terrace', name: 'Sân vườn', kind: 'expansion', position: [-9, 6], interactDistance: 2.2, approachOffsets: [[1.4, 0]], color: '#7e9a5c' },
-    { id: 'roastery', name: 'Góc rang tại quán', kind: 'expansion', position: [12.8, -5.6], interactDistance: 2.5, approachOffsets: [[-1.6, 0]], color: '#a87b54' },
-    { id: 'door', name: 'Cửa quán', kind: 'door', position: [0, 2.6], interactDistance: 2.2, approachOffsets: [[0, 1.4], [0, -1.4]], color: '#6b4a2b' },
+    { id: 'terrace', name: t('cafe.spot.terrace'), kind: 'expansion', position: [-9, 6], interactDistance: 2.2, approachOffsets: [[1.4, 0]], color: '#7e9a5c' },
+    { id: 'roastery', name: t('cafe.spot.roastery'), kind: 'expansion', position: [12.8, -5.6], interactDistance: 2.5, approachOffsets: [[-1.6, 0]], color: '#a87b54' },
+    { id: 'door', name: t('cafe.spot.door'), kind: 'door', position: [0, 2.6], interactDistance: 2.2, approachOffsets: [[0, 1.4], [0, -1.4]], color: '#6b4a2b' },
   ];
   const PLANTS = [[14.8, -12.8], [-14.8, 2.1], [14.8, 2.1], [-14.8, 9.2], [14.8, 9.2], [11.6, -12.6]];
   const cylinder = (top, bottom, height) => new THREE.CylinderGeometry(top, bottom, height, 14);
@@ -235,7 +236,7 @@ export function createCafeGame({ farm, ui, onMenu, onExit, profile, character })
       box('#6e5240', 0, .6, 0, .95, 1.2, .1, visual);
       canvasPlane(.85, 1.05, (ctx, w, h) => {
         ctx.fillStyle = '#2f3d36'; ctx.fillRect(0, 0, w, h); ctx.fillStyle = '#f6eed6'; ctx.textAlign = 'center';
-        ctx.font = 'bold 56px system-ui'; ctx.fillText('THỰC ĐƠN', w / 2, 70); ctx.font = '30px system-ui';
+        ctx.font = 'bold 56px system-ui'; ctx.fillText(t('cafe.sign.menu'), w / 2, 70); ctx.font = '30px system-ui';
         RECIPES.slice(0, 10).forEach((r, i) => ctx.fillText(`${r.name} ${r.price}`, w / 2, 125 + i * 52));
       }, visual, 0, .62, .06);
       return {};
@@ -265,7 +266,7 @@ export function createCafeGame({ farm, ui, onMenu, onExit, profile, character })
         ctx.fillStyle = open ? '#2f5d3a' : '#6b2f2a'; ctx.beginPath(); ctx.roundRect(4, 4, 504, 104, 22); ctx.fill();
         ctx.strokeStyle = '#f2d79a'; ctx.lineWidth = 6; ctx.stroke();
         ctx.fillStyle = '#fff6dc'; ctx.font = '800 58px "Baloo 2", system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(open ? 'ĐANG MỞ CỬA' : 'ĐÓNG CỬA', 256, 60); signTexture.needsUpdate = true;
+        ctx.fillText(open ? t('cafe.sign.open') : t('cafe.sign.closed'), 256, 60, 470); signTexture.needsUpdate = true;
       } };
       return {};
     }
@@ -527,7 +528,7 @@ export function createCafeGame({ farm, ui, onMenu, onExit, profile, character })
       animate(npc, c.pos, c.facing, dt, ['seated', 'drinking'].includes(c.phase));
       const ordered = ['toSeat', 'seated', 'toPickup', 'pickup'].includes(c.phase), waitingInLine = c.phase === 'queue' && !c.path.length;
       const icon = c.mood || (ordered ? recipeById(c.recipeId).icon : c.phase === 'kiosk' ? '🖥️' : waitingInLine ? '🧾' : '');
-      drawBubble(npc, icon, ordered || waitingInLine ? c.patience / c.patienceMax : c.phase === 'kiosk' && !c.path.length ? 1 - c.timer / 4 : null, c.phase === 'kiosk', ordered && !c.mood ? recipeShort(c.recipeId) : waitingInLine && !c.mood ? 'Gọi món' : '');
+      drawBubble(npc, icon, ordered || waitingInLine ? c.patience / c.patienceMax : c.phase === 'kiosk' && !c.path.length ? 1 - c.timer / 4 : null, c.phase === 'kiosk', ordered && !c.mood ? recipeShort(c.recipeId) : waitingInLine && !c.mood ? t('cafe.bubble.order') : '');
     }
     for (const [id, npc] of guests) if (!seen.has(id)) { world.scene.remove(npc.group); disposeScene(npc.group); guests.delete(id); }
     const hired = new Set();
@@ -568,23 +569,23 @@ export function createCafeGame({ farm, ui, onMenu, onExit, profile, character })
     for (let i = 0; i < TABLES.length; i++) {
       const dirty = [0, 1, 2, 3].map(slot => service.dirty.has(`${i}:${slot}`));
       world.setActorState(`table-${i}`, { unlocked: service.isOpen(i), level: cafe.tables[i], dirty });
-      world.setObjectStatus(`table-${i}`, { text: service.isOpen(i) && dirty.some(Boolean) ? '🧽 Cần dọn' : '' });
+      world.setObjectStatus(`table-${i}`, { text: service.isOpen(i) && dirty.some(Boolean) ? t('cafe.status.clean') : '' });
     }
     // Every drink being brewed shows its own countdown badge above the bar.
     const jobs = service.agents.filter(a => a.job?.type === 'brew' && a.timerMax).map(a => ({ icon: recipeById(a.job.recipeId).icon, units: 1, startedAt: now - a.timer * 1000, readyAt: now + (a.timerMax - a.timer) * 1000 }));
     if (service.autoJob) jobs.push({ icon: '🤖', units: 1, startedAt: service.autoJob.startedAt, readyAt: service.autoJob.readyAt });
     world.setObjectStatus('bar', { jobs });
     const front = service.customers.some(c => c.phase === 'queue' && !c.path.length);
-    world.setObjectStatus('register', { text: front ? '🧾 Có khách gọi món' : '🧾 Thu ngân' });
-    world.setObjectStatus('pickup', { text: cafe.gear.pickup ? '📺 Quầy nhận đồ' : '＋ Quầy nhận đồ' });
-    world.setObjectStatus('kiosk', { text: cafe.gear.kiosk ? '🖥️ Robot thu ngân' : '＋ Robot thu ngân' });
+    world.setObjectStatus('register', { text: front ? t('cafe.status.ordering') : t('cafe.status.register') });
+    world.setObjectStatus('pickup', { text: cafe.gear.pickup ? t('cafe.status.pickup') : t('cafe.status.pickupEmpty') });
+    world.setObjectStatus('kiosk', { text: cafe.gear.kiosk ? t('cafe.status.kiosk') : t('cafe.status.kioskEmpty') });
     const low = SUPPLIES.some(s => ['cup', 'condensed', 'milk', 'ice'].includes(s.id) && cafe.supplies[s.id] < s.pack / 5);
-    world.setObjectStatus('pantry', { text: low ? '⚠️ Kho sắp hết' : '🧺 Kho' });
-    world.setObjectStatus('board', { text: '📖 Công thức' });
+    world.setObjectStatus('pantry', { text: low ? t('cafe.status.pantryLow') : t('cafe.status.pantry') });
+    world.setObjectStatus('board', { text: t('cafe.status.book') });
     for (const id of ['terrace', 'roastery']) {
       const gear = GEAR.find(g => g.id === id), owned = cafe.gear[id] > 0;
       world.setActorState(id, { unlocked: owned });
-      world.setObjectStatus(id, { text: owned ? (id === 'roastery' ? '🔥 Góc rang · +10% giá' : '') : `🔒 ${gear.name} · ${gear.prices[0]} xu` });
+      world.setObjectStatus(id, { text: owned ? (id === 'roastery' ? t('cafe.status.roastery') : '') : t('cafe.status.locked', { name: gear.name, price: t('cafe.coins', { n: gear.prices[0] }) }) });
     }
   }
   function interact(id) {
@@ -600,8 +601,8 @@ export function createCafeGame({ farm, ui, onMenu, onExit, profile, character })
     else if (id === 'terrace' || id === 'roastery') {
       // Walk to the sign first; with enough coins the «Mở rộng» tab is the confirmation, otherwise say how much is missing.
       const gear = GEAR.find(g => g.id === id), coins = service.refresh().coins;
-      if (service.snap.cafe.gear[id]) ui.notice(id === 'roastery' ? 'Góc rang đang chạy · mọi món bán thêm 10% giá.' : 'Sân vườn đã mở · 2 bàn ngoài trời.');
-      else if (coins < gear.prices[0]) ui.notice(`${gear.name} giá ${gear.prices[0]} xu · còn thiếu ${Math.ceil(gear.prices[0] - coins)} xu.`, false);
+      if (service.snap.cafe.gear[id]) ui.notice(id === 'roastery' ? t('cafe.notice.roastery') : t('cafe.notice.terrace'));
+      else if (coins < gear.prices[0]) ui.notice(t('cafe.notice.short', { name: gear.name, price: gear.prices[0], missing: Math.ceil(gear.prices[0] - coins) }), false);
       else cafeUi.openUpgrades('expand');
     }
     cafeUi.refreshHud();

@@ -84,13 +84,14 @@ settings: {
   version: 1,
   master: 0.8, music: 0.6, ambience: 0.7, sfx: 0.8, ui: 0.6, // 0–1
   muted: false,
-  quality: 'high' // 'low' | 'medium' | 'high'
+  quality: 'high', // 'low' | 'medium' | 'high'
+  lang: 'en'        // 'en' | 'vi' — mặc định 'en' (04/11/2026), xem i18n.md
 }
 ```
 
 | Việc | Ai | Hàm |
 |---|---|---|
-| Đọc và chuẩn hoá | `src/ui/settings.js` lúc khởi động | `readSettings()` luôn trả object đủ trường: số phải hữu hạn, kẹp về 0–1, sai thì lấy mặc định; `muted` phải đúng kiểu bool; `quality` ngoài danh sách thì về `'high'` |
+| Đọc và chuẩn hoá | `src/ui/settings.js` lúc khởi động | `readSettings()` luôn trả object đủ trường: số phải hữu hạn, kẹp về 0–1, sai thì lấy mặc định; `muted` phải đúng kiểu bool; `quality` ngoài danh sách thì về `'high'`; `lang` ngoài `'en'`/`'vi'` thì về `'en'` |
 | Ghi | Chỉ `src/ui/settings.js` | `saveSettings(settings)` → `true/false`. Ghi khi thả thanh trượt hoặc đổi công tắc, không ghi trong lúc đang kéo |
 | Áp dụng | `src/ui/settings.js` | `setVolume(bus, v)`, `setMuted(b)`, `setQuality(level)`. vfx phát `onQuality` → `applyRendererQuality(renderer)` trong app/game.js |
 
@@ -101,6 +102,7 @@ settings: {
 **Trường hợp biên**
 - localStorage không ghi được: cài đặt vẫn áp dụng trong lượt chơi. Hộp cài đặt hiện một dòng `ui-alert--warn` “Chưa lưu được cài đặt” một lần.
 - Lúc chưa có save (màn chọn nhân vật): `saveSettings` tạo `{ version: 1, settings }`. Không có `introCompleted/heaven/farm` nên app/game.js vẫn vào màn chọn nhân vật như cũ.
+- **Ngôn ngữ:** `src/i18n/index.js` đọc `settings.lang` thẳng từ localStorage một lần lúc tải trang. Đổi ngôn ngữ trong hộp cài đặt thì `saveSettings` rồi `location.reload()`; ghi lỗi thì hiện dòng cảnh báo và không tải lại. Save cũ không có `lang` → tiếng Anh.
 - Các bật/tắt HUD trong Cài đặt farm (Nhật ký, Nhắc việc) **vẫn chỉ trong lượt chơi**, không nằm trong `settings`.
 
 ## 5. Luồng người chơi mới: `farm.lessons`, `farm.tutorial` (03/11/2026, đã triển khai phần dữ liệu)
@@ -177,7 +179,7 @@ Chỉ `model.js` sửa hai trường này. Mọi màn khác đọc qua `farm.pee
 
 «Cửa hàng» (tab «Cây giống» · «Vật tư» · «Chợ»), «Chuyển về quán · 2 xu» / «Chuyển hết» (gửi hàng sang quán), «Nhận hàng» / «Nhận tất cả» (chỉ lấy mẻ ở trạm), «Vào quán», «Đơn hàng».
 
-## 6. Robot vs nhân viên: `kind`, `incident`, `robotGift` (03/11/2026, sửa vòng 3; phần model + `farm/rules.js` đã triển khai, phần quán/farm UI chưa)
+## 6. Robot vs nhân viên: `kind`, `incident`, `robotGift` (03/11/2026, sửa vòng 3; model, `farm/rules.js` và UI quán/farm đã triển khai — đối chiếu code 04/11/2026)
 
 Spec: [robot-staff](robot-staff.md). Vòng 3 chỉ đổi dữ liệu tĩnh `robo-n1` và luật kiểm trong `workers/incident`; không thêm/đổi trường save, không cần bước chuyển save. Không tăng `version` save chính (1) hay farm (3). Chỉ `farm/model.js` ghi các trường dưới; màn khác đọc qua `farm.peek()`/`progress`, ghi qua `act`.
 
@@ -237,12 +239,12 @@ Spec: [robot-staff](robot-staff.md). Vòng 3 chỉ đổi dữ liệu tĩnh `rob
 
 ### Chi tiết đã triển khai (model)
 
-- `farm/rules.js` thêm export: `ROBOT_PACKS`, `packPrice(wage, n)`, `INCIDENTS`, `incidentOdds(level, k, manager = false, rude = false)` → `{ phone, sick, rude }`. `workerWage(w)` đọc lương robot từ `WORKER_CANDIDATES` theo id (không đọc save). `workerIdleReason`: "🤒 Nghỉ ốm · xs", robot "Hết gói · Gia hạn 15 xu", "Robot không hái được · Hái tay hoặc thuê người" (robot giữ đơn chưa đủ hàng, không còn quả/nhân của giống đó, không có mẻ).
+- `farm/rules.js` thêm export: `ROBOT_PACKS`, `packPrice(wage, n)`, `INCIDENTS`, `incidentOdds(level, k, manager = false, rude = false)` → `{ phone, sick, rude }`. `workerWage(w)` đọc lương robot từ `WORKER_CANDIDATES` theo id (không đọc save). `workerIdleReason`: "🤒 Nghỉ ốm · xs", robot "Hết gói · Gia hạn {price} xu" (Cần xử lý: "{tên} hết gói · Gia hạn {price} xu"), "Robot không hái được · Hái tay hoặc thuê người" (robot giữ đơn chưa đủ hàng, không còn quả/nhân của giống đó, không có mẻ).
 - Hàm mới trên `farm`: `debugIncident(scope: 'farm'|'cafe', id, type, at?)` → bool (chỉ dùng khi `?debug=incident`; đặt sự cố ca hiện tại, `due` = thời gian còn lại → tới hạn ngay, miễn trừ vẫn kiểm lúc kích hoạt); `incidentOdds(scope, id, at?)` → `{ phone, sick, rude }` (robot 0). `workerUpdate` bỏ qua `xp` của robot.
 - `act('workers','incident', id)` → `{ ok, type, applied }`; `fail('Chưa tới lúc.')` khi `shiftUntil − at > due`. Ngoài miễn trừ ở spec: trễ hơn 10 s so với điểm kích hoạt → hủy (điểm đó trôi qua khi vòng farm không chạy). Miễn trừ 3 farm = `setCafeActive(true)` (đang ở màn quán).
 - `act('cafe','incident', { id, skip? })` → `{ ok, type, applied }`; `fail('Chưa tới lúc.')` khi `paidUntil − at > due`.
 - `act('cafe','sell', { …, robot: true })`: bị chê → `{ ok, walked: true, reason: 'robot' }` (không có `price/tip`). Nhận → `{ price, tip }`, tip chỉ phần nhanh, bỏ `special`/`memory`/bàn/`charm`/combo.
-- `robotGift.tally.*.stars` là **tổng** sao của ly khách nhận. `tally.robot.cups` gồm cả ly bị chê → ★ trung bình robot = `stars / (cups − walked)`, bạn = `stars / cups`. `tally.you` đếm mọi ly không phải robot bán ra khi `state === 'active'` (`sell` không biết ly do người chơi hay barista pha); `tally.you.cost` chỉ cộng ly `brew` không có `staff`.
+- `robotGift.tally.*.stars` là **tổng** sao của ly khách nhận. `tally.robot.cups` gồm cả ly bị chê → ★ trung bình robot = `stars / (cups − walked)`, bạn = `stars / cups`. `tally.you` chỉ đếm ly **người chơi tự pha** bán ra khi `state === 'active'` (`sell` nhận cờ `staff`, ly barista không tính); `tally.you.cost` chỉ cộng ly `brew` không có `staff`.
 - `gift-pha` không rời đội khi đủ 10 ly (model chỉ từ chối `brew` thứ 11); thành viên gift bị xoá khỏi `cafe.crew` khi `paidUntil ≤ now` trong `advance`. Cấp gói chờ tới khi `CANDIDATES` có `gift-pha`.
 - `take(product, cropId, grams, location, only)`: lô `gift` luôn lấy sau cùng; `only = 'gift'` chỉ lấy lô gift.
 

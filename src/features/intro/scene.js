@@ -8,6 +8,7 @@ import { disposeScene } from '../../shared/three/dispose-scene.js';
 import { LANDING_TIME, LANDING_PAUSE } from './timeline.js';
 import { approachOffsetX } from './collision.js';
 import { gripStretcher, crouchMedic } from './rescue.js';
+import { t } from '../../i18n/index.js';
 
 const clamp = THREE.MathUtils.clamp;
 const mix = THREE.MathUtils.lerp;
@@ -83,7 +84,7 @@ export function createIntro(profile, selectedPlayer) {
     }
     const awning = box(shops, i % 2 ? '#bd7156' : '#d2bb86', x, 2.9, -2.8, 4.5, .16, 1.6); awning.rotation.x = .16;
     for (let j = 0; j < 7; j++) box(shops, i % 2 ? '#e7d5aa' : '#577d68', x - 1.8 + j * .6, 2.87, -2.78, .28, .18, 1.62).rotation.x = .16;
-    sign(shops, ['CÀ PHÊ MÂY', 'TIỆM TẠP HÓA', 'BÚN CHẢ', 'HÀ NỘI XƯA'][i % 4], x, 3.05, -1.94, 3.7);
+    sign(shops, [t('intro.sign.cafe'), t('intro.sign.grocery'), t('intro.sign.bunCha'), t('intro.sign.oldHanoi')][i % 4], x, 3.05, -1.94, 3.7);
     box(shops, '#c09b6a', x, .8, -2.5, 1.4, .12, .8);
     for (const dx of [-.9, .9]) box(shops, '#a14f3c', x + dx, .38, -1.8, .45, .6, .45);
   }
@@ -117,7 +118,7 @@ export function createIntro(profile, selectedPlayer) {
   box(warningPost, '#526557', 0, 1.55, 0, .12, 3.1, .12);
   box(warningPost, '#526557', 0, 2.65, .75, .12, .12, 1.6);
   const warningBoard = assetSlot(warning, 'intro/warning-sign/board', 3, 1.85, -.73);
-  sign(warningBoard, 'CHÚ Ý ĐẦU', 0, 0, 0, 1.9, '#f0ca76', '#7b3a2c');
+  sign(warningBoard, t('intro.sign.mindHead'), 0, 0, 0, 1.9, '#f0ca76', '#7b3a2c');
   const warningParts = [warningPost, warningBoard];
   const warningBounds = warningParts.map(() => new THREE.Box3());
   const heroBounds = new THREE.Box3();
@@ -176,7 +177,7 @@ export function createIntro(profile, selectedPlayer) {
   for (const x of [-1.25, 1.85]) for (const z of [-.95, .95]) {
     const wheel = mesh(van, cylinderGeometry, '#303d36', x, .42, z, .43, .24, .43); wheel.rotation.x = Math.PI / 2;
   }
-  sign(van, 'CẤP CỨU 115', -.2, 2.13, .99, 1.8, '#edeadd', '#a94f42');
+  sign(van, t('intro.sign.ambulance'), -.2, 2.13, .99, 1.8, '#edeadd', '#a94f42');
   const medics = [person('#f1eadb', true), person('#f1eadb', true)];
   medics.forEach((m, i) => { m.name = `intro-medic-${i}`; street.add(m); dressPerson(m, i ? 'intro/medic-f.glb' : 'intro/medic-m.glb'); });
   // Medics grip local (±1.2, .9, ±.31); a replacement bed keeps its handles there.

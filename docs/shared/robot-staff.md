@@ -1,11 +1,30 @@
 # Thuê robot vs thuê nhân viên (farm + quán)
 
-Trạng thái: **đã duyệt 03/11/2026 (vòng 2: robot farm dùng chung 2 chỗ, gói trả trước chỉ robot farm, ly robot không mất combo; vòng 3: miễn trừ 4 chỉ áp cho farm đúng 1 thợ và chỉ nghỉ ốm, Robot vườn speed 70 / dexterity 70), chưa triển khai.** Toàn bộ spec (quán, gói tặng, farm) làm được ngay; chỉ số/lương Robot vườn chỉnh theo số đo playtester (mục 12, "Đo sau triển khai"), không chặn triển khai. Số thu nhập lấy từ `/balance-check` 03/11 (`scripts/balance-sim.mjs`); số lương/giá tính tay từ code. Hợp đồng dữ liệu: [contracts](contracts.md) mục 6. Luật farm: [farm-operations-guide.md](../screens/03-farm/rules.md) mục 3. Quán: [cafe-gameplay.md](../screens/04-cafe/gameplay.md).
+Trạng thái: **đã duyệt 03/11/2026 (vòng 2: robot farm dùng chung 2 chỗ, gói trả trước chỉ robot farm, ly robot không mất combo; vòng 3: miễn trừ 4 chỉ áp cho farm đúng 1 thợ và chỉ nghỉ ốm, Robot vườn speed 70 / dexterity 70), đã triển khai trong code (đối chiếu 04/11/2026, xem mục 0).** Chưa playtest; chỉ số/lương Robot vườn vẫn chỉnh theo số đo playtester (mục 12, "Đo sau triển khai"). Số thu nhập lấy từ `/balance-check` 03/11 (`scripts/balance-sim.mjs`); số lương/giá tính tay từ code. Hợp đồng dữ liệu: [contracts](contracts.md) mục 6. Luật farm: [farm-operations-guide.md](../screens/03-farm/rules.md) mục 3. Quán: [cafe-gameplay.md](../screens/04-cafe/gameplay.md).
+
+## 0. Đối chiếu code (04/11/2026)
+
+Toàn bộ spec dưới đây **đã có trong code** (`farm/rules.js` `robo-n1`, `ROBOT_PACKS`, `INCIDENTS`; `farm/model.js` `rollIncident`, `robotGift`; `cafe/recipes.js` `robo-b*`, `robo-d1`, `gift-*`; `cafe/service.js`, `cafe/ui.js`, `farm/ui.js`). Đã đọc code, chưa chạy game hay test. Các câu sai so với code đã sửa thẳng trong file này. Những chỗ code **làm khác spec về hành vi** chưa sửa, chờ người dùng chốt bên nào đúng:
+
+| # | Spec ghi | Code đang làm | Chỗ |
+|---|---|---|---|
+| C-1 | Ly robot bị chê: trần −2 uy tín **mỗi ca** | Trần −2 cho **cả gói** (`walkRep` không reset) | `farm/model.js` `loseCustomer` |
+| C-2 | Farm: chạm thợ đang mải chơi → «Nhắc» ngay | Chạm thợ mở bảng chi tiết có «Nhắc» (2 bước), hoặc bấm «Nhắc» trên toast sự cố | `farm/game.js`, `farm/ui.js` |
+| C-3 | Quán đóng / người chơi vắng lúc sự cố tới hạn → sự cố bị hủy | Sự cố bị **dời** tới lần mở quán sau (`paidUntil` được cộng bù); chỉ hủy khi hết ca lúc quán đóng | `cafe/service.js` `checkIncidents` |
+| C-4 | (không nói) | Ly robot bị chê **vẫn trừ uy tín trong ca tập**, dù khách giận thường được miễn ở ca tập | `farm/model.js` |
+
+Nghi lỗi code, cần xem lại (không phải chọn luật):
+
+| # | Mô tả |
+|---|---|
+| B-1 | Giá hiển thị khi robot hết gói / `startTeam` dùng `contractPrice(w)` = lương × `contractPlan(w).price`; tiền thật trừ là `packPrice`. Nếu save robot có `plan` khác `day` thì hai số lệch (90/315 so với 15) |
+| B-2 | Trả công khi sự cố đã quay nhưng chưa tới hạn → `signContract` quay sự cố mới **đè** sự cố cũ (tự gia hạn lúc còn < 30 s có thể xoá một lần mải chơi) |
+| B-3 | Nút «Thuê robot thay» trên bong bóng (`canCover`) kiểm "Nhân viên đã mở", còn cờ `replace` trong `service.js` thì không; hai điều kiện lệch nhau |
 
 ## 1. Tóm tắt
 
 - Danh sách ứng viên sẵn có thêm trường `kind: 'robot' | 'human'` (thiếu = `human`). Không làm hệ thuê mới: quán dùng lại `hire/fire/paidUntil`, farm dùng lại `shiftUntil/restUntil/waitUntil/waitReason`.
-- **Robot:** rẻ (~½ lương người, không phí tuyển), không tăng tip, không đào tạo, không bao giờ gặp sự cố. Làm được ít việc hơn người. Robot quán chậm hơn người ~20%; **Robot vườn làm việc vặt (tưới, cỏ, chế biến, giao) nhanh hơn người cấp 1 ~5–6%** nhưng không trồng/bón/tỉa/hái.
+- **Robot:** rẻ (~½ lương người, không phí tuyển), không tăng tip, không đào tạo, không bao giờ gặp sự cố. Làm được ít việc hơn người. Robot quán (2,4 m/s) chậm hơn người phục vụ cấp 1 khoảng 11–24% tùy người (2,81–3,14 m/s); **Robot vườn làm việc vặt (tưới, cỏ, chế biến, giao) nhanh hơn Nam cấp 1 ~5–6%** (so sánh theo Nam 60/60; người có chỉ số gốc khác thì khác) nhưng không trồng/bón/tỉa/hái.
 - **Farm:** robot **dùng chung 2 chỗ thợ với người, tối đa 1 robot**. Chọn (người, người) hay (người, robot) là quyết định thật. Robot farm mua theo **gói trả trước 1/5/10 ngày công** (15/68/113 xu, gói 10 rẻ 25%).
 - **Quán:** robot bưng/dọn thuê **theo ca như người** (3 xu/ca, không có gói), thuê được khi nút Nhân viên mở.
 - **Người:** như hiện nay + **sự cố ngẫu nhiên**, tối đa 1/ca mỗi người: Mải chơi 📱, Nghỉ ốm 🤒, Chửi khách 😤 (chỉ thu ngân/phục vụ). Người giỏi hơn (bưng 2 ly, tip theo Giao tiếp, hái/trồng/bón) nhưng phải trông.
@@ -25,8 +44,8 @@ Trụ cột: (2) quay lại — gói tặng + sự cố tạo lý do quay lại 
 | `gift-pha` | Robot pha (thử) | `barista` | **Không** (`giftOnly: true`) | Chỉ Phin đen nóng, Cà phê sữa đá | – | `ms 14000`, `score 50`, `recipes ['phin-den','nau-da']`, `cups 10` |
 | `gift-bung` | Robot bưng (thử) | `waiter` | **Không** (`giftOnly: true`) | Như robot bưng | – | như `robo-b*` |
 
-- **Một điều kiện duy nhất để thuê robot quán:** `HUD_UNLOCKS` id `workers` đang mở (`content.js:92`: đã nhận `expand`, hoặc `workers.length > 0`, hoặc cấp ≥ 3). Không phụ thuộc trạng thái gói tặng. Thành viên gói dùng id riêng `gift-*` nên không bao giờ trùng `robo-b*`: đang có `gift-bung` vẫn thuê được `robo-b1`.
-- Robot thuê theo ca như người: `hire` trả 1 ca, tự gia hạn trong `advance` khi quán mở (model.js:225), không trả trước được (`hire` khi đang trong ca bị từ chối như người).
+- **Một điều kiện duy nhất để thuê robot quán:** `HUD_UNLOCKS` id `workers` đang mở (`content.js:93`: đã nhận `expand`, hoặc `workers.length > 0`, hoặc cấp ≥ 3). Không phụ thuộc trạng thái gói tặng. Thành viên gói dùng id riêng `gift-*` nên không bao giờ trùng `robo-b*`: đang có `gift-bung` vẫn thuê được `robo-b1`.
+- Robot thuê theo ca như người: `hire` trả 1 ca, tự gia hạn trong `advance` khi quán mở (model.js:284), không trả trước được (`hire` khi đang trong ca bị từ chối như người).
 - Lương robot cố định 3 xu, không nhân theo cấp (robot luôn cấp 1, không đào tạo).
 - Robot tính vào giới hạn vai (`max`: phục vụ 3, tạp vụ 1) và `MAX_CREW` 10 như người. Không có robot thu ngân/quản lý/barista thuê được. Thu ngân tự động là **Kiosk** (đổi tên "Robot thu ngân (kiosk)"), pha tự động là **Máy espresso tự động** (đổi tên "Robot pha espresso", vẫn chỉ Espresso/Americano 70 điểm, 10 s).
 - Người phục vụ đổi: **bưng tối đa 2 ly/chuyến** (`carry 2`): lấy ly thứ hai ở pass nếu có khách khác đang chờ đúng món đó và chưa ai giữ; giao gần trước. Đây là ưu thế chính của người so với robot.
@@ -40,8 +59,8 @@ Trụ cột: (2) quay lại — gói tặng + sự cố tạo lý do quay lại 
 - **2 chỗ thợ chung, tối đa 1 robot.** Mọi chỗ đang đếm "2 thợ" trong code giữ nguyên (đếm mọi thợ, gồm robot). Chỉ thêm một luật: đã có robot thì không thuê robot thứ hai. Không có ô robot riêng.
 - Robot **không** trồng, bón, tỉa, hái: các nhóm việc đó bị khóa trong Thiết lập (ổ khóa "Robot không làm việc này"). Chỉ thị "Trồng lấp ô trống", "Dùng phân bón" bỏ qua robot.
 - Robot **tính là thợ chính** để farm nhận đơn quán (điều kiện `workers.length > 0`). Robot giữ đơn mà không có quả để chế biến thì lý do chờ: "Robot không hái được · Hái tay hoặc thuê người".
-- Chỉ số cố định (chốt vòng 3, 03/11/2026) cho công thức sẵn có trong `crew.js`: di chuyển `0,75 + 0,5 × speed/100` = **1,10** so với 1,05 của Nam (speed 60) → ×1,05; làm việc `0,7 + 0,35 × speed/100 + 0,25 × dex/100` = **1,12** so với 1,06 (speed 60, dex 60) → ×1,06. Khoảng: speed, dex ∈ [0, 100] → di chuyển [0,75; 1,25], làm việc [0,70; 1,30]; không chia, không âm. Người lên cấp +2 mỗi chỉ số: cấp 5 (68/68) di chuyển 1,09, làm việc 1,11 ≈ robot; **cấp ≥ 6 vượt robot** cả việc vặt. Robot vẫn không tăng chỉ số (không đào tạo).
-- Robot quán **giữ** luật chậm hơn ~20% (2,4 vs 2,96 m/s, mục 2 Quán); chỉ Robot vườn được đảo.
+- Chỉ số cố định (chốt vòng 3, 03/11/2026) cho công thức sẵn có trong `crew.js`: di chuyển `0,75 + 0,5 × speed/100` = **1,10** so với 1,05 của Nam (speed 60) → ×1,05; làm việc `0,7 + 0,35 × speed/100 + 0,25 × dex/100` = **1,12** so với 1,06 (speed 60, dex 60) → ×1,06. Khoảng: speed, dex ∈ [0, 100] → di chuyển [0,75; 1,25], làm việc [0,70; 1,30]; không chia, không âm. Người lên cấp +2 mỗi chỉ số: cấp 5 (68/68) di chuyển 1,09, làm việc 1,11 ≈ robot; cấp 6 (70/70) **bằng** robot; **từ cấp 7 vượt robot** cả việc vặt. Các mốc này tính theo Nam (60/60); Linh (speed 75) đi nhanh hơn robot ngay cấp 1, Minh (50/50) chậm hơn nhiều. Robot vẫn không tăng chỉ số (không đào tạo).
+- Robot quán **giữ** luật chậm hơn người (2,4 m/s so với người phục vụ cấp 1 2,81–3,14 m/s theo `1,6 + 0,022 × speed`; số 2,96 cũ là của barista Phát, không phải người phục vụ); chỉ Robot vườn được đảo.
 - Robot không bao giờ vào `rejectedCandidates` (cho nghỉ rồi thuê lại được), không có `xp`, `act('workers','train')` từ chối "Robot không đào tạo được".
 
 ## 3. Gói trả trước (chỉ Robot vườn)
@@ -56,8 +75,8 @@ Trụ cột: (2) quay lại — gói tặng + sự cố tạo lý do quay lại 
 
 Kết quả: **15 / 68 / 113 xu** (gói 5: 67,5 → 68; gói 10: 112,5 → 113). Giá/ngày công: 15 / 13,6 / 11,3. Chặn: `n` ngoài tập → `fail`, không chia, không âm. Quán không có gói (`cafe/hire` bỏ qua `pack`).
 
-- `shiftUntil = max(shiftUntil, at) + n × WORK_DAY_MS`, `paidDays += n`; vẫn tạm dừng khi vắng mặt > 60 s (model.js:221).
-- Hết gói: tự gia hạn **1 ngày giá lẻ 15 xu** khi còn < 30 s nếu bật Tự gia hạn. Thiếu xu → robot dừng an toàn, Cần xử lý "Hết gói · Gia hạn 15 xu".
+- `shiftUntil = max(shiftUntil, at) + n × WORK_DAY_MS`, `paidDays += n`; vẫn tạm dừng khi vắng mặt > 60 s (model.js:278).
+- Hết gói: tự gia hạn **1 ngày giá lẻ 15 xu** khi còn < 30 s nếu bật Tự gia hạn. Thiếu xu → robot dừng an toàn, Cần xử lý "{tên robot} hết gói · Gia hạn 15 xu". Gia hạn thất bại thì thử lại mỗi 10 s.
 - Cho nghỉ không hoàn phần còn lại (như người). Vì robot chiếm 1 trong 2 chỗ, gói 10 (= 60 phút chơi liên tục) là **cam kết giữ chỗ**: muốn đổi sang người giữa chừng thì mất phần còn lại. Đây là cái giá của chiết khấu sâu.
 
 ## 4. Sự cố của người
@@ -66,7 +85,7 @@ Kết quả: **15 / 68 / 113 xu** (gói 5: 67,5 → 68; gói 10: 112,5 → 113).
 
 | Sự cố | Ai | Xác suất gốc/ca `p0` | Khi nào trong ca | Tác dụng | Cách xử lý |
 |---|---|---|---|---|---|
-| Mải chơi 📱 | Mọi người (farm, quán) | 0,12 | Ngẫu nhiên 20–80% ca | Đứng yên, nhả việc đang giữ (ly trên tay về pass, hàng về kho), tối đa **40 s** | Chạm người → «Nhắc» → làm lại ngay. Không nhắc thì 40 s sau tự làm lại |
+| Mải chơi 📱 | Mọi người (farm, quán) | 0,12 | Ngẫu nhiên 20–80% ca | Đứng yên, nhả việc đang giữ (quán: ly trên tay về pass; farm: thợ không cầm hàng, chỉ nhả việc đã nhận), tối đa **40 s** | Quán: chạm người → «Nhắc» → làm lại ngay. Farm: chạm thợ mở bảng có «Nhắc», hoặc «Nhắc» trên toast (C-2). Không nhắc thì 40 s sau tự làm lại |
 | Nghỉ ốm 🤒 | Mọi người | 0,04 | Đầu ca | Trống **1 ca**, **không mất lương** (giờ đã trả được dời) | Thông báo; nút «Thuê robot thay» theo điều kiện dưới |
 | Chửi khách 😤 | Thu ngân, phục vụ (quán) | 0,05 | Ngẫu nhiên 20–80% ca, **tại lần nhận order/bưng ly** | Bong bóng 😤 báo trước **3 s**; không chạm kịp → khách đó bỏ về, **uy tín −2**, không trả tiền | Chạm người trong 3 s → chặn, không hậu quả. **Không reset combo** |
 
@@ -150,7 +169,7 @@ Khoảng: cấp ≥ 10 nhân 0,4 → (người, người) 0,128, (người, robo
 
 Robot pha toàn Phin đen thì sữa đặc và đá thừa ở lại kho quán, là lợi cho người chơi (tối đa 10 + 1,5 xu).
 
-- Thành viên `gift: true` không tính vào `MAX_CREW`/giới hạn vai, không tự gia hạn (model.js:225 bỏ qua), không được đào tạo/cho nghỉ (nút ẩn).
+- Thành viên `gift: true` không tính vào `MAX_CREW`/giới hạn vai, không tự gia hạn (model.js:284 bỏ qua), không được đào tạo/cho nghỉ (nút ẩn).
 - Gói chỉ trôi khi quán mở (luật `paidUntil` sẵn có, model.js:223). Chưa vào quán thì Cần xử lý giữ dòng "🎁 Gói thử robot đang chờ · Vào quán, Mở cửa".
 - `state = 'active'` khi quán mở lần đầu có thành viên gift; `'done'` khi mọi thành viên gift hết ca. `state` chỉ dùng cho báo cáo/`tally`, **không** dùng làm miễn trừ sự cố (mục 4, miễn trừ 2).
 
@@ -165,7 +184,7 @@ Robot pha toàn Phin đen thì sữa đặc và đá thừa ở lại kho quán,
 
 ### Khách nhận ly robot (luật chỉ cho ly `robot: true`)
 
-- Mỗi ly robot giao tới khách (ai bưng cũng vậy): **25%** khách chê, bỏ về, **không trả tiền**, uy tín **−0,5**; trần −2 uy tín/ca từ luật này (`walkRep`). Không reset combo. Câu: "Khách chê ly robot: <nguyên nhân> · bỏ về".
+- Mỗi ly robot giao tới khách (ai bưng cũng vậy): **25%** khách chê, bỏ về, **không trả tiền**, uy tín **−0,5**; trần −2 uy tín từ luật này (`walkRep`; code tính trần cho **cả gói**, không reset mỗi ca — C-1). Không reset combo. Câu: "Khách chê ly robot: <nguyên nhân> · bỏ về".
 - 75% còn lại trả như ly 1★. Chất lượng (model.js:401) = `score × 0,75 + chất lượng lô × 0,25 + gearBonus + beanFit` = 50 × 0,75 + 70 × 0,25 + 0 + 0 = **55** khi phin cấp 1, máy xay cấp 1 (`gearBonus` 0) và hạt vối đúng món (`beanFit` 0). Giá = `price × (0,6 + 0,4 × 55/100)` → Phin đen **2,05 xu**, sữa đá **2,46 xu**. Tip chỉ phần nhanh `(1 − wait) × 0,1 × price` (≤ 0,25/0,30). Uy tín từ bán ly: (1 − 1) × 0,6 = 0.
 - Mỗi cấp phin trên 1 cộng +4 chất lượng, mỗi cấp máy xay trên 1 cộng +3 (`gearBonus`, recipes.js:238): save cũ đã nâng cấp sẽ thấy giá ly robot cao hơn một chút.
 - So với ly người chơi 2★ (điểm 75, chất lượng ≈ 74): Phin đen ≈ 2,24 + tip 0,375 (+ nhanh) ≈ 2,7 xu, uy tín +0,6/ly.
@@ -242,7 +261,7 @@ Kết quả (vối): cấp 1 → 15/29,4 = **0,5 vụ**; cấp 5 → 55/29,4 = *
 |---|---|---|
 | 2 ruộng, người chơi ở farm tự hái | (người, robot) | Hái không thiếu tay; robot đẩy chế biến/giao nhanh hơn và rẻ hơn |
 | 3–4 ruộng, người chơi ở quán lâu | (người, người) | Hái là nút cổ chai (0,5–1,9 vụ hòa vốn ≪ 24–48 lần hái cần) |
-| Người thứ hai cấp ≥ 6 | (người, người) | Người vượt robot cả việc vặt |
+| Người thứ hai cấp ≥ 7 (theo Nam) | (người, người) | Người vượt robot cả việc vặt |
 
 Phép tính trên là ước lượng tay; `scripts/balance-sim.mjs` chưa có mô hình thợ nên không đo bằng sim được. Speed/dex/lương robot **chỉnh theo số đo playtester** với ngưỡng chấp nhận ở mục 12 ("Đo sau triển khai"); không chặn triển khai.
 
@@ -265,7 +284,7 @@ Phần quán (robot bưng/dọn, gói tặng) giữ đánh giá cũ: duyệt. Ti
 
 ## 8. Vòng phản hồi
 
-- **Dương có chủ đích:** giàu → thuê robot cho việc lặp → chủ rảnh tay pha/hái → giàu hơn. Hãm bằng chỗ giới hạn (farm 2 chỗ chung, 1 robot; quán theo `max` vai), robot quán chậm, Robot vườn không hái/trồng/bón/tỉa và không lên cấp (người cấp ≥ 6 vượt).
+- **Dương có chủ đích:** giàu → thuê robot cho việc lặp → chủ rảnh tay pha/hái → giàu hơn. Hãm bằng chỗ giới hạn (farm 2 chỗ chung, 1 robot; quán theo `max` vai), robot quán chậm, Robot vườn không hái/trồng/bón/tỉa và không lên cấp (Nam cấp ≥ 7 vượt).
 - **Dương cần hãm:** đào tạo người → ít sự cố → càng nên đào tạo. Hãm bằng sàn `F = 0,4` và lương người tăng theo cấp.
 - **Âm có chủ đích:** đông người → nhiều sự cố cần trông (≈ 1/ca đủ đội). Quản lý ca giảm ×0,5 phone/rude — lý do thật để thuê quản lý. Thay người bằng robot cũng giảm sự cố, đổi lại mất tip/carry/tay hái.
 - **Âm cần tránh xoáy:** uy tín thấp → chửi khách → uy tín thấp hơn. Chặn bằng miễn sự cố khi uy tín < 30 và trần chửi khách 1/ca.
@@ -348,7 +367,7 @@ Không có cú nhảy: robot farm thay chứ không cộng thêm chỗ; nhanh h�
 | Uy tín chửi khách | −2 | −1…−3 | Hình phạt | `farm/model.js` (`lost`) |
 | Gói tặng: ly / hạt / sữa đặc / đá | 10 / 200 g / 500 ml / 1.500 g | 6–12 ly; vật tư = ly × định mức robot | Độ dài bài học | `farm/model.js` |
 | Điểm robot pha | 50 | 40–60 (phải 1★: 40–69) | Mức tệ của ly robot | `cafe/recipes.js` |
-| Khách chê ly robot | 25%, −0,5, trần −2/ca | 15–35% | Độ đau bài học | `farm/model.js` |
+| Khách chê ly robot | 25%, −0,5, trần −2/gói (code) | 15–35% | Độ đau bài học | `farm/model.js` |
 
 **Còn phải đo bằng sim (quán):** (a) thông lượng robot bưng vs người ở 3, 6, 10 bàn; (c) số sự cố/ca thực tế với đội điển hình.
 
@@ -402,7 +421,7 @@ Debug: chỉ khi URL có `?debug=incident` mới có `window.__forceIncident(id,
 | 9 | Thuê Robot vườn | Farm 1 người, 200 xu: thuê robot gói 10 | Xu 200 → 87 (113, không phí tuyển). Ô thợ **2/2**. Hồ sơ robot: speed 70, dexterity 70. Thiết lập robot: Trồng/Bón/Tỉa/Hái khóa. Robot không hái. Thuê thêm người → báo đủ 2 thợ. Farm 2 người: thuê robot → `fail('Đã đủ 2 thợ…')`. Gói 1 = 15, gói 5 = 68 |
 | 9b | Reload với robot | Farm 1 người + Robot vườn, ghi số xu, reload 2 lần | Vẫn 2 thợ, xu không đổi, không có dòng "hoàn phí tuyển" |
 | 10 | Robot giữ đơn một mình | Chỉ có robot, đơn mở, không quả | Đơn vẫn sinh (robot là thợ chính). Lý do chờ "Robot không hái được · Hái tay hoặc thuê người" |
-| 11 | Mải chơi farm | `__forceIncident('an','phone')` khi An ca ≥ 3 | An đứng yên, bong bóng 📱, `waitReason` đúng chữ. Chạm An → «Nhắc» → làm lại trong ≤ 1 s. Không nhắc: làm lại sau 40 s |
+| 11 | Mải chơi farm | `__forceIncident('an','phone')` khi An ca ≥ 3 | An đứng yên, nhãn 📱 trên thẻ nhân viên và toast có «Nhắc», `waitReason` đúng chữ. «Nhắc» → làm lại trong ≤ 1 s. Không nhắc: làm lại sau 40 s |
 | 12 | Ốm farm, còn chỗ | Farm chỉ An, An **không giữ đơn nào** (bỏ An khỏi cả 2 đơn); `__forceIncident('an','sick')` | `restUntil` = now + 360 s, `shiftUntil` +360 s, xu không đổi. Toast có «Thuê robot thay» mở đúng tab Robot |
 | 12a | Ốm farm, hết chỗ | Farm An + Bình, giao **mỗi người một đơn**; ép An ốm | Ốm **có** tác dụng (farm 2 thợ, miễn trừ 4 không áp dù An là người duy nhất của đơn mình). Toast không có nút «Thuê robot thay». «Giao đội làm đơn» giao cho Bình, không báo lỗi "đang nghỉ" |
 | 12d | Miễn trừ 4 chỉ cho ốm, chỉ farm 1 thợ | Farm chỉ An (ca ≥ 3), An giữ 1 đơn. Ép `sick`; rồi ép `phone`. Thuê Robot vườn, ép `sick` cho An | Ốm lần 1: hủy, `restUntil`/`shiftUntil`/xu không đổi, `incident.done = true`. Mải chơi: **có** tác dụng (📱, 40 s). Sau khi có robot: ốm **có** tác dụng, không có «Thuê robot thay» (hết chỗ) |

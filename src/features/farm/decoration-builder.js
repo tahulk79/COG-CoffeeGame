@@ -3,6 +3,7 @@ import { createWorkActivity } from './activity.js';
 import { disposeScene } from '../../shared/three/dispose-scene.js';
 import { DECORATIONS,decorationError } from './decorations.js';
 import { loadModel } from '../../shared/three/models.js';
+import { t } from '../../i18n/index.js';
 // Hình Blender (decor.glb#decor_<id>); chưa tải xong hoặc lỗi thì dựng khối tạm như cũ.
 const ART={};
 const artReady=Promise.all(DECORATIONS.map(({id})=>loadModel(`farm/decor.glb#decor_${id}`).then(m=>{if(m)ART[id]=m;})));
@@ -26,7 +27,7 @@ function model(item){
     box('#82603c',0,.5,0,.1,1,.1);box('#bc935e',0,1.05,0,1.1,.6,.12);
   }
   if(item.type==='sign'){
-    const canvas=document.createElement('canvas');canvas.width=512;canvas.height=256;const ctx=canvas.getContext('2d');ctx.fillStyle='#2e2416';ctx.fillRect(0,0,512,256);ctx.fillStyle='#fffbe6';ctx.font='900 80px "Baloo 2",sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(item.text||'Vườn cà phê',256,132,480);
+    const canvas=document.createElement('canvas');canvas.width=512;canvas.height=256;const ctx=canvas.getContext('2d');ctx.fillStyle='#2e2416';ctx.fillRect(0,0,512,256);ctx.fillStyle='#fffbe6';ctx.font='900 80px "Baloo 2",sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(item.text||t('farm.decor.signDefault'),256,132,480);
     // Nền tối chữ trắng to cho đọc được từ góc camera xa; sRGB để màu không bị nhạt.
     const map=new THREE.CanvasTexture(canvas);map.colorSpace=THREE.SRGBColorSpace;
     const label=new THREE.Mesh(new THREE.PlaneGeometry(.99,.48),new THREE.MeshBasicMaterial({map}));label.position.set(0,1.05,.066);group.add(label);
@@ -35,7 +36,7 @@ function model(item){
     group.traverse(node=>{if(node.isMesh){node.material.transparent=true;node.material.opacity=.25;}});
     for(const x of [-.65,.65])for(const z of [-.55,.55])box('#ba925d',x,.48,z,.07,.96,.07);
     for(const z of [-.55,.55])box('#d9b97f',0,.9,z,1.4,.08,.08);
-    const canvas=document.createElement('canvas');canvas.width=256;canvas.height=80;const ctx=canvas.getContext('2d');ctx.fillStyle='#3b2a1c';ctx.fillRect(0,0,256,80);ctx.fillStyle='#fff6dc';ctx.font='bold 21px sans-serif';ctx.textAlign='center';ctx.fillText(`Đang xây · ${Math.floor(item.buildMs/item.buildDuration*100)}%`,128,31);ctx.fillStyle='#d9c9a6';ctx.fillRect(16,48,224,13);ctx.fillStyle='#91b963';ctx.fillRect(16,48,224*item.buildMs/item.buildDuration,13);
+    const canvas=document.createElement('canvas');canvas.width=256;canvas.height=80;const ctx=canvas.getContext('2d');ctx.fillStyle='#3b2a1c';ctx.fillRect(0,0,256,80);ctx.fillStyle='#fff6dc';ctx.font='bold 21px sans-serif';ctx.textAlign='center';ctx.fillText(t('farm.decor.building',{pct:Math.floor(item.buildMs/item.buildDuration*100)}),128,31);ctx.fillStyle='#d9c9a6';ctx.fillRect(16,48,224,13);ctx.fillStyle='#91b963';ctx.fillRect(16,48,224*item.buildMs/item.buildDuration,13);
     const material=new THREE.SpriteMaterial({map:new THREE.CanvasTexture(canvas),depthWrite:false}),badge=new THREE.Sprite(material);badge.position.y=2;badge.scale.set(1.8,.56,1);group.add(badge);
   }
   group.position.set(item.x,.04,item.z);group.rotation.y=item.rotation;return group;
@@ -43,12 +44,12 @@ function model(item){
 export function createDecorationBuilder({world,farm,player,ui,signal,defaultName,feedback=()=>{}}){
   const fx=(mode,result,item)=>feedback('decor',{mode,ok:result.ok,at:{x:item.x,y:.4,z:item.z}});
   const placed=new Map(),ray=new THREE.Raycaster(),plane=new THREE.Plane(new THREE.Vector3(0,1,0),0),point=new THREE.Vector3();
-  let draft=null,ghost=null,valid=false,positionChosen=false,task=null;const activity=createWorkActivity(player,'Bạn');
+  let draft=null,ghost=null,valid=false,positionChosen=false,task=null;const activity=createWorkActivity(player,t('farm.you'));
   const panel=document.createElement('section');panel.id='farm-build-placement';panel.hidden=true;
-  const name=document.createElement('strong'),hint=document.createElement('small'),input=document.createElement('input'),buttons=document.createElement('div');input.maxLength=24;input.setAttribute('aria-label','Tên trên biển');input.placeholder='Tên góc vườn';
-  const rotate=document.createElement('button'),confirm=document.createElement('button'),cancel=document.createElement('button');for(const button of [rotate,confirm,cancel])button.type='button';rotate.textContent='↻ Xoay';confirm.textContent='Đặt ở đây';cancel.textContent='Hủy';buttons.append(rotate,confirm,cancel);panel.append(name,hint,input,buttons);document.body.append(panel);
-  function error(value=draft){if(!value)return 'Chọn vị trí trước.';const reason=decorationError(farm.progress.decorations,value);if(reason)return reason;world.prepareNavigation();if(!world.canStand(value.x,value.z))return 'Vị trí bị vật cản che.';if(Math.hypot(value.x-player.position.x,value.z-player.position.z)<1)return 'Chừa chỗ cho nhân vật.';return null;}
-  function update(){if(!draft)return;const reason=error();valid=!reason;hint.textContent=positionChosen?(reason||'Đã chọn vị trí · Bấm Đặt ở đây để xác nhận mua'):'Bấm mặt đất trống để chốt vị trí. Bấm chỗ khác để đổi.';confirm.disabled=!positionChosen||!valid;ghost.position.set(draft.x,.04,draft.z);ghost.rotation.y=draft.rotation;ghost.traverse(node=>{if(node.isMesh){node.material.transparent=true;node.material.opacity=.55;node.material.color.set(valid?'#a8d578':'#e18a72');}});}
+  const name=document.createElement('strong'),hint=document.createElement('small'),input=document.createElement('input'),buttons=document.createElement('div');input.maxLength=24;input.setAttribute('aria-label',t('farm.decor.signLabel'));input.placeholder=t('farm.decor.signPlaceholder');
+  const rotate=document.createElement('button'),confirm=document.createElement('button'),cancel=document.createElement('button');for(const button of [rotate,confirm,cancel])button.type='button';rotate.textContent=t('farm.decor.rotate');confirm.textContent=t('farm.decor.placeHere');cancel.textContent=t('farm.cancel');buttons.append(rotate,confirm,cancel);panel.append(name,hint,input,buttons);document.body.append(panel);
+  function error(value=draft){if(!value)return t('farm.decor.err.pickFirst');const reason=decorationError(farm.progress.decorations,value);if(reason)return reason;world.prepareNavigation();if(!world.canStand(value.x,value.z))return t('farm.decor.err.blocked');if(Math.hypot(value.x-player.position.x,value.z-player.position.z)<1)return t('farm.decor.err.player');return null;}
+  function update(){if(!draft)return;const reason=error();valid=!reason;hint.textContent=positionChosen?(reason||t('farm.decor.hintChosen')):t('farm.decor.hintPick');confirm.disabled=!positionChosen||!valid;ghost.position.set(draft.x,.04,draft.z);ghost.rotation.y=draft.rotation;ghost.traverse(node=>{if(node.isMesh){node.material.transparent=true;node.material.opacity=.55;node.material.color.set(valid?'#a8d578':'#e18a72');}});}
   function clear(){draft=null;positionChosen=false;panel.hidden=true;if(ghost){ghost.removeFromParent();disposeScene(ghost);ghost=null;}}
   function sync(){
     const items=farm.progress.decorations;let solidsChanged=false;
@@ -62,20 +63,20 @@ export function createDecorationBuilder({world,farm,player,ui,signal,defaultName
     stopTask();const item=farm.progress.decorations.find(item=>item.id===id);if(!item)return;
     world.prepareNavigation();const spots=[];for(let i=0;i<12;i++){const angle=i*Math.PI/6,x=item.x+Math.cos(angle)*1.5,z=item.z+Math.sin(angle)*1.5;if(world.canStand(x,z))spots.push({x,z});}
     spots.sort((a,b)=>Math.hypot(a.x-player.position.x,a.z-player.position.z)-Math.hypot(b.x-player.position.x,b.z-player.position.z));
-    if(!spots.length){ui.notice('Chưa có lối tới vị trí thi công.',false);return;}
-    task={id,mode,phase:'walk',target:spots[0],elapsed:0,pending:0};world.moveToPoint(task.target.x,task.target.z);ui.notice(mode==='build'?'Nhân vật đang tới chỗ xây.':'Nhân vật đang tới để phá dỡ.');
+    if(!spots.length){ui.notice(t('farm.decor.noPath'),false);return;}
+    task={id,mode,phase:'walk',target:spots[0],elapsed:0,pending:0};world.moveToPoint(task.target.x,task.target.z);ui.notice(mode==='build'?t('farm.decor.walkBuild'):t('farm.decor.walkDemolish'));
   }
   function tick(dt,failed,paused){
     if(!task||paused)return;
     const item=farm.progress.decorations.find(item=>item.id===task.id);if(!item){stopTask();return;}
-    if(task.phase==='walk'){if(failed){stopTask();ui.notice('Chưa tìm được đường tới. Bấm công trình để thử lại.',false);return;}if(Math.hypot(player.position.x-task.target.x,player.position.z-task.target.z)>.15)return;task.phase='work';world.stopMovement();}
+    if(task.phase==='walk'){if(failed){stopTask();ui.notice(t('farm.decor.routeFailed'),false);return;}if(Math.hypot(player.position.x-task.target.x,player.position.z-task.target.z)>.15)return;task.phase='work';world.stopMovement();}
     if(Math.hypot(player.position.x-item.x,player.position.z-item.z)>1.8){stopTask();return;}
     const step=Math.min(dt,.1)*1000;task.elapsed+=step;task.pending+=step;
     const ratio=task.mode==='build'?Math.min(1,(item.buildMs+task.pending)/item.buildDuration):Math.min(1,task.elapsed/3500);
     player.rotation.y=Math.atan2(item.x-player.position.x,item.z-player.position.z);activity.update(task.mode==='build'?'construct':'dismantle',ratio,performance.now()/1000);
     for(const [i,arm]of (player.userData.arms||[]).entries())arm.rotation.x=-.6+Math.sin(task.elapsed*.015+i)*.4;
     if(task.mode==='build'&&(task.pending>=500||ratio>=1)){
-      const result=farm.act('decorations','construct',{id:item.id,ms:Math.min(1000,task.pending)});task.pending=0;sync();if(!result.ok){stopTask();ui.notice(result.message,false);fx('built',result,item);}else if(farm.progress.decorations.find(value=>value.id===item.id)?.state==='complete'){stopTask();ui.notice('Đã xây xong trang trí.');fx('built',result,item);}
+      const result=farm.act('decorations','construct',{id:item.id,ms:Math.min(1000,task.pending)});task.pending=0;sync();if(!result.ok){stopTask();ui.notice(result.message,false);fx('built',result,item);}else if(farm.progress.decorations.find(value=>value.id===item.id)?.state==='complete'){stopTask();ui.notice(t('farm.decor.built'));fx('built',result,item);}
     }else if(task.mode==='demolish'&&ratio>=1){const result=farm.act('decorations','demolish',{id:item.id});stopTask();sync();ui.notice(result.message,result.ok);fx('demolish',result,item);}
   }
   function pick(event,canvas){
@@ -85,7 +86,7 @@ export function createDecorationBuilder({world,farm,player,ui,signal,defaultName
     const item=farm.progress.decorations.find(item=>item.id===node.userData.decorationId),spec=DECORATIONS.find(spec=>spec.id===item?.type);if(!item||!spec)return false;
     stopTask();ui.decorationDetails(item,spec,()=>beginTask(item.id,'build'),()=>beginTask(item.id,'demolish'));return true;
   }
-  function start(type){clear();const spec=DECORATIONS.find(item=>item.id===type);if(!spec)return;world.stopMovement();draft={type,x:Math.round(player.position.x+2),z:Math.round(player.position.z),rotation:0,text:defaultName.slice(0,24)};input.value=draft.text;input.hidden=type!=='sign';name.textContent=`${spec.icon} ${spec.name} · ${spec.price} xu`;ghost=model(draft);ghost.userData.nonSolid=true;world.scene.add(ghost);panel.hidden=false;update();}
+  function start(type){clear();const spec=DECORATIONS.find(item=>item.id===type);if(!spec)return;world.stopMovement();draft={type,x:Math.round(player.position.x+2),z:Math.round(player.position.z),rotation:0,text:defaultName.slice(0,24)};input.value=draft.text;input.hidden=type!=='sign';name.textContent=t('farm.decor.panelName',{icon:spec.icon,name:spec.name,price:spec.price});ghost=model(draft);ghost.userData.nonSolid=true;world.scene.add(ghost);panel.hidden=false;update();}
   function locate(event,canvas){
     if(!draft||document.querySelector('dialog[open]'))return;
     const clicked=event.type==='click';if(positionChosen&&!clicked)return;
@@ -96,6 +97,6 @@ export function createDecorationBuilder({world,farm,player,ui,signal,defaultName
   }
 
   rotate.addEventListener('click',()=>{if(draft){draft.rotation=(draft.rotation+Math.PI/2)%(Math.PI*2);update();}},{signal});cancel.addEventListener('click',clear,{signal});input.addEventListener('input',()=>{if(draft){draft.text=input.value.trim().slice(0,24);ghost.removeFromParent();disposeScene(ghost);ghost=model(draft);ghost.userData.nonSolid=true;world.scene.add(ghost);update();}},{signal});
-  confirm.addEventListener('click',()=>{if(!draft||!positionChosen||error())return;const saved={...draft,text:input.value.trim().slice(0,24)},spec=DECORATIONS.find(item=>item.id===saved.type);ui.confirmTrade('Xây trang trí',`Đặt ${spec.name}${saved.type==='sign'?` “${saved.text||'Vườn cà phê'}”`:''} với giá ${spec.price} xu?`,()=>{const reason=error(saved);if(reason){ui.notice(reason,false);return;}const result=farm.act('decorations','place',saved);ui.notice(result.message,result.ok);fx('place',result,saved);if(result.ok){clear();sync();const item=farm.progress.decorations.at(-1);beginTask(item.id,'build');}},spec.icon);},{signal});
+  confirm.addEventListener('click',()=>{if(!draft||!positionChosen||error())return;const saved={...draft,text:input.value.trim().slice(0,24)},spec=DECORATIONS.find(item=>item.id===saved.type);ui.confirmTrade(t('farm.decor.confirmTitle'),t('farm.decor.confirmBody',{name:spec.name+(saved.type==='sign'?` “${saved.text||t('farm.decor.signDefault')}”`:''),price:spec.price}),()=>{const reason=error(saved);if(reason){ui.notice(reason,false);return;}const result=farm.act('decorations','place',saved);ui.notice(result.message,result.ok);fx('place',result,saved);if(result.ok){clear();sync();const item=farm.progress.decorations.at(-1);beginTask(item.id,'build');}},spec.icon,'build');},{signal});
   return {tick,pick,stopTask,get busy(){return Boolean(task);},get working(){return task?.phase==='work';},get active(){return Boolean(draft);},start,clear,sync,locate,key(event){if(!draft||document.querySelector('dialog[open]'))return false;if(event.code==='Escape')clear();else if(event.code==='KeyR')rotate.click();else return false;event.preventDefault();return true;},dispose(){stopTask();activity.dispose();clear();panel.remove();for(const group of placed.values()){group.removeFromParent();disposeScene(group);}placed.clear();}};
 }

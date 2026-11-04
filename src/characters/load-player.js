@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { gltfLoader, matteBakedMetal } from '../shared/three/models.js';
+import { t } from '../i18n/index.js';
 
 export const playerModel = gender => gender === 'male' ? 'male.glb' : 'girl.glb';
 
@@ -9,7 +10,7 @@ export async function loadPlayer(filename, onProgress) {
   model.updateMatrixWorld(true);
   const bounds = new THREE.Box3().setFromObject(model);
   const size = bounds.getSize(new THREE.Vector3());
-  if (!Number.isFinite(size.y) || size.y <= 0) throw new Error('Model nhân vật không có kích thước hợp lệ.');
+  if (!Number.isFinite(size.y) || size.y <= 0) throw new Error(t('character.modelInvalid'));
   const center = bounds.getCenter(new THREE.Vector3());
   const scale = 2 / size.y;
   const placement = new THREE.Group();

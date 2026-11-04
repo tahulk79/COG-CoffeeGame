@@ -1,8 +1,9 @@
 import { icon } from './icons.js';
+import { t } from '../i18n/index.js';
 
 // Shared "Quản lý" drawer for the farm and café HUD (docs/shared/design-system.md §6): the bar keeps a few
 // actions plus this button; secondary buttons/panels are moved into `grid`/`panel` (same nodes, ids and listeners).
-export function mountHudDrawer(bar, { signal, id, label = 'Quản lý' }) {
+export function mountHudDrawer(bar, { signal, id, label = t('ui.hud.manage') }) {
   const button = document.createElement('button');
   button.type = 'button'; button.className = 'ui-hud-btn hud-manage'; button.dataset.sfx = 'ui.open';
   button.setAttribute('aria-controls', id); button.setAttribute('aria-expanded', 'false');
@@ -32,7 +33,7 @@ export function mountHudDrawer(bar, { signal, id, label = 'Quản lý' }) {
     refresh(n = count) {
       count = n;
       const fresh = grid.querySelector('.ui-new:not([hidden])');
-      badge.hidden = !count && !fresh; badge.textContent = count ? String(count) : 'Mới';
+      badge.hidden = !count && !fresh; badge.textContent = count ? String(count) : t('ui.hud.new');
     },
     remove() { drawer.remove(); button.remove(); },
   };

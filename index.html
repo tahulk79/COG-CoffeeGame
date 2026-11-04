@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="vi">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet" />
-    <title>COG — Chuyện một quán cà phê</title>
+    <title>COG — A Coffee Shop Story</title>
     <style>
       html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#edf5e7;color:#355342;font-family:'Baloo 2',system-ui,sans-serif}
       *,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}
@@ -20,74 +20,74 @@
     <link rel="stylesheet" href="/src/ui/styles/game.css">
   </head>
   <body class="booting">
-    <div id="game" tabindex="-1" aria-label="Màn 1: Tai nạn tại phố cổ Hà Nội"></div>
+    <div id="game" tabindex="-1" aria-label="Màn 1: Tai nạn tại phố cổ Hà Nội" data-i18n-attr="aria-label:html.game.label"></div>
     <div class="vignette"></div>
-    <section id="loading" class="loading-screen" aria-label="Đang tải trò chơi">
-      <h1 class="loading-logo">COG<small>Chuyện một quán cà phê</small></h1>
+    <section id="loading" class="loading-screen" aria-label="Đang tải trò chơi" data-i18n-attr="aria-label:html.loading.label">
+      <h1 class="loading-logo">COG<small data-i18n="html.tagline">Chuyện một quán cà phê</small></h1>
       <div class="coffee-loader"><span></span><span></span><span></span><div class="cup"></div></div>
-      <p>Đang pha một khởi đầu mới…</p>
-      <div id="load-track" role="progressbar" aria-label="Tiến trình tải" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="load-fill"></div></div>
-      <small id="load-status" role="status">Chuẩn bị thế giới · 0%</small>
+      <p data-i18n="html.loading.brewing">Đang pha một khởi đầu mới…</p>
+      <div id="load-track" role="progressbar" aria-label="Tiến trình tải" data-i18n-attr="aria-label:html.loading.progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="load-fill"></div></div>
+      <small id="load-status" role="status" data-i18n="html.loading.status">Chuẩn bị thế giới · 0%</small>
       <p id="load-tip" class="loading-tip"></p>
     </section>
-    <section id="selection" hidden aria-label="Chọn nhân vật">
+    <section id="selection" hidden aria-label="Chọn nhân vật" data-i18n-attr="aria-label:html.selection.label">
       <div class="selection-focus">
-        <button type="button" class="selection-arrow selection-arrow--prev ui-btn ui-btn--icon" aria-label="Nhân vật trước">‹</button>
-        <button type="button" class="selection-arrow selection-arrow--next ui-btn ui-btn--icon" aria-label="Nhân vật sau">›</button>
+        <button type="button" class="selection-arrow selection-arrow--prev ui-btn ui-btn--icon" aria-label="Nhân vật trước" data-i18n-attr="aria-label:html.selection.prev">‹</button>
+        <button type="button" class="selection-arrow selection-arrow--next ui-btn ui-btn--icon" aria-label="Nhân vật sau" data-i18n-attr="aria-label:html.selection.next">›</button>
         <span class="selection-check" aria-hidden="true">✓</span>
       </div>
       <form id="player-form" class="creation-card">
-        <div class="gender-switch ui-tabs ui-tabs--segmented" role="group" aria-label="Nhân vật"><button type="button" class="ui-tab" data-gender="male" aria-pressed="true"><span aria-hidden="true">♂</span> Nam</button><button type="button" class="ui-tab" data-gender="female" aria-pressed="false"><span aria-hidden="true">♀</span> Nữ</button></div>
-        <div class="name-row"><label class="name-label" for="player-name">Tên của bạn</label><p id="name-note">Tối đa 20 ký tự</p></div>
-        <div class="name-controls"><input id="player-name" name="playerName" type="text" required maxlength="20" autocomplete="nickname" placeholder="Nhập tên nhân vật" aria-describedby="name-note"><button id="random-name" class="ui-btn ui-btn--gold ui-btn--icon" type="button" aria-label="Chọn tên ngẫu nhiên" title="Tên ngẫu nhiên"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" fill="none" stroke="currentColor" stroke-width="2"/><g fill="currentColor"><circle cx="8.5" cy="8.5" r="1.6"/><circle cx="15.5" cy="8.5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="8.5" cy="15.5" r="1.6"/><circle cx="15.5" cy="15.5" r="1.6"/></g></svg></button></div>
-        <button id="enter-game" type="submit" class="primary ui-btn ui-btn--go ui-btn--lg">Vào Game <span aria-hidden="true">▶</span></button>
+        <div class="gender-switch ui-tabs ui-tabs--segmented" role="group" aria-label="Nhân vật" data-i18n-attr="aria-label:html.selection.character"><button type="button" class="ui-tab" data-gender="male" aria-pressed="true"><span aria-hidden="true">♂</span> <span data-i18n="html.selection.male">Nam</span></button><button type="button" class="ui-tab" data-gender="female" aria-pressed="false"><span aria-hidden="true">♀</span> <span data-i18n="html.selection.female">Nữ</span></button></div>
+        <div class="name-row"><label class="name-label" for="player-name" data-i18n="html.selection.name">Tên của bạn</label><p id="name-note" data-i18n="html.selection.nameNote">Tối đa 20 ký tự</p></div>
+        <div class="name-controls"><input id="player-name" name="playerName" type="text" required maxlength="20" autocomplete="nickname" placeholder="Nhập tên nhân vật" data-i18n-attr="placeholder:html.selection.namePlaceholder" aria-describedby="name-note"><button id="random-name" class="ui-btn ui-btn--gold ui-btn--icon" type="button" aria-label="Chọn tên ngẫu nhiên" title="Tên ngẫu nhiên" data-i18n-attr="aria-label:html.selection.randomName;title:html.selection.randomNameShort"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" fill="none" stroke="currentColor" stroke-width="2"/><g fill="currentColor"><circle cx="8.5" cy="8.5" r="1.6"/><circle cx="15.5" cy="8.5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="8.5" cy="15.5" r="1.6"/><circle cx="15.5" cy="15.5" r="1.6"/></g></svg></button></div>
+        <button id="enter-game" type="submit" class="primary ui-btn ui-btn--go ui-btn--lg"><span data-i18n="html.selection.enter">Vào Game</span> <span aria-hidden="true">▶</span></button>
       </form>
     </section>
     <div id="scene-transition" aria-hidden="true"><div class="slide-sheet slide-left"></div><div class="slide-sheet slide-right"></div></div>
-    <nav id="intro-controls" hidden aria-label="Điều khiển đoạn mở đầu">
+    <nav id="intro-controls" hidden aria-label="Điều khiển đoạn mở đầu" data-i18n-attr="aria-label:html.intro.controls">
       <div class="intro-actions">
-        <button id="skip" class="ui-btn ui-btn--plain ui-btn--sm" type="button">Bỏ qua <span aria-hidden="true">↗</span></button>
+        <button id="skip" class="ui-btn ui-btn--plain ui-btn--sm" type="button"><span data-i18n="html.intro.skip">Bỏ qua</span> <span aria-hidden="true">↗</span></button>
       </div>
     </nav>
-    <section id="caption-box" class="dialogue" hidden aria-label="Hội thoại">
+    <section id="caption-box" class="dialogue" hidden aria-label="Hội thoại" data-i18n-attr="aria-label:html.dialogue.label">
       <div id="dialogue-avatar" class="dialogue-avatar" aria-hidden="true"></div>
       <div class="dialogue-body">
-        <div class="dialogue-heading"><p id="speaker"></p><span class="dialogue-auto">TỰ ĐỘNG</span></div>
+        <div class="dialogue-heading"><p id="speaker"></p><span class="dialogue-auto" data-i18n="html.dialogue.auto">TỰ ĐỘNG</span></div>
         <p id="caption" role="status" aria-live="polite" aria-atomic="true"></p>
         <p id="dialogue-tip" class="dialogue-tip" hidden role="status"></p>
         <div id="heaven-stamp" hidden role="status"></div>
-        <div id="dialogue-choices" hidden aria-label="Các lựa chọn"></div>
-        <div class="dialogue-bottom"><span class="dialogue-hint">Enter hoặc bấm để tiếp</span><button id="dialogue-next" class="ui-btn ui-btn--icon" type="button" aria-label="Tiếp hội thoại" title="Tiếp hội thoại">▾</button></div>
+        <div id="dialogue-choices" hidden aria-label="Các lựa chọn" data-i18n-attr="aria-label:html.dialogue.choices"></div>
+        <div class="dialogue-bottom"><span class="dialogue-hint" data-i18n="dialogue.pressToContinue">Enter hoặc bấm để tiếp</span><button id="dialogue-next" class="ui-btn ui-btn--icon" type="button" aria-label="Tiếp hội thoại" title="Tiếp hội thoại" data-i18n-attr="aria-label:html.dialogue.next;title:html.dialogue.next">▾</button></div>
       </div>
     </section>
-    <section id="heaven-hud" hidden aria-label="Nhiệm vụ và hồ sơ">
-      <div id="heaven-quest" class="quest-tracker" role="button" tabindex="0" title="Bấm để tới nơi làm nhiệm vụ"><span class="quest-marker" aria-hidden="true">📜</span><div><h2 id="heaven-objective"></h2><p id="heaven-objective-detail"></p></div></div>
+    <section id="heaven-hud" hidden aria-label="Nhiệm vụ và hồ sơ" data-i18n-attr="aria-label:html.heaven.hud">
+      <div id="heaven-quest" class="quest-tracker" role="button" tabindex="0" title="Bấm để tới nơi làm nhiệm vụ" data-i18n-attr="title:html.heaven.questGo"><span class="quest-marker" aria-hidden="true">📜</span><div><h2 id="heaven-objective"></h2><p id="heaven-objective-detail"></p></div></div>
       <div class="seal-hud">
-        <button id="heaven-passport-toggle" class="ui-btn ui-btn--plain" type="button" aria-label="Xem hồ sơ và dấu chứng nhận" title="Xem hồ sơ" aria-expanded="false" aria-controls="heaven-passport"><span id="heaven-seals" aria-hidden="true"></span><strong id="heaven-seal-count">0 / 3</strong></button>
-        <div id="heaven-passport" hidden><h3>Hồ sơ trùng sinh</h3><p id="heaven-score"></p><ul id="heaven-passport-list"></ul></div>
+        <button id="heaven-passport-toggle" class="ui-btn ui-btn--plain" type="button" aria-label="Xem hồ sơ và dấu chứng nhận" title="Xem hồ sơ" data-i18n-attr="aria-label:html.heaven.passport;title:html.heaven.passportShort" aria-expanded="false" aria-controls="heaven-passport"><span id="heaven-seals" aria-hidden="true"></span><strong id="heaven-seal-count">0 / 3</strong></button>
+        <div id="heaven-passport" hidden><h3 data-i18n="html.heaven.passportTitle">Hồ sơ trùng sinh</h3><p id="heaven-score"></p><ul id="heaven-passport-list"></ul></div>
       </div>
     </section>
     <div id="heaven-controls" hidden>
-      <div id="heaven-joystick" class="joystick" aria-label="Kéo joystick để di chuyển"><span id="heaven-joystick-knob"></span></div>
+      <div id="heaven-joystick" class="joystick" aria-label="Kéo joystick để di chuyển" data-i18n-attr="aria-label:html.joystick"><span id="heaven-joystick-knob"></span></div>
       <p id="heaven-hint" class="ui-coach" role="status" hidden></p>
       <button id="heaven-interact" class="ui-btn ui-btn--gold" type="button" hidden><kbd>E</kbd><span id="heaven-interact-name"></span></button>
     </div>
     <p id="heaven-toast" class="ui-toast" hidden role="status" aria-live="polite"></p>
     <div id="heaven-return-fade" hidden aria-hidden="true"></div>
-    <section id="farm-hud" hidden aria-label="Nông trại">
-      <div class="farm-left-hud"><div class="farm-profile" role="button" tabindex="0" aria-label="Về nhân vật" title="Về nhân vật"><span class="farm-level-badge"><span id="farm-level" aria-label="Cấp 1">1</span></span><div class="farm-profile-board"><strong class="farm-profile-title" id="farm-player-name">Nông trại cà phê</strong><div class="farm-xp-track" role="progressbar" aria-label="Kinh nghiệm lên cấp" aria-valuemin="0" aria-valuemax="100"><i id="farm-xp-fill"></i><span id="farm-xp-label">0 / 30 XP</span></div></div><span class="farm-avatar" aria-hidden="true">👩‍🌾<i class="farm-avatar-status"></i></span></div><div class="quest-tracker"><span class="quest-marker" aria-hidden="true">🌱</span><div><h2 id="farm-objective"></h2><p id="farm-detail"></p></div></div></div>
-      <div class="farm-resources"><button type="button" class="farm-coin" title="Mở cửa hàng" aria-label="Xu vàng · Mở cửa hàng"><span class="farm-gold-coin" aria-hidden="true">₫</span> <strong id="farm-coins">0</strong></button></div>
-      <div id="farm-view-controls" role="group" aria-label="Độ phóng đại"><button type="button" id="farm-zoom-in" aria-label="Phóng to">+</button><button type="button" id="farm-zoom-out" aria-label="Thu nhỏ">−</button></div><nav id="farm-shortcuts" aria-label="Tiện ích nông trại"><button id="farm-help-toggle" type="button" aria-label="Hướng dẫn chơi"><span>❔</span><small>Hướng dẫn</small></button><button id="farm-bag-toggle" type="button" aria-label="Mở túi đồ"><span>🎒</span><small>Kho</small></button><button type="button" id="farm-shop-toggle" aria-label="Mở cửa hàng"><span>🏪</span><small>Cửa hàng</small></button><button type="button" id="farm-upgrade-toggle" aria-label="Mở nâng cấp"><span>🔧</span><small>Nâng cấp</small></button></nav>
+    <section id="farm-hud" hidden aria-label="Nông trại" data-i18n-attr="aria-label:html.farm.label">
+      <div class="farm-left-hud"><div class="farm-profile" role="button" tabindex="0" aria-label="Về nhân vật" title="Về nhân vật" data-i18n-attr="aria-label:html.farm.profile;title:html.farm.profile"><span class="farm-level-badge"><span id="farm-level" aria-label="Cấp 1" data-i18n-attr="aria-label:html.farm.level1">1</span></span><div class="farm-profile-board"><strong class="farm-profile-title" id="farm-player-name" data-i18n="html.farm.title">Nông trại cà phê</strong><div class="farm-xp-track" role="progressbar" aria-label="Kinh nghiệm lên cấp" data-i18n-attr="aria-label:html.farm.xp" aria-valuemin="0" aria-valuemax="100"><i id="farm-xp-fill"></i><span id="farm-xp-label">0 / 30 XP</span></div></div><span class="farm-avatar" aria-hidden="true">👩‍🌾<i class="farm-avatar-status"></i></span></div><div class="quest-tracker"><span class="quest-marker" aria-hidden="true">🌱</span><div><h2 id="farm-objective"></h2><p id="farm-detail"></p></div></div></div>
+      <div class="farm-resources"><button type="button" class="farm-coin" title="Mở cửa hàng" aria-label="Xu vàng · Mở cửa hàng" data-i18n-attr="title:html.farm.openShop;aria-label:html.farm.coinsShop"><span class="farm-gold-coin" aria-hidden="true">₫</span> <strong id="farm-coins">0</strong></button></div>
+      <div id="farm-view-controls" role="group" aria-label="Độ phóng đại" data-i18n-attr="aria-label:html.farm.zoom"><button type="button" id="farm-zoom-in" aria-label="Phóng to" data-i18n-attr="aria-label:html.farm.zoomIn">+</button><button type="button" id="farm-zoom-out" aria-label="Thu nhỏ" data-i18n-attr="aria-label:html.farm.zoomOut">−</button></div><nav id="farm-shortcuts" aria-label="Tiện ích nông trại" data-i18n-attr="aria-label:html.farm.shortcuts"><button id="farm-help-toggle" type="button" aria-label="Hướng dẫn chơi" data-i18n-attr="aria-label:html.farm.helpLabel"><span>❔</span><small data-i18n="html.farm.help">Hướng dẫn</small></button><button id="farm-bag-toggle" type="button" aria-label="Mở túi đồ" data-i18n-attr="aria-label:html.farm.bagLabel"><span>🎒</span><small data-i18n="html.farm.bag">Kho</small></button><button type="button" id="farm-shop-toggle" aria-label="Mở cửa hàng" data-i18n-attr="aria-label:html.farm.openShop"><span>🏪</span><small data-i18n="html.farm.shop">Cửa hàng</small></button><button type="button" id="farm-upgrade-toggle" aria-label="Mở nâng cấp" data-i18n-attr="aria-label:html.farm.upgradeLabel"><span>🔧</span><small data-i18n="html.farm.upgrade">Nâng cấp</small></button></nav>
     </section>
-    <section id="farm-toolbelt" hidden aria-label="Công cụ nông trại"><div id="farm-tools"></div><p id="farm-tool-hint"></p></section>
+    <section id="farm-toolbelt" hidden aria-label="Công cụ nông trại" data-i18n-attr="aria-label:html.farm.tools"><div id="farm-tools"></div><p id="farm-tool-hint"></p></section>
     <p id="farm-notice" class="ui-toast" hidden role="status" aria-live="polite"></p>
     <section id="farm-modal" class="ui-modal" hidden role="dialog" aria-modal="true" aria-labelledby="farm-modal-title">
-      <div class="farm-modal-window ui-modal__window"><header class="ui-modal__head"><span id="farm-modal-icon" aria-hidden="true">❧</span><div><h2 id="farm-modal-title" class="ui-modal__title"></h2><p id="farm-modal-subtitle" class="ui-modal__subtitle"></p></div><button id="farm-modal-close" class="ui-close" type="button" aria-label="Đóng">×</button></header><div id="farm-modal-items" class="ui-modal__body"></div><footer id="farm-modal-footer"></footer></div>
+      <div class="farm-modal-window ui-modal__window"><header class="ui-modal__head"><span id="farm-modal-icon" aria-hidden="true">❧</span><div><h2 id="farm-modal-title" class="ui-modal__title"></h2><p id="farm-modal-subtitle" class="ui-modal__subtitle"></p></div><button id="farm-modal-close" class="ui-close" type="button" aria-label="Đóng" data-i18n-attr="aria-label:common.close">×</button></header><div id="farm-modal-items" class="ui-modal__body"></div><footer id="farm-modal-footer"></footer></div>
     </section>
     <section id="heaven-ending" class="ui-modal" hidden role="dialog" aria-modal="true" aria-labelledby="heaven-ending-title">
-      <div class="ending-card"><span class="hud-eyebrow">HOÀN THÀNH CHƯƠNG THIÊN ĐÀNG</span><div class="ending-seal" aria-hidden="true">✓</div><h1 id="heaven-ending-title">Hóa ra chỉ là một giấc ngất.</h1><p>Bạn tỉnh lại ở trần gian, mang theo kiến thức từ ba chuyên gia và một cơ hội để bắt đầu khác đi.</p><p id="heaven-final-score"></p><p id="heaven-gift-summary"></p><small>Hành trang đã ghi nhận. Luồng chơi chính tiếp tục tại nông trại sau Cổng trùng sinh.</small><button id="heaven-replay" class="ui-btn ui-btn--go" type="button">Chơi lại chương thiên đàng</button></div>
+      <div class="ending-card"><span class="hud-eyebrow" data-i18n="html.ending.eyebrow">HOÀN THÀNH CHƯƠNG THIÊN ĐÀNG</span><div class="ending-seal" aria-hidden="true">✓</div><h1 id="heaven-ending-title" data-i18n="html.ending.title">Hóa ra chỉ là một giấc ngất.</h1><p data-i18n="html.ending.body">Bạn tỉnh lại ở trần gian, mang theo kiến thức từ ba chuyên gia và một cơ hội để bắt đầu khác đi.</p><p id="heaven-final-score"></p><p id="heaven-gift-summary"></p><small data-i18n="html.ending.note">Hành trang đã ghi nhận. Luồng chơi chính tiếp tục tại nông trại sau Cổng trùng sinh.</small><button id="heaven-replay" class="ui-btn ui-btn--go" type="button" data-i18n="html.ending.replay">Chơi lại chương thiên đàng</button></div>
     </section>
-    <button id="game-settings-toggle" class="ui-btn ui-btn--icon" type="button" aria-label="Cài đặt âm thanh và đồ họa" title="Cài đặt" aria-haspopup="dialog"><span aria-hidden="true">⚙️</span></button>
+    <button id="game-settings-toggle" class="ui-btn ui-btn--icon" type="button" aria-label="Cài đặt âm thanh và đồ họa" title="Cài đặt" data-i18n-attr="aria-label:html.settings.label;title:settings.title" aria-haspopup="dialog"><span aria-hidden="true">⚙️</span></button>
     <div id="progress" hidden><div id="progress-fill"></div></div>
     <div id="error" class="ui-panel" role="alert" hidden></div>
     <script type="module" src="/src/main.js"></script>

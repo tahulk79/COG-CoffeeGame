@@ -1,9 +1,10 @@
 import { EXPERTS, GIFTS } from './content.js';
+import { t } from '../../i18n/index.js';
 
 // Same wording as the heaven result box; the farm re-ask reuses it.
 export function answerText(question, correct) {
   const rightAnswer = question.options.find(option => option.id === question.correct).text;
-  return correct ? question.explanation : `${question.wrong} Đáp án đúng: ${rightAnswer} ${question.explanation}`;
+  return correct ? question.explanation : t('heaven.answer.wrong', { wrong: question.wrong, right: rightAnswer, explanation: question.explanation });
 }
 
 // Question ids answered correctly in a saved heaven record (any format); missing/corrupt → [].
