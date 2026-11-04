@@ -3,7 +3,7 @@ import { sfx } from '../../shared/audio/index.js';
 import { popNumber, shake } from '../../shared/vfx/index.js';
 import { formatCoins } from './rules.js';
 
-// Bảng §4.1 của docs/design/round-1-foundation.md: chỉnh độ mạnh/âm của farm ở đúng một chỗ này.
+// Bảng §4.1 của docs/shared/ui-audio-vfx.md: chỉnh độ mạnh/âm của farm ở đúng một chỗ này.
 // sound: id âm · burst: [[loại hạt, số hạt]] · emit: [loại, giây] · pulse: nảy vật 3D · shake: độ rung · spend: có tiếng coin.spend khi mất xu
 const BUILD = { sound: 'farm.build', burst: [['dust', 16], ['sparkle', 10]], pulse: true, shake: .6, spend: true };
 const SHIP = { sound: 'farm.ship', emit: ['dust', 1], spend: true };

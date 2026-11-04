@@ -1,4 +1,0 @@
-dryer g/min lv1..5: 36000 45454 55814 67082 79258
-roaster g/min lv1..5: 3333 4209 5168 6211 7339
-fence 100->25 seconds lv1: 750000  lv20: 1747499.9999999998  offline cap 8h decay lv1: 2.8800000000000003
-total upgrade cost: 653689

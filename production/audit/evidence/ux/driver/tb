@@ -1,6 +1,0 @@
-#!/bin/zsh
-# tb "text" [holdSeconds] : touch the visible topmost button containing text
-P=$(/private/tmp/claude-501/-Users-macos--claude-spares-spare-NWSOv6/adc7003a-e9c8-4fdd-a6bd-c12d80f84fd8/scratchpad/c eval "(()=>{const b=[...document.querySelectorAll('button')].filter(b=>b.offsetParent&&b.textContent.includes($(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$1"))).reverse().find(b=>{const r=b.getBoundingClientRect();const t=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return t&&(t===b||b.contains(t))});if(!b)return '';const r=b.getBoundingClientRect();return Math.round(r.x+r.width/2)+' '+Math.round(r.y+r.height/2)})()" | tr -d '"')
-if [ -z "$P" ]; then echo "NOTFOUND $1"; exit 1; fi
-if [ -n "$2" ]; then /private/tmp/claude-501/-Users-macos--claude-spares-spare-NWSOv6/adc7003a-e9c8-4fdd-a6bd-c12d80f84fd8/scratchpad/hold ${=P} $2; else /private/tmp/claude-501/-Users-macos--claude-spares-spare-NWSOv6/adc7003a-e9c8-4fdd-a6bd-c12d80f84fd8/scratchpad/tap ${=P}; fi
-echo "tap $1 @ $P"

@@ -70,7 +70,7 @@ export function createFarmUI(callbacks) {
   const blockerPanel=document.createElement('details');blockerPanel.id='farm-blockers';blockerPanel.hidden=true;const blockerTitle=document.createElement('summary'),blockerBody=document.createElement('div');blockerPanel.append(blockerTitle,blockerBody);blockerTitle.addEventListener('animationend',()=>blockerTitle.classList.remove('ui-attention'),options);document.querySelector('.farm-left-hud').append(operationHud,blockerPanel);let blockersKey='';
   const quickNav=document.createElement('nav');quickNav.id='farm-quick-nav';quickNav.setAttribute('aria-label','Đi lại và hướng dẫn');quickNav.append(management.querySelector('[data-shortcut="settings"]'),management.querySelector('[data-shortcut="cafe-play"]'),$('farm-help-toggle'));
   const rightHud=document.createElement('div');rightHud.id='farm-right-hud';rightHud.append(document.querySelector('.farm-resources'),quickNav);$('farm-hud').append(rightHud);document.querySelector('.farm-left-hud').append(journalPanel);
-  // HUD v2 (docs/game-redesign/05 C4): bar = Kho, Cửa hàng, Vào quán, Quản lý; the rest moves into the drawer (same nodes).
+  // HUD v2 (docs/shared/design-system.md §6): bar = Kho, Cửa hàng, Vào quán, Quản lý; the rest moves into the drawer (same nodes).
   const drawer=mountHudDrawer(primaryNav,{signal:events.signal,id:'farm-drawer'});
   primaryNav.insertBefore(quickNav.querySelector('[data-shortcut="cafe-play"]'),$('farm-shortcuts'));
   drawer.grid.append($('farm-upgrade-toggle'),management,$('farm-help-toggle'),quickNav.querySelector('[data-shortcut="settings"]'));

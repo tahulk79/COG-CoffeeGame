@@ -110,7 +110,7 @@ export function createCafeUI({ farm, service, profile, notice, onExit, onOrders,
   const ops = el('div', 'cafe-ops'); ops.setAttribute('aria-live', 'off');
   const opLine = icon => { const line = el('span'); line.append(el('i', '', icon), el('b')); ops.append(line); return line.lastChild; };
   const shiftLine = opLine('⏱'), openLine = opLine('🚪'), seatLine = opLine('🪑'), repLine = opLine('⭐'), handLine = opLine('🖐');
-  // One-row strip (docs/game-redesign/05 §6): short values on screen, full meaning in the tooltip/accessible name.
+  // One-row strip: short values on screen, full meaning in the tooltip/accessible name.
   for (const [line, meaning] of [[shiftLine, 'Ca làm: thời gian còn · số ly · món đặc biệt'], [openLine, 'Cửa quán · khách đang xếp hàng'], [seatLine, 'Ghế đang có khách'], [repLine, 'Uy tín quán']]) line.parentElement.title = meaning;
   // Shift timer bar under the shift line: how much of the 4-minute shift is left.
   const shiftBar = el('i', 'cafe-shift-bar'); shiftLine.parentElement.after(shiftBar);
@@ -118,7 +118,7 @@ export function createCafeUI({ farm, service, profile, notice, onExit, onOrders,
   leftHud.append(quest, ops);
   const rail = el('div'); rail.id = 'cafe-rail'; rail.setAttribute('aria-label', 'Order đang chờ'); document.body.append(rail);
   const toggle = tile('🚪', 'Mở cửa', () => { const r = service.toggleOpen(); notice(r.message, r.ok); refreshHud(); });
-  // HUD v2 (docs/game-redesign/05 C4): bar = Mở cửa, Kho, Nông trại, Quản lý; the rest sits in the drawer.
+  // HUD v2 (docs/shared/design-system.md §6): bar = Mở cửa, Kho, Nông trại, Quản lý; the rest sits in the drawer.
   const nav = el('nav'); nav.id = 'cafe-main-nav'; nav.setAttribute('aria-label', 'Menu quán');
   nav.append(toggle, tile('🧺', 'Kho', () => openPantry(), true), tile('🌱', 'Nông trại', onExit));
   document.body.append(nav);
