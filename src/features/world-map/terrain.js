@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { REGIONS } from './content.js';
 import { COASTS, DESERTS, MOUNTAINS, project } from './geo.js';
 
 // Địa hình bản đồ thế giới: một tấm lưới liền, độ cao tính từ mặt nạ đất liền (đường bờ biển) đã làm mờ → bờ thoải, nội địa
@@ -21,7 +22,7 @@ function landField() {
   const canvas = Object.assign(document.createElement('canvas'), { width: MASK_W, height: MASK_H });
   const g = canvas.getContext('2d', { willReadFrequently: true });
   g.fillStyle = '#fff';
-  for (const coast of COASTS) {
+  for (const coast of [...COASTS, ...REGIONS.map(region => region.outline)]) { // region slabs are always on land, never offshore
     g.beginPath();
     coast.forEach(([lon, lat], i) => g[i ? 'lineTo' : 'moveTo']((lon + 180) / 360 * MASK_W, (latTop - lat) / latSpan * MASK_H));
     g.closePath(); g.fill();

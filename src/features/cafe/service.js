@@ -74,6 +74,23 @@ const RUDE_WARN_MS = 3000;
 const round2 = n => Math.round(n * 100) / 100;
 
 // onIncident({ id, name, type: 'phone'|'sick'|'rude', replace }): a person's incident just took effect (replace = «Thuê robot thay» can hire now).
+// Shift rules (D2): goal grows 3 per effective brewing hand H (fractions of the menu a helper can make); the ★ average counts only the player's own cups (null = none, so only cups count).
+export const shiftGoal = (rank, hands) => 4 + rank + Math.round(3 * hands);
+// Guest pace (fun-review.md P3): the floor follows what the helpers can really brew, so a maxed café never out-arrives its own kitchen.
+// 20 = seconds per cup when the player brews alone; 1.5 = one helper is worth about 1.5 players.
+export const arrivalGap = (H, C, rep, tables, kiosk) => Math.max(3, 20 * (1 - C), 20 / (1 + 1.5 * H), Math.min(24, 9 + Math.max(0, 13 - 6.5 * H) - (rep - 50) * .06 - tables * .6 - kiosk));
+export const canBrew = (e, mastery, id) => e.only ? id === e.only : e.recipes ? e.recipes.includes(id) : (mastery[id]?.best || 0) >= e.mastery;
+// H = sum of each helper's share of the menu (only as many baristas as there are brew stations); C = share of the menu some helper covers.
+export function brewForce(effects, mastery, menu, slots, autoEspresso) {
+  const n = menu.length, cover = new Set();
+  if (!n) return { H: 0, C: 0 };
+  const list = effects.map(e => menu.filter(id => canBrew(e, mastery, id))).sort((a, b) => b.length - a.length).slice(0, slots);
+  if (autoEspresso) list.push(menu.filter(id => AUTO_RECIPES.includes(id)));
+  list.forEach(l => l.forEach(id => cover.add(id)));
+  return { H: list.reduce((x, l) => x + l.length, 0) / n, C: cover.size / n };
+}
+export const shiftAvg = done => done.own ? done.ownStars / done.own : null;
+export const shiftMissed = (done, avg) => !(done.served >= done.goal && (avg === null || avg >= 2));
 export function createCafeService(farm, { notice, reward, route = (from, to) => [to], canStand = () => true, onShiftEnd = () => {}, fx = () => {}, onIncident = () => {} }) {
   const customers = [], shelf = [], dirty = new Set(), claims = new Set(), agents = new Map();
   let snap = farm.progress, hand = null, combo = 0, spawnIn = 3, seq = 0, drinkSeq = 0, autoJob = null, restockIn = 0, shift = null;
@@ -98,8 +115,8 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
   // Brewing hands besides the player: baristas able to make something on the menu, plus the robot espresso machine.
   // Sets the shift goal (P1) and how fast guests come (P3) in docs/screens/04-cafe/fun-review.md.
   function helpers() {
-    const menu = RECIPES.filter(r => !lockReason(r, snap.cafe));
-    return [...agents.values()].filter(a => a.active && a.role === 'barista' && menu.some(r => (snap.cafe.mastery[r.id]?.best || 0) >= a.effects.mastery)).length + (gear('autoEspresso') ? 1 : 0);
+    const menu = RECIPES.filter(r => !lockReason(r, snap.cafe)).map(r => r.id);
+    return brewForce([...agents.values()].filter(a => a.active && a.role === 'barista').map(a => a.effects), snap.cafe.mastery, menu, stations(), gear('autoEspresso'));
   }
   // The player's open bench: the most urgent guest still waiting for that drink loses patience at a quarter speed.
   let benching = null, benchTarget = null;
@@ -204,13 +221,15 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
     }
     if (!robot) combo = drink.stars >= 2 ? Math.min(5, combo + 1) : 0;
     const paid = Math.round((result.price + result.tip) * 100) / 100;
-    if (shift) { if (!robot) { shift.served++; shift.stars += drink.stars; } shift.revenue += paid; }
+    if (shift) { if (!robot) { shift.served++; shift.stars += drink.stars; if (!drink.staff) { shift.own++; shift.ownStars += drink.stars; } } shift.revenue += paid; }
     reward(c.pos, paid); fx('serve', { pos: { ...c.pos }, stars: drink.stars, paid });
     const mood = ['😕', '🙂', '😊', '😍'][drink.stars];
     if (c.seat) { c.phase = 'drinking'; c.mood = mood; c.timer = 8; } else leave(c, mood);
     // Rebuilt here so numbers use the UI locale like the coin chip (model message uses raw "3.67").
     const num = n => formatNumber(n, { maximumFractionDigits: 2 });
-    notice(`${S('sale', { who: label(c), drink: recipeById(drink.recipeId).name, price: num(result.price) })}${drink.cold ? S('saleCold') : ''}${result.tip ? S('saleTip', { tip: num(result.tip) }) : ''}${special ? S('saleSpecial') : ''}${robot ? S('saleRobot') : combo > 1 ? S('saleCombo', { n: combo }) : ''}`);
+    const sold = `${S('sale', { who: label(c), drink: recipeById(drink.recipeId).name, price: num(result.price) })}${drink.cold ? S('saleCold') : ''}${result.tip ? S('saleTip', { tip: num(result.tip) }) : ''}${special ? S('saleSpecial') : ''}${robot ? S('saleRobot') : combo > 1 ? S('saleCombo', { n: combo }) : ''}`;
+    // Milestone leads the sale text, same as the farm (farm/game.js applyAction); only sell finishes quests here.
+    notice(result.quests?.length ? t('farm.game.questDone', { quests: result.quests.join('”, “'), message: sold }) : sold);
     return true;
   }
   function clean(table) {
@@ -261,7 +280,8 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
     if (!a?.job) return;
     claims.delete(a.job.claim); if (a.job.second) claims.delete(a.job.second.claim);
     // job.cup: the trial robot's cup, already brewed (and paid for) when the job started.
-    for (const cup of [a.carry, a.spare, a.job.cup]) if (cup) shelf.push(cup);
+    // After closing, a returned cup is waste, not shelf stock; otherwise it goes through addToShelf so a waiting take-away guest gets it.
+    for (const cup of [a.carry, a.spare, a.job.cup]) if (cup) { if (shift) addToShelf(cup); else waste(cup, true); }
     a.carry = a.spare = null; a.job = null; a.timerMax = 0;
   }
   function assign(a, job) { a.job = job; claims.add(job.claim); if (job.second) claims.add(job.second.claim); walk(a, job.to); }
@@ -388,7 +408,7 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
         return;
       }
       const c = customers.find(c => c.id === job.customer && wants(a.carry)(c));
-      if (!c || !serve(c, a.carry, a.effects.tip)) shelf.push(a.carry);
+      if (!c || !serve(c, a.carry, a.effects.tip)) addToShelf(a.carry);
       a.carry = null; claims.delete(job.claim);
       const s = job.second, c2 = s && customers.find(o => o.id === s.customer && wants(a.spare)(o));
       if (c2) { Object.assign(job, { claim: s.claim, drink: s.drink, customer: s.customer, second: null }); a.carry = a.spare; a.spare = null; walk(a, guestSpot(c2)); return; }
@@ -439,7 +459,7 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
     notice(S('rude', { name: a.person.person }), false); fx('angry', { pos: { ...c.pos } });
   }
   function addToShelf(drink) {
-    drink.id = ++drinkSeq;
+    drink.id ??= ++drinkSeq; // a returned cup keeps its id
     fx('cup', { pos: PASS });
     // With a pickup counter, take-away cups go straight to the screen and the guest collects them.
     const guest = gear('pickup') && customers.find(c => !c.seat && c.phase === 'pickup' && wants(drink)(c));
@@ -471,7 +491,7 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
   // ---- Shifts: a timed goal with a special drink keeps every opening short and rewarding ----
   function startShift(now) {
     const menu = RECIPES.filter(r => !lockReason(r, snap.cafe));
-    shift = { startedAt: now, endsAt: now + SHIFT_MS, goal: 4 + cafeRank(snap.cafe.reputation) + 6 * helpers(), served: 0, stars: 0, revenue: 0, lost: 0, angry: 0, rude: 0, robotWalked: 0, gift: false, misses: {}, special: menu[Math.floor(Math.random() * menu.length)].id, learning: learning() };
+    shift = { startedAt: now, endsAt: now + SHIFT_MS, goal: shiftGoal(cafeRank(snap.cafe.reputation), helpers().H), served: 0, stars: 0, own: 0, ownStars: 0, revenue: 0, lost: 0, angry: 0, rude: 0, robotWalked: 0, gift: false, misses: {}, special: menu[Math.floor(Math.random() * menu.length)].id, learning: learning() };
   }
   function waste(drink, quiet = false) {
     if (shift) shift.wasted = (shift.wasted || 0) + 1;
@@ -480,16 +500,20 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
   function endShift() {
     if (!shift) return;
     // Closing time: cups nobody took are thrown away and counted in the report (they also never survive a reload).
+    for (const a of agents.values()) releaseJob(a); // carried cups join the shelf first so they are wasted too
     for (const d of shelf.splice(0)) waste(d, true);
     if (hand) { waste(hand, true); hand = null; }
-    const done = shift, avg = done.served ? done.stars / done.served : 0;
+    const done = shift, avg = shiftAvg(done);
     shift = null;
+    // Guests still waiting go home calmly (👋): no lost count, no reputation loss, same for hand-closing and the clock.
+    const unserved = customers.filter(c => !['drinking', 'leaving'].includes(c.phase));
+    for (const c of unserved) leave(c, '👋');
     // Same met rule as the model's 'shift' action; a learning shift that misses skips the action so it gets no −1.
-    const missed = !(done.served >= done.goal && avg >= 2);
-    const result = done.learning && missed ? { met: false, message: S('learnShiftMiss') } : act('shift', { served: done.served, goal: done.goal, avg });
+    const missed = shiftMissed(done, avg);
+    const result = done.learning && missed ? { met: false, message: S('learnShiftMiss') } : act('shift', { served: done.served, goal: done.goal, avg: avg ?? 2 });
     fx('shift', { met: Boolean(result.met) });
     const robot = done.gift ? giftReport(done) : null;
-    onShiftEnd({ ...done, avg, bonus: result.bonus || 0, met: Boolean(result.met), tier: result.tier || 0, rep: result.rep ?? 0, message: result.message, robot });
+    onShiftEnd({ ...done, avg, unserved: unserved.length, bonus: result.bonus || 0, met: Boolean(result.met), tier: result.tier || 0, rep: result.rep ?? 0, message: result.message, robot });
     if (robot) act('giftReport');
   }
   // "Your cups vs robot cups" block for a shift the robot trial ran in (robot-staff.md 5, "Hết gói"). Tally totals are the whole trial so far.
@@ -509,7 +533,7 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
     // Rời quán thì quán đứng yên; vào lại dời mọi mốc giờ thực đi đúng thời gian vắng để ca, máy pha và sự cố chạy tiếp như chưa rời.
     resume(awayMs) {
       if (shift) { shift.startedAt += awayMs; shift.endsAt += awayMs; }
-      for (const d of [...shelf, ...(hand ? [hand] : [])]) if (d.madeAt) d.madeAt += awayMs; // cups do not cool while the café is paused
+      for (const d of [...shelf, ...(hand ? [hand] : []), ...[...agents.values()].flatMap(a => [a.carry, a.spare, a.job?.cup]).filter(Boolean)]) if (d.madeAt) d.madeAt += awayMs; // cups do not cool while the café is paused
       if (autoJob) { autoJob.startedAt += awayMs; autoJob.readyAt += awayMs; }
       for (const a of agents.values()) { if (a.retryAt) a.retryAt += awayMs; if (a.phoneUntil) a.phoneUntil += awayMs; if (a.rude) a.rude.until += awayMs; }
       refresh();
@@ -517,6 +541,7 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
     abandon() { if (learning()) return 0; const left = customers.filter(c => !['drinking', 'leaving'].includes(c.phase)).length; for (let i = 0; i < left; i++) act('lost', 'busy'); return left; },
     get agents() { return [...agents.values()]; }, get autoJob() { return autoJob; }, get snap() { return snap; }, get dirty() { return dirty; }, get shift() { return shift; },
     queueLength: () => line().length,
+    hasCleanSeat: () => Boolean(freeSeat()),
     isClaimed: key => claims.has(key),
     guestsAt: table => customers.filter(c => c.seat?.table === table),
     staffOn: role => [...agents.values()].some(a => a.role === role && a.active),
@@ -532,15 +557,13 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
       if (shift && now >= shift.endsAt) {
         if (snap.cafe.open) act('toggle');
         endShift();
-        // The café closed itself on schedule, so guests still waiting leave calmly with no reputation loss.
-        for (const c of customers) if (!['drinking', 'leaving'].includes(c.phase)) leave(c, '👋');
       }
       const learnFull = () => learning() && customers.filter(c => !['drinking', 'leaving'].includes(c.phase)).length >= LEARN_GUESTS;
       if (snap.cafe.open && (spawnIn -= dt) <= 0 && learnFull()) spawnIn = 2; // retry in 2 s; nobody is turned away while learning
       else if (snap.cafe.open && spawnIn <= 0) {
         const rep = snap.cafe.reputation;
         // Alone the player brews a cup in ~25–35 s, so guests come slower; each brewing hand closes the gap step by step (no jump at the first hire).
-        spawnIn = Math.max(3, Math.min(24, 9 + Math.max(0, 13 - 6.5 * helpers()) - (rep - 50) * .06 - tableCount() * .6 - gear('kiosk'))) * (.75 + Math.random() * .5);
+        { const { H, C } = helpers(); spawnIn = arrivalGap(H, C, rep, tableCount(), gear('kiosk')) * (.75 + Math.random() * .5); }
         spawn();
       }
       benchTarget = benching ? tickets().filter(t => t.recipe.id === benching && !t.covered).sort((x, y) => x.ratio - y.ratio)[0]?.id ?? null : null;

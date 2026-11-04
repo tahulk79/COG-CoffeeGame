@@ -239,11 +239,11 @@ export const RECIPES = [
 export const recipeById = id => RECIPES.find(recipe => recipe.id === id);
 // Who brews caps the stars (crew-autoplay.md 3): robot ★ (fixed 50 pts), staff at most ★★, only the owner reaches ★★★.
 export const STAR_CAP = { robot: 1, staff: 2, player: 3 };
-// ⚡ Quick brew (04-cafe/gameplay.md "Pha nhanh"): 6 s, score = your best hand score on the drink kept within 70–90.
+// ⚡ Quick brew (04-cafe/gameplay.md "Pha nhanh"): 6 s, score = your best hand score on the drink kept within 40–90 (★ until you brew ★★ by hand, chốt 04/11).
 export const QUICK_MS = 6000;
 // 🤖 Auto pha (04-cafe/gameplay.md): watch every step done right for a fee; demo cap keeps the cup at ★★ (score 80).
 export const AUTO_BREW_COST = 2;
-export const quickScore = best => Math.max(70, Math.min(90, best || 0));
+export const quickScore = best => Math.max(40, Math.min(90, best || 0));
 // Cup freshness: hot 60 s, iced 90 s; colder than that −1★/−30%, twice that thrown away.
 export const FRESH_MS = { hot: 60000, iced: 90000 };
 export const freshFor = recipeId => RECIPES.find(r => r.id === recipeId)?.uses.ice ? FRESH_MS.iced : FRESH_MS.hot;

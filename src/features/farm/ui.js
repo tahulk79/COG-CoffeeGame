@@ -7,7 +7,7 @@ import { sfx } from '../../shared/audio/index.js';
 import { icon as iconNode, iconFor } from '../../ui/icons.js';
 import { mountHudDrawer } from '../../ui/hud-drawer.js';
 import { usesTouch } from '../../ui/dialogue.js';
-import { t as tr, formatNumber } from '../../i18n/index.js';
+import { t as tr, formatNumber, numberLocale } from '../../i18n/index.js';
 const gameIcon = icon => ({'✦':'👆','❧':'🌱','◒':'💧','⌁':'🌿','✚':'🪴','♧':'🧺','▣':'🎒','▧':'🏡','☀':'☀️','◇':'📦','₫':'🪙','♨':'🔥','⚙':'⚙️'}[icon] || icon);
 const $ = id => document.getElementById(id);
 const isRobot = id => WORKER_CANDIDATES.some(c=>c.id===id&&c.kind==='robot');
@@ -26,9 +26,9 @@ export function createFarmUI(callbacks) {
   // Coin counter bumps on change (not on first paint): green when it grows, red when spent (04 §5 resource counter).
   let shownCoins = null;
   function showCoins(value) {
-    const node = $('farm-coins'), text = formatCoins(Math.floor(value)); // HUD shows whole coins; the balance keeps its fraction
+    const node = $('farm-coins'), whole = Math.floor(value), text = whole >= 1e6 ? new Intl.NumberFormat(numberLocale(), { notation: 'compact', maximumFractionDigits: 1 }).format(whole) : formatCoins(whole); // HUD shows whole coins (compact from 1M, full value in title); the balance keeps its fraction
     if (node.textContent === text) return;
-    node.textContent = text;
+    node.textContent = text; node.title = formatCoins(whole); node.setAttribute('aria-label', node.title); // on the strong: the chip's own title/aria-label are i18n-managed
     if (shownCoins !== null) { const chip = node.parentElement; chip.dataset.trend = value > shownCoins ? 'up' : 'down'; chip.classList.remove('is-bump'); void chip.offsetWidth; chip.classList.add('is-bump'); }
     shownCoins = value;
   }
@@ -135,7 +135,7 @@ export function createFarmUI(callbacks) {
       const minus=document.createElement('button'),plus=document.createElement('button'),input=document.createElement('input'),sell=document.createElement('button'),quoteText=document.createElement('small');
       minus.type=plus.type=sell.type='button';minus.textContent='−';plus.textContent='+';minus.setAttribute('aria-label',tr('farm.ui.gramsLess'));plus.setAttribute('aria-label',tr('farm.ui.gramsMore'));
       input.type='number';input.min='1';input.max=entry.bagSale.owned;input.step='1';input.setAttribute('aria-label',tr('farm.ui.gramsToSell'));input.value=Math.min(entry.bagSale.keep?Math.max(1,entry.bagSale.owned-entry.bagSale.keep):entry.bagSale.owned,purchaseQuantities.get(entry.id)||entry.bagSale.owned);
-      quoteText.className='farm-bag-sale-quote';sell.className='farm-purchase-buy ui-btn ui-btn--gold';sell.innerHTML='<span class="farm-gold-coin" aria-hidden="true">₫</span>';sell.append(Object.assign(document.createElement('span'),{textContent:tr('farm.ui.sell')}));
+      quoteText.className='farm-bag-sale-quote';sell.className='farm-purchase-buy ui-btn ui-btn--gold';sell.innerHTML='<span class="farm-gold-coin" aria-hidden="true">¢</span>';sell.append(Object.assign(document.createElement('span'),{textContent:tr('farm.ui.sell')}));
       function update(value,typing){const grams=Math.max(1,Math.min(entry.bagSale.owned,Math.floor(Number(value)||1)));if(!typing)input.value=grams;purchaseQuantities.set(entry.id,grams);minus.disabled=grams===1;plus.disabled=grams>=entry.bagSale.owned;const quote=callbacks.saleQuote(entry.id,grams);sell.disabled=!quote.ok;quoteText.textContent=quote.ok?tr('farm.ui.bagQuote',{mass:formatMass(grams),value:formatCoins(quote.value)})+(quote.discounted?tr('farm.ui.bagQuoteDiscount',{full:formatCoins(quote.full)}):''):quote.message;}
       minus.addEventListener('click',()=>update(Number(input.value)-1));plus.addEventListener('click',()=>update(Number(input.value)+1));input.addEventListener('input',()=>{if(input.value!=='')update(input.value,true);});input.addEventListener('change',()=>update(input.value));sell.addEventListener('click',()=>callbacks.sell(entry.id,purchaseQuantities.get(entry.id)));
       bar.append(minus,input,plus,sell);bagDetail.append(quoteText,bar);update(input.value);
@@ -190,7 +190,7 @@ export function createFarmUI(callbacks) {
     }
   }
   document.addEventListener('pointerup',finishStaffDrag,options);document.addEventListener('pointercancel',finishStaffDrag,options);
-  function formatMassIfNeeded(value,unit){return unit.startsWith('g')?`${formatMass(value)}${unit.includes('/')?'/'+unit.split('/')[1]:''}`:`${formatNumber(value)} ${unit}`;}
+  function formatMassIfNeeded(value,unit){return unit.startsWith('g')?`${formatMass(value,1)}${unit.includes('/')?'/'+unit.split('/')[1]:''}`:`${formatNumber(value,{maximumFractionDigits:1})} ${unit}`;}
   let tabsKey = '';
   function configureTabs(filters) {
     const key = JSON.stringify(filters); if (tabsKey === key) return;
@@ -241,7 +241,7 @@ export function createFarmUI(callbacks) {
   const backButton=document.createElement('button');backButton.id='farm-modal-back';backButton.type='button';backButton.textContent='‹';backButton.hidden=true;backButton.setAttribute('aria-label',tr('farm.ui.backToStaff'));backButton.title=tr('farm.ui.staffList');$('farm-modal-close').parentElement.prepend(backButton);
   backButton.addEventListener('click',()=>callbacks.back(),options);
   const profileAlert=document.createElement('div');profileAlert.id='farm-profile-alert';profileAlert.hidden=true;
-  const profileAlertText=document.createElement('span'),profilePay=document.createElement('button');profilePay.type='button';profilePay.innerHTML='<span class="farm-gold-coin" aria-hidden="true">₫</span>';profilePay.append(Object.assign(document.createElement('span'),{textContent:tr('farm.ui.payWage')}));
+  const profileAlertText=document.createElement('span'),profilePay=document.createElement('button');profilePay.type='button';profilePay.innerHTML='<span class="farm-gold-coin" aria-hidden="true">¢</span>';profilePay.append(Object.assign(document.createElement('span'),{textContent:tr('farm.ui.payWage')}));
   profileAlert.append(profileAlertText,profilePay);backButton.parentElement.after(profileAlert);
   const profileSummary=document.createElement('p');profileSummary.id='farm-profile-summary';profileSummary.hidden=true;profileAlert.after(profileSummary);
   profilePay.addEventListener('click',()=>callbacks.shortcut(`pay-worker:${profilePay.dataset.worker}`),options);
@@ -414,6 +414,7 @@ export function createFarmUI(callbacks) {
         next.textContent=station.next===null?tr('farm.upgrade.reachedMax'):tr('farm.ui.stationNext',{value:formatMassIfNeeded(station.next,station.unit)});
         button.textContent=station.lock||tr('farm.ui.upgradeCost',{price:formatCoins(station.price)});button.disabled=Boolean(station.lock);button.addEventListener('click',()=>callbacks.upgradeStation(station.id));upgrade.append(next,button);stationPanel.append(info,upgrade);if(station.feedback){const feedback=document.createElement('p');feedback.className='farm-station-feedback';feedback.textContent=station.feedback;stationPanel.append(feedback);}
       }
+      if (usesTouch() && footer === tr('farm.menu.build.footer')) footer = tr('farm.menu.build.footerTouch'); // no R/Esc on touch
       const key = JSON.stringify({ title, subtitle, icon, entries, footer, kind, filters, back, station });
       $('farm-modal').dataset.orderDetail='false';backButton.setAttribute('aria-label',tr('farm.ui.backToStaff'));backButton.title=tr('farm.ui.staffList');profileSummary.hidden=true;profileAlert.hidden=!back;profileAlertText.textContent=subtitle;profilePay.hidden=true;
       $('farm-modal').dataset.daily=String(title===tr('farm.ui.dailyTitle'));$('farm-modal').dataset.roster=String(roster);$('farm-modal').dataset.kind = kind;$('farm-modal').dataset.back=String(back);backButton.hidden=!back;workerSheet.hidden=true;
@@ -481,7 +482,7 @@ export function createFarmUI(callbacks) {
 
         const action = document.createElement('span'); action.className = 'farm-item-action'; action.textContent = entry.enabled === false && entry.lockReason ? `🔒 ${entry.lockReason}` : entry.badge || tr('farm.menu.choose');
         if(kind==='upgrades'&&!roster&&entry.priced&&!entry.lockReason){
-          const coin=document.createElement('span');coin.className='farm-gold-coin';coin.textContent='₫';coin.setAttribute('aria-hidden','true');
+          const coin=document.createElement('span');coin.className='farm-gold-coin';coin.textContent='¢';coin.setAttribute('aria-hidden','true');
           const price=document.createElement('span');price.textContent=entry.badge;action.replaceChildren(coin,price);action.classList.add('farm-upgrade-price');
         }
         if(entry.switchValue!==undefined){button.classList.add('farm-switch-row');button.setAttribute('role','switch');button.setAttribute('aria-checked',String(entry.switchValue));action.textContent=entry.switchValue?tr('farm.on'):tr('farm.off');}
@@ -490,7 +491,7 @@ export function createFarmUI(callbacks) {
           button.classList.add('farm-order-deliver');
           const label=document.createElement('span');label.textContent=tr('farm.order.ship');
           const cost=document.createElement('span');cost.className='farm-order-delivery-cost';
-          const coin=document.createElement('span');coin.className='farm-gold-coin';coin.textContent='₫';coin.setAttribute('aria-hidden','true');cost.append(coin,document.createTextNode(tr('farm.coins',{n:2})));
+          const coin=document.createElement('span');coin.className='farm-gold-coin';coin.textContent='¢';coin.setAttribute('aria-hidden','true');cost.append(coin,document.createTextNode(tr('farm.coins',{n:2})));
           button.replaceChildren(label,cost);
         }
 
@@ -518,7 +519,7 @@ minus.disabled=config.maximum<1||n<=1;plus.disabled=config.maximum<1||n>=Math.mi
           input.type='number';input.min=cap>0?'1':'0';input.max=String(cap);input.disabled=maximum<1;input.step='1';input.value=Math.min(selling&&config.keep?Math.max(1,maximum-config.keep):cap,purchaseQuantities.get(entry.id)||(selling?maximum:1));input.setAttribute('aria-label',`${selling?tr('farm.ui.gramsToSell'):tr('farm.ui.qtyToBuy')} ${entry.label}`);
           buy.className='farm-purchase-buy ui-btn ui-btn--gold';
           // Built once: replacing them on the input's blur/change (fired by pressing «Bán») detached the pressed node and swallowed that first click.
-          const coin=document.createElement('span');coin.className='farm-gold-coin';coin.setAttribute('aria-hidden','true');coin.textContent='₫';
+          const coin=document.createElement('span');coin.className='farm-gold-coin';coin.setAttribute('aria-hidden','true');coin.textContent='¢';
           const price=document.createElement('span');buy.append(coin,price);
           function updateQuantity(value,typing){
             const quantity=Math.max(cap>0?1:0,Math.min(cap,Math.floor(Number(value)||1)));if(!typing)input.value=quantity;purchaseQuantities.set(entry.id,quantity);minus.disabled=quantity<=1;plus.disabled=quantity>=cap;
@@ -554,7 +555,7 @@ minus.disabled=config.maximum<1||n<=1;plus.disabled=config.maximum<1||n>=Math.mi
           const tile=document.createElement('div');tile.className='farm-staff-tile';tile.append(card);
           const staff=entries.find(item=>item.id===card.dataset.entry),unpaid=card.dataset.unpaid==='true';tile.dataset.unpaid=String(unpaid);
           if(unpaid){
-            const pay=document.createElement('button');pay.type='button';pay.className='farm-staff-pay-coin';pay.innerHTML='<span class="farm-gold-coin" aria-hidden="true">₫</span>';const payLabel=document.createElement('small');payLabel.textContent=tr('farm.ui.payWageCost',{n:staff.staffWage});pay.append(payLabel);
+            const pay=document.createElement('button');pay.type='button';pay.className='farm-staff-pay-coin';pay.innerHTML='<span class="farm-gold-coin" aria-hidden="true">¢</span>';const payLabel=document.createElement('small');payLabel.textContent=tr('farm.ui.payWageCost',{n:staff.staffWage});pay.append(payLabel);
             pay.title=tr('farm.ui.payTitle',{n:staff.staffWage,name:staff.label});pay.setAttribute('aria-label',pay.title);
             pay.addEventListener('click',()=>callbacks.shortcut(`pay-worker:${id}`),options);tile.append(pay);
           }
@@ -648,10 +649,10 @@ minus.disabled=config.maximum<1||n<=1;plus.disabled=config.maximum<1||n>=Math.mi
     closeSeedStrip() { seedStrip.hidden = true; seedKey = ''; },
     closeModal,
     // action = { label, action }: một nút trong toast (vd «Nhắc», «Thuê robot thay»), chạy callbacks.shortcut(action); toast có nút đứng 6 s.
-    notice(text, success = true, action = null) {
+    notice(text, success = true, action = null, ms = 0) {
       const notice=$('farm-notice');
       const message=String(text);
-      notice.classList.remove('ui-toast--unlock');notice.textContent=message;notice.dataset.success=String(success);notice.setAttribute('role',success?'status':'alert');notice.hidden=false;noticeUntil=performance.now()+(action?6000:3000);
+      notice.classList.remove('ui-toast--unlock');notice.textContent=message;notice.dataset.success=String(success);notice.setAttribute('role',success?'status':'alert');notice.hidden=false;noticeUntil=performance.now()+(ms||(action?6000:3000));
       if(action){const button=document.createElement('button');button.type='button';button.className='ui-btn ui-btn--sm ui-btn--go ui-toast__action';button.textContent=action.label;button.addEventListener('click',()=>{notice.hidden=true;noticeUntil=0;callbacks.shortcut(action.action);},{once:true});notice.append(' ',button);}
     },
     update() { if (noticeUntil && performance.now() > noticeUntil) { $('farm-notice').hidden = true; noticeUntil = 0; } },
@@ -661,7 +662,7 @@ minus.disabled=config.maximum<1||n<=1;plus.disabled=config.maximum<1||n>=Math.mi
       if (event.code === 'Escape' && document.querySelector('dialog[open]')) return true;
       if (event.code === 'Escape') { event.preventDefault(); callbacks.close(); return true; }
       if (event.code === 'Tab') {
-        const buttons = [...(!backButton.hidden?[backButton]:[]),$('farm-modal-close'), ...(!profileAlert.hidden&&!profilePay.hidden&&!profilePay.disabled?[profilePay]:[]), ...(!tabs.hidden ? tabs.children : []), ...$('farm-modal-items').querySelectorAll('button:not(:disabled):not([hidden])'), ...(!bagDetail.hidden ? bagDetail.querySelectorAll('button') : [])];
+        const buttons = [...(!backButton.hidden?[backButton]:[]),$('farm-modal-close'), ...(!profileAlert.hidden&&!profilePay.hidden&&!profilePay.disabled?[profilePay]:[]), ...(!tabs.hidden ? tabs.children : []), ...$('farm-modal-items').querySelectorAll('button:not(:disabled):not([hidden]),input:not(:disabled)'), ...(!bagDetail.hidden ? bagDetail.querySelectorAll('button') : [])];
         const index = buttons.indexOf(document.activeElement);
         event.preventDefault(); buttons[(index + (event.shiftKey ? buttons.length - 1 : 1)) % buttons.length].focus();
       }

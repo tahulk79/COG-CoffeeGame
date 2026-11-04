@@ -99,6 +99,7 @@ export default {
     // feedback.js
     'farm.fx.coinsMinus': '−{n} coins',
     // game.js · general notices
+    'farm.game.otherTab': 'Game is open in another tab. Reload to keep playing here.',
     'farm.game.saveFailed': "Couldn't save progress. You can keep playing this session.",
     'farm.game.hireRobotCover': 'Hire a robot instead',
     'farm.game.remind': 'Remind',
@@ -143,6 +144,7 @@ export default {
     'farm.menu.build.title': 'Farm decorations',
     'farm.menu.build.subtitle': 'Pick an item, then place it on the map · No yield bonus',
     'farm.menu.build.footer': 'Tap the ground to choose a spot · R to rotate · Esc to cancel',
+    'farm.menu.build.footerTouch': 'Tap the ground to choose a spot · Tap ↻ to rotate · Cancel to stop',
     'farm.menu.build.place': 'Place · {price} coins',
     'farm.menu.jobs.title': 'Café orders',
     'farm.menu.jobs.subtitle': 'Staff prepare coffee to restock your café.',
@@ -439,6 +441,7 @@ export default {
     'farm.loading.buildCafe': 'Building the café',
     'farm.loading.furniture': 'Loading tables and counter',
     'farm.aria.cafe': 'Coffee shop',
+    'farm.hud.cafeLabel': 'Café',
     'farm.aria.farm': 'Coffee farm',
     'farm.docTitle.cafe': 'Godbean — Coffee Shop',
     'farm.docTitle.farm': 'Godbean — Coffee Farm',
@@ -769,6 +772,7 @@ export default {
     // feedback.js
     'farm.fx.coinsMinus': '−{n} xu',
     // game.js · general notices
+    'farm.game.otherTab': 'Game đang mở ở tab khác — tải lại để chơi tiếp ở đây',
     'farm.game.saveFailed': 'Chưa lưu được tiến trình. Bạn vẫn chơi tiếp trong lượt này.',
     'farm.game.hireRobotCover': 'Thuê robot thay',
     'farm.game.remind': 'Nhắc',
@@ -813,6 +817,7 @@ export default {
     'farm.menu.build.title': 'Trang trí nông trại',
     'farm.menu.build.subtitle': 'Chọn đồ rồi đặt trên map · Không tăng sản lượng',
     'farm.menu.build.footer': 'Bấm mặt đất để chọn vị trí · Xoay bằng R · Esc để hủy',
+    'farm.menu.build.footerTouch': 'Chạm mặt đất để chọn vị trí · Chạm ↻ để xoay · Bấm Hủy để dừng',
     'farm.menu.build.place': 'Đặt · {price} xu',
     'farm.menu.jobs.title': 'Đơn hàng cho quán',
     'farm.menu.jobs.subtitle': 'Nhân viên chuẩn bị cà phê để tiếp hàng cho quán của bạn.',
@@ -1109,6 +1114,7 @@ export default {
     'farm.loading.buildCafe': 'Dựng quán',
     'farm.loading.furniture': 'Tải bàn ghế và quầy',
     'farm.aria.cafe': 'Quán cà phê',
+    'farm.hud.cafeLabel': 'Quán cà phê',
     'farm.aria.farm': 'Nông trại cà phê',
     'farm.docTitle.cafe': 'Godbean — Quán cà phê',
     'farm.docTitle.farm': 'Godbean — Nông trại cà phê',

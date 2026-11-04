@@ -101,15 +101,17 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
     const layout = el('div', 'cafe-brew'); layout.dataset.auto = String(Boolean(state.auto)); // Auto pha: the step controls are watch-only
     const head = el('div', 'cafe-step-head');
     head.append(el('strong', '', `${recipe.icon} ${recipe.name}`), el('small', '', t('cafe.bench.step', { n: state.index + 1, total: recipe.steps.length })));
-    if (state.index === 0) head.append(button(t('cafe.bench.change'), choose, 'cafe-link'));
+    if (state.index === 0 && !state.auto) head.append(button(t('cafe.bench.change'), choose, 'cafe-link')); // Auto pha is paid for: no swapping the dish
     // ⚡ Quick brew (04-cafe/gameplay.md "Pha nhanh"): one tap instead of the steps, for phones and for Auto.
     // 🤖 Auto pha: pay AUTO_BREW_COST to watch every step done right, at the demo cap (each step ≤ 0.8 → ★★).
     if (state.index === 0 && !state.auto) {
       const actions = el('div', 'cafe-brew-modes');
       actions.append(button(t('crew.quick.btn', { stars: starText(stars(quickScore(state.best))), s: QUICK_MS / 1000 }), () => quick(state), 'cafe-primary cafe-quick'),
         button(t('crew.autobrew.btn', { cost: AUTO_BREW_COST }), () => {
-          const paid = farm.act('cafe', 'autoBrew', null); notice(paid.message, paid.ok);
-          if (paid.ok) { state.auto = true; brew(state); }
+          // The fee is charged in finish(), once the cup exists; here only check the player can afford it.
+          const coins = farm.peek().coins;
+          if (coins < AUTO_BREW_COST) { notice(t('farmRules.err.missingCoins', { n: Math.round((AUTO_BREW_COST - coins) * 100) / 100 }), false); return; }
+          state.auto = true; brew(state);
         }, 'cafe-autobrew'));
       head.append(actions);
     }
@@ -242,6 +244,7 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
     const verb = t(`cafe.bench.verb.${{ heat: 'heat', steamer: 'steam', whisk: 'whisk', espresso: 'extract', scoop: 'scoop', salt: 'sprinkle' }[tool] || 'pour'}`);
     const hold = button(t('cafe.bench.hold', { icon: step.icon, verb }), () => {}, 'cafe-hold');
     const done = button(t('cafe.bench.done'), () => {
+      if (!gauge) return; // the pour already auto-locked this step
       const [lo, hi] = step.target, value = shown(gauge.value, step), inside = value >= lo && value <= hi;
       const distance = inside ? 0 : value < lo ? lo - value : value - hi, score = inside ? 1 : Math.max(.1, 1 - distance / ((hi - lo) * 2.5));
       gauge = null; cancelAnimationFrame(raf); hush(); stage.dataset.pouring = 'false';
@@ -269,6 +272,7 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
     hold.focus({ preventScroll: true });
     if (state.auto) { gauge.auto = { target: middle(step), wait: 1, released: false }; say(t('crew.autobrew.pour', { amount: amount(middle(step), step), learn: step.learn })); }
     const rate = (step.max - from) / 3.2; // 3.2 s from empty to full: easier to stop on a phone
+    const handRate = Math.min(rate, (step.target[1] - step.target[0]) / .45); // PT-3: the band takes >= 0.45 s to cross when held by hand
     let last = performance.now(), zone = '';
     const tick = now => {
       if (!gauge) return;
@@ -282,7 +286,7 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
         // Auto pha: hold to the middle of the band, let go, then lock the step.
         if (gauge.auto.wait > 0) gauge.auto.wait -= dt;
         else if (!gauge.auto.released) { gauge.pouring = true; gauge.value = Math.min(gauge.auto.target, gauge.value + rate * .8 * dt); if (gauge.value >= gauge.auto.target) { gauge.pouring = false; gauge.auto.released = true; state.hinted = true; timer = setTimeout(() => done.click(), 700); } }
-      } else if (gauge.pouring) gauge.value = Math.min(step.max, gauge.value + rate * dt);
+      } else if (gauge.pouring) gauge.value = Math.min(step.max, gauge.value + handRate * dt);
       const ratio = (gauge.value - from) / (step.max - from);
       // The sound follows the hand (and the demo); its pitch/flow tracks the reading.
       if (gauge.pouring && !sound) sound = fx('hold', { tool, unit: step.unit });
@@ -314,8 +318,8 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
     raf = requestAnimationFrame(tick);
   }
 
-  // Quick brew: QUICK_MS of waiting, then the cup. Score = your best hand score on this drink, kept within 70–90:
-  // a new drink is ★★ at once, ★★★ only after you have reached 90 by hand. Quick never raises mastery past what you earned.
+  // Quick brew: QUICK_MS of waiting, then the cup. Score = your best hand score on this drink, kept within 40–90:
+  // a new drink is ★, ★★ after one hand cup ≥ 70, ★★★ after 90. Quick never raises mastery past what you earned.
   function quick(state) {
     if (!introSeen()) farm.act('tutorial', 'seen', 'bench-intro');
     gauge = null; cancelAnimationFrame(raf); clearTimeout(timer); hush(); root.replaceChildren();
@@ -329,7 +333,8 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
   function finish(state, quickResult = null) {
     // Floor, not round: 89.6 must stay ★★ so a cup with a failed step cannot reach ★★★ / memory mode.
     const { recipe } = state, quickBrew = quickResult !== null, score = quickBrew ? quickResult : Math.floor(state.scores.reduce((a, b) => a + b, 0) / state.scores.length * 100);
-    const result = farm.act('cafe', 'brew', { recipeId: recipe.id, cropId: state.cropId, score });
+    if (state.auto) { const paid = farm.act('cafe', 'autoBrew', null); notice(paid.message, paid.ok); if (!paid.ok) { lacking(recipe, [paid.message]); return; } }
+    const result = farm.act('cafe', 'brew', { recipeId: recipe.id, cropId: state.cropId, score, demo: Boolean(state.auto) });
     if (!result.ok) { notice(result.message, false); lacking(recipe, [result.message]); return; }
     // Adjust perk: point at the one step that lost most (lowest score, first on ties) with its real reason.
     const worst = state.scores.reduce((w, s, i) => s < state.scores[w] ? i : w, 0), worstStep = recipe.steps[worst];

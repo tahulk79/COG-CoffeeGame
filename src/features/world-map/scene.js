@@ -35,7 +35,7 @@ export function createWorldMap({ onPick, onChoose, onClose, chosen = null }) {
   scene.add(new THREE.HemisphereLight('#f4fbff', '#5f7a6a', 1.35));
   // Nắng chiếu xiên đổ bóng núi và bóng đảo nổi; vùng bóng đi theo camera để giữ nét khi phóng gần.
   const sun = new THREE.DirectionalLight('#fff1d6', 2.6); sun.position.set(-6, 10, 5); sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048); Object.assign(sun.shadow.camera, { left: -11, right: 11, top: 11, bottom: -11, near: 1, far: 40 }); sun.shadow.bias = -.0008; sun.shadow.normalBias = .02;
+  sun.shadow.mapSize.set(1024, 1024); Object.assign(sun.shadow.camera, { left: -11, right: 11, top: 11, bottom: -11, near: 1, far: 40 }); sun.shadow.bias = -.0008; sun.shadow.normalBias = .02;
   scene.add(sun, sun.target);
 
   const terrain = buildTerrain(); scene.add(terrain.mesh);

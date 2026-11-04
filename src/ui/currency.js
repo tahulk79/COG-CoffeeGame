@@ -18,7 +18,7 @@ export function installCurrencyIcons(root=document.body) {
       for(const match of matches){
         fragment.append(text.data.slice(end,match.index));
         const amount=document.createElement('span');amount.className='game-currency';
-        const coin=document.createElement('span');coin.className='farm-gold-coin';coin.setAttribute('aria-hidden','true');coin.textContent='₫';amount.append(coin);
+        const coin=document.createElement('span');coin.className='farm-gold-coin';coin.setAttribute('aria-hidden','true');coin.textContent='¢';amount.append(coin);
         if(match[0]!=='🪙')amount.append(document.createTextNode(' '+match[0]));
         fragment.append(amount);end=match.index+match[0].length;
       }

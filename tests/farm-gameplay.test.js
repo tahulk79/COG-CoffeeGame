@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createFarm } from '../src/features/farm/model.js';
 import { PLOTS,FIELDS,MACHINES,QUESTS,plotCare } from '../src/features/farm/content.js';
-import { activeJobs,jobGroupOf,groupLimit,ASSETS,workerLevel,workerWage,SEASON_MS,WORK_DAY_MS,contractPrice,assetMaxLevel } from '../src/features/farm/rules.js';
+import { activeJobs,jobGroupOf,groupLimit,ASSETS,workerLevel,workerWage,SEASON_MS,WORK_DAY_MS,DAY_MS,contractPrice,assetMaxLevel,supplierPrice,SUPPLIER_PRICE } from '../src/features/farm/rules.js';
 import { productionNeed } from '../src/features/farm/orders.js';
 import { editDragSelection } from '../src/features/farm/tools.js';
 import { findRoute } from '../src/shared/game/navigation.js';
@@ -230,7 +230,7 @@ test('auto errands: ship a ready café order first, buy seeds only when plots ar
  const p=JSON.parse(JSON.stringify(rich().progress));
  p.orders=[{id:'o1',source:'cafe',status:'open',cropId:'robusta',grams:252,workers:[]}];p.stock.roasted.robusta=300;p.coins=50;
  assert.equal(pickAutoErrand(p,{regionKind:'both',level:1})?.action,'shipOrder');
- p.orders=[];p.order={...p.order,quantity:1e9};p.cafe.stock.roasted={robusta:0};
+ p.orders=[];p.order={...p.order,product:'cherries',quantity:1e9};p.cafe.stock.roasted={robusta:0};
  assert.equal(pickAutoErrand(p,{regionKind:'both',level:1})?.action,'ship','café low on beans: send roasted beans');
  assert.equal(pickAutoErrand(p,{regionKind:'farm',level:1})?.action,'sell','farm-only region sells instead');
  p.stock.roasted.robusta=0;for(const c of Object.keys(p.seeds))p.seeds[c]=0;p.plots.forEach((t,i)=>{if(i<3){t.unlocked=true;t.stage='empty';}});
@@ -238,10 +238,98 @@ test('auto errands: ship a ready café order first, buy seeds only when plots ar
  assert.equal(buy?.action,'buySeed');assert.ok(buy.choice.quantity>=1&&buy.choice.quantity<=3);
  p.coins=20;assert.equal(pickAutoErrand(p,{regionKind:'both',level:1}),null,'keeps 20 coins in hand');
 });
+test('auto errands keep roasted beans for open orders and send only the spare 100 g+',()=>{
+ const p=JSON.parse(JSON.stringify(rich().progress));p.coins=50;p.order={...p.order,product:'cherries',quantity:1e9};p.cafe.stock.roasted={robusta:0};
+ p.orders=[{id:'o1',source:'cafe',status:'open',cropId:'robusta',grams:252,workers:[]}];p.stock.roasted.robusta=300;
+ assert.equal(pickAutoErrand(p,{regionKind:'both',level:1})?.action,'shipOrder');
+ p.stock.roasted.robusta=251;assert.equal(pickAutoErrand(p,{regionKind:'both',level:1}),null,'251 g < 252 g order: keep all');
+ p.stock.roasted.robusta=400;const ship=pickAutoErrand(p,{regionKind:'both',level:1});assert.equal(ship.action,'shipOrder');
+ p.stock.roasted.robusta=1150;p.orders[0].grams=1000;const skipOrder={regionKind:'farm',level:1,skip:k=>k==='shipOrder'};
+ assert.deepEqual(pickAutoErrand(p,skipOrder).choice,{item:'roasted:robusta',grams:150},'only the 150 g above the 1000 g order is sold');
+ assert.equal(pickAutoErrand(p,{...skipOrder,regionKind:'both'}).choice.grams,150);
+ p.stock.roasted.robusta=1050;assert.equal(pickAutoErrand(p,skipOrder),null,'50 g spare is below 100 g');
+});
+test('ship with grams ships only that part',()=>{
+ const farm=withLots([{product:'roasted',cropId:'robusta',grams:500,target:'farm'}]);
+ const r=farm.act('cafe','ship',{cropId:'robusta',grams:150},AT);assert.equal(r.ok,true,r.message);assert.equal(farm.peek().stock.roasted.robusta,350);
+});
 test('old saves: a level-1 person with every job on keeps only one job area, a robot only one job',()=>{
  const saved=rich().progress;
  saved.workers=[{id:'an',name:'An',xp:0,farmId:'farm-0',jobs:{},cargo:[],enabled:true,autoPay:true,shiftUntil:0},{id:'robo-n1',name:'Robot',xp:0,farmId:'farm-0',jobs:{},cargo:[],enabled:true,autoPay:true,shiftUntil:0}];
  const [an,robot]=createFarm(saved,null,()=>{},AT).progress.workers;
  assert.deepEqual(Object.entries(an.jobs).filter(([,on])=>on).map(([id])=>jobGroupOf(id)).filter((g,i,a)=>a.indexOf(g)===i),['care']);
  assert.equal(Object.values(robot.jobs).filter(Boolean).length,1);
+});
+
+test('Auto pha (demo) cups never raise mastery, hand cups do',()=>{
+ const farm=fresh(),best=()=>farm.progress.cafe.mastery['phin-den']?.best||0,before=best();
+ assert.equal(farm.act('cafe','brew',{recipeId:'phin-den',cropId:'robusta',score:80,demo:true},AT).ok,true);assert.equal(best(),before);
+ assert.equal(farm.act('cafe','brew',{recipeId:'phin-den',cropId:'robusta',score:75},AT).ok,true);assert.equal(best(),Math.max(before,75));
+});
+// Regression (audit 04/11, EC-2): a comment once swallowed the per-cup reputation update.
+test('each sold cup moves café reputation by (stars − 1) × 0.6',()=>{
+ const farm=fresh(),rep=()=>farm.progress.cafe.reputation,start=rep();
+ assert.equal(farm.act('cafe','sell',{recipeId:'phin-den',quality:80,stars:3,wait:0},AT).ok,true);assert.ok(Math.abs(rep()-(start+1.2))<1e-9);
+ assert.equal(farm.act('cafe','sell',{recipeId:'phin-den',quality:20,stars:0,wait:1},AT).ok,true);assert.ok(Math.abs(rep()-(start+.6))<1e-9);
+});
+
+test('a heaven gift the region cannot use becomes the capital purse',()=>{
+ const coins=(gift,region)=>createFarm(null,gift,()=>{},AT,[],region).progress.coins;
+ assert.equal(coins('seeds','it'),coins('capital','it'));
+ assert.equal(coins('tools','ke'),coins('capital','ke'));
+ assert.ok(coins('seeds','vn')<coins('capital','vn'));
+ const farm=createFarm(null,'seeds',()=>{},AT,[],'it');assert.ok(farm.progress.ledger.some(l=>l.type==='gift'&&l.amount===150),'swap goes through the ledger');
+});
+
+test('shop orders cap at 2 per work day and reopen next day',()=>{
+ const farm=fresh();farm.peek().stock[farm.peek().order.product][farm.peek().order.cropId]=9999;
+ for(let i=0;i<2;i++){const r=farm.act('market','order',null,AT);assert.equal(r.ok,true,r.message);farm.peek().stock[farm.peek().order.product][farm.peek().order.cropId]=9999;}
+ const coins=farm.peek().coins,r3=farm.act('market','order',null,AT);assert.equal(r3.ok,false);assert.equal(farm.peek().coins,coins);
+ farm.peek().stock[farm.peek().order.product][farm.peek().order.cropId]=9999;const r4=farm.act('market','order',null,AT+WORK_DAY_MS);assert.equal(r4.ok,true,r4.message);
+});
+test('coins above 1e12 survive loading',()=>{const saved=fresh().progress;saved.coins=9999999999999;assert.equal(createFarm(saved,null,()=>{},AT).progress.coins,9999999999999);});
+test('relief beans: café-only, broke, empty, once per work day',()=>{
+ const mk=(region,coins)=>{const s=fresh().progress;s.region=region;s.coins=coins;s.cafe.lots=[];return createFarm(s,null,()=>{},AT);};
+ const farm=mk('it',10);assert.equal(farm.reliefReady(AT),true);
+ const r=farm.act('cafe','relief',null,AT);assert.equal(r.ok,true,r.message);
+ assert.equal(farm.peek().cafe.lots.filter(l=>l.origin==='relief').reduce((s,l)=>s+l.grams,0),300);assert.equal(farm.peek().coins,10);
+ farm.peek().cafe.lots=[];assert.equal(farm.act('cafe','relief',null,AT).ok,false);
+ assert.equal(mk('vn',10).act('cafe','relief',null,AT).ok,false);assert.equal(mk('it',75).act('cafe','relief',null,AT).ok,false);
+});
+test('worker role rejects unknown values',()=>{
+ const farm=rich();farm.act('workers','hire','an',AT);const w=farm.progress.workers[0];
+ assert.equal(farm.act('workers','role',{id:w.id,role:'boss'},AT).ok,false);
+});
+
+test('a device clock that runs back keeps timers, day and weather (BG-B1)',()=>{
+ const T=AT+30*DAY_MS,saved=fresh().progress;saved.lots=[{id:'f0',product:'cherries',cropId:'robusta',grams:36000,quality:80,createdAt:AT,origin:'fixture'}];
+ const ahead=createFarm(saved,null,()=>{},T);assert.equal(ahead.act('dryer','start',{cropId:'robusta',quantity:60},T).ok,true);
+ const job=ahead.progress.machines.dryer.batch,span=job.readyAt-T,day=ahead.weather.day;
+ const back=createFarm(ahead.progress,null,()=>{},AT),b=back.progress.machines.dryer.batch;
+ assert.equal(b.readyAt-AT,span);assert.equal(b.startedAt,AT);assert.equal(back.weather.day,day);assert.equal(back.progress.lastAt,AT);
+ ahead.tick(T+1000);ahead.tick(T-5*DAY_MS);assert.equal(ahead.progress.machines.dryer.batch.readyAt-ahead.progress.lastAt,span-1000,'in-session rollback shifts too');
+});
+test('offline rain counts only the seconds it really rained (BG-B6)',()=>{
+ const gain=end=>{const s=fresh().progress;s.reservoir=0;s.lastAt=end-30000;const f=createFarm(s,null,()=>{},end-30000);f.tick(end);return f.progress.reservoir;};
+ const dry=gain(AT+3*DAY_MS),half=gain(AT+3*DAY_MS+15000),wet=gain(AT+3*DAY_MS+30000);
+ assert.ok(dry<half&&half<wet);assert.ok(Math.abs((half-dry)*2-(wet-dry))<1e-6);
+});
+test('canceling a queued batch closes the gap behind it (BG-B7)',()=>{
+ const farm=withLots([{product:'cherries',cropId:'robusta',grams:72000}]);farm.act('dryer','start',{cropId:'robusta',quantity:120},AT);
+ const st=farm.progress.machines.dryer;assert.ok(st.extraBatches.length>=2);const [mid,last]=st.extraBatches,dur=last.readyAt-last.startedAt;
+ assert.equal(farm.act('dryer','cancel',mid.id,AT).ok,true);
+ const run=farm.progress.machines.dryer.batch,next=farm.progress.machines.dryer.extraBatches[0];
+ assert.equal(next.id,last.id);assert.equal(next.startedAt,run.readyAt);assert.equal(next.readyAt,run.readyAt+dur);
+});
+test('deferring a lesson counts as asked today without result (GP-B2)',()=>{
+ const farm=fresh(),q=farm.pendingLesson().question.id,coins=farm.progress.coins;
+ assert.equal(farm.act('lessons','defer',{questionId:q},AT).ok,true);const L=farm.progress.lessons;
+ assert.equal(L.asked[q],undefined);assert.equal(L.learned.includes(q),false);assert.equal(farm.progress.coins,coins);assert.equal(L.askedCount,1);
+ assert.equal(farm.act('lessons','defer',{questionId:q},AT).ok,false);
+});
+
+test('supplier price is cheaper in café-only regions and the supply action charges it (EC-3)',()=>{
+ assert.equal(supplierPrice('it'),45);assert.equal(supplierPrice('vn'),SUPPLIER_PRICE);
+ const f=createFarm({...fresh().progress,region:'it'},null,()=>{},AT),c0=f.progress.coins;
+ assert.equal(f.act('cafe','supply',null,AT).ok,true);assert.equal(c0-f.progress.coins,45);
 });

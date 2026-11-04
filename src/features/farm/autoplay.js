@@ -1,4 +1,5 @@
 import { CROPS, MACHINES, plotCare, cropById } from './content.js';
+import { ORDERS_PER_DAY } from './rules.js';
 import { acceptsTool, toolCapacity } from './tools.js';
 
 // Auto mode brain for the owner on the farm (docs/shared/crew-autoplay.md 5).
@@ -50,11 +51,14 @@ export function pickAutoErrand(p, { regionKind, level, skip = () => false }) {
   if (order && p.coins >= 2 && !skip('shipOrder')) return { id: 'orders', action: 'shipOrder', choice: order.id, key: 'shipOrder', button: 'order-board' };
   const shop = p.order;
   if (shop && !skip('marketOrder') && (p.stock[shop.product]?.[shop.cropId] || 0) >= shop.quantity) return { id: 'market', action: 'order', choice: shop.id, key: 'marketOrder', button: 'seed-shop' };
-  const crop = CROPS.find(c => roasted(c.id) >= 100);
+  // Beans held for open orders (production orders + today's shop order) are never sent or sold, or 200/252 g orders could not fill.
+  const held = id => p.orders.filter(o => o.source !== 'shop' && o.status === 'open' && o.cropId === id).reduce((s, o) => s + o.grams, 0) + (shop?.product === 'roasted' && shop.cropId === id && (p.market?.orders || 0) < ORDERS_PER_DAY ? shop.quantity : 0);
+  const spare = id => Math.floor(roasted(id) - held(id));
+  const crop = CROPS.find(c => spare(c.id) >= 100);
   // Beans already on the way count, or Auto would send a trip every tick until the first one arrives.
   const cafeBeans = Object.values(p.cafe?.stock?.roasted || {}).reduce((sum, n) => sum + n, 0) + (p.cafe?.shipments || []).reduce((sum, trip) => sum + trip.lots.reduce((n, l) => n + l.grams, 0), 0);
-  if (crop && regionKind === 'both' && cafeBeans < 400 && p.coins >= 2 && !skip('shipCafe')) return { id: 'cafe', action: 'ship', choice: crop.id, key: 'shipCafe', button: 'order-board' };
-  if (crop && regionKind === 'farm' && !skip('sell')) return { id: 'market', action: 'sell', choice: `roasted:${crop.id}`, key: 'sell', button: 'seed-shop' };
+  if (crop && regionKind === 'both' && cafeBeans < 400 && p.coins >= 2 && !skip('shipCafe')) return { id: 'cafe', action: 'ship', choice: { cropId: crop.id, grams: spare(crop.id) }, key: 'shipCafe', button: 'order-board' };
+  if (crop && regionKind === 'farm' && !skip('sell')) return { id: 'market', action: 'sell', choice: { item: `roasted:${crop.id}`, grams: spare(crop.id) }, key: 'sell', button: 'seed-shop' };
   // Out of seedlings with empty plots: buy the planting crop (or the cheapest unlocked), keeping 20 coins in hand.
   const empty = p.plots.filter(t => t.unlocked && t.stage === 'empty').length;
   if (empty && !skip('buySeed') && !CROPS.some(c => c.level <= level && p.seeds[c.id] > 0)) {

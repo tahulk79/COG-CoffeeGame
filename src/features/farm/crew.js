@@ -230,7 +230,7 @@ export function createFarmCrew(farm,world,player,onReward=()=>{},onIncident=()=>
         // A worker left inside a collider (new trunk, layout change) can't step or plan out; nudge to the nearest free spot.
         {const pos=actors.get(w.id)?.group.position;if(pos&&!world.canStand(pos.x,pos.z))outer:for(let r=.2;r<=1.6;r+=.2)for(let i=0;i<16;i++){const x=pos.x+Math.cos(i*Math.PI/8)*r,z=pos.z+Math.sin(i*Math.PI/8)*r;if(world.canStand(x,z)){pos.x=x;pos.z=z;break outer;}}}
         // Auto-renew in the last 30 s (or right after expiry); a failed renewal retries every 10 s, never every frame.
-        if(w.autoPay&&w.shiftUntil-at<30000&&(renewRetry.get(w.id)||0)<=at){const renewed=farm.act('workers','shift',w.id,at);if(!renewed.ok)renewRetry.set(w.id,at+10000);}
+        if(w.enabled&&w.autoPay&&w.shiftUntil-at<30000&&(renewRetry.get(w.id)||0)<=at){const renewed=farm.act('workers','shift',w.id,at);if(!renewed.ok)renewRetry.set(w.id,at+10000);}
         const a=actors.get(w.id);
         // Robot status light: red = stopped/out of pack, yellow = idle or waiting, green = working.
         a.light?.material.color.set(!w.enabled||w.shiftUntil<=at?'#a94d31':a.task?'#8df0a8':'#ffe18a');

@@ -92,8 +92,8 @@ const q = (id, stat, count, coins, xp) => ({ id, stat, count, coins, xp });
 export const REGION_QUESTS = {
   vn: [q('vn-phin', 'served', 30, 25, 10), q('vn-ship', 'delivered', 1000, 25, 10)],
   br: [q('br-sun', 'dried', 1000, 25, 10), q('br-cafezinho', 'served', 40, 25, 10)],
-  co: [q('co-pick', 'harvested', 15, 45, 12), q('co-export', 'sold', 1500, 60, 15)],
-  ke: [q('ke-roast', 'roasted', 1000, 45, 12), q('ke-auction', 'sold', 1000, 60, 15)],
+  co: [q('co-pick', 'harvested', 15, 45, 12), q('co-export', 'beansSold', 1500, 60, 15)],
+  ke: [q('ke-roast', 'roasted', 1000, 45, 12), q('ke-auction', 'beansSold', 1000, 60, 15)],
   id: [q('id-dry', 'dried', 1500, 45, 12), q('id-expand', 'expanded', 2, 60, 15)],
   it: [q('it-espresso', 'served', 10, 45, 12), q('it-rush', 'served', 40, 60, 15)],
   jp: [q('jp-craft', 'served', 12, 50, 12), q('jp-kissaten', 'served', 30, 70, 15)],

@@ -8,8 +8,10 @@
 .cafe-active #farm-hud .quest-tracker:not(.cafe-quest){display:none}
 /* Intro step card on phones: three lines so the step text is never cut (farm caps at two). */
 .cafe-active #farm-hud .cafe-quest[role="button"] p{-webkit-line-clamp:3}
+.cafe-active #farm-hud .quest-tracker.cafe-quest p.cafe-goal:not([hidden]){display:block;margin:2px 0;font-weight:700}
 .cafe-ops{display:grid;gap:4px;padding:9px 10px;border:2px solid var(--ui-paper-edge);border-radius:16px 16px 16px 7px;background:var(--ui-paper);box-shadow:inset 0 2px var(--ui-shine),0 3px var(--ui-paper-drop);color:var(--ui-ink-soft);font:650 12px/15px var(--game-font);pointer-events:none}
 .cafe-ops>span{display:flex;align-items:center;gap:7px}
+.cafe-ops>span[data-state=warn]{color:var(--ui-warn);font-weight:800}.cafe-ops>span[data-state=warn] i{background:var(--ui-warn-bg)}
 .cafe-ops i{display:grid;place-items:center;flex:0 0 22px;height:22px;border-radius:8px;background:var(--ui-good-bg);font:13px/1 "Apple Color Emoji","Segoe UI Emoji",sans-serif;font-style:normal}
 .cafe-ops b{font-weight:650}
 .cafe-ops i.cafe-shift-bar{display:block;flex:none;width:auto;height:6px;margin:-1px 0 2px 29px;border-radius:3px;background:linear-gradient(90deg,var(--ui-good) calc(var(--ratio)*100%),var(--ui-off) 0)}

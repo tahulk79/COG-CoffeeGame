@@ -140,6 +140,7 @@ export async function createHeavenGame(profile, onReborn, onPortal) {
     leading = false; mode = null; activeExpert = null; selectedQuestion = null;
     // Bỏ qua: không hỏi hành trang, lấy món đầu; đi thẳng vào cổng, tới nơi mở bản đồ (không thoại).
     journey.chooseGift(GIFTS[0].id);
+    ui.toast(t('heaven.toast.gift', { gift: GIFTS[0].name }));
     world.setFocus(null); world.stopMovement(); ui.closeDialogue(); refresh(); world.moveToNpc('portal');
   }
   function openMap() { mode = 'map'; clearInput(); ui.closeDialogue(); world.setTarget(null); onPortal(); }
@@ -148,7 +149,6 @@ export async function createHeavenGame(profile, onReborn, onPortal) {
     const npc = nearest; world.setFocus(npc.id);
     if (npc.id === 'reaper') {
       if (journey.phase === 'welcome') talk(WELCOME, briefing);
-      else if (journey.phase === 'learning') briefing();
       else talk([['THẦN CHẾT', t(journey.phase === 'return' ? 'heaven.reaper.return' : 'heaven.reaper.learning')]]);
       return;
     }

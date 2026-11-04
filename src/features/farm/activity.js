@@ -24,7 +24,7 @@ export function createWorkActivity(parent,personName='') {
   return {
     setBonus(price){
       bonus.visible=price!==null;if(price===null||price===bonusPrice)return;bonusPrice=price;
-      const ctx=bonusCanvas.getContext('2d');ctx.clearRect(0,0,256,96);ctx.fillStyle='#3b2a1cd9';ctx.strokeStyle='#d9a944';ctx.lineWidth=5;ctx.beginPath();ctx.roundRect(4,4,248,85,30);ctx.fill();ctx.stroke();ctx.fillStyle='#69411f';ctx.font='bold 32px system-ui';ctx.textAlign='center';ctx.fillStyle='#f7ca46';ctx.strokeStyle='#b9801d';ctx.lineWidth=3;ctx.beginPath();ctx.arc(35,47,18,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle='#98611b';ctx.font='bold 24px Georgia';ctx.fillText('₫',35,55);ctx.fillStyle='#fff6dc';ctx.font='bold 29px system-ui';ctx.fillText(t('farm.activity.continue',{price}),148,58,188);bonusTexture.needsUpdate=true;
+      const ctx=bonusCanvas.getContext('2d');ctx.clearRect(0,0,256,96);ctx.fillStyle='#3b2a1cd9';ctx.strokeStyle='#d9a944';ctx.lineWidth=5;ctx.beginPath();ctx.roundRect(4,4,248,85,30);ctx.fill();ctx.stroke();ctx.fillStyle='#69411f';ctx.font='bold 32px system-ui';ctx.textAlign='center';ctx.fillStyle='#f7ca46';ctx.strokeStyle='#b9801d';ctx.lineWidth=3;ctx.beginPath();ctx.arc(35,47,18,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle='#98611b';ctx.font='bold 24px Georgia';ctx.fillText('¢',35,55);ctx.fillStyle='#fff6dc';ctx.font='bold 29px system-ui';ctx.fillText(t('farm.activity.continue',{price}),148,58,188);bonusTexture.needsUpdate=true;
     },
     status(text,fatigue=0){
       root.visible=true;tool.visible=false;const value=Math.round(fatigue),key=`status:${text}:${value}`;if(key===lastKey)return;lastKey=key;

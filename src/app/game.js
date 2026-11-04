@@ -3,11 +3,11 @@ import { beatAt, START_TIME, DURATION, PLAYBACK_RATE, nextDialogueTime } from '.
 import { showDialogue } from '../ui/dialogue.js';
 import { completeIntro, readPlayer, readProgress, readSettings, resetProgress, savePlayer, saveRegion, saveSettings } from '../state/progress.js';
 import { DEFAULT_NAME, randomName } from '../state/names.js';
-import { applyRendererQuality, getQuality, onQuality } from '../shared/vfx/index.js';
+import { applyRendererQuality, getQuality, onQuality, setQuality } from '../shared/vfx/index.js';
 import { lowerQuality, mountSettings } from '../ui/settings.js';
-import { attachModels } from '../shared/three/models.js';
+import { attachModels, releaseModels } from '../shared/three/models.js';
 import { correctQuestionIds } from '../features/heaven/journey.js';
-import { loading } from '../ui/loading.js';
+import { loading, showLoading, hideLoading } from '../ui/loading.js';
 import { t } from '../i18n/index.js';
 
 const INTRO_MODELS = {
@@ -68,6 +68,7 @@ function nextDialogue() {
   if (elapsed >= DURATION) finish();
 }
 async function enterFarm(gift, heavenLessons = [], startingRegion) {
+  if (state === 'transition') return; // đang chuyển cảnh: không dựng thêm cảnh thứ hai
   state = 'transition'; previous = null; showControls(false);
   $('loading').hidden = false; loading(40, t('app.loading.rebirthFarm'));
   let nextScene;
@@ -84,9 +85,10 @@ async function enterFarm(gift, heavenLessons = [], startingRegion) {
     document.title = t('app.title.farm');
     $('game').focus({ preventScroll: true });
     renderer.setAnimationLoop(document.hidden ? null : frame);
-  } catch (error) { nextScene?.dispose(); fail(error); }
+  } catch (error) { if (nextScene !== activeScene) nextScene?.dispose(); fail(error); } // cảnh đã thành activeScene thì không dispose hai lần
 }
 async function enterHeaven() {
+  if (state === 'transition') return;
   state = 'transition'; previous = null; showControls(false);
   $('loading').hidden = false; loading(40, t('app.loading.openHeaven'));
   renderer.toneMappingExposure = 1.05;
@@ -99,13 +101,14 @@ async function enterHeaven() {
     loading(85, t('app.loading.prepareLevel'));
     await renderer.compileAsync(nextScene.scene, nextScene.camera);
     activeScene?.dispose(); activeScene = nextScene;
+    releaseModels('intro/'); // GLB intro chỉ dùng ở màn intro; cảnh intro vừa dispose
     state = 'heaven'; previous = null;
     vignette.style.opacity = '0'; $('loading').hidden = true;
     $('game').setAttribute('aria-label', t('app.game.heavenLabel'));
     document.title = t('app.title.heaven');
     if ($('heaven-ending').hidden) $('game').focus({ preventScroll: true });
     renderer.setAnimationLoop(document.hidden ? null : frame);
-  } catch (error) { nextScene?.dispose(); fail(error); }
+  } catch (error) { if (nextScene !== activeScene) nextScene?.dispose(); fail(error); } // cảnh đã thành activeScene thì không dispose hai lần
 }
 // Cổng thiên đàng → bản đồ thế giới (docs/screens/02b-world-map). Cảnh thiên đàng giữ nguyên bên dưới, chỉ ngừng vẽ.
 async function openWorldMap() {
@@ -139,7 +142,7 @@ function start() {
   $('game').focus({ preventScroll: true });
 }
 function resize() {
-  applyRendererQuality(renderer, activeScene?.scene);
+  applyRendererQuality(renderer, activeScene?.scene, worldMap?.scene);
   renderer.setSize(window.innerWidth, window.innerHeight);
   activeScene?.resize(window.innerWidth, window.innerHeight);
   worldMap?.resize(window.innerWidth, window.innerHeight);
@@ -203,8 +206,19 @@ async function initialize() {
     renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = .95;
-    events.signal.addEventListener('abort', onQuality(() => applyRendererQuality(renderer, activeScene?.scene)), { once: true });
+    events.signal.addEventListener('abort', onQuality(() => applyRendererQuality(renderer, activeScene?.scene, worldMap?.scene)), { once: true });
     mountSettings({ onOpen: () => activeScene?.clearInput?.() }); // sau onQuality để mức đã lưu áp vào renderer
+    // Mất ngữ cảnh GPU (thiếu RAM/tab nền trên điện thoại): preventDefault để trình duyệt được phép khôi phục, hạ đồ họa cho lần dựng lại.
+    let contextLost = false;
+    renderer.domElement.addEventListener('webglcontextlost', event => {
+      event.preventDefault(); contextLost = true; setQuality('low');
+      showLoading(0, ''); $('load-status').textContent = t('app.gpu.lost');
+    }, listenerOptions);
+    renderer.domElement.addEventListener('webglcontextrestored', () => {
+      if (!contextLost) return;
+      contextLost = false; resize();
+      if (!['transition', 'loading'].includes(state)) hideLoading();
+    }, listenerOptions);
     $('game').append(renderer.domElement); resize(); loading(20, t('app.loading.initGraphics'));
     const saved = readProgress();
     if (saved.heaven?.completed || saved.farm) {
@@ -241,7 +255,7 @@ async function enterIntro(event) {
   try {
     const { createIntro } = await import('../features/intro/scene.js');
     const selection = activeScene, character = selection.takePlayer();
-    selection.dispose();
+    selection.dispose(); releaseModels('selection/'); // stage/backdrop chỉ dùng ở màn chọn
     renderer.toneMappingExposure = 1.15;
     activeScene = createIntro(player, character); resize();
     await attachModels(activeScene, INTRO_MODELS);

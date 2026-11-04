@@ -146,12 +146,20 @@ export function createAdventureScene(character, { interactions: inputInteraction
   }
   // A fixed-size nameplate half outside the view reads as a cut word, so show it only when it fits.
   const labelPoint = new THREE.Vector3();
+  // The farm quest card is HTML over the canvas: labels whose centre falls behind it are hidden too (UX-A1). Rects re-read ~4x/s, not per frame.
+  let hudRects = [], hudReadAt = 0;
+  function readHudRects() {
+    const now = performance.now(); if (!farming || now - hudReadAt < 250) return; hudReadAt = now;
+    hudRects = [...document.querySelectorAll('#farm-hud .quest-tracker')].filter(e => getComputedStyle(e).opacity !== '0').map(e => e.getBoundingClientRect());
+  }
   function hideCutLabels() {
-    camera.updateMatrixWorld();
+    camera.updateMatrixWorld(); readHudRects();
     for (const object of screenLabels) {
       labelPoint.setFromMatrixPosition(object.matrixWorld).project(camera);
       const half = object.userData.labelPx * object.scale.x / object.scale.y / viewWidth; // half width in NDC
-      object.material.visible = labelPoint.z < 1 && Math.abs(labelPoint.x) + half < 1 && Math.abs(labelPoint.y) < .97; // material flag: object.visible belongs to the status logic
+      const px = (labelPoint.x + 1) / 2 * viewWidth, py = (1 - labelPoint.y) / 2 * viewHeight, hw = half * viewWidth;
+      const covered = hudRects.some(r => px + hw > r.left && px - hw < r.right && py > r.top && py < r.bottom);
+      object.material.visible = !covered && labelPoint.z < 1 && Math.abs(labelPoint.x) + half < 1 && Math.abs(labelPoint.y) < .97; // material flag: object.visible belongs to the status logic
     }
   }
   let viewHeight = 1, viewWidth = 1;
@@ -336,6 +344,8 @@ export function createAdventureScene(character, { interactions: inputInteraction
     }
   }
   rebuildColliders();
+  // Asset swaps only mark colliders dirty; the next read rebuilds once (PF-4: was one full-scene walk per slot).
+  function syncColliders() { if (collidersDirty) { collidersDirty = false; rebuildColliders(); } }
   let route = [], arrivalNpc = null, portalIntent = false, faceYaw = null; // faceYaw: where to turn once standing at an interaction
   let pendingRoute = null, routeIntent = null;
   const raycaster = new THREE.Raycaster();
@@ -372,6 +382,7 @@ export function createAdventureScene(character, { interactions: inputInteraction
   }
   // `pad` adds clearance; buckets are padded by .2 so pads up to ~.14 still see neighbouring solids.
   function canStand(x, z, pad = 0) {
+    syncColliders(); // the only collider reader; crew/cafe callers skip prepareNavigation
     // Keep the entire avatar inside the fence, including the former front opening.
     if (farming && (x < worldBounds.minX+1.15 || x > worldBounds.maxX-1.15 || z < worldBounds.minZ+1.15 || z > worldBounds.maxZ-1.15)) return false;
 
@@ -424,7 +435,7 @@ export function createAdventureScene(character, { interactions: inputInteraction
     status.badgeTexture.needsUpdate=true;
   }
   function update(dt, time, input, blocked) {
-    if(collidersDirty){collidersDirty=false;rebuildColliders();}
+    syncColliders();
     if(recoverPosition) {
       recoverPosition=false;
       if(!canStand(character.position.x,character.position.z)) {
@@ -550,13 +561,15 @@ export function createAdventureScene(character, { interactions: inputInteraction
     if (farming) character.position.set(-3, .05, -.5);
     character.rotation.y = byClerk ? angle + Math.PI : Math.PI;
     freshCamera = true; walkWeight = 0; doorOpen = 0; focused = null; returning = false; stopMovement();
+    // Portrait phone: open on the field's centre so field-0 is not clipped; walking clears manualCamera (UX-A4). Window size: resize() may not have run yet.
+    if (farming && innerWidth < innerHeight * .6) { camera.zoom = .9; camera.updateProjectionMatrix(); fitLabels(); manualCamera = new THREE.Vector3(-6.4, 0, -.5); }
   }
   return {
     scene, camera, update, reset, stopMovement, moveToNpc,
     moveToPoint(x,z){return requestRoute({x,z},null);},
     canStand,
     invalidateNavigation(){collidersDirty=true;},
-    prepareNavigation(){if(collidersDirty){collidersDirty=false;rebuildColliders();}},
+    prepareNavigation(){syncColliders();},
     createWorkerRoute(start,id,avoid=()=>true) {
       const npc=NPCS.find(n=>n.id===id);if(!npc)return null;
       const points=approachPoints(npc),interaction=points?.length ? {points,radius:.4} : {x:npc.position[0],z:npc.position[1],radius:(npc.interactDistance || 2.6)-.3};
@@ -647,7 +660,7 @@ export function createAdventureScene(character, { interactions: inputInteraction
         }
       }
       environment?.setFields(ownedFields);
-      if (changed) { stopMovement(); rebuildColliders(); }
+      if (changed) { stopMovement(); collidersDirty = true; }
     },
     setActorState(id, value) {
       const actor = actors.get(id);
@@ -736,7 +749,7 @@ export function createAdventureScene(character, { interactions: inputInteraction
       stopMovement();
       for (const child of [...slot.children]) retiredAssets.add(child);
       model.traverse(object => { if (object.isMesh) { object.castShadow = true; object.receiveShadow = true; } });
-      slot.add(model); rebuildColliders(); return true;
+      slot.add(model); collidersDirty = true; return true;
     },
     getAssetSlots() { return [...assetSlots.keys()]; },
     panCamera(fromX, fromY, toX, toY, rect) {

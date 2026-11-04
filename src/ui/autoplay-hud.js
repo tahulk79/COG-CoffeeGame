@@ -36,12 +36,12 @@ export function mountAutoHud({ onToggle }) {
       if (performance.now() >= pending.at) { pending = null; element.click(); }
       return true;
     },
-    // Heaven re-ask quiz (#caption-box): tap the right answer, then close the result. Returns true while a quiz is up.
+    // Heaven re-ask quiz (#caption-box): Auto never answers for you (audit 04/11) — it taps «Để sau» so the question waits for the player.
     quiz() {
       const box = document.getElementById('caption-box');
       if (!box || box.hidden || !box.classList.contains('lesson-dialogue')) return false;
-      const right = box.querySelector('#dialogue-choices:not([hidden]) button[data-correct="true"]');
-      if (right) this.tap(right, t('crew.auto.quiz', { answer: right.textContent.replace(/^\d/, '').trim() }), 1800);
+      const later = box.querySelector('#dialogue-choices:not([hidden]) .dialogue-later');
+      if (later) this.tap(later, t('crew.auto.quiz'), 1800);
       else this.tap(document.getElementById('dialogue-next'), t('crew.auto.quizDone'), 2200);
       return true;
     },

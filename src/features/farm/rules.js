@@ -1,4 +1,5 @@
 import { t, formatNumber } from '../../i18n/index.js';
+import { regionType } from '../world-map/content.js';
 // All durations are compressed game time, not instructions for real cultivation.
 export const DAY_MS = 60000;
 export const SEASON_MS = DAY_MS * 6;
@@ -9,9 +10,15 @@ export const CAFE_SHIFT_MS = 240000;
 // Fertilizer must repay itself (+11% yield, +5 quality); outside beans cost more than farm beans so the café still needs the farm.
 export const FERTILIZER_PRICE = 1;
 export const SUPPLIER_PRICE = 75;
-// Market price per work day (6 minutes) falls linearly from 100% to a 30% floor once 70% of MARKET_DAILY base coins are sold, so surplus beans pay more at the café.
+// Café-only regions have no farm beans, so the supplier sells cheaper there (EC-3: keeps Phin đen/Nâu đá above break-even).
+export const SUPPLIER_PRICE_CAFE_ONLY = 45;
+export const supplierPrice = region => regionType(region) === 'cafe' ? SUPPLIER_PRICE_CAFE_ONLY : SUPPLIER_PRICE;
+// Market price per work day (6 minutes) falls linearly from 100% to a 30% floor once 70% of MARKET_DAILY base coins are sold, so surplus beans pay more per gram at the café.
+// Kept as is 04/11/2026 (GDD 10.3, 10.5): the market stays the main income; lowering it only slows progress, the café is capped by guest pace.
 // Integrated over the work day's sold base value: one big sale and many small ones earn the same.
 export const MARKET_DAILY = 1200;
+export const ORDERS_PER_DAY = 2; // shop orders per work day, stops order-farming
+export const RELIEF_GRAMS = 300; // free beans for a bankrupt café-only region
 const marketCurve = x => x <= .7 * MARKET_DAILY ? x - x * x / (2 * MARKET_DAILY) : .455 * MARKET_DAILY + .3 * (x - .7 * MARKET_DAILY);
 export const marketValue = (soldToday, base) => marketCurve(soldToday + base) - marketCurve(soldToday);
 export const ASSETS = [
@@ -41,11 +48,11 @@ export const assetTier = level => ASSET_TIERS.reduce((tier,t,i) => level >= t.mi
 export function assetValue(asset,level) {
   if(asset.id==='well')return level<=10?6+4*(level-1):42+(level-10);
   if(asset.id==='cafe')return Math.min(10,3+Math.round((level-1)*7/9)); // café room has 10 table spots
-  return Math.round(asset.baseValue*(asset.decreases ? 1/efficiency(level) : capacityScale(level)));
+  return asset.decreases ? Math.round(10*asset.baseValue/efficiency(level))/10 : Math.round(asset.baseValue*capacityScale(level));
 }
 export const phaseOf = plot => plot.stage==='empty' ? t('farmRules.phase.empty') : plot.stage==='ready' ? t('farmRules.phase.ready') : !plot.mature ? t('farmRules.phase.seedling') : plot.growthMs/SEASON_MS<.17 ? t('farmRules.phase.recovery') : plot.growthMs/SEASON_MS<.25 ? t('farmRules.phase.flowering') : plot.growthMs/SEASON_MS<.75 ? t('farmRules.phase.fruiting') : t('farmRules.phase.ripening');
 export const formatCoins = coins => formatNumber(coins,{maximumFractionDigits:2});
-export const formatMass = grams => grams>=1000 ? `${formatNumber(grams/1000,{maximumFractionDigits:2})} kg` : `${Math.round(grams)} g`;
+export const formatMass = (grams,digits=2) => grams>=1000 ? `${formatNumber(grams/1000,{maximumFractionDigits:digits})} kg` : `${Math.round(grams)} g`;
 export const WORKER_CANDIDATES = [
   {id:'an',name:'An',color:'#759561',stats:{speed:65,intelligence:65,strength:55,dexterity:65,constitution:50},fee:150},
   {id:'binh',name:'Bình',color:'#bf8c58',stats:{speed:55,intelligence:55,strength:75,dexterity:50,constitution:65},fee:150},

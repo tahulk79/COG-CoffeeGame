@@ -403,7 +403,7 @@ export function createCafeGame({ farm, ui, onMenu, onExit, profile, character })
   function selectStaff(id) { select(null); glowStaff = id; glow.visible = true; glow.scale.set(1.4, 1.4, 1); glowUntil = performance.now() + 1200; }
   const keyboard = createMovementInput();
   let events = null;
-  let touch = { x: 0, z: 0 }, lastHud = 0, lastActors = 0, tableKey = '';
+  let touch = { x: 0, z: 0 }, lastHud = 0, lastActors = 0, tableKey = '', escAt = 0;
   const projected = new THREE.Vector3();
   const screenAt = pos => {
     const rect = document.querySelector('#game canvas').getBoundingClientRect();
@@ -643,9 +643,13 @@ export function createCafeGame({ farm, ui, onMenu, onExit, profile, character })
     }
     if (service.shelf.some(d => !service.isClaimed(`drink:${d.id}`) && wanting(d.recipeId))) return { id: 'bar', text: t('crew.auto.cafe.pickup') };
     if (service.queueLength() && !service.staffOn('cashier')) return { id: 'register', text: t('crew.auto.cafe.order') };
+    // No clean seat left while guests queue: clean first, or they are sent to take-away and walk out angry (maxed café, 04/11).
+    const dirtyTable = () => [...new Set([...service.dirty].map(k => Number(k.split(':')[0])))].find(n => !service.isClaimed(`clean:${n}`));
+    const blocked = service.queueLength() && !service.hasCleanSeat() ? dirtyTable() : undefined;
+    if (blocked !== undefined) return { id: `table-${blocked}`, text: t('crew.auto.cafe.clean', { n: blocked + 1 }) };
     const ticket = !behind && now >= noBrewUntil && service.tickets().find(tk => !tk.covered && CROPS.some(c => !missingFor(tk.recipe, cafe, c.id).length));
     if (ticket) return { id: 'bar', text: t('crew.auto.cafe.brew', { drink: ticket.recipe.name }) };
-    const table = [...new Set([...service.dirty].map(k => Number(k.split(':')[0])))].find(n => !service.isClaimed(`clean:${n}`));
+    const table = dirtyTable();
     if (table !== undefined) return { id: `table-${table}`, text: t('crew.auto.cafe.clean', { n: table + 1 }) };
     return cafe.open ? { id: 'register', text: t('crew.auto.cafe.wait') } : null;
   }
@@ -709,6 +713,9 @@ export function createCafeGame({ farm, ui, onMenu, onExit, profile, character })
   document.addEventListener('pointerup', () => { if (drag?.moved) suppress = performance.now() + 350; drag = null; }, { signal: events.signal });
   // Đổi tab/rời cửa sổ khi đang kéo: pointerup rơi vào chỗ khác, nên bỏ kéo để camera không trôi theo chuột.
   for (const [target, type] of [[document, 'pointercancel'], [window, 'blur'], [document, 'visibilitychange']]) target.addEventListener(type, () => { drag = null; }, { signal: events.signal });
+  // A hidden tab freezes the model but not Date.now(): shift clock and cup age would run on, so shift them by the hidden gap on return.
+  let hiddenAt = 0;
+  document.addEventListener('visibilitychange', () => { if (document.hidden) hiddenAt = Date.now(); else if (hiddenAt) { service.resume(Date.now() - hiddenAt); hiddenAt = 0; } }, { signal: events.signal });
   document.addEventListener('click', e => {
     const canvas = e.target.closest('#game canvas'); if (!canvas || blocked() || performance.now() < suppress) return;
     const rect = canvas.getBoundingClientRect(), id = pickStaff(e.clientX, e.clientY, rect);
@@ -772,7 +779,8 @@ export function createCafeGame({ farm, ui, onMenu, onExit, profile, character })
       if (time - lastActors > .5) { lastActors = time; service.refresh(); syncActors(); cafeUi.tick(); }
       setListener(player.position, world.camera); vfx.update(dt);
     },
-    handleKeyDown(e) { if (cafeUi.open || isSettingsOpen()) return; if (e.code === 'Escape') { onExit?.(); return; } if (keyboard.down(e)) world.stopMovement(); },
+    // Esc twice within 2.5 s leaves (audit 04/11): one stray Esc on desktop no longer throws you out of the shift.
+    handleKeyDown(e) { if (cafeUi.open || isSettingsOpen()) return; if (e.code === 'Escape') { if (onExit && !e.repeat) { if (performance.now() - escAt < 2500) { escAt = 0; onExit(); } else { escAt = performance.now(); ui.notice(t('cafe.notice.escAgain')); } } return; } if (keyboard.down(e)) world.stopMovement(); },
     handleKeyUp: e => keyboard.up(e),
     // Rời quán: tạm dừng, giữ cảnh và ca bán để lần sau vào lại ngay (enter) như khi về farm.
     leave: closeSession,
