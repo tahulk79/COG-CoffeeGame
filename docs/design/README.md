@@ -6,6 +6,28 @@ Thư mục giữ **GDD** — tài liệu thiết kế tổng của game — và 
 |---|---|
 | [cog-coffee-gdd.md](cog-coffee-gdd.md) | GDD tổng hợp. Mục 0 là bảng trạng thái |
 | [ideas/](ideas/README.md) | Hộp thư ý tưởng: mỗi ý tưởng một file, có vòng đời Mới → Đang xem → Đã chốt / Bỏ |
+| [changes/](changes/README.md) | Phiếu sửa GDD/tài liệu: đổi gì (Trước/Sau) và dev cần làm gì; Chờ dev → Đang làm → Xong |
+| [progress/](progress/README.md) | Báo cáo tiến độ: mỗi kỳ một file, chỉ ghi cái mới |
+
+## Ba phiên làm việc và mẫu đầu ra
+
+Mỗi phiên trong Claude Code ghi kết quả thành **file trong repo** theo mẫu, commit đúng tiền tố. Khi đồng bộ `cog/main` về, hộp thư thiết kế đọc các file đó và chỉ in cái mới (🆕 file mới, ✏️ file vừa sửa) kèm dòng **Cập nhật** của từng file.
+
+| Phiên | Ghi vào | Mẫu | Commit | Hộp thư in |
+|---|---|---|---|---|
+| Tiến độ công việc | `progress/YYYY-MM-DD-ten.md` | [progress/_template.md](progress/_template.md) | `progress: …` | Báo cáo mới kể từ lần đã xem |
+| Note ý tưởng | `ideas/YYYY-MM-DD-ten.md` | [ideas/_template.md](ideas/_template.md) | `idea: …` | Ý tưởng mới / vừa đổi; ý tưởng còn mở gom một dòng |
+| Sửa GDD | `changes/YYYY-MM-DD-ten.md` + tài liệu đã sửa | [changes/_template.md](changes/_template.md) | `design: …` | Phiếu Chờ dev / Đang làm và phiếu vừa đổi |
+
+Câu mở đầu dán vào từng phiên:
+
+```text
+Tiến độ: Viết báo cáo tiến độ theo docs/design/progress/_template.md. Chỉ ghi việc mới kể từ báo cáo gần nhất trong docs/design/progress/ (đối chiếu git log từ commit "Tới" của báo cáo đó). Mục trống thì xóa. Cập nhật cột Code/Kiểm chứng trong GDD mục 0.3 nếu có đổi.
+
+Ý tưởng: Ghi ý tưởng sau thành file trong docs/design/ideas/ theo _template.md, Trạng thái Mới, dòng Cập nhật "dd/mm — gửi mới". Nếu là ý tưởng đã có thì sửa file đó và viết lại dòng Cập nhật. Không sửa GDD, không đụng code. Commit "idea: …".
+
+Sửa GDD: Sửa tài liệu theo yêu cầu sau (tài liệu màn trước, rồi GDD: tăng phiên bản, ghi Lịch sử phiên bản), và viết phiếu trong docs/design/changes/ theo _template.md: bảng Trước/Sau, Vì sao, Dev cần làm, Trạng thái Chờ dev. Không sửa code. Commit "design: …".
+```
 
 ## Trả lời câu hỏi của quản lý
 
@@ -87,7 +109,7 @@ Repo chung (của sếp): `https://github.com/tahulk79/COG-CoffeeGame`, nhánh `
 | Sếp muốn | Làm thế nào |
 |---|---|
 | Đưa ý tưởng mới | Thêm file vào `docs/design/ideas/` theo mẫu, commit `idea: …`, push lên `main`. Không cần sửa GDD |
-| Đổi luật / số liệu đã chốt | Sửa tài liệu màn (`screens/`, `shared/`), tăng phiên bản GDD và ghi Lịch sử phiên bản; commit `design: …` |
+| Đổi luật / số liệu đã chốt | Viết phiếu trong `docs/design/changes/`; sửa luôn tài liệu màn (`screens/`, `shared/`) và GDD (tăng phiên bản, ghi Lịch sử phiên bản) nếu tự sửa; commit `design: …` |
 | Duyệt / bác ý tưởng | Đổi Trạng thái trong file ý tưởng, ghi phần "Quyết định" |
 
 Đội phát triển nhận ý tưởng `Đã chốt` mới triển khai; ý tưởng `Mới` / `Đang xem` chỉ được đọc, ước lượng, hỏi lại. Quy trình chi tiết: [ideas/README.md](ideas/README.md).
