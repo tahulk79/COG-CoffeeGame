@@ -2,7 +2,9 @@
  * Realm — the 3D world of Farm & Café V3 (contract: docs/design/v3-architecture.md § Realm API).
  *
  * Renders the current region of the save (layout.js + store.state), turns taps/drags into store actions and owns
- * the café customer spawning. Store orders/plots/buildings are the source of truth: visuals are diffed by id on every
+ * the café customer spawning. A region has two areas in the same scene — the farm (BOUNDS) and the café (CAFE_BOUNDS,
+ * far south) — and the realm shows one at a time: `realm.view` ('farm' | 'cafe'), switched with `setView(view)` (short
+ * fade, player + camera move to AREAS[view].spawn). Customers keep simulating in either view; they render in the café. Store orders/plots/buildings are the source of truth: visuals are diffed by id on every
  * store change (subscribe), and only time-based visuals (growth, brewing, patience) are evaluated per frame.
  * Sub-modules: world (ground/roads/parcels/scenery/gate), plots, buildings, cafe (customers), staff, avatar,
  * camera (CameraController), placement (ghost preview), markers (tutorial arrow, selection, drag cursor),
@@ -10,7 +12,7 @@
  */
 import * as THREE from 'three';
 import { BUILDINGS, CROPS } from '../../core/config/economy.js';
-import { PARCELS, ROADS, GATE, FIXED, PLOT_SIZE, CUSTOMER, plotById, parcelAt, inRect } from '../../core/config/layout.js';
+import { PARCELS, ROADS, GATE, FIXED, PLOT_SIZE, CUSTOMER, AREAS, plotById, parcelAt, inRect, areaAt, areaOfParcel } from '../../core/config/layout.js';
 import { region as regionOf, footprint } from '../../core/derive.js';
 import { loadModel } from '../../shared/three/models.js';
 import { disposeScene } from '../../shared/three/dispose-scene.js';
@@ -33,6 +35,7 @@ const SKY = 0xb4e2f7; // fog uses the same color so the horizon melts into the s
 const TREE_PARTS = { tree: 'farm/coffee-tree.glb#tree', fruitGreen: 'farm/coffee-tree.glb#fruit_green', fruitRipe: 'farm/coffee-tree.glb#fruit_ripe' };
 const GATE_PARTS = { gateFrame: 'heaven/portal.glb#portal_frame', gateLeft: 'heaven/portal.glb#portal_left_leaf', gateRight: 'heaven/portal.glb#portal_right_leaf' };
 const EXTRA_MODELS = ['cafe/espresso-machine.glb#machine', 'cafe/table.glb#chairs_pair', 'cafe/props.glb#cup'];
+const FADE_OUT = .2, FADE_IN = .32; // view switch fade (seconds)
 const KEYS = { KeyW: 'f', ArrowUp: 'f', KeyS: 'b', ArrowDown: 'b', KeyA: 'l', ArrowLeft: 'l', KeyD: 'r', ArrowRight: 'r' };
 const COUNTER_RECT = unionRect(
   unionRect(footprint('orderCounter', FIXED.orderCounter.x, FIXED.orderCounter.z), footprint('brewCounter', FIXED.brewCounter.x, FIXED.brewCounter.z)),
@@ -92,6 +95,15 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   cam.setFollow(avatar.position);
   cam.snapTo(avatar.position);
 
+  // View switch fade: a full-screen plane on the camera (same trick as the cinematic flash).
+  const fadeMat = new THREE.MeshBasicMaterial({ color: 0xfff4e0, transparent: true, opacity: 0, depthTest: false, depthWrite: false });
+  const fade = new THREE.Mesh(new THREE.PlaneGeometry(8, 8), fadeMat);
+  fade.position.z = -.8;
+  fade.renderOrder = 1000;
+  fade.visible = false;
+  fade.raycast = () => {};
+  camera.add(fade);
+
   // ---------- state ----------
   let inputLocked = false;
   let activeCrop = 'robusta';
@@ -104,6 +116,9 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   let gateWalk = false;
   let disposed = false;
   let timerSeconds = -1;
+  let view = 'farm';        // area on screen: 'farm' | 'cafe'
+  let viewApplied = false;  // visibility is applied on the first frame, so compileAsync sees both areas' materials
+  let switching = null;     // { to, t, phase: 'out'|'in', promise, resolve } while the fade runs
   const keys = new Set();
   const raycaster = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
@@ -123,7 +138,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   function syncAll(state, instant = false) {
     const id = state.world.currentRegion || null;
     if (id !== regionId) {
-      if (regionId !== undefined) { plots.clear(); buildings.clear(); cafe.reset(); staff.clear(); placement.cancel(); setSelection(null); needArrive = !!id; }
+      if (regionId !== undefined) { plots.clear(); buildings.clear(); cafe.reset(); staff.clear(); placement.cancel(); setSelection(null); needArrive = !!id; cancelSwitch(); swapView('farm'); }
       regionId = id;
       instant = true;
       avatar.teleport(avatar.position.x, avatar.position.z);
@@ -134,10 +149,10 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     cafe.sync(state, instant);
     staff.sync(state);
     // Building footprints block the player (slightly shrunk so doorways feel forgiving).
-    avatar.setBlockers((regionOf(state)?.buildings || []).filter(b => BUILDINGS[b.type]).map(b => {
+    avatar.setBlockers([...world.blockers, ...(regionOf(state)?.buildings || []).filter(b => BUILDINGS[b.type]).map(b => {
       const r = footprint(b.type, b.x, b.z, b.rot);
       return [r[0] + .15, r[1] + .15, r[2] - .15, r[3] - .15];
-    }));
+    })]);
     if (selection?.kind === 'building' && !buildings.get(selection.uid)) setSelection(null);
     if (placement.info) placement.refresh();
   }
@@ -168,12 +183,13 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       else if (ev.type === 'parcelBought') { const c = parcelSignPoint(ev.parcelId); vfx.burst('sparkle', v3.set(c.x, 1, c.z), { count: 20 }); vfx.burst('leaf', v3); }
       else if (ev.type === 'roadOpened') { const c = roadSignPoint(ev.roadId); vfx.burst('dust', v3.set(c.x, .3, c.z), { count: 16 }); }
       else if (ev.type === 'hired' || ev.type === 'assigned') vfx.burst('sparkle', avatar.position, { count: 10 });
-      else if (ev.type === 'regionEntered') { avatar.teleport(GATE.x, GATE.z - 4); needArrive = true; }
+      else if (ev.type === 'regionEntered') { cancelSwitch(); swapView('farm'); avatar.teleport(GATE.x, GATE.z - 4); needArrive = true; }
     }
   });
 
   // Coins / beans fly from the world position to the HUD counter (popNumber when the HUD element is missing).
   function reward(pos, elementId, icon, amount) {
+    if (areaAt(pos.x, pos.z) !== view || switching) return; // off-screen area: the HUD counter still updates
     const sp = project(v3.set(pos.x, pos.y, pos.z));
     if (!sp) return;
     const el = document.getElementById(elementId);
@@ -192,6 +208,19 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   function resolvePlot(t, now) {
     if (t.id) return plotById(t.id);
     return plots.first(t.want || 'empty', now);
+  }
+  // Which area a target lives in ('farm' | 'cafe'), null when unknown.
+  function areaOf(t) {
+    if (!t) return null;
+    if (t.kind === 'plot' || t.kind === 'road' || t.kind === 'gate') return 'farm';
+    if (t.kind === 'parcel') return PARCELS[t.id] ? areaOfParcel(t.id) : null;
+    if (t.kind === 'building') {
+      const e = buildingOf(t);
+      if (e && Number.isFinite(e.x)) return areaAt(e.x, e.z);
+      const zone = BUILDINGS[t.type]?.zone;
+      return zone === 'shop' ? 'cafe' : zone === 'farm' ? 'farm' : null;
+    }
+    return null;
   }
   // Camera focus rect + key (taps inside the same key keep the camera still).
   function focusInfo(t) {
@@ -221,7 +250,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   }
   // World point above a target (arrow, screenPoint). Writes into `out`; returns false when it has no 3D position.
   function targetPoint(t, out, now) {
-    if (!t) return false;
+    if (!t || switching || areaOf(t) !== view) return false; // targets of the other area are not on screen
     if (t.kind === 'plot') { const p = resolvePlot(t, now); if (!p) return false; out.set(p.x, 1.3, p.z); return true; }
     if (t.kind === 'building') { const e = buildingOf(t); if (!e) return false; out.set(e.x, e.height + 1.1, e.z); return true; }
     if (t.kind === 'parcel' && PARCELS[t.id]) { const c = parcelSignPoint(t.id); out.set(c.x, 2.7, c.z); return true; }
@@ -254,12 +283,13 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     raycaster.setFromCamera(ndc, camera);
   }
   function pick(includeBuildings = true) {
-    const list = [...plots.pickers()];
-    if (includeBuildings) list.push(...buildings.pickers(), world.gatePicker);
+    const farm = view === 'farm';
+    const list = farm ? [...plots.pickers()] : []; // plots + gate: farm only; buildings: current area only
+    if (includeBuildings) { list.push(...buildings.pickers()); if (farm) list.push(world.gatePicker); }
     const hits = raycaster.intersectObjects(list, false);
     return hits.length ? hits[0].object.userData.target : null;
   }
-  const locked = () => inputLocked || disposed || !!cinematics.active;
+  const locked = () => inputLocked || disposed || !!cinematics.active || !!switching;
 
   function tapPlot(id) {
     const now = Date.now();
@@ -299,7 +329,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     const state = store.state;
     const parcel = parcelAt(hit.x, hit.z);
     if (parcel && world.parcelState(parcel.id) !== 'owned') return setSelection({ kind: 'parcel', id: parcel.id });
-    for (const road of Object.values(ROADS)) {
+    if (view === 'farm') for (const road of Object.values(ROADS)) {
       if (!road.open && inRect(hit.x, hit.z, road.rect) && !isRoadOpen(state, road.id) && !inRect(hit.x, hit.z, ROADS.mainNS.rect)) return setSelection({ kind: 'road', id: road.id });
     }
     setSelection(null);
@@ -363,6 +393,72 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     if (parcel) cam.focusRect(parcel.rect, { key: `parcel:${parcel.id}` });
   }
 
+  // ---------- views (farm / café) ----------
+  function applyView() {
+    viewApplied = true;
+    world.setView(view);
+    buildings.setView(view);
+    staff.setView(view);
+    plots.group.visible = view === 'farm';
+    cafe.group.visible = view === 'cafe';
+  }
+  // Immediate switch: clears selection / placement / drags, moves the player to the area's spawn, snaps the camera.
+  function swapView(v) {
+    const changed = v !== view;
+    view = v;
+    const area = AREAS[v];
+    if (changed) {
+      if (placement.info?.uid) buildings.setHidden(placement.info.uid, false);
+      placement.cancel();
+      if (selection) setSelection(null);
+      gateWalk = false;
+      input.cancel(); endDrag();
+      avatar.teleport(area.spawn.x, area.spawn.z, Math.PI);
+    }
+    avatar.setBounds(area.bounds);
+    cam.setBounds(area.bounds);
+    if (changed) { cam.explore(); cam.snapTo(avatar.position); }
+    // Opening the café frames both counters (Area Focus) so the player sees where to work right away.
+    if (changed && v === 'cafe') cam.focusRect(COUNTER_RECT, { key: 'counters', force: true });
+    if (viewApplied) applyView();
+  }
+  function setView(v, { instant = false } = {}) {
+    if (!AREAS[v] || disposed) return Promise.resolve(view);
+    if (switching) return switching.to === v ? switching.promise : switching.promise.then(() => setView(v, { instant }));
+    if (v === view) return Promise.resolve(view);
+    if (instant) { swapView(v); return Promise.resolve(view); }
+    // Selection / placement end right away (the HUD hides the action bar), the swap happens under the fade.
+    if (placement.info?.uid) buildings.setHidden(placement.info.uid, false);
+    placement.cancel();
+    if (selection) setSelection(null);
+    gateWalk = false;
+    realm.clearInput();
+    let resolve;
+    const promise = new Promise(r => { resolve = r; });
+    switching = { to: v, t: 0, phase: 'out', promise, resolve };
+    fade.visible = true;
+    return promise;
+  }
+  function cancelSwitch() {
+    if (!switching) return;
+    const sw = switching;
+    switching = null;
+    fade.visible = false;
+    sw.resolve(view);
+  }
+  function updateSwitch(dt) {
+    const sw = switching;
+    if (!sw) return;
+    sw.t += dt;
+    if (sw.phase === 'out') {
+      fadeMat.opacity = Math.min(1, sw.t / FADE_OUT);
+      if (sw.t >= FADE_OUT) { swapView(sw.to); sw.phase = 'in'; sw.t = 0; }
+      return;
+    }
+    fadeMat.opacity = Math.max(0, 1 - sw.t / FADE_IN);
+    if (sw.t >= FADE_IN) { fade.visible = false; switching = null; sw.resolve(view); }
+  }
+
   // ---------- keyboard ----------
   function updateKeyDir() {
     let f = 0, r = 0;
@@ -378,6 +474,8 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     if (disposed) return;
     dt = Math.min(dt || 0, .1);
     clock = time ?? clock + dt;
+    if (!viewApplied) applyView();
+    updateSwitch(dt);
     const state = store.state;
     const now = Date.now();
     // Arrival swoop once per region (load / region change). Never interrupts another cinematic (e.g. the expiry one
@@ -437,18 +535,45 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     setInputLocked(v) { inputLocked = !!v; if (inputLocked) { gateWalk = false; realm.clearInput(); } }, // a pending gate walk must not reopen the atlas later
     get inputLocked() { return inputLocked; },
 
-    select(t) { setSelection(t || null); },
+    /** Current area on screen: 'farm' | 'cafe'. */
+    get view() { return switching ? switching.to : view; },
+    get switching() { return !!switching; },
+    /** Switches the shown area ('farm' | 'cafe'): fade, player + camera to AREAS[view].spawn. Resolves with the view. */
+    setView,
+    /** Area of a target descriptor ('farm' | 'cafe' | null). */
+    areaOf,
+    /** Selects a target; a target in the other area switches the view first (returns a Promise then). */
+    select(t) {
+      const area = areaOf(t);
+      if (t && area && (area !== view || switching)) return setView(area).then(() => setSelection(t));
+      setSelection(t || null);
+      return undefined;
+    },
     get selection() { return selection; },
-    focus(t, { zoom = 1 } = {}) { const f = focusInfo(t); if (f) cam.focusRect(f.rect, { key: f.key, zoom, force: true }); },
+    /** Focuses a target; a target in the other area switches the view first. Returns a Promise. */
+    focus(t, { zoom = 1 } = {}) {
+      const area = areaOf(t);
+      if (area && (area !== view || switching)) return setView(area).then(() => realm.focus(t, { zoom }));
+      const f = focusInfo(t);
+      if (f) cam.focusRect(f.rect, { key: f.key, zoom, force: true });
+      return Promise.resolve();
+    },
     resetCamera() { cam.zoomBy(1 / cam.zoom); cam.explore(); },
     cinematic(name) { return cinematics.play(name); },
 
     setActiveCrop(cropId) { if (CROPS[cropId]) activeCrop = cropId; },
     get activeCrop() { return activeCrop; },
 
+    /**
+     * Starts the placement preview. Shop-zone buildings run in the café view, farm-zone ones in the farm view (the view
+     * switches first and a Promise of the info is returned then); 'any' decor stays in the current view.
+     */
     startPlacement(type, { uid = null } = {}) {
+      const zone = BUILDINGS[type]?.zone;
+      const area = uid ? areaOf({ kind: 'building', uid, type }) || view : zone === 'shop' ? 'cafe' : zone === 'farm' ? 'farm' : realm.view;
+      if (area !== view || switching) return setView(area).then(() => realm.startPlacement(type, { uid }));
       if (placement.info?.uid) buildings.setHidden(placement.info.uid, false);
-      const info = placement.start(type, { uid }, () => store.state);
+      const info = placement.start(type, { uid, area: view }, () => store.state);
       if (!info) return null;
       if (uid) buildings.setHidden(uid, true);
       setSelection(null, { notify: false });
@@ -470,6 +595,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     get placement() { return placement.info; },
 
     setTutorialTarget(t) { tutorialTarget = t || null; },
+    /** Screen point above a target (CSS px); visible:false for targets of the other area or during a view switch. */
     screenPoint(t) {
       if (!targetPoint(t, v3, Date.now())) return { x: 0, y: 0, visible: false };
       v3.project(camera);
@@ -484,6 +610,8 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       input.dispose();
       outline?.remove();
       cinematics.dispose();
+      cancelSwitch();
+      fade.removeFromParent(); fade.geometry.dispose(); fadeMat.dispose();
       placement.dispose();
       markers.dispose();
       cafe.dispose();

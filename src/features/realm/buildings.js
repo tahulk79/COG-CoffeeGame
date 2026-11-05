@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BUILDINGS, CELL } from '../../core/config/economy.js';
 import { region as regionOf } from '../../core/derive.js';
+import { areaAt } from '../../core/config/layout.js';
 import { t, hasKey } from '../../i18n/index.js';
 import { makeLabel, normalizeModel, placeholderBox, easeOutBack, paint, mulberry32 } from './util.js';
 
@@ -123,6 +124,11 @@ export function createBuildings({ scene, prefabs, templates, vfx }) {
   const group = new THREE.Group();
   group.name = 'realm-buildings';
   scene.add(group);
+  // One child group per area (farm / café): only the current view's group is visible and pickable.
+  const areas = { farm: new THREE.Group(), cafe: new THREE.Group() };
+  areas.farm.name = 'realm-buildings-farm'; areas.cafe.name = 'realm-buildings-cafe';
+  group.add(areas.farm, areas.cafe);
+  let view = null; // null → every area visible/pickable (before the realm applies its first view)
   const pickMat = new THREE.MeshBasicMaterial();
   const signs = {}; // type → counter sign geometry (shared by every building of that type)
   const entities = new Map(); // uid → entity
@@ -153,7 +159,7 @@ export function createBuildings({ scene, prefabs, templates, vfx }) {
     const pick = new THREE.Mesh(new THREE.BoxGeometry(fw, Math.max(1.2, height), fd).translate(0, Math.max(1.2, height) / 2, 0), pickMat);
     pick.visible = false;
     root.add(pick);
-    const e = { uid: b.uid, type: b.type, level: 0, x: NaN, z: NaN, rot: -1, root, model, pick, height, badge: null, sign, rise: -1, emitter: null, steam: null, cups: [] };
+    const e = { uid: b.uid, type: b.type, area: null, level: 0, x: NaN, z: NaN, rot: -1, root, model, pick, height, badge: null, sign, rise: -1, emitter: null, steam: null, cups: [] };
     pick.userData.target = { kind: 'building', uid: b.uid, type: b.type };
     if (!def.decor) {
       e.badge = makeLabel('', { bg: '#ffe9a8', border: '#d39a2a', height: .62 });
@@ -171,13 +177,14 @@ export function createBuildings({ scene, prefabs, templates, vfx }) {
         e.cups.push(cup);
       }
     }
-    group.add(root);
     return e;
   }
 
   function place(e, b) {
     if (e.x === b.x && e.z === b.z && e.rot === b.rot) return;
     e.x = b.x; e.z = b.z; e.rot = b.rot;
+    const area = areaAt(b.x, b.z);
+    if (area !== e.area) { e.area = area; areas[area].add(e.root); }
     e.root.position.set(b.x, 0, b.z);
     e.root.rotation.y = -(b.rot % 4) * Math.PI / 2;
     e.root.updateMatrixWorld(true);
@@ -253,7 +260,9 @@ export function createBuildings({ scene, prefabs, templates, vfx }) {
     group, sync, update, onBuilt, onUpgraded,
     get: uid => entities.get(uid) || null,
     byType: type => { for (const e of entities.values()) if (e.type === type) return e; return null; },
-    pickers: function* () { for (const e of entities.values()) if (e.root.visible) yield e.pick; },
+    pickers: function* () { for (const e of entities.values()) if (e.root.visible && (!view || e.area === view)) yield e.pick; },
+    /** Shows only the buildings of one area ('farm' | 'cafe'). */
+    setView(v) { view = v; areas.farm.visible = v === 'farm'; areas.cafe.visible = v === 'cafe'; },
     setHidden(uid, hidden) { const e = entities.get(uid); if (e) e.root.visible = !hidden; },
     clear() { for (const [uid, e] of [...entities]) remove(uid, e); },
     dispose() {

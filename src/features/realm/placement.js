@@ -1,8 +1,8 @@
 // Placement preview: translucent ghost + footprint tiles (green = derive.placementError is null, red otherwise),
-// valid-zone tint on owned build/shop parcels, snapping with derive.snapPosition. Confirm dispatches build/place|build/move.
+// valid-zone tint on owned build/shop parcels of the current area (farm / café), snapping with derive.snapPosition. Confirm dispatches build/place|build/move.
 import * as THREE from 'three';
 import { BUILDINGS, CELL } from '../../core/config/economy.js';
-import { PARCELS, TUTORIAL_BUILD, rectCenter } from '../../core/config/layout.js';
+import { PARCELS, TUTORIAL_BUILD, rectCenter, areaOfParcel } from '../../core/config/layout.js';
 import { region as regionOf, placementError, snapPosition, footprint } from '../../core/derive.js';
 
 const ZONE_KINDS = { farm: ['build'], shop: ['shop'], any: ['build', 'shop'] };
@@ -70,35 +70,38 @@ export function createPlacement({ scene, prefabs }) {
     tileMat.color.copy(info.valid ? GREEN : RED);
   }
 
-  function initialPosition(state, type, uid) {
+  // area: 'farm' | 'cafe' — the view the preview runs in; the start spot is an owned parcel of that area.
+  function initialPosition(state, type, uid, area) {
     const r = regionOf(state);
     const b = uid ? r?.buildings.find(v => v.uid === uid) : null;
     if (b) return { x: b.x, z: b.z, rot: b.rot || 0 };
     if (TUTORIAL_BUILD[type]) return { ...TUTORIAL_BUILD[type], rot: 0 };
     const kinds = ZONE_KINDS[BUILDINGS[type].zone] || [];
     const owned = r?.parcels || [];
-    const parcel = Object.values(PARCELS).find(p => kinds.includes(p.kind) && owned.includes(p.id));
-    return parcel ? { ...rectCenter(parcel.rect), rot: 0 } : { x: 9, z: -5, rot: 0 };
+    const parcel = Object.values(PARCELS).find(p => kinds.includes(p.kind) && owned.includes(p.id) && areaOfParcel(p.id) === area);
+    // The starter café block's center is the customer lane: start beside the counters instead.
+    if (parcel) return parcel.id === 'S' ? { ...TUTORIAL_BUILD.roaster, rot: 0 } : { ...rectCenter(parcel.rect), rot: 0 };
+    return area === 'cafe' ? { ...TUTORIAL_BUILD.roaster, rot: 0 } : { x: 9, z: -5, rot: 0 };
   }
 
   function clearZones() { for (const z of zones) { z.geometry.dispose(); z.removeFromParent(); } zones.length = 0; }
 
   return {
     get info() { return info; },
-    start(type, { uid = null } = {}, stateGetter) {
+    start(type, { uid = null, area = 'farm' } = {}, stateGetter) {
       this.cancel();
       if (!BUILDINGS[type] || !prefabs[type]) return null;
       getState = stateGetter;
       const state = getState();
-      const p = initialPosition(state, type, uid);
+      const p = initialPosition(state, type, uid, area);
       info = { type, uid, x: p.x, z: p.z, rot: p.rot, valid: false, error: null };
       ghost = ghostOf(type);
       group.add(ghost);
-      // Tint the parcels where this building may stand.
+      // Tint the parcels of the current area where this building may stand.
       const kinds = ZONE_KINDS[BUILDINGS[type].zone] || [];
       for (const id of regionOf(state)?.parcels || []) {
         const pr = PARCELS[id];
-        if (!pr || !kinds.includes(pr.kind)) continue;
+        if (!pr || !kinds.includes(pr.kind) || areaOfParcel(id) !== area) continue;
         const [x0, z0, x1, z1] = pr.rect;
         const mesh = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, z1 - z0).rotateX(-Math.PI / 2), zoneMat);
         mesh.position.set((x0 + x1) / 2, .03, (z0 + z1) / 2);

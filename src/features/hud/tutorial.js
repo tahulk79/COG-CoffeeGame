@@ -1,6 +1,7 @@
 // Tutorial overlay: ONE short tip bubble at the top + a white tap-hand pointer. The step always comes from the save
 // (currentStep(store.state)), so a reload resumes where the player was. Never blocks input: when a target cannot be
-// found only the tip is shown.
+// found only the tip is shown. The farm and the café are separate views: when the step's target is in the other area,
+// the hand points at the toolbar's Café / Farm button instead ("Tap Café to open your café").
 import { BUILDINGS, DRINKS } from '../../core/config/economy.js';
 import { region, plotState, ownedPlots } from '../../core/derive.js';
 import { currentStep } from '../../core/tutorial.js';
@@ -32,6 +33,7 @@ export function createTutorial(ctx) {
   let handVisible = false;
   let offscreen = 0;        // seconds the world target has been off-screen
   let lastFocus = '';       // step+area the camera was last pointed at
+  let lastView = '';        // realm view at the last resolve (a view change re-focuses the target)
 
   const setTip = text => {
     if (text === tipKey) return;
@@ -64,6 +66,8 @@ export function createTutorial(ctx) {
     const now = Date.now();
     const sheetId = ctx.sheet.openId;
     let text = '', target = null, node = null;
+    let area = null;          // area the step happens in when it is not the target's (build: the café for shop buildings)
+    let beansFirst = false;   // brew step without enough beans: back to the farm
     const building = type => {
       const b = r?.buildings.find(x => x.type === type);
       return b ? { kind: 'building', uid: b.uid, type } : null;
@@ -97,6 +101,7 @@ export function createTutorial(ctx) {
         const need = order ? DRINKS[order.drink]?.beans || 1 : 1;
         if (s.inventory.beans < need) {
           text = T('tut.needBeans');
+          beansFirst = true;
           const plot = ownedPlots(s).find(p => plotState(s, p.id, now).stage === 'ready') || ownedPlots(s).find(p => !r.plots[p.id]);
           target = plot ? { kind: 'plot', id: plot.id } : null;
         } else { text = T('tut.brew'); target = building('brewCounter'); }
@@ -121,7 +126,10 @@ export function createTutorial(ctx) {
           node = ctx.sheet.query(`[data-hud-id="build-${type}"]`);
         } else if (s.player.coins < BUILDINGS[type].cost) {
           text = T('tut.buildCoins', { name, cost: fmt(BUILDINGS[type].cost) });
-        } else { text = T('tut.build', { name }); node = ctx.toolbar.button('build'); }
+        } else {
+          text = T('tut.build', { name }); node = ctx.toolbar.button('build');
+          area = BUILDINGS[type].zone === 'shop' ? 'cafe' : BUILDINGS[type].zone === 'farm' ? 'farm' : null;
+        }
         break;
       }
       case 'upgrade': {
@@ -138,12 +146,21 @@ export function createTutorial(ctx) {
       }
       default: text = '';
     }
+    // Target in the other area (farm ⇄ café): point at the view-switch button instead.
+    const view = ctx.realm?.view;
+    if (view !== lastView) { lastView = view; lastFocus = ''; }
+    const need = area || (target && ctx.realm?.areaOf?.(target)) || null;
+    if (view && need && need !== view && !sheetId && !ctx.realm?.placement) {
+      text = T(need === 'cafe' ? 'tut.goCafe' : beansFirst ? 'tut.goFarmBeans' : 'tut.goFarm');
+      target = null;
+      node = ctx.toolbar.viewButton;
+    }
     // A sheet covers the world: only point inside it (or nowhere) while one is open.
     if (sheetId) { target = null; if (node && !ctx.sheet.el.contains(node)) node = null; }
     setTip(text);
     // Camera focus: once per step (and again if the focused area changes), so the target is never off-screen.
     const focusKey = target && !node ? `${cur.step.id}:${target.kind}:${target.kind === 'plot' ? 'farm' : target.id || target.type}` : '';
-    if (focusKey && focusKey !== lastFocus && !ctx.realm?.placement) { lastFocus = focusKey; ctx.realm?.focus?.(target, { zoom: 1 }); }
+    if (focusKey && focusKey !== lastFocus && !ctx.realm?.placement && !ctx.realm?.switching) { lastFocus = focusKey; ctx.realm?.focus?.(target, { zoom: 1 }); }
     setWorld(node ? null : target);
     setUi(node && node.isConnected && !node.disabled ? node : null);
   }
@@ -169,7 +186,7 @@ export function createTutorial(ctx) {
         hideHand();
         // Target hidden (player panned or tapped elsewhere) for 2 s → bring the camera back to it.
         offscreen += dt;
-        if (offscreen > 2 && !ctx.realm?.placement && !ctx.sheet.openId) { offscreen = 0; ctx.realm?.focus?.(world, { zoom: 1 }); }
+        if (offscreen > 2 && !ctx.realm?.placement && !ctx.sheet.openId && !ctx.realm?.switching) { offscreen = 0; ctx.realm?.focus?.(world, { zoom: 1 }); }
       }
     } else hideHand();
   }

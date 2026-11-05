@@ -49,15 +49,20 @@ realm.scene; realm.camera;
 realm.update(dt, time); realm.resize(w, h); realm.dispose();
 realm.handleKeyDown(e); realm.handleKeyUp(e); realm.clearInput();
 realm.setInputLocked(bool);
-realm.select(target|null);          // Area Focus camera + highlight; null → back to Exploration
-realm.focus(target, { zoom }); realm.resetCamera();
+realm.view;                         // 'farm' | 'cafe' — the area on screen (layout AREAS); the other area is hidden
+realm.setView(view, { instant }) → Promise<view>; // fade, player + camera to AREAS[view].spawn, clears selection/placement
+realm.switching;                    // true while the view fade runs (input locked)
+realm.areaOf(target) → 'farm'|'cafe'|null;
+realm.select(target|null);          // Area Focus camera + highlight; null → back to Exploration. Other-area target → setView first (Promise)
+realm.focus(target, { zoom }) → Promise; realm.resetCamera();   // other-area target → setView first
 realm.cinematic(name) → Promise;    // 'expiry' | 'round' | 'country' | 'rebirth' | 'arrive'
 realm.setActiveCrop(cropId); realm.activeCrop;
-realm.startPlacement(type, { uid }) ; realm.rotatePlacement(); realm.confirmPlacement() → result; realm.cancelPlacement();
+realm.startPlacement(type, { uid }) ; realm.rotatePlacement();   // shop-zone → café view, farm-zone → farm view (switches first, returns a Promise of the info); 'any' → current view realm.confirmPlacement() → result; realm.cancelPlacement();
 realm.placement;                    // { type, x, z, rot, valid, error } | null — HUD shows ✓ / ↻ / ✕ buttons
 realm.setTutorialTarget(target|null);
-realm.screenPoint(target) → { x, y, visible };   // CSS px, for DOM labels / tutorial hand
+realm.screenPoint(target) → { x, y, visible };   // CSS px, for DOM labels / tutorial hand; visible:false for other-area targets
 ```
+Views: farm and café are two areas of the same scene (`AREAS` in layout.js); `setView` toggles group visibility (world, buildings, staff, plots, customers) so only one area is drawn. Camera + avatar clamp to `AREAS[view].bounds`. Plots / gate / roads are picked only in the farm view, counters / customers only in the café view. Customers spawn and run patience in either view (rendered only in the café). Region entry and reload start in the farm view. HUD: the toolbar's middle button switches views (`☕ Café` / `🌱 Farm`, badge = waiting customers while on the farm); the tutorial points at it when the step's target is in the other area.
 Tap rules (no modal): empty owned plot → plant with active crop; ready plot → harvest; drag across plots → plant/harvest all in the drag (mode from first plot);
 order counter → `shop/takeOrder` (if a customer waits) else select; brew counter → `shop/serve` if a cup is ready, else `shop/brew` if an order is taken, else select;
 other building / for-sale parcel / locked road / gate → select (HUD shows the action bar); ground → walk there.

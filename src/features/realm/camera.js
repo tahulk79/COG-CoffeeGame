@@ -23,6 +23,7 @@ export function createCameraController(camera) {
   let aspect = 1, viewH = 800;
   let focusKey = null, focusDist = 30;
   let modeBeforeCinematic = 'exploration';
+  let bounds = BOUNDS; // current area (farm / café), see setBounds
   const tmp = new THREE.Vector3();
 
   const tanHalf = () => Math.tan(FOV * DEG / 2);
@@ -30,8 +31,8 @@ export function createCameraController(camera) {
   const baseDist = () => (aspect < 1 ? Math.max(26, 19.5 / Math.max(aspect, .4)) : 26);
 
   function clampTarget(v) {
-    v.x = clamp(v.x, BOUNDS.minX + 4, BOUNDS.maxX - 4);
-    v.z = clamp(v.z, BOUNDS.minZ + 4, BOUNDS.maxZ - 2);
+    v.x = clamp(v.x, bounds.minX + 4, bounds.maxX - 4);
+    v.z = clamp(v.z, bounds.minZ + 4, bounds.maxZ - 2);
     v.y = 0;
     return v;
   }
@@ -55,6 +56,8 @@ export function createCameraController(camera) {
     get zoom() { return zoom; },
 
     setFollow(vec) { follow = vec; },
+    /** Area the look target is clamped to (layout AREAS[view].bounds). */
+    setBounds(b) { bounds = b || BOUNDS; clampTarget(goal.target); },
     snapTo(vec) { goal.target.copy(vec); clampTarget(goal.target); cur.target.copy(goal.target); cur.dist = goal.dist = baseDist() * zoom; apply(); },
 
     explore() {

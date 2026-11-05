@@ -8,6 +8,7 @@ export default {
     'realm.level': ({ level }) => `Lv ${level}`,
     'realm.sign.order': 'ORDER',
     'realm.sign.brew': 'BREW',
+    'realm.cafeSign': '☕ Godbean Café',
   },
   vi: {
     'realm.forSale': ({ price }) => `🪙 ${price}`,
@@ -17,5 +18,6 @@ export default {
     'realm.level': ({ level }) => `Cấp ${level}`,
     'realm.sign.order': 'GỌI MÓN',
     'realm.sign.brew': 'PHA CHẾ',
+    'realm.cafeSign': '☕ Quán Godbean',
   },
 };

@@ -21,7 +21,7 @@ Every phase resumes after reload. Round 2/3 and country unlocks happen inside `p
 ## 3. Core loop
 Grow → Harvest → Brew → Sell → Earn → Build → Upgrade → Expand.
 - **Farm**: tap empty soil to plant the active crop (seed cost), drag across beds to plant/harvest many; trees grow on real time; tap/drag ready trees to harvest beans. No water, no fertiliser; the tree disappears after harvest.
-- **Café**: customers walk from the World Gate road to the **Order Counter**; tap it to take the order; tap the **Brewing Counter** to brew (uses beans), tap again when the cup is ready to serve → coins + XP. Waiting customers leave after 45 s.
+- **Café**: the café is its own area of the region, entered with the big **Café** button in the toolbar (the **Farm** button brings you back; region entry and reload start on the farm). The farm shows only the farm. Customers keep arriving while you farm — the Café button shows how many are waiting. In the café, customers walk in from the café street to the **Order Counter**; tap it to take the order; tap the **Brewing Counter** to brew (uses beans), tap again when the cup is ready to serve → coins + XP. Waiting customers leave after 45 s.
 - **Build**: Build menu → live preview on the map (green valid / red invalid) → ✓. Tap a building → action bar → Upgrade (cost shown, Round caps the level).
 - **Expand**: tap a for-sale sign → Buy (one tap). Some parcels need a road opened first.
 
@@ -29,7 +29,7 @@ Grow → Harvest → Brew → Sell → Earn → Build → Upgrade → Expand.
 - Crops: Robusta 2¢ / 15 s / 2 beans · Arabica 6¢ / 40 s / 4 beans (L3) · Liberica 16¢ / 90 s / 8 beans (R2, L6).
 - Drinks: Espresso 1 bean → 10¢ · Milk coffee 2 → 22¢ (L2, Roaster) · Latte 3 → 36¢ (L5, Roaster Lv 2). Price bonuses: Roaster, Tables, Pastry case, Brew-bot, Price blessing.
 - Buildings: Kho (storage), Order Counter (queue/arrivals), Brewing Counter (speed/slots) — free starters; Roaster 40¢, Drying yard 120¢ (+yield), Tables 60¢ (tips, +queue), Kiosk 900¢ (R2, arrivals), Pastry case 3,000¢ (R3, price), decorations. Level caps by Round: 3 / 5 / 8.
-- Land: 8 farm parcels × 6 plots, build parcels B1–B5, café block S (+B3 in R2). Roads: south-west (R2, 300¢), north (R3, 900¢).
+- Land: 8 farm parcels × 6 plots, build parcels B1–B5, build lot B3 (R2); café area: café block S (+ expansion lot C2 in R2). Roads: south-west (R2, 300¢), north (R3, 900¢).
 - Staff (max 3 per farm, 3 per café): Farmhand 150¢ (+15% grow), Barista 200¢ (+25% brew), Sprout-bot 1,200¢ (R2, +25% yield), Brew-bot 1,500¢ (R2, +15% price). Owned forever.
 
 ## 5. Progression

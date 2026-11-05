@@ -1,5 +1,5 @@
 // Staff assigned to the current region: workers (rigged GLB via dressPerson) and procedural robots with a hover bob.
-// Farm staff stand beside F1, shop staff behind the counters. Max 3 per zone (STAFF_SLOTS).
+// Farm staff stand beside F1 (farm area), shop staff behind the café counters (café area). Max 3 per zone (STAFF_SLOTS).
 import * as THREE from 'three';
 import { STAFF, STAFF_SLOTS } from '../../core/config/economy.js';
 import { PARCELS, FIXED } from '../../core/config/layout.js';
@@ -19,6 +19,9 @@ export function createStaff({ scene }) {
   const group = new THREE.Group();
   group.name = 'realm-staff';
   scene.add(group);
+  // Farm staff live in the farm area, shop staff in the café area: one child group each, toggled by setView.
+  const zones = { farm: new THREE.Group(), shop: new THREE.Group() };
+  group.add(zones.farm, zones.shop);
   // Shared robot parts.
   const geo = {
     body: new THREE.SphereGeometry(.42, 18, 14),
@@ -70,9 +73,9 @@ export function createStaff({ scene }) {
             e = { root: person, body: person, kind: 'worker' };
           }
           e.phase = Math.random() * 6;
-          group.add(e.root);
           units.set(u.uid, e);
         }
+        if (e.root.parent !== zones[zone]) zones[zone].add(e.root);
         const spot = SPOTS[zone].at(i);
         e.root.position.set(spot.x, 0, spot.z);
         e.root.rotation.y = SPOTS[zone].yaw;
@@ -96,6 +99,7 @@ export function createStaff({ scene }) {
 
   return {
     group, sync, update,
+    setView(v) { zones.farm.visible = v === 'farm'; zones.shop.visible = v === 'cafe'; },
     clear() { for (const [uid, e] of [...units]) remove(uid, e); },
     dispose() {
       this.clear();

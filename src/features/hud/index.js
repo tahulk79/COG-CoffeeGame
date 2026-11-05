@@ -41,6 +41,17 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
   ctx.confirm = opts => modals.confirm(opts);
   ctx.clearSelection = () => { ctx.realm?.select?.(null); setSelection(null); };
   ctx.onSheetClosed = () => { delete root.dataset.sheet; tutorial.refresh(); };
+  // Café ⇄ Farm: the realm shows one area of the region at a time (the HUD button is the way into the café).
+  ctx.switchView = () => {
+    const realm = ctx.realm;
+    if (!realm?.setView || realm.switching) return;
+    sheet.close();
+    if (ctx.selection) ctx.clearSelection();
+    sfx('ui.open');
+    const next = realm.view === 'cafe' ? 'farm' : 'cafe';
+    Promise.resolve(realm.setView(next)).then(() => tutorial.refresh(), () => {});
+    tutorial.refresh();
+  };
 
   const progressRender = progressSheet(ctx); // keeps its "pending" flags across re-renders
   ctx.onTool = id => {

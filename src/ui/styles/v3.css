@@ -59,12 +59,18 @@
 
 /* ---------- Bottom toolbar ---------- */
 .hud-toolbar{position:fixed;z-index:var(--z-hud,5);left:50%;bottom:calc(var(--h-sb) + 8px);transform:translateX(-50%);display:flex;gap:4px;padding:6px 8px;border-radius:30px;background:#fff8e6ee;box-shadow:var(--h-shadow)}
-.hud-tool{position:relative;display:flex;flex-direction:column;align-items:center;gap:1px;width:min(64px,18vw);min-height:62px;padding:2px 0;border:0;background:none}
+.hud-tool{position:relative;display:flex;flex-direction:column;align-items:center;gap:1px;width:min(64px,calc((100vw - 120px) / 5));min-height:62px;padding:2px 0;border:0;background:none}
 .hud-tool-ico{display:grid;place-items:center;width:46px;height:46px;border-radius:50%;background:linear-gradient(#fffdf6,#ffe9b8);box-shadow:inset 0 -3px 0 #e7c27e,0 2px 0 #a2763a55;font-size:23px;line-height:1;transition:transform .12s}
 .hud-tool:active .hud-tool-ico{transform:scale(.92)}
 .hud-tool-label{font:700 11px/1.1 var(--h-font);color:var(--h-ink)}
 .hud-dot{display:none;position:absolute;top:0;right:calc(50% - 25px);width:13px;height:13px;border-radius:50%;background:var(--h-red);border:2px solid #fff;box-shadow:0 1px 2px #0003}
 .hud-tool.has-dot .hud-dot{display:block}
+/* Café ⇄ Farm view switch: the big raised middle button (the way into the café). */
+.hud-view{width:76px;margin-top:-22px}
+.hud-view .hud-tool-ico{width:62px;height:62px;font-size:31px;border:3px solid #fff;background:linear-gradient(#ffb36b,#e8673c);box-shadow:inset 0 -4px 0 #b9482a,0 3px 0 #8a3a1f66,0 6px 14px #4a32103a}
+.hud-view[data-view="cafe"] .hud-tool-ico{background:linear-gradient(#a9e57c,#5aab35);box-shadow:inset 0 -4px 0 #3e7f22,0 3px 0 #2e5f1a66,0 6px 14px #4a32103a}
+.hud-view .hud-tool-label{font-size:12.5px;font-weight:800}
+.hud-view-badge{position:absolute;top:-4px;right:2px;min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:var(--h-red);border:2px solid #fff;color:#fff;font:800 13px/18px var(--h-font);text-align:center;box-shadow:0 1px 3px #0004;animation:hud-bob 1.2s ease-in-out infinite}
 #hud-root[data-sheet="build"] #hud-btn-build .hud-tool-ico,#hud-root[data-sheet="seeds"] #hud-btn-seeds .hud-tool-ico,
 #hud-root[data-sheet="staff"] #hud-btn-staff .hud-tool-ico,#hud-root[data-sheet="progress"] #hud-btn-progress .hud-tool-ico{background:linear-gradient(#c9f29c,#8cd45a);box-shadow:inset 0 -3px 0 #5aab35,0 2px 0 #3e7f2255}
 
@@ -235,6 +241,8 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
   .hud-toolbar{left:auto;right:calc(var(--h-sr) + 8px);top:50%;bottom:auto;transform:translateY(-50%);flex-direction:column;padding:6px 4px;gap:2px}
   .hud-tool{width:60px;min-height:56px}
   .hud-tool-ico{width:40px;height:40px;font-size:20px}
+  .hud-view{width:64px;margin:0 0 2px;margin-left:-14px}
+  .hud-view .hud-tool-ico{width:52px;height:52px;font-size:26px}
   .hud-top{right:calc(var(--h-sr) + 80px)}
   .hud-player{max-width:220px}
   .hud-top-left{flex-direction:row;align-items:center}
@@ -254,6 +262,7 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
   .hud-sheet{max-height:60vh;border-radius:24px;bottom:calc(var(--h-sb) + 12px)}
   .hud-action{width:440px}
   .hud-tool{width:70px}
+  .hud-view{width:86px}
 }
 @media (hover:hover){
   .hud-tool:hover .hud-tool-ico{transform:translateY(-2px)}

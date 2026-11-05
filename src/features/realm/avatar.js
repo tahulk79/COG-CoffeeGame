@@ -26,6 +26,7 @@ export async function createAvatar({ scene, gender }) {
   let onArrive = null;
   let walkTime = 0, weight = 0, stuck = 0;
   let blockers = []; // footprint rects [x0,z0,x1,z1]
+  let bounds = BOUNDS; // current area (farm / café)
   const keyDir = new THREE.Vector2();
   let yawGoal = Math.PI;
 
@@ -39,7 +40,7 @@ export async function createAvatar({ scene, gender }) {
   // Tries the full step, then each axis alone so the player slides along walls.
   function tryMove(dx, dz) {
     const p = root.position;
-    const nx = clamp(p.x + dx, BOUNDS.minX, BOUNDS.maxX), nz = clamp(p.z + dz, BOUNDS.minZ, BOUNDS.maxZ);
+    const nx = clamp(p.x + dx, bounds.minX, bounds.maxX), nz = clamp(p.z + dz, bounds.minZ, bounds.maxZ);
     if (!blocked(nx, nz)) { p.x = nx; p.z = nz; return true; }
     if (dx && !blocked(nx, p.z)) { p.x = nx; return true; }
     if (dz && !blocked(p.x, nz)) { p.z = nz; return true; }
@@ -85,13 +86,14 @@ export async function createAvatar({ scene, gender }) {
     position: root.position,
     get moving() { return !!goal || keyDir.lengthSq() > 0; },
     walkTo(x, z, arrive = null) {
-      goal = { x: clamp(x, BOUNDS.minX, BOUNDS.maxX), z: clamp(z, BOUNDS.minZ, BOUNDS.maxZ) };
+      goal = { x: clamp(x, bounds.minX, bounds.maxX), z: clamp(z, bounds.minZ, bounds.maxZ) };
       onArrive = arrive; stuck = 0;
     },
     stop() { goal = null; onArrive = null; keyDir.set(0, 0); },
     setKeyDir(x, z) { keyDir.set(x, z); if (keyDir.lengthSq() > 1) keyDir.normalize(); },
     setBlockers(list) { blockers = list; },
-    teleport(x, z) { root.position.set(x, 0, z); goal = null; onArrive = null; },
+    setBounds(b) { bounds = b || BOUNDS; },
+    teleport(x, z, yaw = null) { root.position.set(x, 0, z); goal = null; onArrive = null; if (yaw !== null) root.rotation.y = yawGoal = yaw; },
     update,
     dispose() { motion?.dispose(); root.removeFromParent(); },
   };

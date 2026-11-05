@@ -75,7 +75,7 @@ export const FIXED = {
 };
 // ---- Café area (separate from the farm) ----
 export const CAFE_BOUNDS = { minX: -22, maxX: 24, minZ: 94, maxZ: 128 };
-export const CAFE_SPAWN = { x: -2, z: 117 };          // where the player stands when entering the café
+export const CAFE_SPAWN = { x: -1, z: 113.5 };          // where the player stands when entering the café
 // Customers walk in from the street (south-west), up the street, then east to the order counter.
 export const CUSTOMER = {
   spawn: { x: -8, z: 127 },
