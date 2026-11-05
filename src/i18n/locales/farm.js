@@ -1,4 +1,4 @@
-// Chuỗi hiển thị — xem docs/shared/i18n.md. Mỗi khóa phải có cả en và vi.
+// Chuỗi hiển thị — xem docs/design/godbean-gdd.md §13.6. Mỗi khóa phải có cả en và vi.
 // Màn nông trại (UI, HUD, nhân viên, trang trí). Luật/nội dung nằm ở farm-rules.js.
 export default {
   en: {

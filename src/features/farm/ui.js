@@ -75,7 +75,7 @@ export function createFarmUI(callbacks) {
   const blockerPanel=document.createElement('details');blockerPanel.id='farm-blockers';blockerPanel.hidden=true;const blockerTitle=document.createElement('summary'),blockerBody=document.createElement('div');blockerPanel.append(blockerTitle,blockerBody);blockerTitle.addEventListener('animationend',()=>blockerTitle.classList.remove('ui-attention'),options);document.querySelector('.farm-left-hud').append(operationHud,blockerPanel);let blockersKey='';
   const quickNav=document.createElement('nav');quickNav.id='farm-quick-nav';quickNav.setAttribute('aria-label',tr('farm.ui.quickNav'));quickNav.append(management.querySelector('[data-shortcut="settings"]'),management.querySelector('[data-shortcut="cafe-play"]'),$('farm-help-toggle'));
   const rightHud=document.createElement('div');rightHud.id='farm-right-hud';rightHud.append(document.querySelector('.farm-resources'),quickNav);$('farm-hud').append(rightHud);document.querySelector('.farm-left-hud').append(journalPanel);
-  // HUD v2 (docs/shared/design-system.md §6): bar = Kho + Quản lý (≡); the rest moves into the drawer (same nodes). F-48: shop/café left the bar.
+  // HUD v2 (docs/design/godbean-gdd.md §11): bar = Kho + Quản lý (≡); the rest moves into the drawer (same nodes). F-48: shop/café left the bar.
   const drawer=mountHudDrawer(primaryNav,{signal:events.signal,id:'farm-drawer'});
   // F-48 (Q10 CT-2/CT-11, 05/11/2026): 🏪 Cửa hàng và ☕ Vào quán rời thanh dưới vì Sạp và Cửa quán chạm trúng được ở khung dọc
   // mặc định 375×812; vẫn giữ trong ≡ làm lối tắt từ xa (lia camera tới công trình rồi mở, CT-4). Chip xu vẫn mở Sạp.

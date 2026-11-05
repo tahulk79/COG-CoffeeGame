@@ -1,4 +1,4 @@
-// Staff morale (docs/shared/crew-autoplay.md mục 4): people tire and slack off, robots never do.
+// Staff morale (docs/design/godbean-gdd.md §8.2): people tire and slack off, robots never do.
 // Energy E ∈ [0, 100] lives on the actor for the session; it drains per finished job and recovers while idle or on a break.
 const hash = s => [...String(s)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 export const TRAITS = { diligent: { base: .02, drain: .8 }, normal: { base: .05, drain: 1 }, lazy: { base: .14, drain: 1.3 } };

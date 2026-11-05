@@ -1,6 +1,6 @@
 import { PLOTS, CROPS, MACHINES } from './content.js';
 
-// Tutorial ép `farm-intro` (F-46, docs/shared/onboarding-flow.md 3.8): 4 bước gieo → hái → phơi → rang.
+// Tutorial ép `farm-intro` (F-46, docs/screens/03-farm/rules.md): 4 bước gieo → hái → phơi → rang.
 // Bước suy ra từ state đã lưu (không lưu bước dở); chỉ id 'farm-intro' vào farm.tutorial.seen khi xong.
 export const INTRO_SOW = 3; // bài gieo đầu: chạm 1 ô rồi kéo túi hạt qua 2 ô (Q5 R5)
 const POSITION = Object.fromEntries(PLOTS.map(plot => [plot.id, plot.position]));

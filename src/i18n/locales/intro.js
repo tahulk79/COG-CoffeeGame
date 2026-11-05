@@ -1,4 +1,4 @@
-// Chuỗi hiển thị — xem docs/shared/i18n.md. Mỗi khóa phải có cả en và vi.
+// Chuỗi hiển thị — xem docs/design/godbean-gdd.md §13.6. Mỗi khóa phải có cả en và vi.
 export default {
   en: {
     'intro.ariaLabel': 'Level 1 — {name}',

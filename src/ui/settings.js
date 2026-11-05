@@ -148,7 +148,7 @@ export function mountSettings({ onOpen } = {}) {
       persist();
     });
   }
-  // Ngôn ngữ cố định trong một lần tải trang (docs/shared/i18n.md): lưu rồi tải lại. Tiến trình đã được lưu sau mỗi thao tác.
+  // Ngôn ngữ cố định trong một lần tải trang (docs/design/godbean-gdd.md §13.6): lưu rồi tải lại. Tiến trình đã được lưu sau mỗi thao tác.
   for (const tab of dialog.querySelectorAll('[data-lang]')) {
     tab.addEventListener('click', () => {
       if (tab.dataset.lang === getLang()) return;

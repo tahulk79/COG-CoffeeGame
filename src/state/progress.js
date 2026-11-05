@@ -137,7 +137,7 @@ export function savePlayer(player) {
   catch { return false; }
 }
 
-// F-37 export/import (docs/shared/coffee-memory.md §8). One JSON file with progress + player + memory.
+// F-37 export/import (docs/design/godbean-gdd.md §13.3). One JSON file with progress + player + memory.
 const readJson = key => { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } };
 const isObject = v => v && typeof v === 'object' && !Array.isArray(v);
 

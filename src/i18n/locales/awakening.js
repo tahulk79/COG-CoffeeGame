@@ -1,4 +1,4 @@
-// F-35 Decode & Awaken strings (docs/shared/decode-awaken.md). Lore is fiction: Godbean = Divine Data Seed / Databean, no claims about real coffee.
+// F-35 Decode & Awaken strings (docs/design/godbean-gdd.md §9.5). Lore is fiction: Godbean = Divine Data Seed / Databean, no claims about real coffee.
 // Per question: title, hint (what to do to test it), evidence ('a | b' = one line per lot/cup/shift), reason (if unavailable), and one label per option id.
 const flat = (table) => Object.fromEntries(Object.entries(table).flatMap(([id, o]) => Object.entries(o).map(([k, v]) => [`awakening.q.${id}.${k}`, v])));
 

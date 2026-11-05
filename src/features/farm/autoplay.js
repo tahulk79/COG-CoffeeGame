@@ -2,7 +2,7 @@ import { CROPS, MACHINES, plotCare, cropById } from './content.js';
 import { ORDERS_PER_DAY } from './rules.js';
 import { acceptsTool, toolCapacity } from './tools.js';
 
-// Auto mode brain for the owner on the farm (docs/shared/crew-autoplay.md 5).
+// Auto mode brain for the owner on the farm (docs/design/godbean-gdd.md §8.4).
 // Same urgency idea as the crew planner: score = priority × 10 − 1.2 × distance; a job someone already claimed is skipped,
 // so the owner never doubles up with a worker. Returns { id, action, choice, hint } or null.
 const PRIORITY = { harvest: 6, collect: 5, water: 4.5, turn: 4, start: 3.5, weed: 3, plant: 2.5, fertilize: 2, prune: 1, refill: 4.5 };

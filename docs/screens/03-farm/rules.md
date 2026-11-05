@@ -1,261 +1,537 @@
-# Luật gameplay hiện hành — Nông trại và quán cà phê
+# 03 · Nông trại — Luật hiện hành
 
-Cập nhật ngày 02/11/2026, theo các quyết định của người dùng trong đợt chỉnh gameplay và UI. Đây là tài liệu chính để cùng sửa tiếp. Khi yêu cầu mới thay luật, sửa trực tiếp mục tương ứng và ghi vào nhật ký cuối trang; không nối thêm một bản luật trái ngược ở cuối.
+Luật và số liệu đang chạy trong code. Thời gian là thời gian game (đã nén), không phải hướng dẫn canh tác ngoài đời. Khi tài liệu và code lệch nhau, code đúng; sửa tài liệu cho khớp.
 
-Tài liệu ghi nhận quyết định và cách code đang thực hiện, chưa có nghĩa mọi luồng đã được kiểm chứng trong game. Lượt cập nhật tài liệu này không chạy test/build/preview. Các điểm chưa chốt nằm ở mục 10.
+Đơn vị thời gian dùng chung (`rules.js`):
 
-## 1. Vòng chơi và ba luồng tách biệt
-
-Người chơi trồng/chăm/hái cà phê → phơi và tách vỏ → rang → chuyển nguyên liệu sang quán → pha bán. Có thể xay hạt thành bột. Cây là cây lâu năm, thu hoạch không xóa cây.
-
-| Luồng | Ai làm | Kết quả | Nơi mở |
-|---|---|---|---|
-| Mục tiêu | Người chơi tự thao tác | Chuỗi nhiệm vụ cố định, thưởng một lần | Thẻ mục tiêu HUD trái |
-| Đơn tiếp hàng cho quán | Nhân viên được phân công chuẩn bị; chủ chủ động gửi hoặc yêu cầu giao | Hàng rời kho farm, vận chuyển, vào kho quán | Đơn hàng |
-| Bán lấy xu | Người chơi quyết định hàng và lượng bán | Trừ hàng, cộng xu | Cửa hàng → Chợ; hoặc Túi đồ |
-
-- Việc nhân viên làm không tăng tiến độ mục tiêu của người chơi.
-- Thợ chính làm theo chỉ thị nông trại (mục 3) cả khi không có đơn quán; đơn quán chỉ cộng ưu tiên cho người phụ trách. Thợ không làm nhiệm vụ cá nhân, không bán ở Chợ.
-- Chuyển hàng nội bộ không sinh tiền. Mỗi chuyến đơn quán tốn 2 xu; quán kiếm doanh thu khi phục vụ khách.
-- Quán là scene riêng. Farm tiếp tục cập nhật khi chủ sang quán. Không coi việc đóng game là nhân viên tự vận hành đầy đủ.
-
-## 2. Đất, cây và thao tác trên bản đồ
-
-- Farm có 4 ruộng, mỗi ruộng 12 ô, tổng 48 ô. Chỉ mua ruộng liền kề đủ điều kiện.
-- Bấm ô/biển đất khóa: nhân vật tới biển trước; đủ tiền và liền kề mới mở xác nhận. Thiếu tiền báo số xu thiếu. Chỉ trừ khi xác nhận mua.
-- Bấm ô trồng: sáng viền đúng ô, nhân vật tới gần. Chọn giống bằng dải icon nhỏ phía dưới, không làm tối bản đồ; có thể đổi ô ngay.
-- Chạm cây = công cụ Tự chọn (mặc định): nhân vật tới làm việc cây cần nhất. Dải công cụ ⛏️ (chọn/kéo nhiều ô) **chỉ mở từ khi có ruộng thứ 2** (hoặc cấp 3, hoặc đã nhận nhiệm vụ Mua ruộng); giới hạn theo vật tư; không trừ nhiều lần trên cùng ô. Xem [luồng người chơi mới](../../shared/onboarding-flow.md) mục 3.6.
-- 05/11/2026 (F-46, đề xuất Q5 R1/R4/R6): chia ba nhóm. (a) **Kéo-gieo 🌱 mở từ save mới**: chạm 1 ô trống gieo 1 ô; kéo túi hạt từ dải giống qua nhiều ô trống gieo nhiều ô, giới hạn = số hạt giống đó, hạt chỉ trừ khi gieo xong từng ô. Không có nút/chạm giữ gieo cả ruộng. (b) Kéo 🧺 vẫn sau mốc ⛏️; trước đó hái bằng chạm từng cây chín. (c) Dụng cụ chăm 💧 🪴 🌿 ✂️ ⛏️ và nút ⛏️ nổi giữ mốc ⛏️. **Chạm cây chín luôn là hái**, kể cả khi đang cầm công cụ khác (trước đây bị từ chối); hái không được thì toast lý do của act (kho đầy có số, thợ đang giữ ô).
-- 05/11/2026 (F-46): save mới chạy tutorial ép `farm-intro` gieo → hái → phơi nhận tay → rang nhận tay ([onboarding-flow](../../shared/onboarding-flow.md) mục 3.8).
-- Tưới, cỏ, phân, tỉa có điều kiện theo trạng thái cây. Phân không phải điều kiện bắt buộc để cây lớn.
-- Hái một lượt sản lượng chín; giữ cây và chuyển sang chu kỳ tiếp theo. Nhịp vụ trưởng thành cơ sở là 6 phút game, không dùng đoạn mô tả cũ “hái phần dư” làm luật.
-- Thông số chăm chi tiết lấy từ `src/features/farm/content.js` và `rules.js`; đây là mô phỏng game, không phải hướng dẫn canh tác thực tế.
-
-## 3. Nhân viên: thuê theo ca (đơn giản hóa 03/11/2026)
-
-- **3 slot, trộn robot/người tùy ý (04/11/2026, spec [crew-autoplay](../../shared/crew-autoplay.md)).** Robot làm **đúng 1 việc** (tưới/làm cỏ/chế biến/giao); người làm **1 mảng** (chăm cây · chế biến · giao), cấp 4 → 2 mảng, cấp 7 → đa nhiệm cả 3. Thuê mới tự nhận mảng đội đang thiếu. Người có thể nghỉ vì mệt 😮‍💨 / lười 🥱 / ghét việc 🙅 (công thức ở spec mục 4). Các dòng "2 thợ", "tối đa 1 robot" bên dưới đã được thay bằng luật này.
-- Thuê là vào làm ngay tại farm; **không còn đội dự bị**, không kéo thả. Muốn đổi người: bấm × trên ô thợ hoặc "Cho nghỉ việc" trong hồ sơ (không hoàn phí tuyển và lương đã trả), rồi thuê người khác.
-- Phí tuyển trả một lần khi thuê. **Lương D = `30 + 10 × (cấp − 1)` xu cho mỗi ngày công 6 phút**, tự trả khi còn dưới 30 giây nếu bật Tự gia hạn (mặc định bật) và đủ xu; trả thêm khi còn hạn sẽ **cộng dồn** từ lúc hết hạn. Hết xu thì thợ dừng an toàn, trả lại việc/vật tư đang giữ, báo ở Cần xử lý.
-- **Không còn năng lượng, nghỉ giữa ca hay bồi dưỡng**: thợ làm liên tục trong thời gian đã trả. Nâng cấp "Phúc lợi nhân viên" bị bỏ cùng.
-- Vắng mặt (tắt game/ẩn tab > 60 s) không tiêu ngày công đã trả.
-- Thợ làm theo **chỉ thị nông trại** (nút Quản lý): Tự chăm vườn, Trồng lấp ô trống (chọn giống), Dùng phân bón, Tự chế biến — cả khi không có đơn quán; đơn quán cộng ưu tiên cho người phụ trách. Tự chế biến: phơi hết quả chín, chỉ rang tới đơn đang mở + phần quán thiếu, dư giữ dạng nhân sạch.
-- Chia vùng chăm khi có 2 thợ (mỗi người một ruộng, 1 ruộng thì chia đôi theo cột); nhường nhau ở lối hẹp; bị người (thợ khác hoặc người chơi) chặn quá 0,8–1,5 giây thì đi xuyên người tạm thời (không xuyên tường/rào).
-- Hồ sơ: Đào tạo (lên cấp, +2 mỗi chỉ số, tối đa cấp 10) / Thiết lập (Làm việc, Tự gia hạn, nhóm việc Chăm cây & thu hoạch, Chế biến, Vận chuyển, Cho nghỉ việc).
-- Save cũ: người đang dự bị được đưa vào farm nếu còn chỗ; ai dư được hoàn phí tuyển. Năng lượng/nghỉ cũ được xóa.
-
-### Robot vườn và sự cố của người (chốt 03/11/2026, đã triển khai, chưa playtest — spec [robot-staff](../../shared/robot-staff.md))
-
-- **Robot vườn dùng chung 2 chỗ thợ với người, tối đa 1 robot** (chốt vòng 2): farm là (người, người) hoặc (người, robot) hoặc (robot). Không phí tuyển, **15 xu/ngày công** cố định, gói trả trước 1/5/10 ngày công (**15/68/113 xu**, gói 5 rẻ 10%, gói 10 rẻ 25%), hết gói tự gia hạn 1 ngày giá lẻ; cho nghỉ không hoàn phần còn lại. Chỉ số cố định speed 70, dexterity 70 (chốt vòng 3): việc vặt nhanh hơn Nam cấp 1 ~5–6%, ngang Nam cấp 5–6, chậm hơn Nam từ cấp 7 (người có chỉ số gốc khác thì khác); không đào tạo, không sự cố. Số này chỉnh theo đo playtester (robot-staff mục 12). Chỉ **tưới, làm cỏ, chế biến, giao hàng**; không trồng, bón, tỉa, hái. Robot tính là thợ chính để nhận đơn quán.
-- Modal Nhân viên có 4 tab: **Farm hiện tại · Người · Robot · Chỉ thị**. Hồ sơ robot có tab **Gói ngày công** (thay Đào tạo, mua thêm gói 1/5/10 cộng dồn) và **Thiết lập**. Hết gói: Cần xử lý "{tên robot} hết gói · Gia hạn 15 xu".
-- Người có thể gặp tối đa **1 sự cố mỗi ngày công**: **Mải chơi 📱** (~12%, đứng yên tối đa 40 s; chạm thợ mở bảng có «Nhắc», hoặc bấm «Nhắc» trên toast — xem robot-staff C-2) và **Nghỉ ốm 🤒** (~4%, nghỉ trọn 1 ngày công, **không mất lương**: ngày đã trả được dời). «Thuê robot thay» chỉ hiện khi farm chưa có robot và còn chỗ trống. «Giao đội làm đơn» bỏ qua người đang ốm. Xác suất giảm theo cấp (`× max(0,4; 1 − 0,07 × (cấp − 1))`).
-- Không có sự cố farm trong 2 ngày công đầu sau khi thuê, khi người chơi đang ở quán, hoặc khi uy tín quán < 30. **Riêng Nghỉ ốm** còn được miễn khi farm có **đúng 1 thợ** (người, không robot, không người thứ hai) và người đó đang giữ đơn quán mở; mải chơi vẫn xảy ra (chốt vòng 3). Gói thử robot **không** miễn sự cố farm (chỉ miễn cho nhân viên quán khi quán đang mở và robot gói còn trong ca). Không có tùy chọn tắt sự cố.
-- **Không** khôi phục năng lượng, nghỉ giữa ca hay bồi dưỡng: nghỉ ốm là sự kiện hiếm, không phải nhu cầu hồi sức.
-
-## 4. Đơn hàng cho quán
-
-| Tab | Điều kiện vào | Hành động chính |
+| Tên | Giá trị | Hằng số |
 |---|---|---|
-| Cần làm | Đơn mở, kho chưa đủ hạt rang | Chọn/đổi nhân viên phụ trách |
-| Chờ chuyển | Đơn mở, kho đã đủ lượng yêu cầu | Chuyển từng đơn hoặc Chuyển hết |
-| Đang chuyển | Hàng đã xuất kho, chưa tới quán | Xem % và giây còn lại |
+| Ngày lịch (thời tiết, đơn quán) | 1 phút | `DAY_MS` |
+| Ngày công / một vụ cây | 6 phút | `WORK_DAY_MS = SEASON_MS` |
+| Tính bù khi vắng mặt | tối đa 8 giờ | `OFFLINE_MS` |
+| Cấp nông trại tối đa | 999 | `MAX_LEVEL`, `levelFor` |
 
-- Đơn quán chỉ phát sinh khi farm đã có ít nhất một thợ chính, tối đa 2 đơn mở/đang chuyển; người chơi chưa thuê ai không nhận đơn.
-- Mặc định mở Cần làm. Đơn gần hết hạn đứng trước; hiện thời gian còn lại và % thời hạn, gần hết hạn đổi màu.
-- Đủ hàng sẵn trong kho thì tự vào Chờ chuyển, không bắt nhân viên sản xuất lại.
-- Chuyển hết ưu tiên đơn gần hết hạn; kiểm tra lại hàng, xu, kho quán cho từng chuyến. Các đơn cùng loại dùng chung tồn kho, không coi mỗi thẻ là một phần hàng đã giữ riêng.
-- Nếu chỉ chuyển được một phần danh sách, báo số đã chuyển và nguyên nhân còn lại. Không trừ hàng hoặc phí cho đơn bị từ chối.
-- Hàng tới quán tự rời Đang chuyển và ghi vào Hoạt động.
-- Chi tiết đơn gồm trạng thái, nhân viên, 5 bước chuẩn bị/giao, tiến độ chuyến khi có. Đủ hàng có một nút Chuyển về quán · 2 xu ở cuối.
-- **Nhãn chốt (03/11/2026):** nút gửi hàng ở danh sách đơn và chi tiết đơn đều là «Chuyển về quán · 2 xu» (bỏ "Nhận hàng · 2 xu"). «Nhận hàng» chỉ dùng cho lấy mẻ xong ở trạm.
-- Back quay về đúng danh sách/tab đã mở chi tiết. Đếm ngược cập nhật tại chỗ, không dựng lại toàn bộ danh sách mỗi frame.
+## 1. Vòng chơi
 
-## 5. Chế biến và nâng cấp công trình
+Trồng → chăm → hái quả → phơi (ra nhân sạch) → rang → bán ở Chợ hoặc chuyển sang quán → mua ruộng, nâng cấp, thuê thợ. Cây là cây lâu năm: hái không xoá cây, cây sang lứa mới.
 
-### Công suất và thời gian hiện tại
+- Ba luồng tách nhau: nhiệm vụ (người chơi tự làm, mục 8), đơn quán (thợ chuẩn bị, chủ bấm chuyển, không sinh xu), bán ở Chợ (cộng xu).
+- Việc thợ làm không cộng tiến độ nhiệm vụ (`owner==='player'` trong `model.js`).
+- Farm vẫn chạy khi chủ ở quán.
 
-| Trạm | Một phần nguyên liệu → đầu ra | Thời gian cơ sở/mẻ | Công suất đầu vào cấp 1 |
+## 2. Bản đồ và bố cục
+
+Toạ độ (x; z) theo đơn vị thế giới. Mặt trước công trình quay về +z (phía camera).
+
+| Vật | Toạ độ | Nguồn |
+|---|---|---|
+| Vùng nông trại | x −20…11, z −19…4 | `FARM_BOUNDS` |
+| Rào ngoài | cách mép vùng 0,6, khép kín cả 4 phía | `environment.js` |
+| Ruộng 1–4 (tâm) | (−7,4; −3,1) · (−15,4; −3,1) · (−7,4; −14,2) · (−15,4; −14,2) | `FIELDS` |
+| Sân phơi | (0; −2,5) | `MACHINES` |
+| Lò rang | (6; −10,5) | `MACHINES` |
+| Giếng | (−16,8; −8,4), lấy nước ở phía phải | `STATIONS` |
+| Ao | (0; −15,5) | `STATIONS` |
+| Cửa quán | (−8,6; 1,5), thảm cửa (−8,6; 2,75) | `STATIONS` |
+| Bảng đơn | (−6,3; 1,7) | `STATIONS` |
+| Sạp ven đường | (−9,6; −6,8) | `STATIONS` |
+| Nhà thợ | (−5,6; −6,8) | `STATIONS` |
+| Cổng Hội đồng | (−3,4; 1,9) | `STATIONS` |
+| Nhân vật vào farm | (−3; −0,5) | `scene.js` `reset` |
+
+- Ruộng: lưới 4 × 3 = 12 ô, tâm ô cách nhau 1,5, ô vuông 1,35. Tổng 48 ô.
+- Mỗi ruộng có rào riêng cách mép 0,4, bốn lối rộng 2,2 ở giữa mỗi cạnh. Ruộng chưa mua đóng cổng ở cả bốn lối; mua thì mở cổng.
+- Đường lát: dọc x −2 (z −9…1), ngang z 0,1 (x −11,5…8), hành lang z −8,4 giữa hai hàng ruộng (x −15…8), nhánh x 3,2, x 8,5, x −4 (`environment.js` `pavedRun`).
+- Ruộng chưa mua vẫn hiện ô; mỗi ruộng một biển khoá kèm giá.
+- Tên trạm là bảng phẳng sát chân công trình. Ô trống có dấu cộng giữa ô; ô đang chọn viền vàng.
+
+## 3. Camera, chạm và tìm đường
+
+**Camera** (`scene.js`):
+- Phối cảnh fov 43 (màn rộng < 700 px: 55), offset (0; 12,5; 11,5). Màn dọc (rộng < 0,6 × cao) mở ở tâm (−6,4; −0,5), zoom 0,9 (`portraitView`).
+- Zoom 0,8–1,65. Kéo quá 8 px thì dịch góc nhìn (kẹp trong `FARM_BOUNDS`), không ra lệnh đi. Đi thì camera theo nhân vật.
+- Chọn ô bằng raycast vào mặt luống thật; khe giữa ô không bị hút vào ô gần nhất.
+
+**Tìm đường** (`shared/game/navigation.js`, `scene.js`):
+- A* trên lưới 0,35; mỗi đoạn kiểm tra va chạm từng 0,1.
+- Bán kính nhân vật 0,42; tâm nhân vật luôn cách mép `FARM_BOUNDS` ≥ 1,15.
+- Vật cản chia ô 2 × 2 để truy vấn nhanh. Đường của thợ chừa thêm 0,04.
+- Mỗi công trình có nhóm điểm tiếp cận (`approachOffsets`); chọn điểm tới được, không ép vào điểm gần mà kẹt.
+- Thân cây, rào, công trình, đồ trang trí đã xây là vật cản. Tán lá, luống không chặn.
+
+## 4. Đất, cây và chăm sóc
+
+### Mua ruộng
+
+| Ruộng | Giá | Điều kiện |
+|---|---|---|
+| 1 | có sẵn | — |
+| 2, 3, 4 | 120 / 180 / 300 xu | Liền kề ruộng đã có (cạnh chung trong lưới 2 × 2) |
+
+- Chạm ô hoặc biển ruộng khoá: nhân vật đi tới biển. Tới nơi: đủ xu và liền kề thì mở xác nhận; thiếu xu thì báo số xu thiếu. Chỉ trừ xu khi bấm xác nhận; model kiểm tra lại (`act(field,'expand')`).
+
+### Giống
+
+| Giống | id | Giá hạt | Mở từ cấp | Cây con | Mỗi lứa | Sản lượng gốc | Hệ số giá |
+|---|---|---|---|---|---|---|---|
+| Vối | `robusta` | 10 xu | 1 | 90 s | 360 s | 3000 g | 1 |
+| Chè | `arabica` | 20 xu | 2 | 120 s | 360 s | 2600 g | 1,3 |
+| Mít | `liberica` | 30 xu | 3 | 150 s | 396 s | 3400 g | 1,5 |
+
+Nguồn: `CROPS`. Cây con xong chỉ thành cây trưởng thành, chưa có quả; lứa đầu chín sau (cây con + một lứa).
+
+### Chỉ số cây
+
+| Chỉ số | Luật | Nguồn |
+|---|---|---|
+| Gieo | nước 50, cỏ 0, chất lượng 80, sức khoẻ 100; trừ 1 hạt khi gieo xong | `act` `plant` |
+| Nước | giảm 0,085/s ÷ `efficiency(đất)`, kể cả khi quả đã chín | `CARE`, `advance` |
+| Cần tưới | nước < 35, trừ giai đoạn khô có kiểm soát (cây trưởng thành, tiến độ 17–23%) | `plotCare` |
+| Tưới | tốn 1 lượt nước trong bình, đặt nước = 70 | `act` `water` |
+| Cỏ | tăng 0,035/s; cần làm cỏ khi ≥ 30 (cây chưa chín); làm cỏ về 0 | `CARE` |
+| Ngừng lớn | nước ≤ 15 (ngoài giai đoạn khô) hoặc cỏ ≥ 75 | `plotCare` |
+| Bón phân | mỗi lứa 1 lần; chưa bón, còn phân, nước ≥ 30, tiến độ 30% đến < 65% (cây trưởng thành thêm cửa sổ < 17%) | `plotCare` `canFeed` |
+| Tỉa cành | mỗi lứa 1 lần; cây trưởng thành, chưa chín, tiến độ ≤ 17% | `act` `prune` |
+| Cuốc | đưa ô về trống, không hoàn hạt, không nhận quả | `act` `clear` |
+
+- Tưới xong (70) khoảng 412 s sau mới khát; vừa gieo (50) khoảng 176 s. Cỏ từ 0 tới 30 mất khoảng 857 s.
+- Phân không làm cây lớn nhanh hơn (`CARE.fedSpeed = 1`). Hết phân cây vẫn lớn.
+
+**Sức khoẻ** (sàn 20, trần 100):
+- Giảm 0,0008/s khi cây đứng (thiếu nước/cỏ nhiều); hồi 0,0003/s khi đang lớn.
+- Hàng rào bền < 25: giảm thêm 0,0002/s.
+- Tốc độ lớn × (0,65 + 0,35 × sức khoẻ/100) ÷ hệ số thời gian vùng.
+
+### Mưa
+
+- Mưa vào ngày lịch thứ 4 và 5 của mỗi chu kỳ 7 ngày (mỗi ngày 1 phút) (`weatherAt`).
+- Mưa cộng 0,28 nước/s cho cây và bể giếng.
+
+### Hái và sản lượng
+
+Khi cây chín (`advance`):
+- Sản lượng = gốc × (0,7 + 0,3 × sức khoẻ/100) × `careYield` × hệ số sản lượng vùng.
+- Chất lượng = 55 + sức khoẻ × 0,25 + `careQuality` + cộng chất lượng vùng (kẹp 0–100).
+
+| Chăm | Sản lượng | Chất lượng |
+|---|---|---|
+| Bón phân | × 1,15 | −6 |
+| Tỉa cành | × 0,9 | +10 |
+| Không làm | × 1 | 0 |
+
+Nguồn: `careYield`, `careQuality`.
+
+- Hái lấy cả sản lượng chín, cây về lứa mới (reset tiến độ, lượt bón, lượt tỉa; giữ nước, cỏ).
+- Hái cần kho đủ chỗ cho cả lứa; thiếu thì báo số gram còn trống và cần.
+- Mẹo `ripe` (Hội đồng): người chơi tự hái được +5 chất lượng.
+- Quả tươi để quá 1 ngày lịch mất 0,003 chất lượng/s, sàn 20.
+- Vắng mặt: tính bù tối đa 8 giờ, cây không chết.
+
+### Hệ số vùng
+
+`[sản lượng ×, chất lượng +, thời gian lớn ×]`, nguồn `REGION_CROP`. Nơi chỉ có quán không có farm.
+
+| Vùng | Vối | Chè | Mít |
 |---|---|---|---|
-| Sân phơi | 600 g quả → 100 g nhân sạch | 30 giây | 18 kg |
-| Lò rang | 100 g nhân sạch → 84 g hạt rang | 18 giây | 1 kg |
+| Việt Nam `vn` | 1,10 · 0 · 1 | 0,95 · +3 · 1 | 1 · 0 · 1 |
+| Brazil `br` | 1,05 · −3 · 1 | 1,10 · 0 · 1 | 0,85 · −5 · 1,1 |
+| Colombia `co` | 0,80 · −8 · 1,1 | 1 · +8 · 1,1 | 0,80 · −8 · 1,1 |
+| Kenya `ke` | 0,80 · −8 · 1,1 | 0,95 · +10 · 1,1 | 0,80 · −8 · 1,1 |
+| Indonesia `id` | 1,05 · 0 · 1 | 0,95 · +2 · 1 | 1,10 · +3 · 0,95 |
 
-- Thời gian tính **theo mẻ**, không theo số phần. Chọn 1 hoặc 2 phần cùng nằm trong một mẻ có thể mất cùng thời gian.
-- Mỗi trạm hiện chạy **1 mẻ một lúc**. Vượt sức chứa thì chia thành các mẻ nối tiếp.
-- **Cấp tối đa 20** cho mọi hạng mục, riêng Thiết bị quán tối đa 10 (quán có 10 chỗ bàn). Lên cấp N cần nông trại cấp N.
-- Tốc độ `1 + 0,07 × (cấp − 1)` (×2,33 ở cấp 20), công suất `1 + 0,18 × (cấp − 1)` (×4,42 ở cấp 20). Giá: cấp < 10 = `base × 1,42^(cấp−1)`; từ 10 = `base × 1,42^9 × (1 + 0,15 × (cấp − 10))²`.
-- **Máy xay ở farm đã bỏ** (quán dùng hạt rang; bột chỉ hơn hạt rang ~3% giá). Bột còn trong kho vẫn bán được; mẻ xay đang chờ của save cũ được trả lại hạt rang.
-- **Diện mạo theo bậc:** Cơ bản (1), Cải tiến (10), Chuyên nghiệp (20). Mỗi bậc là một slot riêng `farm/<id>/tier-<n>`; chỉ bậc hiện tại hiện. Bậc 2+ hiện là bản sao khối tạm kèm cờ màu, thay asset không đổi luật. Dấu bậc trên công trình hiện số bậc đã đạt.
-- Hàng chờ tối đa 48 mẻ, hiện tính cả mẻ xong chưa nhận. Yêu cầu vượt chỗ trống thì xếp phần vừa và báo `Đã xếp x/y phần`, phần còn lại giữ trong kho (trước đây từ chối cả yêu cầu, làm kho nhân sạch kẹt vĩnh viễn). Bấm Bắt đầu nhiều lần tạo thêm mẻ; chưa gộp với mẻ chờ còn chỗ.
-- Mẻ đã xếp giữ lịch/công suất đã tính lúc xếp; nâng cấp áp dụng cho yêu cầu mới.
+Nhãn hợp vùng (`regionFit`): sản lượng ≥ 1,05 hoặc chất lượng ≥ +5 là "hợp"; sản lượng ≤ 0,9 là "kém".
 
-### Giao diện trạm
+## 5. Thao tác của người chơi
 
-- Bảng đầu hiện cấp, công suất hiện tại, cấp tiếp, giá và điều kiện nâng cấp. Kho/giếng/ao/quán cũng có nâng cấp ngay tại màn tương ứng.
-- **Chế biến:** một ô mỗi loại cà phê; chọn số phần, thấy lượng vào → lượng ra và số mẻ; một nút Bắt đầu. Không còn cặp Làm 1/Xếp tất cả.
-- Bắt đầu giữ modal mở, báo đã xếp chế biến. Không gọi mẻ chờ là đã chạy ngay.
-- **Tiến độ & chờ nhận:** thanh %, giây trước khi bắt đầu hoặc giây còn lại; thứ tự Chờ → Đang làm → Chờ nhận. Màn đủ rộng 4 ô/hàng, màn nhỏ giảm cột.
-- Nhận tất cả ở đầu; mỗi mẻ xong có nút Nhận riêng. Cả hai giữ modal mở.
-- Mẻ chưa chạy được hủy, trả nguyên liệu; mẻ đang chạy không dùng nút hủy mẻ chờ.
-- Kho đầy thì giữ thành phẩm tại trạm. Nhận tất cả có thể chỉ lấy các mẻ vừa chỗ, giữ phần còn lại.
-- Chưa có mẻ: thông báo trống giữa vùng nội dung, không tạo thẻ hàng giả hoặc nút Chọn.
-- Tương tác trạm tách rõ: bấm thân công trình mở modal; bấm giỏ thành phẩm nhận các mẻ đã xong vừa kho, đi tới điểm thao tác trước nếu đang xa. Nhận hết ẩn giỏ, không tự bật modal.
-- Bấm đúng hình nhân viên mới mở hồ sơ và sáng viền; bảng trạng thái/đạo cụ nổi không được trở thành vùng mở hồ sơ.
-- Trên map, mỗi trạm chỉ một dấu trạng thái: ưu tiên số mẻ đã xong; nếu đang làm, hiện đếm ngược và số mẻ chờ. Không trải hàng loạt icon trên mái công trình.
+- **Chạm cây** = công cụ Tự chọn: nhân vật đi tới và làm việc cây cần nhất.
+- **Chạm cây chín luôn là hái**, kể cả khi đang cầm công cụ khác. Hái không được thì báo lý do có số (kho đầy, thợ đang giữ ô).
+- **Chạm ô trống**: viền sáng đúng ô, nhân vật đi tới, dải icon giống hiện phía dưới. Không mở modal, không làm tối bản đồ, đổi ô được ngay. Hết giống thì có nút sang Sạp.
+- **Chạm cây không cần việc**: báo giai đoạn và bao lâu nữa cần tưới.
+- **Kéo-gieo** (có từ save mới): kéo túi hạt từ dải giống qua nhiều ô trống. Giới hạn = số hạt giống đó. Hạt trừ khi gieo xong từng ô.
+- **Dải công cụ ⛏️** (tưới, bón, làm cỏ, tỉa, hái 🧺, cuốc) mở theo mốc `tools` (mục 9). Trước mốc chỉ có chạm từng cây và kéo-gieo.
 
-## 6. Kho, mua và bán
+Luật kéo (`tools.js`, `ui.js`):
+- Danh sách ô không trùng; kéo lùi về ô trước thì bỏ các ô sau. Tới giới hạn (số hạt, lượt nước, phân; 🧺 = số cây chín kho còn vừa, `harvestCapacity`) thì không nhận ô mới.
+- Thả tay mới xếp việc; làm lần lượt, trừ vật tư khi làm xong. Thả về dải hoặc huỷ cử chỉ thì huỷ. Lệnh di chuyển khác huỷ việc chưa làm. Kéo không tự mua ruộng.
+- Ô chờ sáng viền nhạt kèm số thứ tự 1, 2, 3… (`setPlotQueue`); ô đang làm sáng đậm.
+- Ngón tay trong dải 48 px sát mép màn: camera trôi 7 đơn vị/s (nửa nếu giảm chuyển động), kẹp trong `FARM_BOUNDS` (`edgeScrollDrag`).
 
-- Kho tính theo tổng gram của các lô, không theo số ô icon. Lô có chất lượng, nguồn và thời gian; hàng farm, đang chuyển và kho quán là ba vị trí khác nhau.
-- Kho thiếu chỗ thì không mất hàng. Có thể bán bớt, chuyển về quán hoặc nâng cấp kho để giải phóng chỗ.
-- Túi có Tất cả / Hạt giống / Nông sản; Vật tư chỉ hiện khi thực sự có vật tư. Hạt giống trong túi chỉ xem, không có nút Dùng giống; trồng từ ô đất/dải công cụ.
-- Cửa hàng tách Cây giống / Vật tư / Chợ. Mua giống/phân chọn số lượng và tổng giá. Phân bón 1 xu/túi (`FERTILIZER_PRICE`): cây được bón cho hệ số 1,1, không bón 0,9 (+22%) và +5 chất lượng. Đo bằng `scripts/balance-sim.mjs`: bón sớm làm chậm mua ruộng (60 phút: kém ~430 xu giá trị), về sau có lời (120 phút: hơn ~320 xu, cao hơn 1 cấp) — lựa chọn có đánh đổi, không bên nào áp đảo.
-- Giữ hạt rang cho quán mặc định tắt với save mới; bật trong màn quán khi cần.
-- Bán tự do hiện lượng đang có, chọn số gram và khách trả bao nhiêu. Giá theo chất lượng các lô xuất trước. Giữ hạt cho quán có thể chặn bán hạt rang.
-- **Chợ mua nhiều thì giá giảm** (mỗi ngày công 6 phút, `MARKET_DAILY = 1200` xu giá gốc trong `rules.js`): giá giảm tuyến tính từ 100% tới sàn 30% khi đã bán 840 xu giá gốc trong ngày công (2 ruộng bán gần đủ giá, 4 ruộng bão hòa và cần quán/nâng cấp); sang ngày công mới hồi lại. Lượng đã bán lưu trong save (`market`), tải lại không hồi giá. Tính theo tích phân nên bán một lần hay chia nhỏ đều nhận như nhau. Ô bán hiện giá gốc khi đang bị giảm. Hạt dư mang sang quán lời hơn.
-- Bán tự do cho XP = ⌊xu nhận / 2⌋ (không còn +2 XP mỗi lần bấm).
-- **Đánh đổi năng suất ↔ chất lượng (chốt 04/11/2026 theo tài liệu chuẩn tr. 2 §3.2, tr. 4 §4.3; ĐÃ CODE 04/11 — `farm/rules.js` `careYield`/`careQuality`/`marketQualityFactor`/`orderPay`, test `tests/crop-tradeoff.test.js`; số liệu Đang chỉnh, chưa chơi thử).** Dòng "Phân bón … 1,1 / 0,9" ở trên là luật cũ, đã thay bằng bảng này:
+Thời gian thao tác của người chơi = gốc ÷ `efficiency(cấp Dụng cụ)`. Gốc (giây): tưới 1,8 · làm cỏ 2,2 · bón 1,8 · hái 2,5 · lấy nước 1,5 · nhận mẻ 1,5 · bắt đầu mẻ 1,5 · đảo 1,8 · tỉa 2,5 · gieo 2,2 · cuốc 2,5 (`workDuration`).
 
-  | | Hiện code | Luật mới |
-  |---|---|---|
-  | Bón phân | Bón ×1,1, không bón ×0,9; +5 chất lượng | Bón **×1,15** sản lượng, **−6** chất lượng (cây bị ép lớn); không bón ×1,0 |
-  | Tỉa cành | Không tỉa ×0,95; tỉa +5 chất lượng | Tỉa **×0,9** sản lượng, **+10** chất lượng; không tỉa ×1,0 |
-  | Chất lượng gốc | `55 + sức khỏe × 0,25` | Giữ nguyên |
-  | Giá chợ theo chất lượng | `× (0,7 + 0,3 × q/100)` | `× (0,3 + 0,8 × q/100)` (q 80 ≈ ×0,94 như cũ) |
-  | Đơn Chợ 200 g | Trả 1,2 × giá gốc | Lô trung bình **q ≥ 85** trả **1,6 ×**, dưới 85 trả 1,2 × (vẫn tối đa 2 đơn/ngày công) |
+### Nước
 
-  Tính tay ở sức khỏe 100 (doanh thu chợ chưa bão hòa, tương đối với "không làm gì" = 0,94): bón 1,026 (q 74) · bón + tỉa 1,006 (q 84) · tỉa 0,918 (q 90). Chênh giữa cách tốt nhất và kém nhất **~12%**, thay cho +33% của "bón + tỉa" ở code hiện tại (bón + tỉa áp đảo mọi lựa chọn). Ý đồ: **sớm** (chợ chưa bão hòa) sản lượng thắng; **muộn** (≥ 3–4 ruộng, chợ chạm sàn 30%) gram dư mất giá nên chất lượng thắng nhờ Đơn Chợ ×1,6 và chất lượng ly quán (lô chiếm 25% chất lượng ly). Người chơi phải chia ruộng: ruộng bón bán chợ, ruộng tỉa cho quán/đơn. Cần chạy `scripts/balance-sim.mjs` sau khi code để xác nhận.
-- Đơn mua cố định ở Chợ có lượng và thưởng cố định; khác với bán tự do tùy lượng.
-- Chỉ nút Mua/Bán mới mở giao dịch; bấm box không mua/bán.
-- Mua và bán đều có modal xác nhận món, lượng, số xu. Xác nhận mới trừ/cộng; Hủy không giao dịch. Kiểm tra lại điều kiện lúc thực hiện.
-- Mọi ô nhập số lượng hiện giới hạn **1–99**; nếu hàng/nguyên liệu/sức chứa hàng chờ hoặc xu không đủ thì hạ giới hạn. Đạt tối đa thì khóa +. Bán tự do dùng **gram**, không giới hạn 99 (tối đa bằng lượng đang có, mặc định bán hết); chế biến dùng **phần nguyên liệu**, không phải 99 mẻ.
-- Không giới hạn 99 cho các đơn cố định, tổng hàng tồn hoặc lượng một mẻ được nhận. Nhận một mẻ lấy cả đầu ra mẻ.
+- Bình tưới chứa 6 + 4 × (cấp Giếng − 1) lượt; mẹo `water` cộng 2.
+- Lấy nước ở giếng trừ vào bể giếng. Bể chứa 60 × `capacityScale(cấp Ao)`.
+- Bể hồi 0,06 + 0,025 × (cấp Giếng − 1) mỗi giây, cộng mưa.
+- Bình đầy thì báo đầy. Bể cạn thì Cần xử lý nhắc ra giếng.
 
-## 7. Mục tiêu (một hệ duy nhất)
+### Hàng rào
 
-- **Nhiệm vụ cá nhân chu kỳ 6 phút đã bỏ** (trùng với chuỗi mục tiêu); nút Nhiệm vụ ở menu dưới bỏ cùng. Thưởng là nhiệm vụ cố định một lần, chỉ tính thao tác của người chơi.
-- **Thứ tự nhiệm vụ đầu game (đổi và triển khai 03/11/2026):** Hái → **Bán ly cà phê đầu tiên** (`stats.served`, quán đã có 600 g hạt `starter`) → Phơi → Rang → Bán → **Gửi hạt rang về quán** (`stats.delivered`) → Mua ruộng 2 → Tưới → Làm cỏ. Bán ly lên vị trí 2 để phản hồi rót đúng vạch/tiền nhảy tới trước phút thứ 2; liên kết farm → quán vẫn dạy ở Gửi hạt. Bấm thẻ Gửi hạt: thiếu 252 g thì dẫn tới lò rang/sân phơi, đủ thì đặt đơn 252 g (nếu chưa có) và mở danh sách đơn để bấm «Chuyển về quán · 2 xu»; thẻ Bán ly mở quán. Tưới/làm cỏ để cuối vì cây vừa hái khoảng 6–8 phút sau mới khát. Chữ nhiệm vụ trích đúng nhãn nút; bảng chữ ở [onboarding-flow](../../shared/onboarding-flow.md) mục 3.4. Save cũ giữ `claimed`, không trả/xóa thưởng.
-- **Bấm thẻ mục tiêu** (HUD trái, có dấu ›) để nhân vật tự đi tới đúng chỗ: cây cần hái/tưới/làm cỏ, sân phơi/lò rang (có mẻ xong thì nhận luôn), biển ruộng kế tiếp; nhiệm vụ Bán mở Cửa hàng → Chợ. Chưa có việc để làm thì báo còn bao lâu và gợi ý việc khác trong lúc chờ. **Lần đầu:** thẻ nhấp nháy, có dòng "👆 Chạm/Bấm để được dẫn đường" và mũi chỉ 3D trên mục tiêu; tắt khi chạm thẻ lần đầu hoặc nhận nhiệm vụ Rang.
+- Độ bền giảm 0,0001/s ÷ `efficiency(cấp Hàng rào)`.
+- Dưới 25 thì cây mất sức khoẻ thêm. Sửa 5 xu → 100 (`act('fence','repair')`).
 
-- **Theo nơi trùng sinh (F-28, 04/11/2026):** chuỗi trên là của Việt Nam (cả hai). Nơi chỉ nông trại bỏ Bán ly đầu/Gửi hạt và thêm Bán 1 kg cho nhà xuất khẩu; nơi chỉ quán chỉ còn Bán ly đầu + Phục vụ 20 khách. Nút Vào quán, bảng Đơn hàng và đơn quán tự sinh chỉ có ở nơi cả hai. Chi tiết: [02b-world-map](../02b-world-map/README.md).
+## 6. Chế biến
 
-## 8. Quy tắc UI/UX chung
+| Trạm | 1 phần vào → ra | Thời gian/mẻ cấp 1 | Sức chứa đầu vào/mẻ cấp 1 |
+|---|---|---|---|
+| Sân phơi `dryer` | 600 g quả → 100 g nhân sạch | 30 s | 18 kg |
+| Lò rang `roaster` | 100 g nhân sạch → 84 g hạt rang | 18 s | 1 kg |
 
-- Đây là game 3D: tương tác công trình/ô đất, HUD nhỏ; không dùng dashboard phủ map thay gameplay.
-- Font ưu tiên Baloo 2, Fredoka, system-ui, sans-serif; hỗ trợ tiếng Việt. Font đang tải từ Google Fonts, có fallback.
-- Khung gỗ, bảng kem, biển tiêu đề xanh nổi giữa mép trên, nút đóng tròn ngoài góc. Một kiểu nút xanh cho thao tác chính; xu dùng đồng vàng thống nhất.
-- Modal khóa di chuyển; giữ kích thước ổn định giữa tab, nội dung dài cuộn bên trong, padding đều. Tab căn trái; túi và cài đặt ôm chữ/xuống dòng thay vì cuộn ngang.
-- HUD trái: avatar/tên/cấp/XP → thẻ mục tiêu → Cần xử lý → Hoạt động. Bấm avatar/tên đưa camera về nhân vật, không có nút Về nhân vật riêng.
-- Phải: ô xu (bấm lia camera tới Sạp ven đường rồi mở Cửa hàng; chưa dựng Sạp thì mở luôn), rồi cụm Cài đặt · Hướng dẫn. **Chỉ một nút Cài đặt.** Lượng nước nằm trong công cụ Tưới và màn Giếng nước.
-- **HUD mở dần (chốt và triển khai 03/11/2026):** lúc mới vào chỉ có avatar/XP, thẻ mục tiêu, xu, Kho, Cài đặt, Hướng dẫn. Vào quán, Cửa hàng, Đơn hàng, Nâng cấp, Nhân viên (Quản lý thành tab "Chỉ thị" bên trong), Xây dựng, dải công cụ mở theo mốc nhiệm vụ/cấp/state ở [onboarding-flow](../../shared/onboarding-flow.md) mục 3.3; save cũ đã qua mốc thấy đủ ngay, không toast. Menu dưới tối đa 6 nút (Kho, Cửa hàng, Nâng cấp, Nhân viên, Đơn hàng, Xây dựng), không cuộn ngang, nút thu gọn chỉ khi ≥ 4 nút. Bỏ nút Thu mua (đã ẩn) và nút Thế giới (chưa có tính năng). Cần xử lý và Hoạt động **gập sẵn trên mọi màn**, tiêu đề hiện số mục; Cần xử lý chỉ hiện khi có mục, Hoạt động hiện khi đã mở Nhân viên.
-- **Công trình thay nút HUD (05/11/2026, F-48 pha 1, đề xuất Q10 CT-1…CT-16 + vá; thay một phần luật 03/11 ở dòng trên):** farm có 4 công trình chạm được trong rào: **Cửa quán** (`cafe-entrance`), **Bảng đơn** (`order-board`, sát Cửa quán, cụm thương mại cạnh cổng trước), **Sạp ven đường** (`seed-shop`) và **Nhà thợ** (`crew-house`); cộng Cổng Hội đồng (F-45) là 5 vật. Không dựng Xưởng nâng cấp. Toạ độ và kiểm khung dọc: [gameplay.md](gameplay.md) mục Công trình.
-  - Hiện dần theo `HUD_UNLOCKS.when` hiện tại (cafe-play → Cửa quán, seed-shop → Sạp, order-board → Bảng đơn, workers → Nhà thợ) hoặc cờ `unlock-<id>` đã có, nên đã hiện thì không ẩn lại (Sạp không chớp tắt khi hết giống rồi mua). Lúc mở trong lúc chơi: trồi lên từ đất + hạt sáng + mũi tên chỉ 6 s + một toast ngắn, thay cho toast/chấm 'Mới' của nút HUD; biển ✨ Mới trên công trình tới lần dùng đầu. Save cũ đã qua mốc thấy công trình ngay, không hiệu ứng, không toast. Nơi chỉ trồng không có Cửa quán và Bảng đơn.
-  - Chạm Sạp, Bảng đơn, Nhà thợ thì modal mở ngay giữa màn, nhân vật quay mặt về vật, không đi bộ (vẫn clearInput + cancelWork; Auto bật thì làm tiếp phía sau). Sạp mở modal Cửa hàng 3 tab Giống / Vật tư / Chợ (đơn cố định + bán); Bảng đơn mở Đơn hàng (tự tạo đơn quán cho nhiệm vụ Giao); Nhà thợ mở Nhân viên 4 tab (kể cả Chỉ thị). Chạm Cửa quán thì nhân vật đi tới thảm cửa rồi vào quán; ra khỏi quán đứng trên thảm cửa. Auto bật thì vào thẳng.
-  - Lối tắt từ xa (≡, thẻ Việc tiếp theo, ô xu, Cần xử lý, nút 'sang cửa hàng', «Thuê robot thay») lia camera tới công trình rồi mới mở; đóng modal thì camera về nhân vật. Thẻ Việc tiếp theo của nhiệm vụ Bán ly thì đi tới Cửa quán.
-  - Huy hiệu: Sạp `!` khi hết giống mà còn ô trống (có cờ đỏ); Bảng đơn `✓` khi có đơn giao được, số đơn đang chờ khi chưa đủ hàng (tờ giấy trên bảng); Nhà thợ chưa có `!` vì `incidentExempt` chưa có trong code (chỉ hiện bóng thợ đang nghỉ); Cửa quán sáng đèn khi quán mở. `⬆` trên sân phơi, lò rang (chỉ khi máy rảnh, huy hiệu mẻ ưu tiên), giếng, ao khi vừa đủ cấp vừa đủ xu; giếng bình đầy mà có ⬆ thì chạm mở khối nâng cấp giếng. Danh sách tổng vẫn ở mục Nâng cấp trong ≡.
-  - Thanh dưới còn Kho và ≡; 🏪 Cửa hàng và ☕ Vào quán chuyển vào ≡ vì qua cổng CT-11 (cả 4 công trình chạm trúng ở khung dọc mặc định 375×812, tính bằng chiếu camera, chưa playtest). Nhân viên, Đơn hàng, Nâng cấp, Xây dựng vốn đã ở ≡.
-  - Trạm 3D 'Quầy thu mua' (`market`) bỏ hẳn; id hành động `market` (bán, đơn chợ) giữ nguyên. Vùng cấm xây 3,5 m áp cho mọi trạm/công trình (thôi miễn shop/market); nơi không phải 'both' bỏ vùng cấm của Cửa quán và Bảng đơn (không bao giờ dựng ở đó). Đồ trang trí save cũ nằm trong vùng tự dời sang chỗ hợp lệ gần nhất, không xoá; không còn chỗ thì hoàn đủ giá món đó vào xu. **Chọn khác CT-14 (05/11/2026, F-48):** CT-14 ghi 'trả về kho', nhưng game chưa có kho đồ trang trí (cần trường save + giao diện mới); dời trên map giữ nguyên món, hoàn xu cho trường hợp hiếm còn lại, không bao giờ để món đè công trình.
-  - Trong tutorial ép (farm-intro) công trình tới mốc chưa dựng: chờ xong hướng dẫn, toast 'xong hướng dẫn' hiện trước rồi 3 s sau công trình mới trồi lên + toast dựng (05/11/2026, F-48, theo luật toast chờ tutorial). Chip xu luôn mở tab Giống của Sạp (CT-2); 🏪 trong ≡ giữ tab đang chọn.
-- Gợi ý điều khiển lần đầu ở farm theo thiết bị (PC: bấm đất đi, WASD, cuộn zoom, kéo xoay; cảm ứng: joystick, chạm cây, kéo xoay); tắt sau khi đã đi + làm một việc, 15 s hoặc ×; không hiện lại.
-- Đơn chờ phân công và nhiệm vụ có thưởng chưa nhận có chấm báo trên icon.
-- Cần xử lý chỉ liệt kê việc cần can thiệp: lương, phân công, đủ hàng chưa chuyển, hạn đơn, vật tư, kho, mẻ cần đảo/nhận, cây cần chăm và vấn đề quán. Đã bỏ cảnh báo Cây chín chưa thu hoạch/Mở công cụ.
-- Hoạt động có việc phát sinh/không còn vướng, diễn biến nhân viên, nhận hàng tại quán và các sự kiện vận hành.
-- Thông báo ngắn ở giữa phía trên, nền mờ, hiện đủ nội dung, tự mất sau 3 giây, không chặn thao tác. Hoàn thành nhiệm vụ cố định (🎯) và lên cấp (⭐) đứng đầu thông báo.
-- HUD trái hiện một khung mục tiêu nhỏ: nhiệm vụ cố định kế tiếp và cách làm.
-- Ô số lượng chế biến mặc định bằng mức tối đa đủ nguyên liệu (≤ 99); gõ số không bị ghi đè giữa chừng. Nút Đến lấy hàng ở Cần xử lý đi tới trạm và nhận luôn các mẻ xong.
-- Esc khi đang mở hộp xác nhận chỉ đóng hộp đó, không đóng modal bên dưới. Modal xác nhận chỉ dùng khi cần quyết định thật.
-- Không hiện xu/cấp người chơi mặc định ở footer mọi modal. Hồ sơ nhân viên đưa lương/ngày làm/ngày trả lên đầu.
-- Trạng thái kéo thợ giữ đầy đủ hình box, ô nhận sáng viền, đổi thành công có hiệu ứng và tên người vào/ra. Không dùng chỉ tên làm hình kéo.
+Nguồn: `MACHINES`. Không có máy xay ở farm. Bột (`ground`) cũ trong kho vẫn bán được.
 
-### Xây dựng trang trí — phạm vi đã chốt
+- Nguyên liệu trừ ngay khi xếp mẻ.
+- Mỗi trạm chạy 1 mẻ một lúc. Mẻ sau bắt đầu khi mẻ trước xong.
+- Yêu cầu lớn hơn sức chứa tự chia thành nhiều mẻ nối tiếp.
+- Thời gian mẻ = gốc ÷ `efficiency(cấp)`; sức chứa = gốc × `capacityScale(cấp)`. Mẻ đã xếp giữ thông số lúc xếp.
+- Hàng chờ tối đa 48 mẻ mỗi trạm, tính cả mẻ xong chưa nhận. Vượt thì xếp phần vừa và báo `Đã xếp x/y phần`.
+- **Đảo** (chỉ sân phơi): mỗi mẻ 1 lần, từ nửa thời gian tới lúc xong; +2 chất lượng mẻ.
+- **Huỷ**: chỉ mẻ chưa chạy; trả nguyên liệu, các mẻ sau dồn lên.
+- **Nhận**: chỉ lấy các mẻ xong vừa kho, phần còn lại giữ ở trạm. Chất lượng đầu ra = trung bình lô đầu vào.
 
-- Giai đoạn đầu chỉ xây **bồn hoa (25 xu), đèn vườn (40 xu), biển tên (30 xu)**. Giá hiện là cấu hình khởi điểm để người chơi thử.
-- Menu Xây dựng mở danh sách; chọn món chuyển về map với bóng đặt xanh/đỏ, xoay bằng nút/R, hủy bằng nút/Esc.
-- Bấm mặt đất để chốt vị trí; sau khi chốt, rê chuột sang nút không làm bóng đặt chạy theo. Bấm mặt đất khác để đổi. Chọn vị trí rồi xác nhận mua mới trừ xu và lưu. Không đặt trên ruộng, đường, sát công trình, ngoài farm hoặc chồng đồ trang trí. Vị trí có người chơi/vật cản cũng bị từ chối trong luồng đặt.
-- Biển tên cho nhập tối đa 24 ký tự. Đồ giữ vị trí, góc xoay và nội dung khi lưu/tải.
-- Đây là trang trí không cộng năng suất, không tăng số thợ, không mở chế biến song song. Xác nhận đặt sẽ trừ phí và tạo khung thi công; nhân vật của người chơi chạy tới, thao tác xây 5 giây (hoa/biển) hoặc 6 giây (đèn). Chỉ cộng tiến độ lúc đứng gần và đang thi công; ngắt việc có thể bấm công trình để tiếp tục.
-- Bấm đồ trang trí mở quản lý: tiếp tục thi công nếu chưa xong, hoặc phá dỡ. Phá dỡ có xác nhận, nhân vật chạy tới tháo trong 3,5 giây; không hoàn xu. Chưa có di chuyển đồ đã đặt.
-- Có giới hạn 100 món để giữ map gọn và tránh quá nhiều mô hình. Đồ hoàn thiện là vật cản: cả người chơi và nhân viên không đi xuyên. Hệ thống va chạm cập nhật khi xây xong, tải lại hoặc phá dỡ. Vẫn loại đường/điểm tương tác khỏi vùng đặt.
+Giao diện:
+- Chạm thân trạm mở modal: nâng cấp, chọn số phần (mặc định tối đa), nút Bắt đầu, danh sách mẻ có Nhận tất cả/Nhận từng mẻ.
+- Chạm giỏ thành phẩm trên trạm: đi tới rồi nhận. Mỗi trạm chỉ một dấu trạng thái trên bản đồ.
 
-## 9. Lưu tiến độ và giới hạn kiểm chứng
+## 7. Kho, Chợ và đơn
 
-- Save mới bắt đầu với 200 xu. Save đã có giữ nguyên số xu (không cấp lại hoặc cắt vốn thử 100 triệu cũ).
-- Quà thiên đàng áp dụng một lần (cờ `giftApplied`): Túi hạt giống +6 hạt vối và 6 phân; **Gói mở rộng quán** (tên cũ "Bộ dụng cụ pha", id `tools`) nâng quán (`upgrades.cafe`) lên cấp 2, tức 4 bàn thay vì 3; Túi vốn nhỏ +150 xu. **05/11/2026 (F-44):** save mới luôn nhận Túi hạt giống (thiên đàng mini, 1 nút Nhận); `tools`/`capital` chỉ còn ở save cũ. Dòng báo quà phải ghi đúng số. Quà không dùng được ở loại nơi đổi thành +150 xu (bút toán `gift`): Túi hạt giống ở nơi chỉ quán ghi log «Nơi này chỉ có quán: nhận Túi vốn nhỏ +150 xu thay túi hạt» (`farmRules.log.giftSeedsCafe`); `tools` ở nơi chỉ trồng (save cũ) vẫn dùng log đổi chung.
-- **Mẹo thiên đàng (chốt và triển khai 03/11/2026):** mỗi câu đúng ở thiên đàng cho một mẹo có tác dụng ở farm/quán (hái tay +5 chất lượng; bình tưới +2; Phin đen/Sữa đá bắt đầu ★; gợi ý "Sửa bước này trước"; +30 xu; uy tín quán +3). Câu sai được hỏi lại ở farm/quán, tối đa 1 câu mỗi ngày công, hoặc ôn ở Sổ tay trong Hướng dẫn. Thưởng một lần không lặp khi chơi lại chương. Lưu ở `farm.lessons` (xem [contracts](../../shared/contracts.md) mục 5, [onboarding-flow.md](../../shared/onboarding-flow.md) mục 3.1, 4.1).
-- Giữ schema tiến độ hiện có; không tự reset kho, tiền, ruộng hay mẻ cũ khi chỉnh UI.
-- Khách, hàng, lương và thao tác phải qua luật model; không trừ tiền chỉ bởi hover, chọn tab hoặc mở xác nhận.
-- Thiết lập ẩn/hiện HUD hiện áp dụng trong lượt chơi; chưa chốt lưu các tùy chọn này qua lần mở game.
-- Thay luật tính nhiệm vụ không có nghĩa đã tính lại tiến độ nhiệm vụ cũ trong save.
-- Một số kiểm tra né người đã chạy ở giai đoạn sửa thuật toán; không suy ra toàn bộ UI và các thay đổi tiếp theo đã được test.
-- Mặc định người dùng tự kiểm tra. Không tự chạy test/build/lint/preview trừ khi có yêu cầu rõ cho lượt đó.
+### Kho
 
-## 10. Những điểm cần cùng chốt tiếp
+- Kho tính theo tổng gram các lô, không theo số ô. Sức chứa = 60.000 g × `capacityScale(cấp Kho)` (`ASSETS` `storage`).
+- Lô có loại hàng, giống, chất lượng, nguồn, thời điểm. Xuất kho lấy lô cũ trước.
+- Ba vị trí tách nhau: kho farm, hàng đang chuyển, kho quán.
+- Kho đầy không mất hàng: chặn hái và nhận mẻ, báo ở Cần xử lý.
+- Túi có tab Tất cả / Hạt giống / Nông sản (Vật tư chỉ hiện khi có). Hạt giống trong túi chỉ để xem.
 
-Đề xuất mở rộng: [Gameplay xây dựng](build-proposal.md). Hiện chỉ chốt và triển khai phần hoa, đèn, biển tên; các công trình sản xuất phụ vẫn là đề xuất.
+### Mua (Sạp)
 
-Các mục dưới đây **chưa phải luật đã triển khai/chấp thuận**:
+- Hạt giống: theo bảng giống, chỉ giống đã mở theo cấp.
+- Phân bón: 1 xu/túi (`FERTILIZER_PRICE`).
+- Mỗi lần mua 1–99; có modal xác nhận món, lượng, tổng xu.
 
-1. **Gộp mẻ:** có gộp lần bấm mới vào mẻ chờ cùng loại còn chỗ hay không; tuyệt đối không sửa lượng mẻ đang chạy nếu chưa chốt.
-2. **Chạy song song:** nâng cấp có mở 2/3/... mẻ cùng lúc không, cấp nào mở, khác gì với kg/mẻ. Hiện vẫn 1 mẻ/trạm.
-3. **Giới hạn chờ:** giữ 48 hay giảm; có tính mẻ đã xong chưa nhận vào giới hạn không.
-4. ~~**Đơn vị bán:**~~ Đã chốt 03/11/2026: bỏ giới hạn 99 g khi bán, mặc định bán hết.
-5. ~~**Nợ lương khi xóa:**~~ Hết hiệu lực (03/11/2026: lương theo ngày công, cho nghỉ việc không hoàn). hiện kiểm tra ca đã trả còn hiệu lực, chưa có sổ nợ riêng. Cần quyết định xóa dự bị là trả một ca hay thanh toán số công chưa trả, và ca hết hạn khi dự bị có thực sự là nợ không.
-6. ~~**Nghỉ tự động:**~~ Đã bỏ năng lượng/nghỉ/bồi dưỡng (03/11/2026). vẫn có năng lượng/nghỉ tự động và nút bồi dưỡng (đồng vàng trên đầu thợ, mục 3); cần cân bằng thời gian chờ và làm rõ người đang nghỉ không phải lỗi đứng yên.
-7. **Dữ liệu cũ:** có chuyển lại nhiệm vụ đã được nhân viên làm trước đây, vai trò/giống cũ, ứng viên đã từ chối hay không. Chưa tự xóa/khôi phục dữ liệu.
-8. **Cân bằng kinh tế:** giá, sản lượng, thời gian vụ, sức chứa kho và số đơn cần playtest; không lấy tiền thử nghiệm lớn làm bằng chứng cân bằng.
+### Bán ở Chợ
 
-## 11. Nguồn đối chiếu khi sửa
+Giá một lần bán:
+- Giá gốc = gram × giá/gram × hệ số giá giống × (0,3 + 0,8 × chất lượng/100).
+- Chất lượng tính theo các lô sẽ xuất (cũ trước). Nguồn: `saleQuote`, `marketQualityFactor`.
 
-- `src/features/farm/content.js`: cây, công trình, chuyển đổi đầu vào/đầu ra.
-- `src/features/farm/rules.js`: cấp, lương, giá nâng cấp, công suất, tốc độ.
-- `src/features/farm/model.js`: luật giao dịch, nhiệm vụ, mẻ, vận chuyển, nhân sự.
-- `src/features/farm/crew.js`, `worker-planner.js`: nhận việc và thực hiện đơn của thợ.
-- `src/features/farm/game.js`: kết nối hành động, màn/tab và phản hồi.
-- `src/features/farm/ui.js`, `src/ui/styles/farm.css`: trình bày và tương tác UI.
-- [Lịch sử luật cũ](../../archive/farm/farm-operations-history.md): chỉ đối chiếu, không dùng ghi đè bản này.
-- [Bản đề xuất ban đầu](../../archive/farm/farm-cafe-gameplay-plan.md): ý tưởng cũ, các phần mâu thuẫn đã được thay thế.
+| Hàng | Giá/gram |
+|---|---|
+| Quả `cherries` | 0,004 xu |
+| Nhân sạch `dried` | 0,04 xu |
+| Hạt rang `roasted` | 0,07 xu |
+| Bột `ground` | 0,072 xu |
 
-## Nhật ký quyết định
+**Chợ bão hoà** (mỗi ngày công 6 phút, `MARKET_DAILY = 1200`, `marketValue`):
+- Giá biên giảm tuyến tính từ 100% về sàn 30% khi đã bán 840 xu giá gốc trong ngày công; sau đó giữ 30%.
+- Tính theo tích phân: bán một lần hay chia nhỏ nhận như nhau.
+- Lượng đã bán lưu ở `market.sold`; tải lại không hồi giá. Sang ngày công mới thì hồi.
 
-- **05/11/2026 (F-44, thiên đàng mini):** quà khởi đầu cố định Túi hạt giống cho save mới (bỏ thẻ chọn 3 hành trang); luật đổi theo loại nơi giữ nguyên, thêm log riêng khi Túi hạt giống đổi thành +150 xu ở nơi chỉ quán. Không đổi kinh tế (mỗi save mới vẫn đúng một món quà).
+Luật khác:
+- Bán theo gram, mặc định bán hết; không giới hạn 99. Có modal xác nhận.
+- Bật "Giữ hạt rang cho quán" có thể chặn bán hạt rang dưới lượng quán cần (mặc định tắt).
+- XP bán = ⌊xu nhận/2⌋, tối đa 40 XP mỗi ngày công (`MARKET_XP_CAP`).
 
-- **04/11/2026 (tài liệu chuẩn, đợt 2):** Quang chốt Q-04 tách Wealth / Mastery / Awakening — XP bán chợ trần 40/ngày công, bỏ XP mua ruộng, thêm XP luyện món/Memory/giải mã ([progression.md](../../shared/progression.md)); Q-06 hai mục tiêu thắng độc lập; Q-08 vùng ảnh hưởng sản lượng/chất lượng/thời gian lớn theo giống ([02b-world-map](../02b-world-map/README.md) mục "Vùng ảnh hưởng trồng trọt"). Chưa code, số chờ sim.
+### Đơn Chợ (đơn cố định)
 
-- **04/11/2026 (đánh đổi năng suất ↔ chất lượng — tài liệu chuẩn):** Quang chốt "theo PDF, nhờ cân đối": bón ×1,15 / −6 chất lượng, tỉa ×0,9 / +10 chất lượng, giá chợ `0,3 + 0,8 × q/100`, Đơn Chợ q ≥ 85 trả 1,6 ×. Lý do: code hiện tại cho bón + tỉa thắng mọi trục (+33%), không có tình huống "năng suất cao chưa chắc lợi nhuận cao" (PDF tr. 4 §4.3). Chưa code, chưa sim. Mục 6.
+- 200 g hạt rang, giống xoay vòng trong các giống đã mở (`makeOrder`).
+- Thưởng = 1,2 × giá gốc (vối 17 xu). Lô giao trung bình chất lượng ≥ 85 được × 4/3 (≈ 1,6 × giá gốc) (`orderPay`).
+- Tối đa 2 đơn mỗi ngày công (`ORDERS_PER_DAY`). +14 XP.
+- Nhận đơn thì có hạn 8 phút; quá hạn thì đơn mới thay.
 
-- **04/11/2026 (3 slot, sao, lười, Auto — spec [crew-autoplay](../../shared/crew-autoplay.md)):** Quang chốt: farm và quán mỗi nơi 3 slot (nhiều robot được); robot 1 việc / ★, nhân viên 1 mảng, đa nhiệm theo cấp / tối đa ★★, có lười-mệt-ghét việc; người chơi mọi việc / ★★★; không ai làm trùng việc; chế độ Auto 3 lượt × 10 phút có bàn tay chỉ chỗ bấm. Đã code, chưa kiểm chứng.
+### Đơn quán (chỉ nơi có cả farm và quán)
 
-- **03/11/2026 (robot vs nhân viên, vòng 3):** Soát vòng 3 thấy hai chỗ áp đảo ở farm; người dùng chốt. (1) **Miễn trừ "thợ người duy nhất giữ đơn" chỉ áp khi farm có đúng 1 thợ (không robot, không người thứ hai) và chỉ miễn Nghỉ ốm; Mải chơi vẫn xảy ra.** Lý do: farm luôn có 2 đơn mở, nên luật cũ cho (người, robot) và (người, người) chia mỗi người một đơn né gần hết sự cố farm; giữ miễn ốm cho farm một người vì ốm là sự cố duy nhất làm đứt chuỗi đơn cả ngày công. (2) **Robot vườn speed 20 → 70, dexterity 40 → 70** — đảo câu "chậm hơn người ~20%" đã chốt ở vòng 1 (chỉ cho Robot vườn; robot quán vẫn chậm hơn ~20%). Lý do: robot chậm + chỉ làm tập con việc người + chênh lương nhỏ hơn giá trị tay hái → người thứ hai luôn hơn; nay robot làm việc vặt nhanh hơn người cấp 1 ~5–6% nhưng vẫn không trồng/bón/tỉa/hái, thành đánh đổi theo quy mô farm. Chỉ số/lương robot chỉnh theo số đo playtester (ngưỡng ở robot-staff mục 12) vì `balance-sim.mjs` chưa có mô hình thợ; không chặn triển khai.
+- Tự sinh khi farm có ít nhất 1 thợ. Mỗi ngày lịch (1 phút) bù cho đủ 2 đơn mở/đang chuyển: 252 g rồi 168 g hạt rang, hạn 8 phút (`refreshDaily`).
+- Quán có thể gọi thêm đơn 252 g, tối đa 4 đơn quán mở/đang chuyển (`act('cafe','order')`).
+- Đơn đã giao xoá sau 7 ngày lịch. Quá hạn thì đơn thành hết hạn.
+- **Chuyển về quán · 2 xu**: cần đủ hạt rang, 2 xu, kho quán còn chỗ (kho quán dùng cùng sức chứa với kho farm).
+- Chuyến hàng mất 10 s ÷ `efficiency(cấp Giao hàng)`. Giao đúng hạn được 5 sao, trễ 3 sao.
+- Chuyển hàng tự do (không theo đơn): tối đa 1000 g × `capacityScale(cấp Giao hàng)` mỗi chuyến, 2 xu (`act('cafe','ship')`).
 
-- **03/11/2026 (robot vs nhân viên, vòng 2):** Người dùng chốt thêm 3 điểm. (1) **Robot vườn dùng chung 2 chỗ thợ với người, tối đa 1 robot** — đảo câu "1 chỗ robot riêng" đã chốt ở mục ngay dưới. Lý do: `/balance-check` thấy chỗ riêng là chiến lược áp đảo (lương 15 xu/ngày công chỉ 1,3–2,2% thu mỗi vòng, ai cũng thuê, không phải chọn); dùng chung biến robot thành đánh đổi thật (rẻ, không sự cố nhưng mất một tay hái). Bớt được việc sửa mọi chỗ đếm "2 thợ" trong code. (2) **Gói trả trước chỉ cho Robot vườn**, chiết khấu sâu: 1/5/10 ngày công = 15/68/113 xu (gói 5 −10%, gói 10 −25%); robot quán thuê theo ca như người (3 xu/ca), không có gói. Lý do: gói ở quán chỉ tiết kiệm vài xu, thêm lựa chọn mà không thêm quyết định; ở farm gói lớn là cam kết giữ 1 trong 2 chỗ. (3) **Ly robot không làm mất combo** của người chơi. Kèm: gói tặng bù 500 ml sữa đặc và 1.500 g đá; dòng quà gộp vào toast mở khóa Nhân viên; «Giao đội làm đơn» bỏ qua người ốm.
+- Bảng Đơn hàng có 3 tab: Cần làm (chọn thợ) · Chờ chuyển (đủ hàng; Chuyển hết) · Đang chuyển. Đơn gần hạn xếp trước. Chi tiết đơn có 5 bước (`orders.js`).
 
-- **03/11/2026 (robot vs nhân viên, spec [robot-staff](../../shared/robot-staff.md), lúc ghi chưa triển khai; đã triển khai sau, đối chiếu code 04/11/2026):** Người dùng duyệt hệ thuê robot bên cạnh người. **Đảo một phần quyết định "cắt 6 mục" cùng ngày:** quyết định đó bỏ năng lượng/nghỉ/bồi dưỡng; nay thêm lại **nghỉ ốm hiếm** (~4%/ngày công, không mất lương) và mải chơi (~12%, tối đa 40 s, «Nhắc»). Lý do: robot rẻ hơn chỉ có nghĩa khi người có cái giá phải trông; không có sự cố thì người luôn hơn robot ở mọi mặt trừ lương. Vẫn không có năng lượng/nghỉ giữa ca/bồi dưỡng. Không cho tắt sự cố trong Cài đặt. ~~Farm thêm 1 chỗ robot riêng (ngoài 2 chỗ người)~~ (đã thay bằng mục vòng 2 bên dưới), robot là thợ chính. Quán: robot chỉ bưng/dọn, kiosk và máy espresso tự động đổi tên thành robot thu ngân/robot pha espresso; robot pha chỉ có trong gói thử một lần. Trường save mới: [contracts.md](../../shared/contracts.md) mục 6.
+Nơi chỉ có quán: hạt nhập 500 g giá 45 xu (`SUPPLIER_PRICE_CAFE_ONLY`; nơi khác 75). Hết hạt và hết xu thì nhận cứu trợ 300 g mỗi ngày công (`RELIEF_GRAMS`). Luật dùng hạt ở quán: xem màn 04.
 
-- **03/11/2026 (chốt 3 điểm còn treo của luồng người chơi mới):** (1) Quà thiên đàng "Bộ dụng cụ pha" đổi tên thành **"Gói mở rộng quán"**, tác dụng giữ nguyên (quán cấp 2, 4 bàn), id `tools` không đổi nên save cũ không cần chuyển; lý do: tên cũ hứa dụng cụ pha nhưng tác dụng thật là thêm bàn. (2) Nút **Quản lý gộp thành tab "Chỉ thị" trong Nhân viên**, menu dưới tối đa 6 nút, không cuộn ngang trên màn 360 px. (3) Giữ mức mẹo thiên đàng **+30 xu, +3 uy tín quán, ★ khởi đầu ở điểm 40** (không đủ ngưỡng barista ≥ 53, không vượt ngưỡng món 55). Kèm hai điều đã xác minh trong code: farm chưa có pinch zoom (gợi ý điều khiển không nhắc, không thêm tính năng); nút Cài đặt trùng có thật (`#game-settings-toggle` chung + nút Cài đặt farm) → trong farm chỉ giữ nút Cài đặt farm.
+## 8. Nhiệm vụ, XP và cấp
 
-- **03/11/2026 (luồng người chơi mới, spec [onboarding-flow](../../shared/onboarding-flow.md), đã triển khai 03/11/2026):** Người chơi thật nói "chả hiểu gì", thao tác khó. Người dùng chốt **thiên đàng là bài học**, không phải câu chuyện có thể bỏ qua: giữ 3 chuyên gia × 2 câu, nhưng câu đúng cho mẹo có số thật ở farm/quán, câu sai được hỏi lại sau (lý do: điểm đúng/sai trước đây không tác dụng gì, nên 2–3 phút thiên đàng là thời gian chết; giữ lại để dạy kiến thức thật, trụ cột 4). Thoại thiên đàng 32 → 23 hộp, gợi ý điều khiển ngay khi vào. Các luật đã chốt bị thay: (1) thứ tự nhiệm vụ — Bán ly đầu lên vị trí 2 (trước là 6) vì quán có sẵn 600 g hạt; (2) HUD mục 8 — mở dần theo mốc, Quản lý gộp vào Nhân viên, bỏ Thu mua/Thế giới, một nút Cài đặt, bảng Cần xử lý/Hoạt động gập sẵn cả desktop (trước: mở sẵn trên desktop); (3) mục 2 — dải công cụ chỉ mở từ ruộng 2, trước đó chạm cây = Tự chọn; (4) nhãn gửi hàng chốt «Chuyển về quán · 2 xu», bỏ "Nhận hàng · 2 xu". Gợi ý hội thoại hiện "Chạm để tiếp" trên cảm ứng. Hướng dẫn trong game phải viết lại theo luật 03/11 (còn nói đội dự bị, hợp đồng tuần, nghỉ giữa ca, máy xay farm). Trường save mới `farm.lessons`, `farm.tutorial` (contracts mục 5).
+Chuỗi gốc (`QUESTS`, theo thứ tự, mỗi mục một lần):
 
-- **03/11/2026 (cắt 6 mục để tập trung):** Người dùng chốt bỏ: (1) cá ở ao — ao chỉ còn là hồ nước cho giếng, cá cũ bán 8 xu/con; (2) máy xay ở farm và nhiệm vụ Xay — mẻ chờ trả hạt rang; (3) uy tín farm (chỉ số không tác dụng); (4) cấp tới 999 và 5 bậc → tối đa 20, 3 bậc (1/10/20), cấp cũ > 20 về 20; (5) nhiệm vụ cá nhân 6 phút và nút Nhiệm vụ; (6) hợp đồng tuần/tháng, năng lượng, nghỉ, bồi dưỡng, đội dự bị và kéo thả → thuê tối đa 2 thợ vào thẳng farm, lương theo ngày công, cho nghỉ việc bằng nút; người dư trong save cũ được hoàn phí tuyển. Bỏ luôn nâng cấp Phúc lợi nhân viên. Test chuyển save cũ: `tests/farm-gameplay.test.js` "saves from before the 03/11 cuts".
+| id | Việc | Đạt khi | Thưởng |
+|---|---|---|---|
+| `harvest` | Hái lứa đầu | hái 1 lần | 10 xu, 4 XP |
+| `serve` | Bán ly đầu ở quán | 1 ly tự pha | 15 xu, 6 XP |
+| `dry` | Phơi mẻ đầu | nhận 1 mẻ phơi | 10 xu, 4 XP |
+| `roast` | Rang mẻ đầu | nhận 1 mẻ rang | 10 xu, 4 XP |
+| `sell` | Bán ở Chợ | bán 1 lần | 15 xu, 6 XP |
+| `ship` | Gửi hạt rang về quán | chuyển hàng | 10 xu, 5 XP |
+| `expand` | Mua ruộng 2 | mua 1 ruộng | 10 xu, 5 XP |
+| `water` | Tưới | tưới 1 lần | 5 xu, 3 XP |
+| `weed` | Làm cỏ | làm cỏ 1 lần | 5 xu, 3 XP |
 
-- **03/11/2026 (hành trình người chơi):** `/design-review flow` phát hiện không nhiệm vụ nào dẫn sang quán (báo cáo ban đầu nói quán không có hạt là sai: save mới đã có lô 600 g `starter` trong quán). Thêm nhiệm vụ Gửi hạt/Bán ly đầu và gợi ý quán "Quán chưa có hạt rang · Về farm gửi hạt hoặc Nhập hạt ngoài" khi kho quán dưới 10 g.
+Theo loại nơi (`questsFor`):
+- Nơi chỉ nông trại bỏ `serve`, `ship`.
+- Nơi chỉ quán chỉ giữ `serve`.
+- Mỗi nơi thêm 2 nhiệm vụ riêng (`REGION_QUESTS`):
 
-- **03/11/2026 (trải nghiệm 5 phút đầu):** Chơi thử như người mới phát hiện nhiệm vụ 2 "Tưới" bị chặn ~6,5 phút (cây vừa hái còn 68% nước) và nhiệm vụ trạm không chỉ đường trên điện thoại. Sắp lại thứ tự nhiệm vụ, thẻ mục tiêu bấm được để tự đi tới, sửa mô tả bán (quầy thu mua đang ẩn → Cửa hàng → Chợ).
+| Nơi | Nhiệm vụ riêng (chỉ số ≥ số) |
+|---|---|
+| vn · br | 30 ly · giao 1000 g / phơi 1000 g · 40 ly |
+| co · ke · id | hái 15 lần · bán 1500 g hạt / rang 1000 g · bán 1000 g hạt / phơi 1500 g · 2 ruộng |
+| it · jp · us | 10 · 40 ly / 12 · 30 ly / 25 · 60 ly |
 
-- **03/11/2026 (cân bằng đo bằng mô phỏng):** `scripts/balance-sim.mjs` chạy chính `model.js` với người chơi mẫu (6 phút farm / ca quán 4 phút, tự mua ruộng và nâng cấp). Phát hiện và sửa: (1) phân bón bị áp đảo bởi "không bón" → 1 xu, hiệu quả +22%; (2) chợ bão hòa từ 2 ruộng khiến ruộng 3–4 gần vô giá trị → `MARKET_DAILY` 1200; (3) lệnh chế biến vượt hàng chờ bị từ chối cả gói làm kho nhân sạch kẹt (93.536 lần hái bị chặn trong 120 phút) → xếp phần vừa. Kết quả 120 phút: cấp 17–18, thu chợ ~9–10 nghìn xu, quán + thưởng ca ~1,5 nghìn, 54 mốc mở khóa, quãng trống dài nhất 6 phút.
+- Chỉ thao tác của người chơi được tính. Save cũ giữ `claimed`; đổi thứ tự không trả lại hay xoá thưởng.
+- **Thẻ mục tiêu** (HUD trái) hiện nhiệm vụ kế tiếp. Chạm thẻ: nhân vật đi tới đúng chỗ (cây cần việc, trạm, biển ruộng, công trình); nhiệm vụ Bán mở Sạp tab Chợ.
+- Lần đầu thẻ nhấp nháy, có dòng "Chạm để được dẫn đường" và mũi chỉ 3D. Tắt khi chạm thẻ lần đầu (cờ `quest-guide`) hoặc đã nhận `roast`; sau đó mũi chỉ hiện 6 s mỗi lần chạm.
+- Hết chuỗi: thẻ gợi ý việc tiếp theo (`freeGoal`). Thứ tự: gặp Hội đồng → hái → tưới → làm cỏ → nhận mẻ → gieo → mua ruộng → bán/phục vụ.
 
-- **03/11/2026 (thiết kế + mobile):** Chốt 2 điểm treo: hợp đồng tạm dừng khi vắng mặt; lương nhân viên quán theo ca 4 phút. Phân bón 8 → 4 xu, hạt nhập 50 → 75 xu/500 g, thêm món Phin cà phê mít (uy tín 55) cho cây mít. Mobile first: mức đồ họa mặc định theo thiết bị (máy yếu Thấp, cảm ứng Vừa, còn lại Cao), tự hạ một bậc trong lượt chơi khi dưới ~25 fps kéo dài (không lưu, không hạ nếu người chơi đã tự chọn; bỏ qua khung do trình duyệt kìm), gộp mesh cùng màu trên mỗi luống, điện thoại gập sẵn bảng Hoạt động/Cần xử lý và ẩn thẻ Hôm nay, bỏ MSAA trên điện thoại màn dày, giảm vẽ lại huy hiệu cây, bỏ deep clone mỗi khung hình.
+XP nông trại (`model.js`, `progression.js`):
 
-- **03/11/2026 (soát tài liệu):** Mục 1 sửa theo chỉ thị nông trại (thợ làm cả khi không có đơn). Bồi dưỡng thợ **vẫn còn** theo code (`workers/overtime`, bấm đồng vàng trên đầu thợ mệt, nửa giá ngày lương); câu "bỏ bồi dưỡng" ở mục nhân viên bước 2 bên dưới đã bị thay thế.
+| Nguồn | XP |
+|---|---|
+| Hái 1 cây | 6 |
+| Nhận mẻ | 4 mỗi mẻ |
+| Đơn Chợ | 14 |
+| Bán ở Chợ | ⌊xu/2⌋, trần 40/ngày công |
+| Ly tự pha bán được | 1 + số sao |
+| Mốc món ★★ / ★★★ | 15 / 30 (một lần) |
+| Ký ức cà phê | 3 (ly game) / 5 (ly thật), +5 có cảm nhận; trần 30/ngày công |
+| Giải mã | 20 |
 
-- **03/11/2026 (cân bằng 2):** Chợ hồi giá theo ngày công 6 phút (`MARKET_DAILY` 600) thay vì mỗi phút, để bán vặt mỗi phút không lời hơn bán dồn. Quán chưa có barista đang làm hoặc máy espresso tự động thì khách tới chậm thêm 4 giây, tránh người chơi tự pha bị quá tải rồi tụt uy tín.
+- Cấp 1–10 theo bảng `LEVEL_XP` (0, 30, 90, 190, 350, 600, 950, 1400, 2000, 2800).
+- Sau cấp 10: 2800 + 850 × (cấp − 10) + 50 × (cấp − 10)², tới 999 (`xpForLevel`).
 
-- **03/11/2026 (cân bằng):** Theo `/balance-check`: lương nhân viên quán trả theo ngày công 6 phút (`WORK_DAY_MS`) thay vì 60 giây (sau đó đổi sang ca 4 phút, xem mục "thiết kế + mobile"), vì đủ đội từng tốn 44 xu/phút > doanh thu quán; bán chợ bỏ giới hạn 99 g, XP theo xu nhận để chặn cày XP bằng bán 1 g; chợ giảm giá dần theo lượng bán trong ngày và khách quán tới nhanh gấp khoảng 2 lần để hạt farm có lý do sang quán (trụ cột hai màn phụ thuộc nhau).
+**Mục tiêu thắng kinh tế** (`economicStatus`, ghi một lần vào `victories.economic`):
+- Tài sản ≥ 300.000. Tài sản = xu + giá ruộng + tiền đã nâng cấp + thiết bị quán + đồ trang trí.
+- Nơi có farm thêm: đủ 4 ruộng.
+- Nơi chỉ nông trại thêm: mọi công trình farm cấp ≥ 15.
+- Nơi có cả hai thêm: uy tín quán ≥ 85.
+- Nơi chỉ quán: điều kiện riêng ở màn 04.
 
-- **02/11/2026:** Nâng cấp tới cấp 999 với đường cong giảm dần sau cấp 10; cấp nông trại tới 999; 5 bậc diện mạo có slot asset riêng.
+## 9. HUD và công trình
 
-- **02/11/2026 (nhân viên bước 2):** Hợp đồng Ngày/Tuần/Tháng trả trước, tự gia hạn, hết hạn dừng an toàn, bỏ bồi dưỡng, nghỉ giữa ca tự động.
+**Bố cục HUD** (`ui.js`, `hud-drawer.js`): trái là avatar, cấp, XP và thẻ mục tiêu; phải là ô xu (chạm: lia tới Sạp, mở tab Giống); dưới là 🎒 Kho và ≡ Quản lý. ≡ chứa Cửa hàng, Vào quán, Nâng cấp, Nhân viên, Đơn hàng, Xây dựng, Hướng dẫn, Cài đặt, Cần xử lý, Hoạt động. Nút Auto riêng.
 
-- **02/11/2026 (nhân viên bước 1):** Chỉ thị nông trại; thợ làm việc không cần đơn; chế biến theo tồn mục tiêu; ưu tiên theo độ khẩn và quãng đường; mang đầy bình. Xem [đề xuất](staff-ai-proposal.md).
+**Mở dần** (`HUD_UNLOCKS`). Mỗi mục mở khi bất kỳ điều kiện nào đúng; save cũ đã qua mốc thấy ngay, không toast.
 
-- **02/11/2026 (đợt sửa 3):** Hiện lại khung mục tiêu; thông báo nhiệm vụ/lên cấp; thông báo đủ câu; chế biến mặc định tối đa, sửa ô nhập số; Đến lấy hàng nhận luôn; Esc không đóng modal cha.
+| id | Mở khi | Ghi chú |
+|---|---|---|
+| `cafe-play` | Đã nhận `harvest`, hoặc đã bán ly, hoặc quán có doanh thu | Chỉ nơi có cả hai |
+| `seed-shop` | Tới nhiệm vụ `sell`, hoặc đã bán, hoặc có ô trống mà hết giống | |
+| `order-board` | Tới nhiệm vụ `ship`, hoặc đã có đơn | Chỉ nơi có cả hai |
+| `upgrades` | Cấp ≥ 2, hoặc có hạng mục > cấp 1 | |
+| `workers` | Đã nhận `expand`, hoặc có thợ, hoặc cấp ≥ 3 | Cùng lúc tặng Gói thử robot ở quán |
+| `build` | Đã nhận `weed`, hoặc có đồ trang trí, hoặc cấp ≥ 4 | |
+| `tools` | Đã nhận `expand`, hoặc có ≥ 2 ruộng, hoặc cấp ≥ 3 | Dải ⛏️ và kéo nhiều ô (trừ kéo-gieo) |
 
-- **02/11/2026 (đợt sửa 1):** Bỏ vốn thử cho save mới (200 xu); quà thiên đàng có tác dụng; nhiệm vụ cá nhân chu kỳ 6 phút, không trùng, không mất thưởng; đơn quán chỉ sinh khi có thợ chính, tối đa 2; tắt giữ hạt mặc định; việc của thợ không cộng nhiệm vụ cố định.
+- Mục vừa mở khi đang chơi: chấm "Mới" + toast một dòng. Cờ đã báo: `unlock-<id>` trong `tutorial.seen`.
+- Cần xử lý và Hoạt động gập sẵn, tiêu đề có số mục. Mục khẩn (hết xu trả lương, kho đầy) làm tiêu đề nháy.
+- Toast ở giữa phía trên, tự tắt sau 3 s, không chặn thao tác. Hoàn thành nhiệm vụ và lên cấp đứng đầu.
 
-- **02/11/2026:** Tách nhiệm vụ cá nhân, đơn quán và Chợ; đội nhiều người/2 thợ chính; kéo đổi đội; hồ sơ/đào tạo/thiết lập và lương; xác nhận giao dịch; chọn lượng tối đa 99; ba tab đơn; tiến độ/nhận mẻ riêng hoặc tất cả; nâng cấp tại công trình; HUD, đồng vàng, modal và thông báo thống nhất. Ghi nhận chưa thay luật chạy mẻ tuần tự.
+**Công trình thay nút** (`BUILDINGS`, `syncBuildings`):
+
+| Công trình | id | Mốc | Chạm |
+|---|---|---|---|
+| Cửa quán | `cafe-entrance` | `cafe-play` | Đi tới thảm cửa rồi vào quán; ra quán đứng trên thảm |
+| Bảng đơn | `order-board` | `order-board` | Mở Đơn hàng tại chỗ |
+| Sạp ven đường | `seed-shop` | `seed-shop` | Mở Cửa hàng 3 tab Giống / Vật tư / Chợ tại chỗ |
+| Nhà thợ | `crew-house` | `workers` | Mở Nhân viên 4 tab tại chỗ |
+
+- Hiện khi mốc mở hoặc đã có cờ `unlock-<id>`; đã hiện thì không ẩn lại. Nơi chỉ nông trại không có Cửa quán và Bảng đơn.
+- Mở lúc đang chơi: công trình trồi lên, có hạt sáng, mũi tên chỉ 6 s và toast "Đã dựng…". Biển ✨ Mới tới lần dùng đầu (cờ `unlock-<id>-used`).
+- Mốc tới giữa tutorial ép: chờ xong, toast "xong hướng dẫn" trước, 3 s sau mới dựng.
+- Chạm Sạp, Bảng đơn, Nhà thợ: nhân vật quay mặt về vật, không đi bộ; huỷ việc tay đang làm.
+- Lối tắt từ xa (≡, thẻ mục tiêu, ô xu, Cần xử lý, «Thuê robot thay»): lia camera tới công trình (650 ms) rồi mở; đóng thì camera về nhân vật.
+
+Huy hiệu:
+- Sạp `!` và cờ đỏ khi hết giống mà còn ô trống.
+- Bảng đơn: `✓` khi có đơn giao được; không thì số đơn chờ; số tờ giấy trên bảng = số đơn chờ (≤ 4).
+- Nhà thợ: ghế có bóng thợ đang tạm dừng (≤ 2).
+- Cửa quán sáng đèn khi quán mở.
+- `⬆` trên trạm, giếng, ao khi vừa đủ cấp vừa đủ xu nâng (`upTag`). Giếng bình đầy mà có ⬆ thì chạm mở khối nâng cấp giếng.
+
+**Cổng Hội đồng** (`council`):
+- Ẩn tới khi chuyên gia đầu có mặt, rồi trồi lên. Ba bệ hiện bóng chuyên gia đã có mặt; có người chờ thì có cầu sáng và biển «Mới».
+- Chạm mở hội thoại đáy màn tại chỗ, không đi bộ. Đang làm việc tay thì báo bận (Auto thì vẫn mở).
+- Chuyên gia có mặt (`councilCheck`):
+  - Nông: xong `farm-intro` và đã hái.
+  - Pha Chế: đã bán ly (nơi chỉ nông trại: đã bán ở Chợ).
+  - Thương Hội: sau ca quán thường đầu tiên (nơi chỉ nông trại: ngày công kế tiếp sau khi Pha Chế có mặt).
+- Mỗi lượt gặp 1 chuyên gia với các câu chưa gặp.
+- Đúng: nhận mẹo. Sai: hỏi lại sau, tối đa 1 câu mỗi ngày công, hoặc ôn ở Sổ tay.
+- Mẹo có tác dụng ở farm: `ripe` hái tay +5 chất lượng, `water` bình +2 lượt, `costs` +30 xu. Mẹo còn lại tác dụng ở quán.
+
+## 10. Tutorial và gợi ý lần đầu
+
+**Tutorial ép `farm-intro`** (`intro.js`, `syncIntro`). Save mới bị dẫn 4 bước. Chỉ dẫn gồm bàn tay chỉ, viền sáng/mũi chỉ 3D trên đích và một dòng chữ. Bước suy ra từ state, không lưu bước dở.
+
+| Bước | Dẫn | Xong khi |
+|---|---|---|
+| Gieo | Chạm 1 ô trống, chọn túi hạt; sau đó kéo túi hạt qua 2 ô liền kề | Có 3 cây con (`INTRO_SOW`), hoặc ô trống còn ≤ 1, hoặc hết hạt |
+| Hái | Chạm cây chín | `stats.harvested ≥ 1` |
+| Phơi | Chạm sân phơi, «Bắt đầu»; xong thì chạm giỏ nhận | `stats.dried ≥ 1` |
+| Rang | Như phơi, ở lò rang | `stats.roasted ≥ 1` |
+
+- Save mới có 8 cây quà ở ruộng 1: 4 cây chín, 4 cây đang lớn; còn 4 ô trống.
+- Ở bước gieo, chạm cây quà chín không hái, chỉ nhắc lại chỉ dẫn.
+- Trong lúc ép:
+  - Khoá Vào quán, Cửa hàng, ô xu, thẻ mục tiêu, các công trình.
+  - Ẩn nút Auto (không trừ lượt).
+  - Không hỏi lại câu Hội đồng; toast mở khoá chờ tới khi xong.
+- Không kẹt: bước không làm được thì bỏ ép và ghi xong. Ví dụ: hết hạt, hết cây chín, trạm không đủ nguyên liệu cho 1 mẻ.
+- Save đã chơi qua (đã bán, giao, mở ruộng, hoặc đã phơi và rang) coi như xong (`introPlayed`).
+- Save cũ thiếu dấu `farm-intro-new`, hoặc nơi chỉ quán: không ép.
+- Xong: toast "Xong bước đầu", các nút trở lại bình thường.
+
+**Gợi ý điều khiển lần đầu** (cờ `controls`):
+- Khung nhỏ theo thiết bị: chuột (bấm đất, WASD, cuộn, kéo) hoặc cảm ứng (joystick, chạm cây, kéo màn).
+- Tắt khi đã đi > 1 đơn vị và làm xong một việc, sau 15 s, hoặc bấm ×. Không hiện lại.
+
+**Dải ⛏️ lần đầu** (cờ `tools`): một dòng hướng dẫn kéo. Tắt sau lần thả công cụ ⛏️ đầu; kéo-gieo không bật cờ này.
+
+## 11. Nhân viên farm
+
+### Slot và việc
+
+| | Người | Robot vườn |
+|---|---|---|
+| Ứng viên | An, Bình, Chi, Dũng, Hà, Linh, Minh, Nam | `robo-n1`…`robo-n3` |
+| Phí tuyển | 150–180 xu | 0 |
+| Lương mỗi ngày công | 30 + 10 × (cấp − 1) xu | 15 xu cố định |
+| Trả trước | 1 ngày công | Gói 1 / 5 / 10 ngày công = 15 / 68 / 113 xu |
+| Việc | 1 mảng; cấp 4 → 2 mảng; cấp 7 → cả 3 | Đúng 1 việc: tưới, làm cỏ, chế biến hoặc giao |
+| Cấp | 1–10; đào tạo 40 × cấp xu; mỗi cấp +2 mọi chỉ số; +5 XP mỗi việc xong | Luôn cấp 1, không đào tạo |
+| Sự cố, lười | Có | Không |
+
+Nguồn: `WORKER_CANDIDATES`, `workerWage`, `packPrice`, `groupLimit`, `activeJobs`.
+
+- Farm có 3 slot chung, trộn người/robot tuỳ ý (`FARM_SLOTS = 3`). Thuê là vào làm ngay; không có đội dự bị.
+- Mảng việc: chăm cây (trồng, tưới, bón, làm cỏ, tỉa, hái) · chế biến · giao hàng.
+- Thuê mới tự nhận mảng (người) hoặc việc (robot) mà đội đang thiếu.
+- Bật mảng vượt giới hạn cấp thì bị từ chối. Robot bật việc mới thì việc cũ tự tắt.
+- Robot không trồng, bón, tỉa, hái. Robot vẫn tính là thợ để farm nhận đơn quán.
+- Robot speed 70, dexterity 70: nhanh hơn Nam cấp 1 khoảng 5–6% ở việc vặt; Nam bằng robot ở cấp 6, vượt từ cấp 7.
+- Cho nghỉ việc (× trên ô thợ hoặc trong hồ sơ): không hoàn phí tuyển và ngày đã trả. Người đã cho nghỉ không thuê lại được; robot thì được.
+- Lương tự trả khi còn < 30 s nếu bật Tự gia hạn (mặc định bật) và đủ xu. Trả thêm thì cộng dồn từ lúc hết hạn. Thất bại thì thử lại mỗi 10 s.
+- Hết hạn: thợ dừng an toàn, trả lại việc đang giữ, Cần xử lý báo gia hạn.
+- Vắng mặt (tắt game/ẩn tab > 60 s): thời gian đã trả và ngày ốm được dời, không tiêu.
+- Tốc độ đi = 0,75 + 0,5 × speed/100. Tốc độ làm = 0,7 + 0,35 × speed/100 + 0,25 × dexterity/100 (`crew.js`).
+
+### Chỉ thị nông trại
+
+Tab Chỉ thị trong Nhân viên (`directives`, mặc định bật hết):
+- Tự chăm vườn.
+- Trồng lấp ô trống (chọn giống).
+- Dùng phân bón.
+- Tự chế biến: phơi hết quả chín; chỉ rang đủ đơn đang mở và phần quán thiếu.
+
+Thợ làm theo chỉ thị cả khi không có đơn. Đơn quán chỉ cộng ưu tiên cho người phụ trách.
+
+### Chia việc và di chuyển
+
+- Phân công lại mỗi 0,65 s hoặc khi dữ liệu đổi (`crew.js`).
+- Mỗi thợ rảnh lấy 6 việc điểm cao nhất. Duyệt mọi cách gán cho tối đa 3 thợ, không hai người cùng mục tiêu; chọn tổng điểm cao nhất.
+- Điểm = ưu tiên × 10 + thưởng chờ lâu (≤ 36) + 15 nếu thuộc đơn được giao + 2 nếu đúng vai + kỹ năng/100 − 1,2 × thời gian đi + 8 nếu đứng sát; thêm 25 cho bắt đầu mẻ khi kho còn < 15%.
+- Việc ngoài mảng đang bật bị loại.
+- Bảng giữ chỗ chung (`reserve`): thợ không nhận việc người khác giữ và nhường việc người chơi đang đi tới.
+- Vùng cây (≥ 2 thợ đang làm): đủ ruộng thì mỗi người một ruộng, không thì chia cột. Thợ khác chỉ vào vùng khi chủ vùng không làm được việc đó.
+- Bị người chặn: người rảnh tránh sang bên. Chặn > 0,8 s thì đi xuyên người 1,2 s; đứng chờ người > 1,5 s thì xuyên 1,5 s. Không bao giờ xuyên tường, rào.
+- Kẹt vật cố định quá 3 lần tính lại đường thì bỏ việc 4 s.
+
+### Lười, mệt (chỉ người; `shared/game/morale.js`)
+
+- Năng lượng E 0–100, sống theo phiên. Tính cách cố định theo id (1 : 2 : 1): siêng (gốc 0,02, hao × 0,8) · thường (0,05, × 1) · lười (0,14, × 1,3). Mỗi người ghét 1 mảng.
+- Mỗi việc xong E −1,5 × hệ số hao; rảnh E +0,1/s; nghỉ mệt xong +30.
+- Đầu mỗi việc quay: p = gốc + 0,4 × (1 − E/100)² + 0,15 nếu mảng ghét, trần 0,6. Trúng thì nghỉ: 😮‍💨 mệt (E < 35) 10 s · 🙅 ghét việc 3 s · 🥱 lười 8 s.
+- Mệt làm chậm: thời gian × (1 + 0,4 × (1 − E/100)), tối đa × 1,4.
+
+### Sự cố (chỉ người)
+
+Quay 1 lần khi trả mỗi ngày công (`signContract`, `rollIncident`).
+
+| Sự cố | Xác suất gốc | Khi nào | Tác dụng |
+|---|---|---|---|
+| Mải chơi 📱 | 0,12 | 20–80% ngày công | Đứng yên, nhả việc, tối đa 40 s. «Nhắc» (chạm thợ hoặc trên toast) cho làm lại ngay |
+| Nghỉ ốm 🤒 | 0,04 | Đầu ngày công | Nghỉ trọn 1 ngày công, không mất lương (hạn đã trả dời thêm 1 ngày) |
+
+- Xác suất × max(0,4; 1 − 0,07 × (cấp − 1)) (`INCIDENTS`, `incidentOdds`).
+- Không có sự cố khi:
+  - Thợ mới ở 2 ngày công đầu.
+  - Người chơi đang ở quán.
+  - Uy tín quán < 30.
+  - Thời điểm sự cố đã qua > 10 s mà farm không chạy (huỷ, không dời).
+- Nghỉ ốm được miễn khi farm chỉ có đúng 1 thợ và thợ đó đang giữ đơn quán mở.
+- Thợ ốm vẫn trả lương tay được; trạng thái ốm giữ qua tải lại.
+- «Giao đội làm đơn» bỏ qua người đang ốm.
+- «Thuê robot thay» hiện khi farm còn slot trống (`canHireRobotCover`); bấm thì lia tới Nhà thợ và mở tab Robot.
+
+Modal Nhân viên có 4 tab: Farm hiện tại · Người · Robot · Chỉ thị. Chạm đúng hình thợ trên bản đồ mở hồ sơ.
+
+## 12. Chế độ Auto
+
+- 3 lượt miễn phí × 10 phút (`AUTOPLAY`); giờ chỉ trôi khi Auto chơi. Chỉ ⏸ hoặc hết giờ mới dừng.
+- Khi bật: camera vẫn kéo/zoom được; chạm bản đồ, joystick, phím di chuyển bị bỏ qua; chạm thợ và công trình vẫn mở tại chỗ (Cửa quán vào thẳng). Mở modal không dừng Auto; Auto không đóng cửa sổ người chơi mở.
+- Auto đi bằng luồng chạm thật của người chơi, nên luật và nhiệm vụ tính như tự làm (nguồn `via:'auto'` chỉ dùng cho mẫu giải mã).
+- Việc ruộng/trạm (`pickAutoTask`): điểm = ưu tiên × 10 − 1,2 × khoảng cách. Ưu tiên: hái 6 · nhận mẻ 5 · tưới, lấy nước 4,5 · đảo 4 · bắt đầu mẻ 3,5 · làm cỏ 3 · trồng 2,5 · bón 2 · tỉa 1. Bỏ việc thợ đang giữ; trạm có ≥ 3 mẻ chờ thì không xếp thêm.
+- Hậu cần khi hết việc ruộng (`pickAutoErrand`), bàn tay chỉ vào công trình trước khi làm: (1) chuyển đơn quán đủ hàng · (2) giao đơn Chợ · (3) kho quán < 400 g thì gửi hạt rang dư (nơi chỉ nông trại: bán hạt rang dư) · (4) hết giống mà còn ô trống thì mua giống (giữ 20 xu, ≤ 12 hạt). Hạt dư = hạt rang trừ lượng đơn đang mở, cần ≥ 100 g.
+- Auto không nâng cấp, không thuê, không tự đổi cảnh, không trả lời câu Hội đồng. Việc thất bại nghỉ 15 s.
+
+## 13. Nâng cấp
+
+Giá cấp L → L+1:
+- L < 10: ⌈gốc × 1,42^(L−1)⌉.
+- L ≥ 10: ⌈gốc × 1,42⁹ × (1 + 0,15 × (L − 10))²⌉ (`upgradePrice`).
+- Lên cấp N cần nông trại cấp N.
+- Cấp tối đa 20, riêng Quán 10 (`ASSET_MAX_LEVEL`). Cấp nông trại vẫn tới 999.
+
+Hệ số (`rules.js`):
+- Tốc độ `efficiency` = 1 + 0,07 × (cấp − 1), × 2,33 ở cấp 20.
+- Sức chứa `capacityScale` = 1 + 0,18 × (cấp − 1), × 4,42 ở cấp 20.
+
+| Hạng mục | id | Giá gốc | Tác dụng |
+|---|---|---|---|
+| Đất | `soil` | 90 | Nước giảm chậm (÷ tốc độ) |
+| Hàng rào | `fence` | 80 | Độ bền giảm chậm |
+| Ao | `pond` | 100 | Bể giếng 60 × sức chứa |
+| Giếng | `well` | 60 | Bình +4 lượt/cấp, bể hồi nhanh hơn |
+| Dụng cụ | `tools` | 75 | Thao tác người chơi nhanh hơn |
+| Sân phơi | `dryer` | 100 | Mẻ nhanh hơn, chứa nhiều hơn |
+| Lò rang | `roaster` | 160 | Mẻ nhanh hơn, chứa nhiều hơn |
+| Kho | `storage` | 90 | 60 kg × sức chứa |
+| Giao hàng | `delivery` | 100 | Chuyến nhanh hơn, chở nhiều hơn |
+| Quán | `cafe` | 140 | Số bàn 3 → 10 (tối đa cấp 10) |
+
+- Diện mạo theo bậc: Cơ bản (cấp 1), Cải tiến (10), Chuyên nghiệp (20). Mỗi bậc một slot `farm/<id>/tier-<n>`.
+- Nâng cấp mở ở mục Nâng cấp trong ≡ và ngay trong modal từng trạm, kho, giếng, ao, quán.
+
+## 14. Xây dựng trang trí
+
+| Món | Giá | Thời gian xây |
+|---|---|---|
+| Bồn hoa `flowers` | 25 xu | 5 s |
+| Đèn vườn `lamp` | 40 xu | 6 s |
+| Biển tên `sign` (≤ 24 ký tự) | 30 xu | 5 s |
+
+Nguồn: `DECORATIONS`, `decorationError`, `act('decorations')`.
+
+- Đặt: bóng xanh/đỏ, xoay (nút/R), huỷ (nút/Esc); bấm đất chốt chỗ, xác nhận mới trừ xu.
+- Không đặt: cách mép vùng < 1, cách ruộng < 1, cách đường < 1,15, trong 3,5 m quanh trạm/công trình (`nearBuilding`; nơi không có quán bỏ vùng của Cửa quán, Bảng đơn), cách món khác < 1,3, đã đủ 100 món.
+- Xây: nhân vật tới khung thi công, chỉ cộng tiến độ khi đứng gần. Món xong là vật cản. Phá dỡ có xác nhận, 3,5 s, không hoàn xu. Chưa di chuyển được món.
+- Save cũ có món trong vùng cấm: tự dời tới chỗ hợp lệ gần nhất; hết chỗ thì hoàn đủ giá (`relocateDecorations`).
+- Trang trí không cộng năng suất.
+
+## 15. Save mới và quà
+
+Save mới (`createFarm`):
+- 200 xu, 6 hạt vối, 6 phân, bình 6 lượt, bể giếng 60.
+- Ruộng 1 có 8 cây quà (4 chín, 4 đang lớn).
+- Kho quán có sẵn 600 g vối rang + 300 g chè rang (chất lượng 70).
+
+Quà khởi đầu (áp một lần, cờ `giftApplied`):
+- Save mới luôn nhận Túi hạt giống: +6 hạt vối, +6 phân.
+- Quà `tools` (Gói mở rộng quán, quán lên cấp 2) và `capital` (+150 xu) chỉ còn ở save cũ.
+- Quà không dùng được ở loại nơi đổi thành +150 xu.
+
+Lưu và an toàn:
+- Mỗi thao tác thành công lưu ngay; ngoài ra lưu mỗi ≥ 5 s.
+- Mọi tiền, hàng, lương đi qua `act` của model. Hover, đổi tab hay mở xác nhận không trừ gì.
+- Trần xu 5 × 10¹³. Không tự reset kho, tiền, ruộng, mẻ khi tải.
+- Đồng hồ máy lùi > 60 s: mọi mốc giờ dời theo, bộ đếm giữ thời gian còn lại.

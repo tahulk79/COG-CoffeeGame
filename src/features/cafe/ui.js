@@ -128,7 +128,7 @@ export function createCafeUI({ farm, service, awakening = null, profile, pending
   leftHud.append(quest, ops);
   const rail = el('div'); rail.id = 'cafe-rail'; rail.setAttribute('aria-label', t('cafe.rail')); document.body.append(rail);
   const toggle = tile('🚪', t('cafe.nav.open'), () => { const r = service.toggleOpen(); notice(r.message, r.ok); refreshHud(); });
-  // HUD v2 (docs/shared/design-system.md §6): bar = Mở cửa, Kho, Nông trại, Quản lý; the rest sits in the drawer.
+  // HUD v2 (docs/design/godbean-gdd.md §11): bar = Mở cửa, Kho, Nông trại, Quản lý; the rest sits in the drawer.
   const nav = el('nav'); nav.id = 'cafe-main-nav'; nav.setAttribute('aria-label', t('cafe.nav.label'));
   nav.append(toggle, tile('🧺', t('cafe.nav.pantry'), () => openPantry(), true), ...(onExit ? [tile('🌱', t('cafe.nav.farm'), onExit)] : [])); // chỉ có quán: không có nút về nông trại
   document.body.append(nav);
@@ -261,7 +261,7 @@ export function createCafeUI({ farm, service, awakening = null, profile, pending
     });
   }
 
-  // "Nguyên liệu đang dùng": one milk and one water for every drink (04-cafe/gameplay.md "Sữa và nước"). Big tap targets.
+  // "Nguyên liệu đang dùng": one milk and one water for every drink (04-cafe/rules.md "Sữa và nước"). Big tap targets.
   function prefsCard(cafe, rerender) {
     const card = el('section', 'cafe-prefs');
     card.append(el('h3', 'cafe-subhead', t('crew.prefs.title')), el('p', 'cafe-note', t('crew.prefs.note')));

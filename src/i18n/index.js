@@ -1,4 +1,4 @@
-// Đa ngôn ngữ (docs/shared/i18n.md). Ngôn ngữ cố định trong một lần tải trang: đổi ngôn ngữ thì lưu rồi tải lại,
+// Đa ngôn ngữ (docs/design/godbean-gdd.md §13.6). Ngôn ngữ cố định trong một lần tải trang: đổi ngôn ngữ thì lưu rồi tải lại,
 // nên t() gọi ở cấp module (hằng số, bảng nội dung) vẫn đúng.
 import html from './locales/html.js';
 import common from './locales/common.js';

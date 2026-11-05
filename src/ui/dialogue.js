@@ -26,7 +26,7 @@ export function showDialogue(beat, player) {
   setAvatar({ reaper: '☠', player: 'player', medic: '✚', narrator: '✦' }[role]);
 }
 
-// Speaker badge from the game icon set (docs/shared/design-system.md §4); portraits rendered from the 3D models can replace these later.
+// Speaker badge from the game icon set (docs/design/godbean-gdd.md §11); portraits rendered from the 3D models can replace these later.
 const AVATARS = { player: 'person', '☠': 'skull', '✚': 'medic', '✦': 'star', '❧': 'sprout', '☕': 'cup-hot', '₫': 'coin', '▤': 'ticket' };
 export function setAvatar(glyph) {
   document.getElementById('dialogue-avatar').replaceChildren(AVATARS[glyph] ? icon(AVATARS[glyph]) : glyph);

@@ -1,4 +1,4 @@
-// F-35 §6 "Awaken": what each Key opens (docs/shared/decode-awaken.md). Pure helpers: information and tools only, no economy number is read
+// F-35 §6 "Awaken": what each Key opens (docs/design/godbean-gdd.md §9.5). Pure helpers: information and tools only, no economy number is read
 // or changed here (keys never alter yield, price, quality or speed). UI files gate every unlock with hasKey().
 import { regionCrop } from '../farm/rules.js';
 import { TASTE_KEYS } from '../../state/memory.js';

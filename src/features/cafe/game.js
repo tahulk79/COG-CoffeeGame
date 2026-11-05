@@ -669,7 +669,7 @@ export function createCafeGame({ farm, ui, awakening = null, onMenu, onExit, pro
   const autoOn = () => performance.now() - autoLive < 300;
   const playerWindow = () => ui.modalOpen || (cafeUi.open && !['bench', 'shift'].includes(cafeUi.view));
   const blocked = () => isSettingsOpen() || (autoOn() ? cafeUi.open && cafeUi.view === 'bench' : ui.modalOpen || cafeUi.open || Boolean(council?.isOpen()));
-  // ---- Auto mode (docs/shared/crew-autoplay.md 5): plays the owner through the real controls, never a job staff already hold ----
+  // ---- Auto mode (docs/design/godbean-gdd.md §8.4): plays the owner through the real controls, never a job staff already hold ----
   let autoGoal = null, autoWait = 0, noBrewUntil = 0, autoIncident = null, autoDoing = null, autoErrandAt = 0;
   const spot = id => { const item = interactions.find(entry => entry.id === id); return item && screenAt({ x: item.position[0], z: item.position[1] }); };
   const wanting = recipeId => service.customers.find(c => c.recipeId === recipeId && ['seated', 'toSeat', 'pickup', 'toPickup'].includes(c.phase));
@@ -708,7 +708,7 @@ export function createCafeGame({ farm, ui, awakening = null, onMenu, onExit, pro
   }
   // Show the hand on a control for ~1 s, then tap it, so the player sees where to press.
   const autoPress = (hud, element, text, delay = 1100) => hud.tap(element, text, delay);
-  // The bench (Auto): tap ⚡ Pha nhanh, wait, carry the cup. Auto never plays the hand steps (04-cafe/gameplay.md "Pha nhanh").
+  // The bench (Auto): tap ⚡ Pha nhanh, wait, carry the cup. Auto never plays the hand steps (04-cafe/rules.md "Pha nhanh").
   function autoBench(hud) {
     const root = document.getElementById('cafe-dialog');
     if (!root?.open) { hud.show(null, t('crew.auto.waitModal')); return; }

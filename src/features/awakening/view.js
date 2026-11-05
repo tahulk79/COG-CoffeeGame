@@ -1,4 +1,4 @@
-// F-35 UI read model (docs/shared/decode-awaken.md §8): pure helpers, no DOM, no storage. The panels in ui.js stay thin.
+// F-35 UI read model (docs/design/godbean-gdd.md §9.5): pure helpers, no DOM, no storage. The panels in ui.js stay thin.
 import { FRAGMENT_TYPES, KEY_OF, KEY_DIMENSION, FRAGMENTS_PER_MESSAGE } from './rules.js';
 
 const ORDER = { ready: 0, trying: 1, open: 2, solved: 3, locked: 4 };

@@ -1,4 +1,4 @@
-// F-36 (docs/shared/progression.md): Mastery XP rules and the two victories. Pure data + functions, no DOM.
+// F-36 (docs/design/godbean-gdd.md §9.1): Mastery XP rules and the two victories. Pure data + functions, no DOM.
 import { FIELDS } from './content.js';
 import { DECORATIONS } from './decorations.js';
 import { ASSETS, upgradePrice } from './rules.js';

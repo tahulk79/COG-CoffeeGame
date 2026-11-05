@@ -1,4 +1,4 @@
-// Coffee Notebook modal (F-33 Memory + F-34 Quick Taste), spec: docs/shared/coffee-memory.md.
+// Coffee Notebook modal (F-33 Memory + F-34 Quick Taste), spec: docs/screens/04-cafe/rules.md.
 // Own <dialog> (stacks above the bench dialog, so closing it returns to the cup result). Scientist mode is a later unlock: only Quick/Journal here.
 import { CROPS } from '../farm/content.js';
 import { recipeById } from './recipes.js';

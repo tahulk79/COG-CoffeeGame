@@ -1,4 +1,4 @@
-// Coffee Memory storage (F-33/F-34), spec: docs/shared/coffee-memory.md. Key `godbean-memory`, separate from the progress save.
+// Coffee Memory storage (F-33/F-34), spec: docs/screens/04-cafe/rules.md. Key `godbean-memory`, separate from the progress save.
 // Pure data + limits; no DOM. Private text (notes, memory, insight) never goes into events (spec §9).
 import { MEMORY_KEY } from './storage-keys.js';
 import { isReadOnly } from './progress.js';

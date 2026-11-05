@@ -1,4 +1,4 @@
-// F-35 Decode & Awaken core. Spec: docs/shared/decode-awaken.md (§2-§5, §7, §9). Pure logic: no DOM, no storage, no economy.
+// F-35 Decode & Awaken core. Spec: docs/design/godbean-gdd.md §9.5. Pure logic: no DOM, no storage, no economy.
 // Everything is derived from player-made data handed in through `ctx`; nothing here can grant a Fragment/Key on its own.
 //   ctx = { workDayMs, harvests[], batches[], floorDays[], shifts[], plots[], mastery{}, entries: () => oldest-first memory entries | null }
 import { STEP_TOLERANCE, TASTE_KEYS } from '../../state/memory.js';

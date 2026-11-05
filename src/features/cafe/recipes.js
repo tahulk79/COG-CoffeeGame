@@ -130,7 +130,7 @@ export const TABLE_LEVELS = [
 ].map((level, i) => ({ name: L(`table.${i}`), ...level, detail: L(`tableDetail.${i}`) }));
 // A cup the owner brews by hand sells at OWN_CUP × the base price (cafe-fun-review P2): skill keeps paying late game.
 export const OWN_CUP = 2;
-// F-42 owner pricing (04-cafe/gameplay.md): per-recipe price factor p, only changed while the café is closed.
+// F-42 owner pricing (04-cafe/rules.md): per-recipe price factor p, only changed while the café is closed.
 export const PRICE_MIN = .8, PRICE_MAX = 1.3, PRICE_STEP = .05, GREEDY_P = 1.2;
 export const clampPrice = p => Number.isFinite(p) ? Math.round(Math.max(PRICE_MIN, Math.min(PRICE_MAX, p)) * 20) / 20 : 1; // 20 = 1 / PRICE_STEP
 export const priceOf = (prices, id) => clampPrice(prices?.[id] ?? 1);
@@ -255,9 +255,9 @@ export const RECIPES = [
 export const recipeById = id => RECIPES.find(recipe => recipe.id === id);
 // Who brews caps the stars (crew-autoplay.md 3): robot ★ (fixed 50 pts), staff at most ★★, only the owner reaches ★★★.
 export const STAR_CAP = { robot: 1, staff: 2, player: 3 };
-// ⚡ Quick brew (04-cafe/gameplay.md "Pha nhanh"): 6 s, score = your best hand score on the drink kept within 40–90 (★ until you brew ★★ by hand, chốt 04/11).
+// ⚡ Quick brew (04-cafe/rules.md "Pha nhanh"): 6 s, score = your best hand score on the drink kept within 40–90 (★ until you brew ★★ by hand, chốt 04/11).
 export const QUICK_MS = 6000;
-// 🤖 Auto pha (04-cafe/gameplay.md): watch every step done right for a fee; demo cap keeps the cup at ★★ (score 80).
+// 🤖 Auto pha (04-cafe/rules.md): watch every step done right for a fee; demo cap keeps the cup at ★★ (score 80).
 export const AUTO_BREW_COST = 2;
 export const quickScore = best => Math.max(40, Math.min(90, best || 0));
 // Cup freshness: hot 60 s, iced 90 s; colder than that −1★/−30%, twice that thrown away.
@@ -278,7 +278,7 @@ export function lockReason(recipe, cafe) {
   return lock.gear ? L('lock.gear', { name: lock.gear }) : L('lock.rep', { rep: lock.rep });
 }
 
-// Milk brands and brew water (04-cafe/gameplay.md "Sữa và nước"): the Pantry picks one milk and one water for every drink.
+// Milk brands and brew water (04-cafe/rules.md "Sữa và nước"): the Pantry picks one milk and one water for every drink.
 export const MILKS = ['milk-meiji', 'milk-dalat'];
 export const WATERS = ['tap', 'lavie'];
 export const BRAND_QUALITY = { 'milk-meiji': 4, 'milk-dalat': 2, tap: -3, lavie: 2 };
