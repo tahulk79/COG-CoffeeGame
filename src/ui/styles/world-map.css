@@ -1,0 +1,57 @@
+/* Bản đồ thế giới (docs/screens/02b-world-map/README.md): lớp phủ trên canvas, chỉ nút nhận chạm.
+   Màu loại khớp TYPE_COLOR trong world-map/content.js (vàng = trồng + quán, xanh = chỉ trồng, đỏ đất = chỉ quán); chỉ dùng sau khi đã chốt nơi. */
+body.world-map-open #heaven-hud,body.world-map-open #heaven-controls,body.world-map-open #heaven-toast,body.world-map-open #caption-box{display:none!important}
+#world-map{--type-both:#e0a93a;--type-farm:#5f9a3c;--type-cafe:#b5523a;position:fixed;inset:0;z-index:30;pointer-events:none;animation:world-map-in .45s ease-out;color:var(--ui-ink)}
+@keyframes world-map-in{from{opacity:0}to{opacity:1}}
+.world-map__header{position:absolute;left:50%;top:max(12px,env(safe-area-inset-top));transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:6px;max-width:calc(100% - 140px)}
+.world-map__title{margin:0;padding:6px 18px;border:2px solid var(--ui-cream-edge);border-radius:999px;background:var(--ui-panel-image),var(--ui-cream);box-shadow:inset 0 2px var(--ui-shine),0 3px 0 var(--ui-cream-drop);font-size:var(--fs-title);white-space:nowrap}
+.world-map__chip{display:inline-flex;align-items:center;gap:4px;padding:2px 9px 2px 4px;border-radius:999px;background:var(--ui-hud-bg);border:2px solid var(--chip,var(--type-both));font:700 12px/1.3 var(--game-font);white-space:nowrap}
+.world-map__chip.is-both{--chip:var(--type-both)}.world-map__chip.is-farm{--chip:var(--type-farm)}.world-map__chip.is-cafe{--chip:var(--type-cafe)}
+.world-map__icon{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 3px;border-radius:999px;background:var(--chip,var(--type-both));font-size:11px;line-height:1}
+.world-map__close[hidden]{display:none}
+.world-map__close{position:absolute;left:max(16px,env(safe-area-inset-left));top:max(12px,env(safe-area-inset-top));pointer-events:auto}
+.world-map__pins{position:absolute;inset:0;overflow:hidden}
+.world-map__pin{--chip:var(--ui-wood);position:absolute;left:0;top:0;pointer-events:auto;display:flex;gap:4px;align-items:center;min-height:30px;padding:2px 9px 2px 3px;border:2px solid var(--chip);border-radius:12px;background:var(--ui-panel-image),var(--ui-cream);box-shadow:inset 0 2px var(--ui-shine),0 3px 0 var(--ui-cream-drop);color:var(--ui-ink);font:800 12px/1.1 var(--game-font);white-space:nowrap;cursor:pointer;will-change:transform;-webkit-tap-highlight-color:transparent}
+.world-map__pin::after{content:'';position:absolute;left:50%;bottom:-8px;margin-left:-6px;border:6px solid transparent;border-top-color:var(--chip);border-bottom:0}
+.world-map__pin[data-type=both]{--chip:var(--type-both)}.world-map__pin[data-type=farm]{--chip:var(--type-farm)}.world-map__pin[data-type=cafe]{--chip:var(--type-cafe)}
+.world-map__pin .world-map__icon{background:var(--ui-cream-edge)}
+.world-map__pin.is-revealed .world-map__icon{background:#fff}
+#world-map.is-revealed .world-map__pin:not(.is-revealed){opacity:.45;pointer-events:none}
+.world-map__pin.is-revealed{animation:world-map-pop .5s ease-out}
+@keyframes world-map-pop{0%{scale:.6}60%{scale:1.15}100%{scale:1}}
+.world-map__pin .world-map__icon{min-width:20px;height:20px;font-size:11px}
+.world-map__pin[hidden]{display:none}
+.world-map__island{position:absolute;left:0;top:0;pointer-events:none;padding:1px 6px;border-radius:8px;background:rgba(255,250,236,.82);color:var(--ui-ink);font:700 10px/1.2 var(--game-font);white-space:nowrap;will-change:transform}
+.world-map__island[hidden]{display:none}
+.world-map__pin.is-selected{background:var(--chip);color:#fff;border-color:#fff;z-index:1}
+.world-map__card{--chip:var(--ui-paper-edge);position:absolute;left:16px;right:16px;bottom:max(16px,env(safe-area-inset-bottom));max-width:460px;margin:0 auto;max-height:42vh;overflow:auto;pointer-events:auto;padding:12px 14px;border:2px solid var(--chip);border-top-width:6px;border-radius:16px;background:var(--ui-panel-image),var(--ui-paper);box-shadow:0 4px 0 var(--ui-paper-drop)}
+.world-map__card[data-type=both]{--chip:var(--type-both)}.world-map__card[data-type=farm]{--chip:var(--type-farm)}.world-map__card[data-type=cafe]{--chip:var(--type-cafe)}
+.world-map__hint{margin:0;font-size:var(--fs-body)}
+.world-map__card:focus{outline:none} /* thẻ nhận focus khi chọn sẵn (F-44) thay cho nút chọn */
+.world-map__note+.world-map__hint{margin-top:6px;font-size:13px}
+.world-map__head{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.world-map__name{display:flex;flex-direction:column;margin-right:auto}
+.world-map__name strong{font-size:var(--fs-title);line-height:1.1}
+.world-map__name small{font-size:12px;color:var(--ui-muted)}
+.world-map__card.is-revealed{max-height:62vh;animation:world-map-card .45s ease-out}
+@keyframes world-map-card{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}
+.world-map__features{display:grid;gap:3px;margin:8px 0 0;padding:0;list-style:none;font-size:14px;line-height:1.3}
+.world-map__features li{display:flex;gap:6px;align-items:flex-start}
+.world-map__mark{flex:none;display:inline-grid;place-items:center;width:20px;height:20px;border-radius:6px;font-size:12px;font-weight:900}
+.world-map__features .is-on .world-map__mark{background:var(--ui-good-bg);color:var(--ui-good)}
+.world-map__features .is-off{color:var(--ui-muted)}
+.world-map__features .is-off .world-map__mark{background:var(--ui-bad-bg);color:var(--ui-bad)}
+.world-map__features .is-info .world-map__mark{background:var(--ui-warn-bg)}
+.world-map__facts{margin-top:6px;font-size:13px}
+.world-map__facts b{font-weight:700}
+.world-map__subtitle{margin:10px 0 4px;font-size:14px}
+.world-map__quests{display:grid;gap:3px;margin:0;padding-left:20px;font-size:13px}
+.world-map__quests li{display:flex;gap:8px;justify-content:space-between}
+.world-map__quests b{color:var(--ui-warn);white-space:nowrap}
+.world-map__balance{margin:6px 0 0;font-size:12px;font-style:italic;color:var(--ui-muted)}
+.world-map__crops,.world-map__note{margin:6px 0 0;font-size:13px;line-height:1.35}
+.world-map__actions{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
+.world-map__actions .ui-btn--lg{min-height:48px}
+@media (max-width:520px){.world-map__header{max-width:calc(100% - 120px)}}
+@media (orientation:landscape) and (min-width:900px){.world-map__card{left:auto;right:24px;margin:0;width:400px;max-height:70vh}}
+@media (prefers-reduced-motion:reduce){#world-map,.world-map__pin.is-revealed,.world-map__card.is-revealed{animation:none}}

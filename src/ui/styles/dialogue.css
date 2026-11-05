@@ -1,0 +1,112 @@
+/* Mobile-first; colours/images come from the shared --ui-* tokens in game.css (same skin as the farm). */
+#intro-controls{position:fixed;top:max(12px,env(safe-area-inset-top));left:max(12px,env(safe-area-inset-left));right:max(12px,env(safe-area-inset-right));z-index:3;display:flex;justify-content:flex-end;pointer-events:none}
+.intro-actions{pointer-events:auto}
+.intro-actions button{display:inline-flex;align-items:center;min-height:44px;padding:6px 16px;background:var(--ui-button-image),var(--ui-cream);border:2px solid var(--ui-cream-edge);border-radius:14px;box-shadow:inset 0 2px var(--ui-shine),inset 0 -3px var(--ui-cream-edge),0 3px 0 var(--ui-cream-drop);color:var(--ui-ink);text-shadow:0 1px var(--ui-shine);font-size:13px;font-weight:800;touch-action:manipulation;transition:transform .12s}
+.intro-actions button:hover{filter:brightness(1.08)}
+.intro-actions button:active{transform:translateY(3px);box-shadow:inset 0 2px 3px var(--ui-drop-soft),0 1px var(--ui-cream-drop)}
+.intro-actions #skip span{padding-left:7px}
+
+/* Khung chỉ nhận tiêu điểm bằng code (giữ Enter khỏi đáp án); không vẽ viền quanh cả khung. */
+#caption-box:focus{outline:none}
+
+/* Stable speaker row: no floating labels clipped by scrolling. */
+.dialogue{
+ --dialogue-accent:var(--ui-wood);position:fixed;z-index:4;left:50%;transform:translateX(-50%);
+ bottom:max(12px,env(safe-area-inset-bottom));width:calc(100% - 24px);
+ display:grid;grid-template-columns:44px minmax(0,1fr);gap:12px;padding:14px 14px 10px;
+ background:var(--ui-panel-image),var(--ui-paper);border:2px solid var(--ui-paper-edge);border-radius:18px;
+ box-shadow:0 4px 0 var(--ui-paper-drop),0 12px 30px var(--ui-drop-soft);color:var(--ui-ink);
+}
+.dialogue[data-speaker="reaper"]{--dialogue-accent:#4c5a6b}/* màu nhận diện nhân vật */
+.dialogue[data-speaker="medic"]{--dialogue-accent:var(--ui-bad)}
+.dialogue[data-speaker="player"]{--dialogue-accent:var(--ui-good)}
+.dialogue-avatar{
+ display:grid;place-items:center;align-self:start;width:44px;height:44px;margin-top:2px;
+ color:var(--ui-ink-light);text-shadow:0 2px var(--ui-leaf-drop);background:var(--ui-leaf);
+ border:2px solid var(--ui-shine);border-radius:50%;box-shadow:0 0 0 1px var(--ui-paper-edge),0 3px 0 var(--ui-leaf-drop);
+ font:800 24px/1 var(--game-font);
+}
+.dialogue-body{min-width:0}
+.dialogue-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:20px;margin:0 0 6px;padding-bottom:5px;border-bottom:1px solid var(--ui-paper-drop)}
+#speaker{margin:0;padding:0;background:none;color:var(--dialogue-accent);font-size:12px;line-height:1.4;font-weight:800;letter-spacing:.4px;overflow-wrap:anywhere}
+.dialogue-auto{flex:none;background:none;color:var(--ui-ink-soft);font-size:12px;font-weight:700;letter-spacing:.6px;white-space:nowrap}
+#caption{margin:0;min-height:44px;font-size:14px;line-height:1.55;font-weight:500;overflow-wrap:anywhere}
+.dialogue-bottom{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;margin-top:2px}
+.dialogue-hint{font-size:13px;color:var(--ui-ink-soft)}
+#dialogue-next{flex:none;width:44px;height:44px;padding:0;border:2px solid var(--ui-gold-edge);border-radius:50%;background:var(--ui-button-image),var(--ui-gold);box-shadow:0 3px 0 var(--ui-gold-drop);color:var(--ui-ink);font:800 16px/1 var(--game-font);cursor:pointer}
+#dialogue-next:hover{filter:brightness(1.06)}
+#caption-box[data-mode="manual"]{max-height:min(65dvh,540px);overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--ui-paper-edge) transparent}
+#caption-box.quiz-dialogue{width:calc(100% - 24px)}
+/* Choices = game cards (04 §5 .ui-choice): number badge + answer, lift on press. */
+#dialogue-choices{display:grid;gap:8px;margin:10px 0 0}
+#dialogue-choices button{position:relative;display:grid;grid-template-columns:28px minmax(0,1fr);align-items:center;gap:10px;width:100%;min-height:48px;margin:0;padding:9px 12px;border:2px solid var(--ui-cream-edge);border-radius:var(--r-md);background:var(--ui-cream);box-shadow:inset 0 2px var(--ui-shine),0 3px 0 var(--ui-cream-drop);text-align:left;color:var(--ui-ink);font:700 var(--fs-body)/1.4 var(--game-font);cursor:pointer;transition:transform var(--t-tap),box-shadow var(--t-tap),filter var(--t-tap)}
+@media(hover:hover){#dialogue-choices button:hover{filter:brightness(1.05)}}
+#dialogue-choices button:active{transform:translateY(2px);box-shadow:inset 0 2px var(--ui-shine),0 1px 0 var(--ui-cream-drop)}
+#dialogue-choices button:focus-visible{outline:3px solid var(--ui-focus);outline-offset:2px}
+.choice-key{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--ui-warn-bg);color:var(--ui-wood-dark);font:800 13px/1 var(--game-font)}
+#heaven-stamp{display:inline-block;transform:rotate(-3deg);margin-top:14px;padding:7px 12px;border:2px solid var(--ui-bad);color:var(--ui-bad);border-radius:3px;font-size:12px;letter-spacing:1px;font-weight:800}
+/* Dòng mẹo dưới lời giải thích (thiên đàng + hỏi lại farm/quán). data-tone="good" = đã nhận mẹo. */
+.dialogue-tip{margin:8px 0 0;padding:7px 10px;border:1px solid var(--ui-cream-edge);border-radius:11px;background:var(--ui-warn-bg);color:var(--ui-warn);font:700 13px/1.5 var(--game-font)}
+.dialogue-tip[data-tone="good"]{border-color:var(--ui-paper-edge);background:var(--ui-good-bg);color:var(--ui-good)}
+#caption{white-space:pre-line}
+#caption-box.lesson-dialogue{z-index:8}/* trên modal farm (7); <dialog> showModal vẫn ở top layer nên nơi gọi phải đóng nó trước */
+/* Toast farm (z 30) bật lúc trả lời sẽ đè lựa chọn; hộp ôn đã tự hiện kết quả nên ẩn toast khi đang ôn. */
+body:has(#caption-box.lesson-dialogue:not([hidden])) #farm-notice{display:none}
+#dialogue-choices button[data-default]{border-color:var(--ui-gold-drop)}
+#dialogue-choices .dialogue-later{display:flex;justify-content:flex-end;min-height:44px;border:0;background:none;box-shadow:none;color:var(--ui-ink-soft);font-weight:800;text-decoration:underline;text-underline-offset:3px}
+/* Landscape phones: keep the scene visible above a slimmer box. */
+@media(max-height:450px){
+ .dialogue{bottom:max(8px,env(safe-area-inset-bottom));max-width:760px;padding:8px 14px 6px;grid-template-columns:38px minmax(0,1fr)}
+ .dialogue-avatar{width:38px;height:38px;font-size:20px}.dialogue-heading{min-height:18px;padding-bottom:4px;margin-bottom:4px}
+ #caption{min-height:22px;font-size:13px}#caption-box[data-mode="manual"]{max-height:72dvh}
+ .dialogue-bottom{min-height:36px}#dialogue-next{width:36px;height:36px}
+ #dialogue-choices{margin-top:6px;gap:6px}#dialogue-choices button{min-height:44px;padding:6px 10px;font-size:13px}
+}
+@media(min-width:701px) and (min-height:451px){
+ #intro-controls{top:max(18px,env(safe-area-inset-top));left:24px;right:24px}
+ .intro-actions button{padding:8px 18px;border-width:3px}
+ .dialogue,#caption-box.quiz-dialogue{width:min(840px,calc(100% - 48px));bottom:max(22px,env(safe-area-inset-bottom));grid-template-columns:66px minmax(0,1fr);gap:18px;padding:18px 24px 12px;border-width:3px;border-radius:22px}
+ .dialogue-avatar{width:66px;height:66px;border-width:3px;font-size:34px;margin-top:4px}
+ .dialogue-heading{gap:12px;margin-bottom:9px;padding-bottom:7px}
+ #speaker{font-size:14px}.dialogue-auto{font-size:12px}
+ #caption{font-size:16px;line-height:1.65}
+ .dialogue-bottom{min-height:38px;margin-top:6px}#dialogue-next{width:38px;height:38px}
+ #dialogue-choices button{padding:11px 14px}
+}
+/* Speaker badge: icon on cream, ring in the speaker's colour (setAvatar in ui/dialogue.js). */
+.dialogue-avatar{background:var(--ui-sheet);border:3px solid var(--dialogue-accent,var(--ui-leaf-edge))}
+.dialogue-avatar .ui-icon{vertical-align:0} /* sized by the badge font-size (1.15em) */
+/* While someone is talking, the quest card steps back so the line and the faces stay the focus. */
+.quest-tracker{transition:opacity var(--t-panel)}
+body:has(#caption-box:not([hidden])) .quest-tracker{opacity:0;pointer-events:none}
+
+/* Game skin: khung gỗ như modal quán, bảng tên & thẻ chế độ cắm trên viền, avatar nhô khỏi khung, mũi tên nhún thay dòng hướng dẫn. */
+.dialogue{--pt:22px;padding-top:var(--pt);border:3px solid var(--ui-wood);box-shadow:inset 0 0 0 3px var(--ui-wood-trim),0 5px 0 var(--ui-wood-dark),0 14px 34px var(--ui-drop-soft);animation:dialogue-in .22s ease-out}
+@keyframes dialogue-in{from{opacity:0;transform:translate(-50%,14px) scale(.97)}to{opacity:1;transform:translateX(-50%)}}
+.dialogue-avatar{margin-top:-30px;box-shadow:0 0 0 3px var(--ui-wood-trim),0 4px 0 var(--ui-wood-dark)}
+/* Nội dung kéo lên viền trên để bảng tên nằm trong vùng cuộn (không bị cắt khi khung cuộn). */
+.dialogue-body{margin-top:calc(-1 * var(--pt) - 15px)}
+.dialogue-heading{position:sticky;top:0;z-index:1;align-items:flex-start;min-height:0;margin:0 0 8px;padding:0;border:0;pointer-events:none}
+#speaker{padding:4px 16px;border:2px solid var(--ui-wood-trim);border-radius:999px;background:var(--dialogue-accent);color:var(--ui-ink-light);text-shadow:0 1px var(--ui-drop-soft);box-shadow:0 3px 0 var(--ui-wood-dark);font-size:14px;letter-spacing:.3px}
+.dialogue-auto{margin-top:4px;padding:3px 10px;border:2px solid var(--ui-paper-edge);border-radius:999px;background:var(--ui-paper);font-size:11px}
+#caption{font-weight:700}
+.dialogue-bottom{min-height:36px}
+/* Đang có mũi tên thì dòng "Enter/Chạm để tiếp" thừa: chỉ giữ cho trình đọc màn hình. */
+.dialogue-bottom:has(#dialogue-next:not([hidden])) .dialogue-hint{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.dialogue-hint{font-size:12px;font-weight:700}
+#dialogue-next{margin-left:auto;animation:dialogue-nudge 1.1s ease-in-out infinite}
+@keyframes dialogue-nudge{50%{transform:translateY(-4px)}}/* nhún lên: nhún xuống làm tràn vùng cuộn → thanh cuộn bật/tắt liên tục */
+#dialogue-choices button{transition:transform var(--t-tap),box-shadow var(--t-tap),filter var(--t-tap),border-color var(--t-tap)}
+@media(hover:hover){#dialogue-choices button:not(.dialogue-later):hover{transform:translateY(-2px);border-color:var(--ui-gold-edge)}}
+.choice-key{background:var(--ui-gold);box-shadow:0 2px 0 var(--ui-gold-drop)}
+/* Cuộn ở thân thay vì cả khung để avatar/bảng tên nhô ra ngoài không bị cắt. */
+#caption-box[data-mode="manual"]{max-height:none;overflow:visible}
+#caption-box[data-mode="manual"] .dialogue-body{max-height:min(62dvh,500px);overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--ui-paper-edge) transparent}
+@media(max-height:450px){
+ .dialogue{--pt:16px}.dialogue-avatar{margin-top:-22px}#speaker{font-size:12px;padding:2px 12px}
+ #caption-box[data-mode="manual"] .dialogue-body{max-height:68dvh}
+}
+@media(min-width:701px) and (min-height:451px){
+ .dialogue,#caption-box.quiz-dialogue{--pt:26px;grid-template-columns:76px minmax(0,1fr)}.dialogue-avatar{width:76px;height:76px;margin-top:-40px}#speaker{font-size:16px}#caption{font-size:17px}
+}
+@media(prefers-reduced-motion:reduce){.dialogue,#dialogue-next{animation:none}}

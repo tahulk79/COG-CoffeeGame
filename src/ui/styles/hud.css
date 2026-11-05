@@ -1,0 +1,100 @@
+/* HUD v2: one frame for farm + café (docs/design/godbean-gdd.md §11).
+   Loaded last, so these rules win over the older position rules in farm.css/cafe.css with the same selectors;
+   the dead ones there get deleted when Bước 4 moves the modals. */
+
+/* ---------- Bottom-right action bar: at most 3 actions + "Quản lý" ---------- */
+.farm-active #farm-main-nav,#cafe-main-nav{left:auto;right:max(10px,env(safe-area-inset-right));bottom:max(10px,env(safe-area-inset-bottom));transform:none;width:auto;max-width:calc(100vw - 20px)}
+#cafe-main-nav{display:flex;gap:5px}
+#cafe-main-nav button{width:64px}
+.farm-active #farm-quick-nav{display:none} /* its buttons moved to the bar / drawer */
+
+.hud-manage{position:relative}
+.hud-manage[aria-expanded="true"]{background:var(--ui-gold)!important}
+.hud-manage__badge{position:absolute;top:-7px;right:-7px;z-index:1;border-color:var(--ui-shine);background:var(--ui-bad);color:var(--ui-ink-light)}
+.hud-manage__badge[hidden]{display:none}
+
+/* ---------- "Quản lý" drawer ---------- */
+.hud-drawer{position:fixed;z-index:6;right:max(10px,env(safe-area-inset-right));bottom:calc(max(10px,env(safe-area-inset-bottom)) + 88px);display:grid;gap:8px;width:min(330px,calc(100vw - 20px));max-height:calc(100dvh - 200px);overflow:auto;overscroll-behavior:contain;padding:10px;border:2px solid var(--ui-wood);border-radius:var(--r-lg);background:var(--ui-plank-dark);box-shadow:inset 0 0 0 2px var(--ui-wood-trim),0 4px 0 var(--ui-wood-dark),0 10px 24px var(--ui-drop-soft);color:var(--ui-ink);font-family:var(--game-font);animation:hud-drawer-in var(--t-panel) var(--ease-out)}
+.hud-drawer[hidden],.cafe-active #farm-drawer{display:none} /* the farm UI stays mounted under the café */
+@keyframes hud-drawer-in{from{opacity:0;transform:translateY(8px) scale(.97)}}
+.hud-drawer__panel{display:grid;gap:6px}
+.hud-drawer__panel:not(:has(>:not([hidden]))){display:none}
+.hud-drawer__grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.hud-drawer__grid>:is(#farm-management,#farm-shortcuts){display:contents}
+.hud-drawer__grid button[hidden]{display:none}
+.hud-drawer__grid button,.hud-drawer #farm-management button{width:auto;min-width:0;height:auto;min-height:64px;margin:0}
+.hud-drawer__grid button>span{font-size:24px;line-height:1}
+.hud-drawer__grid button>small{font-size:var(--fs-label);font-weight:800;text-align:center}
+.hud-drawer :is(#farm-operation-hud,#farm-blockers,#farm-journal){position:static;inset:auto;transform:none;width:auto;max-width:none;margin:0;pointer-events:auto}
+@media(prefers-reduced-motion:reduce){.hud-drawer{animation:none}}
+
+/* ---------- Left column: identity + one quest card; café drops the farm profile ---------- */
+.farm-active #farm-hud .quest-tracker :is(h2,p){white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.farm-active #farm-hud .quest-tracker>div{min-width:0}
+.farm-active .farm-left-hud{width:min(300px,calc(100vw - 140px));max-width:none}
+.farm-active #farm-right-hud{width:auto;max-width:none}
+.farm-active #farm-hud .quest-tracker{max-width:none}
+.cafe-active .farm-profile{display:none}
+.cafe-ops{display:flex;flex-wrap:wrap;gap:2px 10px;padding:5px 9px;font-size:12px}
+.cafe-ops>span{white-space:nowrap}
+.cafe-ops i.cafe-shift-bar{flex:1 0 100%;margin:0}
+
+/* ---------- Phone landscape: bar becomes a right column, drawer opens beside it ---------- */
+@media(orientation:landscape) and (max-height:500px){
+ .farm-active #farm-main-nav,#cafe-main-nav{flex-direction:column;bottom:max(8px,env(safe-area-inset-bottom))}
+ .farm-active #farm-main-nav button,#cafe-main-nav button{height:52px!important;min-height:52px!important}
+ .hud-drawer{right:calc(max(10px,env(safe-area-inset-right)) + 86px);bottom:max(8px,env(safe-area-inset-bottom));max-height:calc(100dvh - 80px);width:min(330px,calc(100vw - 280px))} /* stays under the coin counter */
+ .farm-active #farm-hud .quest-tracker p:not(.ui-guide-hint){display:none}
+}
+
+/* ---------- Desktop: the phone-sized HUD reads small on a 1440 screen ---------- */
+@media(min-width:1200px) and (min-height:760px) and (pointer:fine){
+ .farm-active .farm-left-hud,.farm-active #farm-right-hud,.farm-active #farm-main-nav,#cafe-main-nav,.hud-drawer{zoom:1.15}
+}
+
+/* Coach line sits above the joystick in farm/café (P0-2); phone landscape has no room there, so it goes to the top centre. */
+:is(.farm-active,.cafe-active) .ui-coach{bottom:calc(max(16px,env(safe-area-inset-bottom)) + 220px)}
+@media(orientation:landscape) and (max-height:500px){:is(.farm-active,.cafe-active) .ui-coach{top:max(8px,env(safe-area-inset-top));bottom:auto}}
+@media(hover:hover) and (pointer:fine){:is(.farm-active,.cafe-active) .ui-coach{bottom:max(24px,env(safe-area-inset-bottom))}}
+
+/* Coin counter feedback (farm/ui.js showCoins): a short pop, number tinted by direction. */
+.farm-coin.is-bump{animation:coin-bump 320ms var(--ease-back)}
+.farm-coin.is-bump strong{animation:coin-tint 700ms ease-out}
+.farm-coin[data-trend="up"]{--coin-tint:var(--ui-good)}.farm-coin[data-trend="down"]{--coin-tint:var(--ui-bad)}
+@keyframes coin-bump{40%{transform:scale(1.12)}}
+@keyframes coin-tint{from{color:var(--coin-tint)}}
+@media(prefers-reduced-motion:reduce){.farm-coin.is-bump{animation:none}}
+
+/* Touch targets ≥ 44px (Bước 11 scan): coin chip, drawer panel headers and their action buttons, quest card in landscape. */
+.farm-active #farm-right-hud .farm-resources>.farm-coin{min-height:44px}
+.hud-drawer :is(#farm-blockers,#farm-journal) summary{display:flex;align-items:center;min-height:44px}
+.hud-drawer #farm-blockers button{min-height:44px}
+.farm-active #farm-hud .quest-tracker{min-height:44px}
+/* Phone landscape puts the notch on a side: keep the identity/quest column clear of it (joystick and bar already use env()). */
+@media(orientation:landscape) and (max-height:500px){.farm-active #farm-hud{left:max(12px,env(safe-area-inset-left));right:max(12px,env(safe-area-inset-right))}}
+
+/* ---------- Phone zones (05/11; game.css's own .autoplay-* rules load after this file, hence `body` in front): one slot per HUD piece so nothing stacks on top of another ----------
+   Portrait, bottom-up: action bar (right) + joystick (left) → Auto (right, above the bar) → toast → coach.
+   Landscape: bar is the right column, Auto sits left of it at the bottom, toast bottom centre, coach top centre.
+   Anything that opens over the bottom band (Manage drawer, seed strip) hides Auto and the joystick it would cover. */
+.autoplay-btn:empty{display:none} /* until the first status() fills its text */
+body:has(.hud-drawer:not([hidden])) .autoplay-btn{display:none}
+/* Clear the action bar (≈97 px tall incl. its bottom gap) with an 8 px gap; the desktop bar is zoomed 1.15. */
+body .autoplay-btn{bottom:calc(max(10px,env(safe-area-inset-bottom)) + 96px)}
+@media(min-width:1200px) and (min-height:760px) and (pointer:fine){body .autoplay-btn{bottom:calc(max(10px,env(safe-area-inset-bottom)) + 110px)}}
+@media(orientation:portrait) and (max-width:600px){
+ .farm-active #farm-notice{bottom:calc(max(10px,env(safe-area-inset-bottom)) + 212px);max-width:calc(100vw - 24px)}
+ :is(.farm-active,.cafe-active) .ui-coach{bottom:calc(max(10px,env(safe-area-inset-bottom)) + 290px);max-width:calc(100vw - 24px);white-space:normal}
+ body .autoplay-caption{bottom:calc(max(10px,env(safe-area-inset-bottom)) + 212px)}
+ body:has(.hud-drawer:not([hidden])) #heaven-joystick{display:none}
+ body:has(#farm-seed-strip:not([hidden])) :is(#heaven-joystick,.autoplay-btn){display:none}
+}
+@media(orientation:landscape) and (max-height:500px){
+ body .autoplay-btn{right:calc(max(10px,env(safe-area-inset-right)) + 92px);bottom:max(8px,env(safe-area-inset-bottom))}
+ .farm-active #farm-notice{top:auto;bottom:max(10px,env(safe-area-inset-bottom));max-width:min(380px,calc(100vw - 460px))} /* between joystick and Auto */
+ body .autoplay-caption{bottom:calc(max(10px,env(safe-area-inset-bottom)) + 60px)}
+ :is(.farm-active,.cafe-active) .farm-left-hud{width:min(260px,34vw)}
+ body:has(#farm-seed-strip:not([hidden])) .autoplay-btn{display:none}
+ :is(.farm-active,.cafe-active) .ui-coach{top:max(8px,env(safe-area-inset-top));bottom:auto;max-width:calc(100vw - 2 * (min(260px,34vw) + 24px));white-space:normal}
+ :is(.farm-active,.cafe-active) .ui-coach>span{white-space:normal}
+}
