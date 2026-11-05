@@ -12,6 +12,9 @@ const QUALITY = ['low', 'medium', 'high'];
 let dialog = null;
 let settings = null;
 let openHandler = () => {};
+// V3: the app can wipe its own save on restart (settings stay in the v1 key) and say when the reset row is useful.
+let resetHandler = null;
+let canResetHandler = null;
 let qualityChosen = false;
 
 const $ = sel => dialog.querySelector(sel);
@@ -32,7 +35,7 @@ function render() {
   for (const tab of dialog.querySelectorAll('[data-quality]')) tab.setAttribute('aria-pressed', String(tab.dataset.quality === getQuality()));
   $('[data-quality-desc]').textContent = t(`settings.quality.${getQuality()}.desc`);
   const saved = readProgress();
-  $('[data-reset]').hidden = !(saved.introCompleted || saved.farm);
+  $('[data-reset]').hidden = !(canResetHandler ? canResetHandler() : (saved.introCompleted || saved.farm));
   $('[data-reset-confirm]').hidden = true;
   $('[data-reset-ask]').hidden = false;
 }
@@ -112,12 +115,17 @@ function bind() {
   $('[data-reset-cancel]').addEventListener('click', () => { confirmBox.hidden = true; ask.hidden = false; ask.focus(); });
   $('[data-reset-go]').addEventListener('click', () => {
     if (!resetProgress($('[data-reset-memory]').checked)) { warn('settings.reset.failed'); return; }
+    // V3 save: reset through the app's store (keeps settings, which live in the v1 key).
+    try { resetHandler?.(); } catch { warn('settings.reset.failed'); return; }
     location.reload();
   });
 }
 
-export function mountSettings({ onOpen } = {}) {
+/** onReset: extra reset step on "restart" (V3 store.reset()); canReset: () => boolean, shows the restart row. */
+export function mountSettings({ onOpen, onReset, canReset } = {}) {
   if (onOpen) openHandler = onOpen;
+  if (onReset) resetHandler = onReset;
+  if (canReset) canResetHandler = canReset;
   if (dialog) return;
   settings = readSettings();
   // Thanh âm lượng đã bỏ khỏi giao diện; mức đã lưu (hoặc mặc định) vẫn được áp.

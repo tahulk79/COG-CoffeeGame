@@ -1,0 +1,17 @@
+// Strings drawn inside the 3D realm (world-space labels). Owner: src/features/realm.
+export default {
+  en: {
+    'realm.forSale': ({ price }) => `🪙 ${price}`,
+    'realm.roundLocked': ({ n }) => `🔒 Round ${n}`,
+    'realm.needsRoad': '🚧 Open the road first',
+    'realm.openRoad': ({ price }) => `🚧 🪙 ${price}`,
+    'realm.level': ({ level }) => `Lv ${level}`,
+  },
+  vi: {
+    'realm.forSale': ({ price }) => `🪙 ${price}`,
+    'realm.roundLocked': ({ n }) => `🔒 Vòng ${n}`,
+    'realm.needsRoad': '🚧 Cần mở đường trước',
+    'realm.openRoad': ({ price }) => `🚧 🪙 ${price}`,
+    'realm.level': ({ level }) => `Cấp ${level}`,
+  },
+};
