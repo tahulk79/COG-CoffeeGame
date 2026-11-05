@@ -1,0 +1,1 @@
+export const dynamic='force-static';import {NextResponse} from 'next/server';import {regions} from '../../../lib/data';export function GET(){return NextResponse.json({data:regions,meta:{verified:false,source:'illustrative research seed'}})}
