@@ -74,7 +74,7 @@ export function createCameraController(camera) {
       focusDist = clamp(extent / (FOCUS_FILL * span) / z, 10, 75);
       const h = 2 * focusDist * tanHalf();
       // Shift the look target towards the camera so the area sits above the bottom action bar.
-      const margin = (aspect < 1 ? .125 : .08) * h / Math.sin(PITCH);
+      const margin = (aspect < 1 ? -.04 : .04) * h / Math.sin(PITCH);
       towardCamera(YAW, tmp).multiplyScalar(margin);
       goal.target.set((rect[0] + rect[2]) / 2, 0, (rect[1] + rect[3]) / 2).add(tmp);
       clampTarget(goal.target);
