@@ -39,7 +39,7 @@ Khách có thanh kiên nhẫn trên đầu (xếp hàng 55 s, ngồi 80 s, mang 
 | Latte | + vòi đánh sữa | ~200 ml sữa, bọt mỏng 0,5 cm |
 | Cà phê trứng | Máy đánh trứng, uy tín 60 | Chỉ lòng đỏ, đánh bông 3–5 phút, giữ nóng |
 | Cà phê muối | Máy đánh trứng, uy tín 65 | Kem + ~0,5 g muối phủ trên cà phê đá |
-| Pour-over V60 | Bộ V60 | 1:16, tráng giấy lọc, bloom gấp 2 lần bột, 2:30–3:00 |
+| Pour-over V60 | Bộ V60 (**luật mới: có sẵn**, xem mục "Pour-over là phương pháp đầu tiên") | 1:16, tráng giấy lọc, bloom gấp 2 lần bột, 2:30–3:00 |
 
 Thành thạo (điểm ly lấy phần nguyên, 89,6 vẫn là ★★): barista tự pha món có điểm luyện tốt nhất ≥ `90 − Trí nhớ × 0,4` của người đó (Trí nhớ 50 → 70 điểm); 3★ (≥90) mở **pha theo trí nhớ** (ẩn thẻ và vạch chuẩn, +20% tip) – vòng lặp giữ chân người chơi.
 
@@ -62,6 +62,8 @@ Thành thạo (điểm ly lấy phần nguyên, 89,6 vẫn là ★★): barista 
 - **Dãy quầy sau** (z = −10.6), mỗi thiết bị một ô cố định nên nâng cấp chỉ là lắp vào ô trống (ô chưa mua hiện khung viền + biển "Ô trống"):
   quầy pha 8 m với 3 trạm pha (trạm 2–3 mở bằng nâng cấp) + máy espresso tự động + kệ giao ly (pass) ở đầu phải ·
   2 quầy thu ngân (quầy 2 là nâng cấp) · quầy nhận đồ + màn hình gọi số · tủ bánh.
+- **Ô trống có biển (05/11/2026)**: Trạm pha 2–3, Robot pha espresso và Quầy thu ngân 2 chưa mua hiện khung viền và biển nghiêng "＋ icon tên". Bấm biển hoặc khung thì mở thẳng Nâng cấp › Tự động, kể cả khi Auto đang bật (nhân vật vẫn làm việc phía sau). Mua xong, thiết bị hiện ra và biển mất. Quầy nhận đồ và Robot thu ngân vẫn dùng nhãn "＋ …" như cũ.
+- **Camera màn dọc**: điện thoại dọc (rộng < 0,6 × cao) mở quán nhìn vào dãy quầy (x −2, z −5,5, zoom 0,85), camera lùi ×1,45 khi tỉ lệ < 0,75 để thấy từ Quầy pha tới Thu ngân. Trước đây quán dùng nhầm điểm nhìn của nông trại (x −6,4), nên các quầy bên phải nằm ngoài màn hình.
 - **Lối nhân viên** phía sau quầy (z ≈ −12.15), vào từ hai đầu và khe giữa quầy pha – thu ngân. Người chơi cũng đứng sau quầy khi pha/thu ngân.
 - **Hàng chờ** dọc dây chắn x = 1.2 tới quầy thu ngân; **2 kiosk** tự order ở giữa sảnh; khách mang đi chờ trước quầy nhận đồ.
 - **10 bàn** 3 hàng ở nửa trái sảnh; góc sofa, WC, quầy tự phục vụ, bảng thực đơn chữ A ở lối vào (bấm để mở Sổ công thức).
@@ -124,6 +126,41 @@ Cold brew ủ trước theo mẻ, khách quen có món yêu thích, latte art, N
 Bàn pha là một cột giữa: tên món + bước, viên thuốc các bước, chip thông số (tỉ lệ, độ xay, nhiệt độ, thời gian), sân khấu 3 cột trên mặt quầy (dụng cụ SVG | phin/tay cầm/phễu + ly + cân | nhiệt kế hoặc đồng hồ giây chiết), nút giữ/xong và mẹo. Hình dụng cụ là SVG trong `src/features/cafe/art.js`.
 
 Bấm vật nào trong quán thì dưới chân vật đó hiện khung phát sáng nhấp nháy theo đúng kích thước (quầy, bàn + ghế, kiosk…); bấm nhân viên thì vòng sáng đi theo người đó.
+
+## Pour-over là phương pháp đầu tiên (chốt 04/11/2026 theo tài liệu chuẩn, ĐÃ CODE)
+
+Nguồn: tài liệu chuẩn tr. 4 §5 ("Pour-over là phương pháp đầu tiên"), tr. 7 §9 Phase 1 và GB-003 ("chọn hạt, grind/temp/ratio/time, bloom/main/final pour"). Quang chốt "theo PDF". Số liệu Đang chỉnh, chưa chơi thử.
+
+| | Hiện code | Luật mới |
+|---|---|---|
+| Mở món | Mua Bộ V60 + ấm cổ ngỗng 90 xu | **Có sẵn** từ save mới, như Bộ phin. Nâng cấp ấm cổ ngỗng 2 cấp **60 → 120 xu**, cộng chất lượng như phin (giá đề xuất) |
+| Bước pha | Hạt · xay · tráng giấy · liều 14–16 g · bloom 25–40 g · một lần rót tới 235–265 g | Hạt (Arabica) · xay vừa-mịn · tráng giấy · liều 14–16 g · **nhiệt nước 92–94 °C** · bloom 25–40 g (≈ 2 × bột) · **rót chính tới 140–160 g** · **rót cuối tới 235–265 g** · **tổng thời gian 2:30–3:00** |
+| Ly đầu tiên | Khách gọi món ngẫu nhiên trong menu | Khách đầu tiên của ca đầu luôn gọi **V60**; thẻ hướng dẫn quán bước 3 ghi "pha Pour-over V60" |
+| Kho đầu | 600 g hạt vối rang (lô `starter`), giấy lọc 0 | Thêm **300 g hạt chè (Arabica) rang** vào lô `starter` và **40 giấy lọc** |
+| Phin | Món đầu tiên trong hướng dẫn | Vẫn có sẵn, vẫn là món bản sắc Việt; không còn là món hướng dẫn đầu |
+
+- Ly V60 vẫn chấm bằng cùng mô hình điểm (`1 − lệch/(rộng × 2,5)` mỗi bước), cùng input cho cùng điểm. Thêm hằng `SCORE_MODEL_VERSION` lưu kèm ly (F-39).
+- **Điểm ly ghi rõ là mô phỏng (D-21, chốt 04/11/2026, áp cho mọi món):** công thức và số đo giữ chữ "thật" (vd. "Tỉ lệ pha thật"). Riêng dòng điểm ở màn kết quả ly đổi thành "Điểm theo mô hình game: x · Chất lượng: y" kèm dấu ⓘ chạm-giữ: "Game chấm theo độ lệch so với công thức chuẩn; không đo hương vị ly thật." Cảm nhận của người chơi ghi riêng ở Coffee Memory ([coffee-memory](../../shared/coffee-memory.md)).
+- Rủi ro: 9 bước dài hơn Phin (6 bước), có thể vượt mục tiêu "ly đầu ≤ 5 phút" ([onboarding-flow](../../shared/onboarding-flow.md) mục 2). Đo lại khi playtest; nếu vượt thì ly đầu cho phép «Làm mẫu» miễn phí.
+- Mẹo `recipe` ở thiên đàng giữ nguyên (Phin đen, Cà phê sữa đá bắt đầu ★).
+
+## Chủ quán tự đặt giá (F-42, chốt 04/11/2026 — Q-07, ĐÃ CODE 04/11, số Đang chỉnh chờ sim D-25)
+
+Mục đích: tăng chiều sâu quản lý quán (tài liệu chuẩn tr. 2 §3.2 "menu, nguyên liệu, giá"), có giới hạn để tránh lợi dụng.
+
+| Luật | Giá trị |
+|---|---|
+| Đặt ở đâu | Bảng Menu trong Nâng cấp ▸ Quán (modal), mỗi món một thanh **hệ số giá p** |
+| Giới hạn | p từ **0,8 đến 1,3**, bước 0,05; mặc định 1,0 |
+| Khi nào đổi được | Chỉ khi quán **đóng** (giữa hai ca). Ca đang mở dùng p lúc mở cửa |
+| Giá ly | `giá hiện tại × p` (mọi hệ số khác giữ nguyên: chất lượng, đá, món của ca, ly chủ quán ×2) |
+| Khách tới | Khoảng cách khách (`arrivalGap`) nhân `p̄^1,5`, với p̄ là hệ số giá trung bình theo tỉ lệ gọi món. p̄ 1,3 → khoảng cách dài hơn ~48%; p̄ 0,8 → ngắn hơn ~28% (khách tới nhiều hơn ~40%) |
+| Tip | Món có p > 1: tip × max(0, 1 − 2 × (p − 1)) — p 1,3 còn 40% tip |
+| Uy tín | Ly ★0 ở món p ≥ 1,2: thêm −0,3 uy tín ("đắt mà dở") |
+| Thưởng ca | Không đổi (thưởng theo số ly, không theo giá) |
+| Robot/nhân viên | Dùng cùng p |
+
+Đánh đổi mong muốn (tính tay, chưa sim): khi quán **dư sức pha** (khách ít), giảm giá kéo thêm khách → nhiều ly hơn, đạt mốc ca; khi quán **quá tải** (hàng chờ đầy, khách bỏ về), tăng giá làm khách thưa lại mà mỗi ly lời hơn. Ở p cố định cho mọi món, doanh thu/khách ∝ p và số khách ∝ p^−1,5 → nếu không bị giới hạn sức pha thì doanh thu ∝ p^−0,5 (giảm giá có lợi nhẹ); bị giới hạn sức pha thì doanh thu ∝ p (tăng giá có lợi). Cần chạy sim với `BREW=mix` ở 0–3 barista trước khi chốt số.
 
 ## Debug bố cục dạng lưới ô
 

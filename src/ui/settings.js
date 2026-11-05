@@ -1,7 +1,8 @@
-import { readProgress, readSettings, resetProgress, saveSettings } from '../state/progress.js';
+import { applyImport, buildExport, deleteMemory, exportFileName, isReadOnly, parseExport, readProgress, readSettings, resetProgress, saveSettings } from '../state/progress.js';
 import { setVolume, setMuted, hasContent, sfx } from '../shared/audio/index.js';
 import { getQuality, setQuality } from '../shared/vfx/index.js';
 import { getLang, LANGS, t } from '../i18n/index.js';
+import { setAnalyticsEnabled } from '../shared/analytics/wire.js';
 
 const SLIDERS = ['master', 'music', 'ambience', 'sfx', 'ui'].map(bus => [bus, t(`settings.bus.${bus}`)]);
 const QUALITY = ['low', 'medium', 'high'].map(id => [id, t(`settings.quality.${id}`), t(`settings.quality.${id}.desc`)]);
@@ -32,6 +33,11 @@ function render() {
   dialog.querySelector('[data-reset]').hidden = !(saved.introCompleted || saved.farm);
   dialog.querySelector('[data-reset-confirm]').hidden = true;
   dialog.querySelector('[data-reset-ask]').hidden = false;
+  for (const box of dialog.querySelectorAll('[data-confirm]')) box.hidden = true;
+  dialog.querySelector('[data-analytics]').checked = settings.analytics !== false;
+  const ro = isReadOnly();
+  dialog.querySelector('[data-readonly]').hidden = !ro;
+  for (const b of dialog.querySelectorAll('[data-write]')) b.disabled = ro;
 }
 
 export function mountSettings({ onOpen } = {}) {
@@ -67,12 +73,41 @@ export function mountSettings({ onOpen } = {}) {
         <p class="ui-modal__subtitle" id="game-settings-quality"></p>
         <section data-reset hidden>
           <h3>🔄 ${t('settings.progress')}</h3>
-          <button type="button" class="ui-btn ui-btn--plain" data-reset-ask>${t('settings.reset')}</button>
+          <button type="button" class="ui-btn ui-btn--plain" data-write data-reset-ask>${t('settings.reset')}</button>
           <div class="ui-alert ui-alert--bad" data-reset-confirm hidden>
             <p>${t('settings.reset.confirm')}</p>
+            <label><input type="checkbox" data-reset-memory> ${t('settings.reset.memory')}</label>
             <div class="ui-modal__foot">
               <button type="button" class="ui-btn ui-btn--plain" data-reset-cancel>${t('common.cancel')}</button>
               <button type="button" class="ui-btn ui-btn--gold" data-reset-go>${t('settings.reset.go')}</button>
+            </div>
+          </div>
+        </section>
+        <section>
+          <h3>💾 ${t('settings.data')}</h3>
+          <p class="ui-modal__subtitle">${t('settings.data.note')}</p>
+          <p class="ui-alert ui-alert--warn" data-readonly hidden>${t('settings.data.readonly')}</p>
+          <p class="ui-alert ui-alert--warn" data-data-msg hidden></p>
+          <label class="ui-row"><span>${t('settings.analytics')}</span><input type="checkbox" data-analytics></label>
+          <p class="ui-modal__subtitle">${t('settings.analytics.note')}</p>
+          <div class="ui-modal__foot">
+            <button type="button" class="ui-btn ui-btn--plain" data-export>${t('settings.data.export')}</button>
+            <button type="button" class="ui-btn ui-btn--plain" data-write data-import>${t('settings.data.import')}</button>
+            <button type="button" class="ui-btn ui-btn--plain" data-write data-memory-ask>${t('settings.memory.delete')}</button>
+          </div>
+          <input type="file" accept="application/json,.json" data-import-file hidden>
+          <div class="ui-alert ui-alert--bad" data-confirm data-import-confirm hidden>
+            <p>${t('settings.data.import.confirm')}</p>
+            <div class="ui-modal__foot">
+              <button type="button" class="ui-btn ui-btn--plain" data-confirm-cancel>${t('common.cancel')}</button>
+              <button type="button" class="ui-btn ui-btn--gold" data-import-go>${t('settings.data.import.go')}</button>
+            </div>
+          </div>
+          <div class="ui-alert ui-alert--bad" data-confirm data-memory-confirm hidden>
+            <p>${t('settings.memory.confirm')}</p>
+            <div class="ui-modal__foot">
+              <button type="button" class="ui-btn ui-btn--plain" data-confirm-cancel>${t('common.cancel')}</button>
+              <button type="button" class="ui-btn ui-btn--gold" data-memory-go>${t('settings.memory.go')}</button>
             </div>
           </div>
         </section>
@@ -127,10 +162,49 @@ export function mountSettings({ onOpen } = {}) {
   askButton.addEventListener('click', () => { askButton.hidden = true; confirmBox.hidden = false; dialog.querySelector('[data-reset-cancel]').focus(); });
   dialog.querySelector('[data-reset-cancel]').addEventListener('click', () => { confirmBox.hidden = true; askButton.hidden = false; askButton.focus(); });
   dialog.querySelector('[data-reset-go]').addEventListener('click', () => {
-    if (!resetProgress()) { const warn = dialog.querySelector('.ui-alert--warn'); warn.textContent = t('settings.reset.failed'); warn.hidden = false; return; }
+    if (!resetProgress(dialog.querySelector('[data-reset-memory]').checked)) { const warn = dialog.querySelector('.ui-alert--warn'); warn.textContent = t('settings.reset.failed'); warn.hidden = false; return; }
     location.reload();
   });
+  setupData();
   document.getElementById('game-settings-toggle')?.addEventListener('click', openSettings);
+}
+
+function dataMsg(key) {
+  const msg = dialog.querySelector('[data-data-msg]');
+  msg.textContent = key ? t(key) : ''; msg.hidden = !key;
+}
+
+function setupData() {
+  const q = sel => dialog.querySelector(sel), file = q('[data-import-file]');
+  let pending = null;
+  q('[data-export]').addEventListener('click', () => {
+    const url = URL.createObjectURL(new Blob([JSON.stringify(buildExport(), null, 2)], { type: 'application/json' }));
+    const a = Object.assign(document.createElement('a'), { href: url, download: exportFileName() });
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+  q('[data-import]').addEventListener('click', () => { dataMsg(); file.value = ''; file.click(); });
+  file.addEventListener('change', async () => {
+    pending = file.files[0] ? parseExport(await file.files[0].text()) : null;
+    if (!file.files[0]) return;
+    if (!pending) return dataMsg('settings.data.invalid');
+    dataMsg(); q('[data-import-confirm]').hidden = false; q('[data-import-go]').focus();
+  });
+  q('[data-import-go]').addEventListener('click', () => {
+    if (!applyImport(pending)) { q('[data-import-confirm]').hidden = true; return dataMsg('settings.data.failed'); }
+    location.reload();
+  });
+  q('[data-analytics]').addEventListener('change', e => {
+    settings.analytics = e.target.checked;
+    setAnalyticsEnabled(settings.analytics); // tắt thì xóa hàng chờ
+    persist();
+  });
+  q('[data-memory-ask]').addEventListener('click', () => { dataMsg(); q('[data-memory-confirm]').hidden = false; q('[data-memory-go]').focus(); });
+  q('[data-memory-go]').addEventListener('click', () => {
+    q('[data-memory-confirm]').hidden = true;
+    dataMsg(deleteMemory() ? 'settings.memory.done' : 'settings.data.failed');
+  });
+  for (const b of dialog.querySelectorAll('[data-confirm-cancel]')) b.addEventListener('click', () => { b.closest('[data-confirm]').hidden = true; });
 }
 
 // Called by the frame monitor when the game stays slow; never overrides a level the player picked this session.

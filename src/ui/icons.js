@@ -26,6 +26,8 @@ const ICONS = {
   eye: `<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" ${f(C)}/><circle cx="12" cy="12" r="3" ${f(B)}/>`,
   pause: `<rect x="6.5" y="5" width="3.5" height="14" rx="1" ${f(S)}/><rect x="14" y="5" width="3.5" height="14" rx="1" ${f(S)}/>`,
   forward: `<path d="M4 6l7 6-7 6zM12 6l7 6-7 6z" ${f(S)}/>`,
+  globe: `<circle cx="12" cy="12" r="8.5" ${f(Y)}/><path d="M3.5 12h17M12 3.5c2.6 2.4 2.6 14.6 0 17M12 3.5c-2.6 2.4-2.6 14.6 0 17"/>`,
+  disk: `<path d="M5 4h11.5L20 7.5V20H5z" ${f(W)}/><rect x="8" y="4" width="7" height="5" ${f(C)}/><rect x="8" y="13" width="8" height="7" ${f(C)}/>`,
   'dot-green': `<circle cx="12" cy="12" r="6" ${f(L)}/>`,
   'dot-yellow': `<circle cx="12" cy="12" r="6" ${f(G)}/>`,
   'dot-orange': `<circle cx="12" cy="12" r="6" ${f(O)}/>`,
@@ -101,7 +103,7 @@ const ICONS = {
 // Emoji (without U+FE0F) → icon name. 🪙 stays with ui/currency.js; ✓ ★ ☆ → ↗ and friends are typography, not emoji.
 const NAMES = {
   settings: '⚙', book: '📖📚', scroll: '📜', help: '❓❔', lock: '🔒', unlock: '🔓', sound: '🔊', pin: '📌🚩',
-  ticket: '📋📄🧾', refresh: '🔄🔁', bulb: '💡', target: '🎯', timer: '⏱', warning: '⚠', ban: '🚫', tap: '👆',
+  globe: '🌐', disk: '💾', ticket: '📋📄🧾', refresh: '🔄🔁', bulb: '💡', target: '🎯', timer: '⏱', warning: '⚠', ban: '🚫', tap: '👆',
   hand: ['👋', '🙋‍♂️', '✋', '🖐', '✊'], eye: '👀', pause: '⏸', forward: '⏭⏩', 'dot-green': '🟢', 'dot-yellow': '🟡',
   'dot-orange': '🟠', 'dot-white': '⚪', star: '⭐🌟', trophy: '🏆🎉', gift: '🎁', lesson: '🎓🧠',
   'face-happy': '😊🙂😍', 'face-sad': '😕😖', 'face-angry': '😤😠', sleep: '💤', sick: '🤒', phone: '📱', screen: '📺🖥',

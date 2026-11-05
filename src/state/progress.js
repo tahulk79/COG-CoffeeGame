@@ -1,7 +1,7 @@
 import { DEFAULT_NAME } from './names.js';
 import { DEFAULT_LANG, LANGS } from '../i18n/index.js';
 
-import { PROGRESS_KEY as KEY, PLAYER_KEY } from './storage-keys.js';
+import { PROGRESS_KEY as KEY, PLAYER_KEY, MEMORY_KEY } from './storage-keys.js';
 // Set by resetProgress so a farm autosave in the last frames before reload cannot restore the old run.
 let locked = false;
 // Tab khác đã ghi save: tab này không ghi nữa để khỏi đè (không đổi định dạng save).
@@ -52,7 +52,7 @@ export function saveFarm(farm) {
   if (locked || readOnly) return true;
   try {
     const previous = readProgress();
-    localStorage.setItem(KEY, JSON.stringify({ ...previous, version: 1, introCompleted: true, chapter: Math.max(3, Number(previous.chapter) || 3), farm }));
+    localStorage.setItem(KEY, JSON.stringify({ ...previous, version: 1, introCompleted: true, chapter: Math.max(3, Number(previous.chapter) || 3), farm, ...(farm?.victories ? { victories: farm.victories } : {}), ...(farm?.awakening ? { awakening: farm.awakening } : {}) }));
     return true;
   } catch { return false; }
 }
@@ -74,10 +74,11 @@ export function completeIntro() {
   }
 }
 
-// Wipes the run (intro, heaven, farm, cafe) but keeps sound/graphics settings; caller reloads to the selection screen.
-export function resetProgress() {
+// Wipes the run (intro, heaven, farm, cafe) but keeps sound/graphics settings; the previous save is copied to `-backup` (one copy, overwritten by the next reset, no restore button); memory only goes if withMemory; caller reloads to the selection screen.
+export function resetProgress(withMemory = false) {
   locked = true;
   try {
+    if (withMemory) localStorage.removeItem(MEMORY_KEY);
     // Best effort: a full storage must not block the reset itself.
     try { const raw = localStorage.getItem(KEY); if (raw) localStorage.setItem(`${KEY}-backup`, raw); } catch {}
     const { settings } = readProgress();
@@ -93,10 +94,10 @@ function deviceQuality() {
   const touch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
   return weak ? 'low' : touch ? 'medium' : 'high';
 }
-const DEFAULT_SETTINGS = { version: 1, master: 0.8, music: 0.6, ambience: 0.7, sfx: 0.8, ui: 0.6, muted: false, quality: deviceQuality(), lang: DEFAULT_LANG };
+const DEFAULT_SETTINGS = { version: 1, master: 0.8, music: 0.6, ambience: 0.7, sfx: 0.8, ui: 0.6, muted: false, quality: deviceQuality(), lang: DEFAULT_LANG, analytics: true };
 const QUALITIES = ['low', 'medium', 'high'];
 
-function normalizeSettings(raw) {
+export function normalizeSettings(raw) {
   const value = raw && typeof raw === 'object' ? raw : {};
   const settings = { ...DEFAULT_SETTINGS };
   for (const bus of ['master', 'music', 'ambience', 'sfx', 'ui']) {
@@ -105,6 +106,7 @@ function normalizeSettings(raw) {
   if (typeof value.muted === 'boolean') settings.muted = value.muted;
   if (QUALITIES.includes(value.quality)) settings.quality = value.quality;
   if (LANGS.includes(value.lang)) settings.lang = value.lang;
+  if (typeof value.analytics === 'boolean') settings.analytics = value.analytics; // F-38: gửi thống kê ẩn danh
   return settings;
 }
 
@@ -133,4 +135,42 @@ export function readPlayer() {
 export function savePlayer(player) {
   try { localStorage.setItem(PLAYER_KEY, JSON.stringify(player)); return true; }
   catch { return false; }
+}
+
+// F-37 export/import (docs/shared/coffee-memory.md §8). One JSON file with progress + player + memory.
+const readJson = key => { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } };
+const isObject = v => v && typeof v === 'object' && !Array.isArray(v);
+
+export function buildExport(now = new Date()) {
+  return { format: 'godbean-export', version: 1, exportedAt: now.toISOString(), progress: readProgress(), player: readJson(PLAYER_KEY), memory: readJson(MEMORY_KEY) };
+}
+export const exportFileName = (now = new Date()) => `godbean-save-${now.toISOString().slice(0, 10).replaceAll('-', '')}.json`;
+
+// Returns the parsed export or null; nothing is written.
+export function parseExport(text) {
+  try {
+    const data = JSON.parse(text);
+    if (data?.format === 'godbean-export' && data.version === 1 && isObject(data.progress) && data.progress.version === 1) return data;
+  } catch { /* not JSON */ }
+  return null;
+}
+
+// Overwrites the save (previous one kept in `-backup`). Caller reloads; further autosaves are locked.
+export function applyImport(data) {
+  if (readOnly || !parseExport(JSON.stringify(data))) return false;
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) localStorage.setItem(`${KEY}-backup`, raw);
+    const { settings } = readProgress();
+    localStorage.setItem(KEY, JSON.stringify({ ...data.progress, ...(settings ? { settings } : {}) }));
+    if (isObject(data.player)) localStorage.setItem(PLAYER_KEY, JSON.stringify(data.player));
+    if (isObject(data.memory)) localStorage.setItem(MEMORY_KEY, JSON.stringify(data.memory));
+    locked = true;
+    return true;
+  } catch { return false; }
+}
+
+export function deleteMemory() {
+  if (readOnly) return false;
+  try { localStorage.removeItem(MEMORY_KEY); return true; } catch { return false; }
 }

@@ -8,7 +8,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { fillRich } from '../../ui/icons.js';
 import { t } from '../../i18n/index.js';
 
-export function createAdventureScene(character, { interactions: inputInteractions, theme = 'heaven', mapBounds = null, buildActor = null, buildEnvironment = null, lighting = {} }) {
+export function createAdventureScene(character, { interactions: inputInteractions, theme = 'heaven', mapBounds = null, buildActor = null, buildEnvironment = null, lighting = {}, portraitView = { focus: [-6.4, -.5], zoom: .9, dolly: 1 } }) {
   const NPCS = inputInteractions.map(item => ({ ...item, position: [...item.position] }));
   const farming = theme === 'farm';
   const portalPosition = NPCS.find(npc => npc.id === 'portal')?.position || [0, 10];
@@ -309,7 +309,7 @@ export function createAdventureScene(character, { interactions: inputInteraction
   const motion = createPlayerMotion(character);
   const selectedPlots=new Set(),workerTargets=new Set();
   let walkTime = 0, walkWeight = 0, targetId = 'reaper', focused = null, unlocked = farming, returning = false, doorOpen = 0;
-  const cameraOffset = new THREE.Vector3(0, farming ? 12.5 : 12, farming ? 11.5 : 11);
+  const baseOffset = new THREE.Vector3(0, farming ? 12.5 : 12, farming ? 11.5 : 11), cameraOffset = baseOffset.clone();
   const cameraTarget = new THREE.Vector3();
   const cameraLook = new THREE.Vector3();
   const desiredCamera = new THREE.Vector3();
@@ -562,7 +562,7 @@ export function createAdventureScene(character, { interactions: inputInteraction
     character.rotation.y = byClerk ? angle + Math.PI : Math.PI;
     freshCamera = true; walkWeight = 0; doorOpen = 0; focused = null; returning = false; stopMovement();
     // Portrait phone: open on the field's centre so field-0 is not clipped; walking clears manualCamera (UX-A4). Window size: resize() may not have run yet.
-    if (farming && innerWidth < innerHeight * .6) { camera.zoom = .9; camera.updateProjectionMatrix(); fitLabels(); manualCamera = new THREE.Vector3(-6.4, 0, -.5); }
+    if (farming && innerWidth < innerHeight * .6) { camera.zoom = portraitView.zoom; camera.updateProjectionMatrix(); fitLabels(); manualCamera = new THREE.Vector3(portraitView.focus[0], 0, portraitView.focus[1]); }
   }
   return {
     scene, camera, update, reset, stopMovement, moveToNpc,
@@ -580,7 +580,8 @@ export function createAdventureScene(character, { interactions: inputInteraction
     },
     atInteraction(id,position){const npc=NPCS.find(n=>n.id===id);return Boolean(npc&&atInteraction(npc,position.x,position.z));},
     setFarmUpgrades(upgrades) {environment?.setUpgrades?.(upgrades);for(const [id,actor]of actors)actor.setUpgrade?.(upgrades[id]||1);},
-    moveToScreen(clientX, clientY, rect, onSelect = null) {
+    // pickOnly: only report the tapped object to onSelect, never walk (used while Auto drives the character).
+    moveToScreen(clientX, clientY, rect, onSelect = null, pickOnly = false) {
       if (!rect.width || !rect.height) return false;
       scene.updateMatrixWorld(true); camera.updateMatrixWorld(true);
       raycaster.setFromCamera(new THREE.Vector2((clientX - rect.left) / rect.width * 2 - 1, 1 - (clientY - rect.top) / rect.height * 2), camera);
@@ -612,6 +613,7 @@ export function createAdventureScene(character, { interactions: inputInteraction
       }
       if (farming) focused = npcId;
       if (npcId && onSelect?.(npcId, {fromPlot,action:pickedAction})) return true;
+      if (pickOnly) return false;
       if (npcId) return moveToNpc(npcId);
       if (!raycaster.ray.intersectPlane(ground, target)) return false;
       // Heaven NPCs stand on a ground disc; a tap on that disc means "talk", not "walk here".
@@ -780,6 +782,8 @@ export function createAdventureScene(character, { interactions: inputInteraction
     resize(width, height) {
       const aspect = width/Math.max(1,height);
       camera.aspect = aspect; camera.fov = width < 700 ? 55 : 43;
+      // Tall phone: pull the camera back so a wide room (café counters) still fits across the narrow screen.
+      cameraOffset.copy(baseOffset).multiplyScalar(aspect < .75 ? portraitView.dolly : 1);
       camera.updateProjectionMatrix();
       viewHeight = height; viewWidth = width; fitLabels();
     },

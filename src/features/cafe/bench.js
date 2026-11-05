@@ -1,9 +1,18 @@
 import { CROPS } from '../farm/content.js';
-import { AUTO_BREW_COST, QUICK_MS, RECIPES, lockReason, missingFor, quickScore, stars } from './recipes.js';
+import { AUTO_BREW_COST, QUICK_MS, RECIPES, SCORE_MODEL_VERSION, lockReason, missingFor, quickScore, stars } from './recipes.js';
 import { art } from './art.js';
 import { t, formatNumber } from '../../i18n/index.js';
+import { addGameDraft, nextChangeFor } from '../../state/memory.js';
+import { track } from '../../shared/analytics/wire.js';
 
 const el = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text != null) node.textContent = text; return node; };
+// Score line with an ⓘ that toggles the "model, not a real taste test" note (click or tap; .ui-tip long-press is not built yet).
+function scoreLine(score, quality) {
+  const line = el('p', '', t('cafe.bench.score', { score, quality })), note = el('small', 'ui-tip', t('cafe.bench.scoreTip')), info = el('button', '', ' ⓘ');
+  note.hidden = true; info.type = 'button'; info.title = note.textContent; info.setAttribute('aria-label', note.textContent);
+  info.addEventListener('click', () => { note.hidden = !note.hidden; });
+  line.append(info); const box = el('div'); box.append(line, note); return box;
+}
 const button = (text, onClick, className = '') => { const node = el('button', className, text); node.type = 'button'; node.addEventListener('click', onClick); return node; };
 const decimals = step => step.max <= 30 ? 1 : 0;
 const amount = (value, step) => `${formatNumber(value, { maximumFractionDigits: decimals(step) })} ${step.unit}`;
@@ -34,8 +43,28 @@ function toolFor(step) {
   return { '🫘': 'scoop', '🥫': 'can', '🥛': 'milk', '🍶': 'cream', '🧂': 'salt' }[step.icon] || 'kettle';
 }
 
+// Memory draft payload (coffee-memory.md §2): actual step values from the bench state, intended = the recipe's target snapshot.
+// doseG/waterG/tempC/grind are read from step tool/unit (scoop g, '💧' ml pours, °C, grinder pick): a heuristic, steps[] is the full record.
+function memoryCup(state, score, quality, earned, prefs = {}) {
+  const { recipe } = state, pours = (i, s) => s.type === 'pour' && state.values[i] > 0;
+  const steps = recipe.steps.map((step, i) => ({ type: step.type, value: step.type === 'pick' || step.type === 'bean' ? null : state.values[i] ?? null, unit: step.unit || '', pick: state.picks?.[i] ?? null }));
+  const sum = want => recipe.steps.reduce((n, step, i) => n + (want(step) && pours(i, step) ? state.values[i] : 0), 0);
+  // Cumulative pours (V60) already hold the scale total, so the last one is the water used; otherwise add the pours up.
+  const lastPour = recipe.steps.reduce((n, step, i) => step.cumulative && pours(i, step) ? state.values[i] : n, 0);
+  const dose = sum(step => step.tool === 'scoop' && step.unit === 'g'), water = lastPour || sum(step => step.icon === '💧' && step.unit === 'ml');
+  const temp = recipe.steps.findIndex(step => step.unit === '°C'), grind = recipe.steps.findIndex(step => step.tool === 'grinder');
+  const crop = CROPS.find(c => c.id === state.cropId);
+  return {
+    recipeId: recipe.id, method: recipe.id,
+    intended: { steps: recipe.steps.map(step => ({ type: step.type, target: step.target || null, unit: step.unit || '' })) },
+    actual: { ...(dose ? { doseG: dose } : {}), ...(water ? { waterG: water } : {}), ...(dose && water ? { ratio: Math.round(water / dose * 10) / 10 } : {}), ...(temp >= 0 ? { tempC: state.values[temp] } : {}), ...(grind >= 0 && state.picks?.[grind] ? { grind: state.picks[grind] } : {}), steps },
+    bean: { cropId: state.cropId, name: crop?.name || '' }, ingredients: { milk: prefs.milk, water: prefs.water },
+    simulated: { score, quality, stars: earned, modelVersion: SCORE_MODEL_VERSION },
+  };
+}
+
 // Close-up brewing bench inside the cafe dialog; returns a cleanup for the dialog to call on close.
-export function mountBench(root, { farm, service, notice, close, openPantry, askLater = () => {}, fx = () => {} }) {
+export function mountBench(root, { farm, service, notice, close, openPantry, askLater = () => {}, fx = () => {}, openMemory = () => {} }) {
   const events = new AbortController(), signal = events.signal;
   // First bench visit (flag `bench-intro`): one yellow line on top until the first step is done.
   const introSeen = () => farm.peek().tutorial.seen.includes('bench-intro');
@@ -81,6 +110,7 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
     const cropId = (crops.find(c => c.id === recipe.bean) || crops[0])?.id || recipe.bean;
     const missing = missingFor(recipe, cafe, cropId);
     if (missing.length) { lacking(recipe, missing); return; }
+    track('brew_started', { recipe: recipe.id }); // mode chỉ biết khi ra ly: xem brew_completed
     const best = cafe.mastery[recipe.id]?.best || 0;
     brew({ recipe, cropId, index: 0, scores: [], notes: [], values: [], memory: false, canMemory: best >= 90, best });
   }
@@ -159,14 +189,17 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
     note.setAttribute('aria-live', 'polite'); note.textContent = state.memory ? t('cafe.bench.memoryNote') : step.learn || '';
     const say = (text, tone = '') => { note.textContent = text.replace(/^[✓✗△]\s*/, ''); learn.dataset.tone = tone; learn.firstChild.textContent = tone === 'bad' ? '✗' : tone === 'good' ? '✓' : '💡'; };
     const body = el('div', 'cafe-step-body');
-    layout.append(...intro(), head, stepper, title, facts, stage, learn, body); root.append(layout);
+    const plan = state.index === 0 && !state.auto && nextChangeFor(recipe.id); // Memory "Lần sau đổi": one reminder line, never changes the target
+    layout.append(...intro(), ...(plan ? [el('p', 'ui-alert', t('memory.bench.next', { change: plan }))] : []), head, stepper, title, facts, stage, learn, body); root.append(layout);
 
-    const layered = recipe.steps.filter(s => s.layer && s.type === 'pour'), total = layered.reduce((sum, s) => sum + middle(s), 0) || 1;
+    // Cumulative pours read the scale total: a layer only shows what that pour added on top of the previous step.
+    const base = (s, i, v) => s.cumulative && v > 0 ? Math.max(0, v - (state.values[i - 1] ?? (recipe.steps[i - 1]?.target ? middle(recipe.steps[i - 1]) : 0))) : v;
+    const total = recipe.steps.reduce((sum, s, i) => s.layer && s.type === 'pour' ? sum + (s.cumulative ? middle(s) - middle(recipe.steps[i - 1]) : middle(s)) : sum, 0) || 1;
     const drawCup = (live = 0) => {
       fill.replaceChildren();
       recipe.steps.forEach((s, i) => {
         if (!s.layer) return;
-        const value = i < state.index ? state.values[i] : i === state.index ? live : 0;
+        const value = base(s, i, i < state.index ? state.values[i] : i === state.index ? live : 0);
         const height = s.type === 'pour' ? value / total * 78 : i < state.index ? 12 : 0;
         if (height <= 0) return;
         const layer = el('i'); layer.style.background = s.layer; layer.style.height = `${Math.min(85, height)}%`; fill.append(layer);
@@ -208,6 +241,7 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
           if (option.ok === 0) { missed = true; missedWhy ||= t('cafe.bench.firstPick', { label: option.label, why: option.why }); item.dataset.wrong = 'true'; item.disabled = true; say(option.why, 'bad'); fx('bad'); stage.dataset.anim = 'shake'; setTimeout(() => { stage.dataset.anim = ''; }, 350); return; }
           if (tool === 'grinder') fx('grind');
           if (option.crop) state.cropId = option.crop;
+          (state.picks ||= {})[state.index] = option.crop || option.label; // Memory draft: what was chosen at this step
           if (option.grind !== null && option.grind !== undefined) stage.dataset.grind = String(option.grind);
           state.shuffled = null;
           const score = missed ? .3 : option.ok;
@@ -234,7 +268,7 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
       return;
     }
 
-    const from = step.unit === '°C' ? 20 : 0;
+    const from = step.unit === '°C' ? 20 : step.cumulative ? Math.max(0, state.values[state.index - 1] || 0) : 0;
     gauge = { value: from, pouring: false, demo: null };
     const meter = el('div', 'cafe-gauge'), band = el('i', 'cafe-gauge-band'), level = el('i', 'cafe-gauge-fill');
     band.style.left = `${step.target[0] / step.max * 100}%`; band.style.width = `${(step.target[1] - step.target[0]) / step.max * 100}%`; band.hidden = state.memory;
@@ -340,14 +374,16 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
     const worst = state.scores.reduce((w, s, i) => s < state.scores[w] ? i : w, 0), worstStep = recipe.steps[worst];
     const miss = state.scores[worst] < 1 ? `${recipe.name}: ${worstStep.type === 'bean' ? t('cafe.bench.bean') : worstStep.text}` : null;
     service.benchEnd();
-    const earned = stars(score), target = service.addDrink({ recipeId: recipe.id, quality: result.quality, stars: earned, memory: state.memory, miss });
+    const earned = stars(score);
+    track('brew_completed', { recipe: recipe.id, mode: state.auto ? 'auto' : quickBrew ? 'quick' : 'hand', score, stars: earned, model_version: SCORE_MODEL_VERSION });
+    const  target = service.addDrink({ recipeId: recipe.id, quality: result.quality, modelVersion: SCORE_MODEL_VERSION, stars: earned, memory: state.memory, miss });
     root.replaceChildren();
     const summary = el('div', 'cafe-result'), starRow = el('div', 'cafe-result-stars');
     // Each star is its own span so the CSS reveals them one by one (--i × 250 ms), in step with the chimes.
     [...starText(earned)].forEach((s, i) => { const span = el('span', '', s); span.style.setProperty('--i', i); starRow.append(span); });
     fx('stars', { count: earned });
     summary.append(starRow, el('strong', '', `${recipe.icon} ${recipe.name}`),
-      el('p', '', t('cafe.bench.score', { score, quality: result.quality })),
+      scoreLine(score, result.quality),
       el('p', 'cafe-lead', target ? t('cafe.bench.serveTo', { target }) : t('cafe.bench.toShelf')));
     if (farm.peek().lessons.learned.includes('adjust') && state.scores[worst] < 1 && !state.auto) summary.append(el('p', 'ui-alert ui-alert--warn', t('cafe.bench.fixFirst', { step: worstStep.type === 'bean' ? t('cafe.bench.bean') : worstStep.text, fix: state.notes[worst].fix })));
     if (score < 70 && !quickBrew) askLater(['adjust']);
@@ -361,6 +397,9 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
     const actions = el('div', 'cafe-actions');
     const carry = button(t('cafe.bench.carry'), close, 'cafe-primary');
     actions.append(carry, button(t('cafe.bench.another'), choose));
+    // Memory draft only for a cup the player brewed by hand: not Pha nhanh, not Auto (staff/robot cups never reach the bench).
+    const draft = quickBrew || state.auto ? null : addGameDraft(memoryCup(state, score, result.quality, earned, service.snap.cafe.prefs));
+    if (draft) actions.append(button(t('memory.bench.log'), () => openMemory({ entryId: draft.id }), 'cafe-memory-log'));
     summary.append(actions); root.append(summary);
     carry.focus({ preventScroll: true });
   }

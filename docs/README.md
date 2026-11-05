@@ -26,6 +26,10 @@ Tài liệu tổ chức theo **màn chơi**. Bắt đầu từ [sơ đồ liên 
 | [shared/onboarding-flow.md](shared/onboarding-flow.md) | 5 phút đầu, HUD mở dần, thiên đàng là bài học |
 | [shared/robot-staff.md](shared/robot-staff.md) | Robot và nhân viên (farm + quán) |
 | [shared/crew-autoplay.md](shared/crew-autoplay.md) | 3 slot đội, sao robot/nhân viên/bạn, lười-mệt, chia việc không trùng, chế độ Auto |
+| [shared/coffee-memory.md](shared/coffee-memory.md) | Coffee Memory + Quick Taste: ly game và ly ngoài đời, so sánh A/B, xuất/xóa (F-33, F-34; chưa code) |
+| [shared/decode-awaken.md](shared/decode-awaken.md) | Câu hỏi mở, Fragment, Sixth Key, First Sixth Key (F-35; chưa code) |
+| [shared/progression.md](shared/progression.md) | Ba trục Wealth / Mastery / Awakening, hai mục tiêu thắng (F-36; chưa code) |
+| [shared/analytics.md](shared/analytics.md) | Analytics theo sự kiện, envelope, riêng tư (F-38; chưa code) |
 | [shared/ui-audio-vfx.md](shared/ui-audio-vfx.md) | UI dùng chung, âm thanh, VFX, cài đặt |
 | [shared/i18n.md](shared/i18n.md) | Đa ngôn ngữ Anh/Việt: khóa, file locale, cách thêm chuỗi |
 | [ai-studio/](ai-studio/README.md) | Studio AI cho Claude Code: agent, skill, `/game-studio`, chế độ review/dev/auto |

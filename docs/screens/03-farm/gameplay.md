@@ -17,7 +17,7 @@ Thời gian dưới đây là nhịp game, không phải thời gian trồng ngo
 | Gieo | Dấu cộng giữa ô trống; chọn giống ở dải icon, nhân vật tới trồng. Cây mới: nước 50, cỏ 0, chất lượng 80, sức khỏe 100 |
 | Tưới | Nước dưới 35; mỗi lần tốn 1 lượt nước trong bình, đặt nước về **70** (chỉ mưa mới đẩy lên tới 100). Không cần tưới ở giai đoạn khô có kiểm soát (cây đã trưởng thành, tiến độ 17–23%) |
 | Làm cỏ | Cỏ từ 30; dọn về 0 |
-| Tỉa cành | Một lần mỗi lứa khi tiến độ ≤ 17%. Không tỉa: sản lượng ×0,95; có tỉa: +5 chất lượng |
+| Tỉa cành | Một lần mỗi lứa khi tiến độ ≤ 17%. Không tỉa: sản lượng ×0,95; có tỉa: +5 chất lượng. **Luật mới 04/11/2026 (đã code, thay luật cũ ở trước):** tỉa ×0,9 sản lượng, +10 chất lượng; bón ×1,15, −6 chất lượng ([rules.md](rules.md) mục 6) |
 | Bón phân | Chưa bón trong lứa, còn phân, nước ≥ 30, và tiến độ 30% đến dưới 65% (cây đã trưởng thành có thêm cửa sổ 0–17%). Mỗi lứa một lần |
 | Hái | Quả chín; giữ cây để sang lứa mới |
 

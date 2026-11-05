@@ -18,6 +18,23 @@ export const supplierPrice = region => regionType(region) === 'cafe' ? SUPPLIER_
 // Integrated over the work day's sold base value: one big sale and many small ones earn the same.
 export const MARKET_DAILY = 1200;
 export const ORDERS_PER_DAY = 2; // shop orders per work day, stops order-farming
+// F-41 (04/11/2026): fertilizer trades quality for yield, pruning the reverse; no care = x1.0.
+export const careYield = (fertilized, pruned) => (fertilized ? 1.15 : 1) * (pruned ? .9 : 1);
+export const careQuality = (fertilized, pruned) => (fertilized ? -6 : 0) + (pruned ? 10 : 0);
+export const marketQualityFactor = q => .3 + .8 * q / 100;
+// Shop order: 1.2x base, 1.6x when the delivered lots average quality >= 85. `reward` stays the 1.2x price fixed at creation.
+export const ORDER_HIGH_QUALITY = 85;
+export const orderPay = (order, quality) => quality >= ORDER_HIGH_QUALITY ? Math.round(order.reward * 4 / 3) : order.reward;
+// F-43 (04/11/2026): [yield x, quality +, growth-time x] per region and crop. Cafe-only regions are absent (no farm).
+export const REGION_CROP = {
+  vn: { robusta: [1.10, 0, 1], arabica: [.95, 3, 1], liberica: [1, 0, 1] },
+  br: { robusta: [1.05, -3, 1], arabica: [1.10, 0, 1], liberica: [.85, -5, 1.1] },
+  co: { robusta: [.80, -8, 1.1], arabica: [1, 8, 1.1], liberica: [.80, -8, 1.1] },
+  ke: { robusta: [.80, -8, 1.1], arabica: [.95, 10, 1.1], liberica: [.80, -8, 1.1] },
+  id: { robusta: [1.05, 0, 1], arabica: [.95, 2, 1], liberica: [1.10, 3, .95] }
+};
+export const regionCrop = (region, cropId) => { const [y, q, g] = REGION_CROP[region]?.[cropId] || [1, 0, 1]; return { yield: y, quality: q, growth: g }; };
+export const regionFit = (region, cropId) => { const r = regionCrop(region, cropId); return r.yield >= 1.05 || r.quality >= 5 ? 'good' : r.yield <= .9 ? 'poor' : 'neutral'; };
 export const RELIEF_GRAMS = 300; // free beans for a bankrupt café-only region
 const marketCurve = x => x <= .7 * MARKET_DAILY ? x - x * x / (2 * MARKET_DAILY) : .455 * MARKET_DAILY + .3 * (x - .7 * MARKET_DAILY);
 export const marketValue = (soldToday, base) => marketCurve(soldToday + base) - marketCurve(soldToday);

@@ -2,8 +2,11 @@ import { CROPS, HUD_UNLOCKS } from '../farm/content.js';
 import { regionType } from '../world-map/content.js';
 import { createIncidentLayer, clock } from '../../ui/incidents.js';
 import { ASSETS, supplierPrice, assetValue, formatCoins, formatMass, upgradePrice } from '../farm/rules.js';
-import { BRAND_QUALITY, MILKS, WATERS, recipeShort, SHIFT_TIERS, CANDIDATES, GEAR, MAX_CREW, RECIPES, STAFF_MAX, STAFF_ROLES, STAFF_STATS, SUPPLIES, TABLE_LEVELS, cafeRank, effectLines, lockReason, recipeById, roleOf, staffStat, staffWage, stars, trainCost } from './recipes.js';
+import { BRAND_QUALITY, MILKS, WATERS, recipeShort, SHIFT_TIERS, CANDIDATES, GEAR, MAX_CREW, RECIPES, STAFF_MAX, STAFF_ROLES, STAFF_STATS, SUPPLIES, TABLE_LEVELS, cafeRank, effectLines, lockReason, recipeById, roleOf, staffStat, staffWage, stars, trainCost, priceOf, PRICE_MIN, PRICE_MAX, PRICE_STEP, GREEDY_P } from './recipes.js';
+import { hasKey, tasteHint, shiftProfit, recipeRows } from '../awakening/unlocks.js';
 import { mountBench } from './bench.js';
+import { createMemoryUI } from './memory-ui.js';
+import { draftCount } from '../../state/memory.js';
 import { isSettingsOpen, openSettings } from '../../ui/settings.js';
 import { askLesson } from '../../ui/lesson-prompt.js';
 import { usesTouch } from '../../ui/dialogue.js';
@@ -21,10 +24,11 @@ const INTRO_STEPS = t('cafe.intro.steps');
 const coins = n => t('cafe.coins', { n: formatCoins(n) });
 const stepLine = (step, recipe) => step.type === 'bean' ? t('cafe.book.stepBean', { bean: CROPS.find(c => c.id === recipe.bean).name }) : step.type === 'pour' ? `${step.text}: ${step.target[0]}–${step.target[1]} ${step.unit}` : `${step.text}: ${step.options.find(o => o.ok === 1).label}`;
 
-export function createCafeUI({ farm, service, profile, notice, onExit, onOrders, onWalkTable, onWalk = () => {}, onGuide = () => {}, fx = () => {} }) {
+export function createCafeUI({ farm, service, awakening = null, profile, notice, onExit, onOrders, onWalkTable, onWalk = () => {}, onGuide = () => {}, fx = () => {} }) {
   const farmless = regionType(farm.peek().region) === 'cafe'; // chỉ có quán: hạt chỉ nhập ngoài, không đặt farm
   const events = new AbortController(), signal = events.signal;
   let cleanup = null, view = null;
+  const memoryUi = createMemoryUI({ notice, awakening }); // own dialog, stacks above the bench; counts as an open window for the movement lock
   // Heaven re-ask (onboarding-flow.md 3.1): queued by the cup result / shift report, shown once that screen closes,
   // because the dialogue box cannot sit above a showModal() dialog. The model enforces 1 per work day.
   let lessonIds = null, closeLesson = null;
@@ -70,7 +74,9 @@ export function createCafeUI({ farm, service, profile, notice, onExit, onOrders,
   }
   const act = (action, choice, rerender) => {
     const before = service.refresh().coins, result = farm.act('cafe', action, choice);
-    notice(result.message, result.ok); fx('buy', { ok: result.ok, spent: before - service.refresh().coins }); rerender?.(); return result;
+    // No coins spent = plain UI click sound instead of the purchase one.
+    notice(result.message, result.ok); const spent = before - service.refresh().coins; fx(spent > 0 || !result.ok ? 'buy' : 'tap', { ok: result.ok, spent });
+    rerender?.(); return result;
   };
   // One list row: icon chip, title + detail, optional action button (farm settings-row look).
   const row = (icon, heading, detail, action, state = null) => {
@@ -130,6 +136,7 @@ export function createCafeUI({ farm, service, profile, notice, onExit, onOrders,
   drawer.grid.append(tile('🛠️', t('cafe.nav.upgrades'), () => openUpgrades(), true), tile('👥', t('cafe.nav.staff'), () => openStaff(), true), ...(farmless ? [] : [tile('📦', t('cafe.nav.orders'), onOrders, true)]), tile('📖', t('cafe.nav.book'), () => openBook(), true), tile('⚙️', t('cafe.nav.settings'), () => openSettings(), true));
 
   function refreshHud() {
+    awakening?.check();
     renderIncidents();
     const cafe = service.snap.cafe, tickets = service.tickets(), seated = service.customers.filter(c => c.seat).length;
     const seats = TABLES.reduce((sum, _, i) => sum + (service.isOpen(i) ? service.tableLevel(i).seats : 0), 0);
@@ -141,7 +148,7 @@ export function createCafeUI({ farm, service, profile, notice, onExit, onOrders,
     shiftLine.textContent = shift ? `${Math.floor(left / 60000)}:${String(Math.floor(left / 1000) % 60).padStart(2, '0')} · ${shiftTarget(shift)}${shiftLine.parentElement.dataset.state ? '' : ` · ⭐ ${recipeById(shift.special).name}`}` : t('cafe.hud.noShift');
     shiftBar.hidden = !shift; if (shift) shiftBar.style.setProperty('--ratio', left / (shift.endsAt - shift.startedAt));
     toggle.lastChild.textContent = cafe.open ? t('cafe.nav.close') : t('cafe.nav.open'); toggle.dataset.notification = String(!cafe.open);
-    const key = tickets.map(tk => `${tk.id}:${tk.covered}:${tk.seconds}`).join('|') + `|${service.benchTarget}`;
+    const gu = hasKey(farm.peek(), 'empathy'), key = gu + tickets.map(tk => `${tk.id}:${tk.covered}:${tk.seconds}`).join('|') + `|${service.benchTarget}`;
     rail.hidden = !tickets.length;
     if (rail.dataset.key !== key) {
       rail.dataset.key = key; rail.replaceChildren();
@@ -150,6 +157,7 @@ export function createCafeUI({ farm, service, profile, notice, onExit, onOrders,
         // Order ticket: who (table / take-away), what (drink name), how long; ✓ once a cup is on its way.
         chip.title = t('cafe.hud.chip', { who: tk.label, drink: tk.recipe.name, s: tk.seconds });
         chip.append(el('small', 'cafe-chip-who', tk.label), el('b', '', tk.recipe.icon), el('strong', '', recipeShort(tk.recipe.id)), el('small', '', tk.id === service.benchTarget ? t('cafe.hud.brewing') : `${tk.seconds}s`));
+        if (gu) { const hint = t(`awakening.hint.${tasteHint(tk.customer.color)}`); chip.title += ` · ${hint}`; chip.append(el('small', 'cafe-chip-who', hint)); } // Key of Empathy: info only
         const bar = el('i', 'cafe-patience'); bar.style.setProperty('--ratio', tk.ratio); chip.append(bar); rail.append(chip);
       }
     }
@@ -190,7 +198,7 @@ export function createCafeUI({ farm, service, profile, notice, onExit, onOrders,
   }
 
   function openBench() {
-    open('bench', { heading: t('cafe.bench.heading'), icon: '☕' }, root => mountBench(root, { farm, service, notice, fx, close: () => dialog.close(), openPantry, askLater: ids => { lessonIds = ids; } }));
+    open('bench', { heading: t('cafe.bench.heading'), icon: '☕' }, root => mountBench(root, { farm, service, notice, fx, close: () => dialog.close(), openPantry, openMemory: opts => memoryUi.open(opts), askLater: ids => { lessonIds = ids; } }));
   }
 
   // Recipe book: list of recipes; picking one shows its full card in the same modal.
@@ -279,7 +287,7 @@ export function createCafeUI({ farm, service, profile, notice, onExit, onOrders,
     if (tab) upgradeTab = tab;
     open('upgrades', { heading: t('cafe.upgrades.heading'), icon: '🛠️' }, function render(root) {
       root.replaceChildren();
-      setTabs([['tables', t('cafe.upgrades.tabTables')], ['gear', t('cafe.upgrades.tabGear')], ['auto', t('cafe.upgrades.tabAuto')], ['expand', t('cafe.upgrades.tabExpand')]], upgradeTab, id => { upgradeTab = id; render(root); });
+      setTabs([['tables', t('cafe.upgrades.tabTables')], ['gear', t('cafe.upgrades.tabGear')], ['auto', t('cafe.upgrades.tabAuto')], ['expand', t('cafe.upgrades.tabExpand')], ['menu', t('cafe.upgrades.tabMenu')]], upgradeTab, id => { upgradeTab = id; render(root); });
       const p = service.refresh(), cafe = p.cafe, rerender = () => render(root);
       if (upgradeTab === 'tables') {
         const asset = ASSETS.find(a => a.id === 'cafe'), lv = p.upgrades.cafe, price = upgradePrice('cafe', lv), maxed = lv >= 10;
@@ -290,6 +298,19 @@ export function createCafeUI({ farm, service, profile, notice, onExit, onOrders,
         for (let i = 0; i < TABLES.length; i++) if (service.isOpen(i)) {
           const level = cafe.tables[i], info = TABLE_LEVELS[level - 1];
           root.append(row(['🪵', '🪑', '🛋️', '🛋️'][level - 1], t('cafe.upgrades.tableRow', { n: i + 1, name: info.name }), t('cafe.upgrades.seats', { dots: levelDots(level, TABLE_LEVELS.length), n: info.seats }), button(t('cafe.upgrades.upgrade'), () => openTable(i, 'upgrade'))));
+        }
+        return;
+      }
+      if (upgradeTab === 'menu') {
+        root.append(el('p', 'cafe-note', t(cafe.open ? 'cafe.menu.locked' : 'cafe.menu.note')));
+        for (const r of RECIPES.filter(r => !lockReason(r, cafe))) {
+          const pr = priceOf(cafe.prices, r.id), step = d => button(d < 0 ? '−' : '+', () => act('prices', { recipeId: r.id, p: pr + d * PRICE_STEP }, rerender));
+          const [down, up] = [step(-1), step(1)];
+          down.disabled = cafe.open || pr <= PRICE_MIN; up.disabled = cafe.open || pr >= PRICE_MAX;
+          down.setAttribute('aria-label', t('cafe.menu.lower')); up.setAttribute('aria-label', t('cafe.menu.higher'));
+          down.style.minWidth = up.style.minWidth = down.style.minHeight = up.style.minHeight = '44px';
+          const box = el('span'); box.append(down, up);
+          root.append(row('☕', `${r.name} · ×${pr.toFixed(2)}`, `${t('cafe.menu.row', { price: coins(Math.round(r.price * pr * 100) / 100), base: coins(r.price) })}${pr >= GREEDY_P ? ` ${t('cafe.menu.greedy')}` : ''}`, box));
         }
         return;
       }
@@ -464,6 +485,12 @@ export function createCafeUI({ farm, service, profile, notice, onExit, onOrders,
       root.append(row('☕', t('cafe.shift.served', { n: r.served }), t('cafe.shift.marks', { a: marks[0], b: marks[1], c: marks[2], avg: r.avg == null ? '—' : r.avg.toFixed(1), lost: r.lost, home: r.unserved || 0 }), null, r.tier ? 'owned' : null));
       root.append(row('🪙', t('cafe.shift.revenue', { coins: coins(r.revenue) }), r.tier ? t('cafe.shift.bonus', { medal, bonus: r.bonus, rep: r.rep }) : r.message || t('cafe.shift.noBronze')));
       root.append(row(recipeById(r.special).icon, t('cafe.shift.special', { drink: recipeById(r.special).name }), t('cafe.shift.specialDetail')));
+      const log = farm.peek().cafe.shiftLog.at(-1); // Key of Balance: profit of this shift (the log row exists unless a learning shift skipped it)
+      if (hasKey(farm.peek(), 'balance') && log && log.at >= r.startedAt) {
+        root.append(row('🧾', t('awakening.profit.title', { profit: signed(shiftProfit(log)) }), t('awakening.profit.detail', { revenue: coins(log.revenue), costs: coins(log.costs), wages: coins(log.wages), beans: coins(log.beans) })));
+        for (const x of recipeRows(r.byRecipe)) root.append(row(recipeById(x.id).icon, t('awakening.profit.recipe', { drink: recipeById(x.id).name, cups: x.cups, revenue: coins(x.revenue) }), t('awakening.profit.note')));
+      }
+      if (draftCount()) root.append(row('📓', t('memory.shift.pending', { n: draftCount() }), t('memory.shift.pendingDetail')));
       if (r.wasted) root.append(row('🗑️', t('cafe.shift.wasted', { n: r.wasted }), t('cafe.shift.wastedDetail')));
       if (r.robot) root.append(robotCompare(r.robot));
       const actions = el('div', 'cafe-actions');
@@ -475,11 +502,11 @@ export function createCafeUI({ farm, service, profile, notice, onExit, onOrders,
 
   refreshHud();
   return {
-    get open() { return dialog.open || Boolean(closeLesson); }, get view() { return view; },
+    get open() { return dialog.open || memoryUi.isOpen || Boolean(closeLesson); }, get view() { return view; },
     tick() { if (!dialog.open || !live) return; const next = live.liveKey(); if (next !== live.key) { live.key = next; live.render(body); } },
-    refreshHud, openBench, openBook, openPantry, openUpgrades, openStaff, openTable, showShiftReport,
+    refreshHud, openBench, openMemory: opts => memoryUi.open(opts), openBook, openPantry, openUpgrades, openStaff, openTable, showShiftReport,
     // service onIncident: bong bóng đọc từ service.incidents, nên chỉ cần vẽ ngay (chửi khách chỉ có 3 s).
     showIncident() { refreshHud(); },
-    dispose() { lessonIds = null; closeLesson?.(); events.abort(); if (dialog.open) dialog.close(); incidentLayer.remove(); for (const node of [dialog, quest, ops, rail, nav]) node.remove(); drawer.remove(); },
+    dispose() { lessonIds = null; closeLesson?.(); memoryUi.dispose(); events.abort(); if (dialog.open) dialog.close(); incidentLayer.remove(); for (const node of [dialog, quest, ops, rail, nav]) node.remove(); drawer.remove(); },
   };
 }

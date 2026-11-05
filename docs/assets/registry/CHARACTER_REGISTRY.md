@@ -8,7 +8,7 @@
 | Người đi xe đạp | intro | khối tạm trong slot `intro/bicycle` | không | Meshy (chờ credit) |
 | Nhân viên y tế ×2 | intro | `createPerson(color,{medical:true})` | IK tay trong `rescue.js` | Model rig dùng chung skeleton |
 | Thần Chết | intro + thiên đàng | khối tạm (`intro/reaper`, `heaven/reaper`) | không | Meshy |
-| Thần Nông Cà Phê | thiên đàng | khối tạm trong `heaven/growing` | không | Meshy |
+| Thần Nông | thiên đàng | khối tạm trong `heaven/growing` | không | Meshy |
 | Thần Pha Chế | thiên đàng | `heaven/brewing` | không | Meshy |
 | Thần Thương Hội | thiên đàng | `heaven/business` | không | Meshy |
 | Thần Tiếp Nhận | thiên đàng | `heaven/clerk` | không | Meshy |

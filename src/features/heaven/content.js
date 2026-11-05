@@ -17,7 +17,7 @@ export const EXPERTS = [
     question('ripe', ['ripe', 'green', 'all'], 'ripe'),
     question('water', ['more', 'drain', 'coffee'], 'drain'),
   ]),
-  expert('brewing', '☕', '#b28b53', [0, -14], [
+  expert('brewing', '♨', '#b28b53', [0, -14], [
     question('recipe', ['feel', 'cup', 'measure'], 'measure'),
     question('adjust', ['one', 'everything', 'sugar'], 'one'),
   ]),

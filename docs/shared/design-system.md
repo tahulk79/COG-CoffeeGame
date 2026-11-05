@@ -107,6 +107,10 @@ PORTRAIT 390×844                         LANDSCAPE 844×390
 - "Cần xử lý" / "Hoạt động" của farm thành badge trên nút Quản lý. Mở ra là panel trong ngăn kéo.
 - Không hiện nút điều hướng tới chính màn đang ở. Không trùng chức năng (xu mở shop **hoặc** nút shop, không cả hai không có affordance).
 - Ngân sách: HUD ≤ 20% diện tích viewport ở cả 3 kích thước.
+- **Vùng trên điện thoại (05/11/2026, `src/ui/styles/hud.css` mục "Phone zones")**: mỗi khối một chỗ, không chồng nhau.
+  - Dọc, từ dưới lên: thanh hành động (phải) + joystick (trái) → nút Auto (phải, trên thanh) → thông báo (`#farm-notice`, đáy + 212 px) → coach (đáy + 290 px).
+  - Ngang: thanh hành động là cột phải, Auto nằm bên trái cột đó ở đáy, thông báo ở giữa đáy (giữa joystick và Auto), coach ở giữa trên cùng.
+  - Ngăn kéo Quản lý hoặc dải chọn giống mở ra thì ẩn Auto, và ẩn joystick ở màn dọc. Nút Auto chưa có chữ thì không hiện.
 
 ## 7. Animation timing
 

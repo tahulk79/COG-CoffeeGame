@@ -22,7 +22,7 @@ import { t } from '../../i18n/index.js';
 // Separate playable world; the farm model owns inventory and transit so changing maps cannot copy goods.
 // Warm indoor fill with a softer key than the farm, so the room reads as a lamp-lit café, not an open field (03 §4).
 const CAFE_LIGHT = { sky: '#f6e7cc', ground: '#7a5a3a', ambient: 1.5, sun: '#ffe2b0', sunIntensity: 3.2, background: '#e9dcc4' };
-export function createCafeGame({ farm, ui, onMenu, onExit, profile, character }) {
+export function createCafeGame({ farm, ui, awakening = null, onMenu, onExit, profile, character }) {
   const bounds = { minX: -16, maxX: 16, minZ: -14, maxZ: 10 };
   const REGISTER_X = (REGISTERS[0] + REGISTERS[1]) / 2, KIOSK_X = (KIOSKS[0] + KIOSKS[1]) / 2, back = LANE_Z - COUNTER_Z;
   // The player works counters from the staff lane behind them, like real staff.
@@ -31,6 +31,7 @@ export function createCafeGame({ farm, ui, onMenu, onExit, profile, character })
     { id: 'bar', name: t('cafe.spot.bar'), kind: 'bar', position: [BAR_X, COUNTER_Z], faceYaw: 0, interactDistance: 3.8, approachOffsets: STATIONS.map(x => [x - BAR_X, back]), color: '#a67a48' },
     { id: 'register', name: t('cafe.spot.register'), kind: 'register', position: [REGISTER_X, COUNTER_Z], faceYaw: 0, interactDistance: 3, approachOffsets: REGISTERS.map(x => [x - REGISTER_X, back]), color: '#b88a4c' },
     { id: 'pickup', name: t('cafe.spot.pickup'), kind: 'pickup', position: [PICKUP_X, COUNTER_Z], faceYaw: 0, interactDistance: 2.4, approachOffsets: [[0, back]], color: '#8a7a55' },
+    { id: 'notebook', name: t('cafe.spot.notebook'), kind: 'notebook', position: [-2.2, COUNTER_Z], faceYaw: 0, interactDistance: 2.4, approachOffsets: [[0, back]], color: '#7b5a3c' },
     { id: 'kiosk', name: t('cafe.spot.kiosk'), kind: 'kiosk', position: [KIOSK_X, -6.6], interactDistance: 2.2, approachOffsets: [[0, 1.2]], color: '#6f8fb0' },
     { id: 'pantry', name: t('cafe.spot.pantry'), kind: 'pantry', position: [-14.95, -10.5], interactDistance: 2, approachOffsets: [[1.35, 0]], color: '#8c7a55' },
     { id: 'board', name: t('cafe.spot.board'), kind: 'board', position: [3, 5], interactDistance: 2, approachOffsets: [[0, 1.3]], color: '#54776a' },
@@ -42,8 +43,8 @@ export function createCafeGame({ farm, ui, onMenu, onExit, profile, character })
   ];
   const PLANTS = [[14.8, -12.8], [-14.8, 2.1], [14.8, 2.1], [-14.8, 9.2], [14.8, 9.2], [11.6, -12.6]];
   const cylinder = (top, bottom, height) => new THREE.CylinderGeometry(top, bottom, height, 14);
-  function canvasPlane(width, height, draw, parent, x, y, z) {
-    const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = Math.round(512 * height / width);
+  function canvasPlane(width, height, draw, parent, x, y, z, pixels = 512) {
+    const canvas = document.createElement('canvas'); canvas.width = pixels; canvas.height = Math.round(pixels * height / width);
     draw(canvas.getContext('2d'), canvas.width, canvas.height);
     const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace;
     const plane = new THREE.Mesh(new THREE.PlaneGeometry(width, height), new THREE.MeshBasicMaterial({ map: texture, transparent: true }));
@@ -153,6 +154,18 @@ export function createCafeGame({ farm, ui, onMenu, onExit, profile, character })
     assetSlot(visual, `cafe/${npc.id}`);
     // An empty slot shows a dashed outline and a "for sale" plate so players see where the upgrade goes.
     const slotOutline = (parent, w, d) => { const g = new THREE.Group(); parent.add(g); for (const [x, z, sw, sd] of [[0, -d / 2, w, .05], [0, d / 2, w, .05], [-w / 2, 0, .05, d], [w / 2, 0, .05, d]]) box('#b08a52', x, .04, z, sw, .02, sd, g).userData.nonSolid = true; g.userData.nonSolid = true; return g; };
+    // Plate tilted toward the camera over an empty slot: "＋ icon name" so the player sees which upgrade fits there.
+    // Same dark nameplate as the scene labels (scene.js label(): fill, cream text, pill); equal height, width hugs the text.
+    const slotPlate = (parent, id, y = .35) => {
+      const gear = GEAR.find(g => g.id === id), text = `+ ${gear.icon} ${gear.name}`, font = '800 64px "Baloo 2", system-ui';
+      const measure = document.createElement('canvas').getContext('2d'); measure.font = font;
+      const cw = Math.min(1024, Math.ceil(measure.measureText(text).width + 88)), height = .45;
+      const plate = canvasPlane(height * cw / 128, height, (ctx, pw, ph) => {
+        ctx.fillStyle = '#3b2a1cd9'; ctx.strokeStyle = '#b08a52'; ctx.lineWidth = 6; ctx.beginPath(); ctx.roundRect(4, 6, pw - 8, ph - 12, (ph - 12) / 2); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#fff6dc'; ctx.font = font; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, pw / 2, ph / 2 + 2, pw - 24);
+      }, parent, 0, y, .2, cw);
+      plate.rotation.x = -.8; parent.userData.statusAction = 'upgrade'; return plate;
+    };
     if (npc.kind === 'bar') {
       const counter = assetSlot(new THREE.Group(), 'cafe/bar/counter'); visual.add(counter);
       box('#9b7044', 0, .55, 0, 8, 1.1, 1, counter); box('#ede0bd', 0, 1.13, 0, 8.2, .08, 1.15, counter);
@@ -165,6 +178,9 @@ export function createCafeGame({ farm, ui, onMenu, onExit, profile, character })
         box('#4f5a58', .45, 1.42, -.25, .28, .45, .28, g);
         return g;
       });
+      // Stations 2–3 not bought yet: outline on the counter top plus a plate.
+      const stationSlots = STATIONS.map((x, i) => { if (!i) return null; const g = slotOutline(visual, 1.1, .6); g.position.set(x - BAR_X, 1.15, 0); slotPlate(g, 'station', .15); return g; });
+      const autoSlot = slotOutline(visual, .7, .5); autoSlot.position.set(3.35, 1.15, -.2); slotPlate(autoSlot, 'autoEspresso', .8);
       const parts = {};
       parts.espresso = assetSlot(new THREE.Group(), 'cafe/espresso-machine'); visual.add(parts.espresso);
       box('#6c8885', STATIONS[1] - BAR_X, 1.55, -.25, 1.1, .75, .5, parts.espresso); box('#d1d6c5', STATIONS[1] - BAR_X, 1.62, .02, .9, .25, .05, parts.espresso);
@@ -177,8 +193,9 @@ export function createCafeGame({ farm, ui, onMenu, onExit, profile, character })
       box('#6e5240', 3.6, 1.2, .3, .7, .05, .4, counter);
       const cups = [0, 1, 2, 3, 4, 5].map(i => { const cup = mesh(cylinder(.08, .06, .18), '#fffaf0', 3.35 + (i % 3) * .2, 1.32, .2 + Math.floor(i / 3) * .2, 1, 1, 1, visual); cup.name = 'cup'; cup.userData.nonSolid = true; return cup; });
       return { setState({ gear, shelf }) {
-        stations.forEach((g, i) => { g.visible = i <= (gear.station || 0); });
+        stations.forEach((g, i) => { g.visible = i <= (gear.station || 0); stationSlots[i] && (stationSlots[i].visible = !g.visible); });
         for (const [id, part] of Object.entries(parts)) part.visible = gear[id] > 0;
+        autoSlot.visible = !(gear.autoEspresso > 0);
         cups.forEach((cup, i) => { cup.visible = i < shelf; });
       } };
     }
@@ -190,7 +207,7 @@ export function createCafeGame({ farm, ui, onMenu, onExit, profile, character })
         mesh(cylinder(.12, .12, .25), '#cfe6ea', -.6, 1.3, .2, 1, 1, 1, g);
         return g;
       });
-      const empty = slotOutline(visual, 2.4, 1); empty.position.x = REGISTERS[1] - REGISTER_X;
+      const empty = slotOutline(visual, 2.4, 1); empty.position.x = REGISTERS[1] - REGISTER_X; slotPlate(empty, 'register2');
       return { setState({ gear }) { counters[1].visible = gear.register2 > 0; empty.visible = !counters[1].visible; } };
     }
     if (npc.kind === 'pickup') {
@@ -208,6 +225,15 @@ export function createCafeGame({ farm, ui, onMenu, onExit, profile, character })
       });
       const empty = slotOutline(visual, 2.4, 1);
       return { setState({ gear }) { kiosks.forEach((g, i) => { g.visible = i < (gear.kiosk || 0); }); empty.visible = !(gear.kiosk > 0); } };
+    }
+    if (npc.kind === 'notebook') {
+      // Coffee Notebook (coffee-memory.md §3): a small lectern with an open book and a bookmark, between the bar and the register.
+      // Every part is nonSolid so walking lanes stay exactly as before; tap it to open the notebook modal.
+      box('#7d5c3c', 0, .5, 0, .28, 1, .28, visual).userData.nonSolid = true;
+      const tilt = box('#7d5c3c', 0, 1.02, 0, .8, .06, .6, visual); tilt.userData.nonSolid = true;
+      box('#f6eed6', 0, 1.07, 0, .7, .05, .5, visual).userData.nonSolid = true;
+      box('#b5483a', .2, 1.1, .05, .06, .02, .32, visual).userData.nonSolid = true;
+      return {};
     }
     if (npc.kind === 'pantry') {
       box('#7d5c3c', 0, 1, 0, .7, 2, 1.8, visual);
@@ -306,7 +332,7 @@ export function createCafeGame({ farm, ui, onMenu, onExit, profile, character })
 
   // Nhân vật người chơi đã chọn (GLB rig); chỉ dùng khối tạm nếu tải thất bại.
   const player = character || createPerson('#6d8658', { gender: profile?.gender === 'male' ? 'male' : 'female' });
-  const world = createAdventureScene(player, { theme: 'farm', mapBounds: bounds, interactions, buildActor, buildEnvironment, lighting: CAFE_LIGHT });
+  const world = createAdventureScene(player, { theme: 'farm', mapBounds: bounds, interactions, buildActor, buildEnvironment, lighting: CAFE_LIGHT, portraitView: { focus: [-2, -5.5], zoom: .85, dolly: 1.45 } });
   // Flat floor name plates draw over walkers; the cafe uses status signs instead except for the bar.
   for (const item of interactions.filter(item => item.id !== 'bar')) for (const child of world.scene.getObjectByName(`farm:${item.id}`).children) if (child.renderOrder === 5) child.visible = false;
   // The scene's small round focus ring hides under long counters, so the cafe draws its own footprint glow instead.
@@ -381,7 +407,7 @@ export function createCafeGame({ farm, ui, onMenu, onExit, profile, character })
     const cup = props?.getObjectByName('cup');
     if (cup) world.scene.traverse(o => { if (o.name === 'cup' && o.isMesh) { o.scale.setScalar((o.geometry.parameters?.height || .18) / .18); o.geometry = cup.geometry; o.material = cup.material; } });
   });
-  const FOOTPRINT = { bar: [8.6, 1.7], register: [5.8, 1.7], pickup: [2.9, 1.7], kiosk: [3, 1.5], pantry: [1.4, 2.4], board: [1.5, 1], table: [3.1, 3.1], expansion: [2.2, 2.2], door: [4.2, .8], exit: [1.9, 1.1] };
+  const FOOTPRINT = { bar: [8.6, 1.7], register: [5.8, 1.7], pickup: [2.9, 1.7], kiosk: [3, 1.5], pantry: [1.4, 2.4], board: [1.5, 1], notebook: [1.1, 1], table: [3.1, 3.1], expansion: [2.2, 2.2], door: [4.2, .8], exit: [1.9, 1.1] };
   const glowCanvas = document.createElement('canvas'); glowCanvas.width = glowCanvas.height = 256;
   const glowCtx = glowCanvas.getContext('2d');
   glowCtx.fillStyle = '#ffe17a55'; glowCtx.beginPath(); glowCtx.roundRect(22, 22, 212, 212, 44); glowCtx.fill();
@@ -429,7 +455,7 @@ export function createCafeGame({ farm, ui, onMenu, onExit, profile, character })
   function openSession() {
     active = true; events = new AbortController();
     bindCafeFeedback({ vfx, screenAt, player, object: id => world.scene.getObjectByName(`farm:${id}`) });
-    cafeUi = createCafeUI({ farm, service, profile, fx: feedback, screenAt, notice: (text, ok = true) => ui.notice(text, ok), onExit, onOrders: () => onMenu('orders'), onWalkTable: table => world.moveToNpc(`table-${table}`), onWalk: id => world.moveToNpc(id),onGuide: id => world.setQuestArrow(id) });
+    cafeUi = createCafeUI({ farm, service, awakening, profile, fx: feedback, screenAt, notice: (text, ok = true) => ui.notice(text, ok), onExit, onOrders: () => onMenu('orders'), onWalkTable: table => world.moveToNpc(`table-${table}`), onWalk: id => world.moveToNpc(id),onGuide: id => world.setQuestArrow(id) });
     document.body.classList.add('cafe-active');
     listen(); farm.setCafeActive(true); keyboard.clear(); touch = { x: 0, z: 0 };
     if (leftAt) service.resume(Date.now() - leftAt);
@@ -585,6 +611,7 @@ export function createCafeGame({ farm, ui, onMenu, onExit, profile, character })
     const low = SUPPLIES.some(s => ['cup', 'condensed', cafe.prefs?.milk, 'ice'].includes(s.id) && cafe.supplies[s.id] < s.pack / 5);
     world.setObjectStatus('pantry', { text: low ? t('cafe.status.pantryLow') : t('cafe.status.pantry') });
     world.setObjectStatus('board', { text: t('cafe.status.book') });
+    world.setObjectStatus('notebook', { text: t('cafe.status.notebook') });
     for (const id of ['terrace', 'roastery']) {
       const gear = GEAR.find(g => g.id === id), owned = cafe.gear[id] > 0;
       world.setActorState(id, { unlocked: owned });
@@ -600,6 +627,7 @@ export function createCafeGame({ farm, ui, onMenu, onExit, profile, character })
     else if (id === 'bar') { if (!service.arriveBar()) cafeUi.openBench(); }
     else if (id === 'pantry') cafeUi.openPantry();
     else if (id === 'board') cafeUi.openBook();
+    else if (id === 'notebook') cafeUi.openMemory();
     else if (id.startsWith('table-')) service.arriveTable(Number(id.slice(6)));
     else if (id === 'terrace' || id === 'roastery') {
       // Walk to the sign first; with enough coins the «Mở rộng» tab is the confirmation, otherwise say how much is missing.
@@ -723,11 +751,13 @@ export function createCafeGame({ farm, ui, onMenu, onExit, profile, character })
     if (id) { selectStaff(id); if (!service.remind(id)) cafeUi.openStaff(id); return; }
     select(null);
     // Tapping a table or chair opens its card; with a cup in hand it walks over to serve instead.
-    world.moveToScreen(e.clientX, e.clientY, rect, target => {
+    // Auto keeps the character (only ⏸ hands it back), but slot plates and table cards still open; Auto works behind them.
+    world.moveToScreen(e.clientX, e.clientY, rect, (target, { action } = {}) => {
       select(target);
+      if (action === 'upgrade') { glowUntil = performance.now() + 1200; cafeUi.openUpgrades('auto'); return true; } // tapped an empty slot plate
       if (!target.startsWith('table-') || service.hand) return false;
       glowUntil = performance.now() + 1200; cafeUi.openTable(Number(target.slice(6))); return true;
-    });
+    }, autoOn());
   }, { signal: events.signal });
   // Same wheel zoom as the farm map.
   document.addEventListener('wheel', e => {

@@ -1,4 +1,5 @@
 import { DECORATIONS } from './decorations.js';
+import { createAwakening } from '../awakening/ui.js';
 import { t as tr } from '../../i18n/index.js';
 import { loading, showLoading, hideLoading } from '../../ui/loading.js';
 import { createDecorationBuilder } from './decoration-builder.js';
@@ -18,6 +19,7 @@ import { askLesson } from '../../ui/lesson-prompt.js';
 import { usesTouch } from '../../ui/dialogue.js';
 import { toolCapacity, acceptsTool } from './tools.js';
 import { createFarmUI } from './ui.js';
+import { wireFarm } from '../../shared/analytics/wire.js';
 import { pickAutoTask, pickAutoErrand } from './autoplay.js';
 import { mountAutoHud } from '../../ui/autoplay-hud.js';
 import { createFarmFeedback } from './feedback.js';
@@ -29,6 +31,9 @@ import { loadFarmModels, attachFarmModels } from './assets.js';
 import { attachModels } from '../../shared/three/models.js';
 import { INTERACTIONS, PLOTS, FIELDS, CROPS, PRODUCTS, MACHINES, cropById, productById, plotCare, FARM_BOUNDS, HUD_UNLOCKS } from './content.js';
 import { regionType } from '../world-map/content.js';
+import { economicStatus, titleOf } from './progression.js';
+import { orderPay,regionFit } from './rules.js';
+import { hasKey, regionNumbers, lastBatches } from '../awakening/unlocks.js';
 const $ = id => document.getElementById(id);
 
 // Warm highland sun over cool sky fill, ~3:1 key:fill so beds, trees and roofs get readable shadows (03 §4).
@@ -58,8 +63,20 @@ export async function createFarmGame(profile, startingGift, persistence = { read
   const farm = createFarm(saved, startingGift, value => {
     if (!persistence.save(value) && !storageNotice) { storageNotice = true; ui?.notice(tr('farm.game.saveFailed'), false); }
   }, undefined, heavenLessons, startingRegion);
+  const detachAnalytics = wireFarm(farm);
+  const awakening = createAwakening({ farm, notice: (text, ok = true) => ui.notice(text, ok) }); // F-35 UI: toast, badge, decode modal; shared with the café
+  // wireFarm dùng chung cho cả quán (cùng farm); gỡ khi rời màn
   // Loại nơi trùng sinh (02b-world-map): 'farm' không có quán, 'cafe' mở thẳng vào quán và không về được nông trại.
   const regionKind = regionType(farm.peek().region);
+  // F-36: a victory is celebrated once; ones already in the loaded save are never shown again.
+  const celebrated = new Set(Object.entries(saved?.victories || {}).filter(([, at]) => at).map(([key]) => key));
+  function celebrate() {
+    const v = farm.peek().victories;
+    for (const key of ['economic', 'discovery']) if (v[key] && !celebrated.has(key)) {
+      celebrated.add(key); feedback('victory');
+      ui.notice(tr('farm.victory.toast', { win: tr(`farm.victory.${key}`), title: titleOf(v) }), true, null, 8000);
+    }
+  }
   let freshLessons = farm.peek().lessons.granted.length - (saved?.lessons?.granted?.length || 0);
   const seen = id => farm.peek().tutorial.seen.includes(id);
   const markSeen = id => { if (!seen(id)) farm.act('tutorial', 'seen', id); };
@@ -82,10 +99,11 @@ export async function createFarmGame(profile, startingGift, persistence = { read
     window.__forceIncident=(id,type)=>farm.debugIncident(scope(id),id,type);window.__incidentOdds=id=>farm.incidentOdds(scope(id),id);
   }
   const resetJoystick = mountJoystick($('heaven-joystick'), $('heaven-joystick-knob'), value => {
+    if(auto&&(value.x||value.z))return; // Auto keeps the character; only ⏸ hands it back
     if(cafeGame){cafeGame.setTouch(value);return;}
     touch = value; if (value.x || value.z) { world.resetCamera(); world.stopMovement(); cancelWork(); }
   }, events.signal);
-  // ---- Auto mode (docs/shared/crew-autoplay.md 5): Auto plays the owner, the hand shows what it taps; any touch hands control back ----
+  // ---- Auto mode (docs/shared/crew-autoplay.md 5): Auto plays the owner, the hand shows what it taps; only ⏸ or time-out stops it ----
   let auto=false,autoSpent=0,autoWait=0,autoTarget=null,autoHudAt=0;
   const autoHud=mountAutoHud({onToggle:()=>auto?stopAuto():startAuto()});
   function autoStatus(){const a=farm.peek().autoplay;autoHud.status({on:auto,runs:a.runs,leftMs:Math.max(0,a.leftMs-autoSpent)});}
@@ -94,10 +112,9 @@ export async function createFarmGame(profile, startingGift, persistence = { read
     if(!auto)return;auto=false;if(autoSpent)farm.act('autoplay','spend',autoSpent);autoSpent=0;autoTarget=null;autoStatus();
     if(message)ui.notice(message,true);
   }
-  // Only steering the character takes control back (map/3D tap, joystick); HUD, shop and menus leave Auto running (crew-autoplay.md 5).
+  // Nothing but ⏸ stops Auto: swipes still move the camera, steering input (map tap, joystick, move keys) is ignored (crew-autoplay.md 5).
   // Save before the tab is hidden/closed (mobile browsers may never fire unload).
   document.addEventListener('visibilitychange',()=>{if(document.hidden)farm.flush();},{signal:events.signal});addEventListener('pagehide',()=>farm.flush(),{signal:events.signal});
-  document.addEventListener('pointerdown',event=>{if(auto&&event.isTrusted&&event.target.closest?.('#game canvas, #heaven-joystick'))stopAuto(tr('crew.auto.manual'));},{capture:true,signal:events.signal});
   const MOVE_KEYS=new Set(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight']);
   // Layers, first match wins (crew-autoplay.md 5): quiz/popup → staff incident → field job → errand → go to the café.
   let autoErrand=null,autoIdle=0;const autoSkip=new Map();
@@ -236,7 +253,7 @@ export async function createFarmGame(profile, startingGift, persistence = { read
       const p=farm.progress;
       if(entry.action==='shop-order'){
         const order=p.order,ready=p.stock[order.product][order.cropId]-keepForCafe(p,order.product,order.cropId)>=order.quantity;
-        ui.confirmTrade(ready?tr('farm.trade.sellTitle'):tr('farm.trade.acceptTitle'),tr(ready?'farm.trade.sellOrder':'farm.trade.acceptOrder',{mass:formatMass(order.quantity),crop:cropById(order.cropId).short,reward:order.reward}),()=>choose(entryId,true),null,ready?'sell':'accept');return;
+        ui.confirmTrade(ready?tr('farm.trade.sellTitle'):tr('farm.trade.acceptTitle'),tr(ready?'farm.trade.sellOrder':'farm.trade.acceptOrder',{mass:formatMass(order.quantity),crop:cropById(order.cropId).short,reward:order.reward,high:orderPay(order,100)}),()=>choose(entryId,true),null,ready?'sell':'accept');return;
       }
       if(entry.action==='sell'){
         const [product,cropId]=entry.choice.split(':'),grams=p.stock[product][cropId],quote=farm.saleQuote(product,cropId,grams);
@@ -464,10 +481,10 @@ export async function createFarmGame(profile, startingGift, persistence = { read
       ];
     } else if (menu.id === 'seed-shop') {
       title = tr('farm.tool.shop'); subtitle = tr('farm.shop.subtitle'); icon = '❧';
-      entries = CROPS.map(crop => entry(`buy:${crop.id}`, crop.name, crop.description, 'buySeed', crop.id, crop.level <= farm.level && p.coins >= crop.seedPrice, crop.level > farm.level ? tr('farm.shop.level',{level:crop.level}) : tr('farm.coins',{n:crop.seedPrice}), '❧'));
+      entries = CROPS.map(crop => entry(`buy:${crop.id}`, crop.name, crop.description+' · '+tr('farm.shop.fit.'+regionFit(p.region,crop.id))+(hasKey(p,'nature')?' · '+tr('awakening.region.line',regionNumbers(p.region,crop.id)):''), 'buySeed', crop.id, crop.level <= farm.level && p.coins >= crop.seedPrice, crop.level > farm.level ? tr('farm.shop.level',{level:crop.level}) : tr('farm.coins',{n:crop.seedPrice}), '❧'));
       entries.push(entry('fertilizer',tr('farm.shop.fertilizer'),tr('farm.shop.fertilizerDetail'), 'fertilizer', null, p.coins >= FERTILIZER_PRICE, tr('farm.coins',{n:FERTILIZER_PRICE}), '✚'));
       const shop=p.order,shopKeep=keepForCafe(p,shop.product,shop.cropId),ready=p.stock[shop.product][shop.cropId]-shopKeep>=shop.quantity;
-      entries.push({...entry('shop-order',tr('farm.shop.fixedOrder',{mass:formatMass(shop.quantity),crop:cropById(shop.cropId).short}),tr('farm.shop.fixedDetail',{reward:shop.reward,stock:formatMass(p.stock[shop.product][shop.cropId])})+(shopKeep?tr('farm.shop.keep',{mass:formatMass(shopKeep)}):''),'shop-order',shop.id,p.market.orders<ORDERS_PER_DAY,p.market.orders>=ORDERS_PER_DAY?tr('farmRules.err.orderCap'):ready?tr('farm.shop.sellReward',{reward:shop.reward}):shop.accepted?tr('farm.shop.awaiting'):tr('farm.trade.acceptTitle'),'🪙'),category:'trade',saleFixed:true});
+      entries.push({...entry('shop-order',tr('farm.shop.fixedOrder',{mass:formatMass(shop.quantity),crop:cropById(shop.cropId).short}),tr('farm.shop.fixedDetail',{reward:shop.reward,high:orderPay(shop,100),stock:formatMass(p.stock[shop.product][shop.cropId])})+(shopKeep?tr('farm.shop.keep',{mass:formatMass(shopKeep)}):''),'shop-order',shop.id,p.market.orders<ORDERS_PER_DAY,p.market.orders>=ORDERS_PER_DAY?tr('farmRules.err.orderCap'):ready?tr('farm.shop.sellReward',{reward:shop.reward,high:orderPay(shop,100)}):shop.accepted?tr('farm.shop.awaiting'):tr('farm.trade.acceptTitle'),'🪙'),category:'trade',saleFixed:true});
       for(const product of PRODUCTS)for(const crop of CROPS){const quantity=p.stock[product.id][crop.id];if(quantity)entries.push({...entry(`shop-sell:${product.id}:${crop.id}`,`${product.name} · ${crop.short}`,tr('farm.shop.have',{mass:formatMass(quantity)}),'sell',`${product.id}:${crop.id}`,true,tr('farm.shop.chooseAmount'),product.icon),targetId:'market',category:'trade',sale:{owned:quantity,keep:keepForCafe(p,product.id,crop.id)}});}
     } else if (menu.id === 'well') {
       title = tr('farm.well.title'); icon = '◒'; subtitle = tr('farm.well.subtitle',{water:p.water,cap:farm.waterCapacity,reserve:Math.floor(p.reservoir)});
@@ -514,7 +531,7 @@ export async function createFarmGame(profile, startingGift, persistence = { read
     activeEntries = entries;
     const stationAsset=ASSETS.find(asset=>asset.id===(machine?.id||(menu.kind==='bag'?'storage':['well','pond','cafe'].includes(menu.id)?menu.id:null)));
     let station=null;
-    if(stationAsset){const lv=p.upgrades[stationAsset.id],price=upgradePrice(stationAsset.id,lv),maxLv=assetMaxLevel(stationAsset);station={max:maxLv,tier:ASSET_TIERS[assetTier(lv)-1].name,feedback:processingFeedback?.id===stationAsset.id&&processingFeedback.until>now?processingFeedback.text:null,id:stationAsset.id,level:lv,current:assetValue(stationAsset,lv),next:lv<maxLv?assetValue(stationAsset,lv+1):null,unit:stationAsset.unit,benefit:stationAsset.benefit,price,lock:lv>=maxLv?tr('farm.upgrade.reachedMax'):farm.level<upgradeRequirement(lv+1)?tr('farm.upgrade.needLevel',{level:upgradeRequirement(lv+1)}):p.coins<price?tr('farm.short.coins',{n:Math.ceil(price-p.coins)}):null};}
+    if(stationAsset){const lv=p.upgrades[stationAsset.id],price=upgradePrice(stationAsset.id,lv),maxLv=assetMaxLevel(stationAsset);station={history:hasKey(p,'transformation')&&['dryer','roaster'].includes(stationAsset.id)?{title:tr('awakening.batch.title'),note:tr('awakening.batch.note'),empty:tr('awakening.batch.empty'),rows:lastBatches(p.awakening.samples.batches,stationAsset.id).map(b=>tr('awakening.batch.row',{crop:cropById(b.cropId)?.short||b.cropId,q:Math.round(b.quality)}))}:null,max:maxLv,tier:ASSET_TIERS[assetTier(lv)-1].name,feedback:processingFeedback?.id===stationAsset.id&&processingFeedback.until>now?processingFeedback.text:null,id:stationAsset.id,level:lv,current:assetValue(stationAsset,lv),next:lv<maxLv?assetValue(stationAsset,lv+1):null,unit:stationAsset.unit,benefit:stationAsset.benefit,price,lock:lv>=maxLv?tr('farm.upgrade.reachedMax'):farm.level<upgradeRequirement(lv+1)?tr('farm.upgrade.needLevel',{level:upgradeRequirement(lv+1)}):p.coins<price?tr('farm.short.coins',{n:Math.ceil(price-p.coins)}):null};}
     ui.modal({ title, subtitle, icon, entries, footer, filters, station, roster:menu.kind==='workers', back:['worker-detail','order-detail'].includes(menu.kind), kind: ['worker-detail','order-detail','daily-detail'].includes(menu.kind)?'worker':menu.kind === 'plant' ? 'plant' : ['jobs','orders','daily'].includes(menu.kind)?'jobs':plot ? 'context' : menu.kind === 'expand' ? 'confirm' : menu.kind === 'bag' ? 'bag' : ['upgrades','workers'].includes(menu.kind) ? 'upgrades' : menu.id === 'seed-shop' ? 'store' : 'shop' });
     // Switching to another station starts on «Process»; the remembered tab only stays when a finished batch awaits pickup.
     if(machine&&lastMachineId!==menu.id){lastMachineId=menu.id;const st=p.machines[machine.id];if(!menu.initialFilter)menu.initialFilter=st&&[st.batch,...st.extraBatches].some(j=>j&&j.readyAt<=now)?'queue':'prepare';}
@@ -607,7 +624,7 @@ export async function createFarmGame(profile, startingGift, persistence = { read
       // Đóng hẳn modal farm (im tiếng vì nút đã kêu ui.open) rồi mới mở hộp chung: không lồng hai modal.
       if(id==='game-settings'){ui.closeModal(true);closeUserMenu();openSettings();return;}
       if(id==='settings'){clearInput();cancelWork();menu={kind:'help',id:null};ui.closeSeedStrip();ui.showSettings();return;}
-      if(id==='help'){clearInput();cancelWork();menu={kind:'help',id:null};ui.closeSeedStrip();ui.showGuide(notebook());return;}
+      if(id==='help'){clearInput();cancelWork();menu={kind:'help',id:null};ui.closeSeedStrip();awakening.check(true);ui.showGuide(notebook(),goals(),awakening);return;}
       if (id === 'center') { world.resetCamera(); return; }
       if (id === 'zoom-in' || id === 'zoom-out') { world.zoomView(id === 'zoom-in' ? .15 : -.15); return; }
       clearInput(); cancelWork(); menu = {id: id === 'upgrades' ? null : id, kind: id === 'upgrades' ? id : 'station', remote:true}; renderMenu();
@@ -634,6 +651,7 @@ export async function createFarmGame(profile, startingGift, persistence = { read
     choose, close: closeUserMenu,
   });
   function refresh(now) {
+    awakening.check();
     const p = farm.progress;
     const availableFields = FIELDS.filter(field => !p.fields.includes(field.id)).map(field => ({ id: field.id, position: [...field.position] }));
     const bounds = FARM_BOUNDS;
@@ -646,7 +664,8 @@ export async function createFarmGame(profile, startingGift, persistence = { read
     if(p.claimed.includes('roast'))markSeen('quest-guide');
     ui.blockers(farmBlockers(p,farm.level,farm.storageCapacity,now,opened.has('tools')));ui.journal(p.journal||[],p.workers,0);
     ui.operationHud({today:p.today,weather:farm.weather,workers:p.workers,demand:farm.demand,storage:p.lots.reduce((n,l)=>n+l.grams,0),capacity:farm.storageCapacity});
-    ui.hud({ ...p, playerName: profile.name, level: farm.level, water: p.water, capacity: farm.waterCapacity, tool, quest: goal(), seedName: cropById(selectedSeed).short });
+    celebrate();
+    ui.hud({ ...p, playerName: [profile.name, titleOf(p.victories)].filter(Boolean).join(' · '), level: farm.level, water: p.water, capacity: farm.waterCapacity, tool, quest: goal(), seedName: cropById(selectedSeed).short });
     for (const plot of p.plots) {
       if (!plot.unlocked) {
         world.setActorState(plot.id, plot);
@@ -807,6 +826,10 @@ export async function createFarmGame(profile, startingGift, persistence = { read
     return true;
   }
   // Heaven notebook rows for the Guide: learned, or when the next re-ask is possible.
+  function goals() {
+    const p = farm.peek(), e = economicStatus(p);
+    return { assets: e.assets, target: e.target, economic: { done: Boolean(p.victories.economic), rows: e.rows.map(([id, ok, params]) => ({ ok, text: tr(`farm.goals.${id}`, { n: formatCoins(params.n ?? 0) }) })) }, discovery: Boolean(p.victories.discovery) };
+  }
   function notebook(){
     const p=farm.peek(),left=Math.ceil((WORK_DAY_MS-Math.max(0,Date.now()-p.epoch)%WORK_DAY_MS)/60000);
     return Object.entries(LESSON_PERKS).map(([id,perk])=>{const learned=p.lessons.learned.includes(id);return {id,name:perk.name,effect:perk.effect,learned,wait:learned||farm.pendingLesson([id])?0:left};});
@@ -831,6 +854,7 @@ export async function createFarmGame(profile, startingGift, persistence = { read
     decorationBuilder?.stopTask();
     const workerPick=crew.pickAtScreen(event.clientX,event.clientY,canvas.getBoundingClientRect()),workerId=workerPick?.id;
     if(workerId){clearInput();cancelWork();crew.select(workerId);const w=farm.peek().workers.find(x=>x.id===workerId);menu={kind:'worker-detail',id:null,workerId,remote:true,initialFilter:w&&onPhone(w,Date.now())?'settings':undefined};renderMenu();return;}
+    if(auto)return;
     cancelWork(); world.moveToScreen(event.clientX, event.clientY, canvas.getBoundingClientRect(), (id, picked) => {
       if (FIELDS.some(field => field.id === id)) {world.moveToNpc(id);world.setFocus(id);return true;}
       if(MACHINES.some(machine=>machine.id===id)){if(picked?.action==='collect'&&near(id)){noticeResult(applyAction(id,'collect',null));refresh(Date.now());return true;}pendingStationAction={id,action:picked?.action || 'select'};world.moveToNpc(id);world.setFocus(id);return true;}
@@ -861,7 +885,7 @@ export async function createFarmGame(profile, startingGift, persistence = { read
         showLoading(30,tr('farm.loading.openCafe'));
         const cafeCharacter=await loadPlayer(playerModel(profile.gender)).catch(error=>{console.warn('Không tải được nhân vật cho quán, dùng khối tạm.',error);return null;});
         loading(60,tr('farm.loading.buildCafe'));leaveFarm();
-        cafeGame=cafeKept=createCafeGame({farm,ui,profile,character:cafeCharacter,onExit:regionKind==='cafe'?null:exitCafe,onMenu:id=>{menu={id,kind:id==='orders'?'orders':'station',remote:true};renderMenu();}});
+        cafeGame=cafeKept=createCafeGame({farm,ui,awakening,profile,character:cafeCharacter,onExit:regionKind==='cafe'?null:exitCafe,onMenu:id=>{menu={id,kind:id==='orders'?'orders':'station',remote:true};renderMenu();}});
         // Lift the cover once the art is in (at most 4 s on a slow network: placeholders still work).
         loading(85,tr('farm.loading.furniture'));
         await Promise.race([cafeGame.ready,new Promise(r=>setTimeout(r,4000))]);
@@ -884,7 +908,7 @@ export async function createFarmGame(profile, startingGift, persistence = { read
       if(Date.now()-farm.peek().lastAt>60000)farm.tick(Date.now());
       // The farm world is hidden behind the café: keep workers moving, tick the model at 2 Hz, skip farm HUD/badge refresh.
       autoTick(dt);
-      if(cafeGame){crew.update(dt,Date.now(),null,true);cafeGame.update(dt,time);if(time-lastRefresh>=.5){lastRefresh=time;farm.tick(Date.now());ui.coins(farm.peek().coins);if(menu)renderMenu();}ui.update();return;}
+      if(cafeGame){crew.update(dt,Date.now(),null,true);cafeGame.update(dt,time);if(time-lastRefresh>=.5){lastRefresh=time;farm.tick(Date.now());celebrate();ui.coins(farm.peek().coins);if(menu)renderMenu();}ui.update();return;}
       crew.update(dt,Date.now(),[work?.id,pendingTool?.id,pendingPlant?.id,...workQueue.map(t=>t.id)].filter(Boolean));
       const result = world.update(dt, time, keyboard.combine(touch), (ui.modalOpen&&!auto) || Boolean(lessonClose) || Boolean(work) || Boolean(decorationBuilder?.active)||Boolean(decorationBuilder?.working)); nearest = result.nearest;decorationBuilder?.tick(dt,result.navigationFailed,ui.modalOpen);
       if(coach){if(!coach.moved&&character.position.distanceTo(coach.start)>1)coach.moved=true;coach.left-=dt;if((coach.moved&&coach.acted)||coach.left<=0)endCoach();}
@@ -933,7 +957,7 @@ export async function createFarmGame(profile, startingGift, persistence = { read
       setListener(character.position, world.camera); vfx.update(dt);
     },
     handleKeyDown(event) {
-      if(auto&&event.isTrusted&&MOVE_KEYS.has(event.code)&&!event.target.closest?.('input, textarea, select'))stopAuto(tr('crew.auto.manual'));
+      if(auto&&MOVE_KEYS.has(event.code)&&!event.target.closest?.('input, textarea, select'))return;
       if (event.target.closest('input, textarea, select') || lessonClose) return; // the re-ask dialogue handles its own keys
       if(decorationBuilder?.active&&!ui.modalOpen){decorationBuilder.key(event);return;}
       if (ui.handleModalKey(event)) return;
@@ -952,7 +976,7 @@ export async function createFarmGame(profile, startingGift, persistence = { read
       freshLessons = 0;
       if (!coach && !seen('controls')) startCoach();
     },
-    dispose() { stopAuto(); autoHud.dispose(); delete window.__forceIncident; delete window.__incidentOdds; lessonClose?.();document.body.classList.remove('farm-coach-pending'); cafeKept?.dispose();decorationBuilder?.dispose();vfx.dispose();crew.dispose();playerActivity.dispose();farm.flush(); clearInput(); events.abort(); ui.dispose(); world.dispose(); $('heaven-controls').hidden = true; },
+    dispose() { detachAnalytics(); awakening.dispose(); stopAuto(); autoHud.dispose(); delete window.__forceIncident; delete window.__incidentOdds; lessonClose?.();document.body.classList.remove('farm-coach-pending'); cafeKept?.dispose();decorationBuilder?.dispose();vfx.dispose();crew.dispose();playerActivity.dispose();farm.flush(); clearInput(); events.abort(); ui.dispose(); world.dispose(); $('heaven-controls').hidden = true; },
   };
   } catch (error) { events.abort(); world.dispose(); throw error; }
 }

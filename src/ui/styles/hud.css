@@ -72,3 +72,29 @@
 .farm-active #farm-hud .quest-tracker{min-height:44px}
 /* Phone landscape puts the notch on a side: keep the identity/quest column clear of it (joystick and bar already use env()). */
 @media(orientation:landscape) and (max-height:500px){.farm-active #farm-hud{left:max(12px,env(safe-area-inset-left));right:max(12px,env(safe-area-inset-right))}}
+
+/* ---------- Phone zones (05/11; game.css's own .autoplay-* rules load after this file, hence `body` in front): one slot per HUD piece so nothing stacks on top of another ----------
+   Portrait, bottom-up: action bar (right) + joystick (left) → Auto (right, above the bar) → toast → coach.
+   Landscape: bar is the right column, Auto sits left of it at the bottom, toast bottom centre, coach top centre.
+   Anything that opens over the bottom band (Manage drawer, seed strip) hides Auto and the joystick it would cover. */
+.autoplay-btn:empty{display:none} /* until the first status() fills its text */
+body:has(.hud-drawer:not([hidden])) .autoplay-btn{display:none}
+/* Clear the action bar (≈97 px tall incl. its bottom gap) with an 8 px gap; the desktop bar is zoomed 1.15. */
+body .autoplay-btn{bottom:calc(max(10px,env(safe-area-inset-bottom)) + 96px)}
+@media(min-width:1200px) and (min-height:760px) and (pointer:fine){body .autoplay-btn{bottom:calc(max(10px,env(safe-area-inset-bottom)) + 110px)}}
+@media(orientation:portrait) and (max-width:600px){
+ .farm-active #farm-notice{bottom:calc(max(10px,env(safe-area-inset-bottom)) + 212px);max-width:calc(100vw - 24px)}
+ :is(.farm-active,.cafe-active) .ui-coach{bottom:calc(max(10px,env(safe-area-inset-bottom)) + 290px);max-width:calc(100vw - 24px);white-space:normal}
+ body .autoplay-caption{bottom:calc(max(10px,env(safe-area-inset-bottom)) + 212px)}
+ body:has(.hud-drawer:not([hidden])) #heaven-joystick{display:none}
+ body:has(#farm-seed-strip:not([hidden])) :is(#heaven-joystick,.autoplay-btn){display:none}
+}
+@media(orientation:landscape) and (max-height:500px){
+ body .autoplay-btn{right:calc(max(10px,env(safe-area-inset-right)) + 92px);bottom:max(8px,env(safe-area-inset-bottom))}
+ .farm-active #farm-notice{top:auto;bottom:max(10px,env(safe-area-inset-bottom));max-width:min(380px,calc(100vw - 460px))} /* between joystick and Auto */
+ body .autoplay-caption{bottom:calc(max(10px,env(safe-area-inset-bottom)) + 60px)}
+ :is(.farm-active,.cafe-active) .farm-left-hud{width:min(260px,34vw)}
+ body:has(#farm-seed-strip:not([hidden])) .autoplay-btn{display:none}
+ :is(.farm-active,.cafe-active) .ui-coach{top:max(8px,env(safe-area-inset-top));bottom:auto;max-width:calc(100vw - 2 * (min(260px,34vw) + 24px));white-space:normal}
+ :is(.farm-active,.cafe-active) .ui-coach>span{white-space:normal}
+}

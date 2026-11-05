@@ -4,6 +4,9 @@ import { t } from '../../i18n/index.js';
 // Display text lives in src/i18n/locales/cafe-recipes.js; the language is fixed per page load, so module-level t() is safe.
 const L = (key, params) => t(`cafeRecipes.${key}`, params);
 
+// Bump when the cup scoring formula changes; stored with each cup so old and new scores are never mixed (F-39).
+export const SCORE_MODEL_VERSION = 1;
+
 // Real-world reference ratios; game time compresses drip/extraction waits only.
 export const SUPPLIES = [
   { id: 'cup', name: L('supply.cup'), icon: '🥤', unit: L('unit.pcs'), pack: 50, packLabel: L('pack.cup'), price: 5, start: 30 },
@@ -17,7 +20,7 @@ export const SUPPLIES = [
   { id: 'egg', name: L('supply.egg'), icon: '🥚', unit: L('unit.egg'), pack: 10, packLabel: L('pack.egg'), price: 4, start: 0 },
   { id: 'cream', name: L('supply.cream'), icon: '🍶', unit: 'ml', pack: 250, packLabel: L('pack.cream'), price: 6, start: 0 },
   { id: 'salt', name: L('supply.salt'), icon: '🧂', unit: 'g', pack: 100, packLabel: L('pack.salt'), price: 1, start: 0 },
-  { id: 'filter', name: L('supply.filter'), icon: '📄', unit: L('unit.sheet'), pack: 40, packLabel: L('pack.filter'), price: 4, start: 0 },
+  { id: 'filter', name: L('supply.filter'), icon: '📄', unit: L('unit.sheet'), pack: 40, packLabel: L('pack.filter'), price: 4, start: 40 },
 ];
 
 // prices[level] is the cost to go from that level to the next; max level = prices.length.
@@ -28,7 +31,8 @@ export const GEAR = [
   gearItem('espresso', '☕', 0, [120, 200, 320]),
   gearItem('steamer', '🥛', 0, [60, 120]),
   gearItem('mixer', '🥚', 0, [70]),
-  gearItem('v60', '🫗', 0, [90]),
+  // V60 is the first method (F-40): level 1 is free from the start, the gooseneck kettle levels add quality like the phin.
+  gearItem('v60', '🫗', 1, [0, 60, 120]),
   gearItem('chasen', '🍵', 0, [50]),
   // Automation fills fixed counter slots, so layout and walking lanes never change when they are bought.
   gearItem('station', '🧰', 0, [150, 260], 'auto'),
@@ -126,6 +130,14 @@ export const TABLE_LEVELS = [
 ].map((level, i) => ({ name: L(`table.${i}`), ...level, detail: L(`tableDetail.${i}`) }));
 // A cup the owner brews by hand sells at OWN_CUP × the base price (cafe-fun-review P2): skill keeps paying late game.
 export const OWN_CUP = 2;
+// F-42 owner pricing (04-cafe/gameplay.md): per-recipe price factor p, only changed while the café is closed.
+export const PRICE_MIN = .8, PRICE_MAX = 1.3, PRICE_STEP = .05, GREEDY_P = 1.2;
+export const clampPrice = p => Number.isFinite(p) ? Math.round(Math.max(PRICE_MIN, Math.min(PRICE_MAX, p)) * 20) / 20 : 1; // 20 = 1 / PRICE_STEP
+export const priceOf = (prices, id) => clampPrice(prices?.[id] ?? 1);
+export const tipFactor = p => p > 1 ? Math.max(0, 1 - 2 * (p - 1)) : 1;
+// p̄ = mean of p weighted by order odds (`weights[id]`, default 1); the guest gap is multiplied by p̄^1.5.
+export const meanPrice = (prices, ids, weights = {}) => { let w = 0, s = 0; for (const id of ids) { const k = weights[id] ?? 1; w += k; s += k * priceOf(prices, id); } return w ? s / w : 1; };
+export const arrivalFactor = pbar => Math.pow(pbar, 1.5);
 // Shift goal tiers as multiples of the bronze goal: [bronze, silver, gold] (cafe-fun-review P1).
 export const SHIFT_TIERS = [1, 1.4, 1.8];
 export const MAX_TABLES = 12; // 10 indoor/porch + 2 in the garden (Sân vườn)
@@ -224,8 +236,12 @@ export const RECIPES = [
       grind(1, 'v60Grind'),
       pick('v60Filter', 'filter', [opt('v60Rinse', '💧', 1), opt('v60Dry', '📄', .5)]),
       pour('v60Dose', '🫘', 'g', [14, 16], 25),
+      { ...pour('v60Temp', '🌡️', '°C', [92, 94], 100), tool: 'heat' },
       pour('v60Bloom', '💧', 'g', [25, 40], 60, null, true),
-      pour('v60Pour', '🫗', 'g', [235, 265], 320, '#8a5a33', true)] },
+      // Main/final pour targets are scale totals: the gauge starts from the previous pour (`cumulative`).
+      { ...pour('v60Main', '🫗', 'g', [140, 160], 200, '#8a5a33'), cumulative: true },
+      { ...pour('v60Pour', '🫗', 'g', [235, 265], 320, '#8a5a33'), cumulative: true },
+      pick('v60Time', 'spoon', [opt('v60TimeShort', '⏱️', .5), opt('v60TimeOk', '⏲️', 1), opt('v60TimeLong', '🕒', .5)], { wait: L('wait.v60Time') })] },
   // Matcha: tea, not coffee (beans 0). Bamboo whisk (chasen) gear; water 75–80 °C, a boil makes it bitter.
   { id: 'matcha', ...text('matcha'), icon: '🍵', price: 3.5, beans: 0, bean: null, uses: { cup: 1, matcha: 2, water: 70 }, gear: { chasen: 1 }, reputation: 0,
     steps: matchaSteps(70) },

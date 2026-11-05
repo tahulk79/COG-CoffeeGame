@@ -148,6 +148,7 @@ Chỉ `model.js` sửa hai trường này. Mọi màn khác đọc qua `farm.pee
 | Hàm | Trả về |
 |---|---|
 | `farm.pendingLesson(ids = cả 6 câu)` | `{ expert, question }` (đối tượng gốc trong `EXPERTS`, chỉ đọc) của câu đầu tiên trong `ids` đang hỏi lại được, hoặc `null`. Hỏi được = chưa thuộc ∧ chưa sai trong ngày công hiện tại ∧ chưa có câu hỏi lại nào được trả lời trong ngày công này (4.1). Mỗi nơi kích hoạt truyền câu của mình, ví dụ hái tay `['ripe']`, giếng/mưa `['water']`, báo cáo cuối ca `['recipe','costs']`, ly < 70 `['adjust']`, khách bỏ về `['customer']`; Sổ tay truyền đúng câu được bấm. Hiện câu không ghi gì; chỉ `act('lessons','answer')` mới tính |
+| `farm.onEvent(fn)` | `fn(type, props)`; trả hàm hủy đăng ký. Không lưu vào save. Lỗi trong listener bị nuốt (`console.error`). Loại: `field_bought {index,level}`, `workday_ended {level,coins_bucket,market_floor_hit}` (chỉ tick trực tiếp, không phát khi bù offline > 60 s), `victory_reached {type}`, `challenge_completed {quest}`, `auto_started {runs_left}`, `shift_ended {cups,tier,left,revenue,costs}` (từ `act('cafe','shift')`, scene gửi thêm `lost`,`revenue`,`costs`), `tutorial_completed {step:'first_cup',ms_since_start}` (khi `stats.served` 0→1), `discovery_saved {type,what}` (what = fragment/message/key; type = loại Fragment hoặc id Key), `question_ready {id}` (chỉ cho UI, không gửi analytics). Nối analytics ở `shared/analytics/wire.js` `wireFarm` |
 | `LESSON_PERKS` (export của `farm/model.js`) | `{ [questionId]: { name, effect } }` cho toast "🎓 Mẹo mới", Sổ tay |
 | `farm.waterCapacity` | Đã cộng +2 khi thuộc `water` |
 | Ngày công | `floor((t − peek().epoch) / WORK_DAY_MS)` (`farm/rules.js`), dùng cho "Ôn lại sau x phút" |
@@ -286,3 +287,25 @@ Chuyển save: `workers[i].jobs` cắt còn đúng `activeJobs` (người cấp 
 | Hành động `lessons/defer` | «Để sau»/Esc ở câu mẹo tính là đã hỏi hôm nay (`askedDay`, `askedCount`) | — |
 | `supplierPrice(region)` (`farm/rules.js`) | Giá nhập hạt 500 g: 75 (`SUPPLIER_PRICE`) hoặc 45 ở nơi chỉ quán (`SUPPLIER_PRICE_CAFE_ONLY`); ngưỡng hạt cứu trợ dùng cùng giá | — |
 | Chỉ đọc khi mở 2 tab (`state/progress.js`) | Tab khác ghi `godbean-progress` (event `storage`) → tab này bật `readOnly`, mọi hàm save thành no-op, farm báo «Game đang mở ở tab khác — tải lại để chơi tiếp ở đây». Định dạng save không đổi | — |
+
+## 8. Dữ liệu mới theo tài liệu chuẩn (chốt 04/11/2026, CHƯA CODE)
+
+Kế hoạch trường cho F-33…F-43. Khi code, sửa mục này thành "đã code" và ghi chuyển save cụ thể. Mọi trường mới: save cũ thiếu → tạo mặc định, không ghi đè dữ liệu đã có.
+
+| Trường / khóa | Ý nghĩa | Mặc định save cũ | Spec |
+|---|---|---|---|
+| Khóa `godbean-memory` (**đã code 04/11**, `src/state/memory.js`) | `{ version: 1, entries: [entry], setup: {...} }` — sổ tay Coffee Memory, **tách khỏi** `godbean-progress` | không có → `{ version: 1, entries: [], setup: {} }` | [coffee-memory](coffee-memory.md) mục 6, 8 |
+| Khóa `godbean-analytics` | Hàng chờ sự kiện (≤ 500) + `anonymous_player_id` | tạo khi mở game lần đầu | [analytics](analytics.md) |
+| `settings.analytics` | Bật/tắt gửi thống kê ẩn danh | `true` | [analytics](analytics.md) mục 1 |
+| `godbean-memory.setup.mode` | `quick` / `journal` / `scientist` (đã code 04/11; `scientist` chỉ dùng khi có Key Curiosity, không có Key thì UI coi như `journal`). Mục Scientist ghi thêm nhóm `equipment`, `preparation`, `ingredients`, `environment`, `personal`, `intended` (trường đã có trong mục Memory). Không thêm trường tiến trình mới: 10 mẻ gần nhất đọc từ `awakening.samples.batches`; doanh thu theo món chỉ nằm trong báo cáo ca (bộ nhớ, không lưu). Lưu trong sổ tay, **không** ở `settings` vì `normalizeSettings` bỏ trường lạ | `quick` | [coffee-memory](coffee-memory.md) mục 5 |
+| `awakening` (**đã code 04/11**, `features/awakening/rules.js`) | Nguồn ghi: `farm.awakening` (model), `saveFarm` chép lên cấp 1 như `victories`. Dạng: `{ version:1, questions:{[id]:{state:'open'\|'trying'\|'ready'\|'solved', since, evidence:[ref], facts?:{số}, wrong?}}, fragments:[{id,type,questionId,at,tag}], messages:[type], messageAt:{type:at}, applied:[type], keys:[{id,at}], firstKey:{step 0–7, entries:[memoryId], variable, direction, attribute, after, rejected:[{id,vars}]}, samples:{harvests≤20, batches≤20, floorDays≤6, market} }`. `samples` là số liệu ngắn do người chơi tạo (hái, nhận mẻ, bán chợ), không có chữ riêng tư | save cũ thiếu → mặc định, 6 câu thiên đàng `open` | [decode-awaken](decode-awaken.md) mục 7 |
+| `victories` (cấp 1) | `{ economic: at\|null, discovery: at\|null }` | cả hai `null` | [progression](progression.md) mục 4 |
+| `farm.memoryXp` | `{ day, xp }` XP Memory đã nhận trong ngày công (trần 30) | `{day:-1,xp:0}` | [progression](progression.md) mục 2 |
+| `farm.victories` | Bản sao của `victories` trong save farm (nguồn đọc khi tải); `saveFarm` chép lên cấp 1 | cả hai `null` | [progression](progression.md) mục 4 |
+| `farm.market.xp` | XP chợ đã nhận trong ngày công (trần 40) | `0` | [progression](progression.md) mục 2 |
+| `farm.mastery[recipe].tiers` | Mốc ★★/★★★ đã thưởng XP | suy ra từ `best` hiện có, **không** thưởng bù | [progression](progression.md) mục 2 |
+| `farm.cafe.shiftLog` (**đã code 04/11**) | 10 ca gần nhất: `{ id, at, cups, revenue, costs (vật tư), wages, beans (hạt nhập), left, avgWait (giây), tier, meanPrice, crew, menu, milk, water, staffN, tiredN, staffStars, staffSecs }` (4 trường cuối: số ly nhân viên người pha, số ly pha lúc năng lượng < ngưỡng mệt F-29, sao TB và giây/ly của các ly đó; ca cũ = 0), ghi trong `act('cafe','shift')` (cảnh gửi thêm `avgWait`, `meanPrice`, `menu`, `staffN`, `tiredN`, `staffStars`, `staffSecs`). `farm.cafe.paid = {wages,beans,markW,markB}` cộng dồn lương/hạt để tính phần của từng ca | `[]` | [decode-awaken](decode-awaken.md) mục 7 |
+| `farm.cafe.prices` | `{ [recipeId]: p }`, p 0,8–1,3 bước 0,05; chỉ lưu p ≠ 1; load/set đều clamp + làm tròn, món lạ bị bỏ; đổi bằng `act('cafe','prices',{recipeId,p})`, từ chối khi quán mở | `{}` (= 1,0) | [04-cafe/gameplay](../screens/04-cafe/gameplay.md) "Chủ quán tự đặt giá" |
+| Lô `starter` save mới | Thêm 300 g hạt chè rang + 40 giấy lọc (F-40) | save cũ không đổi | [04-cafe/gameplay](../screens/04-cafe/gameplay.md) "Pour-over" |
+| `SCORE_MODEL_VERSION` (hằng, không lưu riêng) | Ghi vào `entry.simulated.modelVersion` và sự kiện `brew_completed` | — | F-39 |
+| Hệ số vùng (dữ liệu tĩnh) | `REGION_CROP[region][crop] = { yield, quality, growth }` | — | [02b-world-map](../screens/02b-world-map/README.md) "Vùng ảnh hưởng trồng trọt" |

@@ -172,6 +172,8 @@ Dùng **thẻ mục tiêu sẵn có của quán** (`cafe/ui.js`, `.cafe-quest`) 
 
 Đóng quán hoặc rời quán giữa chừng thì lần sau vào tiếp từ bước đang dở (bước dẫn xuất từ state: quán mở chưa, có order chưa, `stats.served`). Khi kho quán dưới 10 g thì gợi ý "Quán chưa có hạt rang…" đã chốt vẫn đứng trước.
 
+**Luật mới chốt 04/11/2026, chưa code:** khách đầu tiên của ca đầu luôn gọi **Pour-over V60**, bước 3 ghi "Tới quầy pha để pha Pour-over V60". Kho đầu có thêm 300 g hạt chè rang và 40 giấy lọc. Chi tiết: [04-cafe/gameplay.md](../screens/04-cafe/gameplay.md) mục "Pour-over là phương pháp đầu tiên".
+
 **Lần đầu mở quầy pha** (cờ `bench-intro`): một dòng nền vàng trên đầu modal quầy pha: "Mỗi bước: chọn đúng, hoặc giữ nút để rót tới vạch xanh rồi thả. Sai sẽ được giải thích. 💡 Gợi ý giúp nhưng bước đó tối đa 80% điểm." Tắt khi xong bước đầu tiên của ly đầu.
 
 ## 4. Số liệu và công thức
