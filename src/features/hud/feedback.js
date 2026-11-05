@@ -53,7 +53,7 @@ export function createFeedback(ctx) {
         case 'countryUnlocked': toast(T('hud.toast.country'), 'good'); break;
         case 'reborn': toast(T('hud.toast.reborn', { blessing: T(`blessing.${ev.blessing}`) }), 'good'); break;
         case 'creditsGranted': case 'creditsAdded': toast(T('hud.toast.credits', { n: ev.amount }), 'good'); break;
-        case 'customerLeft': toast(T('hud.toast.customerLeft'), 'bad'); break;
+        case 'customerLeft': toast(T('hud.toast.customerLeft'), 'info'); break;
         default: break;
       }
     }
