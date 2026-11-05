@@ -88,13 +88,7 @@ export function resetProgress(withMemory = false) {
   } catch { return false; }
 }
 
-// Mobile first: phones and weak machines start lighter; a saved choice always wins.
-function deviceQuality() {
-  const weak = (navigator.deviceMemory || 8) <= 2 || (navigator.hardwareConcurrency || 8) <= 4;
-  const touch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
-  return weak ? 'low' : touch ? 'medium' : 'high';
-}
-const DEFAULT_SETTINGS = { version: 1, master: 0.8, music: 0.6, ambience: 0.7, sfx: 0.8, ui: 0.6, muted: false, quality: deviceQuality(), lang: DEFAULT_LANG, analytics: true };
+const DEFAULT_SETTINGS = { version: 1, master: 0.8, music: 0.6, ambience: 0.7, sfx: 0.8, ui: 0.6, muted: false, quality: 'high', lang: DEFAULT_LANG, analytics: true };
 const QUALITIES = ['low', 'medium', 'high'];
 
 export function normalizeSettings(raw) {

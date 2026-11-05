@@ -176,10 +176,8 @@ body.world-map-open #heaven-skip{display:none}
 #game-settings .ui-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:2px 10px;padding:8px 12px}
 #game-settings .ui-row>label,#game-settings .ui-row>span{font:700 13px/1.4 var(--game-font);color:var(--ui-ink)}
 #game-settings .ui-row output{min-width:3.5em;color:var(--ui-ink-soft);font:800 12px/1 var(--game-font);text-align:right;font-variant-numeric:tabular-nums}
-#game-settings .ui-slider{flex:1 1 auto;order:1;min-width:0}
-/* One line per volume: label · slider · value (was label+value, then slider underneath). */
-#game-settings .ui-row:has(>.ui-slider){flex-wrap:nowrap;padding:2px 12px}
-#game-settings .ui-row:has(>.ui-slider)>span{flex:0 0 78px}
-#game-settings .ui-row output{order:2}
+#game-settings .ui-row--select{padding:4px}
+#game-settings .ui-select{flex:1 1 100%;min-height:40px;padding:0 36px 0 12px;border:0;border-radius:12px;background:var(--ui-good-bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23555' stroke-width='2'/%3E%3C/svg%3E") no-repeat right 14px center;color:var(--ui-ink);font:800 14px/1 var(--game-font);appearance:none;-webkit-appearance:none;cursor:pointer}
+#game-settings .ui-select:focus-visible{outline:3px solid var(--ui-focus);outline-offset:2px}
 #game-settings .ui-tabs--segmented{background:var(--ui-good-bg)}
 #game-settings .ui-alert{margin:0}
