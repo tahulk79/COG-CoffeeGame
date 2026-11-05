@@ -6,12 +6,12 @@
 |---|---|
 | Dự án | **Godbean** — tagline *Godbean: Build your own Coffee Empire!* (vi: *Xây đế chế cà phê của riêng bạn!*). Tên cũ: COG — Cà phê; repo vẫn giữ tên cũ |
 | Loại tài liệu | Game Design Document (GDD) tổng hợp |
-| Phiên bản | 3.0 |
+| Phiên bản | 3.1 |
 | Cập nhật | 05/11/2026 |
 | Trạng thái tài liệu | **Bản nháp tổng hợp**, chưa có người duyệt (xem [mục 0](#0-bảng-trạng-thái)) |
 | Người duyệt | _(chưa có)_ |
 | Đối chiếu code | Commit `ebfe1a2` (05/11/2026), chỉ đọc code |
-| Tài liệu chuẩn của founder | [GODBEAN_MASTER_HANDOFF_2026-11-04.pdf](../references/GODBEAN_MASTER_HANDOFF_2026-11-04.pdf) v1.0. Ưu tiên cao nhất cho định hướng gameplay, kinh tế, tiến trình. Trang 1–10 (mục 1–13) thắng Phụ lục A của PDF (tr. 10–24, lịch sử). Chỗ game khác tài liệu chuẩn ghi ở [1.5](#15-tầm-nhìn-theo-tài-liệu-chuẩn) và [15.1](#151-câu-hỏi-mở-và-quyết-định) |
+| Tài liệu chuẩn của founder | *Godbean — Master Game Design & Development Handoff* v1.0 (04/11/2026): bản đọc [GODBEAN_MASTER_HANDOFF_FIXED.md](../references/GODBEAN_MASTER_HANDOFF_FIXED.md), cùng nội dung với [PDF gốc](../references/GODBEAN_MASTER_HANDOFF_2026-11-04.pdf). Ưu tiên cao nhất cho định hướng gameplay, kinh tế, tiến trình. Mục 1–13 thắng Phụ lục A (GDD cũ "The Coffee Six Sense", chỉ là lịch sử). Trong GDD, "tài liệu chuẩn §N" là mục N của bản handoff. Chỗ game khác tài liệu chuẩn ghi ở [1.5](#15-tầm-nhìn-theo-tài-liệu-chuẩn), [14.6](#146-phase-mvp-backlog-và-chỉ-số-kiểm-chứng) và [15.1](#151-câu-hỏi-mở-và-quyết-định) |
 | Nguồn ưu tiên khi mâu thuẫn | Code là nguồn sự thật. Luật chi tiết theo màn: [02-heaven/rules.md](../screens/02-heaven/rules.md), [02b-world-map/rules.md](../screens/02b-world-map/rules.md), [03-farm/rules.md](../screens/03-farm/rules.md), [04-cafe/rules.md](../screens/04-cafe/rules.md); vào/ra, dữ liệu, code: README của từng màn ([Phụ lục D](#phụ-lục-d--tài-liệu-liên-quan)) |
 | Repo | Làm trên nhánh ở `origin` → PR sang `tahulk79/COG-CoffeeGame` `main` |
 
@@ -54,7 +54,7 @@ Mục này trả lời: GDD đang ở trạng thái nào, code đã làm tới �
 | GDD ở trạng thái nào? | Bản nháp tổng hợp v3.0, viết lại theo code commit `ebfe1a2`. Chưa có người duyệt |
 | Code đã tới đâu? | 49 tính năng ở bảng 0.3: **39 Đã code**, 3 Một phần, 5 Chưa làm, 2 Bỏ (đã thay). Mobile-first F-44…F-48 đã merge (commit `bd0e674`, PR #83) |
 | Đã kiểm chứng tới đâu? | Luồng người chơi mới bản cũ đã playtest (03–04/11); kinh tế đo bằng mô phỏng (10.5). Luồng mobile-first mới **chưa chơi thử**; chưa có bằng chứng chạy iPad |
-| Lệch tài liệu chuẩn? | Đã chốt hướng **kết hợp**: giữ kinh tế farm + quán, bổ sung Coffee Memory, Decode & Awaken, V60 món đầu, ba trục tiến trình (đều đã code). Còn lệch: lore Databean chưa có lời thoại; F-35 còn 2 câu khóa |
+| Lệch tài liệu chuẩn? | Đã chốt hướng **kết hợp**: giữ kinh tế farm + quán, bổ sung Coffee Memory, Decode & Awaken, V60 món đầu, ba trục tiến trình (đều đã code). Còn lệch: lore Databean chưa có lời thoại; F-35 còn 2 câu khóa; chưa có logo/wordmark, Repeat Last Brew, Resonance Energy, Founder Dashboard; chưa kiểm trên iPad (1.5, 14.6) |
 | Việc gấp nhất | D-28 (giá quán p 0,8 áp đảo), D-27 (bón áp đảo), D-25 (sim nơi chỉ trồng/chỉ quán và F-49), D-26 (nơi nhận analytics) |
 
 ### 0.2 Chú giải
@@ -139,7 +139,7 @@ Mục này trả lời: GDD đang ở trạng thái nào, code đã làm tới �
 | D-26 | Chọn nơi nhận analytics (tài liệu chuẩn gợi ý Supabase Free) và người cấp URL công khai | Trung bình |
 | D-11 | Xem 3 nghi lỗi code robot/sự cố (B-1…B-3, Phụ lục B) | Trung bình |
 | D-10 | Xác nhận 4 hành vi robot/sự cố đang theo code là luật chốt: trần −2 uy tín ly robot cho cả gói; «Nhắc» thợ farm qua bảng hoặc toast; sự cố quán dời khi quán đóng; ly robot bị chê vẫn trừ uy tín trong ca tập | Thấp |
-| D-07 | GDD chưa có: phạm vi bản phát hành (MVP), chỉ số thành công (giữ chân, thời gian phiên) | Trung bình |
+| D-07 | Phase MVP và chỉ số kiểm chứng đã lấy từ tài liệu chuẩn §9 (14.6). Còn chốt: phạm vi bản alpha đầu tiên (20–30 người), cách đo D1/D7 (cần nơi nhận analytics, D-26) | Trung bình |
 | D-08 | Chốt người duyệt GDD và ngày duyệt | Thấp |
 
 ---
@@ -177,25 +177,33 @@ Người chơi bị Thần Chết "kéo nhầm" lên thiên đàng, được bá
 
 ### 1.5 Tầm nhìn theo tài liệu chuẩn
 
-Tóm tắt các mục APPROVED của [tài liệu chuẩn](../references/GODBEAN_MASTER_HANDOFF_2026-11-04.pdf) (trang/mục trong ngoặc).
+Tóm tắt tài liệu chuẩn ([GODBEAN_MASTER_HANDOFF_FIXED.md](../references/GODBEAN_MASTER_HANDOFF_FIXED.md)); số § là mục của bản handoff. Nhãn: **APPROVED** = founder đã chốt; **PROPOSED** = đề xuất chưa chốt chi tiết; **GAP** = chưa có bằng chứng triển khai.
 
-| Chủ đề | Luật | Trong game |
+| Chủ đề (§) | Tài liệu chuẩn | Trong game |
 |---|---|---|
-| Định vị (tr. 1 §1) | Game xây đế chế cà phê, vừa giải trí vừa giúp hiểu trồng → sơ chế → rang → pha → kinh doanh; game-first. Cơ chế cà phê có cơ sở khoa học, truyện và thưởng là hư cấu. Khám phá được lưu lâu dài | Có farm + quán, Coffee Memory, Decode |
-| Thông điệp (tr. 1 §1) | *Build Your Own Coffee Empire* · *Decode the Divine* · *Every Bean Holds a Universe* · *The Sixth Taste* | Chỉ có tagline đầu |
-| Nền tảng (tr. 1 §1) | Web responsive PC / mobile / iPad trước, native sau; EN/VI; không cần tài khoản | Có; chưa kiểm iPad |
-| Lore (tr. 1–2 §2) | Godbean = Divine Data Seed / Databean, là lore hư cấu | Có đoạn lore giữ chỗ theo Key (9.5); thiên đàng chưa nói tới Databean |
-| Sixth Key (tr. 2 §2.1) | Khoảnh khắc giải mã mở tầng khám phá mới; không xếp hạng "giác ngộ" | Có (9.5) |
-| Hai tầng chơi (tr. 2 §3) | Learn & Earn (farm + quán) và Build & Expand (đất, quán, đánh đổi sản lượng–chất lượng–giá) | Có; chưa có marketing, chuỗi quán |
-| Ba tiến trình (tr. 3 §3.3) | Wealth · Mastery · Awakening độc lập; hai kiểu thắng Economic / Discovery | Có (9.1, 9.6) |
-| Decode & Awaken (tr. 3 §4) | Lớp phủ xuyên suốt, không bắt buộc; Awaken mở lựa chọn/công cụ/câu chuyện, không cộng % | Có (9.5) |
-| Khoa học cà phê (tr. 4 §5) | Không tự nhận đoán đúng vị thật; không một công thức tối ưu; pour-over là phương pháp đầu | Điểm ly ghi "theo mô hình game"; V60 có sẵn, là ly đầu |
-| Coffee Lab & Memory (tr. 4–5 §5.1–5.3) | 6 thuộc tính cảm quan, chấm độc lập trước khi xem ly cũ, Insight, xuất/xóa, dữ liệu riêng tư | Có (7.9, 13.3) |
-| Kiếm tiền (tr. 6 §7) | Xem 10.6 | Chưa có thanh toán |
-| Đo lường (tr. 6–7 §8.2) | Sự kiện tối thiểu và envelope; không gửi nhật ký/sức khỏe | Có (13.5); chưa có nơi nhận |
-| Giải đấu, LiveOps, marketing (tr. 5–7) | Sau MVP | Để sau (14.4) |
+| Định vị (§1) | APPROVED: game xây đế chế cà phê, vừa giải trí vừa giúp hiểu trồng → sơ chế → rang → xay → pha → phục vụ → kinh doanh; **game-first** (hấp dẫn cả người chưa thích cà phê); **Hybrid Discovery** (cơ chế có cơ sở khoa học, truyện và thưởng là hư cấu); **Persistent Discovery** (khám phá được lưu, so sánh lâu dài) | Có farm + quán, Coffee Memory, Decode |
+| Thông điệp (§1) | *Build Your Own Coffee Empire* · *Decode the Divine* · *Every Bean Holds a Universe* · *From Coffee to Consciousness / The Sixth Taste* | Chỉ dùng tagline đầu |
+| Nền tảng, ngôn ngữ (§1, §8.1) | Web responsive PC / mobile / iPad trước, native sau; global, EN/VI đầu tiên; locale tách market, định dạng tiền/ngày/nhiệt độ đúng | Web, EN/VI (13.6); chưa kiểm iPad |
+| Ngân sách (§1, §8.4) | AI bổ sung tối đa US$300; marketing thử nghiệm US$3.000 riêng, **chỉ dùng sau MVP**; chưa tạo tài khoản social/ads | Không áp dụng cho code |
+| Lore (§2) | Godbean = Divine Data Seed / Databean: thông điệp mã hóa trong hạt, người chơi tự giải mã. Câu hỏi nền: "Nếu Thánh Thần gửi câu trả lời, sao con người vẫn phải tự khám phá?". Là lore hư cấu, không tuyên bố khoa học | Đoạn lore giữ chỗ theo Key (9.5); thiên đàng chưa nhắc Databean |
+| Sixth Taste = Sixth Key (§2.1) | Giải mã Key mở tầng khám phá mới theo 3 chiều: hiểu mình · hiểu người · hiểu vũ trụ. Vòng xoắn Tò mò → Đúng/Sai → Yêu/Ghét → Đáng yêu/Đáng thương → Tò mò cấp cao. Không xếp hạng "giác ngộ" | 6 Key (9.5); chưa thể hiện vòng xoắn 5 bước |
+| Nhận diện thương hiệu (§2.2) | Hướng chốt: wordmark Godbean, biểu tượng `db` (quả xanh → hạt nâu, nét nối gợi dữ liệu/vô hạn). **GAP:** chưa có logo vector, font riêng, chưa xác minh nhãn hiệu | Chưa có logo; không được ghi là đã đăng ký |
+| Hai tầng chơi (§3.1–3.2) | **Learn & Earn** (Farm Play, Coffee Shop Play → XP và vốn) và **Build & Expand** (mua đất làm farm, thuê mặt bằng mở quán, hoặc cả hai; đánh đổi sản lượng – chất lượng – chi phí – giá – nhu cầu – dòng tiền – uy tín). PROPOSED: chuyên farm, chuyên quán hoặc tích hợp dọc | Có, qua 3 loại nơi (4.4); chưa có marketing, nhiều quán, chuỗi quán |
+| Ba tiến trình (§3.3) | Wealth · Mastery · Awakening độc lập; hai kiểu thắng Economic / Discovery; giàu không đồng nghĩa thức tỉnh | Có (9.1, 9.6) |
+| Decode & Awaken (§4) | Lớp phủ xuyên suốt, không bắt buộc. Play → Collect Data → Observe → Hypothesize → Experiment → Decode → Understand → Apply → Sixth Key → Awaken. Awaken mở lựa chọn/công cụ/câu chuyện, không chỉ cộng % | Có (9.5) |
+| Fragment, Awakening Tree (§4.1–4.2) | PROPOSED: 6 loại Fragment (Origin, Transformation, Extraction, Connection, Exchange, Reflection); 6 Key (Nature, Transformation, Empathy, Balance, Connection, Curiosity); không bán Key, không leaderboard tâm thức | Có đủ 6 + 6 (9.5) |
+| Nhiệm vụ mẫu (§4.3) | Farm "Yield vs Quality"; Café "The Bitter Truth" (doanh thu tăng, lãi giảm); MVP "First Sixth Key" (pha 2 ly → giả thuyết → ly 3 → Key of Curiosity) | Câu hỏi mở `yield`, `costs`; First Sixth Key có (9.5) |
+| Resonance Energy, Sixth Realm (§4.4) | Năng lượng khi thưởng thức là biểu tượng, không phải năng lượng vật lý. PROPOSED: Resonance Energy phát triển không gian cá nhân; không thưởng theo caffeine, không ép báo cáo cảm xúc | Chưa làm (14.4) |
+| Khoa học cà phê (§5) | Quan hệ nhân quả hợp lý; không tự nhận đoán đúng vị thật; không có một công thức tối ưu cho mọi người; pour-over là phương pháp đầu | Điểm ly ghi "theo mô hình game" (F-39); V60 có sẵn, là ly đầu (F-40) |
+| Coffee Lab (§5.1–5.2) | Tách đặc tính cảm quan, chất lượng kỹ thuật, mức thích, cảm xúc/ký ức. 6 chiều cảm quan; chua/đắng cao không tự động tốt/xấu. 8 nhóm dữ liệu: Bean, Recipe, Equipment, Preparation, Ingredients, Environment, Personal State, Taste/Reflection | Có (7.9): Quick Taste 6 thuộc tính + mức thích; Scientist đủ 8 nhóm |
+| Coffee Memory (§5.3) | Brew → nếm độc lập → so lịch sử → suy ngẫm → lưu Insight → kế hoạch lần sau; lưu riêng recipe dự định và phiên pha thực tế. Chế độ Quick Taste (~30 s), Journal (1–2 phút), Scientist. Có Repeat Last Brew, My Coffee Setup, xuất/xóa. Về sau: Best Match, Coffee DNA, Sweet Spot, Taste Timeline, AI Coffee Assistant | Có luồng, 3 chế độ, «Bộ dụng cụ của tôi», Coffee DNA, xuất/xóa (7.9, 13.3). Chưa có Repeat Last Brew và các phân tích về sau |
+| Cộng đồng, giải đấu (§6) | Giải Processing, Roasting, Brewing, Cupping; Virtual Judges khóa profile, chấm deterministic trên backend; vòng loại miễn phí; không mặc định bán vé có giải thưởng giá trị thật. MVP: một Brewing Challenge cá nhân | Sau MVP (14.4) |
+| Kiếm tiền (§7) | Xem 10.6 | Chưa có thanh toán |
+| Đo lường (§8.2) | Phễu acquisition → referral và giá trị học tập; sự kiện tối thiểu + envelope; không gửi nhật ký/sức khỏe; North Star "Weekly Meaningful Coffee Experiences" | Có sự kiện (13.5); chưa có nơi nhận, chưa có dashboard |
+| LiveOps, marketing (§8.3–8.4) | Founder Control Center, remote config; marketing automation có người duyệt; alpha 20–30 → beta 100–200 → public 500–1.000 | Sau MVP (14.4) |
+| MVP và ưu tiên (§9, §12) | Phase 1–6, backlog GB-003…012, mốc kiểm chứng | 14.6 |
 
-Phụ lục A của PDF (GDD cũ "The Coffee Six Sense": web 2D, route `/play`, không kinh tế) chỉ mang tính lịch sử. Game giữ 3D, luồng 00 → 04 và kinh tế hiện có; chỉ lấy từ Phụ lục các yêu cầu không mâu thuẫn (thang cảm quan 1–5, trường Memory, Definition of Done ở 14.5).
+Phụ lục A của tài liệu chuẩn (GDD cũ "The Coffee Six Sense": web 2D, route `/play`, không kinh tế) chỉ là lịch sử. Game giữ 3D, luồng 00 → 04 và kinh tế hiện có; chỉ lấy các yêu cầu không mâu thuẫn: thang cảm quan 1–5, trường Memory, so A/B "đổi một biến", Definition of Done (14.5).
 
 ## 2. Trụ cột thiết kế
 
@@ -224,7 +232,7 @@ Phụ lục A của PDF (GDD cũ "The Coffee Six Sense": web 2D, route `/play`, 
 | Bản đồ | Chọn một trong 8 nơi trùng sinh; loại nơi lộ ra sau khi chốt |
 | Trần gian | Làm chủ vườn cà phê và/hoặc quán nhỏ. Ba chuyên gia lần lượt tới Hội đồng theo mốc chơi |
 
-Lore Databean (tài liệu chuẩn) nối qua lớp Decode: 6 câu hỏi của chuyên gia để lại câu hỏi mở, người chơi tự kiểm chứng ở trần gian (9.5). Đoạn lore 1–6 hiện chữ giữ chỗ, ghi rõ "Lore hư cấu".
+Lore Databean (tài liệu chuẩn §2: Godbean là hạt dữ liệu chứa thông điệp, người chơi tự giải mã) nối qua lớp Decode: 6 câu hỏi của chuyên gia để lại câu hỏi mở, người chơi tự kiểm chứng ở trần gian (9.5). Đoạn lore 1–6 hiện chữ giữ chỗ, ghi rõ "Lore hư cấu".
 
 ### 3.2 Nhân vật
 
@@ -756,12 +764,11 @@ Giá một lần bán = gram × giá/gram × hệ số giống (×1 / ×1,3 / ×
 | Giá quán, 60′ | p 0,8 thắng ở 0 và 2 barista | Cần chỉnh (D-28) |
 | Economic Victory | Tài sản tăng ~6.800 xu/giờ | 300.000 xu ≈ 44 giờ chơi |
 
-### 10.6 Nguyên tắc kiếm tiền (tài liệu chuẩn tr. 6 §7)
+### 10.6 Nguyên tắc kiếm tiền (tài liệu chuẩn §7)
 
-- F2P; có thể mở IAP, Coffee Pass, Coffee Lab Pro, rewarded ads tự nguyện, brand partnership. **Chưa có thanh toán trong prototype.**
-- Không pay-to-win, không bán Sixth Key, không dùng dữ liệu sức khỏe/cảm xúc cho quảng cáo. Coffee Memory cơ bản và xuất dữ liệu miễn phí. Không khóa kiến thức cơ bản sau paywall.
-- Đề xuất trong PDF: Coffee Coins (xu hiện tại), Coffee Gems (cosmetic), Founder's Pack (chưa chốt giá).
-- Khi có backend: giao dịch do server quyết, có ledger, idempotency, audit log. Hiện save ở localStorage, `ledger` giữ 60 dòng cuối, số dư sửa được ở máy người chơi — chấp nhận ở alpha.
+- **APPROVED:** F2P toàn cầu; có thể mở IAP, Coffee Pass, Coffee Lab Pro, rewarded ads tự nguyện, brand partnership. Không pay-to-win, không bán Sixth Key hay "cấp độ tâm thức", không dùng dữ liệu sức khỏe/cảm xúc để khai thác quảng cáo. Coffee Memory cơ bản và xuất dữ liệu miễn phí; không khóa kiến thức cơ bản sau paywall.
+- **PROPOSED dài hạn:** Coffee Coins (soft currency = xu hiện tại); Coffee Gems (premium, cho trang trí/cosmetic); Coffee Pass (season pass thiên về nội dung/cosmetic); Coffee Lab Pro (phân tích nâng cao, AI có hạn mức); Founder's Pack ~US$4,99 (chỉ khi có bằng chứng người chơi muốn trả, chưa chốt giá). Không quy đổi premium currency thành tiền mặt.
+- **Chưa có thanh toán trong prototype.** Khi có backend: giao dịch do server quyết, có ledger, idempotency, audit log, không tin số dư từ client; tuân thủ chính sách Apple/Google khi lên native. Hiện save ở localStorage, `ledger` giữ 60 dòng cuối, số dư sửa được ở máy người chơi — chấp nhận ở alpha.
 
 ## 11. Giao diện và trải nghiệm
 
@@ -897,7 +904,9 @@ Khóa cũ `cog-coffee-*` bị xóa khi tải; không chuyển save từ tên cũ
 | Pha, Memory | `brew_started`, `brew_completed` (`mode`, `score`, `stars`, `model_version`), `taste_submitted`, `memory_saved`, `memory_compared`, `discovery_saved` |
 | Màn và kinh tế | `heaven_completed` (`skipped`, `mode`, `region_type`…), `region_selected` (`preselected`), `field_bought`, `shift_ended` (ca thường), `workday_ended`, `challenge_completed`, `victory_reached`, `auto_started`, `council_answered` |
 
-Đã khai báo nhưng chưa có tính năng phát: `result_shared`, `referral_opened`, `feedback_submitted`, `purchase_verified`. Sự kiện theo màn: mục Analytics của README từng màn.
+Đã khai báo nhưng chưa có tính năng phát: `result_shared`, `referral_opened`, `feedback_submitted`, `purchase_verified`.
+
+Theo tài liệu chuẩn §8.2: phễu cần đo acquisition → activation → engagement → retention → revenue → referral và giá trị học tập; Founder Dashboard (visitors, play starts, first brew, D1/D7/D30, dùng lại Memory, tỉ lệ so sánh, share/referral, sức khỏe kinh tế); North Star đề xuất **Weekly Meaningful Coffee Experiences**. Chưa có dashboard và nơi nhận (D-26). Sự kiện theo màn: mục Analytics của README từng màn.
 
 ### 13.6 Đa ngôn ngữ (F-24)
 
@@ -984,11 +993,51 @@ Chốt **kết hợp**: giữ kinh tế farm + quán (vượt phạm vi Phase 4 
 
 - Game: cold brew theo mẻ, latte art, ly hỏng khi sai nhiều bước, sữa/trứng từ farm, cảnh farm/quán riêng theo nơi, kho đồ trang trí, di chuyển đồ đã đặt, nút "Thu tất cả", pinch zoom, lưu tùy chọn ẩn/hiện HUD.
 - Nội dung: nhạc nền và âm môi trường bằng file thật, lồng tiếng, lời thoại lore Databean, thay khối tạm bằng asset.
-- Theo tài liệu chuẩn, sau MVP: giải đấu và Virtual Judges (tr. 5 §6), kiếm tiền, LiveOps và Founder Control Center (tr. 6–7), marketing automation (tr. 7 §8.4), Sixth Realm sâu, native app.
+- Theo tài liệu chuẩn, sau MVP: recipe sharing và reputation cộng đồng, giải đấu và Virtual Judges (§6), kiếm tiền (§7), LiveOps và Founder Control Center (§8.3), marketing automation (§8.4), Resonance Energy và Sixth Realm sâu (§4.4), Repeat Last Brew và phân tích Memory nâng cao (§5.3), backend đồng bộ tùy chọn, native iOS/Android.
 
 ### 14.5 Definition of Done (tài liệu chuẩn)
 
-Theo PDF tr. 24 §29 và tr. 9 §11.1, một tính năng chỉ **Done** khi: (1) có source code được lưu phiên bản; (2) chạy lại và test được; (3) dùng được bằng chạm trên iPad và màn hình mobile phổ biến, không phụ thuộc hover; (4) có nội dung EN/VI; (5) không làm hỏng dữ liệu Memory/save đã lưu; (6) không lộ thông tin riêng tư hay khóa bí mật; (7) có mô tả giới hạn của điểm mô phỏng; (8) có build thử nghiệm và người thật đã kiểm tra. Cột Kiểm chứng ở 0.3 chưa dùng tiêu chí này.
+Theo tài liệu chuẩn Phụ lục A §29, một tính năng chỉ **Done** khi: (1) có source code được lưu phiên bản; (2) chạy lại và test được; (3) dùng được bằng chạm trên iPad và màn hình mobile phổ biến, không phụ thuộc hover; (4) có nội dung EN/VI; (5) không làm hỏng dữ liệu Memory/save đã lưu; (6) không lộ thông tin riêng tư hay khóa bí mật; (7) có mô tả giới hạn của điểm mô phỏng; (8) có build thử nghiệm và người thật đã kiểm tra. Cột Kiểm chứng ở 0.3 chưa dùng tiêu chí này.
+
+Tiêu chí nghiệm thu theo hệ thống (tài liệu chuẩn §11.1):
+
+| Hệ thống | Tiêu chí | Hiện trạng |
+|---|---|---|
+| Brew | Cùng input + phiên bản mô hình → cùng kết quả; UI nói rõ là mô phỏng | `SCORE_MODEL_VERSION`, nhãn "theo mô hình game" |
+| Memory | Lưu qua reload, so hai lần, ghi Insight, xuất/xóa; không trộn điểm game và cảm nhận | Có (7.9, 13.3) |
+| Decode | Bằng chứng → giả thuyết → thử → vận dụng → Key; không trao Key vì bấm/đọc | Có (9.5) |
+| Farm/Café | Giao dịch có nguồn/đích; chi phí, lợi nhuận giải thích được; không tạo tiền tùy ý từ client | Có `ledger` cục bộ; chưa có server |
+| Tournament | Panel giám khảo cố định, điểm tính lại được, chống nhận thưởng trùng | Chưa làm |
+| Localization | Toàn bộ chữ EN/VI, không viết chữ trong logic | Có (13.6) |
+| Responsive | Safari iPad dọc/ngang, điện thoại nhỏ, desktop; không phụ thuộc hover | Ưu tiên 375×812; chưa kiểm iPad |
+
+### 14.6 Phase MVP, backlog và chỉ số kiểm chứng
+
+Theo tài liệu chuẩn §9 và §12. Game đi theo hướng **kết hợp** (Q-01): làm Phase 1–3 trên nền kinh tế farm + quán đã có, nên Phase 4 đã vượt phạm vi "mini".
+
+| Phase | Phạm vi theo tài liệu chuẩn | Nghiệm thu | Hiện trạng |
+|---|---|---|---|
+| 1 Core Brew | Chọn hạt, grind/temp/ratio/time, bloom/main/final pour, kết quả | Chơi trọn trên Safari iPad và PC | Đã code (F-39, F-40); chưa kiểm iPad |
+| 2 Coffee Memory | Ghi ly thật, nếm, so sánh, Insight, xuất/xóa | Lưu, tải lại, so sánh ổn định | Đã code (F-33, F-34, F-37) |
+| 3 First Sixth Key | 2 ly → so sánh → giả thuyết → ly 3 → Key of Curiosity | Decode/Apply/Awaken chơi được | Đã code (F-35), còn 2 câu khóa |
+| 4 Economy slice | Farm mini + café mini + bán, kiếm tiền, nâng cấp | Thể hiện lời hứa Coffee Empire | Vượt phạm vi: farm + quán đầy đủ (F-05…F-48) |
+| 5 Analytics/Alpha | Sự kiện, dashboard tối thiểu, QA, beta | Có số kích hoạt và giữ chân | Sự kiện có (F-38); chưa nơi nhận, dashboard, alpha |
+| 6 Expansion | Farm/quán sâu, cộng đồng, giải đấu, kiếm tiền, Sixth Realm | Chỉ làm sau kiểm chứng | Chưa (14.3, 14.4) |
+
+| Backlog | Hạng mục | Ưu tiên | Hiện trạng |
+|---|---|---|---|
+| GB-003 | Pour-over tương tác 3 giai đoạn | P0 | Đã code (F-40) |
+| GB-004 | Coffee Memory thật, so sánh, Insight | P0 | Đã code (F-33, F-34) |
+| GB-005 | First Sixth Key vertical slice | P0 | Đã code (F-35) |
+| GB-006 | Mini Farm + Mini Café + vốn/XP/kinh tế | P0/P1 | Đã code, sâu hơn yêu cầu |
+| GB-007 | Responsive, EN/VI, QA | P0 | EN/VI có; chưa kiểm iPad |
+| GB-008 | Analytics và Founder Dashboard tối thiểu | P1 | Một phần (F-38, D-26) |
+| GB-009 | Recipe sharing, reputation cộng đồng | P2 | Chưa |
+| GB-010 | Championship, Virtual Judges | P2 | Chưa |
+| GB-011 | Kiếm tiền, LiveOps, marketing connectors | P2/P3 | Chưa |
+| GB-012 | Sixth Realm sâu, bản đồ thế giới, native | P3 | Bản đồ thế giới có (F-28); phần còn lại chưa |
+
+**Mốc kiểm chứng tham khảo** (giả thuyết, chưa phải benchmark): landing → play ≥ 25%; hoàn thành tutorial ≥ 70%; ly đầu ≥ 60%; D1 ≥ 25%; D7 ≥ 10%; share ≥ 5%; phản hồi định tính tích cực ≥ 70%. Kết hợp phỏng vấn 10–15 người; không quyết chỉ từ mẫu nhỏ. Lộ trình thử: private alpha 20–30 → community beta 100–200 → public beta 500–1.000 khi có tín hiệu.
 
 ## 15. Câu hỏi mở và rủi ro
 
@@ -1002,6 +1051,7 @@ Theo PDF tr. 24 §29 và tr. 9 §11.1, một tính năng chỉ **Done** khi: (1)
 4. F-49: XP từ việc của thợ/robot và tự nhận mẻ là 0 thì coi là sửa lỗi hay đổi kinh tế.
 5. Giá quán (D-28) và đánh đổi bón/tỉa (D-27).
 6. Cân bằng kinh tế cần playtest thật phiên dài, không dựa vào vốn thử lớn.
+7. Các điểm tài liệu chuẩn §12 để founder chốt sau audit, còn mở với game này: dữ liệu cloud/auth và chính sách offline, nguồn dữ liệu khoa học, mức tự động hóa robot, quyền sở hữu asset, pháp lý nhãn hiệu, thị trường soft launch.
 
 **Đã chốt (đối chiếu tài liệu chuẩn, 04/11/2026):**
 
@@ -1011,7 +1061,7 @@ Theo PDF tr. 24 §29 và tr. 9 §11.1, một tính năng chỉ **Done** khi: (1)
 | Q-02 | Vị trí pour-over | V60 có sẵn, là món hướng dẫn đầu |
 | Q-03 | Mẹo thiên đàng và Awaken | Giữ mẹo, thêm câu hỏi mở → Fragment |
 | Q-04 | Ba trục tiến trình | Tách Wealth / Mastery / Awakening |
-| Q-05 | Đánh đổi sản lượng ↔ chất lượng | Theo PDF, số do cân đối kinh tế |
+| Q-05 | Đánh đổi sản lượng ↔ chất lượng | Theo tài liệu chuẩn §3.2, số do cân đối kinh tế |
 | Q-06 | Mục tiêu thắng | Hai mục tiêu độc lập, không kết thúc game |
 | Q-07 | Giá do chủ quán | Tự đặt trong 0,8–1,3 |
 | Q-08 | Vùng ảnh hưởng số liệu | Ảnh hưởng sản lượng, chất lượng, thời gian lớn |
@@ -1029,6 +1079,9 @@ Theo PDF tr. 24 §29 và tr. 9 §11.1, một tính năng chỉ **Done** khi: (1)
 | Sink cuối game hữu hạn: nâng hết farm ≈ 653 nghìn xu (~110–130 giờ), quán ≈ 7,7 nghìn; nơi chỉ quán cạn sink sau vài giờ | Cuối game tiền không còn chỗ tiêu | Đề xuất sink (14.3) |
 | Cân bằng có lựa chọn áp đảo (p 0,8, bón) | Mất quyết định thú vị | D-27, D-28 |
 | Save chỉ ở localStorage | Mất dữ liệu khi xóa trình duyệt, đổi máy | Xuất/Nhập, dòng nhắc ở Cài đặt |
+| Scope creep (tài liệu chuẩn, Phụ lục A §26) | Xây giải đấu, Sixth Realm, nhiều quán trước khi vòng lõi hấp dẫn | Giữ thứ tự 14.6; đề xuất mới phải qua F-xx |
+| Giả khoa học | Người chơi hiểu điểm mô phỏng là chất lượng cà phê thật | Nhãn "theo mô hình game", Memory tách cảm nhận thật (F-39, F-34) |
+| Dữ liệu riêng tư lọt vào analytics | Mất niềm tin, vi phạm luật dữ liệu | `sanitizeProps`, không gửi chữ tự do (13.5) |
 | Khối tạm thay asset chậm | Hình ảnh kém hấp dẫn | Ưu tiên thay khối tạm dễ thấy (Cổng Hội đồng, công trình, robot) |
 
 ---
@@ -1160,7 +1213,7 @@ Tài liệu màn đã viết theo code. Các chỗ dưới là code tự lệch 
 
 | Nhóm | File |
 |---|---|
-| Tài liệu chuẩn | [GODBEAN_MASTER_HANDOFF_2026-11-04.pdf](../references/GODBEAN_MASTER_HANDOFF_2026-11-04.pdf) |
+| Tài liệu chuẩn | [GODBEAN_MASTER_HANDOFF_FIXED.md](../references/GODBEAN_MASTER_HANDOFF_FIXED.md) (bản đọc) · [PDF gốc](../references/GODBEAN_MASTER_HANDOFF_2026-11-04.pdf) |
 | 00 Chọn nhân vật | [README](../screens/00-selection/README.md) (gồm khởi động chung, màn lỗi, mở hai tab) |
 | 01 Intro | [README](../screens/01-intro/README.md) |
 | 02 Thiên đàng | [README](../screens/02-heaven/README.md), [rules](../screens/02-heaven/rules.md) (Hội đồng, mẹo, hỏi lại, câu hỏi mở) |
@@ -1172,6 +1225,7 @@ Tài liệu màn đã viết theo code. Các chỗ dưới là code tự lệch 
 
 | Phiên bản | Ngày | Thay đổi |
 |---|---|---|
+| 3.1 | 05/11/2026 | Đối chiếu lại tài liệu chuẩn (bản `.md` và PDF): viết lại 1.5 theo mục §, thêm 14.6 (Phase MVP, backlog GB, mốc kiểm chứng), tiêu chí nghiệm thu §11.1 ở 14.5, 10.6 đủ APPROVED/PROPOSED, North Star ở 13.5, câu hỏi §12 ở 15.1 (bỏ phần bàn giao kỹ thuật/repo vì code đã có), rủi ro scope creep / giả khoa học / riêng tư; D-07 thu hẹp |
 | 3.0 | 05/11/2026 | Chuẩn hoá theo code, gộp tài liệu dùng chung vào GDD, bỏ tài liệu phụ. Đối chiếu commit `ebfe1a2`; F-44…F-48 Đã code; thêm 7.9, 8.4, 9.5, 9.6, 13.2–13.7 |
 | 2.2 | 05/11/2026 | F-33 Đã code (bộ dụng cụ, sổ tay ở farm); F-35 thêm khóa biến, hệ số vùng trên bản đồ, lore theo Key |
 | 2.1 | 04/11/2026 | Chốt D-21, Q-04, Q-06, Q-07, Q-08, Q-10, Q-11; thêm F-42, F-43 |
