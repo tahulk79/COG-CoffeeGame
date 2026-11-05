@@ -79,6 +79,9 @@
    Anything that opens over the bottom band (Manage drawer, seed strip) hides Auto and the joystick it would cover. */
 .autoplay-btn:empty{display:none} /* until the first status() fills its text */
 body:has(.hud-drawer:not([hidden])) .autoplay-btn{display:none}
+/* Clear the action bar (≈97 px tall incl. its bottom gap) with an 8 px gap; the desktop bar is zoomed 1.15. */
+body .autoplay-btn{bottom:calc(max(10px,env(safe-area-inset-bottom)) + 96px)}
+@media(min-width:1200px) and (min-height:760px) and (pointer:fine){body .autoplay-btn{bottom:calc(max(10px,env(safe-area-inset-bottom)) + 110px)}}
 @media(orientation:portrait) and (max-width:600px){
  .farm-active #farm-notice{bottom:calc(max(10px,env(safe-area-inset-bottom)) + 212px);max-width:calc(100vw - 24px)}
  :is(.farm-active,.cafe-active) .ui-coach{bottom:calc(max(10px,env(safe-area-inset-bottom)) + 290px);max-width:calc(100vw - 24px);white-space:normal}

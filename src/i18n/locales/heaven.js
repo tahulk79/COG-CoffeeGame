@@ -2,9 +2,9 @@
 export default {
   en: {
     // Chuyên gia + câu hỏi (khóa theo id; đúng/sai so bằng id, không theo chữ)
-    'heaven.expert.growing.name': 'Coffee Harvest God',
+    'heaven.expert.growing.name': 'Harvest God',
     'heaven.expert.growing.greeting': 'If you want to open a café, you need to know where beans come from. Not from a supermarket bag, mind you.',
-    'heaven.expert.growing.seal': 'Coffee bean know-how',
+    'heaven.expert.growing.seal': 'Earth & sky',
     'heaven.q.ripe.text': 'At harvest time, which cherries do you pick first?',
     'heaven.q.ripe.option.ripe': 'Ripe cherries showing their variety’s true colour.',
     'heaven.q.ripe.option.green': 'Green ones, picked early so I don’t have to wait.',
@@ -24,7 +24,7 @@ export default {
 
     'heaven.expert.brewing.name': 'Brewing God',
     'heaven.expert.brewing.greeting': 'I judge by taste. You can’t save a burnt coffee by giving it an Italian name.',
-    'heaven.expert.brewing.seal': 'Brewing know-how',
+    'heaven.expert.brewing.seal': 'Fire & water',
     'heaven.q.recipe.text': 'To brew consistent cups, where should you start?',
     'heaven.q.recipe.option.feel': 'A handful of beans each time. Brew by feel.',
     'heaven.q.recipe.option.cup': 'Switch to the most expensive cup.',
@@ -44,7 +44,7 @@ export default {
 
     'heaven.expert.business.name': 'Merchant Guild God',
     'heaven.expert.business.greeting': 'I don’t charge tuition. But you’re standing on my depreciating floor right now.',
-    'heaven.expert.business.seal': 'Business know-how',
+    'heaven.expert.business.seal': 'People & coin',
     'heaven.q.costs.text': 'A cup sells for 30,000đ and ingredients cost 12,000đ. Is that a sure 18,000đ profit?',
     'heaven.q.costs.option.yes': 'Sure is. Let me open a chain right away.',
     'heaven.q.costs.option.no': 'Not yet: there’s labour, rent and other costs.',
@@ -114,7 +114,7 @@ export default {
     'heaven.expert.done': 'You already have the {seal} seal. Learn to use it, not to collect paper.',
     'heaven.toast.saveFailed': 'Your browser couldn’t save progress. You can still keep playing this run.',
     'heaven.skip.label': 'Skip',
-    'heaven.skip.confirm': 'Skip the lessons? Tap again',
+    'heaven.skip.confirm': 'Skip to rebirth? Tap again',
     'heaven.portal.chooseWorld': 'The Rebirth Gate is open. Where will you start your new life? Choose your place on the world map.',
 
     // HUD
@@ -143,9 +143,9 @@ export default {
     'heaven.ending.score': ({ correct, wrong, total }) => `${correct}/${total} correct · ${wrong} wrong\nTips earned ${correct}/${total} · ${total - correct} ${total - correct === 1 ? 'question' : 'questions'} will be reviewed at the farm/café`,
   },
   vi: {
-    'heaven.expert.growing.name': 'Thần Nông Cà Phê',
+    'heaven.expert.growing.name': 'Thần Nông',
     'heaven.expert.growing.greeting': 'Muốn mở quán thì phải biết hạt từ đâu ra. Không phải từ cái túi trong siêu thị đâu nhé.',
-    'heaven.expert.growing.seal': 'Am hiểu hạt cà phê',
+    'heaven.expert.growing.seal': 'Hiểu đất trời',
     'heaven.q.ripe.text': 'Đến mùa hái, con ưu tiên chọn quả nào?',
     'heaven.q.ripe.option.ripe': 'Quả chín đạt màu đặc trưng của giống.',
     'heaven.q.ripe.option.green': 'Quả còn xanh, hái sớm cho đỡ phải chờ.',
@@ -165,7 +165,7 @@ export default {
 
     'heaven.expert.brewing.name': 'Thần Pha Chế',
     'heaven.expert.brewing.greeting': 'Ta chấm bằng vị giác. Con không thể chữa ly cà phê cháy bằng một cái tên tiếng Ý.',
-    'heaven.expert.brewing.seal': 'Hiểu cách pha chế',
+    'heaven.expert.brewing.seal': 'Hiểu lửa nước',
     'heaven.q.recipe.text': 'Muốn các ly pha ra ổn định, con nên bắt đầu từ đâu?',
     'heaven.q.recipe.option.feel': 'Mỗi lần một nắm hạt. Pha bằng cảm xúc.',
     'heaven.q.recipe.option.cup': 'Đổi sang chiếc cốc đắt nhất.',
@@ -185,7 +185,7 @@ export default {
 
     'heaven.expert.business.name': 'Thần Thương Hội',
     'heaven.expert.business.greeting': 'Ta không thu học phí. Nhưng con vừa đứng trên nền nhà tính khấu hao của ta đấy.',
-    'heaven.expert.business.seal': 'Hiểu việc kinh doanh',
+    'heaven.expert.business.seal': 'Hiểu lòng người',
     'heaven.q.costs.text': 'Ly bán 30.000đ, nguyên liệu hết 12.000đ. Đã chắc lãi 18.000đ chưa?',
     'heaven.q.costs.option.yes': 'Chắc rồi. Cho con mở chuỗi luôn.',
     'heaven.q.costs.option.no': 'Chưa, còn nhân công, thuê mặt bằng và chi phí khác.',
@@ -252,7 +252,7 @@ export default {
     'heaven.expert.done': 'Con đã có dấu {seal} rồi. Học để dùng, không phải để sưu tầm giấy nhé.',
     'heaven.toast.saveFailed': 'Trình duyệt chưa lưu được tiến trình. Bạn vẫn chơi tiếp được trong lượt này.',
     'heaven.skip.label': 'Bỏ qua',
-    'heaven.skip.confirm': 'Bỏ qua phần học? Bấm lần nữa',
+    'heaven.skip.confirm': 'Bỏ qua, đi trùng sinh? Bấm lần nữa',
     'heaven.portal.chooseWorld': 'Cổng trùng sinh đã mở. Con muốn bắt đầu lại ở đâu? Hãy chọn nơi trên bản đồ thế giới.',
 
     'heaven.hint.touch': 'Kéo nút tròn để đi · Chạm nhân vật để nói chuyện',

@@ -43,8 +43,8 @@ export function createCafeGame({ farm, ui, awakening = null, onMenu, onExit, pro
   ];
   const PLANTS = [[14.8, -12.8], [-14.8, 2.1], [14.8, 2.1], [-14.8, 9.2], [14.8, 9.2], [11.6, -12.6]];
   const cylinder = (top, bottom, height) => new THREE.CylinderGeometry(top, bottom, height, 14);
-  function canvasPlane(width, height, draw, parent, x, y, z) {
-    const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = Math.round(512 * height / width);
+  function canvasPlane(width, height, draw, parent, x, y, z, pixels = 512) {
+    const canvas = document.createElement('canvas'); canvas.width = pixels; canvas.height = Math.round(pixels * height / width);
     draw(canvas.getContext('2d'), canvas.width, canvas.height);
     const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace;
     const plane = new THREE.Mesh(new THREE.PlaneGeometry(width, height), new THREE.MeshBasicMaterial({ map: texture, transparent: true }));
@@ -155,11 +155,17 @@ export function createCafeGame({ farm, ui, awakening = null, onMenu, onExit, pro
     // An empty slot shows a dashed outline and a "for sale" plate so players see where the upgrade goes.
     const slotOutline = (parent, w, d) => { const g = new THREE.Group(); parent.add(g); for (const [x, z, sw, sd] of [[0, -d / 2, w, .05], [0, d / 2, w, .05], [-w / 2, 0, .05, d], [w / 2, 0, .05, d]]) box('#b08a52', x, .04, z, sw, .02, sd, g).userData.nonSolid = true; g.userData.nonSolid = true; return g; };
     // Plate tilted toward the camera over an empty slot: "＋ icon name" so the player sees which upgrade fits there.
-    const slotPlate = (parent, id, w, y = .35) => { const gear = GEAR.find(g => g.id === id), plate = canvasPlane(w, w * .3, (ctx, cw, ch) => {
-      ctx.fillStyle = '#fff6dcee'; ctx.strokeStyle = '#b08a52'; ctx.lineWidth = 8; ctx.setLineDash([22, 14]); ctx.beginPath(); ctx.roundRect(6, 6, cw - 12, ch - 12, 26); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = '#6b4a2b'; ctx.font = `800 ${Math.round(ch * .44)}px "Baloo 2", system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(`＋ ${gear.icon} ${gear.name}`, cw / 2, ch / 2 + 2, cw - 40);
-    }, parent, 0, y, .2); plate.rotation.x = -.8; parent.userData.statusAction = 'upgrade'; return plate; };
+    // Same dark nameplate as the scene labels (scene.js label(): fill, cream text, pill); equal height, width hugs the text.
+    const slotPlate = (parent, id, y = .35) => {
+      const gear = GEAR.find(g => g.id === id), text = `+ ${gear.icon} ${gear.name}`, font = '800 64px "Baloo 2", system-ui';
+      const measure = document.createElement('canvas').getContext('2d'); measure.font = font;
+      const cw = Math.min(1024, Math.ceil(measure.measureText(text).width + 88)), height = .45;
+      const plate = canvasPlane(height * cw / 128, height, (ctx, pw, ph) => {
+        ctx.fillStyle = '#3b2a1cd9'; ctx.strokeStyle = '#b08a52'; ctx.lineWidth = 6; ctx.beginPath(); ctx.roundRect(4, 6, pw - 8, ph - 12, (ph - 12) / 2); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#fff6dc'; ctx.font = font; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, pw / 2, ph / 2 + 2, pw - 24);
+      }, parent, 0, y, .2, cw);
+      plate.rotation.x = -.8; parent.userData.statusAction = 'upgrade'; return plate;
+    };
     if (npc.kind === 'bar') {
       const counter = assetSlot(new THREE.Group(), 'cafe/bar/counter'); visual.add(counter);
       box('#9b7044', 0, .55, 0, 8, 1.1, 1, counter); box('#ede0bd', 0, 1.13, 0, 8.2, .08, 1.15, counter);
@@ -173,8 +179,8 @@ export function createCafeGame({ farm, ui, awakening = null, onMenu, onExit, pro
         return g;
       });
       // Stations 2–3 not bought yet: outline on the counter top plus a plate.
-      const stationSlots = STATIONS.map((x, i) => { if (!i) return null; const g = slotOutline(visual, 1.1, .6); g.position.set(x - BAR_X, 1.15, 0); slotPlate(g, 'station', 2.1, .15); return g; });
-      const autoSlot = slotOutline(visual, .7, .5); autoSlot.position.set(3.35, 1.15, -.2); slotPlate(autoSlot, 'autoEspresso', 1.8, .8);
+      const stationSlots = STATIONS.map((x, i) => { if (!i) return null; const g = slotOutline(visual, 1.1, .6); g.position.set(x - BAR_X, 1.15, 0); slotPlate(g, 'station', .15); return g; });
+      const autoSlot = slotOutline(visual, .7, .5); autoSlot.position.set(3.35, 1.15, -.2); slotPlate(autoSlot, 'autoEspresso', .8);
       const parts = {};
       parts.espresso = assetSlot(new THREE.Group(), 'cafe/espresso-machine'); visual.add(parts.espresso);
       box('#6c8885', STATIONS[1] - BAR_X, 1.55, -.25, 1.1, .75, .5, parts.espresso); box('#d1d6c5', STATIONS[1] - BAR_X, 1.62, .02, .9, .25, .05, parts.espresso);
@@ -201,7 +207,7 @@ export function createCafeGame({ farm, ui, awakening = null, onMenu, onExit, pro
         mesh(cylinder(.12, .12, .25), '#cfe6ea', -.6, 1.3, .2, 1, 1, 1, g);
         return g;
       });
-      const empty = slotOutline(visual, 2.4, 1); empty.position.x = REGISTERS[1] - REGISTER_X; slotPlate(empty, 'register2', 2.4);
+      const empty = slotOutline(visual, 2.4, 1); empty.position.x = REGISTERS[1] - REGISTER_X; slotPlate(empty, 'register2');
       return { setState({ gear }) { counters[1].visible = gear.register2 > 0; empty.visible = !counters[1].visible; } };
     }
     if (npc.kind === 'pickup') {
@@ -745,12 +751,13 @@ export function createCafeGame({ farm, ui, awakening = null, onMenu, onExit, pro
     if (id) { selectStaff(id); if (!service.remind(id)) cafeUi.openStaff(id); return; }
     select(null);
     // Tapping a table or chair opens its card; with a cup in hand it walks over to serve instead.
+    // Auto keeps the character (only ⏸ hands it back), but slot plates and table cards still open; Auto works behind them.
     world.moveToScreen(e.clientX, e.clientY, rect, (target, { action } = {}) => {
       select(target);
       if (action === 'upgrade') { glowUntil = performance.now() + 1200; cafeUi.openUpgrades('auto'); return true; } // tapped an empty slot plate
       if (!target.startsWith('table-') || service.hand) return false;
       glowUntil = performance.now() + 1200; cafeUi.openTable(Number(target.slice(6))); return true;
-    });
+    }, autoOn());
   }, { signal: events.signal });
   // Same wheel zoom as the farm map.
   document.addEventListener('wheel', e => {

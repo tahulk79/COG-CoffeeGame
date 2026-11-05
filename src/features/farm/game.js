@@ -99,10 +99,11 @@ export async function createFarmGame(profile, startingGift, persistence = { read
     window.__forceIncident=(id,type)=>farm.debugIncident(scope(id),id,type);window.__incidentOdds=id=>farm.incidentOdds(scope(id),id);
   }
   const resetJoystick = mountJoystick($('heaven-joystick'), $('heaven-joystick-knob'), value => {
+    if(auto&&(value.x||value.z))return; // Auto keeps the character; only ⏸ hands it back
     if(cafeGame){cafeGame.setTouch(value);return;}
     touch = value; if (value.x || value.z) { world.resetCamera(); world.stopMovement(); cancelWork(); }
   }, events.signal);
-  // ---- Auto mode (docs/shared/crew-autoplay.md 5): Auto plays the owner, the hand shows what it taps; any touch hands control back ----
+  // ---- Auto mode (docs/shared/crew-autoplay.md 5): Auto plays the owner, the hand shows what it taps; only ⏸ or time-out stops it ----
   let auto=false,autoSpent=0,autoWait=0,autoTarget=null,autoHudAt=0;
   const autoHud=mountAutoHud({onToggle:()=>auto?stopAuto():startAuto()});
   function autoStatus(){const a=farm.peek().autoplay;autoHud.status({on:auto,runs:a.runs,leftMs:Math.max(0,a.leftMs-autoSpent)});}
@@ -111,10 +112,9 @@ export async function createFarmGame(profile, startingGift, persistence = { read
     if(!auto)return;auto=false;if(autoSpent)farm.act('autoplay','spend',autoSpent);autoSpent=0;autoTarget=null;autoStatus();
     if(message)ui.notice(message,true);
   }
-  // Only steering the character takes control back (map/3D tap, joystick); HUD, shop and menus leave Auto running (crew-autoplay.md 5).
+  // Nothing but ⏸ stops Auto: swipes still move the camera, steering input (map tap, joystick, move keys) is ignored (crew-autoplay.md 5).
   // Save before the tab is hidden/closed (mobile browsers may never fire unload).
   document.addEventListener('visibilitychange',()=>{if(document.hidden)farm.flush();},{signal:events.signal});addEventListener('pagehide',()=>farm.flush(),{signal:events.signal});
-  document.addEventListener('pointerdown',event=>{if(auto&&event.isTrusted&&event.target.closest?.('#game canvas, #heaven-joystick'))stopAuto(tr('crew.auto.manual'));},{capture:true,signal:events.signal});
   const MOVE_KEYS=new Set(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight']);
   // Layers, first match wins (crew-autoplay.md 5): quiz/popup → staff incident → field job → errand → go to the café.
   let autoErrand=null,autoIdle=0;const autoSkip=new Map();
@@ -854,6 +854,7 @@ export async function createFarmGame(profile, startingGift, persistence = { read
     decorationBuilder?.stopTask();
     const workerPick=crew.pickAtScreen(event.clientX,event.clientY,canvas.getBoundingClientRect()),workerId=workerPick?.id;
     if(workerId){clearInput();cancelWork();crew.select(workerId);const w=farm.peek().workers.find(x=>x.id===workerId);menu={kind:'worker-detail',id:null,workerId,remote:true,initialFilter:w&&onPhone(w,Date.now())?'settings':undefined};renderMenu();return;}
+    if(auto)return;
     cancelWork(); world.moveToScreen(event.clientX, event.clientY, canvas.getBoundingClientRect(), (id, picked) => {
       if (FIELDS.some(field => field.id === id)) {world.moveToNpc(id);world.setFocus(id);return true;}
       if(MACHINES.some(machine=>machine.id===id)){if(picked?.action==='collect'&&near(id)){noticeResult(applyAction(id,'collect',null));refresh(Date.now());return true;}pendingStationAction={id,action:picked?.action || 'select'};world.moveToNpc(id);world.setFocus(id);return true;}
@@ -956,7 +957,7 @@ export async function createFarmGame(profile, startingGift, persistence = { read
       setListener(character.position, world.camera); vfx.update(dt);
     },
     handleKeyDown(event) {
-      if(auto&&event.isTrusted&&MOVE_KEYS.has(event.code)&&!event.target.closest?.('input, textarea, select'))stopAuto(tr('crew.auto.manual'));
+      if(auto&&MOVE_KEYS.has(event.code)&&!event.target.closest?.('input, textarea, select'))return;
       if (event.target.closest('input, textarea, select') || lessonClose) return; // the re-ask dialogue handles its own keys
       if(decorationBuilder?.active&&!ui.modalOpen){decorationBuilder.key(event);return;}
       if (ui.handleModalKey(event)) return;

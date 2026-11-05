@@ -62,7 +62,7 @@ Thành thạo (điểm ly lấy phần nguyên, 89,6 vẫn là ★★): barista 
 - **Dãy quầy sau** (z = −10.6), mỗi thiết bị một ô cố định nên nâng cấp chỉ là lắp vào ô trống (ô chưa mua hiện khung viền + biển "Ô trống"):
   quầy pha 8 m với 3 trạm pha (trạm 2–3 mở bằng nâng cấp) + máy espresso tự động + kệ giao ly (pass) ở đầu phải ·
   2 quầy thu ngân (quầy 2 là nâng cấp) · quầy nhận đồ + màn hình gọi số · tủ bánh.
-- **Ô trống có biển (05/11/2026)**: Trạm pha 2–3, Robot pha espresso và Quầy thu ngân 2 chưa mua hiện khung viền và biển nghiêng "＋ icon tên". Bấm biển hoặc khung thì mở thẳng Nâng cấp › Tự động. Mua xong, thiết bị hiện ra và biển mất. Quầy nhận đồ và Robot thu ngân vẫn dùng nhãn "＋ …" như cũ.
+- **Ô trống có biển (05/11/2026)**: Trạm pha 2–3, Robot pha espresso và Quầy thu ngân 2 chưa mua hiện khung viền và biển nghiêng "＋ icon tên". Bấm biển hoặc khung thì mở thẳng Nâng cấp › Tự động, kể cả khi Auto đang bật (nhân vật vẫn làm việc phía sau). Mua xong, thiết bị hiện ra và biển mất. Quầy nhận đồ và Robot thu ngân vẫn dùng nhãn "＋ …" như cũ.
 - **Camera màn dọc**: điện thoại dọc (rộng < 0,6 × cao) mở quán nhìn vào dãy quầy (x −2, z −5,5, zoom 0,85), camera lùi ×1,45 khi tỉ lệ < 0,75 để thấy từ Quầy pha tới Thu ngân. Trước đây quán dùng nhầm điểm nhìn của nông trại (x −6,4), nên các quầy bên phải nằm ngoài màn hình.
 - **Lối nhân viên** phía sau quầy (z ≈ −12.15), vào từ hai đầu và khe giữa quầy pha – thu ngân. Người chơi cũng đứng sau quầy khi pha/thu ngân.
 - **Hàng chờ** dọc dây chắn x = 1.2 tới quầy thu ngân; **2 kiosk** tự order ở giữa sảnh; khách mang đi chờ trước quầy nhận đồ.

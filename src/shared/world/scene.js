@@ -580,7 +580,8 @@ export function createAdventureScene(character, { interactions: inputInteraction
     },
     atInteraction(id,position){const npc=NPCS.find(n=>n.id===id);return Boolean(npc&&atInteraction(npc,position.x,position.z));},
     setFarmUpgrades(upgrades) {environment?.setUpgrades?.(upgrades);for(const [id,actor]of actors)actor.setUpgrade?.(upgrades[id]||1);},
-    moveToScreen(clientX, clientY, rect, onSelect = null) {
+    // pickOnly: only report the tapped object to onSelect, never walk (used while Auto drives the character).
+    moveToScreen(clientX, clientY, rect, onSelect = null, pickOnly = false) {
       if (!rect.width || !rect.height) return false;
       scene.updateMatrixWorld(true); camera.updateMatrixWorld(true);
       raycaster.setFromCamera(new THREE.Vector2((clientX - rect.left) / rect.width * 2 - 1, 1 - (clientY - rect.top) / rect.height * 2), camera);
@@ -612,6 +613,7 @@ export function createAdventureScene(character, { interactions: inputInteraction
       }
       if (farming) focused = npcId;
       if (npcId && onSelect?.(npcId, {fromPlot,action:pickedAction})) return true;
+      if (pickOnly) return false;
       if (npcId) return moveToNpc(npcId);
       if (!raycaster.ray.intersectPlane(ground, target)) return false;
       // Heaven NPCs stand on a ground disc; a tap on that disc means "talk", not "walk here".

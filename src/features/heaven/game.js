@@ -43,7 +43,7 @@ export async function createHeavenGame(profile, onReborn, onPortal) {
   function clearInput() { keyboard.clear(); touch = { x: 0, z: 0 }; world.stopMovement(); ui?.clearTouch(); }
   let questTarget = null;
   function refresh() {
-    ui.skipVisible(['welcome', 'learning', 'review'].includes(journey.phase));
+    ui.skipVisible(journey.phase !== 'completed' && !['map', 'departure', 'completed'].includes(mode));
     questTarget = ui.hud(journey);
     world.setTarget(questTarget);
     world.setUnlocked(journey.phase === 'return' || journey.phase === 'completed');
@@ -132,18 +132,19 @@ export async function createHeavenGame(profile, onReborn, onPortal) {
     else ui.complete(GIFTS.find(gift => gift.id === journey.progress.gift), journey.score);
   }
   function depart() {
-    mode = 'departure'; departureTime = 0; clearInput();
+    mode = 'departure'; departureTime = 0; clearInput(); ui.skipVisible(false);
     world.setFocus('portal'); world.setTarget(null); world.setReturning(true); ui.departure(0);
   }
+  // Bỏ qua ở mọi pha chưa xong: chưa có hành trang thì lấy món đầu, rồi mở thẳng bản đồ (không đi bộ, không thoại).
   function skip() {
-    if (!journey.skip()) return;
+    if (journey.phase === 'completed' || mode === 'map' || mode === 'departure') return;
+    if (['welcome', 'learning', 'review'].includes(journey.phase) && !journey.skip()) return;
     leading = false; mode = null; activeExpert = null; selectedQuestion = null;
-    // Bỏ qua: không hỏi hành trang, lấy món đầu; đi thẳng vào cổng, tới nơi mở bản đồ (không thoại).
-    journey.chooseGift(GIFTS[0].id);
-    ui.toast(t('heaven.toast.gift', { gift: GIFTS[0].name }));
-    world.setFocus(null); world.stopMovement(); ui.closeDialogue(); refresh(); world.moveToNpc('portal');
+    if (!journey.progress.gift) { journey.chooseGift(GIFTS[0].id); ui.toast(t('heaven.toast.gift', { gift: GIFTS[0].name })); }
+    world.setFocus(null); world.stopMovement(); ui.closeDialogue(); refresh();
+    (onPortal ? openMap : depart)();
   }
-  function openMap() { mode = 'map'; clearInput(); ui.closeDialogue(); world.setTarget(null); onPortal(); }
+  function openMap() { mode = 'map'; clearInput(); ui.closeDialogue(); world.setTarget(null); ui.skipVisible(false); onPortal(); }
   function interact() {
     if (mode || !nearest) return;
     const npc = nearest; world.setFocus(npc.id);
