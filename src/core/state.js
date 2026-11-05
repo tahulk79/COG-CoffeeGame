@@ -66,9 +66,24 @@ export function normalizeSave(raw, now = Date.now()) {
   return out;
 }
 
+// Layout 2 (café split out of the farm into its own area): saves made with layout 1 had the café block on the farm at
+// S [4,2,16,14] and a Round-2 café lot B3 [18,2,28,12]. Shift those buildings into the café area and rename B3 → C2.
+export const LAYOUT_VERSION = 2;
+const OLD_CAFE_RECTS = [[4, 2, 16, 14], [18, 2, 28, 12]];
+const CAFE_SHIFT = { x: -10, z: 100 };
+function migrateLayout(v) {
+  if (v.layout === LAYOUT_VERSION) return v;
+  const inOld = b => OLD_CAFE_RECTS.some(([x0, z0, x1, z1]) => b.x >= x0 && b.x <= x1 && b.z >= z0 && b.z <= z1);
+  const buildings = Array.isArray(v.buildings) ? v.buildings.map(b => (obj(b) && Number.isFinite(b.x) && Number.isFinite(b.z) && (BUILDINGS[b.type]?.zone === 'shop' || inOld(b)) && b.z < 50
+    ? { ...b, x: b.x + CAFE_SHIFT.x, z: b.z + CAFE_SHIFT.z } : b)) : v.buildings;
+  const parcels = Array.isArray(v.parcels) ? v.parcels.map(id => (id === 'B3' ? 'C2' : id)) : v.parcels;
+  return { ...v, buildings, parcels };
+}
+
 export function normalizeRegion(r) {
-  const v = obj(r) || {};
+  const v = migrateLayout(obj(r) || {});
   return {
+    layout: LAYOUT_VERSION,
     status: ['active', 'idle', 'expired'].includes(v.status) ? v.status : 'idle',
     enteredAt: num(v.enteredAt, 0), expiredAt: num(v.expiredAt, 0),
     parcels: Array.isArray(v.parcels) ? [...new Set(v.parcels)] : [],

@@ -90,15 +90,15 @@ test('café: brew needs beans; queue capped', () => {
 test('build: valid placement, red/invalid cases, upgrade with round cap', () => {
   const h = playing();
   h.state.player.coins = 100000;
-  assert.equal(D.placementError(h.state, 'roaster', 12, 11, 0), null);
-  assert.equal(D.placementError(h.state, 'roaster', 7, 7, 0), 'blocked');   // customer lane
+  assert.equal(D.placementError(h.state, 'roaster', 2, 111, 0), null);
+  assert.equal(D.placementError(h.state, 'roaster', -3, 108, 0), 'blocked');   // customer lane
   assert.equal(D.placementError(h.state, 'roaster', -9, 5, 0), 'wrongZone');  // farm parcel is not a build parcel
   assert.equal(D.placementError(h.state, 'roaster', 21, -5, 0), 'wrongZone'); // B2 is not shop
   assert.equal(D.placementError(h.state, 'dryer', 21, -5, 0), 'notOwned');
   assert.equal(D.placementError(h.state, 'roaster', 0, 0, 0), 'outside');   // road
-  h.must('build/place', { type: 'roaster', x: 12, z: 11 });
-  assert.equal(D.placementError(h.state, 'tables', 12, 11, 0), 'overlap');
-  assert.equal(h.act('build/place', { type: 'roaster', x: 14, z: 11 }).error, 'limit');
+  h.must('build/place', { type: 'roaster', x: 2, z: 111 });
+  assert.equal(D.placementError(h.state, 'tables', 2, 111, 0), 'overlap');
+  assert.equal(h.act('build/place', { type: 'roaster', x: 2, z: 111 }).error, 'limit');
   const roaster = h.region().buildings.find(b => b.type === 'roaster');
   h.must('build/upgrade', { uid: roaster.uid });
   h.must('build/upgrade', { uid: roaster.uid });
@@ -190,7 +190,7 @@ test('level 10: triggers once, pauses gameplay, resets only that region, keeps a
   h.state.player.coins = 50000;
   h.state.player.xp = xpForLevel(8);
   h.must('land/buyParcel', { parcelId: 'F2' });
-  h.must('build/place', { type: 'roaster', x: 12, z: 11 });
+  h.must('build/place', { type: 'roaster', x: 2, z: 111 });
   const roaster = h.region().buildings.find(b => b.type === 'roaster');
   h.must('build/upgrade', { uid: roaster.uid });
   const silo = h.region().buildings.find(b => b.type === 'silo');
@@ -347,7 +347,7 @@ test('tutorial: one step at a time, follows real progress, survives reload', () 
   h.tick(10_000); h.must('shop/serve');
   assert.equal(currentStep(h.state).step.id, 'build');
   h.state.player.coins = 1000;
-  h.must('build/place', { type: 'roaster', x: 12, z: 11 });
+  h.must('build/place', { type: 'roaster', x: 2, z: 111 });
   assert.equal(currentStep(h.state).step.id, 'upgrade');
   h.must('build/upgrade', { uid: h.region().buildings.find(b => b.type === 'silo').uid });
   assert.equal(currentStep(h.state).step.id, 'buyLand');
@@ -361,4 +361,23 @@ test('reducer never mutates input state', () => {
   const frozen = JSON.stringify(h.state);
   apply(h.state, { type: 'farm/plant', payload: { plotId: 'F1-1' } }, { now: T0 });
   assert.equal(JSON.stringify(h.state), frozen);
+});
+
+test('layout 2 migration: old on-farm café buildings move to the café area, B3 café lot becomes C2', async () => {
+  const { normalizeRegion } = await import('../../src/core/state.js');
+  const r = normalizeRegion({ status: 'active', parcels: ['F1', 'S', 'B1', 'B3'], buildings: [
+    { uid: 'b1', type: 'silo', x: 9, z: -5, rot: 0, level: 2 },
+    { uid: 'b2', type: 'orderCounter', x: 7, z: 5, rot: 0, level: 1 },
+    { uid: 'b3', type: 'roaster', x: 12, z: 11, rot: 0, level: 2 },
+    { uid: 'b4', type: 'flowers', x: 15, z: 13, rot: 0, level: 1 },
+  ] });
+  const by = id => r.buildings.find(b => b.uid === id);
+  assert.deepEqual([by('b1').x, by('b1').z], [9, -5]);
+  assert.deepEqual([by('b2').x, by('b2').z], [FIXED.orderCounter.x, FIXED.orderCounter.z]);
+  assert.deepEqual([by('b3').x, by('b3').z], [2, 111]);
+  assert.deepEqual([by('b4').x, by('b4').z], [5, 113]);
+  assert.ok(r.parcels.includes('C2') && !r.parcels.includes('B3'));
+  assert.equal(r.layout, 2);
+  // Idempotent: a migrated region is not shifted again.
+  assert.deepEqual(normalizeRegion(r).buildings, r.buildings);
 });

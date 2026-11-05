@@ -45,7 +45,7 @@ export function runSim(minutes = 60) {
     for (const type of ['roaster', 'dryer', 'tables', 'kiosk', 'pastry']) {
       if (D.buildError(s, type)) continue;
       const def = BUILDINGS[type];
-      const cands = def.zone === 'shop' ? [[12, 11], [14.5, 12.5], [11, 12], [15, 9.5], [20, 4], [22, 7], [25, 9]] : [[5, -4], [12, -4], [6, -6], [18, -5], [22, -5], [6, -14]];
+      const cands = def.zone === 'shop' ? [[2, 111], [4.5, 112.5], [1, 112], [5, 109.5], [10, 104], [12, 107], [15, 109]] : [[5, -4], [12, -4], [6, -6], [18, -5], [22, -5], [6, -14]];
       for (const [x, z] of cands) if (act('build/place', { type, x, z })) return true;
     }
     return false;

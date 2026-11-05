@@ -72,30 +72,30 @@ test('edge: Object.prototype names as ids are rejected (prototype-key lookups)',
 // ---------- building ----------
 test('edge: rotation changes the footprint — a rotated building may not overlap another building', () => {
   const h = rich();
-  // 1×1 tables at (11,13) → [10,12,12,14]. Pastry case is 2×1 cells (4×2 m).
-  h.must('build/place', { type: 'tables', x: 11, z: 13 });
-  assert.deepEqual(D.footprint('pastry', 11, 11, 0), [9, 10, 13, 12]);
-  assert.deepEqual(D.footprint('pastry', 11, 11, 1), [10, 9, 12, 13]);
-  assert.equal(D.placementError(h.state, 'pastry', 11, 11, 0), null);
-  assert.equal(D.placementError(h.state, 'pastry', 11, 11, 2), null);
-  assert.equal(D.placementError(h.state, 'pastry', 11, 11, 1), 'overlap');
-  assert.equal(D.placementError(h.state, 'pastry', 11, 11, 3), 'overlap');
+  // 1×1 tables at (1,113) → [0,112,2,114]. Pastry case is 2×1 cells (4×2 m).
+  h.must('build/place', { type: 'tables', x: 1, z: 113 });
+  assert.deepEqual(D.footprint('pastry', 1, 111, 0), [-1, 110, 3, 112]);
+  assert.deepEqual(D.footprint('pastry', 1, 111, 1), [0, 109, 2, 113]);
+  assert.equal(D.placementError(h.state, 'pastry', 1, 111, 0), null);
+  assert.equal(D.placementError(h.state, 'pastry', 1, 111, 2), null);
+  assert.equal(D.placementError(h.state, 'pastry', 1, 111, 1), 'overlap');
+  assert.equal(D.placementError(h.state, 'pastry', 1, 111, 3), 'overlap');
   const coins = h.state.player.coins;
-  assert.equal(h.act('build/place', { type: 'pastry', x: 11, z: 11, rot: 1 }).error, 'overlap');
-  assert.equal(h.act('build/place', { type: 'pastry', x: 11, z: 11, rot: 5 }).error, 'overlap', 'rot is taken modulo 4');
+  assert.equal(h.act('build/place', { type: 'pastry', x: 1, z: 111, rot: 1 }).error, 'overlap');
+  assert.equal(h.act('build/place', { type: 'pastry', x: 1, z: 111, rot: 5 }).error, 'overlap', 'rot is taken modulo 4');
   assert.equal(h.state.player.coins, coins, 'nothing charged for a refused placement');
-  h.must('build/place', { type: 'pastry', x: 11, z: 11, rot: 0 });
+  h.must('build/place', { type: 'pastry', x: 1, z: 111, rot: 0 });
   const pastry = h.region().buildings.find(b => b.type === 'pastry');
   // Rotating it in place (move with rot 1) would now hit the tables.
-  assert.equal(h.act('build/move', { uid: pastry.uid, x: 11, z: 11, rot: 1 }).error, 'overlap');
+  assert.equal(h.act('build/move', { uid: pastry.uid, x: 1, z: 111, rot: 1 }).error, 'overlap');
   assert.equal(h.region().buildings.find(b => b.uid === pastry.uid).rot, 0);
   // Moving the tables onto the pastry's footprint is refused too, moving onto itself is fine.
   const tables = h.region().buildings.find(b => b.type === 'tables');
-  assert.equal(h.act('build/move', { uid: tables.uid, x: 11, z: 11 }).error, 'overlap');
-  h.must('build/move', { uid: tables.uid, x: 11, z: 13, rot: 1 });
+  assert.equal(h.act('build/move', { uid: tables.uid, x: 1, z: 111 }).error, 'overlap');
+  h.must('build/move', { uid: tables.uid, x: 1, z: 113, rot: 1 });
   // Starter counters are fixed and their footprint also blocks rotated placements.
   const counter = h.region().buildings.find(b => b.type === 'orderCounter');
-  assert.equal(D.placementError(h.state, 'pastry', 7, 4, 1), 'overlap');
+  assert.equal(D.placementError(h.state, 'pastry', -3, 104, 1), 'overlap');
   assert.equal(h.act('build/move', { uid: counter.uid, x: 12, z: 12 }).error, 'fixed');
 });
 
@@ -156,7 +156,7 @@ test('edge: expired region reopens in Round 2 with starters back at Lv 1 and own
   h.state.player.xp = xpForLevel(8);
   h.must('land/buyParcel', { parcelId: 'F2' });
   h.must('land/buyParcel', { parcelId: 'B2' });
-  h.must('build/place', { type: 'roaster', x: 12, z: 11 });
+  h.must('build/place', { type: 'roaster', x: 2, z: 111 });
   const silo = h.region().buildings.find(b => b.type === 'silo');
   h.must('build/upgrade', { uid: silo.uid });
   h.must('farm/plant', { plotId: 'F2-1' });
@@ -176,7 +176,7 @@ test('edge: expired region reopens in Round 2 with starters back at Lv 1 and own
   assert.equal(new Set(r.buildings.map(b => b.uid)).size, r.buildings.length, 'unique uids');
   // Playable immediately: plant on the kept F2 parcel, rebuild the roaster.
   h.must('farm/plant', { plotId: 'F2-1' });
-  h.must('build/place', { type: 'roaster', x: 12, z: 11 });
+  h.must('build/place', { type: 'roaster', x: 2, z: 111 });
   // Expiry never fires again.
   h.state.player.xp = xpForLevel(14);
   h.state.inventory.beans = 3;
