@@ -107,7 +107,7 @@ export async function createFarmGame(profile, startingGift, persistence = { read
   let auto=false,autoSpent=0,autoWait=0,autoTarget=null,autoHudAt=0;
   const autoHud=mountAutoHud({onToggle:()=>auto?stopAuto():startAuto()});
   function autoStatus(){const a=farm.peek().autoplay;autoHud.status({on:auto,runs:a.runs,leftMs:Math.max(0,a.leftMs-autoSpent)});}
-  function startAuto(){const r=farm.act('autoplay','start');ui.notice(r.message,r.ok);if(!r.ok)return;auto=true;autoSpent=0;autoWait=0;autoTarget=null;autoErrand=null;autoIdle=0;autoStatus();}
+  function startAuto(){const r=farm.act('autoplay','start');ui.notice(r.message,r.ok);if(!r.ok)return;auto=true;autoSpent=0;autoWait=0;autoTarget=null;autoErrand=null;autoStatus();}
   function stopAuto(message=null){
     if(!auto)return;auto=false;if(autoSpent)farm.act('autoplay','spend',autoSpent);autoSpent=0;autoTarget=null;autoStatus();
     if(message)ui.notice(message,true);
@@ -117,13 +117,12 @@ export async function createFarmGame(profile, startingGift, persistence = { read
   document.addEventListener('visibilitychange',()=>{if(document.hidden)farm.flush();},{signal:events.signal});addEventListener('pagehide',()=>farm.flush(),{signal:events.signal});
   const MOVE_KEYS=new Set(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight']);
   // Layers, first match wins (crew-autoplay.md 5): quiz/popup → staff incident → field job → errand → go to the café.
-  let autoErrand=null,autoIdle=0;const autoSkip=new Map();
+  let autoErrand=null;const autoSkip=new Map();
   // A job or errand that just failed (storage full, no room at the café…) rests 15 s, so Auto tries something else.
   const skipped=key=>(autoSkip.get(key)||0)>Date.now();
   const autoClaimed=(id,action)=>{const who=farm.claimed(id,action);return skipped(`${id}:${action}`)||Boolean(who&&who!=='player');};
   const nextFieldJob=()=>pickAutoTask(farm.peek(),{level:farm.level,claimed:autoClaimed,position:character.position,positionOf:id=>world.getInteraction(id)?.position});
   const nextErrand=()=>pickAutoErrand(farm.peek(),{regionKind,level:farm.level,skip:key=>skipped(`errand:${key}`)});
-  const cafeOpenable=()=>regionKind!=='farm'&&Boolean(unlocked?.has('cafe-play'));
   function screenOf(pos,rect){if(!pos)return null;const point=character.position.clone().copy(pos);point.y+=1.6;point.project(world.camera);return {x:rect.left+(point.x+1)*rect.width/2,y:rect.top+(1-point.y)*rect.height/2};}
   function autoTick(dt){
     if(!auto){if((autoHudAt-=dt)<=0){autoHudAt=1;autoStatus();}return;}
@@ -132,7 +131,7 @@ export async function createFarmGame(profile, startingGift, persistence = { read
     if((autoHudAt-=dt)<=0){autoHudAt=.25;autoStatus();}
     if(autoHud.quiz())return;
     if(enteringCafe){autoHud.show(null,tr('crew.auto.toCafe'));return;} // the café scene is loading: plan nothing on the farm
-    if(cafeGame){cafeGame.autoStep(autoHud,dt,{farmWork:()=>Boolean(nextFieldJob()||nextErrand()),goFarm:regionKind==='cafe'?null:exitCafe});return;}
+    if(cafeGame){cafeGame.autoStep(autoHud,dt,{});return;}
     const rect=canvasRect||=$('game').querySelector('canvas').getBoundingClientRect(),now=Date.now(),p=farm.peek();
     if(isSettingsOpen()||decorationBuilder?.active){autoHud.show(null,tr('crew.auto.waitModal'));return;}
     if(lessonClose){autoHud.show(null,tr('crew.auto.waitModal'));return;}
@@ -153,17 +152,15 @@ export async function createFarmGame(profile, startingGift, persistence = { read
     // The owner never takes a job a worker holds (claims), and workers yield what the owner heads for (playerTargets).
     autoTarget=nextFieldJob();
     if(autoTarget){
-      autoIdle=0;const task=autoTarget;
+      const task=autoTarget;
       if(near(task.id)){if(!begin(task.id,task.action,task.choice)){autoSkip.set(`${task.id}:${task.action}`,now+5000);autoTarget=null;}}
       else{pendingTool=task;world.moveToNpc(task.id);world.setFocus(task.id);}
       autoHud.show(behind?null:world.screenPoint(task.id,rect),tr(`crew.auto.do.${task.action}`));return;
     }
     const errand=nextErrand();
-    if(errand){autoIdle=0;autoErrand={task:errand,at:now+1400};return;}
-    // Nothing left on the farm: go sell coffee (both-region saves, once the café button is open).
-    autoIdle+=.4;
-    if(cafeOpenable()&&autoIdle>=2&&!behind){autoIdle=0;autoHud.show(autoHud.at(document.querySelector('[data-shortcut="cafe-play"]')),tr('crew.auto.toCafe'));void enterCafe();return;}
-    autoHud.show(null,tr(cafeOpenable()?'crew.auto.toCafe':'crew.auto.farmIdle'));
+    if(errand){autoErrand={task:errand,at:now+1400};return;}
+    // Nothing left on the farm: wait. Auto never switches scene (05/11/2026): the player picks farm or café.
+    autoHud.show(null,tr('crew.auto.farmIdle'));
   }
   function clearInput() { cafeGame?.clearInput(); keyboard.clear(); touch = { x: 0, z: 0 }; resetJoystick(); world.stopMovement(); }
   function cancelWork() {

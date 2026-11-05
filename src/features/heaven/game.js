@@ -43,7 +43,7 @@ export async function createHeavenGame(profile, onReborn, onPortal) {
   function clearInput() { keyboard.clear(); touch = { x: 0, z: 0 }; world.stopMovement(); ui?.clearTouch(); }
   let questTarget = null;
   function refresh() {
-    ui.skipVisible(journey.phase !== 'completed' && !['map', 'departure', 'completed'].includes(mode));
+    ui.skipVisible(!journey.progress.skipped && journey.phase !== 'completed' && !['map', 'departure', 'completed'].includes(mode));
     questTarget = ui.hud(journey);
     world.setTarget(questTarget);
     world.setUnlocked(journey.phase === 'return' || journey.phase === 'completed');
@@ -135,14 +135,14 @@ export async function createHeavenGame(profile, onReborn, onPortal) {
     mode = 'departure'; departureTime = 0; clearInput(); ui.skipVisible(false);
     world.setFocus('portal'); world.setTarget(null); world.setReturning(true); ui.departure(0);
   }
-  // Bỏ qua ở mọi pha chưa xong: chưa có hành trang thì lấy món đầu, rồi mở thẳng bản đồ (không đi bộ, không thoại).
+  // Bỏ qua ở mọi pha chưa xong: chưa có hành trang thì lấy món đầu, đặt nhân vật về đầu đường lên cổng rồi tự đi vào cổng (không thoại).
   function skip() {
     if (journey.phase === 'completed' || mode === 'map' || mode === 'departure') return;
-    if (['welcome', 'learning', 'review'].includes(journey.phase) && !journey.skip()) return;
-    leading = false; mode = null; activeExpert = null; selectedQuestion = null;
+    if (['welcome', 'learning', 'review'].includes(journey.phase)) journey.skip();
     if (!journey.progress.gift) { journey.chooseGift(GIFTS[0].id); ui.toast(t('heaven.toast.gift', { gift: GIFTS[0].name })); }
-    world.setFocus(null); world.stopMovement(); ui.closeDialogue(); refresh();
-    (onPortal ? openMap : depart)();
+    leading = false; farewellDone = true; mode = null; activeExpert = null; selectedQuestion = null;
+    clearInput(); ui.closeDialogue(); world.reset('welcome'); refresh();
+    world.moveToNpc('portal'); // tới cổng thì update() gọi interact() → mở bản đồ như luồng thường
   }
   function openMap() { mode = 'map'; clearInput(); ui.closeDialogue(); world.setTarget(null); ui.skipVisible(false); onPortal(); }
   function interact() {
