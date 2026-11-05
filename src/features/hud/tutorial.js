@@ -30,6 +30,8 @@ export function createTutorial(ctx) {
   let pulsed = null;
   let acc = 1;              // seconds since the last re-resolve
   let handVisible = false;
+  let offscreen = 0;        // seconds the world target has been off-screen
+  let lastFocus = '';       // step+area the camera was last pointed at
 
   const setTip = text => {
     if (text === tipKey) return;
@@ -139,6 +141,9 @@ export function createTutorial(ctx) {
     // A sheet covers the world: only point inside it (or nowhere) while one is open.
     if (sheetId) { target = null; if (node && !ctx.sheet.el.contains(node)) node = null; }
     setTip(text);
+    // Camera focus: once per step (and again if the focused area changes), so the target is never off-screen.
+    const focusKey = target && !node ? `${cur.step.id}:${target.kind}:${target.kind === 'plot' ? 'farm' : target.id || target.type}` : '';
+    if (focusKey && focusKey !== lastFocus && !ctx.realm?.placement) { lastFocus = focusKey; ctx.realm?.focus?.(target, { zoom: 1 }); }
     setWorld(node ? null : target);
     setUi(node && node.isConnected && !node.disabled ? node : null);
   }
@@ -158,7 +163,14 @@ export function createTutorial(ctx) {
       if (rect.width) placeHand(rect.left + rect.width / 2, rect.top + rect.height / 2); else hideHand();
     } else if (world) {
       const p = ctx.realm?.screenPoint?.(world);
-      if (p && p.visible !== false && Number.isFinite(p.x)) placeHand(p.x, p.y); else hideHand();
+      const visible = p && p.visible !== false && Number.isFinite(p.x) && p.y > 90 && p.y < innerHeight - 90;
+      if (visible) { placeHand(p.x, p.y); offscreen = 0; }
+      else {
+        hideHand();
+        // Target hidden (player panned or tapped elsewhere) for 2 s → bring the camera back to it.
+        offscreen += dt;
+        if (offscreen > 2 && !ctx.realm?.placement && !ctx.sheet.openId) { offscreen = 0; ctx.realm?.focus?.(world, { zoom: 1 }); }
+      }
     } else hideHand();
   }
 
