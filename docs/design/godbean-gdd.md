@@ -6,12 +6,13 @@
 |---|---|
 | Dự án | **Godbean** — tagline: *Godbean: Build your own Coffee Empire!* (vi: *Xây đế chế cà phê của riêng bạn!*). Tên cũ: COG — Cà phê (đổi 04/11/2026). Repo và remote `cog` của sếp giữ tên cũ |
 | Loại tài liệu | Game Design Document (GDD) tổng hợp |
-| Phiên bản | 1.8 |
+| Phiên bản | 2.1 |
 | Cập nhật | 04/11/2026 |
 | Trạng thái tài liệu | **Bản nháp tổng hợp** — chưa có người duyệt; xem [mục 0](#0-bảng-trạng-thái) |
 | Người duyệt | _(chưa có)_ |
-| Đối chiếu code lần cuối | 04/11/2026, commit `be1782a` (chưa tính thay đổi chưa commit) |
-| Nguồn ưu tiên khi mâu thuẫn | [rules.md](../screens/03-farm/rules.md) (farm + quán) · [04-cafe/gameplay.md](../screens/04-cafe/gameplay.md) · [02-heaven/gameplay.md](../screens/02-heaven/gameplay.md) · [onboarding-flow.md](../shared/onboarding-flow.md) · [contracts.md](../shared/contracts.md) |
+| Đối chiếu code lần cuối | 04/11/2026, commit `4f361ba` (đối chiếu với tài liệu chuẩn, chỉ đọc code) |
+| Tài liệu chuẩn của founder | [GODBEAN_MASTER_HANDOFF_2026-11-04.pdf](../references/GODBEAN_MASTER_HANDOFF_2026-11-04.pdf) v1.0 (24 trang). Ưu tiên cao nhất cho gameplay, economy, progression, nhiệm vụ. Trang 1–10 (mục 1–13) thắng Phụ lục A (tr. 10–24, lịch sử). Chỗ GDD/code khác tài liệu chuẩn **không tự sửa code**: ghi ở 0.4 và 15.1. Quyết định của Quang ngày 04/11/2026: [PDF-GDD-GAP-REPORT.md](../reports/PDF-GDD-GAP-REPORT.md) mục 9. Repo làm việc: `beolamtat/V2` (`origin`) → MR sang `tahulk79/COG-CoffeeGame` `main` (`cog`); tên repo `TheCoffeeSixSense` trong PDF §10 không áp dụng (Q-09, chốt 04/11) |
+| Nguồn ưu tiên khi mâu thuẫn (luật chi tiết đã chốt) | [rules.md](../screens/03-farm/rules.md) (farm + quán) · [04-cafe/gameplay.md](../screens/04-cafe/gameplay.md) · [02-heaven/gameplay.md](../screens/02-heaven/gameplay.md) · [onboarding-flow.md](../shared/onboarding-flow.md) · [contracts.md](../shared/contracts.md) |
 | Số liệu | Theo tài liệu hiện hành và `src/features/farm/content.js`, `rules.js`, `src/features/cafe/recipes.js` tại ngày cập nhật |
 
 **Quy ước cập nhật:** đổi luật hoặc số liệu thì sửa tài liệu gốc của màn trước, sau đó cập nhật GDD và ghi vào [Lịch sử phiên bản](#lịch-sử-phiên-bản).
@@ -50,10 +51,11 @@ Mục này trả lời ba câu hỏi: **GDD đang ở trạng thái nào**, **co
 
 | Câu hỏi | Trả lời (04/11/2026) |
 |---|---|
-| GDD đang ở trạng thái nào? | Bản nháp tổng hợp v1.2, gom từ tài liệu theo màn; **chưa có người duyệt**. Luật cốt lõi của 5 màn đã chốt; còn 4 đề xuất chờ duyệt và 5 câu hỏi mở |
-| Code đã tới đâu? | 21/30 tính năng **Đã code**, 3 **Một phần**, 2 **Đang làm**, 4 **Chưa làm** (bảng 0.3). Toàn bộ vòng chơi 00 → 04 chơi được |
-| Đã kiểm chứng tới đâu? | Chỉ luồng người chơi mới được playtest (3 lượt, 03/11/2026) và kinh tế đo bằng mô phỏng. Phần lớn tính năng **chưa có xác nhận chơi thật** |
-| GDD còn cần sửa gì? | 9 việc ở bảng 0.4; gấp nhất: chốt 4 chỗ code robot/sự cố làm khác spec (D-10). D-01, D-02 đã sửa ngày 04/11/2026 |
+| GDD đang ở trạng thái nào? | Bản nháp tổng hợp v2.1, gom từ tài liệu theo màn và đối chiếu với **tài liệu chuẩn của founder** (PDF 04/11/2026); Quang đã chốt mọi điểm mâu thuẫn và câu hỏi mở từ đối chiếu (04/11/2026), có spec cho Memory, Decode & Awaken, tiến trình, analytics; **chưa có người duyệt** toàn bộ GDD |
+| Code đã tới đâu? | 43 tính năng ở bảng 0.3: 21 **Đã code**, 3 **Một phần**, 15 **Đang làm** (F-33…F-43 đã code 04/11, chưa commit), 4 **Chưa làm**. `npm test` 166/166, `npm run build` qua. QA trình duyệt 04/11: luồng mới NORMAL tới ly V60 đầu + sổ tay, profile MAX (Hướng dẫn, Mục tiêu, Menu/Giá) đạt, 6 lỗi đã sửa; chưa đo hiệu năng. Tiến độ: [IMPLEMENTATION-STATUS.md](../reports/IMPLEMENTATION-STATUS.md) |
+| Đã kiểm chứng tới đâu? | Chỉ luồng người chơi mới được playtest (03–04/11/2026) và kinh tế đo bằng mô phỏng. Phần lớn tính năng **chưa có xác nhận chơi thật**; chưa có bằng chứng chạy iPad |
+| Lệch tài liệu chuẩn? | Ba hệ thống PDF xếp P0 chưa có: Coffee Memory (F-33), nếm 6 thuộc tính (F-34), Decode / First Sixth Key (F-35). Đã chốt **kết hợp**: giữ kinh tế đang có, bổ sung các hệ thống này làm ưu tiên kế tiếp (14.4). Pour-over V60 (F-40) và đánh đổi năng suất–chất lượng (F-41) đã chốt luật, chưa code. Chi tiết: [PDF-GDD-GAP-REPORT.md](../reports/PDF-GDD-GAP-REPORT.md) |
+| GDD còn cần sửa gì? | Bảng 0.4; gấp nhất: D-25 (chạy sim để chốt số F-36, F-41, F-42, F-43), D-26 (chọn nơi nhận analytics), D-10 (4 chỗ code robot/sự cố khác spec) |
 
 ### 0.2 Chú giải
 
@@ -91,7 +93,7 @@ Mục này trả lời ba câu hỏi: **GDD đang ở trạng thái nào**, **co
 | F-11 | Trang trí hoa, đèn, biển tên | 6.7 | Đã chốt | Đã code | Chưa | |
 | F-12 | Công trình sản xuất phụ, trạm song song | 14.3 | Đề xuất | Chưa làm | — | Chờ duyệt `build-proposal.md` |
 | F-13 | Vòng ca quán, mục tiêu ca, uy tín | 7.1–7.3 | Đang chỉnh | Đã code | Playtest 03/11, Playtest 04/11 | 04/11 audit: EC-2 danh tiếng theo ly không chạy (`model.js:538`) — đã sửa, có test, chưa chạy, PT-1 thuê barista làm trượt ca. [Audit](audits/2026-11-04-audit-toan-game.md). 04/11 dev: HUD ca cảnh báo cổng ★ (PT-11); giá nhập 45 xu ở nơi chỉ quán (EC-3, chờ duyệt). Test 74/74 |
-| F-14 | 11 công thức, bàn pha theo số đo | 7.4, A.4 | Đã chốt | Đã code | Playtest 04/11 | 04/11 audit: tự pha Nâu đá ★★★; vạch cân phin ~0,21 s (PT-3). [Audit](audits/2026-11-04-audit-toan-game.md) |
+| F-14 | 11 công thức, bàn pha theo số đo | 7.4, A.4 | Đã chốt | Đã code | Playtest 04/11 | V60 đổi luật ở F-40 (chưa code). 04/11 audit: tự pha Nâu đá ★★★; vạch cân phin ~0,21 s (PT-3). [Audit](audits/2026-11-04-audit-toan-game.md) |
 | F-15 | Nâng cấp quán, tự động hóa | 7.6, A.6 | Đã chốt | Đã code | Playtest 04/11 | Bố cục kiểm bằng `?debug=grid`. 04/11 audit: mua toàn bộ thiết bị/tự động hóa/mở rộng. [Audit](audits/2026-11-04-audit-toan-game.md) |
 | F-16 | Thợ farm 3 chỗ (F-29), chỉ thị | 8.1 | Đã chốt | Đã code | Test | `tests/worker-avoidance.test.js`, `farm-gameplay.test.js` |
 | F-17 | Nhân viên quán, bảng việc | 8.2 | Đã chốt | Đã code | Chưa | |
@@ -110,11 +112,26 @@ Mục này trả lời ba câu hỏi: **GDD đang ở trạng thái nào**, **co
 | F-29 | 3 slot đội, sao robot/nhân viên/bạn, lười-mệt, chế độ Auto | 8 | Đã chốt | Đang làm | Test 04/11, Playtest 04/11 | 04/11: code chưa commit; `node --test tests/*.test.js` 64/64 qua (04/11 sau triển khai audit; đã chơi thử Auto trên Chrome); farm + quán 3 slot, robot 1 việc, đa nhiệm theo cấp, Auto 3 × 10 phút. [crew-autoplay](../shared/crew-autoplay.md). 04/11 audit: 3 slot chặn đúng trên trình duyệt; nút Auto đè modal (UX-1). [Audit](audits/2026-11-04-audit-toan-game.md) |
 | F-28 | Bản đồ thế giới: chọn nơi trùng sinh, luật theo loại nơi | 4.1 | Đã chốt | Đang làm | Playtest 04/11 | 04/11: chưa commit; 8 nơi (cả hai: Việt Nam, Brazil; chỉ trồng: Colombia, Kenya, Indonesia; chỉ quán: Ý, Nhật, Mỹ), loại nơi ẩn tới khi chốt, mỗi nơi 2 nhiệm vụ riêng (thưởng chưa sim); sa bàn 3D địa hình liền (bờ thoải, núi, nước trong, đổ bóng), đảo của nơi chọn bay lên khi chạm. Đã xem thử trong Brave 04/11 (chưa playtest). 04/11 chiều: thay đảo tròn bằng khối hình quốc gia trồi lên, nhãn chỉ còn tên, thẻ khi chạm chỉ ghi địa lý (địa hình, khí hậu, nhiệt độ, mưa, độ cao) — chưa xem lại. [02b-world-map](../screens/02b-world-map/README.md). 04/11 audit: Việt Nam, Ý chơi được; P0 GP-A1 nơi chỉ quán kẹt tiền, GP-A2 không có thẻ nhiệm vụ. [Audit](audits/2026-11-04-audit-toan-game.md). 04/11 dev: sửa vị trí Việt Nam/Nhật trên bản đồ (PT-9), xem lại trên Chrome |
 | F-32 | Chợ thế giới: sàn đơn hàng giữa các khu vực (NPC trước) | 6.6, 7 | Đề xuất | Chưa làm | — | [market-proposal](../screens/02b-world-map/market-proposal.md) |
+| F-33 | Coffee Memory: ly trong game + ly ngoài đời, lưu dự định + thực tế, so sánh A/B, insight, xuất/xóa | 1.5 | Đã chốt (PDF tr. 5 §5.3; Q-10 04/11) | Đang làm | Test 04/11 | Lát 1 code 04/11 (`src/state/memory.js`, `cafe/memory-ui.js`); test `memory.test.js` — chưa commit; QA trình duyệt 04/11 một phần (xem IMPLEMENTATION-STATUS). Spec [coffee-memory.md](../shared/coffee-memory.md). Khóa save riêng `godbean-memory`. Backlog B-01, B-06 |
+| F-34 | Quick Taste: 6 thuộc tính cảm quan 1–5 + mức thích, chấm độc lập trước khi xem ly cũ, tách khỏi điểm mô hình | 1.5 | Đã chốt (PDF tr. 4 §5.1, tr. 5 §5.3) | Đang làm | Test 04/11 | Code 04/11 trong sổ tay; test `memory.test.js` — chưa commit; QA trình duyệt 04/11 một phần (xem IMPLEMENTATION-STATUS). Spec [coffee-memory.md](../shared/coffee-memory.md) mục 5. Không ảnh hưởng giá bán. Backlog B-02 |
+| F-35 | Decode & Awaken (lớp phủ, không phải màn mới): câu hỏi mở → thử nghiệm → giải mã → Fragment → Message → vận dụng → Sixth Key; First Sixth Key = Key of Curiosity | 1.5, 5.3 | Đã chốt (hướng Q-03 04/11; bảng Fragment ↔ Key v1 theo PROPOSED của PDF) | Đang làm | Test 04/11 | Code 04/11 (`src/features/awakening/`): 16 câu hỏi, Fragment/Key, First Sixth Key, 6 Key mở công cụ; test `awakening*.test.js`, `unlocks.test.js`. Câu `region`, `roast-age` chưa có dữ liệu — chưa commit; QA trình duyệt 04/11 một phần (xem IMPLEMENTATION-STATUS). 05/11 đo hiệu năng: sửa hồi quy check không đổi vẫn lưu → giật ~3 s (test có; đo lại 05/11: 100 fps, p99 11 ms). Spec [decode-awaken.md](../shared/decode-awaken.md). Backlog B-07 |
+| F-36 | Ba trục Wealth / Mastery / Awakening độc lập, hai mục tiêu thắng độc lập (Economic, Discovery) | 1.5, 9.1 | Đã chốt (Q-04, Q-06 04/11), số Đang chỉnh | Đang làm | Test 04/11, Sim 04/11 | Code 04/11 (`farm/progression.js`); test `progression.test.js`; sim cấp 15 ở 120′, Economic ~44 giờ — chưa commit; QA trình duyệt 04/11 một phần (xem IMPLEMENTATION-STATUS). Spec [progression.md](../shared/progression.md): XP chợ trần 40/ngày công, Economic ≥ 300.000 xu tài sản, Discovery 6 Key. Chờ sim (D-25) |
+| F-37 | Dữ liệu người chơi: xuất / nhập / xóa, báo save chỉ nằm trong trình duyệt | 13 | Đã chốt (PDF tr. 5 §5.3 APPROVED) | Đang làm | Test 04/11 | Code 04/11 (Cài đặt ▸ Dữ liệu); test `data-export.test.js` — chưa commit; QA trình duyệt 04/11 một phần (xem IMPLEMENTATION-STATUS). Hiện chỉ có Reset (`src/ui/settings.js`). Backlog B-03 |
+| F-38 | Analytics theo sự kiện từ MVP: event §8.2 + sự kiện game, envelope, hàng chờ, công tắc tắt | 13 | Đã chốt (PDF tr. 6 §8.2; Q-11 04/11) | Đang làm | Test 04/11 | Code 04/11 (`src/shared/analytics/`), 23 sự kiện; nơi nhận chưa có (D-26); profile MAX không ghi — chưa commit; QA trình duyệt 04/11 một phần (xem IMPLEMENTATION-STATUS). Spec [analytics.md](../shared/analytics.md). Nơi nhận chưa chọn (D-26). Backlog B-11 |
+| F-39 | Điểm ly ghi rõ "theo mô hình game" + `SCORE_MODEL_VERSION`; công thức và số đo giữ chữ "thật" | 2, 7.4 | Đã chốt (PDF tr. 4 §5, tr. 9 §11.1; D-21 04/11) | Đang làm | Test 04/11 | Code 04/11 (`recipes.js` `SCORE_MODEL_VERSION`, dòng điểm + ⓘ) — chưa commit; QA trình duyệt 04/11 một phần (xem IMPLEMENTATION-STATUS). [04-cafe/gameplay](../screens/04-cafe/gameplay.md) mục "Pour-over". Backlog B-04 |
+| F-40 | Pour-over V60 là phương pháp đầu tiên: có sẵn, 3 giai đoạn rót + nhiệt + thời gian, ly hướng dẫn đầu | 7.4, A.4 | Đã chốt (PDF tr. 4 §5, tr. 7 §9 ph. 1; Quang 04/11) | Đang làm | Test 04/11 | Code 04/11; test `v60.test.js`; thời gian ly đầu chưa đo — chưa commit; QA trình duyệt 04/11 một phần (xem IMPLEMENTATION-STATUS). Số liệu Đang chỉnh. [04-cafe/gameplay](../screens/04-cafe/gameplay.md) mục "Pour-over là phương pháp đầu tiên". Backlog B-05 |
+| F-41 | Đánh đổi năng suất ↔ chất lượng: bón ×1,15 / −6, tỉa ×0,9 / +10, giá chợ theo chất lượng mạnh hơn, Đơn Chợ q ≥ 85 ×1,6 | 6.2, 10.2–10.3 | Đã chốt (PDF tr. 2 §3.2; Quang 04/11), số liệu Đang chỉnh | Đang làm | Test 04/11, Sim 04/11 | Code 04/11 (`farm/rules.js`); test `crop-tradeoff.test.js`; sim: chênh 6,8%, bón nhỉnh nhất (D-27) — chưa commit; QA trình duyệt 04/11 một phần (xem IMPLEMENTATION-STATUS). Tính tay, chưa sim. [rules.md](../screens/03-farm/rules.md) mục 6. Backlog B-09 |
+| F-42 | Chủ quán tự đặt giá món: hệ số 0,8–1,3, chỉ đổi khi quán đóng, ảnh hưởng nhịp khách và tip | 7 | Đã chốt (Q-07 04/11), số Đang chỉnh | Đang làm | Test 04/11, Sim 04/11 | Code 04/11; test `cafe-price.test.js`; sim: p 0,8 áp đảo (D-28) — chưa commit; QA trình duyệt 04/11 một phần (xem IMPLEMENTATION-STATUS). [04-cafe/gameplay](../screens/04-cafe/gameplay.md) mục "Chủ quán tự đặt giá". Chờ sim (D-25) |
+| F-43 | Vùng ảnh hưởng trồng trọt: hệ số sản lượng / chất lượng / thời gian lớn theo nơi × giống | 4.1, 6.2 | Đã chốt (Q-08 04/11), số Đang chỉnh | Đang làm | Test 04/11, Sim 04/11 | Code 04/11 (`REGION_CROP`); test `crop-tradeoff.test.js`; sim co/ke −14% — chưa commit; QA trình duyệt 04/11 một phần (xem IMPLEMENTATION-STATUS). [02b-world-map](../screens/02b-world-map/README.md) mục "Vùng ảnh hưởng trồng trọt". Chờ sim (D-25) |
 
 ### 0.4 Việc cần sửa trong GDD và tài liệu
 
 | ID | Việc | Tài liệu | Mức |
 |---|---|---|---|
+| D-25 | Chạy `scripts/balance-sim.mjs` sau khi code để chốt số F-36 (trần XP chợ, ngưỡng cấp), F-41 (bón/tỉa), F-42 (hệ số giá), F-43 (hệ số vùng); sim cần thêm nơi chỉ trồng/chỉ quán (D-13) | GDD 10.5; `progression.md`, `rules.md`, `04-cafe/gameplay.md`, `02b-world-map/README.md` | Cao |
+| D-27 | F-41: bón vẫn là lựa chọn nhỉnh nhất (chênh 6,8%, sim 10.5). Đề xuất của economy (chưa duyệt): tăng lượng Đơn Chợ 200 g → ~1.000 g để thưởng chất lượng ≥ 85 có trọng lượng (~10% doanh thu chợ/ngày). Cần Quang quyết | `03-farm/rules.md` mục 6 | Trung bình |
+| D-28 | F-42: p 0,8 thắng mọi cấu hình vì quán không quá tải và thưởng ca tính theo số ly. Phương án (chưa duyệt): (a) sàn p 0,9; (b) chi phí vật tư mỗi ly tính theo giá gốc để giảm giá ăn vào lãi; (c) khách tăng khi giảm giá có trần theo sức pha. Cần Quang quyết | `04-cafe/gameplay.md` "Chủ quán tự đặt giá" | Cao |
+| D-26 | Chọn nơi nhận analytics (PDF gợi ý Supabase Free) và người cấp project/URL công khai | `shared/analytics.md` mục 5 | Trung bình |
 | D-10 | Chốt 4 chỗ code làm khác spec robot/sự cố (C-1…C-4, Phụ lục B): sửa code theo spec hay sửa spec theo code | `shared/robot-staff.md` mục 0 | Cao |
 | D-11 | Xem 3 chỗ nghi lỗi code robot/sự cố (B-1…B-3) | `shared/robot-staff.md` mục 0 | Trung bình |
 | D-03 | Vòng chơi mục 1 còn nhắc "tách vỏ" và "xay hạt thành bột" ở farm, đã bỏ | `03-farm/rules.md` mục 1 | Trung bình |
@@ -163,6 +180,28 @@ Người chơi bị Thần Chết "kéo nhầm" lên thiên đàng, học nghề
 - **Hai màn phụ thuộc nhau:** hạt từ farm nuôi quán; quán trả giá cao hơn chợ.
 - **Bản sắc Việt:** vườn cao nguyên, phin, cà phê sữa đá, bạc xỉu, cà phê trứng; chất liệu gỗ, mây tre, sơn mài.
 
+### 1.5 Tầm nhìn theo tài liệu chuẩn
+
+Tóm tắt các mục **APPROVED** của [tài liệu chuẩn](../references/GODBEAN_MASTER_HANDOFF_2026-11-04.pdf) (trang/mục ghi trong ngoặc). Mục PROPOSED ghi rõ là đề xuất. Chỗ code chưa làm hoặc làm khác: bảng 0.3 (F-33…F-39), 0.4 (D-16…D-20), 15.1.
+
+| Chủ đề | Luật | Trong game hiện tại |
+|---|---|---|
+| Định vị (tr. 1 §1) | Game xây đế chế cà phê, vừa giải trí vừa giúp hiểu trồng → sơ chế → rang → xay → pha → phục vụ → kinh doanh; **game-first**, hấp dẫn cả người không thích cà phê. *Hybrid Discovery*: cơ chế cà phê có cơ sở khoa học, truyện/thưởng được hư cấu. *Persistent Discovery*: khám phá được lưu và so sánh lâu dài | Có farm + quán; Persistent Discovery chưa có (F-33) |
+| Thông điệp (tr. 1 §1) | *Build Your Own Coffee Empire* (kinh doanh) · *Decode the Divine* (thần thoại) · *Every Bean Holds a Universe* (triết lý) · *From Coffee to Consciousness / The Sixth Taste* (chiều sâu) | Chỉ có tagline đầu |
+| Nền tảng (tr. 1 §1) | Web responsive PC / mobile / **iPad** trước, native sau; EN/VI đầu tiên; không cần tài khoản để chơi (Phụ lục tr. 15–16) | Có; chưa kiểm iPad |
+| Lore (tr. 1–2 §2) | Godbean = "hạt của Thánh Thần" = hạt dữ liệu (Divine Data Seed / Databean); người chơi tự gieo, biến đổi, thưởng thức, thử nghiệm để giải mã. **Là lore hư cấu**, không tuyên bố cà phê thật chứa năng lượng/dữ liệu đo được | Truyện thiên đàng hiện tại là khung mở đầu; lớp Databean chưa có (3.1) |
+| Sixth Taste = Sixth Key (tr. 2 §2.1) | Khoảnh khắc giải mã mở tầng khám phá mới, ba chiều: hiểu mình · hiểu người · hiểu vũ trụ. Vòng xoắn Tò mò → Đúng/Sai → Yêu/Ghét → Đáng yêu/Đáng thương → Tò mò cấp cao (không tất yếu); mỗi lĩnh vực một tầng riêng. **Không xếp hạng "giác ngộ"** | Chưa có (F-35) |
+| Hai tầng chơi (tr. 2 §3) | **Learn & Earn**: Farm Play + Coffee Shop Play kiếm XP và vốn. **Build & Expand**: mua đất quê làm farm và/hoặc mặt bằng phố mở quán; Farm Owner / Café Owner; farm cấp hạt cho quán, bán thị trường hoặc mua đối tác, có đánh đổi sản lượng–chất lượng–chi phí–giá–nhu cầu–dòng tiền–uy tín | Khớp khung (5, 6, 7, F-28); đánh đổi sản lượng–chất lượng đã chốt luật (F-41, chưa code); chưa có giá do chủ quán, marketing, chuỗi quán (Q-07) |
+| Ba tiến trình (tr. 3 §3.3) | **Wealth** (tiền, đất, thiết bị, quán) · **Mastery** (XP, công thức, kỹ năng, dữ liệu) · **Awakening** (Fragments, Messages, Sixth Keys) độc lập; hai kiểu thắng Economic / Discovery; giàu không đồng nghĩa thức tỉnh | Luật đã chốt, chưa code ([progression.md](../shared/progression.md), F-36) |
+| Decode & Awaken (tr. 3 §4) | **Lớp xuyên suốt hai tầng, không phải tầng thứ ba bắt buộc.** Play → Collect Data → Observe → Hypothesize → Experiment → Decode → Understand → Apply → Sixth Key → Awaken → Expand → New Questions. Awaken mở lựa chọn/công cụ/câu chuyện, không chỉ +x% năng suất. *PROPOSED:* 6 loại Fragments, Awakening Tree 6 Key, nhiệm vụ mẫu Yield vs Quality, The Bitter Truth, First Sixth Key | Chưa có (F-35) |
+| Khoa học cà phê (tr. 4 §5) | Quan hệ nhân quả hợp lý; **không tự nhận thuật toán đoán đúng vị thật**; không có một công thức tối ưu cho mọi người; **pour-over là phương pháp đầu tiên** | Công thức/số đo giữ chữ "thật", điểm ly ghi "theo mô hình game" (F-39); V60 thành món đầu (F-40) — đều chưa code |
+| Coffee Lab & Memory (tr. 4–5 §5.1–5.3) | Giúp tự pha ly ngon ngoài đời và biết đánh giá. 6 thuộc tính cảm quan (aroma, acidity, sweetness, bitterness, body, aftertaste); chua/đắng cao không tự động tốt/xấu; tách đặc tính / chất lượng kỹ thuật / mức yêu thích / ký ức. Flow Brew → Taste độc lập → So lịch sử → Reflect → Save Insight → Plan; chấm trước khi xem điểm cũ; lưu riêng công thức dự định và phiên thực tế; Quick Taste (~30 s) / Journal / Scientist; Repeat Last Brew; xuất/xóa; dữ liệu sức khỏe/cảm xúc tùy chọn và riêng tư; báo rủi ro mất localStorage | Chưa có (F-33, F-34, F-37) |
+| Kiếm tiền (tr. 6 §7) | Xem [10.6](#106-nguyên-tắc-kiếm-tiền-theo-tài-liệu-chuẩn) | Chưa có thanh toán |
+| Đo lường (tr. 6–7 §8.2) | Đo acquisition → activation → engagement → retention → revenue → referral và giá trị học tập; event tối thiểu và envelope ở PDF tr. 6; không gửi nhật ký/sức khỏe vào analytics | Spec [analytics.md](../shared/analytics.md), chưa code (F-38) |
+| Giải đấu, LiveOps, marketing (tr. 5–7 §6, §8.3–8.4) | Sau MVP; MVP chỉ một Brewing Challenge giám khảo cố định | Để sau (14.4) |
+
+**Phụ lục A của PDF (tr. 10–24, GDD cũ "The Coffee Six Sense")** mô tả web 2D cozy với route `/play`, `/memory`…, FTUE "Start Brewing", không có kinh tế trong MVP. PDF ghi phần này chỉ mang tính lịch sử và thua mục 1–13. GDD **giữ** game 3D, luồng 00 → 04 và kinh tế hiện có (khớp §3, §9 Phase 4); chỉ lấy từ Phụ lục các yêu cầu không mâu thuẫn (thang cảm quan 1–5, trường Memory, Definition of Done ở 14.5).
+
 ## 2. Trụ cột thiết kế
 
 | # | Trụ cột | Nghĩa là | Ví dụ trong game |
@@ -170,7 +209,7 @@ Người chơi bị Thần Chết "kéo nhầm" lên thiên đàng, học nghề
 | 1 | **Cuốn ngay** | Mọi thao tác có hình + tiếng ngay khi trạng thái đổi | Tiền, hàng bay về HUD; ly đầu bán được trước phút thứ 2 |
 | 2 | **Có lý do quay lại** | Luôn có việc đang chờ khi trở lại | Cây lớn khi vắng mặt (bù tối đa 4 giờ), đơn hàng, nâng cấp, luyện món lên 3★ |
 | 3 | **Hai màn phụ thuộc nhau** | Farm làm ra hạt và là nguồn thu chính (chợ); quán lời hơn **trên mỗi gram** và cho thưởng ca, nhưng bị giới hạn bởi nhịp khách | Chợ giảm giá khi bán nhiều; một ly ~20 g bán ~5 xu (≈0,25 xu/g) so với hạt rang ở chợ 0,07 xu/g; chợ chiếm ~76–85% tổng thu theo sim 04/11/2026 (10.5) |
-| 4 | **Học thật** | Chấm theo số đo thật, sai thì giải thích lý do thật | Câu hỏi thiên đàng, quầy pha rót tới vạch g/ml/°C |
+| 4 | **Học thật** | Công thức và số đo là số thật (g, ml, °C, tỉ lệ), sai thì giải thích lý do thật; **điểm ly ghi rõ là theo mô hình game**, không tự nhận đo đúng vị ly thật (D-21, chốt 04/11/2026; tài liệu chuẩn tr. 4 §5) | Câu hỏi thiên đàng, quầy pha rót tới vạch g/ml/°C |
 
 **Nguyên tắc thiết kế chung** (từ `AGENTS.md`):
 
@@ -188,6 +227,8 @@ Người chơi bị Thần Chết "kéo nhầm" lên thiên đàng, học nghề
 | Intro | Nhân vật đi bộ, né xe đạp, va biển, ngã. Y tế đưa lên cáng, Thần Chết tách hồn dẫn lên đường mây tới cổng trời |
 | Thiên đàng | Thần Chết giao hồ sơ; gặp ba chuyên gia; Thần Tiếp Nhận tiết lộ người chơi **chỉ ngất**, Thần Chết kéo nhầm (dấu đỏ "CHƯA CHẾT · CHỈ NGẤT") |
 | Trần gian | Tỉnh lại, làm chủ một mảnh vườn cà phê và một quán nhỏ |
+
+Tài liệu chuẩn (tr. 1–2 §2) chốt lớp lore **Godbean = Divine Data Seed / Databean**: hạt chứa thông điệp, người chơi tự giải mã qua trồng, pha, nếm, thử nghiệm. Truyện thiên đàng ở trên hiện chưa nói tới lớp này. Hướng nối đã chốt 04/11/2026: câu hỏi ở thiên đàng để lại **câu hỏi mở**, người chơi tự giải mã ở trần gian (mục 5.3, F-35); chi tiết ở [decode-awaken.md](../shared/decode-awaken.md); lời thoại lore 6 đoạn chưa viết.
 
 ### 3.2 Nhân vật
 
@@ -272,6 +313,7 @@ Nói chuyện Thần Chết → chọn được dẫn đường hoặc tự khá
 - Câu sai được giải thích ngay rồi **hỏi lại đúng lúc** ở farm/quán (sau lần hái tay, ra giếng, báo cáo cuối ca, ly dưới 70 điểm, khách bỏ về), tối đa 1 câu mỗi ngày công; hoặc ôn ở Sổ tay thiên đàng trong Hướng dẫn.
 - Chơi lại chương không xóa mẹo, không trả thưởng lần hai.
 - Hành trang chọn 1, áp một lần khi vào farm (Phụ lục A.2).
+- **Câu hỏi mở (chốt hướng 04/11/2026, chưa code):** mẹo giữ nguyên là bài học (Mastery); mỗi câu còn để lại một câu hỏi mở người chơi kiểm chứng ở farm/quán, kiểm chứng xong mới nhận Divine Data Fragment (F-35). Chi tiết: [02-heaven/gameplay.md](../screens/02-heaven/gameplay.md).
 
 ## 6. Hệ thống nông trại
 
@@ -295,6 +337,7 @@ Cây là cây lâu năm: hái không xóa cây, cây sang lứa tiếp theo. B�
 | Bón phân | Tiến độ 30–65% (cây trưởng thành thêm 0–17%), nước ≥ 30, 1 lần mỗi lứa | Không bắt buộc, không tăng tốc. Bón: sản lượng ×1,1 và +5 chất lượng; không bón ×0,9 |
 | Hái | Quả chín | Quả chín giữ nguyên chờ hái, không tự hỏng |
 
+- **Luật mới chốt 04/11/2026, chưa code (F-41):** bón ×1,15 sản lượng / −6 chất lượng; tỉa ×0,9 / +10; không bón, không tỉa ×1,0. Sớm thì sản lượng thắng, muộn (chợ bão hòa) thì chất lượng thắng qua Đơn Chợ và ly quán. Số và tính tay: [rules.md](../screens/03-farm/rules.md) mục 6.
 - Chạm cây = công cụ **Tự chọn**: nhân vật tự làm việc cây cần nhất.
 - Dải công cụ (kéo chọn nhiều ô để gieo/tưới hàng loạt) chỉ mở khi có ruộng thứ 2.
 - Vắng mặt được tính bù tối đa 8 giờ, cây không chết. Quả chín giữ sản lượng chờ hái nhưng vẫn mất nước, mọc cỏ.
@@ -378,12 +421,13 @@ Rời quán về farm thì quán tạm dừng hoàn toàn, vào lại chơi ti�
 
 - Công thức: Phụ lục A.4.
 - 3★ (≥ 90 điểm) mở **pha theo trí nhớ**: ẩn thẻ và vạch chuẩn, +20% tip.
+- Điểm ly hiển thị "Điểm theo mô hình game" kèm ⓘ (F-39, chưa code); cảm nhận của người chơi ghi riêng ở Coffee Memory (F-33, F-34).
 - Barista NPC chỉ tự pha món người chơi đã luyện đủ điểm (ngưỡng `90 − Trí nhớ × 0,4`).
 
 ### 7.5 Nguyên liệu
 
 - **Hạt rang** dùng chung kho quán. Nguồn: đơn từ farm (252 g/đơn) hoặc **Nhập hạt ngoài** 500 g: **75 xu** ở nơi có farm, **45 xu** ở nơi chỉ quán (`supplierPrice(region)`, EC-3 04/11/2026 — giá tạm, chờ Quang duyệt sau khi có sim nơi chỉ quán; lý do: ở 75 xu ly nhân viên Phin đen/Nâu đá lỗ). Nơi chỉ quán hết hạt và tiền dưới giá nhập → **hạt cứu trợ** 300 g miễn phí, mỗi ngày công một lần.
-- Save mới có sẵn **600 g hạt vối rang** (lô `starter`, ~30 ly) để ca đầu chơi ngay.
+- Save mới có sẵn **600 g hạt vối rang** (lô `starter`, ~30 ly) để ca đầu chơi ngay. Luật mới F-40 (chưa code): thêm 300 g hạt chè rang và 40 giấy lọc cho ly V60 đầu tiên.
 - Vật tư nhập theo gói thật: Phụ lục A.5. Thiếu nguyên liệu khi pha thì hiện thứ thiếu kèm nút mở kho.
 
 ### 7.6 Nâng cấp quán
@@ -441,6 +485,7 @@ Gói thử robot pha (một lần): 1 ca robot pha sai thông số thật kèm b
 - Save mới 200 xu.
 - Ngưỡng XP cấp nông trại: `0, 30, 90, 190, 350, 600, 950, 1400, 2000, 2800…`.
 - Nguồn XP (theo `farm/model.js`, đối chiếu 04/11/2026): nhiệm vụ (`xp` của nhiệm vụ), đơn cửa hàng (`xp` của đơn), bán ở chợ (⌊xu nhận / 2⌋), hái một cây +6, nhận mẻ chế biến +4 mỗi mẻ, mua ruộng +10, mỗi ly bạn hoặc nhân viên pha 1 + số sao (ly robot không có XP).
+- **Luật mới chốt 04/11/2026, chưa code (F-36):** XP bán chợ tối đa 40 mỗi ngày công; bỏ XP mua ruộng; thêm XP luyện món ★★/★★★ (+15/+30), Memory (trần 30/ngày công), giải mã câu hỏi mở (+20). Xu không đổi được sang XP, Fragment, Key. Chi tiết: [progression.md](../shared/progression.md).
 - Cấp mở giống (chè cấp 2, mít cấp 3) và giới hạn cấp nâng cấp công trình.
 
 ### 9.2 Chuỗi nhiệm vụ cố định
@@ -500,13 +545,13 @@ Chi tiết: [onboarding-flow.md](../shared/onboarding-flow.md).
 | Hạt rang | 0,07 xu |
 | Cà phê bột | 0,072 xu |
 
-Giá nhân theo hệ số giống (Phụ lục A.3) và chất lượng lô.
+Giá nhân theo hệ số giống (Phụ lục A.3) và chất lượng lô: hiện `× (0,7 + 0,3 × q/100)`; luật mới F-41 (chưa code) `× (0,3 + 0,8 × q/100)`.
 
 ### 10.3 Chợ giảm giá theo lượng bán
 
 - Mỗi ngày công 6 phút, giá giảm tuyến tính từ 100% xuống sàn 30% khi đã bán 840 xu giá gốc (`MARKET_DAILY = 1200`). Ngày công mới thì hồi giá.
 - Tính theo tích phân: bán một lần hay chia nhỏ nhận như nhau. Lượng đã bán lưu trong save.
-- **Đơn Chợ** (200 g hạt rang, trả 1,2 × giá gốc, không qua giảm giá): tối đa **2 đơn mỗi ngày công** (`ORDERS_PER_DAY`, chốt 04/11/2026 sau audit EC-1; trước đó lặp vô hạn).
+- **Đơn Chợ** (200 g hạt rang, trả 1,2 × giá gốc, không qua giảm giá): tối đa **2 đơn mỗi ngày công** (`ORDERS_PER_DAY`, chốt 04/11/2026 sau audit EC-1; trước đó lặp vô hạn). Luật mới F-41 (chưa code): lô trung bình q ≥ 85 trả **1,6 ×** giá gốc.
 - Mục đích: 2 ruộng bán gần đủ giá, 4 ruộng bão hòa, để hạt dư mang sang quán lời hơn trên mỗi gram. **Chốt 04/11/2026:** chợ vẫn là nguồn thu chính (~76–85% tổng thu theo sim 10.5, có hoặc không có barista); quán không "buộc" phải dùng vì bị giới hạn bởi nhịp khách, không phải thiếu hạt. Giảm chợ chỉ làm chậm tiến trình mà không đổi tỉ lệ, nên giữ nguyên `MARKET_DAILY = 1200`, sàn 30%.
 
 ### 10.4 Công thức giá nâng cấp
@@ -562,6 +607,25 @@ Bón phân có đánh đổi: chậm mua ruộng lúc đầu, lời về sau. C�
 
   - Thuê người không còn làm trượt ca (trước: 3 barista trượt 5/6 ca, thưởng 48). 2 barista vẫn lời nhất. Chợ vẫn khoảng 3.920 xu/giờ (≈ 67–80% tổng thu).
   - **Còn mở:** uy tín chạm 100 trong khoảng 1 giờ ở 0–1 barista (cần economy-designer xem hệ số +0,6/ly); sim chỉ giao được 1 đơn Chợ vì đơn thứ hai là arabica mà sim chỉ trồng robusta, nên chưa đo hết ảnh hưởng trần 2 đơn/ngày.
+
+- **Chạy lại 04/11/2026 sau F-36, F-41, F-42, F-43 (D-25)** — `scripts/balance-sim.mjs` mở rộng (`MINUTES`, `REGION`, `CARE`, `PRICE`, `FARMONLY`, `PLAN`), Producer chạy:
+
+| Đo | Kết quả | Kết luận |
+|---|---|---|
+| Cấp theo thời gian (vn, mặc định) | 30′: 8 · 60′: 11 · 120′: **15** · 240′: 20 · 600′: 30 | Trần XP chợ 40/ngày công vẫn đạt ≥ 14 ở 120′ → **không cần chỉnh** ngưỡng (progression.md §2) |
+| F-41 chăm cây, 120′, chỉ farm | Bón 14.533 · bón+tỉa 14.366 · không 13.801 · tỉa 13.611 xu; chất lượng 74 / 84 / 80 / 90 | Chênh tốt nhất–kém nhất **6,8%**, không còn "bón+tỉa áp đảo +33%"; nhưng **bón vẫn nhỉnh nhất** ở mọi giai đoạn vì chợ hệ số chất lượng không bù được; Đơn Chợ 1,6× chỉ +6–8 xu/đơn nên gần như không tác động (D-27) |
+| F-43 vùng, 60′, chỉ farm | vn 5.995 · id 5.962 · br 5.756 · co/ke 5.165 (−14%); co/ke trồng giống hợp vùng: 6.101 / 6.044 | Không vùng nào thấp hơn vn quá 25% → **OK** |
+| F-42 giá quán, 60′ (2 lượt) | 0 barista: p 0,8 → ly 606–685 + ca 406–453; p 1 → 566–574 + 257–269; p 1,3 → 450–493 + 144. 2 barista: p 0,8 → 470–479 + 635–640 (Vàng 6/6); p 1,3 → 304–310 + 162–165 | **p 0,8 thắng mọi cấu hình**: quán không lần nào quá tải (khách bỏ 0) nên tăng giá không có lợi; thưởng ca theo số ly làm giảm giá càng lời → cần chỉnh (D-28) |
+| Economic Victory | Tài sản 600′: 66.623 xu, tăng ~6.800 xu/giờ ổn định | 300.000 xu ≈ **44 giờ** chơi (spec ước 50–60) |
+
+### 10.6 Nguyên tắc kiếm tiền theo tài liệu chuẩn
+
+Theo tài liệu chuẩn tr. 6 §7 (APPROVED) và Phụ lục tr. 18 §17:
+
+- F2P; có thể mở IAP, Coffee Pass, Coffee Lab Pro, rewarded ads tự nguyện, brand partnership — **chưa làm trước MVP, không có thanh toán trong prototype**.
+- **Không pay-to-win, không bán Sixth Key hay cấp độ tâm thức, không dùng dữ liệu sức khỏe/cảm xúc cho quảng cáo.** Coffee Memory cơ bản và xuất dữ liệu miễn phí. Không khóa kiến thức cơ bản sau paywall.
+- *PROPOSED:* Coffee Coins (soft currency — "xu" hiện tại), Coffee Gems (premium, cosmetic), Founder's Pack ~US$4,99 (chưa chốt giá).
+- Khi có backend: giao dịch do server quyết, có ledger, idempotency, audit log; không tin số dư client gửi. Hiện save là localStorage, `ledger` chỉ giữ 60 dòng cuối (`farm/model.js`), số dư sửa được ở máy người chơi — chấp nhận ở alpha.
 
 ## 11. Giao diện và trải nghiệm
 
@@ -653,6 +717,25 @@ Tiến độ chi tiết theo tính năng: [mục 0.3](#03-tiến-độ-triển-k
 
 Cold brew theo mẻ, khách quen có món yêu thích, latte art, sữa/trứng sản xuất từ farm, chợ thế giới giữa các khu vực (F-32; bản đồ thế giới F-28 đã chốt), nhạc nền và âm môi trường bằng file thật, lồng tiếng, thay khối tạm bằng asset 3D.
 
+Theo tài liệu chuẩn, để sau MVP: giải đấu và Virtual Judges (tr. 5 §6), monetization, LiveOps và Founder Control Center (tr. 6–7 §7, §8.3), marketing automation (tr. 7 §8.4), Sixth Realm sâu và native app (tr. 9 GB-012).
+
+**Thứ tự lộ trình theo tài liệu chuẩn** (tr. 7 §9, backlog tr. 9): 0 Audit → 1 Core Brew (pour-over 3 giai đoạn) → 2 Coffee Memory → 3 First Sixth Key → 4 Economy vertical slice → 5 Analytics/Alpha → 6 Expansion.
+
+**Chốt 04/11/2026 (Q-01: kết hợp):** giữ nguyên kinh tế farm + quán đã có (coi là Phase 4 đã vượt phạm vi slice), **bổ sung** Phase 1–3 làm ưu tiên kế tiếp, không gỡ tính năng nào. Thứ tự làm tiếp:
+
+1. F-39 version mô hình điểm, F-37 xuất/xóa dữ liệu (nhỏ, không phụ thuộc).
+2. F-40 Pour-over V60 món đầu (Phase 1).
+3. F-33 + F-34 Coffee Memory + Quick Taste (Phase 2; spec [coffee-memory.md](../shared/coffee-memory.md)).
+4. F-35 câu hỏi mở + First Sixth Key (Phase 3; spec [decode-awaken.md](../shared/decode-awaken.md)).
+5. F-41 đánh đổi năng suất–chất lượng, F-43 vùng, F-42 giá do chủ quán, F-36 ba trục + mục tiêu thắng; chạy lại sim (D-25).
+6. F-38 analytics — làm sớm cùng bước 1 nếu đã có nơi nhận (D-26), vì Q-11 chốt triển khai từ MVP.
+
+Đề xuất mở rộng kinh tế (F-12, F-22, F-32) vẫn là Đề xuất, xếp sau các mục trên.
+
+### 14.5 Definition of Done (tài liệu chuẩn)
+
+Theo PDF tr. 24 §29 và tr. 9 §11.1, một tính năng chỉ **Done** khi: (1) có source code được lưu phiên bản; (2) chạy lại và test được; (3) dùng được bằng chạm trên iPad và màn hình mobile phổ biến, không phụ thuộc hover; (4) có nội dung EN/VI; (5) không làm hỏng dữ liệu Memory/save đã lưu; (6) không lộ thông tin riêng tư hay khóa bí mật; (7) có mô tả giới hạn của điểm mô phỏng; (8) có build thử nghiệm và người thật đã kiểm tra. Cột Kiểm chứng ở 0.3 chưa dùng tiêu chí này cho tính năng cũ.
+
 ## 15. Câu hỏi mở và rủi ro
 
 ### 15.1 Câu hỏi mở
@@ -664,6 +747,23 @@ Theo [rules.md](../screens/03-farm/rules.md) mục 10:
 3. Giới hạn hàng chờ giữ 48 hay giảm; có tính mẻ xong chưa nhận không.
 4. Xử lý dữ liệu cũ của nhân viên.
 5. Cân bằng kinh tế cần playtest thật, không dựa vào vốn thử lớn.
+
+Từ đối chiếu tài liệu chuẩn (chi tiết và phương án: [PDF-GDD-GAP-REPORT.md](../reports/PDF-GDD-GAP-REPORT.md) mục 4.4, quyết định ở mục 9):
+
+| Mã | Câu hỏi | Trạng thái |
+|---|---|---|
+| Q-01 | Thứ tự lộ trình | **Chốt 04/11:** kết hợp — giữ kinh tế, bổ sung Phase 1–3 (14.4) |
+| Q-02 | Vị trí pour-over | **Chốt 04/11:** theo PDF — V60 có sẵn, món hướng dẫn đầu (F-40) |
+| Q-03 | Mẹo thiên đàng và Awaken | **Chốt 04/11:** kết hợp — mẹo giữ, thêm câu hỏi mở → Fragment (F-35) |
+| Q-05 | Đánh đổi năng suất ↔ chất lượng | **Chốt 04/11:** theo PDF, số do economy cân đối (F-41) |
+| Q-09 | Repo canonical | **Chốt 04/11:** làm trên `beolamtat/V2`, MR vào `cog` `main` |
+| D-21 | Chữ "thật" hay "mô phỏng" | **Chốt 04/11:** giữ công thức/số đo thật, ghi rõ điểm là mô phỏng (F-39) |
+| Q-04 | Ba trục tiến trình | **Chốt 04/11:** tách Wealth / Mastery / Awakening ([progression.md](../shared/progression.md)) |
+| Q-06 | Mục tiêu thắng | **Chốt 04/11:** hai mục tiêu độc lập, không kết thúc game (F-36) |
+| Q-07 | Giá do chủ quán | **Chốt 04/11:** tự đặt có giới hạn 0,8–1,3 (F-42) |
+| Q-08 | Vùng ảnh hưởng số liệu | **Chốt 04/11:** ảnh hưởng sản lượng/chất lượng/thời gian lớn (F-43) |
+| Q-10 | Coffee Memory | **Chốt 04/11:** lưu cả ly trong game và ly ngoài đời ([coffee-memory.md](../shared/coffee-memory.md)) |
+| Q-11 | Analytics | **Chốt 04/11:** theo sự kiện, từ MVP ([analytics.md](../shared/analytics.md)); nơi nhận còn chọn (D-26) |
 
 ### 15.2 Rủi ro
 
@@ -722,7 +822,7 @@ Sản lượng gốc nhân với: bón ×1,1 / không bón ×0,9; không tỉa �
 | Latte | + vòi đánh sữa | ~200 ml sữa, bọt mỏng 0,5 cm |
 | Cà phê trứng | Máy đánh trứng, uy tín 60 | Chỉ lòng đỏ, đánh bông 3–5 phút |
 | Cà phê muối | Máy đánh trứng, uy tín 65 | Kem + ~0,5 g muối phủ trên cà phê đá |
-| Pour-over V60 | Bộ V60 | 1:16, tráng giấy lọc, bloom gấp 2 lần bột, 2:30–3:00 |
+| Pour-over V60 | Bộ V60 (luật mới F-40: **có sẵn**, món hướng dẫn đầu; chưa code) | 1:16, tráng giấy lọc, bloom gấp 2 lần bột, 2:30–3:00. Luật mới: thêm bước nhiệt 92–94 °C, rót chính 140–160 g, rót cuối 235–265 g, tổng 2:30–3:00 |
 
 ### A.5 Vật tư quán
 
@@ -746,7 +846,7 @@ Sản lượng gốc nhân với: bón ×1,1 / không bón ×0,9; không tỉa �
 | Máy espresso | 120 / 200 / 320 | Mở Espresso, Americano |
 | Ca & vòi đánh sữa | 60 / 120 | Mở Cappuccino, Latte |
 | Máy đánh trứng/kem | 70 | Mở Cà phê trứng, Cà phê muối |
-| Bộ V60 + ấm cổ ngỗng | 90 | Mở Pour-over V60 |
+| Bộ V60 + ấm cổ ngỗng | 90 (luật mới F-40: có sẵn; nâng cấp 60 → 120) | Mở Pour-over V60 (luật mới: cộng chất lượng như phin) |
 | Trạm pha thêm | 150 / 260 | Thêm barista pha cùng lúc, tối đa 3 trạm |
 | Quầy thu ngân 2 | 180 | Hai thu ngân nhận order cùng lúc |
 | Robot thu ngân (kiosk) | 200 / 300 | Khách tự gọi món, mỗi cấp thêm 1 máy |
@@ -789,16 +889,20 @@ Code còn vài chỗ tự lệch nhau ở cây trồng, chưa ảnh hưởng lu�
 
 | Nhóm | File |
 |---|---|
+| Tài liệu chuẩn | [GODBEAN_MASTER_HANDOFF_2026-11-04.pdf](../references/GODBEAN_MASTER_HANDOFF_2026-11-04.pdf), [PDF-GDD-GAP-REPORT.md](../reports/PDF-GDD-GAP-REPORT.md) |
 | Mục lục | [docs/README.md](../README.md), [game-flow.md](../game-flow.md) |
 | Theo màn | [00-selection](../screens/00-selection/README.md), [01-intro](../screens/01-intro/README.md), [02-heaven](../screens/02-heaven/README.md), [03-farm](../screens/03-farm/README.md), [04-cafe](../screens/04-cafe/README.md) |
 | Luật | [03-farm/rules.md](../screens/03-farm/rules.md), [04-cafe/gameplay.md](../screens/04-cafe/gameplay.md), [02-heaven/gameplay.md](../screens/02-heaven/gameplay.md) |
-| Dùng chung | [contracts.md](../shared/contracts.md), [onboarding-flow.md](../shared/onboarding-flow.md), [robot-staff.md](../shared/robot-staff.md), [ui-audio-vfx.md](../shared/ui-audio-vfx.md), [design-system.md](../shared/design-system.md), [art-direction.md](../shared/art-direction.md), [i18n.md](../shared/i18n.md) |
+| Dùng chung | [contracts.md](../shared/contracts.md), [onboarding-flow.md](../shared/onboarding-flow.md), [robot-staff.md](../shared/robot-staff.md), [ui-audio-vfx.md](../shared/ui-audio-vfx.md), [design-system.md](../shared/design-system.md), [art-direction.md](../shared/art-direction.md), [i18n.md](../shared/i18n.md), [coffee-memory.md](../shared/coffee-memory.md), [decode-awaken.md](../shared/decode-awaken.md), [progression.md](../shared/progression.md), [analytics.md](../shared/analytics.md) |
 | Asset | [asset-pipeline.md](../assets/asset-pipeline.md), [scene-assets.md](../assets/scene-assets.md) |
 
 ## Lịch sử phiên bản
 
 | Phiên bản | Ngày | Thay đổi |
 |---|---|---|
+| 2.1 | 04/11/2026 | Quang chốt các câu còn mở: D-21 (công thức/số đo thật, điểm ghi là mô phỏng), Q-04 + Q-06 (ba trục độc lập, hai mục tiêu thắng), Q-07 (giá do chủ quán 0,8–1,3), Q-08 (vùng ảnh hưởng trồng trọt), Q-10 (Memory ly game + ly thật), Q-11 (analytics từ MVP). Viết spec `shared/coffee-memory.md` (D-23), `shared/decode-awaken.md` (D-22), `shared/progression.md`, `shared/analytics.md`; `contracts.md` mục 8 (gồm D-24). Thêm F-42, F-43; xong D-21…D-24; thêm D-25, D-26. Sửa cùng: `04-cafe/gameplay.md`, `02b-world-map/README.md`, `03-farm/rules.md` |
+| 2.0 | 04/11/2026 | Quang chốt 6 điểm mâu thuẫn với tài liệu chuẩn: lộ trình kết hợp (14.4), Pour-over V60 món đầu (F-40), giữ chữ "thật" (D-21 chờ founder), đánh đổi năng suất–chất lượng (F-41, rules.md mục 6), mẹo thiên đàng + câu hỏi mở (5.3, F-35), repo V2 → MR `cog/main`. Xong D-16…D-20; thêm D-21…D-24; 15.1 còn mở Q-04, Q-06, Q-07, Q-08, Q-10, Q-11. Sửa cùng: `03-farm/rules.md`, `03-farm/gameplay.md`, `04-cafe/gameplay.md`, `02-heaven/gameplay.md`, `shared/onboarding-flow.md`. Phiếu: [changes/2026-11-04-ap-dung-tai-lieu-chuan.md](changes/2026-11-04-ap-dung-tai-lieu-chuan.md) |
+| 1.9 | 04/11/2026 | Đối chiếu với tài liệu chuẩn của founder (PDF 04/11/2026): thêm dòng tài liệu chuẩn ở Thông tin tài liệu, mục 1.5 Tầm nhìn, 10.6 Nguyên tắc kiếm tiền, 14.5 Definition of Done, ghi chú lore Databean (3.1) và thứ tự lộ trình (14.4); sửa trụ cột 4 thành "chấm bằng mô hình game"; thêm F-33…F-39 (Chưa làm), D-16…D-20, Q-01…Q-11 (15.1). Không đổi luật đang chạy. Báo cáo: [PDF-GDD-GAP-REPORT.md](../reports/PDF-GDD-GAP-REPORT.md) |
 | 1.8 | 04/11/2026 | Thêm F-31 (Đã chốt, Đang làm): 3 món mới, chọn sữa/nước, hạt Robusta Việt Nam/Arabica Ethiopia, Auto pha, bàn pha mobile first; 14 món |
 | 1.7 | 04/11/2026 | Đổi tên game thành **Godbean** (tagline "Build your own Coffee Empire!"): tiêu đề trang, màn tải, tiêu đề tab, README, GDD; đổi cả khóa save sang `godbean-progress` / `godbean-player` (không giữ save cũ: chơi lại từ đầu, khóa cũ bị xóa), tên file GDD thành `godbean-gdd.md`, tài liệu và lưu trữ |
 | 1.6 | 04/11/2026 | Thêm F-30 (Đã chốt, Đang làm): Pha nhanh, rót dễ hơn, ly có hạn tươi, dọn kệ hết ca |

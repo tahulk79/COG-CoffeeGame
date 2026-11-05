@@ -8,7 +8,12 @@ import { lowerQuality, mountSettings } from '../ui/settings.js';
 import { attachModels, releaseModels } from '../shared/three/models.js';
 import { correctQuestionIds } from '../features/heaven/journey.js';
 import { loading, showLoading, hideLoading } from '../ui/loading.js';
-import { t } from '../i18n/index.js';
+import { getLang, t } from '../i18n/index.js';
+import { usesTouch } from '../ui/dialogue.js';
+import { regionType } from '../features/world-map/content.js';
+import { detectPlatform, initAnalytics, track } from '../shared/analytics/wire.js';
+import { DEV_START_COINS } from '../state/storage-keys.js'; // set only in the dev `?profile=max` QA profile
+import pkg from '../../package.json';
 
 const INTRO_MODELS = {
   'intro/reaper': 'heaven/reaper.glb',
@@ -28,6 +33,13 @@ const INTRO_MODELS = {
 const $ = id => document.getElementById(id);
 const vignette = document.querySelector('.vignette');
 const player = readPlayer();
+// F-38: khởi tạo analytics đúng một lần khi nạp module (docs/shared/analytics.md).
+const boot = readProgress();
+initAnalytics({
+  appVersion: pkg.version, platform: detectPlatform(Math.min(window.innerWidth, window.innerHeight), usesTouch()),
+  locale: getLang(), region: () => readProgress().startingRegion, enabled: readSettings().analytics && !DEV_START_COINS,
+});
+track('landing_viewed', { first_visit: !boot.introCompleted && !boot.farm });
 const events = new AbortController();
 const listenerOptions = { signal: events.signal };
 let renderer;
@@ -96,7 +108,7 @@ async function enterHeaven() {
   try {
     const { createHeavenGame } = await import('../features/heaven/game.js');
     // Use heaven's in-memory progress so lessons survive when localStorage is blocked.
-    nextScene = await createHeavenGame(player, (gift, heaven) => { void enterFarm(gift, correctQuestionIds(heaven), region); }, () => { void openWorldMap(); });
+    nextScene = await createHeavenGame(player, (gift, heaven) => { track('heaven_completed', { skipped: heaven.skipped === true, correct: correctQuestionIds(heaven).length, gift: gift ?? 'none' }); void enterFarm(gift, correctQuestionIds(heaven), region); }, () => { void openWorldMap(); });
     nextScene.resize(window.innerWidth, window.innerHeight);
     loading(85, t('app.loading.prepareLevel'));
     await renderer.compileAsync(nextScene.scene, nextScene.camera);
@@ -117,7 +129,7 @@ async function openWorldMap() {
   try {
     const { createWorldMap } = await import('../features/world-map/scene.js');
     // Chốt nơi là lưu ngay (onPick): tải lại giữa chừng thì bản đồ mở thẳng thẻ kết quả của nơi đó, không chọn lại được.
-    const pick = id => { region = id; saveRegion(id); };
+    const pick = id => { region = id; saveRegion(id); track('region_selected', { region: id, type: regionType(id) }); };
     worldMap = createWorldMap({ onPick: pick, onClose: () => leaveWorldMap(), onChoose: id => leaveWorldMap(id), chosen: region || readProgress().startingRegion });
     worldMap.resize(window.innerWidth, window.innerHeight);
     $('game').setAttribute('aria-label', t('world.label'));
@@ -223,10 +235,12 @@ async function initialize() {
     const saved = readProgress();
     if (saved.heaven?.completed || saved.farm) {
       document.body.classList.remove('booting');
+      track('game_started', { resumed: true, screen: 'farm' });
       await enterFarm(saved.startingGift || saved.heaven?.gift, correctQuestionIds(saved.heaven), saved.startingRegion); return;
     }
     if (saved.introCompleted) {
       document.body.classList.remove('booting');
+      track('game_started', { resumed: true, screen: 'heaven' });
       await enterHeaven(); return;
     }
     const { createSelection } = await import('../features/selection/scene.js');
@@ -249,6 +263,8 @@ async function enterIntro(event) {
   event.preventDefault();
   if (state !== 'selection') return;
   state = 'transition';
+  track('play_clicked');
+  track('game_started', { resumed: false, screen: 'intro' });
   player.name = randomName(player.gender) || DEFAULT_NAME; // không còn ô nhập tên: lấy tên ngẫu nhiên theo ngôn ngữ + giới tính
   savePlayer({ gender: player.gender, name: player.name });
   $('selection').hidden = true; $('loading').hidden = false; loading(60, t('app.loading.prepareLevel'));

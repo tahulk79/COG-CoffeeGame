@@ -51,6 +51,24 @@ Thẻ mục tiêu dẫn đường cho nhiệm vụ riêng như nhiệm vụ gố
 
 Chuỗi nhiệm vụ theo nơi: `questsFor(region)` trong `farm/content.js`.
 
+### Vùng ảnh hưởng trồng trọt (F-43, chốt 04/11/2026 — Q-08, ĐÃ CODE 04/11: `REGION_CROP` trong `farm/rules.js`, dòng Hợp vùng ở thẻ giống; số Đang chỉnh, chưa chơi thử)
+
+Mục đích: bản đồ thế giới có giá trị thật (tài liệu chuẩn tr. 2 §3.2: khí hậu, đất ảnh hưởng năng suất và chất lượng). Mọi giống vẫn trồng được ở mọi nơi có farm; giống không hợp vùng bị phạt, là lựa chọn có đánh đổi. Hệ số nhân vào **sản lượng**, cộng vào **chất lượng gốc** (`55 + sức khỏe × 0,25`, kẹp 0–100) và nhân vào **thời gian lớn** (> 1 là chậm hơn). Áp cùng lúc với bón/tỉa (F-41).
+
+| Nơi | Vối (Robusta) | Chè (Arabica) | Mít (Liberica) | Lý do (theo dữ liệu địa lý của thẻ) |
+|---|---|---|---|---|
+| Việt Nam | ×1,10 · +0 · ×1,0 | ×0,95 · +3 · ×1,0 | ×1,00 · +0 · ×1,0 | 500–1.500 m, 18–25 °C: vùng vối lớn; chè ở cao nguyên |
+| Brazil | ×1,05 · −3 · ×1,0 | ×1,10 · +0 · ×1,0 | ×0,85 · −5 · ×1,1 | 700–1.300 m cận nhiệt: chè và conilon |
+| Colombia | ×0,80 · −8 · ×1,1 | ×1,00 · +8 · ×1,1 | ×0,80 · −8 · ×1,1 | 1.200–2.000 m, mát quanh năm: chè chất lượng cao, lớn chậm |
+| Kenya | ×0,80 · −8 · ×1,1 | ×0,95 · +10 · ×1,1 | ×0,80 · −8 · ×1,1 | 1.400–2.100 m, đêm lạnh: chè chua sáng, sản lượng thấp |
+| Indonesia | ×1,05 · +0 · ×1,0 | ×0,95 · +2 · ×1,0 | ×1,10 · +3 · ×0,95 | Nhiệt đới ẩm 0–2.000 m: cả ba giống, mít hợp nhất |
+
+Đọc ô: *sản lượng · chất lượng · thời gian lớn*. Nơi chỉ quán không có farm nên không áp.
+
+- Thẻ giống trong Cửa hàng hiện một dòng "Hợp vùng ✓ / Trung tính / Kém hợp ✗" (chữ + icon). Số hệ số cụ thể chỉ hiện khi đã mở Key **Nature** ([decode-awaken](../../shared/decode-awaken.md) mục 6).
+- Loại nơi vẫn ẩn tới khi chốt trùng sinh; hệ số không hiện trên bản đồ trước khi chốt.
+- Rủi ro: Colombia/Kenya đã là nơi chỉ trồng và có thưởng nhiệm vụ cao hơn; thêm phạt vối/mít có thể làm nơi này khó hơn lúc đầu (cây con khởi đầu là vối). **Đề xuất kèm:** túi hạt đầu ở Colombia/Kenya đổi thành hạt chè. Chạy sim theo vùng trước khi chốt số (D-13).
+
 ### Giao diện
 
 - Lớp phủ toàn màn hình trên canvas; HUD thiên đàng ẩn (`body.world-map-open`). Nút ✕ góc trên trái (góc phải là ⚙️), tiêu đề giữa trên.

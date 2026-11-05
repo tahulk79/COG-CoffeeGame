@@ -99,7 +99,7 @@ export default {
     'cafeRecipes.gearDetail.espresso': 'Unlocks Espresso, Americano. Higher levels hold 9 bar and steady heat.',
     'cafeRecipes.gearDetail.steamer': 'Unlocks Cappuccino, Latte. Finer milk foam at higher levels.',
     'cafeRecipes.gearDetail.mixer': 'Unlocks Egg Coffee, Salt Coffee.',
-    'cafeRecipes.gearDetail.v60': 'Unlocks V60 Pour-over: hand-pour control of the water flow.',
+    'cafeRecipes.gearDetail.v60': 'V60 Pour-over comes ready to use. Upgrades the gooseneck kettle for a steadier pour and better quality.',
     'cafeRecipes.gearDetail.station': 'Each station adds 1 barista brewing at once (max 3 stations).',
     'cafeRecipes.gearDetail.register2': 'Two cashiers take orders at once; the line moves twice as fast.',
     'cafeRecipes.gearDetail.kiosk': "Guests order on the robot's screen, no cashier needed. Each level adds 1 machine.",
@@ -230,8 +230,11 @@ export default {
     'cafeRecipes.step.muoiFinish': 'Finish the drink',
     'cafeRecipes.step.v60Filter': 'Prepare the filter paper',
     'cafeRecipes.step.v60Dose': 'Weigh the grounds',
-    'cafeRecipes.step.v60Bloom': 'Bloom pour, 30–45 seconds',
-    'cafeRecipes.step.v60Pour': 'Spiral pour up to the total',
+    'cafeRecipes.step.v60Temp': 'Heat the water to 92–94 °C',
+    'cafeRecipes.step.v60Bloom': 'Bloom pour, about 2× the grounds',
+    'cafeRecipes.step.v60Main': 'Main pour up to 140–160 g',
+    'cafeRecipes.step.v60Pour': 'Final pour up to 235–265 g total',
+    'cafeRecipes.step.v60Time': 'Total brew time',
 
     // ---- Steps (learn) ----
     'cafeRecipes.learn.phinBean': 'A traditional phin suits Robusta: strong, bitter, high in caffeine.',
@@ -273,14 +276,17 @@ export default {
     'cafeRecipes.learn.v60Grind': 'A medium-fine grind lets the water drain in about 3 minutes.',
     'cafeRecipes.learn.v60Filter': 'Rinse the filter paper with hot water, then discard the rinse water.',
     'cafeRecipes.learn.v60Dose': 'About 15 g of grounds for one 250 ml cup.',
+    'cafeRecipes.learn.v60Temp': '92–94 °C extracts sweetness without bitterness; boiling water scorches Arabica.',
     'cafeRecipes.learn.v60Bloom': 'Bloom water is about twice the weight of the grounds.',
-    'cafeRecipes.learn.v60Pour': 'Pour slowly from the center outward, avoiding the paper walls.',
+    'cafeRecipes.learn.v60Main': 'Pour slowly in spirals from the center outward, avoiding the paper walls.',
+    'cafeRecipes.learn.v60Pour': 'Finish with a gentle pour; the scale should read 235–265 g in total.',
+    'cafeRecipes.learn.v60Time': 'A good V60 finishes in 2:30–3:00; faster is sour and weak, slower is bitter.',
 
     // ---- Waits ([label, real duration]) ----
     'cafeRecipes.wait.phinBloom': ['Letting the grounds bloom', '30–40 seconds'],
     'cafeRecipes.wait.phinFill': ['Phin dripping', '4–5 minutes'],
     'cafeRecipes.wait.v60Bloom': ['Bloom: grounds swell, release CO₂', '30–45 seconds'],
-    'cafeRecipes.wait.v60Pour': ['Water draining through the filter', '2:30–3:00'],
+    'cafeRecipes.wait.v60Time': ['Water draining through the filter', '2:30–3:00'],
 
     // ---- Pick options (label / why) ----
     'cafeRecipes.opt.phinLidLevel': 'Level, press lightly',
@@ -325,6 +331,12 @@ export default {
     'cafeRecipes.why.muoiStir': 'Loses the signature salty–sweet cream layer.',
     'cafeRecipes.opt.v60Rinse': 'Rinse the paper with hot water',
     'cafeRecipes.why.v60Rinse': 'Removes the paper taste and warms the dripper.',
+    'cafeRecipes.opt.v60TimeShort': 'About 2:00',
+    'cafeRecipes.why.v60TimeShort': 'Too fast: sour and thin.',
+    'cafeRecipes.opt.v60TimeOk': 'About 2:45',
+    'cafeRecipes.why.v60TimeOk': 'Right in the 2:30–3:00 window.',
+    'cafeRecipes.opt.v60TimeLong': 'About 3:30',
+    'cafeRecipes.why.v60TimeLong': 'Too slow: bitter and dry.',
     'cafeRecipes.opt.v60Dry': 'Use dry paper',
     'cafeRecipes.why.v60Dry': 'The coffee may taste papery.',
 
@@ -524,7 +536,7 @@ export default {
     'cafeRecipes.gearDetail.espresso': 'Mở Espresso, Americano. Cấp cao giữ áp 9 bar, nhiệt ổn định.',
     'cafeRecipes.gearDetail.steamer': 'Mở Cappuccino, Latte. Bọt sữa mịn hơn ở cấp cao.',
     'cafeRecipes.gearDetail.mixer': 'Mở Cà phê trứng, Cà phê muối.',
-    'cafeRecipes.gearDetail.v60': 'Mở Pour-over V60: rót tay kiểm soát dòng nước.',
+    'cafeRecipes.gearDetail.v60': 'Pour-over V60 có sẵn. Nâng cấp ấm cổ ngỗng để rót đều tay hơn, ly chất lượng hơn.',
     'cafeRecipes.gearDetail.station': 'Mỗi trạm thêm 1 barista pha cùng lúc (tối đa 3 trạm).',
     'cafeRecipes.gearDetail.register2': 'Hai thu ngân nhận order cùng lúc, hàng chờ đi nhanh gấp đôi.',
     'cafeRecipes.gearDetail.kiosk': 'Khách tự gọi món trên màn hình robot, không cần thu ngân. Mỗi cấp thêm 1 máy.',
@@ -655,8 +667,11 @@ export default {
     'cafeRecipes.step.muoiFinish': 'Hoàn thiện ly',
     'cafeRecipes.step.v60Filter': 'Chuẩn bị giấy lọc',
     'cafeRecipes.step.v60Dose': 'Cân bột',
-    'cafeRecipes.step.v60Bloom': 'Rót ủ (bloom) 30–45 giây',
-    'cafeRecipes.step.v60Pour': 'Rót xoắn ốc tới tổng',
+    'cafeRecipes.step.v60Temp': 'Đun nước tới 92–94 °C',
+    'cafeRecipes.step.v60Bloom': 'Rót ủ (bloom) gấp khoảng 2 lần bột',
+    'cafeRecipes.step.v60Main': 'Rót chính tới 140–160 g',
+    'cafeRecipes.step.v60Pour': 'Rót cuối tới tổng 235–265 g',
+    'cafeRecipes.step.v60Time': 'Tổng thời gian pha',
 
     // ---- Steps (learn) ----
     'cafeRecipes.learn.phinBean': 'Phin truyền thống hợp Robusta: đậm, đắng, nhiều caffeine.',
@@ -698,14 +713,17 @@ export default {
     'cafeRecipes.learn.v60Grind': 'Xay vừa mịn để nước chảy hết trong khoảng 3 phút.',
     'cafeRecipes.learn.v60Filter': 'Tráng giấy lọc bằng nước nóng rồi đổ nước tráng đi.',
     'cafeRecipes.learn.v60Dose': 'Khoảng 15 g bột cho một ly 250 ml.',
+    'cafeRecipes.learn.v60Temp': '92–94 °C chiết được vị ngọt mà không đắng; nước sôi làm cháy Arabica.',
     'cafeRecipes.learn.v60Bloom': 'Lượng nước ủ gấp khoảng 2 lần bột.',
-    'cafeRecipes.learn.v60Pour': 'Rót chậm từ tâm ra ngoài, tránh rót vào thành giấy.',
+    'cafeRecipes.learn.v60Main': 'Rót chậm theo vòng xoắn từ tâm ra ngoài, tránh rót vào thành giấy.',
+    'cafeRecipes.learn.v60Pour': 'Rót cuối nhẹ tay; cân phải chỉ tổng 235–265 g.',
+    'cafeRecipes.learn.v60Time': 'V60 chuẩn chảy xong trong 2:30–3:00; nhanh hơn thì chua loãng, chậm hơn thì đắng.',
 
     // ---- Waits ([label, real duration]) ----
     'cafeRecipes.wait.phinBloom': ['Ủ cho bột nở', '30–40 giây'],
     'cafeRecipes.wait.phinFill': ['Phin nhỏ giọt', '4–5 phút'],
     'cafeRecipes.wait.v60Bloom': ['Bloom: bột phồng, thoát CO₂', '30–45 giây'],
-    'cafeRecipes.wait.v60Pour': ['Nước chảy qua giấy lọc', '2:30–3:00'],
+    'cafeRecipes.wait.v60Time': ['Nước chảy qua giấy lọc', '2:30–3:00'],
 
     // ---- Pick options (label / why) ----
     'cafeRecipes.opt.phinLidLevel': 'Lắc phẳng, gài nhẹ',
@@ -750,6 +768,12 @@ export default {
     'cafeRecipes.why.muoiStir': 'Mất lớp kem mặn – ngọt đặc trưng.',
     'cafeRecipes.opt.v60Rinse': 'Tráng giấy bằng nước nóng',
     'cafeRecipes.why.v60Rinse': 'Khử mùi giấy và làm nóng phễu.',
+    'cafeRecipes.opt.v60TimeShort': 'Khoảng 2:00',
+    'cafeRecipes.why.v60TimeShort': 'Quá nhanh: chua và loãng.',
+    'cafeRecipes.opt.v60TimeOk': 'Khoảng 2:45',
+    'cafeRecipes.why.v60TimeOk': 'Đúng khoảng 2:30–3:00.',
+    'cafeRecipes.opt.v60TimeLong': 'Khoảng 3:30',
+    'cafeRecipes.why.v60TimeLong': 'Quá chậm: đắng và khô.',
     'cafeRecipes.opt.v60Dry': 'Dùng giấy khô',
     'cafeRecipes.why.v60Dry': 'Cà phê dễ có vị giấy.',
 

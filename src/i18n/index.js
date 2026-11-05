@@ -11,6 +11,7 @@ import cafe from './locales/cafe.js';
 import cafeRecipes from './locales/cafe-recipes.js';
 import worldMap from './locales/world-map.js';
 import crew from './locales/crew.js';
+import awakening from './locales/awakening.js';
 
 export const LANGS = ['en', 'vi'];
 export const DEFAULT_LANG = 'en';
@@ -19,7 +20,7 @@ const LOCALES = { en: 'en-US', vi: 'vi-VN' };
 import { PROGRESS_KEY as SETTINGS_KEY } from '../state/storage-keys.js';
 
 const dict = { en: {}, vi: {} };
-for (const pack of [html, common, selection, intro, heaven, farm, farmRules, cafe, cafeRecipes, worldMap, crew]) {
+for (const pack of [html, common, selection, intro, heaven, farm, farmRules, cafe, cafeRecipes, worldMap, crew, awakening]) {
   for (const lang of LANGS) Object.assign(dict[lang], pack?.[lang]);
 }
 

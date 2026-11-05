@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { clearOldKeys, PROGRESS_KEY } from '../src/state/storage-keys.js';
+import { clearOldKeys, profileSuffix, PROGRESS_KEY } from '../src/state/storage-keys.js';
 
 const memory = (init = {}) => { const m = new Map(Object.entries(init)); return { getItem: k => m.has(k) ? m.get(k) : null, setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k) }; };
 
@@ -9,4 +9,11 @@ test('rename COG → Godbean starts fresh: old keys are deleted, the Godbean sav
  clearOldKeys(s);
  for(const k of ['cog-coffee-progress','cog-coffee-player','cog-coffee-progress-backup'])assert.equal(s.getItem(k),null);
  assert.equal(s.getItem(PROGRESS_KEY),'new');
+});
+
+test('profile suffix: only in DEV with ?profile=max', () => {
+  assert.equal(profileSuffix(false, '?profile=max'), '');
+  assert.equal(profileSuffix(true, ''), '');
+  assert.equal(profileSuffix(true, '?profile=max'), '@max');
+  assert.equal(PROGRESS_KEY, 'godbean-progress'); // Node: no import.meta.env, no suffix
 });

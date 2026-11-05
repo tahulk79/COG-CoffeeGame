@@ -38,6 +38,7 @@ const TABLE = {
     if (!ok) { sfx('ui.deny'); return; }
     if (spent > 0) { sfx('ui.buy'); popNumber(t('cafe.fx.spent', { n: formatNumber(spent, { maximumFractionDigits: 2 }) }), coinsAt(), 'bad'); }
   },
+  tap: () => sfx('ui.tab'),
   open: () => sfx('ui.open'),
   close: () => sfx('ui.close'),
 

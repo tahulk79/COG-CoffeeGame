@@ -109,6 +109,17 @@ Người chơi trồng/chăm/hái cà phê → phơi và tách vỏ → rang →
 - Bán tự do hiện lượng đang có, chọn số gram và khách trả bao nhiêu. Giá theo chất lượng các lô xuất trước. Giữ hạt cho quán có thể chặn bán hạt rang.
 - **Chợ mua nhiều thì giá giảm** (mỗi ngày công 6 phút, `MARKET_DAILY = 1200` xu giá gốc trong `rules.js`): giá giảm tuyến tính từ 100% tới sàn 30% khi đã bán 840 xu giá gốc trong ngày công (2 ruộng bán gần đủ giá, 4 ruộng bão hòa và cần quán/nâng cấp); sang ngày công mới hồi lại. Lượng đã bán lưu trong save (`market`), tải lại không hồi giá. Tính theo tích phân nên bán một lần hay chia nhỏ đều nhận như nhau. Ô bán hiện giá gốc khi đang bị giảm. Hạt dư mang sang quán lời hơn.
 - Bán tự do cho XP = ⌊xu nhận / 2⌋ (không còn +2 XP mỗi lần bấm).
+- **Đánh đổi năng suất ↔ chất lượng (chốt 04/11/2026 theo tài liệu chuẩn tr. 2 §3.2, tr. 4 §4.3; ĐÃ CODE 04/11 — `farm/rules.js` `careYield`/`careQuality`/`marketQualityFactor`/`orderPay`, test `tests/crop-tradeoff.test.js`; số liệu Đang chỉnh, chưa chơi thử).** Dòng "Phân bón … 1,1 / 0,9" ở trên là luật cũ, đã thay bằng bảng này:
+
+  | | Hiện code | Luật mới |
+  |---|---|---|
+  | Bón phân | Bón ×1,1, không bón ×0,9; +5 chất lượng | Bón **×1,15** sản lượng, **−6** chất lượng (cây bị ép lớn); không bón ×1,0 |
+  | Tỉa cành | Không tỉa ×0,95; tỉa +5 chất lượng | Tỉa **×0,9** sản lượng, **+10** chất lượng; không tỉa ×1,0 |
+  | Chất lượng gốc | `55 + sức khỏe × 0,25` | Giữ nguyên |
+  | Giá chợ theo chất lượng | `× (0,7 + 0,3 × q/100)` | `× (0,3 + 0,8 × q/100)` (q 80 ≈ ×0,94 như cũ) |
+  | Đơn Chợ 200 g | Trả 1,2 × giá gốc | Lô trung bình **q ≥ 85** trả **1,6 ×**, dưới 85 trả 1,2 × (vẫn tối đa 2 đơn/ngày công) |
+
+  Tính tay ở sức khỏe 100 (doanh thu chợ chưa bão hòa, tương đối với "không làm gì" = 0,94): bón 1,026 (q 74) · bón + tỉa 1,006 (q 84) · tỉa 0,918 (q 90). Chênh giữa cách tốt nhất và kém nhất **~12%**, thay cho +33% của "bón + tỉa" ở code hiện tại (bón + tỉa áp đảo mọi lựa chọn). Ý đồ: **sớm** (chợ chưa bão hòa) sản lượng thắng; **muộn** (≥ 3–4 ruộng, chợ chạm sàn 30%) gram dư mất giá nên chất lượng thắng nhờ Đơn Chợ ×1,6 và chất lượng ly quán (lô chiếm 25% chất lượng ly). Người chơi phải chia ruộng: ruộng bón bán chợ, ruộng tỉa cho quán/đơn. Cần chạy `scripts/balance-sim.mjs` sau khi code để xác nhận.
 - Đơn mua cố định ở Chợ có lượng và thưởng cố định; khác với bán tự do tùy lượng.
 - Chỉ nút Mua/Bán mới mở giao dịch; bấm box không mua/bán.
 - Mua và bán đều có modal xác nhận món, lượng, số xu. Xác nhận mới trừ/cộng; Hủy không giao dịch. Kiểm tra lại điều kiện lúc thực hiện.
@@ -192,6 +203,10 @@ Các mục dưới đây **chưa phải luật đã triển khai/chấp thuận*
 - [Bản đề xuất ban đầu](../../archive/farm/farm-cafe-gameplay-plan.md): ý tưởng cũ, các phần mâu thuẫn đã được thay thế.
 
 ## Nhật ký quyết định
+
+- **04/11/2026 (tài liệu chuẩn, đợt 2):** Quang chốt Q-04 tách Wealth / Mastery / Awakening — XP bán chợ trần 40/ngày công, bỏ XP mua ruộng, thêm XP luyện món/Memory/giải mã ([progression.md](../../shared/progression.md)); Q-06 hai mục tiêu thắng độc lập; Q-08 vùng ảnh hưởng sản lượng/chất lượng/thời gian lớn theo giống ([02b-world-map](../02b-world-map/README.md) mục "Vùng ảnh hưởng trồng trọt"). Chưa code, số chờ sim.
+
+- **04/11/2026 (đánh đổi năng suất ↔ chất lượng — tài liệu chuẩn):** Quang chốt "theo PDF, nhờ cân đối": bón ×1,15 / −6 chất lượng, tỉa ×0,9 / +10 chất lượng, giá chợ `0,3 + 0,8 × q/100`, Đơn Chợ q ≥ 85 trả 1,6 ×. Lý do: code hiện tại cho bón + tỉa thắng mọi trục (+33%), không có tình huống "năng suất cao chưa chắc lợi nhuận cao" (PDF tr. 4 §4.3). Chưa code, chưa sim. Mục 6.
 
 - **04/11/2026 (3 slot, sao, lười, Auto — spec [crew-autoplay](../../shared/crew-autoplay.md)):** Quang chốt: farm và quán mỗi nơi 3 slot (nhiều robot được); robot 1 việc / ★, nhân viên 1 mảng, đa nhiệm theo cấp / tối đa ★★, có lười-mệt-ghét việc; người chơi mọi việc / ★★★; không ai làm trùng việc; chế độ Auto 3 lượt × 10 phút có bàn tay chỉ chỗ bấm. Đã code, chưa kiểm chứng.
 

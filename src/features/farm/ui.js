@@ -412,7 +412,7 @@ export function createFarmUI(callbacks) {
         level.textContent=tr('farm.ui.stationLevel',{level:station.level,max:station.max,tier:station.tier});capacity.textContent=tr('farm.ui.stationCurrent',{value:formatMassIfNeeded(station.current,station.unit)});benefit.textContent=station.benefit;info.append(level,capacity,benefit);
         const upgrade=document.createElement('div'),next=document.createElement('small'),button=document.createElement('button');button.type='button';
         next.textContent=station.next===null?tr('farm.upgrade.reachedMax'):tr('farm.ui.stationNext',{value:formatMassIfNeeded(station.next,station.unit)});
-        button.textContent=station.lock||tr('farm.ui.upgradeCost',{price:formatCoins(station.price)});button.disabled=Boolean(station.lock);button.addEventListener('click',()=>callbacks.upgradeStation(station.id));upgrade.append(next,button);stationPanel.append(info,upgrade);if(station.feedback){const feedback=document.createElement('p');feedback.className='farm-station-feedback';feedback.textContent=station.feedback;stationPanel.append(feedback);}
+        button.textContent=station.lock||tr('farm.ui.upgradeCost',{price:formatCoins(station.price)});button.disabled=Boolean(station.lock);button.addEventListener('click',()=>callbacks.upgradeStation(station.id));upgrade.append(next,button);stationPanel.append(info,upgrade);if(station.history){const h=document.createElement('details'),sum=document.createElement('summary');sum.textContent=station.history.title;h.append(sum);for(const row of station.history.rows){const li=document.createElement('p');li.textContent=row;h.append(li);}const note=document.createElement('small');note.textContent=station.history.rows.length?station.history.note:station.history.empty;h.append(note);stationPanel.append(h);}if(station.feedback){const feedback=document.createElement('p');feedback.className='farm-station-feedback';feedback.textContent=station.feedback;stationPanel.append(feedback);}
       }
       if (usesTouch() && footer === tr('farm.menu.build.footer')) footer = tr('farm.menu.build.footerTouch'); // no R/Esc on touch
       const key = JSON.stringify({ title, subtitle, icon, entries, footer, kind, filters, back, station });
@@ -626,10 +626,10 @@ minus.disabled=config.maximum<1||n<=1;plus.disabled=config.maximum<1||n>=Math.mi
         {id:'setting-team-info',label:tr('farm.set.team'),detail:tr('farm.set.teamDetail'),icon:'👩‍🌾',category:'info',readOnly:true}
       ],footer:''});
     },
-    showGuide(notebook=[]) {
+    showGuide(notebook=[], goals=null, awakening=null) {
       this.modal({title:tr('farm.help.title'),icon:'📖',kind:'help',entries:[],footer:tr('farm.help.footer')});
-      const sections=tr('farm.help.sections');
-      for(const [heading,text] of sections){const section=document.createElement('section'),title=document.createElement('h3'),body=document.createElement('p');title.textContent=heading;body.textContent=text;section.append(title,body);$('farm-modal-items').append(section);}
+      const sections=tr('farm.help.sections'),guidePanel=document.createElement('div');guidePanel.className='awk-panel';
+      for(const [heading,text] of sections){const section=document.createElement('section'),title=document.createElement('h3'),body=document.createElement('p');title.textContent=heading;body.textContent=text;section.append(title,body);guidePanel.append(section);}
       // Heaven notebook (onboarding-flow 3.1): learned tips with their effect, or a button to answer again now.
       const book=document.createElement('section'),bookTitle=document.createElement('h3'),bookIntro=document.createElement('p');
       bookTitle.textContent=tr('farm.help.notebook',{n:notebook.filter(item=>item.learned).length,total:notebook.length});bookIntro.textContent=tr('farm.help.notebookIntro');book.append(bookTitle,bookIntro);
@@ -638,7 +638,25 @@ minus.disabled=config.maximum<1||n<=1;plus.disabled=config.maximum<1||n>=Math.mi
         if(!item.learned){const button=document.createElement('button');button.type='button';button.className='ui-btn ui-btn--go ui-btn--sm';button.disabled=item.wait>0;button.textContent=item.wait?tr('farm.help.reviewIn',{n:item.wait}):tr('farm.help.review');button.addEventListener('click',()=>callbacks.shortcut(`lesson:${item.id}`),options);row.append(button);}
         book.append(row);
       }
-      $('farm-modal-items').append(book);
+      guidePanel.append(book);
+      // F-36 goals: assets bar toward the economic victory, each condition with ✓/✗ text (not colour only).
+      if(goals){
+        const box=document.createElement('section'),head=document.createElement('h3'),bar=document.createElement('meter'),amount=document.createElement('p');
+        head.textContent=tr('farm.goals.title');bar.min=0;bar.max=goals.target;bar.value=Math.min(goals.assets,goals.target);bar.setAttribute('aria-label',tr('farm.goals.assetsBar'));
+        amount.textContent=`${tr('farm.goals.assetsBar')}: ${formatCoins(goals.assets)} / ${formatCoins(goals.target)}`;box.append(head,amount,bar);
+        const line=(ok,text)=>{const row=document.createElement('p');row.textContent=`${ok?'✓':'✗'} ${text}`;box.append(row);};
+        const sub=document.createElement('h3');sub.textContent=`${tr('farm.victory.economic')}${goals.economic.done?` · ${tr('farm.goals.done')}`:''}`;box.append(sub);
+        for(const r of goals.economic.rows)line(r.ok,r.text);
+        const disc=document.createElement('h3');disc.textContent=`${tr('farm.victory.discovery')}${goals.discovery?` · ${tr('farm.goals.done')}`:''}`;box.append(disc);line(goals.discovery,tr('farm.goals.keys'));
+        guidePanel.append(box);
+      }
+      // F-35: tabs Guide / Open questions / Fragments-Keys (decode-awaken.md 8). Without the controller the Guide is one page as before.
+      if(!awakening){$('farm-modal-items').append(guidePanel);return;}
+      const bar=document.createElement('div'),qPanel=document.createElement('div'),kPanel=document.createElement('div'),panels={guide:guidePanel,questions:qPanel,keys:kPanel};
+      bar.className='awk-tabs';bar.setAttribute('role','tablist');qPanel.className=kPanel.className='awk-panel';
+      const show=id=>{for(const [name,node] of Object.entries(panels))node.hidden=name!==id;for(const b of bar.children)b.setAttribute('aria-selected',String(b.dataset.tab===id));if(id==='questions')awakening.mountQuestions(qPanel);if(id==='keys')awakening.mountKeys(kPanel);};
+      for(const id of Object.keys(panels)){const b=document.createElement('button');b.type='button';b.dataset.tab=id;b.setAttribute('role','tab');b.className='ui-btn';b.textContent=tr(`awakening.tab.${id}`)+(id==='questions'&&awakening.hasNew()?' ●':'');b.addEventListener('click',()=>show(id));bar.append(b);}
+      $('farm-modal-items').append(bar,guidePanel,qPanel,kPanel);show('guide');
     },
     rejectDrop(x,y,icon) { popNumber(`🚫 ${icon}`,{x,y},'bad'); },
     flyReward(kind,quantity,point) {

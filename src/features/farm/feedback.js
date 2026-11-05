@@ -87,6 +87,7 @@ export function createFarmFeedback({ vfx, world, character }) {
   return function feedback(event, data = {}) {
     if (event === 'action') { action(data); return; }
     if (event === 'ready') { const at = point(data.id, 2); sfx('farm.ready', { at }); vfx.burst('sparkle', at, { count: 12 }); return; }
+    if (event === 'victory') { vfx.burst('sparkle', { x: character.position.x, y: 1.2, z: character.position.z }, { count: 60 }); sfx('reward.levelup'); return; }
     if (event === 'arrive') { sfx('farm.arrive'); return; }
     if (event === 'crew') {
       const spent = (data.before?.coins ?? 0) - (data.after?.coins ?? 0);
