@@ -1,4 +1,4 @@
-// Chuỗi hiển thị — xem docs/shared/i18n.md. Mỗi khóa phải có cả en và vi.
+// Chuỗi hiển thị — xem docs/design/godbean-gdd.md §13.6. Mỗi khóa phải có cả en và vi.
 // Dữ liệu công thức/nguyên liệu/nhân viên (src/features/cafe/recipes.js) và thông báo phục vụ (src/features/cafe/service.js).
 export default {
   en: {

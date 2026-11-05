@@ -119,7 +119,7 @@ export async function createFarmGame(profile, startingGift, persistence = { read
     if(cafeGame){cafeGame.setTouch(value);return;}
     touch = value; if (value.x || value.z) { world.resetCamera(); world.stopMovement(); cancelWork(); }
   }, events.signal);
-  // ---- Auto mode (docs/shared/crew-autoplay.md 5): Auto plays the owner, the hand shows what it taps; only ⏸ or time-out stops it ----
+  // ---- Auto mode (docs/design/godbean-gdd.md §8.4): Auto plays the owner, the hand shows what it taps; only ⏸ or time-out stops it ----
   let auto=false,autoSpent=0,autoWait=0,autoTarget=null,autoHudAt=0;
   const autoHud=mountAutoHud({onToggle:()=>auto?stopAuto():startAuto()});
   function autoStatus(){const a=farm.peek().autoplay;autoHud.status({on:auto,runs:a.runs,leftMs:Math.max(0,a.leftMs-autoSpent)});}

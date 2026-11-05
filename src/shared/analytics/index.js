@@ -1,4 +1,4 @@
-// Analytics ẩn danh theo sự kiện (F-38). Đặc tả: docs/shared/analytics.md. Chưa nối vào màn nào.
+// Analytics ẩn danh theo sự kiện (F-38). Đặc tả: docs/design/godbean-gdd.md §13.5. Chưa nối vào màn nào.
 export const STORAGE_KEY = 'godbean-analytics';
 export const MAX_QUEUE = 500;
 export const FLUSH_MS = 30000;

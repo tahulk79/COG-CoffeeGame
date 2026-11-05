@@ -1,4 +1,4 @@
-// Chuỗi hiển thị — xem docs/shared/i18n.md. Mỗi khóa phải có cả en và vi.
+// Chuỗi hiển thị — xem docs/design/godbean-gdd.md §13.6. Mỗi khóa phải có cả en và vi.
 const plural = (n, one, many) => `${n} ${String(n) === '1' ? one : many}`;
 const cups = n => plural(n, 'cup', 'cups');
 
@@ -7,7 +7,7 @@ export default {
     // Chung
     'cafe.coins': ({ n }) => plural(n, 'coin', 'coins'),
     'cafe.close': 'Close',
-    // Coffee Notebook (F-33/F-34), docs/shared/coffee-memory.md
+    // Coffee Notebook (F-33/F-34), docs/screens/04-cafe/rules.md
     'cafe.spot.notebook': 'Coffee Notebook',
     'cafe.status.notebook': '📓 Notebook',
     'cafe.spot.council': 'Council bell',
@@ -402,7 +402,7 @@ export default {
   vi: {
     'cafe.coins': '{n} xu',
     'cafe.close': 'Đóng',
-    // Sổ tay cà phê (F-33/F-34), docs/shared/coffee-memory.md
+    // Sổ tay cà phê (F-33/F-34), docs/screens/04-cafe/rules.md
     'cafe.spot.notebook': 'Sổ tay cà phê',
     'cafe.status.notebook': '📓 Sổ tay',
     'cafe.spot.council': 'Chuông Hội đồng',

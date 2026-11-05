@@ -1,5 +1,5 @@
-// Chuỗi hiển thị — xem docs/shared/i18n.md. Mỗi khóa phải có cả en và vi.
-// Slot thợ, đa nhiệm, lười/mệt và chế độ Auto (docs/shared/crew-autoplay.md).
+// Chuỗi hiển thị — xem docs/design/godbean-gdd.md §13.6. Mỗi khóa phải có cả en và vi.
+// Slot thợ, đa nhiệm, lười/mệt và chế độ Auto (docs/design/godbean-gdd.md §8).
 export default {
   en: {
     'crew.err.groupLimit': 'Level {level} does {n} job area(s) at most · Multitask from level {next}',

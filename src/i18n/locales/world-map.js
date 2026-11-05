@@ -1,4 +1,4 @@
-// Chuỗi hiển thị — xem docs/shared/i18n.md. Mỗi khóa phải có cả en và vi.
+// Chuỗi hiển thị — xem docs/design/godbean-gdd.md §13.6. Mỗi khóa phải có cả en và vi.
 // `teaser`, `place` và địa lý (`terrain`, `climate`, `temp`, `rain`, `elevation`) hiện khi chạm: chỉ tả cảnh/khí hậu, không được nhắc cà phê, trồng, uống hay quán (lộ loại nơi); `note`, `crops` và mọi dòng `world.reveal/sell/buy` chỉ hiện sau khi đã chốt nơi.
 export default {
   en: {

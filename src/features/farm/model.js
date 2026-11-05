@@ -127,7 +127,7 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
     // F-42: unknown recipes dropped, p clamped and rounded (exploit guard); p=1 is not stored.
     cafe.prices=Object.fromEntries(Object.entries(cafe.prices&&typeof cafe.prices==='object'&&!Array.isArray(cafe.prices)?cafe.prices:{}).filter(([id])=>recipeById(id)).map(([id,p])=>[id,clampPrice(p)]).filter(([,p])=>p!==1));
     cafe.supplies=Object.fromEntries(SUPPLIES.map(s=>[s.id,integer(cafe.supplies?cafe.supplies[s.id]:s.start,1e7)]));
-    // Pantry choice of milk brand and brew water (04-cafe/gameplay.md "Sữa và nước").
+    // Pantry choice of milk brand and brew water (04-cafe/rules.md "Sữa và nước").
     cafe.prefs={milk:MILKS.includes(cafe.prefs?.milk)?cafe.prefs.milk:DEFAULT_PREFS.milk,water:WATERS.includes(cafe.prefs?.water)?cafe.prefs.water:DEFAULT_PREFS.water};
     cafe.gear=Object.fromEntries(GEAR.map(g=>[g.id,clamp(integer(cafe.gear?.[g.id]??g.start),g.start,g.prices.length)]));
     // Crew is a list of hired candidates (max 10); older saves stored one person per role.

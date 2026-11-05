@@ -1,6 +1,6 @@
 import { t } from '../i18n/index.js';
 
-// Auto mode HUD (docs/shared/crew-autoplay.md 5): one small button, a pointing hand over what Auto is about to tap,
+// Auto mode HUD (docs/design/godbean-gdd.md §8.4): one small button, a pointing hand over what Auto is about to tap,
 // and a one-line caption saying what to tap and why, so the player learns the real controls while watching.
 export function mountAutoHud({ onToggle }) {
   const button = document.createElement('button');

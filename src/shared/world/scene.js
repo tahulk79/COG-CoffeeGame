@@ -15,7 +15,7 @@ export function createAdventureScene(character, { interactions: inputInteraction
   const halfWidth = farming ? 26 : 21;
   const farZ = farming ? -24 : -20;
   const scene = new THREE.Scene();
-  // Per-scene light (docs/shared/art-direction.md §4); defaults are the old shared values so heaven/café stay as they were.
+  // Per-scene light (docs/design/godbean-gdd.md §12.1); defaults are the old shared values so heaven/café stay as they were.
   const light = { sky: '#fff8e3', ground: '#94ac99', ambient: 2.8, sun: '#fff1d0', sunIntensity: 2.4, background: farming ? '#dcebd4' : '#ecf1e6', ...lighting };
   scene.background = new THREE.Color(light.background);
   scene.fog = new THREE.Fog(light.background, farming ? 38 : 30, farming ? 80 : 65); // far edge fades into the sky, as in heaven

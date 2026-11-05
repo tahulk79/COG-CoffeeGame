@@ -15,7 +15,7 @@ Mở địa chỉ Vite in trong terminal. Bản production: `npm run build` rồ
 
 Chọn nhân vật → Intro (Màn 1) → Thiên đàng → Nông trại ↔ Quán cà phê.
 
-Chi tiết từng màn, điều kiện chuyển và dữ liệu đi theo: [docs/game-flow.md](docs/game-flow.md). Mục lục tài liệu: [docs/README.md](docs/README.md).
+Chi tiết từng màn, điều kiện chuyển và dữ liệu đi theo: [GDD §4](docs/design/godbean-gdd.md). Mục lục tài liệu: [docs/README.md](docs/README.md).
 
 ## Cấu trúc
 
@@ -30,4 +30,4 @@ Chi tiết từng màn, điều kiện chuyển và dữ liệu đi theo: [docs/
 | `tools/` | Trang xem nhanh intro/farm, không nằm trong bản build |
 | `scripts/` | Script tối ưu model, mô phỏng kinh tế |
 
-Quy ước thêm nội dung: [docs/shared/project-structure.md](docs/shared/project-structure.md). Quy tắc làm việc cho người và AI: [AGENTS.md](AGENTS.md).
+Cây thư mục đầy đủ: [GDD §13.7](docs/design/godbean-gdd.md). Quy tắc làm việc cho người và AI: [AGENTS.md](AGENTS.md).

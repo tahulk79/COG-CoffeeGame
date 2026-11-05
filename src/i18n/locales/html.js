@@ -1,4 +1,4 @@
-// Chuỗi tĩnh trong index.html (data-i18n / data-i18n-attr) — xem docs/shared/i18n.md.
+// Chuỗi tĩnh trong index.html (data-i18n / data-i18n-attr) — xem docs/design/godbean-gdd.md §13.6.
 export default {
   en: {
     'html.game.label': 'Chapter 1: Accident in Hanoi’s Old Quarter',

@@ -37,7 +37,7 @@
  --ui-leaf-hi:#f5f9df;--ui-close-edge:#ffe3b7;
  --ui-coin-hi:#ffe998;--ui-coin-edge:#c18d2a;--ui-chip-edge:#51381f;
  --ui-shadow:#213a2855;--ui-drop-soft:#6b4c2033;
- /* Redesign (docs/shared/design-system.md §1.2–§3, §7). */
+ /* Redesign (docs/design/godbean-gdd.md §11). */
  --ui-jade:#5fa596;--ui-jade-edge:#3f7c70;--ui-lacquer:#b5523a;
  --ui-hud-bg:#fff7e3eb;--ui-nameplate-bg:#3b2a1cd9;--ui-nameplate-ink:#fff6dc;--ui-marker:#ffd25e;
  --fs-display:clamp(22px,1.6vw,28px);--fs-title:clamp(16px,1.15vw,19px);--fs-body:clamp(14px,1vw,16px);
@@ -100,7 +100,7 @@ body:has(#error:not([hidden])) #game-settings-toggle{display:none}
 .game-currency{display:inline;white-space:nowrap}
 .game-currency>.farm-gold-coin{display:inline-grid;vertical-align:-.16em;width:1.1em;height:1.1em;margin-right:.12em;border-width:1px;font-size:.85em;line-height:1;box-shadow:inset 0 0 0 1px var(--ui-coin-hi),0 1px var(--ui-coin-edge)}
 
-/* Auto mode (docs/shared/crew-autoplay.md 5): small HUD button, pointing hand, one-line caption. */
+/* Auto mode (docs/design/godbean-gdd.md §8.4): small HUD button, pointing hand, one-line caption. */
 .autoplay-btn{position:fixed;right:16px;bottom:calc(96px + env(safe-area-inset-bottom));z-index:5;min-height:40px;padding:6px 14px;font-size:14px;font-weight:700}
 /* Below the modal layer (#farm-modal z7) and hidden while a modal/confirm/placement bar is open; hand + caption stay so Auto still reads behind it. */
 body:has(#farm-modal:not([hidden]),#farm-build-placement:not([hidden])) .autoplay-btn{display:none}

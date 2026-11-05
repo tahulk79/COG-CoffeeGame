@@ -1,4 +1,4 @@
-// Nối analytics (F-38) vào game. Đặc tả: docs/shared/analytics.md. Chỉ truyền cờ/đếm/mã, không chữ tự do.
+// Nối analytics (F-38) vào game. Đặc tả: docs/design/godbean-gdd.md §13.5. Chỉ truyền cờ/đếm/mã, không chữ tự do.
 import { getAnalytics, attachAutoFlush, debugDump } from './index.js';
 import { onMemoryEvent } from '../../state/memory.js';
 

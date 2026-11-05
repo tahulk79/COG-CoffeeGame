@@ -134,7 +134,7 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
     const head = el('div', 'cafe-step-head');
     head.append(el('strong', '', `${recipe.icon} ${recipe.name}`), el('small', '', t('cafe.bench.step', { n: state.index + 1, total: recipe.steps.length })));
     if (state.index === 0 && !state.auto) head.append(button(t('cafe.bench.change'), choose, 'cafe-link')); // Auto pha is paid for: no swapping the dish
-    // ⚡ Quick brew (04-cafe/gameplay.md "Pha nhanh"): one tap instead of the steps, for phones and for Auto.
+    // ⚡ Quick brew (04-cafe/rules.md "Pha nhanh"): one tap instead of the steps, for phones and for Auto.
     // 🤖 Auto pha: pay AUTO_BREW_COST to watch every step done right, at the demo cap (each step ≤ 0.8 → ★★).
     if (state.index === 0 && !state.auto) {
       const actions = el('div', 'cafe-brew-modes');

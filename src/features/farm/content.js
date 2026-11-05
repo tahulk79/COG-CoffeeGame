@@ -48,7 +48,7 @@ export const MACHINES = [
 export const STATIONS = [
   // Công trình pha 1 (05/11/2026, F-48, đề xuất Q10 CT-1…CT-16 + vá): ẩn tới khi mốc HUD_UNLOCKS tương ứng mở (BUILDINGS).
   // Cụm thương mại sát lối ngang trước, bên trái Cổng Hội đồng: Cửa quán + Bảng đơn; Sạp và Nhà thợ sau ruộng 1, cạnh lối z −8,4.
-  // Cả bốn nằm trong khung dọc mặc định 375×812 (portraitView focus [−6.4, −.5], zoom .9): tính chiếu ở docs/screens/03-farm/gameplay.md.
+  // Cả bốn nằm trong khung dọc mặc định 375×812 (portraitView focus [−6.4, −.5], zoom .9): tính chiếu ở docs/screens/03-farm/rules.md.
   // Trạm 3D 'market' đã bỏ; id hành động 'market' (bán/đơn chợ) vẫn giữ trong model, autoplay. Toạ độ chờ playtest.
   { id: 'cafe-entrance', name: t('farmRules.station.cafeEntrance'), kind: 'cafe-entrance', initialVisible: false, color: '#b9825a', position: [-8.6, 1.5], approachOffsets: [[0, 1.25]], interactDistance: 2.2, approachDistance: 1.6 },
   { id: 'order-board', name: t('farmRules.station.orderBoard'), kind: 'order-board', initialVisible: false, color: '#a98a5c', position: [-6.3, 1.7], interactDistance: 2.2, approachDistance: 1.8 },

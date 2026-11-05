@@ -34,7 +34,7 @@ const INTRO_MODELS = {
 const $ = id => document.getElementById(id);
 const vignette = document.querySelector('.vignette');
 const player = readPlayer();
-// F-38: khởi tạo analytics đúng một lần khi nạp module (docs/shared/analytics.md).
+// F-38: khởi tạo analytics đúng một lần khi nạp module (docs/design/godbean-gdd.md §13.5).
 const boot = readProgress();
 initAnalytics({
   appVersion: pkg.version, platform: detectPlatform(Math.min(window.innerWidth, window.innerHeight), usesTouch()),

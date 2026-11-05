@@ -7,7 +7,7 @@ import { formatNumber, t } from '../../i18n/index.js';
 
 // Player-facing text: src/i18n/locales/cafe-recipes.js (svc.*). Layout point names below are dev-only (grid debugger) and stay Vietnamese.
 const S = (key, params) => t(`cafeRecipes.svc.${key}`, params);
-// Cup freshness (04-cafe/gameplay.md "Ly để lâu"): hot 60 s, iced 90 s of open-café time. Past that the cup is cold
+// Cup freshness (04-cafe/rules.md "Ly để lâu"): hot 60 s, iced 90 s of open-café time. Past that the cup is cold
 // (−1★, −30% price); past twice that it is thrown away. A cup is stamped the first time anyone looks at its age.
 const freshMs = d => freshFor(d.recipeId);
 const cupAge = d => Date.now() - (d.madeAt ??= Date.now());

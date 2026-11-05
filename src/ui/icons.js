@@ -1,4 +1,4 @@
-// Game icon family (docs/shared/design-system.md §4): 24px grid, ink stroke = currentColor, fixed two-tone fill.
+// Game icon family (docs/design/godbean-gdd.md §11): 24px grid, ink stroke = currentColor, fixed two-tone fill.
 // Gameplay strings keep their emoji; installIcons() swaps them for SVG in the DOM, fillRich() does it on canvas.
 const G = '#f2c14e', L = '#8cbf5b', B = '#8a5a34', W = '#79bfe0', R = '#d9634a', C = '#fff4d8', S = '#cfc6b2',
   K = '#c99055', P = '#f3c9a2', Y = '#bfe0f0', O = '#eea04a', J = '#6fb3a3', I = 'currentColor';

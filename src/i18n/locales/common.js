@@ -1,4 +1,4 @@
-// Chuỗi hiển thị dùng chung — xem docs/shared/i18n.md. Mỗi khóa phải có cả en và vi.
+// Chuỗi hiển thị dùng chung — xem docs/design/godbean-gdd.md §13.6. Mỗi khóa phải có cả en và vi.
 export default {
   en: {
     'common.close': 'Close',

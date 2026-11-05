@@ -1,4 +1,4 @@
-/* HUD v2: one frame for farm + café (docs/shared/design-system.md §6).
+/* HUD v2: one frame for farm + café (docs/design/godbean-gdd.md §11).
    Loaded last, so these rules win over the older position rules in farm.css/cafe.css with the same selectors;
    the dead ones there get deleted when Bước 4 moves the modals. */
 

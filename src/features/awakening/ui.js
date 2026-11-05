@@ -1,4 +1,4 @@
-// F-35 Decode & Awaken UI (docs/shared/decode-awaken.md §8). One controller per play session, created by the farm scene and shared
+// F-35 Decode & Awaken UI (docs/design/godbean-gdd.md §9.5). One controller per play session, created by the farm scene and shared
 // with the café (same `farm` model). It only calls farm.act('awakening', ...): no Fragment/Key can come from this file.
 import { questionById, viewQuestions, VARIABLES, KEY_OF } from './rules.js';
 import { uiState, sortQuestions, attentionIds, evidenceLines, fragmentRows, pips, firstKeyView, isFirstPair } from './view.js';
