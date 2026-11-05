@@ -1092,3 +1092,13 @@
 .farm-active #farm-seed-strip .seed-scroll-arrow[data-scroll="left"]::after{inset:-2px -6px -2px -18px}
 .farm-active #farm-seed-strip .seed-scroll-arrow[data-scroll="right"]::after{inset:-2px -18px -2px -6px}
 .farm-trade-dialog .farm-trade-actions button,#farm-station-panel button{min-height:44px}
+/* Tutorial ép farm-intro (F-46, onboarding-flow 3.8): 1 dòng chỉ dẫn + bàn tay chỉ; các nút dễ dẫn lạc mờ và khoá. */
+.farm-intro-line{position:fixed;left:50%;top:calc(max(12px,env(safe-area-inset-top)) + 84px);transform:translateX(-50%);z-index:6;width:max-content;max-width:min(92vw,460px);margin:0;padding:8px 14px;border-radius:12px;background:rgba(32,24,16,.88);color:#fff7e6;font:800 15px/1.35 var(--game-font);text-align:center;pointer-events:none}
+body:has(#farm-modal:not([hidden])) .farm-intro-line{display:none}
+.farm-intro-hand{position:fixed;left:0;top:0;z-index:6;font-size:40px;line-height:1;pointer-events:none;filter:drop-shadow(0 3px 4px rgba(0,0,0,.45));transform:translate(var(--x0),var(--y0)) translate(-30%,-10%);animation:farm-intro-tap 1s ease-in-out infinite}
+.farm-intro-hand[data-mode="drag"]{animation:farm-intro-drag 2.6s ease-in-out infinite}
+@keyframes farm-intro-tap{0%,100%{translate:0 0}50%{translate:0 10px}}
+@keyframes farm-intro-drag{0%,12%{transform:translate(var(--x0),var(--y0)) translate(-30%,-10%);opacity:1}48%{transform:translate(var(--x1),var(--y1)) translate(-30%,-10%)}84%{transform:translate(var(--x2),var(--y2)) translate(-30%,-10%);opacity:1}100%{transform:translate(var(--x2),var(--y2)) translate(-30%,-10%);opacity:0}}
+body.farm-intro :is([data-shortcut="cafe-play"],#farm-shop-toggle,.farm-coin,#farm-hud .quest-tracker){opacity:.4;filter:grayscale(.7);pointer-events:none}
+body.farm-intro .autoplay-btn{display:none}
+@media (prefers-reduced-motion:reduce){.farm-intro-hand,.farm-intro-hand[data-mode="drag"]{animation:none}}

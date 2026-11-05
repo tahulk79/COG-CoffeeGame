@@ -55,10 +55,68 @@ test('the first order of a save that never sold a cup is V60', () => {
   try {
     const farm = createFarm(null, 'capital', () => {}, clock); farm.setCafeActive(true);
     const svc = createCafeService(farm, { notice: () => {}, reward: () => {} });
-    svc.toggleOpen();
+    // F-47: chưa có cafe-intro thì ca tập tự mở trong update(), không mở bằng tay.
     for (let i = 0; i < 2000 && !svc.customers.some(c => c.recipeId); i++) { clock += 500; svc.update(.5, clock); svc.autoRegister(); }
     assert.equal(svc.customers.find(c => c.recipeId)?.recipeId, 'v60');
   } finally { Date.now = realNow; }
+});
+
+// F-47 (Q7): ca tập tự mở khi đủ chè, 1 khách V60 đứng sẵn, khoá Mở/Đóng, kết thúc ngay ở ly đầu.
+test('practice shift opens itself with one V60 guest at the register and ends at the first sale', () => {
+  let clock = AT; const realNow = Date.now; Date.now = () => clock;
+  try {
+    const farm = createFarm(null, 'capital', () => {}, clock); farm.setCafeActive(true);
+    const reports = [], svc = createCafeService(farm, { notice: () => {}, reward: () => {}, onShiftEnd: r => reports.push(r) });
+    assert.equal(svc.training, true); assert.equal(svc.trainingValve, false);
+    assert.equal(farm.peek().cafe.open, false);
+    svc.update(.1, clock);
+    assert.equal(farm.peek().cafe.open, true);
+    assert.equal(svc.shift.training, true); assert.equal(svc.shift.endsAt, Infinity);
+    assert.equal(svc.customers.length, 1); assert.equal(svc.customers[0].phase, 'queue'); assert.equal(svc.customers[0].path.length, 0);
+    assert.equal(svc.toggleOpen().ok, false); // không đóng được giữa ca tập
+    assert.equal(svc.autoRegister(false), false); // Auto ca tập không nhận order thay người chơi
+    assert.equal(svc.customers[0].recipeId, null);
+    assert.equal(svc.autoRegister(), true);
+    const guest = svc.customers[0]; assert.equal(guest.recipeId, 'v60');
+    for (let i = 0; i < 200 && !['seated', 'pickup'].includes(guest.phase); i++) { clock += 500; svc.update(.5, clock); }
+    assert.equal(svc.customers.filter(c => !['drinking', 'leaving'].includes(c.phase)).length, 1); // chỉ 1 khách chưa phục vụ
+    svc.addDrink({ recipeId: 'v60', quality: 80, stars: 2, memory: false });
+    if (guest.seat) svc.arriveTable(guest.seat.table); else svc.arriveRegister();
+    clock += 100; svc.update(.1, clock);
+    assert.equal(reports.length, 1); assert.equal(reports[0].training, true);
+    assert.equal(farm.peek().cafe.open, false);
+    assert.ok(farm.peek().tutorial.seen.includes('cafe-intro'));
+    assert.equal(farm.peek().cafe.shiftLog.length, 0); // ca tập không ghi sổ ca, không có mốc
+    assert.equal(svc.training, false);
+    assert.equal(svc.toggleOpen().ok, true); // «Mở ca mới» mở ca thường
+    assert.equal(svc.shift.training, false);
+  } finally { Date.now = realNow; }
+});
+
+// Van an toàn: save cũ / nơi chỉ quán hết chè thì 🚪 bỏ ca tập, mở ca thường, quán không kẹt.
+test('practice shift does not open without roasted arabica; 🚪 then opens a regular shift', () => {
+  {
+    const base = fresh().progress; // service không phân loại nơi: cùng đường cho nơi 'both' và nơi chỉ quán
+    base.cafe.lots = base.cafe.lots.filter(l => l.cropId !== 'arabica');
+    const farm = createFarm(base, null, () => {}, AT); farm.setCafeActive(true);
+    const svc = createCafeService(farm, { notice: () => {}, reward: () => {} });
+    assert.equal(svc.trainingBeans(), false); assert.equal(svc.trainingValve, true);
+    svc.update(.1, AT);
+    assert.equal(farm.peek().cafe.open, false); assert.equal(svc.shift, null);
+    assert.equal(svc.toggleOpen().ok, true);
+    assert.ok(farm.peek().tutorial.seen.includes('cafe-intro'));
+    assert.equal(svc.training, false); assert.equal(svc.shift.training, false);
+  }
+});
+
+// F-47 (Q8): 'v60-guided' là id hướng dẫn hợp lệ; save có V60 ★★ coi như đã xem ly làm mẫu.
+test('v60-guided is a tutorial id and old saves with V60 best ≥ 70 skip the guided cup', () => {
+  const farm = fresh();
+  assert.equal(farm.act('tutorial', 'seen', 'v60-guided').ok, true);
+  const base = fresh().progress; base.cafe.mastery.v60 = { best: 75, made: 2 };
+  assert.ok(createFarm(base, null, () => {}, AT).progress.tutorial.seen.includes('v60-guided'));
+  const low = fresh().progress; low.cafe.mastery.v60 = { best: 60, made: 1 };
+  assert.equal(createFarm(low, null, () => {}, AT).progress.tutorial.seen.includes('v60-guided'), false);
 });
 
 test('V60 main and final pours are scale totals (cumulative), bloom is not (QA 04/11)', () => {

@@ -46,13 +46,30 @@ export const MACHINES = [
   { id: 'roaster', name: t('farmRules.machine.roaster'), kind: 'roaster', icon: '♨', color: '#a87b54', position: [6, -10.5], approachOffsets: [[0,2.5],[-1,2.5],[1,2.5]], input: 'dried', output: 'roasted', inputCount: 100, outputCount:84, capacity:1000, duration: 18000, upgradePrice: 160 },
 ];
 export const STATIONS = [
-  { id: 'seed-shop', name: t('farmRules.station.seedShop'), kind: 'shop', initialVisible: false, color: '#9b9b62', position: [12, 12], interactDistance: 2.6, approachDistance: 2.2 },
-  { id: 'market', name: t('farmRules.station.market'), kind: 'market', initialVisible: false, color: '#c39e65', position: [4, 14], interactDistance: 2.6, approachDistance: 2.2 },
+  // Công trình pha 1 (05/11/2026, F-48, đề xuất Q10 CT-1…CT-16 + vá): ẩn tới khi mốc HUD_UNLOCKS tương ứng mở (BUILDINGS).
+  // Cụm thương mại sát lối ngang trước, bên trái Cổng Hội đồng: Cửa quán + Bảng đơn; Sạp và Nhà thợ sau ruộng 1, cạnh lối z −8,4.
+  // Cả bốn nằm trong khung dọc mặc định 375×812 (portraitView focus [−6.4, −.5], zoom .9): tính chiếu ở docs/screens/03-farm/gameplay.md.
+  // Trạm 3D 'market' đã bỏ; id hành động 'market' (bán/đơn chợ) vẫn giữ trong model, autoplay. Toạ độ chờ playtest.
+  { id: 'cafe-entrance', name: t('farmRules.station.cafeEntrance'), kind: 'cafe-entrance', initialVisible: false, color: '#b9825a', position: [-8.6, 1.5], approachOffsets: [[0, 1.25]], interactDistance: 2.2, approachDistance: 1.6 },
+  { id: 'order-board', name: t('farmRules.station.orderBoard'), kind: 'order-board', initialVisible: false, color: '#a98a5c', position: [-6.3, 1.7], interactDistance: 2.2, approachDistance: 1.8 },
+  { id: 'seed-shop', name: t('farmRules.station.seedShop'), kind: 'shop', initialVisible: false, color: '#9b9b62', position: [-9.6, -6.8], interactDistance: 2.4, approachDistance: 2 },
+  { id: 'crew-house', name: t('farmRules.station.crewHouse'), kind: 'crew-house', initialVisible: false, color: '#8c6f52', position: [-5.6, -6.8], interactDistance: 2.4, approachDistance: 2 },
   { id: 'well', name: t('farmRules.station.well'), kind: 'well', facing: Math.PI/2, color: '#7b9fa4', position: [-16.8, -8.4], approachOffsets: [[1.8,0],[1.8,-.4],[1.8,.4]], interactDistance: 2.3, approachDistance: 1.9 },
   {id:'pond',name:t('farmRules.station.pond'),kind:'pond',color:'#64989a',position:[0,-15.5],approachOffsets:[[0,2.2]],interactDistance:2.8,approachDistance:2.2},
+  // Cổng Hội đồng (05/11/2026, F-45): ẩn tới khi chuyên gia đầu có mặt; chạm mở hội thoại tại chỗ, không đi bộ. Là INTERACTION nên
+  // có vùng cấm xây 3,5 m (decorations.js) và chặn lối như công trình. Toạ độ cạnh ruộng 1, trong khung dọc mặc định; chờ playtest 375×812.
+  {id:'council',name:t('farmRules.station.council'),kind:'council',initialVisible:false,color:'#c9a86a',position:[-3.4,1.9],approachOffsets:[[0,-1.6]],interactDistance:2.6,approachDistance:2.2},
   ...MACHINES.map(machine => ({ ...machine, interactDistance: 3.2, approachDistance: 2.8 })),
 ];
 export const INTERACTIONS = [...FIELDS, ...PLOTS, ...STATIONS];
+// Công trình chạm được ↔ mốc HUD_UNLOCKS (CT-12 pha 1): hiện khi `when` đúng hoặc đã có cờ `unlock-<unlock>` (không ẩn lại).
+// both: chỉ dựng ở nơi 'both' (CT-13). Pha 2 (sau sim Q4) mới đổi sang mốc cấp.
+export const BUILDINGS = [
+  { id: 'cafe-entrance', unlock: 'cafe-play', both: true },
+  { id: 'order-board', unlock: 'order-board', both: true },
+  { id: 'seed-shop', unlock: 'seed-shop' },
+  { id: 'crew-house', unlock: 'workers' },
+];
 export const PRODUCTS = [
   { id: 'cherries', name: t('farmRules.product.cherries'), icon: '🍒', price: .004 },
   { id: 'dried', name: t('farmRules.product.dried'), icon: '🫘', price: .04 },
@@ -68,7 +85,10 @@ export const TOOLS = [
   { id: 'harvest', icon: '♧', name: t('farmRules.tool.harvest.name'), help: t('farmRules.tool.harvest.help') },
 ];
 // First-time hint flags stored in farm.tutorial.seen (plus `unlock-<id>` for HUD unlock toasts).
-export const TUTORIAL_IDS = ['controls', 'quest-guide', 'cafe-intro', 'bench-intro', 'tools'];
+// 'farm-intro': tutorial ép gieo → hái → phơi → rang đã xong (F-46, farm/intro.js).
+// 'farm-intro-new': dấu ghi khi tạo save mới; save có sẵn thiếu dấu này là save trước F-46, coi như xong farm-intro.
+// 'v60-guided': ly V60 tự pha tay đầu đã xong với làm mẫu (F-47, Q8); save có v60.best ≥ 70 coi như đã xem.
+export const TUTORIAL_IDS = ['controls', 'quest-guide', 'cafe-intro', 'bench-intro', 'tools', 'farm-intro', 'farm-intro-new', 'v60-guided'];
 // Order (onboarding-flow 3.5): the first cup comes second because the café starts with 600 g of beans, so the
 // "pour, coins jump" moment lands before minute 2; dry/roast waits then overlap café time. Watering/weeding last:
 // a freshly harvested tree only needs water after ~6 minutes. Text quotes the real button labels in « ».

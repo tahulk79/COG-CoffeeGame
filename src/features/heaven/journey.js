@@ -12,6 +12,11 @@ export function correctQuestionIds(heaven) {
   return Object.values(normalizeAnswers(heaven)).flat().filter(record => record.correct).map(record => record.questionId);
 }
 
+// Question ids answered at all (right or wrong) in a saved heaven record: the farm treats them as met (F-45 `farm.lessons.met`).
+export function answeredQuestionIds(heaven) {
+  return Object.values(normalizeAnswers(heaven)).flat().map(record => record.questionId);
+}
+
 function normalizeAnswers(saved) {
   const source = saved && typeof saved === 'object' ? saved : {};
   return Object.fromEntries(EXPERTS.map(expert => {
@@ -31,17 +36,19 @@ function normalizeAnswers(saved) {
   }));
 }
 
+// 02-mini (05/11/2026, F-44): không còn hỏi 6 câu ở thiên đàng. Pha: welcome (hộp 1–4) → gift (hộp 5, nút Nhận) → return (đi vào cổng) → completed.
+// `answers` của save cũ giữ nguyên (mẹo đã nhận; câu chưa trả lời để Hội đồng ở trần gian hỏi). Save dở ở mọi pha cũ chạy lại mini.
 export function createJourney(saved, onSave) {
   const source = saved && typeof saved === 'object' ? saved : {};
   const answers = normalizeAnswers(source);
-  const allAnswered = EXPERTS.every(expert => answers[expert.id].length === expert.questions.length);
-  // Bỏ qua (nút ⏭ ở thiên đàng): không cần đủ dấu, vào thẳng chọn hành trang; câu chưa trả lời không thành mẹo.
-  const skipped = source.skipped === true;
-  const revealed = (allAnswered || skipped) && source.revealed === true;
+  const revealed = source.revealed === true;
   const gift = revealed && GIFTS.some(item => item.id === source.gift) ? source.gift : null;
+  const completed = Boolean(gift && source.completed === true);
   let progress = {
-    version: 2, metReaper: source.metReaper === true || Object.values(answers).some(records => records.length > 0),
-    answers, skipped, revealed, gift, completed: Boolean(gift && source.completed === true),
+    // Save đã xong mà thiếu `mode` là bản thiên đàng đầy đủ cũ.
+    version: 2, mode: completed && source.mode !== 'mini' ? 'full' : 'mini',
+    metReaper: source.metReaper === true || revealed || Object.values(answers).some(records => records.length > 0),
+    answers, skipped: source.skipped === true, revealed, gift, completed,
   };
   const counts = correctOnly => Object.fromEntries(EXPERTS.map(expert => [expert.id, progress.answers[expert.id].filter(record => !correctOnly || record.correct).length]));
   const snapshot = () => ({
@@ -50,47 +57,28 @@ export function createJourney(saved, onSave) {
     answered: counts(false), passed: counts(true),
   });
   function commit() { onSave(snapshot()); }
-  const seals = () => EXPERTS.filter(expert => progress.answers[expert.id].length === expert.questions.length);
   function phase() {
-    if (!progress.skipped && !progress.metReaper) return 'welcome';
-    if (!progress.skipped && seals().length < EXPERTS.length) return 'learning';
-    if (!progress.revealed) return 'review';
+    if (!progress.revealed) return 'welcome';
     if (!progress.gift) return 'gift';
     return progress.completed ? 'completed' : 'return';
   }
   return {
     get progress() { return snapshot(); },
-    get seals() { return seals(); },
     get phase() { return phase(); },
     get score() {
       const records = Object.values(progress.answers).flat();
       const correct = records.filter(record => record.correct).length;
       return { correct, wrong: records.length - correct, answered: records.length, total: EXPERTS.reduce((sum, expert) => sum + expert.questions.length, 0) };
     },
-    meetReaper() {
-      if (progress.metReaper) return;
-      progress.metReaper = true; commit();
-    },
-    question(id) {
-      const expert = EXPERTS.find(item => item.id === id);
-      return expert?.questions[progress.answers[id]?.length ?? 0] ?? null;
-    },
-    answer(id, questionId, optionId) {
-      if (phase() !== 'learning') return null;
-      const question = this.question(id);
-      if (!question || question.id !== questionId || !question.options.some(option => option.id === optionId)) return null;
-      const correct = optionId === question.correct;
-      progress.answers[id].push({ questionId, optionId, correct });
-      commit();
-      return { correct, text: answerText(question, correct) };
-    },
-    skip() {
-      if (!['welcome', 'learning', 'review'].includes(phase())) return false;
-      progress.skipped = true; progress.metReaper = true; progress.revealed = true; commit(); return true;
-    },
+    // Nghe xong hộp tiết lộ: tải lại thì chỉ còn hộp quà.
     reveal() {
-      if (phase() !== 'review') return;
-      progress.revealed = true; commit();
+      if (phase() !== 'welcome') return false;
+      progress.metReaper = true; progress.revealed = true; commit(); return true;
+    },
+    // Bỏ qua ↗ (1 lần bấm) trước khi nghe hết thoại; game.js lấy quà rồi cho đi vào cổng.
+    skip() {
+      if (phase() !== 'welcome') return false;
+      progress.skipped = true; progress.metReaper = true; progress.revealed = true; commit(); return true;
     },
     chooseGift(id) {
       if (phase() !== 'gift' || !GIFTS.some(item => item.id === id)) return false;
@@ -98,10 +86,11 @@ export function createJourney(saved, onSave) {
     },
     returnHome() {
       if (phase() !== 'return') return false;
-      progress.completed = true; commit(); return true;
+      progress.completed = true; progress.mode = 'mini'; commit(); return true;
     },
+    // Chơi lại chương: đặt lại phần thiên đàng, giữ câu đã trả lời (farm đã lưu mẹo; quà không áp lại nhờ giftApplied).
     reset() {
-      progress = { version: 2, metReaper: false, answers: Object.fromEntries(EXPERTS.map(expert => [expert.id, []])), skipped: false, revealed: false, gift: null, completed: false };
+      progress = { version: 2, mode: 'mini', metReaper: false, answers: progress.answers, skipped: false, revealed: false, gift: null, completed: false };
       commit();
     },
   };

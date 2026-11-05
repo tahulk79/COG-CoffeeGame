@@ -18,22 +18,24 @@ export function findLesson(questionId) {
  * Hỏi lại một câu thiên đàng trong khung hội thoại đáy màn hình (#caption-box). Khóa/mở nhập liệu là việc của nơi gọi.
  * Cách gọi: lockInput(); askLesson({ ...findLesson('ripe'), onAnswer: optionId => farm.act('lessons', 'answer', { questionId: 'ripe', optionId }), onClose: unlockInput });
  * onAnswer(optionId) trả { correct, explanation, perk? } (perk: chuỗi hoặc { name, effect }; thiếu thì lấy question.perk); trả null/undefined thì đóng ngay.
- * onClose() gọi đúng một lần khi khung đóng: sau khi xem kết quả, hoặc "Để sau"/Esc (không gọi onAnswer, không ghi gì).
+ * onClose(answered) gọi đúng một lần khi khung đóng: sau khi xem kết quả (answered = true), hoặc "Để sau"/Esc (không gọi onAnswer, không ghi gì).
+ * council: chuỗi '1/2' khi hỏi ở Hội đồng (F-45): nhãn HỘI ĐỒNG, nút "Đóng" thay "Để sau", lớp council-dialogue (Auto không bấm hộ).
  * Trả về hàm đóng ngay (gọi khi rời màn).
  */
-export function askLesson({ expert, question, onAnswer, onClose }) {
+export function askLesson({ expert, question, onAnswer, onClose, council = null }) {
   const box = $('caption-box'), list = $('dialogue-choices'), next = $('dialogue-next'), tip = $('dialogue-tip');
   const hint = box.querySelector('.dialogue-hint');
   const abort = new AbortController();
   const restoreFocus = document.activeElement;
-  let phase = 'question';
+  let phase = 'question', answered = false;
 
   showDialogue([0, expert.name, question.text], { name: expert.name });
   setAvatar(expert.icon);
   box.dataset.mode = 'manual';
   box.classList.add('quiz-dialogue', 'lesson-dialogue');
-  box.querySelector('.dialogue-auto').textContent = t('ui.lesson.review');
-  hint.textContent = usesTouch() ? t('ui.lesson.pick') : t('ui.lesson.pickKeys');
+  box.classList.toggle('council-dialogue', Boolean(council));
+  box.querySelector('.dialogue-auto').textContent = council ? t('ui.council.label', { n: council }) : t('ui.lesson.review');
+  hint.textContent = usesTouch() ? t('ui.lesson.pick') : council ? t('ui.council.pickKeys') : t('ui.lesson.pickKeys');
   next.hidden = true;
   list.replaceChildren(); list.hidden = false;
   question.options.forEach((option, index) => {
@@ -43,7 +45,7 @@ export function askLesson({ expert, question, onAnswer, onClose }) {
     button.append(key, text); button.addEventListener('click', () => answer(option.id));
     list.append(button);
   });
-  const later = document.createElement('button'); later.type = 'button'; later.className = 'dialogue-later'; later.textContent = t('ui.lesson.later');
+  const later = document.createElement('button'); later.type = 'button'; later.className = 'dialogue-later'; later.textContent = council ? t('ui.council.close') : t('ui.lesson.later');
   later.addEventListener('click', close);
   list.append(later);
   box.scrollTop = 0;
@@ -65,6 +67,7 @@ export function askLesson({ expert, question, onAnswer, onClose }) {
     if (phase !== 'question') return;
     const result = onAnswer(optionId);
     if (!result) { close(); return; }
+    answered = true;
     sfx(result.correct ? 'bench.good' : 'bench.bad');
     phase = 'result';
     list.replaceChildren(); list.hidden = true;
@@ -88,11 +91,29 @@ export function askLesson({ expert, question, onAnswer, onClose }) {
     if (phase === 'closed') return;
     phase = 'closed'; abort.abort();
     list.replaceChildren(); list.hidden = true; tip.hidden = true;
-    box.hidden = true; box.classList.remove('quiz-dialogue', 'lesson-dialogue'); delete box.dataset.mode;
+    box.hidden = true; box.classList.remove('quiz-dialogue', 'lesson-dialogue', 'council-dialogue'); delete box.dataset.mode;
     next.hidden = false; next.setAttribute('aria-label', t('ui.dialogue.next')); next.title = t('ui.dialogue.next');
     if (restoreFocus?.isConnected && !restoreFocus.closest('[hidden]')) restoreFocus.focus({ preventScroll: true });
     else $('game')?.focus({ preventScroll: true });
-    onClose?.();
+    onClose?.(answered);
   }
   return close;
+}
+
+/**
+ * Một lượt gặp Hội đồng (F-45, đề xuất Q1 R8–R9): 1 chuyên gia, hỏi lần lượt các câu chưa gặp trong cùng khung đáy màn.
+ * answer(questionId, optionId) → kết quả như onAnswer của askLesson (thường là farm.act('lessons','council',…)).
+ * Đóng giữa chừng giữ các câu đã trả lời, không gọi defer. onDone() gọi đúng một lần. Trả về hàm đóng ngay.
+ */
+export function askCouncil({ expert, questions, answer, onDone }) {
+  let index = 0, close = null, finished = false, aborted = false;
+  const finish = () => { if (finished) return; finished = true; close = null; onDone?.(); };
+  const next = () => {
+    if (index >= questions.length) { finish(); return; }
+    const question = questions[index];
+    close = askLesson({ expert, question, council: `${index + 1}/${questions.length}`, onAnswer: optionId => answer(question.id, optionId),
+      onClose: answered => { close = null; if (answered && !aborted) { index++; next(); } else finish(); } });
+  };
+  next();
+  return () => { aborted = true; close?.(); finish(); };
 }

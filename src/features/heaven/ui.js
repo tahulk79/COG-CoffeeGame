@@ -1,6 +1,6 @@
-import { EXPERTS, NPCS } from './content.js';
+import { NPCS } from './content.js';
 import { t } from '../../i18n/index.js';
-import { setAvatar, showDialogue, usesTouch } from '../../ui/dialogue.js';
+import { setAvatar, showDialogue } from '../../ui/dialogue.js';
 import { mountJoystick } from '../../ui/joystick.js';
 
 const $ = id => document.getElementById(id);
@@ -15,31 +15,10 @@ export function createHeavenUI(profile, callbacks) {
   let openedAt = 0;
   $('heaven-hud').hidden = false;
   $('heaven-controls').hidden = false;
-  // Gợi ý điều khiển khi vào: tắt sau lần di chuyển đầu hoặc 10 s, không lưu.
-  let hintUntil = performance.now() + 10000;
-  $('heaven-hint').textContent = t(usesTouch() ? 'heaven.hint.touch' : 'heaven.hint.mouse');
-  $('heaven-hint').hidden = false;
-  function hideHint() { $('heaven-hint').hidden = true; hintUntil = 0; }
+  // 02-mini (05/11/2026, F-44): không gợi ý joystick, không hồ sơ/huy hiệu; Bỏ qua ↗ chỉ 1 lần bấm.
   $('heaven-interact').addEventListener('click', callbacks.interact, { signal });
-  $('heaven-passport-toggle').addEventListener('click', () => {
-    const open = $('heaven-passport').hidden;
-    $('heaven-passport').hidden = !open;
-    $('heaven-passport-toggle').setAttribute('aria-expanded', String(open));
-  }, { signal });
-  document.addEventListener('pointerdown', event => {
-    if (event.target.closest('.seal-hud')) return;
-    $('heaven-passport').hidden = true;
-    $('heaven-passport-toggle').setAttribute('aria-expanded', 'false');
-  }, { signal });
   $('heaven-replay').addEventListener('click', callbacks.replay, { signal });
-  // Bỏ qua: bấm lần đầu chỉ hỏi lại (như nút đặt lại trong Cài đặt), 4 s không bấm thì về như cũ.
-  let skipArmed = 0;
-  const skipLabel = () => { $('heaven-skip').firstElementChild.textContent = t(skipArmed ? 'heaven.skip.confirm' : 'heaven.skip.label'); };
-  $('heaven-skip').addEventListener('click', () => {
-    if (!skipArmed) { skipArmed = setTimeout(() => { skipArmed = 0; skipLabel(); }, 4000); skipLabel(); return; }
-    clearTimeout(skipArmed); skipArmed = 0; skipLabel(); callbacks.skip();
-  }, { signal });
-  signal.addEventListener('abort', () => clearTimeout(skipArmed));
+  $('heaven-skip').addEventListener('click', callbacks.skip, { signal });
   $('heaven-quest').addEventListener('click', callbacks.questGo, { signal });
   $('heaven-quest').addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); callbacks.questGo(); } }, { signal });
   const resetJoystick = mountJoystick($('heaven-joystick'), $('heaven-joystick-knob'), callbacks.touch, signal);
@@ -67,7 +46,7 @@ export function createHeavenUI(profile, callbacks) {
     $('caption-box').dataset.mode = 'manual';
     $('caption-box').classList.toggle('quiz-dialogue', Boolean(options.choices));
     document.querySelector('.dialogue-auto').textContent = options.tag || t('heaven.dialogue.tag');
-    if (options.choices) document.querySelector('.dialogue-hint').textContent = t('heaven.dialogue.pickAnswer'); // còn lại: showDialogue đặt theo thiết bị
+    if (options.hint) document.querySelector('.dialogue-hint').textContent = options.hint; // còn lại: showDialogue đặt theo thiết bị
     $('dialogue-tip').hidden = !options.tip;
     $('dialogue-tip').textContent = options.tip || '';
     $('dialogue-tip').dataset.tone = options.tipGood ? 'good' : '';
@@ -85,7 +64,7 @@ export function createHeavenUI(profile, callbacks) {
     else clearChoices();
     $('caption-box').querySelector('.dialogue-body').scrollTop = 0;
     openedAt = performance.now();
-    // Đáp án không nhận tiêu điểm sẵn (Enter không chọn nhầm); chọn bằng chạm/bấm hoặc phím 1–3. Lựa chọn điều hướng có `default` thì vẫn focus.
+    // Lựa chọn có `default` (nút Nhận) nhận tiêu điểm; Enter vừa dùng để qua câu trước bị chặn 300 ms ở choices().
     const focus = options.choices ? $('dialogue-choices').querySelector('button[data-default]') || $('caption-box') : $('dialogue-next');
     if (focus.id === 'caption-box') focus.tabIndex = -1;
     focus.focus({ preventScroll: true });
@@ -101,42 +80,12 @@ export function createHeavenUI(profile, callbacks) {
     else $('game').focus({ preventScroll: true });
     restoreFocus = null;
   }
-  function hud(journey) {
-    const { phase, progress, seals } = journey;
-    let title, detail, target;
-    if (phase === 'welcome') {
-      title = t('heaven.hud.welcome.title'); detail = t('heaven.hud.welcome.detail'); target = 'reaper';
-    } else if (phase === 'learning') {
-      const expert = EXPERTS.find(item => !seals.some(seal => seal.id === item.id));
-      title = t('heaven.hud.learning.title'); detail = t('heaven.hud.learning.detail', { expert: expert.name, answered: progress.answered[expert.id], total: expert.questions.length }); target = expert.id;
-    } else if (phase === 'review') {
-      title = t('heaven.hud.review.title'); detail = t('heaven.hud.review.detail'); target = 'clerk';
-    } else if (phase === 'gift') {
-      title = t('heaven.hud.gift.title'); detail = t('heaven.hud.gift.detail'); target = 'clerk';
-    } else if (phase === 'return') {
-      title = t('heaven.hud.return.title'); detail = t('heaven.hud.return.detail'); target = 'portal';
-    } else { title = t('heaven.hud.completed.title'); detail = t('heaven.hud.completed.detail'); target = null; }
-    $('heaven-objective').textContent = title; $('heaven-objective-detail').textContent = detail;
-    $('heaven-seal-count').textContent = `${seals.length} / ${EXPERTS.length}`;
-    $('heaven-passport-toggle').setAttribute('aria-label', t('heaven.hud.passportLabel', { count: seals.length, total: EXPERTS.length }));
-    $('heaven-seals').replaceChildren();
-    for (const expert of EXPERTS) {
-      const seal = document.createElement('span');
-      seal.className = 'seal-icon'; seal.textContent = expert.icon;
-      seal.dataset.earned = String(seals.some(item => item.id === expert.id));
-      $('heaven-seals').append(seal);
-    }
-    const score = journey.score;
-    $('heaven-score').textContent = t('heaven.hud.score', score);
-    $('heaven-passport-list').replaceChildren();
-    for (const expert of EXPERTS) {
-      const row = document.createElement('li');
-      const passed = seals.some(seal => seal.id === expert.id);
-      row.dataset.earned = String(passed);
-      const icon = document.createElement('span'); icon.textContent = passed ? '✓' : expert.icon;
-      const text = document.createElement('span'); text.textContent = t('heaven.hud.passportRow', { seal: expert.seal, answered: progress.answered[expert.id], total: expert.questions.length, passed: progress.passed[expert.id] });
-      row.append(icon, text); $('heaven-passport-list').append(row);
-    }
+  // Thẻ nhiệm vụ gọn; trả id NPC đích cho mũi chỉ.
+  function hud(journey, walking) {
+    const phase = journey.phase;
+    const [key, target] = phase === 'welcome' ? ['welcome', null] : phase === 'gift' ? ['gift', 'clerk'] : phase === 'return' ? ['return', 'portal'] : ['completed', null];
+    $('heaven-objective').textContent = t(`heaven.hud.${key}.title`);
+    $('heaven-objective-detail').textContent = t(walking ? 'heaven.hud.walk.detail' : `heaven.hud.${key}.detail`);
     return target;
   }
   function prompt(npc, blocked) {
@@ -150,12 +99,12 @@ export function createHeavenUI(profile, callbacks) {
     }
   }
   return {
-    dialogue, closeDialogue, hud, prompt, hideHint,
+    dialogue, closeDialogue, hud, prompt,
+    controls(visible) { $('heaven-controls').hidden = !visible; },
     skipVisible(visible) { $('heaven-skip').hidden = !visible; },
     toast(text) { $('heaven-toast').textContent = text; $('heaven-toast').hidden = false; toastUntil = performance.now() + 4500; },
     update() {
       if (toastUntil && performance.now() > toastUntil) { $('heaven-toast').hidden = true; toastUntil = 0; }
-      if (hintUntil && performance.now() > hintUntil) hideHint();
     },
     clearTouch: resetJoystick,
     pulseChoices() {
@@ -170,7 +119,9 @@ export function createHeavenUI(profile, callbacks) {
       closeDialogue(); $('heaven-controls').hidden = true;
       $('heaven-return-fade').hidden = true;
       $('heaven-ending').hidden = false;
-      $('heaven-final-score').textContent = t('heaven.ending.score', score);
+      // 02-mini: không hỏi câu nào ở thiên đàng thì ẩn dòng điểm (save cũ đã trả lời vẫn thấy điểm).
+      $('heaven-final-score').textContent = score.answered ? t('heaven.ending.score', score) : '';
+      $('heaven-final-score').hidden = !score.answered;
       $('heaven-gift-summary').textContent = `${gift.icon} ${gift.name} — ${gift.description}`;
       $('heaven-replay').focus({ preventScroll: true });
     },
@@ -181,7 +132,7 @@ export function createHeavenUI(profile, callbacks) {
     },
     dispose() {
       choicePulse?.cancel();
-      resetJoystick(); abort.abort(); clearChoices(); $('caption-box').hidden = true; hideHint(); $('dialogue-tip').hidden = true;
+      resetJoystick(); abort.abort(); clearChoices(); $('caption-box').hidden = true; $('dialogue-tip').hidden = true;
       $('heaven-hud').hidden = true; $('heaven-controls').hidden = true; $('heaven-skip').hidden = true; $('heaven-ending').hidden = true; $('heaven-toast').hidden = true;
       $('dialogue-next').hidden = false; $('caption-box').classList.remove('quiz-dialogue'); delete $('caption-box').dataset.mode;
       $('heaven-return-fade').hidden = true;

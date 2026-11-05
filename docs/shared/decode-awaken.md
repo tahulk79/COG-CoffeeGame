@@ -48,7 +48,7 @@ Mỗi câu ở thiên đàng (đúng hay sai) để lại một câu hỏi mở.
 
 | Câu thiên đàng | Câu hỏi mở | Thử nghiệm (game tự nhận) | Giải mã | Fragment |
 |---|---|---|---|---|
-| `ripe` | "Quả hái chín và quả thợ hái khác nhau thế nào?" | Trong cùng 1 ngày công có ≥ 1 lô quả **bạn hái tay** và ≥ 1 lô **thợ/robot hái** cùng giống | So 2 lô (chất lượng); chọn quan sát đúng | Origin |
+| `ripe` | "Quả hái chín và quả thợ hái khác nhau thế nào?" | Trong cùng 1 ngày công có ≥ 1 lô quả **bạn hái tay** và ≥ 1 lô **thợ/robot hái** cùng giống. 05/11/2026 (F-44…F-48, L1): «bạn hái tay» = lô nhân vật chính hái khi **Auto tắt**; lô hái lúc Auto bật ghi `by:'auto'` (suy từ `via` của act), và `auto` không đứng ở bên nào của cặp (`rules.js`: cặp chỉ gồm `player` với `staff`). Mẹo ripe +5 chất lượng và `stats.harvested` giữ nguyên trong Auto | So 2 lô (chất lượng); chọn quan sát đúng | Origin |
 | `water` | "Đất ướt sũng có cần tưới thêm?" | Sau một trận mưa, có ô nước ≥ 90 mà bạn không tưới và cây vẫn lớn; hoặc ô nước ≤ 15 ngừng lớn | So tiến độ 2 ô | Origin |
 | `recipe` | "Cân đo giúp ly ổn định thế nào?" | 2 ly game **cùng món** tự pha, giá trị lệch vạch < 5% ở mọi bước, đã ghi Quick Taste | So 2 mục Memory | Extraction |
 | `adjust` | "Đổi một biến thì biết được gì?" | Là **First Sixth Key** (mục 5) | — | Extraction (3 cái, đủ Message) |
@@ -60,10 +60,10 @@ Mỗi câu ở thiên đàng (đúng hay sai) để lại một câu hỏi mở.
 | Fragment | Câu hỏi | Thử nghiệm |
 |---|---|---|
 | Origin | "Ruộng bón và ruộng tỉa, ruộng nào lời hơn?" (Yield vs Quality, tài liệu chuẩn tr. 4 §4.3) | Một ruộng chỉ bón, một ruộng chỉ tỉa, hái cùng lứa; bán/giao và so xu thu (F-41) |
-| Origin | "Cùng giống, vùng khác có khác không?" | Có lô cùng giống từ 2 nơi (nhập ngoài theo vùng, hoặc chơi lại ở nơi khác) — mở khi có F-43 |
+| Origin | "Cùng giống, vùng khác có khác không?" | Có lô cùng giống từ 2 vùng. **Chưa khả dụng (khóa, hiện lý do cho người chơi)**: nhật ký thu hoạch (`samples.harvests`) không lưu vùng; mỗi save chỉ có một `farm.region` chọn lúc trùng sinh; không có nhập hạt theo vùng. `awakening` (gồm `samples`) được chép qua trùng sinh nên về lý thuyết có lô của hai đời ở hai vùng, nhưng lô không mang nhãn vùng. Cần: ghi `region` vào mỗi lô thu hoạch trong `samples.harvests` (thêm trường vào `HARVEST_SCHEMA`, có migrate) rồi so 2 lô cùng giống khác vùng; đổi dữ liệu này phải cập nhật contracts.md và có kế hoạch migrate. Không trao Fragment khi chưa có dữ liệu thật (§9.1) |
 | Transformation | "Nhân tốt có cho hạt rang tốt hơn?" | Rang 2 mẻ từ nhân chất lượng chênh ≥ 10; so lô hạt rang |
 | Transformation | "Phơi lâu chờ nhận có hỏng không?" | Một mẻ nhận ngay, một mẻ để ≥ 1 ngày công; so chất lượng (luật hiện tại: không hỏng → người chơi học là không hỏng) |
-| Transformation | "Hạt rang để lâu ảnh hưởng gì tới ly?" | Ly pha từ lô mới và lô cũ ≥ 3 ngày công (cần luật hạn hạt — nếu chưa có thì thay bằng so lô hai giống) |
+| Transformation | "Hạt rang để lâu ảnh hưởng gì tới ly?" | Ly pha từ lô mới và lô cũ ≥ 3 ngày công (cần luật hạn hạt — nếu chưa có thì thay bằng so lô hai giống). **Hiện:** `roast-age` khóa (không có luật hạn hạt rang, không thêm); câu `variety` (2 mẻ rang khác giống, so chất lượng) là bản thay thế đang chạy |
 | Connection | "Khách chờ lâu thì sao?" | Ca có thời gian chờ trung bình chênh ≥ 15 s giữa 2 ca; so tip/khách bỏ |
 | Connection | "Nhân viên mệt làm gì khác?" **(đã code T-08b)** | Ca "mệt" = ≥ 3 ly nhân viên người pha và ≥ 2 ly pha lúc năng lượng < ngưỡng mệt (F-29); ca "khỏe" = ≥ 3 ly và 0 ly pha lúc mệt; so sao TB các ly nhân viên (tốc độ giây/ly hiện cùng số liệu). Robot không tính |
 | Exchange | "Bán hết ở chợ một lần có thiệt?" | Một ngày công bán chạm sàn 30%; so giá/gram đầu và cuối ngày |
@@ -104,7 +104,7 @@ Mở First Sixth Key: khi xong câu hỏi mở `recipe` hoặc khi người chơ
 
 Không Key nào cộng sản lượng, giá bán, tốc độ hay uy tín.
 
-**Đã code (T-08c, 04/11/2026)** — mọi mục cổng bằng `hasKey(progress, id)` (`awakening.keys`), chỉ thông tin/công cụ: Curiosity = chế độ Scientist (đủ 8 nhóm) + nút «Thí nghiệm» ở ly ngoài đời (điền sẵn từ ly gần nhất, báo khi đổi > 1 biến; «khóa biến» chưa làm, chỉ tô và cảnh báo); Nature = con số vùng trên thẻ giống ở cửa hàng giống (chưa làm ở thẻ bản đồ thế giới vì bản đồ không đọc tiến trình); Transformation = 10 mẻ gần nhất trong bảng sân phơi/lò rang (bản này chế biến giữ nguyên chất lượng nên vào = ra); Empathy = gu theo màu khách trên phiếu gọi món (chưa có «khách quen»); Balance = lãi ca + doanh thu/số ly theo món trong báo cáo ca (chi phí chỉ theo ca); Connection = Coffee DNA trong Lịch sử sổ tay. Đoạn lore 1–6 chưa gắn riêng theo Key. Tab Fragment/Key ghi rõ mỗi Key mở gì.
+**Đã code (T-08c, 04/11/2026)** — mọi mục cổng bằng `hasKey(progress, id)` (`awakening.keys`), chỉ thông tin/công cụ: Curiosity = chế độ Scientist (đủ 8 nhóm) + nút «Thí nghiệm» ở ly ngoài đời (điền sẵn từ ly gần nhất, chọn MỘT biến để đổi và khóa các ô công thức còn lại, hoặc «Mở khóa hết» để chỉ tô/cảnh báo khi đổi > 1 biến; thêm «Bộ dụng cụ của tôi» lưu/điền dụng cụ + nước/sữa/thương hiệu); Nature = con số vùng trên thẻ giống ở cửa hàng giống **và** trên thẻ kết quả của bản đồ thế giới (mục «Hệ số vùng theo giống», chữ + icon ✓/–/✗; `createWorldMap({ hasNature })` do `app/game.js` truyền từ `hasKey(readProgress(), 'nature')`; chỉ hiện ở nơi có farm và sau khi chốt, vì trước khi chốt thẻ chỉ có địa lý). Bản đồ chỉ mở từ cổng thiên đàng; Key nằm trong `awakening` được giữ qua trùng sinh nên lớp này chỉ thấy từ lần trùng sinh sau khi đã có Key Nature, chưa có đường mở lại bản đồ giữa đời; Transformation = 10 mẻ gần nhất trong bảng sân phơi/lò rang (bản này chế biến giữ nguyên chất lượng nên vào = ra); Empathy = gu theo màu khách trên phiếu gọi món (chưa có «khách quen»); Balance = lãi ca + doanh thu/số ly theo món trong báo cáo ca (chi phí chỉ theo ca); Connection = Coffee DNA trong Lịch sử sổ tay. Đoạn lore 1–6 gắn theo Key (`awakening.lore.key.<keyId>`: curiosity=1, nature=2, transformation=3, empathy=4, balance=5, connection=6): chỉ hiện trong tab Fragment/Key sau khi Key đó đã mở, kèm nhãn «Divine Message (hư cấu)» và dòng «Lore hư cấu»; chữ giữ chỗ 2 câu, EN/VI. Đoạn Divine Message theo loại Fragment (`awakening.lore.<type>`) vẫn hiện từ lúc ghép đủ 3 Fragment. Tab Fragment/Key ghi rõ mỗi Key mở gì.
 
 ## 7. Dữ liệu
 
@@ -124,6 +124,8 @@ awakening: {
 
 `evidence` chỉ giữ tham chiếu (id lô, id ca, id mục Memory), không chép dữ liệu riêng tư. Save cũ không có `awakening` → tạo mặc định với 6 câu hỏi thiên đàng ở trạng thái `open` (nếu `heaven.skipped` thì vẫn tạo, câu hỏi hiện "Chưa gặp chuyên gia" kèm nội dung câu).
 
+**Hội đồng so le (05/11/2026, F-45):** 6 câu hỏi mở vẫn ở trạng thái `open` từ đầu, **không phụ thuộc** việc đã gặp chuyên gia ở Hội đồng (`farm.lessons.met`). Trả lời đúng ở Hội đồng chỉ cho mẹo, **không trao Fragment** và không đổi trạng thái câu hỏi mở. First Sixth Key vẫn mở theo "V60 ★★ lần đầu" hoặc khi giải câu mở `recipe`, không cần gặp Hội đồng (đề xuất Q1 R14).
+
 Cần ghi lịch sử ca (doanh thu, chi phí, lương, khách bỏ, chờ TB) ít nhất **10 ca gần nhất** để kiểm chứng `costs`, `customer` — trường `cafe.shiftLog` mới ([contracts.md](contracts.md) mục 8).
 
 ## 8. Giao diện (**đã code T-08b**)
@@ -134,6 +136,7 @@ Cách vào: **farm** — nút 📖 Hướng dẫn ▸ tab *Câu hỏi mở* / *F
 - Câu hỏi chuyển "Sẵn sàng giải mã" → toast một lần + chấm trên nút Hướng dẫn. Không ép mở ngay.
 - Hộp giải mã là modal giữa màn hình, hiện đúng số liệu của người chơi (2 lô, 2 ly, 2 ca) bằng chữ + icon, không chỉ bằng màu.
 - Nhận Fragment: hiệu ứng hạt sáng bay vào biểu tượng Sổ tay (theo `ui-audio-vfx.md`).
+- **Lối tắt Hội đồng (05/11/2026, F-45):** khi có chuyên gia đang chờ, đầu tab *Câu hỏi mở* / *Fragment / Key* (farm) và *Câu hỏi / Key* (quán) có dòng «<tên> đang chờ ở Hội đồng (n câu)» + nút **Gặp Hội đồng**: đóng hộp Sổ tay; ở farm lia camera tới Cổng Hội đồng rồi mở hội thoại, ở quán mở ngay nếu cửa đóng (đang mở ca thì báo chờ đóng cửa). Sổ tay thiên đàng (Hướng dẫn): câu chưa gặp hiện "Chưa gặp chuyên gia" kèm nút Gặp Hội đồng (tắt khi chuyên gia chưa có mặt), không có "Ôn lại". Luật: [onboarding-flow](onboarding-flow.md) mục 3.1.
 
 ## 9. Tiêu chí nghiệm thu
 

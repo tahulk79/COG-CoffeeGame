@@ -42,15 +42,16 @@ Sự kiện riêng của game (để đo kinh tế và luồng):
 
 | Sự kiện | Khi nào | `props` |
 |---|---|---|
-| `heaven_completed` | Qua cổng thiên đàng | `skipped`, `correct` (0–6), `gift` |
-| `region_selected` | Chốt nơi trùng sinh | `region`, `type` |
+| `heaven_completed` | Qua cổng thiên đàng | `skipped`, `correct` (0–6), `gift` (save mới luôn `seeds`), `mode` (`mini`/`full`), `region_type` (`both`/`farm`/`cafe`) — `mode`, `region_type` thêm 05/11/2026 (F-44) |
+| `region_selected` | Chốt nơi trùng sinh | `region`, `type`, `preselected` (boolean: true khi bản đồ đã thật sự chọn sẵn lần đầu (không bị hủy vì người chơi tự chạm/kéo trước), chốt đúng nơi đó và chưa chạm cờ nơi khác; scene gọi `onPick(id, { preselected })`) — `preselected` thêm 05/11/2026 (F-44) |
 | `field_bought` | Mua ruộng | `index`, `level` |
-| `shift_ended` | Hết ca quán | `cups`, `tier` (fail/bronze/silver/gold), `left`, `revenue`, `costs` |
+| `shift_ended` | Hết ca quán | `cups`, `tier` (fail/bronze/silver/gold), `left`, `revenue`, `costs`, `learning` (boolean: ca tập; thêm 05/11/2026, F-45). Từ 05/11/2026 (F-47) ca tập đầu tiên (chưa có `cafe-intro`, kết thúc ở ly đầu) **không** phát sự kiện này; ly đầu đo bằng `tutorial_completed {step:'first_cup'}` |
+| `council_answered` | Trả lời một câu ở Hội đồng (lượt đầu, 05/11/2026, F-45) | `expert` (`growing`/`brewing`/`business`), `questionId`, `correct` — đo tỉ lệ gặp từng chuyên gia |
 | `workday_ended` | Hết ngày công farm (khi đang chơi) | `level`, `coins_bucket` (làm tròn 100), `market_floor_hit` |
 | `victory_reached` | Đạt mục tiêu thắng | `type` |
 | `auto_started` | Bật Auto | `runs_left` |
 
-Đã nối (T-07c): `tutorial_completed` (bán ly đầu), `challenge_completed`, `field_bought`, `shift_ended`, `workday_ended`, `victory_reached`, `auto_started` qua `farm.onEvent` + `wireFarm`; `taste_submitted` (`kind`,`level`) và `memory_saved` (`kind`,`has_insight` = đủ 3 ô Insight). Đã nối `discovery_saved` (T-08a). Chưa nối: `memory_compared` props, `return_visit`... Ca học việc trượt mục tiêu không gọi `act('shift')` nên không phát `shift_ended`.
+Đã nối (T-07c): `tutorial_completed` (bán ly đầu), `challenge_completed`, `field_bought`, `shift_ended`, `workday_ended`, `victory_reached`, `auto_started`, `council_answered` (F-45) qua `farm.onEvent` + `wireFarm`; `taste_submitted` (`kind`,`level`) và `memory_saved` (`kind`,`has_insight` = đủ 3 ô Insight). Đã nối `discovery_saved` (T-08a). Chưa nối: `memory_compared` props, `return_visit`... Ca học việc trượt mục tiêu không gọi `act('shift')` nên không phát `shift_ended`.
 
 ## 4. Gửi và hàng chờ
 

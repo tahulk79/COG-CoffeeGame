@@ -20,13 +20,13 @@ Tất cả hàm nằm ở `src/state/progress.js`. Mọi hàm ghi đều đọc 
 | `version` | `1` | mọi hàm ghi | `readProgress` |
 | `introCompleted`, `chapter`, `accident` | bool, số, chuỗi | `completeIntro`, `saveHeaven`, `saveFarm` | app/game.js (chọn màn khởi động) |
 | `startingRegion` | id địa điểm (`world-map/content.js`) | `saveRegion` (app/game.js khi bấm "Trùng sinh ở đây" trên bản đồ; có rồi thì bản đồ mở thẳng thẻ kết quả) | app/game.js → `createFarmGame(..., startingRegion)` → `createFarm`; chỉ dùng khi tạo save farm mới |
-| `heaven`, `startingGift` | object, `'seeds'\|'tools'\|'capital'` | `saveHeaven` | heaven, app/game.js → `createFarm(saved, startingGift)`; **(spec 03/11)** app/game.js còn đọc `heaven.answers` qua `correctQuestionIds` để truyền `heavenLessons` (mục 5) |
+| `heaven`, `startingGift` | object, `'seeds'\|'tools'\|'capital'` | `saveHeaven` | heaven, app/game.js → `createFarm(saved, startingGift)`; **(spec 03/11)** app/game.js còn đọc `heaven.answers` qua `correctQuestionIds` để truyền `heavenLessons` (mục 5). **05/11/2026 (F-44, thiên đàng mini):** kiểu giữ nguyên, save mới luôn `'seeds'` (`STARTING_GIFT`); thêm `heaven.mode: 'mini'\|'full'` ghi khi xong chương (save đã `completed` mà thiếu trường → `'full'`); `heaven.revealed` không còn cần đủ ba dấu; `heaven.answers` giữ nguyên (cả khi Chơi lại chương) cho Hội đồng F-45. Không migrate, không đổi `version`. Analytics `heaven_completed` thêm `mode`, `region_type` ([analytics](analytics.md)) |
 | `farm` | object farm `version: 3` (mục 2) | `saveFarm` qua `onSave` của `createFarm` | `createFarm` |
 | **`settings`** | object (mục 4) | **`saveSettings`** | **`readSettings`** |
 
 ## 2. Farm và quán dùng chung một model
 
-Chỉ `src/features/farm/model.js` được sửa số liệu. Mọi màn khác gọi `farm.act(id, action, choice, at?, owner?)` → `{ ok, message, collected, quests, ...extra }`. Không màn nào tự trừ hay cộng tiền, kho.
+Chỉ `src/features/farm/model.js` được sửa số liệu. Mọi màn khác gọi `farm.act(id, action, choice, at?, owner?, via?)` → `{ ok, message, collected, quests, ...extra }`. Không màn nào tự trừ hay cộng tiền, kho. `via`: `'hand'` (mặc định) | `'auto'` = nguồn hành động của nhân vật chính, chốt lúc bắt đầu hành động, không lưu save, hiện chỉ dùng để suy `samples.harvests.by` (05/11/2026, F-44…F-48 L1).
 
 - `farm.progress`: getter trả **bản sao sâu**, tốn công. Quán giữ `snap` và chỉ làm mới qua `service.refresh()`.
 - `farm.peek()`: trả **state sống** cho chỗ đọc mỗi khung hình (vòng thợ `crew.update`, kiểm tra ruộng sở hữu). Chỉ đọc; muốn đổi phải qua `act`/`workerUpdate`.
@@ -47,7 +47,7 @@ Chỉ `src/features/farm/model.js` được sửa số liệu. Mọi màn khác 
 | `cafe.supplies{}` | Vật tư theo đơn vị thật (ly, ml, g) | `cafe/buy`, `cafe/brew` | bench, service (quản lý tự nhập) |
 | `cafe.gear{}`, `cafe.tables[10]`, `upgrades.cafe` | Thiết bị, cấp bàn, số bàn mở (`assetValue('cafe')`) | `cafe/gear`, `cafe/table`, `upgrade` | service, cafe/game.js (bố cục) |
 | `cafe.crew[]` | `{ id, level, paidUntil }` tối đa 10. `paidUntil` cộng `CAFE_SHIFT_MS` (4 phút) mỗi lần trả; trong `advance`, khi quán không chạy/không mở hoặc vắng mặt > 60 s thì `paidUntil` được cộng bù đúng khoảng đó (giờ đã trả chỉ trôi khi quán mở) | `cafe/hire`, `train`, `fire`, `advance` (lương) | service (agent) |
-| `cafe.mastery{recipeId}` | `{ best: 0–100, made }`. Chỉ ly người chơi pha (`staff` không có) mới cập nhật; ly Auto pha (`demo: true`) chỉ tăng `made`, không tăng `best` (04/11/2026) | `cafe/brew` | bench (★, pha theo trí nhớ khi best ≥ 90), service (barista cần best ≥ ngưỡng) |
+| `cafe.mastery{recipeId}` | `{ best: 0–100, made }`. Chỉ ly người chơi pha (`staff` không có) mới cập nhật; ly Auto pha (`demo: true`) và ly ⚡ Pha nhanh (`quick: true`) chỉ tăng `made`, không tăng `best` (04/11/2026; Pha nhanh sửa 05/11/2026, F-44…F-48 L1: trước đó Pha nhanh món mới làm `best` = 40) | `cafe/brew` | bench (★, pha theo trí nhớ khi best ≥ 90), service (barista cần best ≥ ngưỡng) |
 | `cafe.reputation` (10–100) | Uy tín quán. **Khác** `reputation` của farm (0–100, theo đơn giao) | `cafe/sell`, `lost`, `shift` | service (tốc độ khách, món mở) |
 | `cafe.open`, `reserve`, `served`, `lost`, `revenue`, `costs` | Trạng thái và thống kê quán | `cafe/*` | quán HUD |
 | `market` | `{ day, sold, orders }`: ngày công hiện tại, xu giá gốc đã bán ở chợ và số đơn Chợ đã giao trong ngày công đó (`orders` tối đa `ORDERS_PER_DAY = 2`, mới 04/11/2026; save cũ thiếu → 0). Save cũ không có → tạo `{ day: -1, sold: 0, orders: 0 }` | `refreshDaily`, `market/sell` | `saleQuote` |
@@ -64,11 +64,11 @@ Chỉ tồn tại trong phiên của màn quán, không lưu (model xoá khi t�
 | `toggle`, `reserve` | – | – |
 | `ship` | `cropId` | – |
 | `supply` | – | – |
-| `brew` | `{ recipeId, cropId, score, staff?, demo? }` (`demo`: ly Auto pha) | `{ quality }` |
+| `brew` | `{ recipeId, cropId, score, staff?, demo?, quick? }` (`demo`: ly Auto pha; `quick`: ly ⚡ Pha nhanh, không nâng `best`) | `{ quality }` |
 | `sell` | `{ recipeId, quality, stars, wait, combo, memory, table, charm, special, staff? }` | `{ price, tip }` |
 | `lost` | `'angry' \| 'busy' \| 'rude' \| 'robot'` (mục 6) | – |
 | `buy`, `gear`, `hire`, `train`, `fire` | id | – |
-| `shift` | `{ served, goal, avg }` | `{ bonus, met }` |
+| `shift` | `{ served, goal, avg, learning? }` (`learning: true` = ca tập; thêm 05/11/2026, F-45: ca tập không là mốc có mặt của Thần Thương Hội; thiếu = ca thường) | `{ bonus, met }` |
 | `table` | chỉ số bàn | – |
 | `order` | `cropId` (đơn 252 g sang farm) | – |
 | `upgrade` (id `'cafe'`) | – | nhánh nâng cấp chung |
@@ -121,10 +121,12 @@ lessons: {
   learned: ['ripe', 'recipe', ...],   // questionId đã thuộc (đúng ở thiên đàng hoặc khi hỏi lại)
   granted: ['ripe', 'costs', ...],    // questionId đã cấp thưởng một lần (xu, uy tín, ★ khởi đầu)
   asked: { water: 12, ... },          // questionId → ngày công (floor((t − epoch) / WORK_DAY_MS)) của lần trả lời sai gần nhất
-  askedDay: 12, askedCount: 1         // ngày công + số câu hỏi lại đã hiện trong ngày công đó (giới hạn 1)
+  askedDay: 12, askedCount: 1,        // ngày công + số câu hỏi lại đã hiện trong ngày công đó (giới hạn 1)
+  met: ['ripe', 'water'],             // (05/11/2026, F-45) questionId đã gặp chuyên gia (Hội đồng hoặc thiên đàng cũ); chỉ câu này được hỏi lại
+  arrived: ['growing']                // (05/11/2026, F-45) id chuyên gia đã có mặt ở Hội đồng, theo thứ tự growing → brewing → business; không mất
 },
 tutorial: {
-  seen: ['controls', 'quest-guide', 'cafe-intro', 'bench-intro', 'tools', 'unlock-cafe-play', ...]
+  seen: ['controls', 'quest-guide', 'cafe-intro', 'bench-intro', 'tools', 'v60-guided', 'unlock-cafe-play', ...] // 'v60-guided' (05/11/2026, F-47): ly V60 tự pha tay đầu đã làm mẫu
 }
 ```
 
@@ -132,7 +134,9 @@ tutorial: {
 |---|---|---|
 | `lessons.learned`, `granted` | `createFarm` (hợp từ `heavenLessons`, cấp thưởng), `act('lessons','answer')` | `model.js` (chất lượng hái tay, `waterCapacity`), farm UI (Sổ tay), `cafe/bench.js` (`adjust`: "Sửa bước này trước"), `cafe/service.js`/`cafe/game.js` (có cần hỏi lại không) |
 | `lessons.asked`, `askedDay`, `askedCount` | `act('lessons','answer')` khi trả lời **sai** (asked) và mỗi lần trả lời (đếm) | farm game, cafe game (điều kiện hỏi lại), Sổ tay ("Ôn lại sau x phút") |
-| `tutorial.seen` | `act('tutorial','seen',id)` | farm UI/game (gợi ý điều khiển, dẫn đường, chấm "Mới", toast mở khóa), cafe UI (4 bước), bench (`bench-intro`) |
+| `lessons.met` (F-45) | `createFarm` (suy ra), `act('lessons','council')` | `model.js` (`askable`, `council`), farm UI (Sổ tay: "Chưa gặp chuyên gia") |
+| `lessons.arrived` (F-45) | `model.js` lúc `commit` (mốc từ `stats`, `tutorial.seen`), `act('cafe','shift')` ca thường, đổi ngày công (nơi chỉ trồng) | farm game (Cổng Hội đồng ẩn/hiện, bóng chuyên gia), cafe game (vật Hội đồng), Sổ tay (nút Gặp Hội đồng) |
+| `tutorial.seen` | `act('tutorial','seen',id)`; `cafe/service.js` ghi `cafe-intro` khi ca tập bán ly đầu, hoặc khi người chơi bấm van an toàn 🚪 lúc quán đóng không có chè rang ≥ liều V60 (bỏ ca tập, mở ca thường — 05/11/2026, F-47); `cafe/bench.js` ghi `v60-guided` khi xong ly V60 pha tay đầu (F-47) | farm UI/game (gợi ý điều khiển, dẫn đường, chấm "Mới", toast mở khóa, ẩn mục open-cafe khi chưa có `cafe-intro`), cafe UI/service/game (3 bước, ca tập, khoá Mở/Đóng, Auto ca tập), bench (`bench-intro`, `v60-guided`) |
 
 Chỉ `model.js` sửa hai trường này. Mọi màn khác đọc qua `farm.peek()` và ghi qua `act`.
 
@@ -141,14 +145,16 @@ Chỉ `model.js` sửa hai trường này. Mọi màn khác đọc qua `farm.pee
 | act | choice | Trả về | Luật |
 |---|---|---|---|
 | `('lessons','answer')` | `{ questionId, optionId }` | `{ ok, correct, explanation, perk?: { id, name, effect } }` (+ `message`) | Chấm bằng `EXPERTS` trong `features/heaven/content.js` (nguồn duy nhất). Từ chối (`ok:false`, không ghi gì) nếu `questionId` lạ, đã thuộc, `asked[questionId] === ngày công hiện tại`, đã có 1 câu hỏi lại được trả lời trong ngày công này, hoặc `optionId` lạ. Đúng → thêm `learned`, cấp thưởng nếu chưa `granted`. Sai → ghi `asked`. Cả hai tăng `askedCount`. `explanation` cùng chữ với hộp kết quả thiên đàng (`answerText` của `heaven/journey.js`) |
-| `('tutorial','seen')` | id trong `TUTORIAL_IDS` (`farm/content.js`: `controls`, `quest-guide`, `cafe-intro`, `bench-intro`, `tools`) hoặc chuỗi `unlock-` + `[a-z-]+` | `{ ok }` | Thêm nếu chưa có; id lạ bị từ chối. Không đổi tiền/kho, không ghi Hoạt động |
+| `('lessons','council')` (05/11/2026, F-45) | `{ questionId, optionId }` | như `answer` | Lượt đầu ở Hội đồng. Từ chối nếu `questionId` lạ, đã thuộc, đã có trong `met`, chuyên gia của câu chưa có trong `arrived`, hoặc `optionId` lạ. **Không đọc/ghi `askedDay`/`askedCount`.** Ghi `met`; đúng → `learned` + `grantLessons` (journal "Mẹo từ Hội đồng Trùng sinh"); sai → `asked[id]` = ngày công (từ đó theo luật hỏi lại). Phát `council_answered {expert, questionId, correct}` |
+| `('tutorial','seen')` | id trong `TUTORIAL_IDS` (`farm/content.js`: `controls`, `quest-guide`, `cafe-intro`, `bench-intro`, `tools`, `farm-intro`, `farm-intro-new`, `v60-guided`) hoặc chuỗi `unlock-` + `[a-z-]+` | `{ ok }` | Thêm nếu chưa có; id lạ bị từ chối. Không đổi tiền/kho, không ghi Hoạt động |
 
 ### Hàm đọc cho UI
 
 | Hàm | Trả về |
 |---|---|
-| `farm.pendingLesson(ids = cả 6 câu)` | `{ expert, question }` (đối tượng gốc trong `EXPERTS`, chỉ đọc) của câu đầu tiên trong `ids` đang hỏi lại được, hoặc `null`. Hỏi được = chưa thuộc ∧ chưa sai trong ngày công hiện tại ∧ chưa có câu hỏi lại nào được trả lời trong ngày công này (4.1). Mỗi nơi kích hoạt truyền câu của mình, ví dụ hái tay `['ripe']`, giếng/mưa `['water']`, báo cáo cuối ca `['recipe','costs']`, ly < 70 `['adjust']`, khách bỏ về `['customer']`; Sổ tay truyền đúng câu được bấm. Hiện câu không ghi gì; chỉ `act('lessons','answer')` mới tính |
-| `farm.onEvent(fn)` | `fn(type, props)`; trả hàm hủy đăng ký. Không lưu vào save. Lỗi trong listener bị nuốt (`console.error`). Loại: `field_bought {index,level}`, `workday_ended {level,coins_bucket,market_floor_hit}` (chỉ tick trực tiếp, không phát khi bù offline > 60 s), `victory_reached {type}`, `challenge_completed {quest}`, `auto_started {runs_left}`, `shift_ended {cups,tier,left,revenue,costs}` (từ `act('cafe','shift')`, scene gửi thêm `lost`,`revenue`,`costs`), `tutorial_completed {step:'first_cup',ms_since_start}` (khi `stats.served` 0→1), `discovery_saved {type,what}` (what = fragment/message/key; type = loại Fragment hoặc id Key), `question_ready {id}` (chỉ cho UI, không gửi analytics). Nối analytics ở `shared/analytics/wire.js` `wireFarm` |
+| `farm.pendingLesson(ids = cả 6 câu)` | `{ expert, question }` (đối tượng gốc trong `EXPERTS`, chỉ đọc) của câu đầu tiên trong `ids` đang hỏi lại được, hoặc `null`. Hỏi được = **đã gặp (`met`, F-45)** ∧ chưa thuộc ∧ chưa sai trong ngày công hiện tại ∧ chưa có câu hỏi lại nào được trả lời trong ngày công này (4.1). Mỗi nơi kích hoạt truyền câu của mình, ví dụ hái tay `['ripe']`, giếng/mưa `['water']`, báo cáo cuối ca `['recipe','costs']`, ly < 70 `['adjust']`, khách bỏ về `['customer']`; Sổ tay truyền đúng câu được bấm. Hiện câu không ghi gì; chỉ `act('lessons','answer')` mới tính |
+| `farm.onEvent(fn)` | `fn(type, props)`; trả hàm hủy đăng ký. Không lưu vào save. Lỗi trong listener bị nuốt (`console.error`). Loại: `field_bought {index,level}`, `workday_ended {level,coins_bucket,market_floor_hit}` (chỉ tick trực tiếp, không phát khi bù offline > 60 s), `victory_reached {type}`, `challenge_completed {quest}`, `auto_started {runs_left}`, `shift_ended {cups,tier,left,revenue,costs}` (từ `act('cafe','shift')`, scene gửi thêm `lost`,`revenue`,`costs`), `tutorial_completed {step:'first_cup',ms_since_start}` (khi `stats.served` 0→1), `discovery_saved {type,what}` (what = fragment/message/key; type = loại Fragment hoặc id Key), `question_ready {id}` (chỉ cho UI, không gửi analytics), `council_arrived {expert}` (05/11/2026, F-45, chỉ cho UI: toast chuyên gia tới), `council_answered {expert,questionId,correct}` (F-45, gửi analytics). `shift_ended` thêm `learning` (boolean, F-45). Nối analytics ở `shared/analytics/wire.js` `wireFarm` |
+| `farm.council` (05/11/2026, F-45) | `{ expert, questions }` của chuyên gia đầu hàng (Nông → Pha Chế → Thương Hội) đã có mặt và còn câu chưa gặp (`questions` chỉ gồm câu chưa gặp), hoặc `null` |
 | `LESSON_PERKS` (export của `farm/model.js`) | `{ [questionId]: { name, effect } }` cho toast "🎓 Mẹo mới", Sổ tay |
 | `farm.waterCapacity` | Đã cộng +2 khi thuộc `water` |
 | Ngày công | `floor((t − peek().epoch) / WORK_DAY_MS)` (`farm/rules.js`), dùng cho "Ôn lại sau x phút" |
@@ -158,16 +164,18 @@ Chỉ `model.js` sửa hai trường này. Mọi màn khác đọc qua `farm.pee
 
 | Hàm | Trước | Sau |
 |---|---|---|
-| `createFarm` (`farm/model.js`) | `(saved, startingGift, onSave, now)` | `(saved, startingGift, onSave, now = Date.now(), heavenLessons = [])` |
+| `createFarm` (`farm/model.js`) | `(saved, startingGift, onSave, now)` | `(saved, startingGift, onSave, now = Date.now(), heavenLessons = [], startingRegion, heavenMet = [])` (`heavenMet` thêm 05/11/2026, F-45) |
 | `createFarmGame` (`farm/game.js`) | `(player, gift, persistence)` | `(player, gift, persistence = {read, save}, heavenLessons = [])`: tham số thứ 3 `persistence` đã có sẵn (dùng bởi `tools/farm-preview`), nên `heavenLessons` là tham số thứ 4; app gọi `createFarmGame(player, gift, undefined, heavenLessons)` |
 | mới: `correctQuestionIds(heaven)` (`heaven/journey.js`) | — | Trả mảng `questionId` có `correct: true` sau khi chuẩn hóa như `createJourney` (dùng chung hàm `normalizeAnswers`: v1 → v2; tính lại từ đáp án gốc). `heaven` thiếu/hỏng → `[]` |
+| mới: `answeredQuestionIds(heaven)` (`heaven/journey.js`, 05/11/2026, F-45) | — | Mảng `questionId` đã trả lời (đúng hay sai), cùng chuẩn hóa như `correctQuestionIds`. App truyền vào `createFarm(..., startingRegion, heavenMet)` (tham số thứ 7) và `createFarmGame(..., startingRegion, heavenMet)` |
 | mới: `answerText(question, correct)` (`heaven/journey.js`) | — | Chữ giải thích dùng chung cho hộp kết quả thiên đàng và hỏi lại ở farm/quán |
 | `enterFarm` (`app/game.js`) | `enterFarm(gift)` | `enterFarm(gift, heavenLessons = [])`; đường tải save truyền `correctQuestionIds(saved.heaven)`, đường qua cổng truyền `correctQuestionIds(readProgress().heaven)` (đọc lại sau khi heaven đã lưu) |
 
 ### Dữ liệu dẫn xuất, không lưu
 
 - **Mở khóa HUD**: `HUD_UNLOCKS` trong `farm/content.js`; điều kiện tính từ `claimed`, `stats`, `level`, `fields`, `workers`, `orders`, `upgrades`, `decorations`, `cafe.revenue` (bảng 3.3 của spec).
-- **Bước hướng dẫn quán**: từ `cafe.open`, có order đang chờ, `stats.served`.
+- **Công trình farm (05/11/2026, F-48 pha 1)**: `BUILDINGS` trong `farm/content.js` nối id công trình ↔ mốc `HUD_UNLOCKS` (`cafe-entrance`↔`cafe-play`, `order-board`↔`order-board`, `seed-shop`↔`seed-shop`, `crew-house`↔`workers`). Hiện khi `when` đúng hoặc `tutorial.seen` có `unlock-<mốc>` (cờ sẵn có, **không thêm id/trường**); `both: true` chỉ dựng ở nơi 'both'. Huy hiệu (✓/số đơn/!/⬆/✨ Mới) dẫn xuất từ `orders`, `stock`, `plots`, `seeds`, `upgrades`, `coins`, `workers`, `cafe.open`, không lưu.
+- **Bước hướng dẫn quán** (3 bước, 05/11/2026 F-47): từ có order đang chờ, ly trên tay/kệ, `stats.served`; không còn đọc `cafe.open`. Ca tập (chưa có `cafe-intro`) là trạng thái runtime của `service` (`shift.training`, `endsAt = ∞`, cờ phiên `autoOpened`), không lưu; tải lại khi `cafe.open = true` mở lại ca tập.
 - **Mục tiêu mũi chỉ nhiệm vụ**: cùng hàm tính đích với `guideQuest`.
 
 ### Chuyển save cũ (trong `createFarm`, chạy mỗi lần tải, không ghi đè dữ liệu đã có)
@@ -176,6 +184,9 @@ Chỉ `model.js` sửa hai trường này. Mọi màn khác đọc qua `farm.pee
 2. `learned = learned ∪ heavenLessons`.
 3. Với mỗi `id ∈ learned \ granted` có thưởng một lần: `costs` → `money(30,'quest')`; `customer` → `cafe.reputation = min(100, +3)`; `recipe` → `best = max(best, 40)` cho `phin-den`, `nau-da` (tạo mục `{ best: 40, made: 0 }` nếu chưa có). Thêm id vào `granted`, ghi **một** dòng journal "Mẹo từ thiên đàng: <tên các mẹo mới>." cho cả lượt. `ripe`, `water`, `adjust` là tác dụng liên tục, chỉ ghi `granted`. Cùng hàm `grantLessons` chạy khi trả lời đúng ở `act('lessons','answer')`.
 4. `tutorial` thiếu (farm save đã có nhưng chưa có `tutorial.seen`) → `{ seen: [] }`, rồi thêm sẵn: `controls` và `quest-guide` nếu `claimed` có `roast`; `cafe-intro` nếu `stats.served > 0`; `bench-intro` nếu `cafe.mastery` có mục nào (xét **trước** khi cấp mẹo `recipe`); `tools` nếu `claimed` có `expand` hoặc ≥ 2 ruộng hoặc cấp ≥ 3. Chỉ chạy một lần cho save cũ; save mới bắt đầu `seen: []`. `seen` có sẵn được lọc theo luật id, bỏ trùng, tối đa 100. UI đánh dấu `unlock-<id>` cho mọi mục đã mở ngay lúc tải mà không toast.
+4b. `farm-intro` (05/11/2026, F-46: tutorial ép gieo → hái → phơi → rang, [onboarding-flow](onboarding-flow.md) mục 3.8) là **một giá trị mới** trong `tutorial.seen`, không phải trường mới, không đổi `version`. Save mới (`saved = null`) ghi thêm dấu `farm-intro-new` (cũng là giá trị trong `TUTORIAL_IDS`) ngay khi tạo. Mỗi lần tải: thêm sẵn `farm-intro` nếu nơi là loại chỉ quán (`regionType = 'cafe'`), hoặc save đã có mà **thiếu** `farm-intro-new` (save tạo trước F-46, tức đã có farm — coi như xong, không suy theo bán/rang). Save mới đang dở bước đầu có `farm-intro-new` nhưng chưa có `farm-intro`; bước đang dở **không lưu**, dẫn xuất lại từ `plots`, `stats.harvested/dried/roasted`, `machines` (`introStep`). UI ghi `farm-intro` qua `act('tutorial','seen')` khi `introStep` trả `null`.
+4c. (05/11/2026, F-45) `lessons.met` thiếu → suy ra; luôn hợp `met ∪ heavenMet ∪ learned ∪ keys(asked)` (câu đã trả lời ở thiên đàng, câu đã thuộc, câu đã sai ở farm đều là đã gặp). Save `heaven.skipped`/dở: câu chưa trả lời không vào `met`, phải gặp ở Hội đồng. `lessons.arrived` thiếu → `[]`, rồi mỗi lần tải xét mốc từ `stats` + `tutorial.seen` (Nông: có `farm-intro` ∧ `harvested ≥ 1`, nơi chỉ quán `served ≥ 1`; Pha Chế: `served ≥ 1`, nơi chỉ trồng `sold > 0`); riêng save thiếu trường: Thương Hội có mặt nếu `cafe.shiftLog` có ≥ 2 ca (ca đầu có thể là ca tập), nơi chỉ trồng nếu `sold > 0`. Không đổi `version`.
+4d. (05/11/2026, F-47) `v60-guided` là **một giá trị mới** trong `tutorial.seen` (không phải trường mới, không đổi `version`). Mỗi lần tải: thêm sẵn `v60-guided` nếu `cafe.mastery.v60.best ≥ 70` (người cũ đã pha V60 ★★ không thấy làm mẫu); `best < 70` thì thấy làm mẫu một lần. Kiểm tra riêng, không nằm trong khối migrate bước 4. Từ F-47 ca tập (`cafe-intro` chưa có) kết thúc ở ly đầu mà không gọi `act('cafe','shift')`: không thêm dòng `cafe.shiftLog`, không phát `shift_ended`.
 - Bình tưới đang lưu được kẹp theo `waterCapacity` đã tính mẹo `water`; farm mới bắt đầu đầy bình (8 nếu thuộc `water`).
 5. Thứ tự `QUESTS` đổi (Bán ly đầu lên vị trí 2): `claimed` giữ nguyên theo id, không trả/xóa thưởng.
 
@@ -276,6 +287,14 @@ Quán: `('cafe','sell')` nhận thêm `cold?: true` → giá × 0,7 (service đ�
 
 Chuyển save: `workers[i].jobs` cắt còn đúng `activeJobs` (người cấp thấp có mọi việc bật → chỉ còn mảng chăm cây; robot → 1 việc), nên dữ liệu lưu luôn khớp việc thợ thật sự làm; `orders/requestDelivery` và lý do chờ dùng `activeJobs`. Act `autoplay` không ghi nhật ký hoạt động. `farm.workers` lấp đủ 3 slot trước khi hoàn phí người dự bị; `cafe.crew` quá 3 người (không tính `gift`) → giữ 3 người đầu, bỏ người dư (bộ lọc `MAX_CREW` sẵn có).
 
+## Bổ sung 05/11/2026 (F-48 pha 1, công trình farm)
+
+| Mục | Thay đổi | Save cũ |
+|---|---|---|
+| id tương tác farm (`STATIONS`, `content.js`) | Thêm `cafe-entrance`, `order-board`, `crew-house`; `seed-shop` dời từ (12; 12) vào (−9,6; −6,8); **bỏ trạm `market`**. Id **hành động** `act('market', 'sell' \| 'order' \| 'acceptOrder')`, autoplay `{ id: 'market' }` và `world.setObjectStatus('market')` giữ nguyên | Không đổi dữ liệu |
+| `farm.decorations[]` | Định dạng giữ nguyên. Vùng cấm xây 3,5 m (`decorationError`) nay áp cho mọi trạm/công trình (thôi miễn kind `shop`/`market`). Vùng cấm của `cafe-entrance`/`order-board` chỉ áp ở nơi 'both' (`decorationError(items,value,region)`). Lúc tải, `relocateDecorations(items,region)` dời món nằm trong vùng cấm sang chỗ hợp lệ gần nhất (xoắn ốc 0,5 m, tối đa 20 m), giữ `id`/`type`/`text`/`state`; không có chỗ thì bỏ món và **hoàn đủ giá** vào `coins` (05/11/2026, F-48: chọn khác 'trả về kho' của CT-14 vì chưa có kho đồ trang trí; không thêm trường save) | Món cũ trong vùng cấm đổi `x`/`z` một lần; hiếm khi hết chỗ thì thành xu |
+| `tutorial.seen` `unlock-<id>` | Ngoài nghĩa "đã báo mở", nay cũng là cờ "công trình đã dựng, không ẩn lại" | Save đã qua mốc thấy công trình ngay |
+
 ## Bổ sung 04/11/2026 (triển khai audit)
 
 | Trường / khóa | Ý nghĩa | Mặc định save cũ |
@@ -298,7 +317,8 @@ Kế hoạch trường cho F-33…F-43. Khi code, sửa mục này thành "đã 
 | Khóa `godbean-analytics` | Hàng chờ sự kiện (≤ 500) + `anonymous_player_id` | tạo khi mở game lần đầu | [analytics](analytics.md) |
 | `settings.analytics` | Bật/tắt gửi thống kê ẩn danh | `true` | [analytics](analytics.md) mục 1 |
 | `godbean-memory.setup.mode` | `quick` / `journal` / `scientist` (đã code 04/11; `scientist` chỉ dùng khi có Key Curiosity, không có Key thì UI coi như `journal`). Mục Scientist ghi thêm nhóm `equipment`, `preparation`, `ingredients`, `environment`, `personal`, `intended` (trường đã có trong mục Memory). Không thêm trường tiến trình mới: 10 mẻ gần nhất đọc từ `awakening.samples.batches`; doanh thu theo món chỉ nằm trong báo cáo ca (bộ nhớ, không lưu). Lưu trong sổ tay, **không** ở `settings` vì `normalizeSettings` bỏ trường lạ | `quick` | [coffee-memory](coffee-memory.md) mục 5 |
-| `awakening` (**đã code 04/11**, `features/awakening/rules.js`) | Nguồn ghi: `farm.awakening` (model), `saveFarm` chép lên cấp 1 như `victories`. Dạng: `{ version:1, questions:{[id]:{state:'open'\|'trying'\|'ready'\|'solved', since, evidence:[ref], facts?:{số}, wrong?}}, fragments:[{id,type,questionId,at,tag}], messages:[type], messageAt:{type:at}, applied:[type], keys:[{id,at}], firstKey:{step 0–7, entries:[memoryId], variable, direction, attribute, after, rejected:[{id,vars}]}, samples:{harvests≤20, batches≤20, floorDays≤6, market} }`. `samples` là số liệu ngắn do người chơi tạo (hái, nhận mẻ, bán chợ), không có chữ riêng tư | save cũ thiếu → mặc định, 6 câu thiên đàng `open` | [decode-awaken](decode-awaken.md) mục 7 |
+| `godbean-memory.setup.kit` | «Bộ dụng cụ của tôi» (05/11, chưa commit): `{ equipment: { grinder, kettle, dripper, filter, server, cup }, ingredients: { water, milk, brand } }`, chuỗi cắt 80 ký tự, khóa lạ bị bỏ; đọc lại qua `getKit` (hỏng → `null`). Chỉ dùng để điền nhanh ly ngoài đời | không có | [coffee-memory](coffee-memory.md) mục 5 |
+| `awakening` (**đã code 04/11**, `features/awakening/rules.js`) | Nguồn ghi: `farm.awakening` (model), `saveFarm` chép lên cấp 1 như `victories`. Dạng: `{ version:1, questions:{[id]:{state:'open'\|'trying'\|'ready'\|'solved', since, evidence:[ref], facts?:{số}, wrong?}}, fragments:[{id,type,questionId,at,tag}], messages:[type], messageAt:{type:at}, applied:[type], keys:[{id,at}], firstKey:{step 0–7, entries:[memoryId], variable, direction, attribute, after, rejected:[{id,vars}]}, samples:{harvests≤20 (`by`: `'player'\|'staff'\|'auto'`, `'auto'` = nhân vật chính hái lúc Auto bật, thêm 05/11/2026 F-44…F-48 L1; save cũ chỉ có player/staff, không cần migrate), batches≤20, floorDays≤6, market} }`. `samples` là số liệu ngắn do người chơi tạo (hái, nhận mẻ, bán chợ), không có chữ riêng tư | save cũ thiếu → mặc định, 6 câu thiên đàng `open` | [decode-awaken](decode-awaken.md) mục 7 |
 | `victories` (cấp 1) | `{ economic: at\|null, discovery: at\|null }` | cả hai `null` | [progression](progression.md) mục 4 |
 | `farm.memoryXp` | `{ day, xp }` XP Memory đã nhận trong ngày công (trần 30) | `{day:-1,xp:0}` | [progression](progression.md) mục 2 |
 | `farm.victories` | Bản sao của `victories` trong save farm (nguồn đọc khi tải); `saveFarm` chép lên cấp 1 | cả hai `null` | [progression](progression.md) mục 4 |

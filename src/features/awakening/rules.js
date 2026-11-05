@@ -44,7 +44,7 @@ const COSTS = ['wages', 'supplies', 'beans'], CHANGES = ['crew', 'menu', 'milk',
 export const QUESTIONS = [
   // --- Origin ---
   Q('ripe', 'origin', 'heaven', { // a = your hand-picked lot, b = staff-picked lot (same crop, same work day)
-    check: c => { const p = pairWhere(c.harvests, (x, y) => x.day === y.day && x.cropId === y.cropId && x.by !== y.by); if (!p) return null; const [a, b] = p[0].by === 'player' ? p : [p[1], p[0]]; if (a.by !== 'player') return null; return { refs: p.map(h => h.id), facts: { a: r1(a.quality), b: r1(b.quality), tag: a.cropId } }; },
+    check: c => { const p = pairWhere(c.harvests, (x, y) => x.day === y.day && x.cropId === y.cropId && x.by !== y.by && x.by !== 'auto' && y.by !== 'auto'); if (!p) return null; const [a, b] = p[0].by === 'player' ? p : [p[1], p[0]]; if (a.by !== 'player') return null; return { refs: p.map(h => h.id), facts: { a: r1(a.quality), b: r1(b.quality), tag: a.cropId } }; },
     answer: f => cmp(f.a, f.b, 1) }),
   Q('water', 'origin', 'heaven', { // a = progress % of a plot soaked by rain (never watered by you: watering sets 70), b = plot at water <= 15
     check: c => { const w = wetDry(c); return w && { refs: w.map(p => p.id), facts: { a: Math.round(w[0].ratio * 100), b: Math.round(w[1].ratio * 100), tag: w[0].cropId } }; },
@@ -52,7 +52,7 @@ export const QUESTIONS = [
   Q('yield', 'origin', 'play', { // a = coins of a fertilized-only harvest, b = coins of a pruned-only harvest (same crop)
     check: c => { const fo = h => h.fertilized && !h.pruned, po = h => h.pruned && !h.fertilized, p = pairWhere(c.harvests, (x, y) => x.cropId === y.cropId && (fo(x) && po(y) || po(x) && fo(y))); if (!p) return null; const [a, b] = fo(p[0]) ? p : [p[1], p[0]]; return { refs: p.map(h => h.id), facts: { a: r2(a.value), b: r2(b.value), qa: r1(a.quality), qb: r1(b.quality), tag: a.cropId } }; },
     answer: f => cmp(f.a, f.b, .05 * Math.max(f.a, f.b)) }),
-  NA('region', 'origin', 'play', 'Cần hệ số vùng F-43 và lô cùng giống từ 2 nơi (chưa có)'),
+  NA('region', 'origin', 'play', 'Nhật ký thu hoạch không lưu vùng, mỗi đời chỉ một vùng (chưa có)'),
   // --- Extraction ---
   Q('recipe', 'extraction', 'heaven', { // two hand-brewed cups of one recipe, same settings, both tasted; a/b = model score of the earlier / later cup
     check: c => { const es = c.entries(); if (!es) return null; const g = es.filter(e => e.kind === 'game' && e.taste && e.simulated), p = pairWhere(g, (x, y) => x.recipeId === y.recipeId && !changedVars(x, y).length); return p && { refs: p.map(e => e.id), facts: { a: r1(p[0].simulated.score), b: r1(p[1].simulated.score), tag: p[0].recipeId } }; },

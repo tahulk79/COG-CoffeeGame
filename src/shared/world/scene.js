@@ -81,6 +81,7 @@ export function createAdventureScene(character, { interactions: inputInteraction
     for (const npc of NPCS) {
       const dx = npc.position[0] - center[0], dz = npc.position[1] - center[1], distance = Math.hypot(dx, dz), dir = [dx / distance, dz / distance];
       if (npc.id === 'portal') { spoke(dir, 2.9, radius + walk / 2, .024); spoke(dir, radius + walk / 2, distance - .4, .012); continue; }
+      if (npc.noDais) continue; // đứng trên sân, không bệ/lối riêng (02-mini)
       spoke(dir, 2.9, distance - 2.6, .012);
       disc(parts.disc, 2.5, .028, npc.position); ring(parts.gold, 2.5, 2.7, .034, npc.position);
     }
@@ -190,7 +191,7 @@ export function createAdventureScene(character, { interactions: inputInteraction
   const environment = buildEnvironment?.({ scene, box, mesh, sphere, cube, assetSlot });
   const actors = new Map();
   for (const npc of NPCS.filter(item => item.id !== 'portal')) {
-    if (!farming) {
+    if (!farming && !npc.noDais) {
       const dx = npc.position[0], dz = npc.position[1] + 3;
       const distance = Math.hypot(dx, dz);
       const pathLength = Math.max(0, distance - 2.4);
@@ -307,7 +308,8 @@ export function createAdventureScene(character, { interactions: inputInteraction
   mesh(new THREE.ConeGeometry(.18, .4, 4), '#bc984c', 0, 0, 0, farming ? 2 : 1, farming ? 2 : 1, farming ? 2 : 1, markerArrow).rotation.z = Math.PI;
   character.name = 'heaven-player'; character.position.set(0, .05, 7); character.rotation.set(0, Math.PI, 0); character.scale.setScalar(1); scene.add(character);
   const motion = createPlayerMotion(character);
-  const selectedPlots=new Set(),workerTargets=new Set();
+  const selectedPlots=new Set(),workerTargets=new Set(),queuedPlots=new Set(),queueBadges=[]; // queueBadges[n-1] = nhãn số n, tạo lười rồi dùng lại (Q5 R12)
+  let queueKey = '';
   let walkTime = 0, walkWeight = 0, targetId = 'reaper', focused = null, unlocked = farming, returning = false, doorOpen = 0;
   const baseOffset = new THREE.Vector3(0, farming ? 12.5 : 12, farming ? 11.5 : 11), cameraOffset = baseOffset.clone();
   const cameraTarget = new THREE.Vector3();
@@ -524,9 +526,9 @@ export function createAdventureScene(character, { interactions: inputInteraction
     if (destination) marker.position.set(destination.position[0], 0, destination.position[1]);
     markerArrow.position.y = 3.4 + Math.sin(time * Math.PI * 2) * .15; // 1 Hz bob
     for (const [id, actor] of actors) {
-      actor.ring.material.opacity = farming ? (id === focused || selectedPlots.has(id) || workerTargets.has(id) ? 1 : 0) : id === targetId ? .6 : .2;
+      actor.ring.material.opacity = farming ? (id === focused || selectedPlots.has(id) || workerTargets.has(id) ? 1 : queuedPlots.has(id) ? .55 : 0) : id === targetId ? .6 : .2;
       actor.ring.visible = actor.ring.material.opacity > 0; // an opacity-0 mesh still costs a draw call
-      if (farming) { actor.ring.material.color.set(workerTargets.has(id)&&id!==focused&&!selectedPlots.has(id)?'#84cce4':'#ffd35a'); actor.ring.position.y = id.startsWith('plot-') ? .12 : .23; }
+      if (farming) { actor.ring.material.color.set(id!==focused&&!selectedPlots.has(id)?(workerTargets.has(id)?'#84cce4':queuedPlots.has(id)?'#fff0b8':'#ffd35a'):'#ffd35a'); actor.ring.position.y = id.startsWith('plot-') ? .12 : .23; }
       if (id === 'reaper') actor.group.position.y = .08 + Math.sin(time * 1.8) * .05;
       if (actor.status?.plantProgress) {
         const status=actor.status,info=status.plantProgress;
@@ -551,7 +553,7 @@ export function createAdventureScene(character, { interactions: inputInteraction
     const passedPortal = returning && doorOpen >= .999 && character.position.z >= portalPosition[1] + .6;
     const reached = arrivedNpc ? NPCS.find(npc => npc.id === arrivedNpc) : null;
     const reachedInRange = reached && Math.hypot(character.position.x - reached.position[0], character.position.z - reached.position[1]) < (reached.interactDistance || 2.6);
-    return { nearest: reachedInRange ? reached : nearest(), arrivedNpc: reachedInRange ? arrivedNpc : null, navigationFailed, enteredPortal, passedPortal };
+    return { nearest: reachedInRange ? reached : nearest(), arrivedNpc: reachedInRange ? arrivedNpc : null, navigationFailed, enteredPortal, passedPortal, routing: route.length > 0 || pendingRoute !== null || arrivalNpc !== null };
   }
   function reset(phase) {
     const clerk = NPCS.find(npc => npc.id === 'clerk');
@@ -611,7 +613,7 @@ export function createAdventureScene(character, { interactions: inputInteraction
           npcId = object?.userData.lockedField || object?.userData.interactId || null;
         }
       }
-      if (farming) focused = npcId;
+      if (farming && !pickOnly) focused = npcId; // pickOnly (Auto): không bật vòng chọn
       if (npcId && onSelect?.(npcId, {fromPlot,action:pickedAction})) return true;
       if (pickOnly) return false;
       if (npcId) return moveToNpc(npcId);
@@ -664,6 +666,14 @@ export function createAdventureScene(character, { interactions: inputInteraction
       environment?.setFields(ownedFields);
       if (changed) { stopMovement(); collidersDirty = true; }
     },
+    // Ẩn/hiện một vật chạm được (Cổng Hội đồng F-45): vật ẩn không chặn đường, không chạm được, không gợi ý.
+    setActorVisible(id, visible) {
+      const actor = actors.get(id);
+      if (!actor || actor.group.visible === visible) return false;
+      actor.group.visible = visible; collidersDirty = true; return true;
+    },
+    // Lia camera tới một vật (lối tắt Sổ tay → Hội đồng); đi bộ hay kéo camera thì camera lại theo nhân vật.
+    focusOn(id) { const npc = NPCS.find(item => item.id === id); if (npc) manualCamera = new THREE.Vector3(npc.position[0], 0, npc.position[1]); },
     setActorState(id, value) {
       const actor = actors.get(id);
       if (!actor) return;
@@ -769,6 +779,14 @@ export function createAdventureScene(character, { interactions: inputInteraction
     zoomView(delta) {
       camera.zoom = THREE.MathUtils.clamp(camera.zoom+delta,.8,1.65); camera.updateProjectionMatrix(); fitLabels();
     },
+    // Q5 R13: cuộn camera khi kéo công cụ chạm mép màn. (sx,sy) ∈ [-1,1] theo màn hình (sy>0 = xuống), speed = đơn vị/giây; kẹp trong worldBounds như panCamera.
+    scrollCamera(sx, sy, speed, dt) {
+      if (!farming || (!sx && !sy)) return;
+      if (!manualCamera) manualCamera = cameraTarget.clone();
+      const step = speed * dt / camera.zoom;
+      manualCamera.x = THREE.MathUtils.clamp(manualCamera.x + sx * step, worldBounds.minX, worldBounds.maxX);
+      manualCamera.z = THREE.MathUtils.clamp(manualCamera.z + sy * step, worldBounds.minZ, worldBounds.maxZ);
+    },
     freezeCamera() { manualCamera=camera.position.clone().sub(cameraOffset); },
     resetCamera() { manualCamera = null; },
     setTarget(id) { targetId = id; },
@@ -776,7 +794,24 @@ export function createAdventureScene(character, { interactions: inputInteraction
     setWorkerTargets(ids){workerTargets.clear();for(const id of ids)workerTargets.add(id);},
     setPlotSelection(ids) {selectedPlots.clear();for(const id of ids)selectedPlots.add(id);},
     removePlotSelection(id) {selectedPlots.delete(id);},
+    // Q5 R12: hàng đợi việc theo thứ tự (phần tử đầu = ô kế tiếp). Sáng nhạt + số 1..n; gọi lại với danh sách cũ thì bỏ qua.
+    setPlotQueue(ids) {
+      const key = ids.join('|'); if (key === queueKey) return; queueKey = key;
+      queuedPlots.clear(); for (const id of ids) queuedPlots.add(id);
+      ids.forEach((id, index) => {
+        const actor = actors.get(id); if (!actor) return;
+        let badge = queueBadges[index];
+        if (!badge) {
+          badge = label(String(index + 1), '#d6b56c', .65); badge.material.depthTest = false; badge.renderOrder = 6; badge.userData.nonSolid = true; badge.userData.noPick = true;
+          scene.add(keepOnScreen(badge, 22)); fitLabel(badge); queueBadges[index] = badge;
+        }
+        badge.position.set(actor.group.position.x, 1.1, actor.group.position.z); badge.visible = true;
+      });
+      for (let index = ids.length; index < queueBadges.length; index++) queueBadges[index].visible = false;
+    },
     setFocus(id) { focused = id; },
+    // Quay mặt về một vật tại chỗ, không đi bộ (Hội đồng F-45, CT-3); bước đi kế tiếp tự bỏ hướng này.
+    faceTo(id) { const npc = NPCS.find(item => item.id === id); if (!npc) return; const dx = npc.position[0] - character.position.x, dz = npc.position[1] - character.position.z; if (Math.hypot(dx, dz) > .05) faceYaw = Math.atan2(dx, dz); },
     setUnlocked(value) { unlocked = value; },
     setReturning(value) { returning = value; },
     resize(width, height) {

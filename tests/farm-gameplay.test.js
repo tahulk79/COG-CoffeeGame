@@ -4,10 +4,12 @@ import { createFarm } from '../src/features/farm/model.js';
 import { PLOTS,FIELDS,MACHINES,QUESTS,plotCare } from '../src/features/farm/content.js';
 import { activeJobs,jobGroupOf,groupLimit,ASSETS,workerLevel,workerWage,SEASON_MS,WORK_DAY_MS,DAY_MS,contractPrice,assetMaxLevel,supplierPrice,SUPPLIER_PRICE } from '../src/features/farm/rules.js';
 import { productionNeed } from '../src/features/farm/orders.js';
-import { editDragSelection } from '../src/features/farm/tools.js';
+import { editDragSelection, harvestCapacity, toolCapacity } from '../src/features/farm/tools.js';
 import { findRoute } from '../src/shared/game/navigation.js';
 import { slackChance,slackReason,tiredFactor,rollSlack } from '../src/shared/game/morale.js';
 import { pickAutoErrand } from '../src/features/farm/autoplay.js';
+import { introStep,introPlots,INTRO_SOW } from '../src/features/farm/intro.js';
+import { t } from '../src/i18n/index.js';
 const AT=100000;
 const fresh=()=>createFarm(null,'capital',()=>{},AT);
 function withLots(lots){const saved=fresh().progress;saved.lots=lots.map((lot,i)=>({id:`fixture-${i}`,quality:80,createdAt:AT,origin:'fixture',...lot}));return createFarm(saved,null,()=>{},AT);}
@@ -41,6 +43,34 @@ test('dry plants pause, feeding is phase guarded and picking preserves perennial
  assert.equal(dry.act(p.id,'fertilize',null,AT+1000).ok,false);
  const farm=fresh();assert.equal(farm.act(PLOTS[0].id,'harvest',null,AT).ok,true);
  assert.equal(farm.progress.plots[0].mature,true);assert.notEqual(farm.progress.plots[0].stage,'empty');
+});
+test('harvest via auto ghi by:auto nhưng XP và thống kê giữ như hái tay (F-44…F-48 L1)',()=>{
+ const run=via=>{const farm=fresh();assert.equal(farm.act(PLOTS[0].id,'harvest',null,AT,'player',via).ok,true);return farm.progress;};
+ const hand=run('hand'),auto=run('auto');
+ assert.equal(hand.awakening.samples.harvests.at(-1).by,'player');assert.equal(auto.awakening.samples.harvests.at(-1).by,'auto');
+ assert.equal(auto.xp,hand.xp);assert.equal(auto.stats.harvested,hand.stats.harvested);
+});
+test('farm-intro: save mới ép gieo → hái → phơi → rang rồi mới xong (F-46)',()=>{
+ const farm=fresh(),p=()=>farm.peek();
+ assert.equal(p().tutorial.seen.includes('farm-intro'),false);assert.equal(introStep(p()),'plant');
+ const [first]=introPlots(p(),1);assert.equal(farm.act(first,'plant','robusta',AT).ok,true);assert.equal(introStep(p()),'plant');
+ const next=introPlots(p(),INTRO_SOW-1);assert.equal(next.length,2);assert.equal(next.includes(first),false);
+ for(const id of next)assert.equal(farm.act(id,'plant','robusta',AT).ok,true);
+ assert.equal(introStep(p()),'harvest'); // cây quà của save mới chín sẵn
+ assert.equal(farm.act(PLOTS[0].id,'harvest',null,AT).ok,true);assert.equal(introStep(p()),'dry');
+ assert.equal(farm.act('dryer','start',{cropId:'robusta',quantity:1},AT).ok,true);assert.equal(introStep(p()),'dry'); // chỉ xong khi nhận tay
+ assert.equal(farm.act('dryer','collect',null,AT+60000).ok,true);assert.equal(introStep(p()),'roast');
+ assert.equal(farm.act('roaster','start',{cropId:'robusta',quantity:1},AT+60000).ok,true);
+ assert.equal(farm.act('roaster','collect',null,AT+120000).ok,true);assert.equal(introStep(p()),null);
+ assert.equal(farm.act('tutorial','seen','farm-intro',AT+120000).ok,true);assert.equal(p().tutorial.seen.includes('farm-intro'),true);
+});
+test('farm-intro: save đã chơi coi như xong, save đang dở vẫn ép (F-46)',()=>{
+ assert.equal(fresh().peek().tutorial.seen.includes('farm-intro-new'),true); // save mới ghi dấu
+ const old=fresh().progress;old.tutorial.seen=old.tutorial.seen.filter(id=>id!=='farm-intro-new');old.stats.harvested=2; // save trước F-46: đã hái, chưa rang/bán
+ assert.equal(createFarm(old,null,()=>{},AT).peek().tutorial.seen.includes('farm-intro'),true);
+ const started=fresh();assert.equal(started.act(PLOTS[0].id,'harvest',null,AT).ok,true);const midway=started.progress; // đã hái, chưa phơi
+ const farm=createFarm(midway,null,()=>{},AT);assert.equal(farm.peek().tutorial.seen.includes('farm-intro'),false);assert.equal(introStep(farm.peek()),'dry');
+ const kept=farm.progress;kept.tutorial.seen.push('farm-intro');assert.equal(createFarm(kept,null,()=>{},AT).peek().tutorial.seen.includes('farm-intro'),true); // id hợp lệ, không bị lọc khi nạp
 });
 test('reservations protect the final seed from a second actor',()=>{
  const saved=fresh().progress;saved.seeds.robusta=1;const farm=createFarm(saved,null,()=>{},AT);
@@ -123,6 +153,17 @@ test('legacy inventory, seeds and unfinished hulling survive migration once',()=
 test('drag can retract, cannot duplicate cells and stops at available quantity',()=>{
  assert.deepEqual(editDragSelection(['a','b','c','d'],'c',4),['a','b','c']);
  assert.deepEqual(editDragSelection(['a'],'a',4),['a']);assert.deepEqual(editDragSelection(['a','b'],'c',2),['a','b']);assert.deepEqual(editDragSelection(['a'],'b',0),[]);
+});
+test('harvest drag limit is ripe unlocked plots that still fit in storage (Q5 R10)',()=>{
+ const plot=(stage,readyYield,unlocked=true)=>({unlocked,stage,readyYield});
+ const plots=[plot('ready',300),plot('growing',0),plot('ready',300,false),plot('ready',400),plot('ready',300),plot('empty',0)];
+ assert.equal(harvestCapacity(plots),3,'no storage info: only ripe unlocked plots count');
+ assert.equal(harvestCapacity(plots,1000),3);
+ assert.equal(harvestCapacity(plots,700),2,'300+400 fit, the next 300 does not');
+ assert.equal(harvestCapacity(plots,350),1,'400 skipped, 300 then 300 does not fit');
+ assert.equal(harvestCapacity(plots,100),0);
+ assert.equal(toolCapacity({plots,seeds:{},water:0,fertilizer:0},'harvest',null,700),2);
+ assert.equal(toolCapacity({plots,seeds:{},water:0,fertilizer:0},'weed',null,700),plots.length,'other care tools keep their old limit');
 });
 test('routes honor obstacles and finish at a reachable interaction point',()=>{
  const bounds={minX:-3,maxX:3,minZ:-3,maxZ:3},stand=(x,z)=>x>=-3&&x<=3&&z>=-3&&z<=3&&Math.abs(x)>.4;
@@ -264,6 +305,7 @@ test('old saves: a level-1 person with every job on keeps only one job area, a r
 test('Auto pha (demo) cups never raise mastery, hand cups do',()=>{
  const farm=fresh(),best=()=>farm.progress.cafe.mastery['phin-den']?.best||0,before=best();
  assert.equal(farm.act('cafe','brew',{recipeId:'phin-den',cropId:'robusta',score:80,demo:true},AT).ok,true);assert.equal(best(),before);
+ assert.equal(farm.act('cafe','brew',{recipeId:'phin-den',cropId:'robusta',score:40,quick:true},AT).ok,true);assert.equal(best(),before); // Pha nhanh không đẩy best (F-44…F-48 L1)
  assert.equal(farm.act('cafe','brew',{recipeId:'phin-den',cropId:'robusta',score:75},AT).ok,true);assert.equal(best(),Math.max(before,75));
 });
 // Regression (audit 04/11, EC-2): a comment once swallowed the per-cup reputation update.
@@ -279,6 +321,10 @@ test('a heaven gift the region cannot use becomes the capital purse',()=>{
  assert.equal(coins('tools','ke'),coins('capital','ke'));
  assert.ok(coins('seeds','vn')<coins('capital','vn'));
  const farm=createFarm(null,'seeds',()=>{},AT,[],'it');assert.ok(farm.progress.ledger.some(l=>l.type==='gift'&&l.amount===150),'swap goes through the ledger');
+ // F-44 (Q2 R2): seeds ở nơi chỉ quán dùng câu log riêng; quà cũ khác vẫn dùng câu đổi chung.
+ const texts=f=>f.progress.journal.map(e=>e.text);
+ assert.ok(texts(farm).includes(t('farmRules.log.giftSeedsCafe')));
+ assert.ok(!texts(createFarm(null,'tools',()=>{},AT,[],'ke')).includes(t('farmRules.log.giftSeedsCafe')));
 });
 
 test('shop orders cap at 2 per work day and reopen next day',()=>{
@@ -322,7 +368,7 @@ test('canceling a queued batch closes the gap behind it (BG-B7)',()=>{
  assert.equal(next.id,last.id);assert.equal(next.startedAt,run.readyAt);assert.equal(next.readyAt,run.readyAt+dur);
 });
 test('deferring a lesson counts as asked today without result (GP-B2)',()=>{
- const farm=fresh(),q=farm.pendingLesson().question.id,coins=farm.progress.coins;
+ const farm=createFarm(null,'capital',()=>{},AT,[],undefined,['ripe']),q=farm.pendingLesson().question.id,coins=farm.progress.coins; // F-45: chỉ hỏi lại câu đã gặp
  assert.equal(farm.act('lessons','defer',{questionId:q},AT).ok,true);const L=farm.progress.lessons;
  assert.equal(L.asked[q],undefined);assert.equal(L.learned.includes(q),false);assert.equal(farm.progress.coins,coins);assert.equal(L.askedCount,1);
  assert.equal(farm.act('lessons','defer',{questionId:q},AT).ok,false);

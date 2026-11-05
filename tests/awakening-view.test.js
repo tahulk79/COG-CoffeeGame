@@ -56,5 +56,7 @@ test('i18n: EN and VI have the same keys, every question has title/hint/options,
   for (const k of ['aroma', 'acidity', 'sweetness', 'bitterness', 'body', 'aftertaste']) assert.ok(locales.vi[`awakening.q.fav.${k}`]);
   for (const type of R.FRAGMENT_TYPES) for (const g of ['type', 'lore', 'apply']) assert.ok(locales.vi[`awakening.${g}.${type}`] && locales.en[`awakening.${g}.${type}`]);
   for (const key of Object.values(R.KEY_OF)) assert.ok(locales.en[`awakening.key.${key}`]);
+  for (const key of Object.values(R.KEY_OF)) assert.ok(locales.en[`awakening.lore.key.${key}`] && locales.vi[`awakening.lore.key.${key}`], `lore ${key}`); // one fictional lore per Key (§6)
+  for (const q of ['region', 'roast-age']) for (const l of ['en', 'vi']) assert.ok(locales[l][`awakening.q.${q}.reason`].length > 40, `${q} reason ${l}`);
   for (const l of Object.entries(locales.en).filter(([k]) => k.startsWith('awakening.lore.') && !['flag', 'label'].includes(k.slice(15)))) assert.ok(l[1].split(/[.!?]\s/).length <= 2, l[0]);
 });

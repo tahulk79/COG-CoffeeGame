@@ -90,3 +90,16 @@ test('insight completed after taste lock-in emits insight_saved once (QA 04/11)'
   off();
   assert.deepEqual(events.filter(t => t !== 'taste_submitted'), ['memory_saved', 'insight_saved']);
 });
+
+test('my kit: saved, trimmed, capped, junk dropped, survives a corrupt setup.kit', () => {
+  reset();
+  assert.equal(M.getKit(), null);
+  assert.equal(M.setKit({ equipment: { grinder: '  Comandante ', kettle: 5, bogus: 'x', cup: 'y'.repeat(200) }, ingredients: { brand: 'Fellow', tds: '120' } }), true);
+  assert.deepEqual(Object.keys(M.getKit().equipment).sort(), ['cup', 'grinder', 'kettle']);
+  assert.equal(M.getKit().equipment.grinder, 'Comandante');
+  assert.equal(M.getKit().equipment.cup.length, M.MAX_KIT_TEXT);
+  assert.deepEqual(M.getKit().ingredients, { brand: 'Fellow' });
+  const raw = JSON.parse(store.get(MEMORY_KEY)); raw.setup.kit = 'junk'; store.set(MEMORY_KEY, JSON.stringify(raw));
+  assert.equal(M.getKit(), null);
+  M.setKit({ equipment: { grinder: 'A' } }); M.setKit({}); assert.equal(M.getKit(), null);
+});

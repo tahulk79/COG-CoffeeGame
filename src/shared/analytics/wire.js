@@ -39,7 +39,7 @@ export function initAnalytics({ appVersion, platform, locale, region, enabled = 
 export const _resetForTest = () => { started = false; detachFlush?.(); detachFlush = null; unsubMemory?.(); unsubMemory = null; };
 
 // Farm model events -> track (F-38) + Memory -> XP (coffee-memory.md §10). Idempotent per farm instance; returns detach.
-const FARM_EVENTS = new Set(['field_bought', 'workday_ended', 'victory_reached', 'challenge_completed', 'auto_started', 'shift_ended', 'tutorial_completed', 'discovery_saved']);
+const FARM_EVENTS = new Set(['field_bought', 'workday_ended', 'victory_reached', 'challenge_completed', 'auto_started', 'shift_ended', 'tutorial_completed', 'discovery_saved', 'council_answered']);
 const wired = new WeakMap();
 export function wireFarm(farm, tk = track) {
   if (wired.has(farm)) return wired.get(farm);

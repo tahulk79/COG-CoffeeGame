@@ -185,3 +185,24 @@ export function takeFirstSaveNotice() {
   if (data.setup.savedOnce || data.entries.every(isDraft)) return false;
   data.setup.savedOnce = true; return write(data);
 }
+
+// "Bộ dụng cụ của tôi" (spec §2/§6): the player's own gear (+ water/milk/brand) kept in `setup.kit`; sanitized on every read, never sent in events.
+export const KIT_FIELDS = { equipment: ['grinder', 'kettle', 'dripper', 'filter', 'server', 'cup'], ingredients: ['water', 'milk', 'brand'] };
+export const MAX_KIT_TEXT = 80; // same cap as the form inputs
+function cleanKit(raw) {
+  if (!isObject(raw)) return null;
+  const kit = {};
+  for (const [g, keys] of Object.entries(KIT_FIELDS)) {
+    const src = isObject(raw[g]) ? raw[g] : {}, out = {};
+    for (const k of keys) { const v = typeof src[k] === 'string' || typeof src[k] === 'number' ? text(src[k], MAX_KIT_TEXT).trim() : ''; if (v) out[k] = v; }
+    if (Object.keys(out).length) kit[g] = out;
+  }
+  return Object.keys(kit).length ? kit : null;
+}
+export const getKit = () => cleanKit(read().setup.kit);
+/** Save (or clear with an empty kit) the player's gear. Returns false when read-only or storage fails. */
+export function setKit(input) {
+  const data = read(), kit = cleanKit(input);
+  if (kit) data.setup.kit = kit; else delete data.setup.kit;
+  return write(data);
+}

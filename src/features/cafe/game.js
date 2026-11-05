@@ -8,6 +8,7 @@ import { dressPerson } from '../../characters/npc.js';
 import { findRoute } from '../../shared/game/navigation.js';
 import { GEAR, RECIPES, SUPPLIES, STAFF_ROLES, recipeById, recipeShort, missingFor, resolveUses } from './recipes.js';
 import { CROPS } from '../farm/content.js';
+import { expertsDone as councilDone } from '../heaven/content.js';
 import { BAR_X, COUNTER_Z, KIOSKS, LANE_Z, PICKUP_X, REGISTERS, STATIONS, TABLES, createCafeService } from './service.js';
 import { createCafeUI } from './ui.js';
 import { mountGridDebug, mountIncidentDebug } from './debug.js';
@@ -22,7 +23,8 @@ import { t } from '../../i18n/index.js';
 // Separate playable world; the farm model owns inventory and transit so changing maps cannot copy goods.
 // Warm indoor fill with a softer key than the farm, so the room reads as a lamp-lit café, not an open field (03 §4).
 const CAFE_LIGHT = { sky: '#f6e7cc', ground: '#7a5a3a', ambient: 1.5, sun: '#ffe2b0', sunIntensity: 3.2, background: '#e9dcc4' };
-export function createCafeGame({ farm, ui, awakening = null, onMenu, onExit, profile, character }) {
+// council (F-45): { open(): bool, isOpen(): bool } do farm game giữ; quán chỉ có vật Hội đồng và luật lúc nào được mở.
+export function createCafeGame({ farm, ui, awakening = null, onMenu, onExit, profile, character, council = null }) {
   const bounds = { minX: -16, maxX: 16, minZ: -14, maxZ: 10 };
   const REGISTER_X = (REGISTERS[0] + REGISTERS[1]) / 2, KIOSK_X = (KIOSKS[0] + KIOSKS[1]) / 2, back = LANE_Z - COUNTER_Z;
   // The player works counters from the staff lane behind them, like real staff.
@@ -40,6 +42,8 @@ export function createCafeGame({ farm, ui, awakening = null, onMenu, onExit, pro
     { id: 'terrace', name: t('cafe.spot.terrace'), kind: 'expansion', position: [-9, 6], interactDistance: 2.2, approachOffsets: [[1.4, 0]], color: '#7e9a5c' },
     { id: 'roastery', name: t('cafe.spot.roastery'), kind: 'expansion', position: [12.8, -5.6], interactDistance: 2.5, approachOffsets: [[-1.6, 0]], color: '#a87b54' },
     { id: 'door', name: t('cafe.spot.door'), kind: 'door', position: [0, 2.6], interactDistance: 2.2, approachOffsets: [[0, 1.4], [0, -1.4]], color: '#6b4a2b' },
+    // Vật Hội đồng (05/11/2026, F-45): khung chân dung + chuông nhỏ trong sảnh, ẩn tới khi chuyên gia đầu có mặt; chạm mở tại chỗ khi cửa đóng.
+    { id: 'council', name: t('cafe.spot.council'), kind: 'council', initialVisible: false, position: [3.6, 1.4], interactDistance: 2.2, approachOffsets: [[0, -1.3]], color: '#c9a86a' },
   ];
   const PLANTS = [[14.8, -12.8], [-14.8, 2.1], [14.8, 2.1], [-14.8, 9.2], [14.8, 9.2], [11.6, -12.6]];
   const cylinder = (top, bottom, height) => new THREE.CylinderGeometry(top, bottom, height, 14);
@@ -226,6 +230,17 @@ export function createCafeGame({ farm, ui, awakening = null, onMenu, onExit, pro
       const empty = slotOutline(visual, 2.4, 1);
       return { setState({ gear }) { kiosks.forEach((g, i) => { g.visible = i < (gear.kiosk || 0); }); empty.visible = !(gear.kiosk > 0); } };
     }
+    if (npc.kind === 'council') {
+      // Giá gỗ, khung chân dung ba chuyên gia, chuông vàng; mọi phần nonSolid như Sổ tay để lối đi giữ nguyên. Quả cầu sáng = 'Mới'.
+      box('#7d5c3c', 0, .65, 0, .16, 1.3, .16, visual).userData.nonSolid = true;
+      box('#d9bd7b', 0, 1.55, 0, 1.1, .8, .08, visual).userData.nonSolid = true;
+      box('#3f3a33', 0, 1.55, .03, .95, .65, .04, visual).userData.nonSolid = true;
+      const checks = {}; // ✓ chuyên gia (Q1 R13): hạt vàng dưới chân dung khi đủ câu trong met
+      [['growing', '#70946c', -.3], ['brewing', '#b28b53', 0], ['business', '#788ba6', .3]].forEach(([id, color, x]) => { mesh(sphere, color, x, 1.62, .07, .09, .1, .04, visual).userData.nonSolid = true; box(color, x, 1.42, .07, .14, .16, .03, visual).userData.nonSolid = true; const c = mesh(sphere, '#ffd34d', x, 1.08, .07, .05, .05, .05, visual); c.userData.nonSolid = true; c.visible = false; checks[id] = c; });
+      const bell = mesh(new THREE.ConeGeometry(.16, .22, 12), '#e0b84a', 0, 2.1, 0, 1, 1, 1, visual); bell.userData.nonSolid = true;
+      const beacon = new THREE.Mesh(sphere, new THREE.MeshBasicMaterial({ color: '#ffe17a' })); beacon.scale.setScalar(.12); beacon.position.set(0, 2.4, 0); beacon.userData.nonSolid = true; beacon.visible = false; visual.add(beacon);
+      return { setState({ waiting, done = [] }) { beacon.visible = waiting; for (const [id, c] of Object.entries(checks)) c.visible = done.includes(id); }, update(dt, time) { if (beacon.visible) beacon.position.y = 2.4 + Math.sin(time * 3) * .08; } };
+    }
     if (npc.kind === 'notebook') {
       // Coffee Notebook (coffee-memory.md §3): a small lectern with an open book and a bookmark, between the bar and the register.
       // Every part is nonSolid so walking lanes stay exactly as before; tap it to open the notebook modal.
@@ -407,7 +422,7 @@ export function createCafeGame({ farm, ui, awakening = null, onMenu, onExit, pro
     const cup = props?.getObjectByName('cup');
     if (cup) world.scene.traverse(o => { if (o.name === 'cup' && o.isMesh) { o.scale.setScalar((o.geometry.parameters?.height || .18) / .18); o.geometry = cup.geometry; o.material = cup.material; } });
   });
-  const FOOTPRINT = { bar: [8.6, 1.7], register: [5.8, 1.7], pickup: [2.9, 1.7], kiosk: [3, 1.5], pantry: [1.4, 2.4], board: [1.5, 1], notebook: [1.1, 1], table: [3.1, 3.1], expansion: [2.2, 2.2], door: [4.2, .8], exit: [1.9, 1.1] };
+  const FOOTPRINT = { bar: [8.6, 1.7], register: [5.8, 1.7], pickup: [2.9, 1.7], kiosk: [3, 1.5], pantry: [1.4, 2.4], board: [1.5, 1], notebook: [1.1, 1], council: [1.2, .6], table: [3.1, 3.1], expansion: [2.2, 2.2], door: [4.2, .8], exit: [1.9, 1.1] };
   const glowCanvas = document.createElement('canvas'); glowCanvas.width = glowCanvas.height = 256;
   const glowCtx = glowCanvas.getContext('2d');
   glowCtx.fillStyle = '#ffe17a55'; glowCtx.beginPath(); glowCtx.roundRect(22, 22, 212, 212, 44); glowCtx.fill();
@@ -445,7 +460,7 @@ export function createCafeGame({ farm, ui, awakening = null, onMenu, onExit, pro
   const vfx = createVfx({ scene: world.scene });
   // Cảnh 3D (model, NPC, đèn) và ca bán (service: khách, ly đang pha, nhân viên) sống suốt ván như farm.
   // Rời quán chỉ tạm dừng: gỡ HUD/input; vào lại dời mốc giờ của ca rồi chơi tiếp đúng chỗ cũ.
-  let cafeUi = null, active = false, leftAt = 0;
+  let cafeUi = null, active = false, leftAt = 0, carryReport = null; // carryReport: báo cáo ca tập còn chờ khi rời quán
   const service = createCafeService(farm, {
     notice: (text, ok = true) => ui.notice(text, ok), reward: (pos, amount) => ui.flyReward('coins', amount, screenAt(pos)), route,
     canStand: (x, z) => world.canStand(x, z),
@@ -455,7 +470,7 @@ export function createCafeGame({ farm, ui, awakening = null, onMenu, onExit, pro
   function openSession() {
     active = true; events = new AbortController();
     bindCafeFeedback({ vfx, screenAt, player, object: id => world.scene.getObjectByName(`farm:${id}`) });
-    cafeUi = createCafeUI({ farm, service, awakening, profile, fx: feedback, screenAt, notice: (text, ok = true) => ui.notice(text, ok), onExit, onOrders: () => onMenu('orders'), onWalkTable: table => world.moveToNpc(`table-${table}`), onWalk: id => world.moveToNpc(id),onGuide: id => world.setQuestArrow(id) });
+    cafeUi = createCafeUI({ farm, service, awakening, profile, pendingReport: carryReport, council: { waiting: () => farm.council, open: () => council?.open() }, fx: feedback, screenAt, notice: (text, ok = true) => ui.notice(text, ok), onExit, onOrders: () => onMenu('orders'), onWalkTable: table => world.moveToNpc(`table-${table}`), onWalk: id => world.moveToNpc(id),onGuide: id => world.setQuestArrow(id) });
     document.body.classList.add('cafe-active');
     listen(); farm.setCafeActive(true); keyboard.clear(); touch = { x: 0, z: 0 };
     if (leftAt) service.resume(Date.now() - leftAt);
@@ -469,6 +484,7 @@ export function createCafeGame({ farm, ui, awakening = null, onMenu, onExit, pro
     if (!active) return;
     active = false; leftAt = Date.now(); drag = null;
     gridDebug?.dispose(); incidentDebug?.dispose(); gridDebug = incidentDebug = null;
+    carryReport = cafeUi.pendingReport;
     farm.setCafeActive(false); events.abort(); cafeUi.dispose(); document.body.classList.remove('cafe-active');
     bindCafeFeedback(null); world.stopMovement();
   }
@@ -612,19 +628,29 @@ export function createCafeGame({ farm, ui, awakening = null, onMenu, onExit, pro
     world.setObjectStatus('pantry', { text: low ? t('cafe.status.pantryLow') : t('cafe.status.pantry') });
     world.setObjectStatus('board', { text: t('cafe.status.book') });
     world.setObjectStatus('notebook', { text: t('cafe.status.notebook') });
+    { const L = farm.peek().lessons, waiting = Boolean(farm.council); // F-45: vật Hội đồng hiện từ chuyên gia đầu, 'Mới' khi có người chờ
+      world.setActorVisible('council', L.arrived.length > 0); world.setActorState('council', { waiting, done: councilDone(L.met) }); world.setObjectStatus('council', { text: waiting ? t('cafe.status.councilNew') : '' }); }
     for (const id of ['terrace', 'roastery']) {
       const gear = GEAR.find(g => g.id === id), owned = cafe.gear[id] > 0;
       world.setActorState(id, { unlocked: owned });
       world.setObjectStatus(id, { text: owned ? (id === 'roastery' ? t('cafe.status.roastery') : '') : t('cafe.status.locked', { name: gear.name, price: t('cafe.coins', { n: gear.prices[0] }) }) });
     }
   }
+  // F-45 (đề xuất Q1 R7): chỉ gặp Hội đồng khi cửa đóng (báo cáo ca mở lúc ca đã đóng), không giữa ca.
+  function meetCouncil() {
+    if (farm.peek().cafe.open) { ui.notice(t('cafe.notice.councilWait'), false); return; }
+    if (council?.open() && !autoOn()) world.faceTo('council'); // CT-3: quay mặt về vật Hội đồng
+  }
   function interact(id) {
     glowUntil = performance.now() + 1200;
+    if (id === 'council') { meetCouncil(); return; }
+    // Ca tập (F-47): đang mở thì cửa chỉ báo 'Quán đang mở ca tập'; đóng thì mở lại ca tập hoặc van an toàn (service.toggleOpen).
     if (id === 'door') { const r = service.toggleOpen(); ui.notice(r.message, r.ok); cafeUi.refreshHud(); return; }
     if (id === 'register') service.arriveRegister();
     else if (id === 'pickup') { if (service.snap.cafe.gear.pickup) service.arrivePickup(); else cafeUi.openUpgrades('auto'); }
     else if (id === 'kiosk') cafeUi.openUpgrades('auto');
-    else if (id === 'bar') { if (!service.arriveBar()) cafeUi.openBench(); }
+    // Auto trong ca tập không mở quầy pha (ly đầu do người chơi tự pha); hụt ly trên kệ thì thôi.
+    else if (id === 'bar') { if (!service.arriveBar() && !(autoOn() && service.training)) cafeUi.openBench(); }
     else if (id === 'pantry') cafeUi.openPantry();
     else if (id === 'board') cafeUi.openBook();
     else if (id === 'notebook') cafeUi.openMemory();
@@ -642,7 +668,7 @@ export function createCafeGame({ farm, ui, awakening = null, onMenu, onExit, pro
   let autoLive = 0;
   const autoOn = () => performance.now() - autoLive < 300;
   const playerWindow = () => ui.modalOpen || (cafeUi.open && !['bench', 'shift'].includes(cafeUi.view));
-  const blocked = () => isSettingsOpen() || (autoOn() ? cafeUi.open && cafeUi.view === 'bench' : ui.modalOpen || cafeUi.open);
+  const blocked = () => isSettingsOpen() || (autoOn() ? cafeUi.open && cafeUi.view === 'bench' : ui.modalOpen || cafeUi.open || Boolean(council?.isOpen()));
   // ---- Auto mode (docs/shared/crew-autoplay.md 5): plays the owner through the real controls, never a job staff already hold ----
   let autoGoal = null, autoWait = 0, noBrewUntil = 0, autoIncident = null, autoDoing = null, autoErrandAt = 0;
   const spot = id => { const item = interactions.find(entry => entry.id === id); return item && screenAt({ x: item.position[0], z: item.position[1] }); };
@@ -660,24 +686,25 @@ export function createCafeGame({ farm, ui, awakening = null, onMenu, onExit, pro
     return null;
   }
   function autoPick(ctx, behind = false) {
-    const cafe = service.snap.cafe, now = Date.now();
-    if (!cafe.open && !service.shift) return { id: 'door', text: t('crew.auto.cafe.open') };
+    const cafe = service.snap.cafe, now = Date.now(), training = service.training;
+    // Ca tập (F-47, Q7 R9): không bao giờ chạm cửa, không nhận/pha order V60 của ca tập; chỉ bưng ly đã có và dọn bàn.
+    if (!cafe.open && !service.shift && !training) return { id: 'door', text: t('crew.auto.cafe.open') };
     if (service.hand) {
       const c = wanting(service.hand.recipeId);
       if (c?.seat) return { id: `table-${c.seat.table}`, text: t('crew.auto.cafe.serve', { n: c.seat.table + 1 }) };
       return c ? { id: cafe.gear.pickup ? 'pickup' : 'register', text: t('crew.auto.cafe.takeaway') } : { id: 'bar', text: t('crew.auto.cafe.shelve') };
     }
     if (service.shelf.some(d => !service.isClaimed(`drink:${d.id}`) && wanting(d.recipeId))) return { id: 'bar', text: t('crew.auto.cafe.pickup') };
-    if (service.queueLength() && !service.staffOn('cashier')) return { id: 'register', text: t('crew.auto.cafe.order') };
+    if (service.queueLength() && !service.staffOn('cashier') && !training) return { id: 'register', text: t('crew.auto.cafe.order') };
     // No clean seat left while guests queue: clean first, or they are sent to take-away and walk out angry (maxed café, 04/11).
     const dirtyTable = () => [...new Set([...service.dirty].map(k => Number(k.split(':')[0])))].find(n => !service.isClaimed(`clean:${n}`));
     const blocked = service.queueLength() && !service.hasCleanSeat() ? dirtyTable() : undefined;
     if (blocked !== undefined) return { id: `table-${blocked}`, text: t('crew.auto.cafe.clean', { n: blocked + 1 }) };
-    const ticket = !behind && now >= noBrewUntil && service.tickets().find(tk => !tk.covered && CROPS.some(c => !missingFor(tk.recipe, cafe, c.id).length));
+    const ticket = !behind && !training && now >= noBrewUntil && service.tickets().find(tk => !tk.covered && CROPS.some(c => !missingFor(tk.recipe, cafe, c.id).length));
     if (ticket) return { id: 'bar', text: t('crew.auto.cafe.brew', { drink: ticket.recipe.name }) };
     const table = dirtyTable();
     if (table !== undefined) return { id: `table-${table}`, text: t('crew.auto.cafe.clean', { n: table + 1 }) };
-    return cafe.open ? { id: 'register', text: t('crew.auto.cafe.wait') } : null;
+    return cafe.open && !training ? { id: 'register', text: t('crew.auto.cafe.wait') } : null;
   }
   // Show the hand on a control for ~1 s, then tap it, so the player sees where to press.
   const autoPress = (hud, element, text, delay = 1100) => hud.tap(element, text, delay);
@@ -687,6 +714,8 @@ export function createCafeGame({ farm, ui, awakening = null, onMenu, onExit, pro
     if (!root?.open) { hud.show(null, t('crew.auto.waitModal')); return; }
     // Only the end-of-shift report is closed by Auto; any other window is the player's and stays.
     if (cafeUi.view === 'shift') { autoPress(hud, root.querySelector('.cafe-close'), t('crew.auto.closeModal'), 1500); return; }
+    // Ca tập: ly đầu do người chơi tự pha (làm mẫu), Auto không bấm gì trong quầy pha.
+    if (service.training) { hud.show(null, t('crew.auto.cafe.training')); return; }
     const done = root.querySelector('.cafe-result .cafe-primary');
     if (done) { autoPress(hud, done, t('crew.auto.bench.carry'), 1200); return; }
     // Missing ingredients: back off 20 s. The drink picker (every order already covered): just close, nothing to brew.
@@ -714,7 +743,7 @@ export function createCafeGame({ farm, ui, awakening = null, onMenu, onExit, pro
       show(autoDoing.spot ? spot(autoDoing.spot) : null, autoDoing.text);
       if (performance.now() < autoDoing.at) return;
       const job = autoDoing; autoDoing = null; autoErrandAt = Date.now() + 1500;
-      const r = farm.act(job.scope, job.action, job.choice); ui.notice(r.message, r.ok); if (!r.ok) autoErrandAt = Date.now() + 15000; cafeUi.refreshHud(); return;
+      const r = farm.act(job.scope, job.action, job.choice, Date.now(), 'player', 'auto'); ui.notice(r.message, r.ok); if (!r.ok) autoErrandAt = Date.now() + 15000; cafeUi.refreshHud(); return;
     }
     if (autoGoal && performance.now() < autoGoal.until) { show(spot(autoGoal.id), autoGoal.text); return; }
     autoGoal = null;
@@ -722,7 +751,8 @@ export function createCafeGame({ farm, ui, awakening = null, onMenu, onExit, pro
     const errand = autoErrand();
     if (errand) { autoDoing = { ...errand, at: performance.now() + 1400 }; return; }
     const pick = autoPick(ctx, behind);
-    if (!pick) { hud.show(null, t('crew.auto.cafeIdle')); return; }
+    // Chỉ hiện dòng ca tập khi ca tập đang chạy; quán đóng vì thiếu chè thì báo thiếu chè.
+    if (!pick) { hud.show(null, service.shift?.training ? t('crew.auto.cafe.training') : service.trainingValve ? service.trainingHint() : t('crew.auto.cafeIdle')); return; }
     show(spot(pick.id), pick.text);
     if (pick.id === 'register' && nearRegister()) return; // standing there already takes orders / hands out take-away cups
     autoGoal = { ...pick, until: performance.now() + 15000 };
@@ -742,7 +772,7 @@ export function createCafeGame({ farm, ui, awakening = null, onMenu, onExit, pro
   let hiddenAt = 0;
   document.addEventListener('visibilitychange', () => { if (document.hidden) hiddenAt = Date.now(); else if (hiddenAt) { service.resume(Date.now() - hiddenAt); hiddenAt = 0; } }, { signal: events.signal });
   document.addEventListener('click', e => {
-    const canvas = e.target.closest('#game canvas'); if (!canvas || blocked() || performance.now() < suppress) return;
+    const canvas = e.target.closest('#game canvas'); if (!canvas || blocked() || council?.isOpen() || performance.now() < suppress) return;
     const rect = canvas.getBoundingClientRect(), id = pickStaff(e.clientX, e.clientY, rect);
     // Tapping a person on their phone or about to be rude handles the incident instead of opening the staff sheet.
     if (id) { selectStaff(id); if (!service.remind(id)) cafeUi.openStaff(id); return; }
@@ -750,6 +780,7 @@ export function createCafeGame({ farm, ui, awakening = null, onMenu, onExit, pro
     // Tapping a table or chair opens its card; with a cup in hand it walks over to serve instead.
     // Auto keeps the character (only ⏸ hands it back), but slot plates and table cards still open; Auto works behind them.
     world.moveToScreen(e.clientX, e.clientY, rect, (target, { action } = {}) => {
+      if (target === 'council') { meetCouncil(); return true; } // mở tại chỗ, không đi bộ (F-45, CT-3)
       select(target);
       if (action === 'upgrade') { glowUntil = performance.now() + 1200; cafeUi.openUpgrades('auto'); return true; } // tapped an empty slot plate
       if (!target.startsWith('table-') || service.hand) return false;
@@ -785,7 +816,8 @@ export function createCafeGame({ farm, ui, awakening = null, onMenu, onExit, pro
       const result = world.update(dt, time, keyboard.combine(touch), blocked());
       if (result.arrivedNpc) { autoGoal = null; if (autoOn() && playerWindow() && result.arrivedNpc === 'bar') service.arriveBar(); else interact(result.arrivedNpc); }
       // Auto-serve at the register while the player stands there idle (twice a second).
-      if (!blocked() && !touch.x && !touch.z && nearRegister() && (registerTick -= dt) <= 0) { registerTick = .5; if (service.autoRegister()) cafeUi.refreshHud(); }
+      // Ca tập: Auto đứng ở quầy không tự nhận order thay người chơi (Q7 R9), vẫn trao ly mang đi.
+      if (!blocked() && !touch.x && !touch.z && nearRegister() && (registerTick -= dt) <= 0) { registerTick = .5; if (service.autoRegister(!(autoOn() && service.training))) cafeUi.refreshHud(); }
       // Pulse the selection glow; fade it out a moment after the player reaches the object.
       if (glow.visible) {
         glow.material.opacity = .6 + .4 * Math.sin(time * 6);

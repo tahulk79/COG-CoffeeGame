@@ -2,7 +2,9 @@ import * as THREE from 'three';
 import { REGIONS, TYPE_ICON, TYPE_COLOR } from './content.js';
 import { project } from './geo.js';
 import { buildTerrain, DEEP } from './terrain.js';
-import { questsFor } from '../farm/content.js';
+import { questsFor, CROPS } from '../farm/content.js';
+import { REGION_CROP, regionFit } from '../farm/rules.js';
+import { regionNumbers } from '../awakening/unlocks.js';
 import { disposeScene } from '../../shared/three/dispose-scene.js';
 import { sfx } from '../../shared/audio/index.js';
 import { t } from '../../i18n/index.js';
@@ -17,6 +19,9 @@ const ZOOM = { min: 6, max: 22 };
 const WATER = .02;
 const DEPTH = .22; // bề dày khối quốc gia
 const NEUTRAL_FLAG = '#f3e7c9', HIGHLIGHT = '#ffd25e';
+// Chọn sẵn lần đầu (F-44, Q3): giữ toàn cảnh rồi mới lướt vào nơi chọn sẵn; nút «Chọn nơi này» chỉ nhận chạm/Enter sau
+// CHOOSE_DELAY kể từ lúc bản đồ mở (chặn chạm/Enter còn sót từ thiên đàng). Đơn vị giây — chỉnh khi playtest.
+const PRESELECT_HOLD = .8, CHOOSE_DELAY = 1.2;
 
 const inside = ([lon, lat], ring) => {
   let hit = false;
@@ -27,7 +32,7 @@ const inside = ([lon, lat], ring) => {
   return hit;
 };
 
-export function createWorldMap({ onPick, onChoose, onClose, chosen = null }) {
+export function createWorldMap({ onPick, onChoose, onClose, chosen = null, preselect = null, hasNature = false }) {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#cdebf5');
   scene.fog = new THREE.Fog('#cdebf5', 24, 46);
@@ -49,6 +54,8 @@ export function createWorldMap({ onPick, onChoose, onClose, chosen = null }) {
   const pole = new THREE.MeshStandardMaterial({ color: '#6b4a2c' }), leaf = new THREE.MeshStandardMaterial({ color: '#2f6e34', flatShading: true });
   const cupMaterial = new THREE.MeshStandardMaterial({ color: '#fbf6ec' }), coffee = new THREE.MeshStandardMaterial({ color: '#5a3520' });
   const sideMaterial = new THREE.MeshStandardMaterial({ color: '#9a7650', roughness: .95 });
+  const isletMaterial = new THREE.MeshStandardMaterial({ color: '#e8d9a8', roughness: 1, flatShading: true });
+  const isletGeometry = new THREE.CylinderGeometry(.055, .07, .03, 7), isletBlock = new THREE.CylinderGeometry(.055, .055, DEPTH, 7);
   const regions = REGIONS.map(region => {
     const [x, z] = project(region.lon, region.lat), ground = Math.max(WATER, terrain.heightAt(region.lon, region.lat));
     const anchor = new THREE.Group(), tile = new THREE.Group(), lift = new THREE.Group(), landmarks = new THREE.Group();
@@ -88,9 +95,20 @@ export function createWorldMap({ onPick, onChoose, onClose, chosen = null }) {
     tile.add(block, lift); tile.visible = false;
     const rest = top - DEPTH - .03; // mặt khối ngang đỉnh cao nhất khi vừa trồi
     tile.position.y = rest;
+    // Quần đảo (Hoàng Sa, Trường Sa của Việt Nam): đảo cát nhỏ nổi trên mặt nước, chạm vào chọn cả nước; khi trồi thì đảo
+    // cũng nhấc lên cùng khối, cùng màu mặt khối.
+    const islandGroups = (region.islands || []).map(group => {
+      for (const [lon, lat] of group.islets) {
+        const [px, pz] = project(lon, lat);
+        const sand = new THREE.Mesh(isletGeometry, isletMaterial); sand.position.set(px - x, WATER + .015, pz - z); sand.receiveShadow = true; anchor.add(sand);
+        const raised = new THREE.Mesh(isletBlock, [sideMaterial, tileTop, sideMaterial]); raised.position.set(px - x, DEPTH / 2, pz - z); raised.castShadow = true; tile.add(raised);
+      }
+      const [gx, gz] = project(group.lon, group.lat);
+      return { id: group.id, x: gx, z: gz };
+    });
     anchor.add(outline, tile); scene.add(anchor);
     anchor.traverse(object => { object.userData.region = region.id; });
-    return { region, x, z, ground, rest, anchor, tile, lift, tileTop, outline, flag, landmarks, rise: 0, speed: 0 };
+    return { region, x, z, ground, rest, anchor, tile, lift, tileTop, outline, flag, landmarks, islandGroups, rise: 0, speed: 0 };
   });
 
   // DOM: tiêu đề, nút đóng, nhãn từng nơi (bấm được), thẻ chọn ở đáy. Chỉ các nút nhận chạm.
@@ -99,7 +117,7 @@ export function createWorldMap({ onPick, onChoose, onClose, chosen = null }) {
   const root = el('section'); root.id = 'world-map'; root.setAttribute('aria-label', t('world.label'));
   const header = el('header', 'world-map__header'); header.append(el('h2', 'world-map__title', t('world.title')));
   const close = el('button', 'ui-close world-map__close', '×'); close.type = 'button'; close.setAttribute('aria-label', t('world.close')); close.title = t('world.close');
-  const pins = el('div', 'world-map__pins'), card = el('div', 'world-map__card'); card.setAttribute('role', 'status');
+  const pins = el('div', 'world-map__pins'), card = el('div', 'world-map__card'); card.setAttribute('role', 'status'); card.tabIndex = -1;
   root.append(pins, header, close, card); document.body.append(root); document.body.classList.add('world-map-open');
   const pinFor = new Map(regions.map(entry => {
     const pin = el('button', 'world-map__pin'); pin.type = 'button';
@@ -108,7 +126,16 @@ export function createWorldMap({ onPick, onChoose, onClose, chosen = null }) {
     pins.append(pin); return [entry, pin];
   }));
 
-  let selected = null, confirming = false, revealed = null, popTime = 0;
+  // Nhãn quần đảo (chỉ đọc, không nhận chạm): ghi rõ thuộc Việt Nam.
+  const islandLabels = regions.flatMap(entry => entry.islandGroups.map(group => {
+    const label = el('span', 'world-map__island', t(`world.island.${group.id}`)); pins.append(label); return { entry, group, label };
+  }));
+
+  let selected = null, confirming = false, revealed = null, popTime = 0, openTime = 0;
+  // Chọn sẵn (F-44): `pending` chờ hết PRESELECT_HOLD (người chơi tự kéo/phóng/chạm trước thì huỷ, không kéo camera về);
+  // `auto` = thẻ thu gọn khi người chơi chưa chạm cờ nào; `offered` = đã thật sự chọn sẵn; `strayed` = đã chạm cờ khác
+  // nơi chọn sẵn (analytics `preselected`). Không lưu gì trước khi bấm «Trùng sinh ở đây».
+  let pending = REGIONS.some(region => region.id === preselect) && !REGIONS.some(region => region.id === chosen) ? preselect : null, auto = false, offered = false, strayed = false;
   const view = { x: 2, z: -1.5, distance: 20 }, goal = { ...view }, velocity = { x: 0, z: 0 };
   const clampView = target => { target.x = THREE.MathUtils.clamp(target.x, BOUNDS.minX, BOUNDS.maxX); target.z = THREE.MathUtils.clamp(target.z, BOUNDS.minZ, BOUNDS.maxZ); };
   const button = (label, style, run) => { const b = el('button', `ui-btn ${style}`, label); b.type = 'button'; b.addEventListener('click', run, { signal }); return b; };
@@ -125,11 +152,17 @@ export function createWorldMap({ onPick, onChoose, onClose, chosen = null }) {
       // Chưa chốt: chỉ tên, nơi chốn và một câu gợi không khí — không lộ có nông trại hay quán.
       // Chưa chốt: chỉ địa lý (địa hình, khí hậu, nhiệt độ, mưa, độ cao) — không lộ trồng được gì hay có quán.
       const facts = el('ul', 'world-map__features world-map__facts');
-      if (!confirming) for (const fact of region.facts) { const item = el('li', 'is-info'); item.append(el('span', 'world-map__mark', fact.icon), el('span', '', `${t(`world.fact.${fact.key}`)}: `), el('b', '', fact.value)); facts.append(item); }
-      card.append(head, el('p', 'world-map__note', confirming ? t('world.confirm', { name: region.name }) : region.teaser), facts, actions);
+      // Thẻ thu gọn khi đang chọn sẵn: ẩn facts, thêm dòng gợi chạm cờ khác + «Xem thêm» (không nhãn khuyên dùng, không lộ loại).
+      const compact = auto && !confirming;
+      if (!confirming && !compact) for (const fact of region.facts) { const item = el('li', 'is-info'); item.append(el('span', 'world-map__mark', fact.icon), el('span', '', `${t(`world.fact.${fact.key}`)}: `), el('b', '', fact.value)); facts.append(item); }
+      card.append(head, el('p', 'world-map__note', confirming ? t('world.confirm', { name: region.name }) : region.teaser), ...(compact ? [el('p', 'world-map__hint', `👆 ${t('world.preselectHint')}`)] : []), facts, actions);
       if (confirming) actions.append(button(t('world.confirmBack'), 'ui-btn--plain', () => { confirming = false; renderCard(); }), button(t('world.confirmGo'), 'ui-btn--go ui-btn--lg', () => reveal(region.id)));
-      else actions.append(button(t('world.choose'), 'ui-btn--go ui-btn--lg', () => { confirming = true; renderCard(); }));
-      actions.lastElementChild.focus({ preventScroll: true });
+      else {
+        if (compact) actions.append(button(t('world.more'), 'ui-btn--plain', () => { auto = false; renderCard(); }));
+        // Chạm/Enter còn sót ngay khi bản đồ mở không được vào bước cảnh báo.
+        actions.append(button(t('world.choose'), 'ui-btn--go ui-btn--lg', () => { if (openTime < CHOOSE_DELAY) return; confirming = true; renderCard(); }));
+      }
+      (compact ? card : actions.lastElementChild).focus({ preventScroll: true });
       return;
     }
     const badge = el('span', `world-map__chip is-${region.type}`); badge.append(el('span', 'world-map__icon', TYPE_ICON[region.type]), el('span', '', t(`world.type.${region.type}`)));
@@ -142,26 +175,32 @@ export function createWorldMap({ onPick, onChoose, onClose, chosen = null }) {
     line('is-info', '💰', t(`world.sell.${region.type}`));
     line('is-info', '🛒', t(`world.buy.${region.type}`));
     const crops = el('p', 'world-map__crops'); crops.append(el('b', '', `${t('world.crops')}: `), document.createTextNode(region.crops));
+    // Key Nature (F-35): hệ số vùng theo giống, chỉ thông tin (chữ + icon, không chỉ màu); không đổi số kinh tế.
+    const coeffs = el('ul', 'world-map__features world-map__coeffs');
+    if (hasNature && REGION_CROP[region.id]) for (const crop of CROPS) { const fit = regionFit(region.id, crop.id), item = el('li', { good: 'is-on', neutral: 'is-info', poor: 'is-off' }[fit]); item.append(el('span', 'world-map__mark', { good: '✓', neutral: '–', poor: '✗' }[fit]), el('span', '', `${crop.name}: ${t(`farm.shop.fit.${fit}`).replace(/^[✓–✗]\s*/, '')} · ${t('awakening.region.line', regionNumbers(region.id, crop.id))}`)); coeffs.append(item); }
     const quests = el('ol', 'world-map__quests');
     for (const quest of questsFor(region.id).slice(-2)) { const item = el('li'); item.append(el('span', '', quest.title), el('b', '', `+${quest.coins}`)); quests.append(item); }
-    card.append(head, features, crops, el('p', 'world-map__note', region.note), el('h3', 'world-map__subtitle', `🎯 ${t('world.quests')}`), quests, el('p', 'world-map__balance', t(`world.balance.${region.type}`)), actions);
+    card.append(head, features, crops, ...(coeffs.children.length ? [el('h3', 'world-map__subtitle', `🌿 ${t('world.coeffs')}`), coeffs] : []), el('p', 'world-map__note', region.note), el('h3', 'world-map__subtitle', `🎯 ${t('world.quests')}`), quests, el('p', 'world-map__balance', t(`world.balance.${region.type}`)), actions);
     actions.append(button(t('world.reveal.start'), 'ui-btn--go ui-btn--lg', () => onChoose(region.id)));
     actions.lastElementChild.focus({ preventScroll: true });
   }
   function focusOn(entry, distance) { goal.x = entry.x; goal.z = entry.z + 1.6; goal.distance = Math.min(goal.distance, distance); clampView(goal); velocity.x = velocity.z = 0; }
-  function select(id) {
-    if (revealed || selected === id) return;
-    selected = id; confirming = false;
+  // { auto: true }: chọn sẵn — không sfx, không focus nút chọn, thẻ thu gọn. Người chơi chạm cờ (kể cả cờ đang chọn sẵn) thì mở thẻ đầy đủ.
+  function select(id, { auto: preselected = false } = {}) {
+    if (revealed) return;
+    if (!preselected) { pending = null; if (id !== preselect) strayed = true; }
+    if (selected === id) { if (auto && !preselected) { auto = false; sfx('ui.open'); renderCard(); } return; }
+    selected = id; confirming = false; auto = preselected; if (preselected) offered = true;
     const entry = regions.find(item => item.region.id === id); entry.speed += 5; // cú bật đầu cho lò xo
     focusOn(entry, 15);
-    sfx('ui.open');
+    if (!preselected) sfx('ui.open');
     for (const [item, pin] of pinFor) pin.classList.toggle('is-selected', item.region.id === id);
     renderCard();
   }
   // Chốt nơi: lưu (onPick), đóng đường lui, lộ loại nơi bằng hoạt cảnh rồi hiện thẻ kết quả.
   function reveal(id, silent = false) {
     if (revealed) return;
-    if (!silent) onPick(id);
+    if (!silent) onPick(id, { preselected: id === preselect && offered && !strayed });
     selected = revealed = id; confirming = false; popTime = 0;
     const entry = regions.find(item => item.region.id === id), color = TYPE_COLOR[entry.region.type];
     entry.flag.color.set(color); entry.tileTop.color.set(color).lerp(new THREE.Color('#ffffff'), .25); entry.tileTop.emissive.set(color); entry.outline.material.color.set(color); entry.landmarks.visible = true;
@@ -192,12 +231,12 @@ export function createWorldMap({ onPick, onChoose, onClose, chosen = null }) {
       point.x = event.clientX; point.y = event.clientY;
       const after = Math.hypot(a.x - b.x, a.y - b.y);
       if (pinch && after) goal.distance = THREE.MathUtils.clamp(goal.distance * before / after, ZOOM.min, ZOOM.max);
-      pinch = after; moved = true; return;
+      pinch = after; moved = true; pending = null; return;
     }
     const dx = event.clientX - point.x, dy = event.clientY - point.y;
     point.x = event.clientX; point.y = event.clientY;
     if (!moved && Math.hypot(event.clientX - point.startX, event.clientY - point.startY) < 8) return;
-    moved = true;
+    moved = true; pending = null;
     // Camera nghiêng ~55°: một pixel dọc màn hình ứng với nhiều đất hơn theo z.
     const scale = unitsPerPixel(), now = performance.now(), dt = Math.max(16, now - lastMove) / 1000; lastMove = now;
     const mx = -dx * scale, mz = -dy * scale * 1.25;
@@ -226,7 +265,7 @@ export function createWorldMap({ onPick, onChoose, onClose, chosen = null }) {
   for (const type of ['pointerup', 'pointercancel']) document.addEventListener(type, release, { capture: true, signal });
   document.addEventListener('wheel', event => {
     if (!event.target.closest('#game canvas')) return;
-    event.preventDefault(); goal.distance = THREE.MathUtils.clamp(goal.distance * (event.deltaY > 0 ? 1.1 : .9), ZOOM.min, ZOOM.max);
+    event.preventDefault(); pending = null; goal.distance = THREE.MathUtils.clamp(goal.distance * (event.deltaY > 0 ? 1.1 : .9), ZOOM.min, ZOOM.max);
   }, { passive: false, signal });
   close.addEventListener('click', () => onClose(), { signal });
   const held = new Set();
@@ -251,7 +290,8 @@ export function createWorldMap({ onPick, onChoose, onClose, chosen = null }) {
       camera.position.set(view.x, view.distance * .82, view.z + view.distance * .58); camera.lookAt(view.x, 0, view.z - 1);
       sun.position.set(view.x - 6, 10, view.z + 5); sun.target.position.set(view.x, 0, view.z - 1);
       const time = performance.now() / 1000, step = Math.min(dt, 1 / 30);
-      popTime += dt;
+      popTime += dt; openTime += dt;
+      if (pending && openTime >= PRESELECT_HOLD) { const id = pending; pending = null; select(id, { auto: true }); }
       for (const entry of regions) {
         // Lò xo tắt dần: bật vượt đích rồi nảy về, nhìn như cả quốc gia bị nhấc lên khỏi lục địa.
         const target = entry.region.id === revealed ? DEPTH + 1.1 : entry.region.id === selected ? DEPTH + .65 : 0;
@@ -273,11 +313,17 @@ export function createWorldMap({ onPick, onChoose, onClose, chosen = null }) {
         if (pin.hidden === visible) pin.hidden = !visible;
         if (visible) pin.style.transform = `translate3d(${Math.round((anchor.x + 1) / 2 * innerWidth)}px, ${Math.round((1 - anchor.y) / 2 * innerHeight)}px, 0) translate(-50%, -100%)`;
       }
+      for (const { entry, group, label } of islandLabels) {
+        anchor.set(group.x, (entry.tile.visible ? entry.tile.position.y + DEPTH : WATER) + .12, group.z).project(camera);
+        const visible = anchor.z < 1 && Math.abs(anchor.x) < 1.1 && Math.abs(anchor.y) < 1.1 && view.distance < 17;
+        if (label.hidden === visible) label.hidden = !visible;
+        if (visible) label.style.transform = `translate3d(${Math.round((anchor.x + 1) / 2 * innerWidth)}px, ${Math.round((1 - anchor.y) / 2 * innerHeight)}px, 0) translate(-50%, -100%)`;
+      }
     },
     handleKeyDown(event) {
       if (event.target.closest('input, textarea, select')) return;
       if (event.code === 'Escape') { event.preventDefault(); if (revealed) return; if (confirming) { confirming = false; renderCard(); } else onClose(); return; }
-      if (KEYS[event.code]) { event.preventDefault(); held.add(event.code); }
+      if (KEYS[event.code]) { event.preventDefault(); held.add(event.code); pending = null; }
     },
     handleKeyUp(event) { held.delete(event.code); },
     clearInput() { held.clear(); pointers.clear(); velocity.x = velocity.z = 0; },
