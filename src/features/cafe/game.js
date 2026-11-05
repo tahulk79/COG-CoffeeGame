@@ -661,8 +661,6 @@ export function createCafeGame({ farm, ui, awakening = null, onMenu, onExit, pro
   }
   function autoPick(ctx, behind = false) {
     const cafe = service.snap.cafe, now = Date.now();
-    // Shift over and the farm needs hands: walk back to the farm instead of opening a new shift.
-    if (!cafe.open && !service.shift && ctx.goFarm && ctx.farmWork()) return { id: 'farm', text: t('crew.auto.cafe.toFarm') };
     if (!cafe.open && !service.shift) return { id: 'door', text: t('crew.auto.cafe.open') };
     if (service.hand) {
       const c = wanting(service.hand.recipeId);
@@ -724,7 +722,6 @@ export function createCafeGame({ farm, ui, awakening = null, onMenu, onExit, pro
     const errand = autoErrand();
     if (errand) { autoDoing = { ...errand, at: performance.now() + 1400 }; return; }
     const pick = autoPick(ctx, behind);
-    if (pick?.id === 'farm') { if (behind) return; hud.show(null, pick.text); ctx.goFarm(); return; }
     if (!pick) { hud.show(null, t('crew.auto.cafeIdle')); return; }
     show(spot(pick.id), pick.text);
     if (pick.id === 'register' && nearRegister()) return; // standing there already takes orders / hands out take-away cups
