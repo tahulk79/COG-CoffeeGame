@@ -1,5 +1,0 @@
-#!/bin/sh
-# Sau pull --rebase: báo những gì vừa vào máy. Chỉ chạy cho rebase, không cho commit --amend.
-[ "$1" = "rebase" ] || exit 0
-command -v node >/dev/null 2>&1 || exit 0
-node scripts/design-inbox.mjs --since ORIG_HEAD --ref HEAD || true

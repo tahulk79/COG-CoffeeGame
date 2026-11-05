@@ -673,7 +673,7 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
           money(-cost,'training',at,candidateById(member.id).person);member.level++;message=t('farmRules.msg.levelUp',{name:candidateById(member.id).person,level:member.level});
         }else if(action==='shift'){
           // End-of-shift reward; the scene reports its counts, bounded so a tampered report cannot mint coins.
-          // Three tiers from the bronze goal (cafe-fun-review P1); the model derives the tier itself from the clamped counts.
+          // Three tiers from the bronze goal (docs/screens/04-cafe/rules.md §4); the model derives the tier itself from the clamped counts.
           const served=clamp(integer(choice?.served),0,200),goal=clamp(integer(choice?.goal),1,200),good=finite(choice?.avg)>=2;
           const tier=!good?0:served>=Math.ceil(goal*SHIFT_TIERS[2])?3:served>=Math.ceil(goal*SHIFT_TIERS[1])?2:served>=goal?1:0;
           const bonus=Math.min(300,served*[0,3,4,5][tier]),rep=tier||(served<Math.ceil(goal/2)?-1:0);

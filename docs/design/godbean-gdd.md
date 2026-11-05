@@ -69,7 +69,6 @@ Mục này trả lời: GDD đang ở trạng thái nào, code đã làm tới �
 | | Một phần | Có một phần phạm vi |
 | | Đã code | Có đủ phạm vi đã chốt trong commit đối chiếu |
 | Kiểm chứng | Chưa | Chưa có ai chạy/chơi để xác nhận |
-| | Test | Có test tự động trong `tests/` (không có nghĩa đã chạy gần đây) |
 | | Sim | Đo bằng `scripts/balance-sim.mjs` |
 | | Playtest dd/mm | Có người chơi thử ngày đó |
 
@@ -81,11 +80,11 @@ Mục này trả lời: GDD đang ở trạng thái nào, code đã làm tới �
 |---|---|---|---|---|---|---|
 | F-01 | Chọn nhân vật, tên ngẫu nhiên, nút Vào Game | 4 | Đã chốt | Đã code | Playtest 04/11 | Không có ô đặt tên |
 | F-02 | Intro 3D (xem 22,5 s) | 3, 4 | Đã chốt | Đã code | Playtest 04/11 | Y tế, Thần Chết đã có GLB; chưa lồng tiếng |
-| F-03 | Thiên đàng đầy đủ: hỏi 6 câu, dấu, chọn hành trang | 5.3 | Bỏ | — | Test, Playtest 03/11, 04/11 | Thay bằng F-44 (thiên đàng mini) và F-45 (Hội đồng). Save cũ vẫn đọc được |
+| F-03 | Thiên đàng đầy đủ: hỏi 6 câu, dấu, chọn hành trang | 5.3 | Bỏ | — | Playtest 03/11, 04/11 | Thay bằng F-44 (thiên đàng mini) và F-45 (Hội đồng). Save cũ vẫn đọc được |
 | F-04 | Mẹo từ câu đúng, hỏi lại câu sai | 5.3, A.1 | Đã chốt | Đã code | Playtest 03/11 | Câu chỉ hỏi lại khi đã gặp chuyên gia |
 | F-05 | Ruộng, mua đất liền kề | 6.1 | Đã chốt | Đã code | Playtest 04/11 | |
-| F-06 | Cây trồng, chăm sóc | 6.2, A.3 | Đã chốt | Đã code | Test | |
-| F-07 | Chế biến phơi, rang | 6.3 | Đã chốt | Đã code | Test | Câu hỏi mở về mẻ ở 15.1 |
+| F-06 | Cây trồng, chăm sóc | 6.2, A.3 | Đã chốt | Đã code | Chưa | |
+| F-07 | Chế biến phơi, rang | 6.3 | Đã chốt | Đã code | Chưa | Câu hỏi mở về mẻ ở 15.1 |
 | F-08 | Kho, chợ giảm giá theo ngày công | 6.4, 10.3 | Đang chỉnh | Đã code | Sim | |
 | F-09 | Nâng cấp tới cấp 20, 3 bậc diện mạo | 6.5 | Đã chốt | Đã code | Sim, Playtest 04/11 | Bậc 2+ còn là bản sao khối tạm |
 | F-10 | Đơn hàng farm → quán | 6.6 | Đã chốt | Đã code | Playtest 03/11 (một phần) | |
@@ -94,7 +93,7 @@ Mục này trả lời: GDD đang ở trạng thái nào, code đã làm tới �
 | F-13 | Vòng ca quán, mục tiêu ca, uy tín | 7.1–7.4 | Đang chỉnh | Đã code | Playtest 03/11, 04/11 | |
 | F-14 | Công thức, bàn pha theo số đo | 7.5, A.4 | Đã chốt | Đã code | Playtest 04/11 | 14 món |
 | F-15 | Nâng cấp quán, tự động hóa | 7.8, A.6 | Đã chốt | Đã code | Playtest 04/11 | |
-| F-16 | Thợ farm, chỉ thị | 8.1 | Đã chốt | Đã code | Test | |
+| F-16 | Thợ farm, chỉ thị | 8.1 | Đã chốt | Đã code | Chưa | |
 | F-17 | Nhân viên quán, bảng việc | 8.2 | Đã chốt | Đã code | Chưa | |
 | F-18 | Robot, sự cố, gói thử robot | 8.3 | Đã chốt | Đã code | Chưa | 3 nghi lỗi code ở Phụ lục B (D-11) |
 | F-19 | Nhiệm vụ, HUD mở dần, hướng dẫn lần đầu | 9 | Đã chốt | Đã code | Playtest 03/11 | |
@@ -107,27 +106,27 @@ Mục này trả lời: GDD đang ở trạng thái nào, code đã làm tới �
 | F-26 | Thay khối tạm bằng asset 3D | 12.3 | Đã chốt | Một phần | Chưa | |
 | F-27 | Nhóm "Để sau" (cold brew, khách quen, latte art…) | 14.4 | Đề xuất | Chưa làm | — | |
 | F-28 | Bản đồ thế giới: 8 nơi, luật theo loại nơi | 4, 6, 7 | Đã chốt | Đã code | Playtest 04/11 | |
-| F-29 | 3 slot đội, sao theo người làm, lười-mệt, Auto | 8 | Đã chốt | Đã code | Test 04/11, Playtest 04/11 | |
-| F-30 | Pha nhanh, rót dễ hơn, ly có hạn tươi | 7.5 | Đã chốt | Đã code | Test 04/11 | |
-| F-31 | Món mới (Matcha, Matcha Latte, Dirty), sữa/nước theo nhãn, Auto pha | 7.5, 7.7 | Đã chốt | Đã code | Test 04/11 | |
+| F-29 | 3 slot đội, sao theo người làm, lười-mệt, Auto | 8 | Đã chốt | Đã code | Playtest 04/11 | |
+| F-30 | Pha nhanh, rót dễ hơn, ly có hạn tươi | 7.5 | Đã chốt | Đã code | Chưa | |
+| F-31 | Món mới (Matcha, Matcha Latte, Dirty), sữa/nước theo nhãn, Auto pha | 7.5, 7.7 | Đã chốt | Đã code | Chưa | |
 | F-32 | Chợ thế giới giữa các nơi | 14.3 | Đề xuất | Chưa làm | — | |
-| F-33 | Coffee Memory: ly game + ly ngoài đời, so A/B, Insight | 7.9 | Đã chốt | Đã code | Test 04/11 | Khóa riêng `godbean-memory` |
-| F-34 | Quick Taste 6 thuộc tính, chấm trước khi xem ly cũ | 7.9 | Đã chốt | Đã code | Test 04/11 | Không ảnh hưởng giá bán |
-| F-35 | Decode & Awaken, First Sixth Key | 9.5 | Đã chốt (Fragment ↔ Key v1) | Một phần | Test 04/11 | Thiếu 2 câu: `region` (mẫu hái không ghi vùng), `roast-age` (chưa có luật hạn hạt rang; chạy câu `variety` thay) |
-| F-36 | Ba trục Wealth / Mastery / Awakening, hai mục tiêu thắng | 9.1, 9.6 | Đã chốt, số Đang chỉnh | Đã code | Test 04/11, Sim 04/11 | |
-| F-37 | Xuất / nhập / xóa dữ liệu | 13.3 | Đã chốt | Đã code | Test 04/11 | |
-| F-38 | Analytics theo sự kiện | 13.5 | Đã chốt | Đã code | Test 04/11 | Chưa có nơi nhận (D-26) |
-| F-39 | Điểm ly ghi "theo mô hình game" + `SCORE_MODEL_VERSION` | 2, 7.5 | Đã chốt | Đã code | Test 04/11 | |
-| F-40 | Pour-over V60 có sẵn, món đầu | 7.5, A.4 | Đã chốt, số Đang chỉnh | Đã code | Test 04/11 | |
-| F-41 | Đánh đổi sản lượng ↔ chất lượng (bón, tỉa, giá chợ) | 6.2, 10.2 | Đã chốt, số Đang chỉnh | Đã code | Test 04/11, Sim 04/11 | Bón vẫn nhỉnh nhất (D-27) |
-| F-42 | Chủ quán tự đặt giá 0,8–1,3 | 7.6 | Đã chốt, số Đang chỉnh | Đã code | Test 04/11, Sim 04/11 | p 0,8 áp đảo (D-28) |
-| F-43 | Hệ số vùng × giống | 6.2 | Đã chốt, số Đang chỉnh | Đã code | Test 04/11, Sim 04/11 | |
-| F-44 | Mobile-first: thiên đàng mini ≤ 5 hộp, quà cố định, chọn sẵn Việt Nam | 4, 5.3 | Đã chốt (chưa qua sếp) | Đã code | Chưa | Merge `bd0e674` (PR #83). Chưa đo thời lượng |
-| F-45 | Hội đồng so le ở trần gian (Cổng Hội đồng, vật Hội đồng) | 5.3 | Đã chốt (chưa qua sếp) | Đã code | Chưa | Merge `bd0e674`. Có `tests/council.test.js`. Tọa độ chưa chơi thử ở 375×812 |
-| F-46 | Tutorial ép `farm-intro` (gieo → hái → phơi → rang), kéo-gieo | 9.3 | Đã chốt (chưa qua sếp) | Đã code | Chưa | Merge `bd0e674` |
-| F-47 | Quán ca tập + ly V60 làm mẫu | 7.2 | Đã chốt (chưa qua sếp) | Đã code | Chưa | Merge `bd0e674`. Có `tests/v60.test.js`. Còn mở: nguồn chè cho nơi chỉ quán khi hết lô `starter` |
-| F-48 | Công trình thay nút HUD (pha 1): Cửa quán, Bảng đơn, Sạp, Nhà thợ | 6.1, 11.1 | Đã chốt (chưa qua sếp) | Đã code | Chưa | Merge `bd0e674`. Có `tests/farm-buildings.test.js`. Chưa: `!` ở Nhà thợ, pha 2 (mốc theo cấp) |
-| F-49 | Trục Cấp duy nhất, XP theo nguồn, tự nhận mẻ nấc 2, sự cố miễn theo cấp | 14.3 | Đề xuất (chờ sếp + sim) | Chưa làm | — | |
+| F-33 | Coffee Memory: ly game + ly ngoài đời, so A/B, Insight | 7.9 | Đã chốt | Đã code | Chưa | Khóa riêng `godbean-memory` |
+| F-34 | Quick Taste 6 thuộc tính, chấm trước khi xem ly cũ | 7.9 | Đã chốt | Đã code | Chưa | Không ảnh hưởng giá bán |
+| F-35 | Decode & Awaken, First Sixth Key | 9.5 | Đã chốt (Fragment ↔ Key v1) | Một phần | Chưa | Thiếu 2 câu: `region` (mẫu hái không ghi vùng), `roast-age` (chưa có luật hạn hạt rang; chạy câu `variety` thay) |
+| F-36 | Ba trục Wealth / Mastery / Awakening, hai mục tiêu thắng | 9.1, 9.6 | Đã chốt, số Đang chỉnh | Đã code | Sim 04/11 | |
+| F-37 | Xuất / nhập / xóa dữ liệu | 13.3 | Đã chốt | Đã code | Chưa | |
+| F-38 | Analytics theo sự kiện | 13.5 | Đã chốt | Đã code | Chưa | Chưa có nơi nhận (D-26) |
+| F-39 | Điểm ly ghi "theo mô hình game" + `SCORE_MODEL_VERSION` | 2, 7.5 | Đã chốt | Đã code | Chưa | |
+| F-40 | Pour-over V60 có sẵn, món đầu | 7.5, A.4 | Đã chốt, số Đang chỉnh | Đã code | Chưa | |
+| F-41 | Đánh đổi sản lượng ↔ chất lượng (bón, tỉa, giá chợ) | 6.2, 10.2 | Đã chốt, số Đang chỉnh | Đã code | Sim 04/11 | Bón vẫn nhỉnh nhất (D-27) |
+| F-42 | Chủ quán tự đặt giá 0,8–1,3 | 7.6 | Đã chốt, số Đang chỉnh | Đã code | Sim 04/11 | p 0,8 áp đảo (D-28) |
+| F-43 | Hệ số vùng × giống | 6.2 | Đã chốt, số Đang chỉnh | Đã code | Sim 04/11 | |
+| F-44 | Mobile-first: thiên đàng mini ≤ 5 hộp, quà cố định, chọn sẵn Việt Nam | 4, 5.3 | Đã chốt | Đã code | Chưa | Merge `bd0e674` (PR #83). Chưa đo thời lượng |
+| F-45 | Hội đồng so le ở trần gian (Cổng Hội đồng, vật Hội đồng) | 5.3 | Đã chốt | Đã code | Chưa | Merge `bd0e674`. Tọa độ chưa chơi thử ở 375×812 |
+| F-46 | Tutorial ép `farm-intro` (gieo → hái → phơi → rang), kéo-gieo | 9.3 | Đã chốt | Đã code | Chưa | Merge `bd0e674` |
+| F-47 | Quán ca tập + ly V60 làm mẫu | 7.2 | Đã chốt | Đã code | Chưa | Merge `bd0e674`. Còn mở: nguồn chè cho nơi chỉ quán khi hết lô `starter` |
+| F-48 | Công trình thay nút HUD (pha 1): Cửa quán, Bảng đơn, Sạp, Nhà thợ | 6.1, 11.1 | Đã chốt | Đã code | Chưa | Merge `bd0e674`. Chưa: `!` ở Nhà thợ, pha 2 (mốc theo cấp) |
+| F-49 | Trục Cấp duy nhất, XP theo nguồn, tự nhận mẻ nấc 2, sự cố miễn theo cấp | 14.3 | Đề xuất (chờ sim) | Chưa làm | — | |
 
 ### 0.4 Việc còn mở trong thiết kế
 
@@ -942,19 +941,13 @@ src/
                           incidents, lesson-prompt, loading, currency, icons
   ui/styles/              11 file css (game, ui-kit, hud, menus, dialogue, farm, cafe,
                           heaven, world-map, memory, awakening)
-tools/
-  intro-preview/          xem từng mốc intro
-  farm-preview/           chạy farm với save tạm
-  world-coffee-atlas/     World Coffee Atlas Live v0.1 (Next.js, xuất tĩnh ra public/data, phục vụ tại /data)
 scripts/
   balance-sim.mjs         mô phỏng kinh tế bằng model thật
   optimize-models.mjs     nén GLB (meshopt)
-  design-inbox.mjs        tóm tắt thay đổi thiết kế từ repo chính
-tests/                    22 file node:test (`npm test`)
 public/models/            GLB theo màn
 ```
 
-**Lệnh:** `npm run dev`, `npm run build`, `npm test`. **Tham số URL:** `?fps` (fps, draw call, mức đồ họa), `?profile=max` (dev), `?debug=grid` và `?debug=incident` (quán), `?debug=analytics` (dev).
+**Lệnh:** `npm run dev`, `npm run build`. **Tham số URL:** `?fps` (fps, draw call, mức đồ họa), `?profile=max` (dev), `?debug=grid` và `?debug=incident` (quán), `?debug=analytics` (dev).
 
 ## 14. Lộ trình
 
@@ -977,7 +970,7 @@ Chốt **kết hợp**: giữ kinh tế farm + quán (vượt phạm vi Phase 4 
 
 | Đề xuất | Mô tả | Trạng thái |
 |---|---|---|
-| F-49 Trục Cấp duy nhất | Mọi thứ mở bằng cấp người chơi; XP theo nguồn (`via`), XP thợ/robot chờ quyết | Chờ sếp + sim |
+| F-49 Trục Cấp duy nhất | Mọi thứ mở bằng cấp người chơi; XP theo nguồn (`via`), XP thợ/robot chờ quyết | Chờ sim |
 | F-49 Tự nhận mẻ | Nấc 2 của chỉ thị Tự chế biến, mở ở mốc tự động hóa, mặc định tắt | Chờ F-49 + sim |
 | F-49 Sự cố theo cấp | Không có sự cố người khi cấp < mốc (sau chỗ thợ thứ 2), bật dần, sự cố đầu là Mải chơi | Chờ F-49 + sim |
 | F-48 pha 2 | Công trình mở theo mốc cấp thay mốc nhiệm vụ | Chờ sim |
@@ -1065,7 +1058,7 @@ Theo tài liệu chuẩn §9 và §12. Game đi theo hướng **kết hợp** (Q
 | Q-06 | Mục tiêu thắng | Hai mục tiêu độc lập, không kết thúc game |
 | Q-07 | Giá do chủ quán | Tự đặt trong 0,8–1,3 |
 | Q-08 | Vùng ảnh hưởng số liệu | Ảnh hưởng sản lượng, chất lượng, thời gian lớn |
-| Q-09 | Repo | Làm trên `origin`, PR vào `cog` `main` |
+| Q-09 | Repo | Làm trên nhánh riêng của `tahulk79/COG-CoffeeGame`, PR vào `main` |
 | Q-10 | Coffee Memory | Lưu cả ly trong game và ly ngoài đời |
 | Q-11 | Analytics | Theo sự kiện, từ MVP; nơi nhận còn chọn (D-26) |
 | D-21 | Chữ "thật" hay "mô phỏng" | Giữ công thức/số đo thật, điểm ly ghi là mô hình game |

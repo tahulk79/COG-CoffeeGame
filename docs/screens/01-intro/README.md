@@ -88,7 +88,6 @@ Ghi một lần lúc kết thúc (`completeIntro`), vào `godbean-progress`:
 | `src/characters/npc.js` | `dressPerson`: mặc GLB cho y tế |
 | `src/characters/bounds.js` | Đo bounds model có rig |
 | `index.html` | `#intro-controls`, `#skip`, `#caption-box`, `#dialogue-next`, `#progress` |
-| `tools/intro-preview/` | Xem từng mốc (va chạm, ngã, nâng, khiêng). Không nằm trong bản build |
 
 ## Asset
 

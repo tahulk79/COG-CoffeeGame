@@ -128,7 +128,7 @@ export const TABLE_LEVELS = [
   { seats: 4, patience: 1.25, tip: .1, price: 120 },
   { seats: 4, patience: 1.4, tip: .2, price: 220 },
 ].map((level, i) => ({ name: L(`table.${i}`), ...level, detail: L(`tableDetail.${i}`) }));
-// A cup the owner brews by hand sells at OWN_CUP × the base price (cafe-fun-review P2): skill keeps paying late game.
+// A cup the owner brews by hand sells at OWN_CUP × the base price (docs/screens/04-cafe/rules.md §5): skill keeps paying late game.
 export const OWN_CUP = 2;
 // F-42 owner pricing (04-cafe/rules.md): per-recipe price factor p, only changed while the café is closed.
 export const PRICE_MIN = .8, PRICE_MAX = 1.3, PRICE_STEP = .05, GREEDY_P = 1.2;
@@ -138,7 +138,7 @@ export const tipFactor = p => p > 1 ? Math.max(0, 1 - 2 * (p - 1)) : 1;
 // p̄ = mean of p weighted by order odds (`weights[id]`, default 1); the guest gap is multiplied by p̄^1.5.
 export const meanPrice = (prices, ids, weights = {}) => { let w = 0, s = 0; for (const id of ids) { const k = weights[id] ?? 1; w += k; s += k * priceOf(prices, id); } return w ? s / w : 1; };
 export const arrivalFactor = pbar => Math.pow(pbar, 1.5);
-// Shift goal tiers as multiples of the bronze goal: [bronze, silver, gold] (cafe-fun-review P1).
+// Shift goal tiers as multiples of the bronze goal: [bronze, silver, gold] (docs/screens/04-cafe/rules.md §4).
 export const SHIFT_TIERS = [1, 1.4, 1.8];
 export const MAX_TABLES = 12; // 10 indoor/porch + 2 in the garden (Sân vườn)
 

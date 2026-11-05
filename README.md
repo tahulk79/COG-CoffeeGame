@@ -27,7 +27,6 @@ Chi tiết từng màn, điều kiện chuyển và dữ liệu đi theo: [GDD �
 | `src/characters/`, `src/state/`, `src/ui/` | Nhân vật, save, HUD và stylesheet |
 | `public/` | GLB runtime, favicon |
 | `docs/` | Tài liệu theo màn, khớp với `src/features/` |
-| `tools/` | Trang xem nhanh intro/farm, không nằm trong bản build |
 | `scripts/` | Script tối ưu model, mô phỏng kinh tế |
 
-Cây thư mục đầy đủ: [GDD §13.7](docs/design/godbean-gdd.md). Quy tắc làm việc cho người và AI: [AGENTS.md](AGENTS.md).
+Cây thư mục đầy đủ: [GDD §13.7](docs/design/godbean-gdd.md).

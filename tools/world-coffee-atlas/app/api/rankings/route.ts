@@ -1,1 +1,0 @@
-export const dynamic='force-static';import {NextResponse} from 'next/server';import {rankings} from '../../../lib/data';export function GET(){return NextResponse.json({data:rankings,meta:{note:'Awaiting source-verified cupping results'}})}

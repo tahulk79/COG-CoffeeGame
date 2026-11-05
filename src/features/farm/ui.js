@@ -535,7 +535,7 @@ minus.disabled=config.maximum<1||n<=1;plus.disabled=config.maximum<1||n>=Math.mi
           const minus=document.createElement('button'),plus=document.createElement('button'),input=document.createElement('input'),buy=document.createElement('button');
           minus.type=plus.type=buy.type='button';minus.textContent='−';plus.textContent='+';minus.setAttribute('aria-label',tr('farm.ui.qtyLess'));plus.setAttribute('aria-label',tr('farm.ui.qtyMore'));
           const maximum=Math.max(0,selling?config.owned:Math.min(99,Math.floor(config.coins/config.unitPrice))),step=1;
-          // Short of coins: still quote one item at its real price and say how much is missing (AGENTS.md).
+          // Short of coins: still quote one item at its real price and say how much is missing.
           const short=!selling&&!config.locked&&maximum<1,cap=short?1:maximum,missing=short?config.unitPrice-config.coins:0;if(short){quoteText.textContent=tr('farm.short.coins',{n:formatCoins(missing)});text.append(quoteText);}
           input.type='number';input.min=cap>0?'1':'0';input.max=String(cap);input.disabled=maximum<1;input.step='1';input.value=Math.min(selling&&config.keep?Math.max(1,maximum-config.keep):cap,purchaseQuantities.get(entry.id)||(selling?maximum:1));input.setAttribute('aria-label',`${selling?tr('farm.ui.gramsToSell'):tr('farm.ui.qtyToBuy')} ${entry.label}`);
           buy.className='farm-purchase-buy ui-btn ui-btn--gold';

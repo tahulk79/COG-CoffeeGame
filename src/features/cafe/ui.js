@@ -475,7 +475,7 @@ export function createCafeUI({ farm, service, awakening = null, profile, pending
     return box;
   }
 
-  // Bronze/silver/gold cup counts for a shift goal, and the HUD's "x/next medal" line (cafe-fun-review P1).
+  // Bronze/silver/gold cup counts for a shift goal, and the HUD's "x/next medal" line (docs/screens/04-cafe/rules.md §4).
   function tierGoals(goal) { return SHIFT_TIERS.map(k => Math.ceil(goal * k)); }
   function shiftTarget(shift) {
     const marks = tierGoals(shift.goal), next = marks.findIndex(m => shift.served < m), avg = shiftAvg(shift);

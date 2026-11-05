@@ -76,7 +76,7 @@ const round2 = n => Math.round(n * 100) / 100;
 // onIncident({ id, name, type: 'phone'|'sick'|'rude', replace }): a person's incident just took effect (replace = «Thuê robot thay» can hire now).
 // Shift rules (D2): goal grows 3 per effective brewing hand H (fractions of the menu a helper can make); the ★ average counts only the player's own cups (null = none, so only cups count).
 export const shiftGoal = (rank, hands) => 4 + rank + Math.round(3 * hands);
-// Guest pace (fun-review.md P3): the floor follows what the helpers can really brew, so a maxed café never out-arrives its own kitchen.
+// Guest pace (docs/screens/04-cafe/rules.md §3): the floor follows what the helpers can really brew, so a maxed café never out-arrives its own kitchen.
 // 20 = seconds per cup when the player brews alone; 1.5 = one helper is worth about 1.5 players.
 export const arrivalGap = (H, C, rep, tables, kiosk) => Math.max(3, 20 * (1 - C), 20 / (1 + 1.5 * H), Math.min(24, 9 + Math.max(0, 13 - 6.5 * H) - (rep - 50) * .06 - tables * .6 - kiosk));
 export const canBrew = (e, mastery, id) => e.only ? id === e.only : e.recipes ? e.recipes.includes(id) : (mastery[id]?.best || 0) >= e.mastery;
@@ -118,7 +118,7 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
   const act = (action, choice) => { const result = farm.act('cafe', action, choice); refresh(); return result; };
   const walk = (entity, to, finalStep = null) => { entity.path = [...route(entity.pos, to), ...(finalStep ? [finalStep] : [])]; };
   // Brewing hands besides the player: baristas able to make something on the menu, plus the robot espresso machine.
-  // Sets the shift goal (P1) and how fast guests come (P3) in docs/screens/04-cafe/fun-review.md.
+  // Sets the shift goal (§4) and how fast guests come (§3) in docs/screens/04-cafe/rules.md.
   function helpers() {
     const menu = RECIPES.filter(r => !lockReason(r, snap.cafe)).map(r => r.id);
     return brewForce([...agents.values()].filter(a => a.active && a.role === 'barista').map(a => a.effects), snap.cafe.mastery, menu, stations(), gear('autoEspresso'));
