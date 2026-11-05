@@ -163,7 +163,7 @@ body:has(#heaven-hud:not([hidden])) #game-settings-toggle{top:calc(max(12px,env(
 body:is(.farm-active,.cafe-active) #game-settings-toggle{display:none}
 /* Nút Bỏ qua của thiên đàng: cùng hàng, bên trái nút cài đặt. */
 #heaven-skip{position:fixed;z-index:6;top:calc(max(12px,env(safe-area-inset-top)) + 56px);right:calc(max(12px,env(safe-area-inset-right)) + 56px)}
-body.world-map-open #heaven-skip,body:has(#heaven-passport:not([hidden])) #heaven-skip{display:none}
+body.world-map-open #heaven-skip{display:none}
 @media(min-width:701px) and (min-height:451px){
  body:has(#intro-controls:not([hidden])) #game-settings-toggle{top:max(18px,env(safe-area-inset-top));right:160px}
  body:has(#heaven-hud:not([hidden])) #game-settings-toggle{top:calc(max(20px,env(safe-area-inset-top)) + 62px);right:22px}

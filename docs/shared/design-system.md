@@ -107,6 +107,7 @@ PORTRAIT 390×844                         LANDSCAPE 844×390
 - "Cần xử lý" / "Hoạt động" của farm thành badge trên nút Quản lý. Mở ra là panel trong ngăn kéo.
 - Không hiện nút điều hướng tới chính màn đang ở. Không trùng chức năng (xu mở shop **hoặc** nút shop, không cả hai không có affordance).
 - Ngân sách: HUD ≤ 20% diện tích viewport ở cả 3 kích thước.
+- **Farm sau F-48 pha 1 (05/11/2026, đề xuất Q10 CT-2/CT-11):** chức năng kinh tế là công trình 3D chạm được (Cửa quán, Bảng đơn, Sạp ven đường, Nhà thợ), không phải nút. Thanh dưới farm còn 🎒 Kho + ≡; 🏪 Cửa hàng và ☕ Vào quán vào ≡ cùng Nhân viên, Đơn hàng, Nâng cấp, Xây dựng (lối tắt từ xa: lia camera tới công trình rồi mở). Ô xu giữ làm lối tắt tới Sạp. Một nút chỉ rời thanh khi công trình của nó chạm trúng được ở khung dọc mặc định 375×812, không bị HUD che. Huy hiệu trên công trình/vật 3D dùng biển chữ trên đầu vật (một biển mỗi vật, thay chỗ bảng tên): ✓ (giao được), số (đang chờ), ! (cần xử lý), ⬆ (nâng cấp được), ✨ Mới; huy hiệu mẻ/giỏ trên máy ưu tiên hơn ⬆. Luật: [03-farm/rules.md](../screens/03-farm/rules.md) mục HUD.
 - **Vùng trên điện thoại (05/11/2026, `src/ui/styles/hud.css` mục "Phone zones")**: mỗi khối một chỗ, không chồng nhau.
   - Dọc, từ dưới lên: thanh hành động (phải) + joystick (trái) → nút Auto (phải, trên thanh) → thông báo (`#farm-notice`, đáy + 212 px) → coach (đáy + 290 px).
   - Ngang: thanh hành động là cột phải, Auto nằm bên trái cột đó ở đáy, thông báo ở giữa đáy (giữa joystick và Auto), coach ở giữa trên cùng.

@@ -6,22 +6,6 @@
 .quest-marker{display:grid;place-items:center;flex:none;width:22px;height:22px;color:var(--ui-leaf-edge);font-size:21px;line-height:1;filter:drop-shadow(0 1px var(--ui-shine))}
 .quest-tracker h2{font-size:12px;line-height:1.4;margin:0;font-weight:800;color:var(--ui-leaf-ink)}
 .quest-tracker p{font-size:12px;line-height:1.45;margin:3px 0 0;color:var(--ui-ink-soft)}
-.seal-hud{position:relative;flex:none;pointer-events:auto}
-#heaven-passport-toggle{display:flex;align-items:center;gap:5px;min-height:44px;padding:4px 10px 4px 4px;background:var(--ui-button-image),var(--ui-cream);border:2px solid var(--ui-cream-edge);border-radius:14px;box-shadow:inset 0 2px var(--ui-shine),inset 0 -3px var(--ui-cream-edge),0 3px 0 var(--ui-cream-drop),0 4px 2px var(--ui-drop-soft);color:var(--ui-ink);touch-action:manipulation;transition:transform .12s,box-shadow .12s}
-#heaven-passport-toggle:hover{transform:translateY(-2px);background:var(--ui-button-image),var(--ui-cream);filter:brightness(1.05)}
-#heaven-passport-toggle:active{transform:translateY(3px);box-shadow:inset 0 2px 3px var(--ui-drop-soft),0 1px var(--ui-cream-drop)}
-#heaven-passport-toggle strong{font-size:13px;font-weight:800;font-variant-numeric:tabular-nums;text-shadow:0 1px var(--ui-shine)}
-#heaven-seals{display:flex;gap:2px}
-.seal-icon{display:grid;place-items:center;width:28px;height:28px;border:2px solid var(--ui-line);border-radius:10px;background:var(--ui-sheet);color:var(--ui-muted);font-size:14px;filter:grayscale(1);box-shadow:inset 0 2px var(--ui-shine)}
-.seal-icon[data-earned="true"]{border-color:var(--ui-leaf-edge);background:var(--ui-leaf);color:var(--ui-leaf-ink);filter:none;box-shadow:inset 0 2px var(--ui-leaf-hi),0 2px var(--ui-leaf-drop)}
-#heaven-passport{position:absolute;right:0;top:calc(100% + 34px);width:min(290px,calc(100vw - 24px));padding:26px 10px 10px;background:var(--ui-window-image),var(--ui-plank);border:3px solid var(--ui-wood);border-radius:22px;box-shadow:inset 0 0 0 3px var(--ui-wood-trim),0 5px 0 var(--ui-wood-dark),0 14px 36px var(--ui-shadow);color:var(--ui-ink);overflow:visible}
-#heaven-passport h3{position:absolute;left:50%;top:-22px;transform:translateX(-50%);width:max-content;max-width:calc(100% - 20px);margin:0;padding:7px 16px;border:2px solid var(--ui-leaf-edge);border-radius:13px;background:var(--ui-leaf);box-shadow:inset 0 2px var(--ui-leaf-hi),0 3px var(--ui-leaf-drop);color:var(--ui-leaf-ink);font:800 16px/1.25 var(--game-font);text-shadow:0 1px var(--ui-leaf-hi)}
-#heaven-score{font-size:12px;font-weight:800;line-height:1.5;margin:0 0 8px;padding:7px 10px;background:var(--ui-inset);border:1px solid var(--ui-inset-edge);border-radius:14px;color:var(--ui-ink);text-align:center}
-#heaven-passport-list{list-style:none;padding:8px;margin:0;display:grid;gap:8px;background:var(--ui-inset);border:1px solid var(--ui-inset-edge);border-radius:16px;box-shadow:inset 0 2px var(--ui-shine)}
-#heaven-passport-list li{display:flex;align-items:center;gap:7px;font-size:12px;line-height:1.45;color:var(--ui-muted)}
-#heaven-passport-list li>span:first-child{display:grid;place-items:center;width:26px;height:26px;flex:none;border:2px dashed var(--ui-line);border-radius:10px;font-size:13px}
-#heaven-passport-list li[data-earned="true"]{color:var(--ui-ink);font-weight:700}
-#heaven-passport-list li[data-earned="true"]>span:first-child{background:var(--ui-leaf);border:2px solid var(--ui-leaf-edge);color:var(--ui-leaf-ink)}
 #heaven-controls{position:fixed;inset:0;z-index:3;pointer-events:none}
 .joystick{position:absolute;display:block;bottom:max(16px,env(safe-area-inset-bottom));left:max(12px,env(safe-area-inset-left));width:108px;height:108px;border:2px solid var(--ui-wood);border-radius:50%;background:var(--ui-panel-image),radial-gradient(circle,var(--ui-shine) 0 33%,var(--ui-cream-edge) 34% 37%,var(--ui-toast-bg) 38%);box-shadow:inset 0 0 0 2px var(--ui-wood-trim),0 4px 0 var(--ui-wood-dark),0 7px 12px var(--ui-drop-soft);pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none}
 #heaven-joystick-knob{position:absolute;top:calc(50% - 24px);left:calc(50% - 24px);width:48px;height:48px;background:var(--ui-button-image),var(--ui-leaf);border:2px solid var(--ui-leaf-edge);border-radius:50%;box-shadow:inset 0 2px var(--ui-leaf-hi),0 3px 0 var(--ui-leaf-drop);pointer-events:none;will-change:transform}
@@ -54,10 +38,6 @@
  .hud-eyebrow{font-size:12px;letter-spacing:1px}
  .quest-tracker{max-width:340px;gap:10px;padding:11px 12px}.quest-marker{width:28px;height:28px;font-size:26px}
  .quest-tracker h2{font-size:14px}.quest-tracker p{margin-top:5px}
- #heaven-passport-toggle{gap:8px;padding:5px 13px 5px 5px;border-radius:15px}#heaven-passport-toggle strong{font-size:15px}
- #heaven-seals{gap:4px}.seal-icon{width:34px;height:34px;font-size:18px}
- #heaven-passport{top:calc(100% + 38px);padding:30px 14px 14px}#heaven-passport h3{font-size:18px}
- #heaven-passport-list li{gap:8px}#heaven-passport-list li>span:first-child{width:30px;height:30px;font-size:16px}
  .joystick{left:22px;bottom:max(24px,env(safe-area-inset-bottom));width:116px;height:116px}
  #heaven-interact{right:24px;bottom:max(24px,env(safe-area-inset-bottom));max-width:280px;gap:10px;padding:10px 18px 10px 10px;font-size:14px}#heaven-interact kbd{min-width:30px;height:30px;font-size:14px}
  #heaven-toast{top:max(96px,calc(env(safe-area-inset-top) + 72px));padding:10px 18px;font-size:13px}

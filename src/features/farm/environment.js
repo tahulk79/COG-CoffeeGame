@@ -99,6 +99,8 @@ export function buildFarmActor({ npc, visual, box, mesh, sphere, cube, assetSlot
     for(const x of [-.7,.7])mesh(sphere,'#d9b36c',x,.18,.15,.18,.04,.07,fish);
     return {setState(state){fish.visible=state.fish>0;}};
   }
+  if(npc.kind==='council')return buildCouncilGate({npc,visual,box,mesh,sphere,assetSlot});
+  if(BUILDING_KINDS.includes(npc.kind))return buildFarmBuilding({npc,visual,box,mesh,sphere,assetSlot});
   assetSlot(visual, `farm/${npc.id}`);
   const color = npc.color;
   const rank=assetSlot(new THREE.Group(),`farm/${npc.id}/upgrade-markers`);rank.userData.nonSolid=true;visual.add(rank);
@@ -110,13 +112,6 @@ export function buildFarmActor({ npc, visual, box, mesh, sphere, cube, assetSlot
     for (const x of [-.8,.8]) box('#9b805b', x, 1.3, 0, .12, 2.4, .12, base);
     box('#b7a071', 0, 2.4, 0, 2, .2, 1.2, base);
     box('#cad5c3', .2, 1.1, .4, .35, .4, .35, base);
-  } else if (npc.kind === 'shop' || npc.kind === 'market') {
-    box('#b18d60', 0, .6, 0, 2.8, 1.1, 1.6, base);
-    for (const x of [-1.2,1.2]) box('#877455', x, 1.8, -.6, .1, 2.4, .1, base);
-    box(color, 0, 2.5, 0, 3.2, .2, 2.2, base);
-    for (let i = 0; i < 4; i++) {
-      box(npc.kind === 'shop' ? '#d8bf87' : '#d4d6b2', -.9 + i * .6, 1.3, .2, .4, .4, .45, base);
-    }
   } else if (npc.kind === 'dryer') {
     for (const x of [-1.45,1.45]) for (const z of [-1,1]) box('#8c704c',x,1.1,z,.09,2.2,.09,base);
     box('#ecd4a0',0,2.2,0,3.2,.12,2.4,base);
@@ -234,4 +229,84 @@ export function buildFarmEnvironment({ scene, box, mesh, sphere, assetSlot }) {
   }
   return {setUpgrades(upgrades){for(const [id,markers]of upgradeDecor)markers.forEach((m,i)=>{m.visible=assetTier(upgrades[id])>=i+2;});}, setFields(ids) { for (const [id, {group,gates}] of grounds) { group.visible = true; group.userData.nonSolid = false; gates.visible = !ids.includes(id); } } };
 
+}
+
+// Cổng Hội đồng (05/11/2026, F-45, đề xuất Q1 R6 + vá): khung cổng + 3 bệ; bóng chuyên gia hiện khi người đó có mặt,
+// quả cầu sáng nhấp nhô khi có người đang chờ ('Mới'). Lần đầu hiện thì trồi lên từ mặt đất. Khối tạm, thay asset ở slot farm/council.
+const EXPERT_COLORS={growing:'#70946c',brewing:'#b28b53',business:'#788ba6'};
+function buildCouncilGate({visual,box,mesh,sphere,assetSlot}){
+  const art=assetSlot(new THREE.Group(),'farm/council');visual.add(art);
+  for(const x of [-1.5,1.5]){box('#cdbb8f',x,1.5,0,.34,3,.34,art);box('#a8946a',x,.12,0,.6,.24,.6,art);}
+  box('#d9bd7b',0,3.12,0,3.7,.28,.52,art).userData.nonSolid=true;
+  box('#efe0b8',0,3.4,0,1.3,.3,.2,art).userData.nonSolid=true;
+  const step=box('#e2d3ae',0,.06,.2,2.5,.12,1,art);step.userData.nonSolid=true;
+  // Bệ và bóng chuyên gia: không chặn lối (nonSolid), một ConeGeometry dùng chung cho ba bóng.
+  const cone=new THREE.ConeGeometry(.28,.8,10),figures={},checks={};
+  [['growing',-.85],['brewing',0],['business',.85]].forEach(([id,x])=>{
+    box('#c7b58c',x,.22,.25,.5,.2,.5,art).userData.nonSolid=true;
+    const figure=new THREE.Group();figure.userData.nonSolid=true;figure.position.set(x,.32,.25);art.add(figure);
+    mesh(cone,EXPERT_COLORS[id],0,.4,0,1,1,1,figure);mesh(sphere,EXPERT_COLORS[id],0,.92,0,.22,.24,.22,figure);
+    figure.visible=false;figures[id]=figure;
+    // ✓ của chuyên gia (Q1 R13): hạt vàng trên đầu bóng khi đủ câu của người đó trong met.
+    const check=mesh(sphere,'#ffd34d',0,1.32,0,.11,.11,.11,figure);check.visible=false;checks[id]=check;
+  });
+  const beacon=new THREE.Mesh(sphere,new THREE.MeshBasicMaterial({color:'#ffe17a'}));beacon.scale.setScalar(.26);beacon.position.set(0,2.45,0);beacon.userData.nonSolid=true;beacon.visible=false;art.add(beacon);
+  let rise=1;
+  return {
+    // present: id chuyên gia đã có mặt; done: đủ câu trong met (✓); waiting: có người đang chờ (chấm Mới); raise: chạy hiệu ứng dựng cổng một lần.
+    setState({present=[],done=[],waiting=false,raise=false}){for(const [id,f] of Object.entries(figures)){f.visible=present.includes(id);checks[id].visible=done.includes(id);}beacon.visible=waiting;if(raise)rise=0;},
+    update(dt,time){
+      if(rise<1){rise=Math.min(1,rise+dt/1.2);art.position.y=-3.6*(1-rise)**3;}
+      if(beacon.visible)beacon.position.y=2.45+Math.sin(time*3)*.12;
+    },
+  };
+}
+
+// Công trình pha 1 (05/11/2026, F-48, đề xuất Q10 CT-1/CT-10): khối tạm thể hiện chức năng, trạng thái và điểm tương tác,
+// mặt trước quay +z về camera. Cửa quán: mặt tiền + mái hiên + thảm cửa (chỗ đứng), đèn sáng khi quán mở. Bảng đơn: tờ đơn
+// = số đơn chờ (tối đa 4), dấu xanh khi có đơn giao được. Sạp: quầy + bao hạt, cờ đỏ khi hết giống mà còn ô trống. Nhà thợ:
+// mái nhọn, ghế trước cửa có bóng thợ đang nghỉ (chưa điều/tạm dừng). Lần đầu hiện thì trồi lên. Thay asset ở slot farm/<id>/art.
+const BUILDING_KINDS=['cafe-entrance','order-board','shop','crew-house'];
+function buildFarmBuilding({npc,visual,box,mesh,sphere,assetSlot}){
+  const art=assetSlot(new THREE.Group(),`farm/${npc.id}/art`);visual.add(art);
+  const flat=object=>{object.userData.nonSolid=true;object.castShadow=false;return object;};
+  const figure=(x,z,color)=>{const g=new THREE.Group();g.userData.nonSolid=true;g.position.set(x,0,z);art.add(g);box(color,0,.55,0,.34,.5,.26,g);mesh(sphere,'#e8c39a',0,.95,0,.17,.17,.17,g);g.visible=false;return g;};
+  let height=2.8,apply=()=>{};
+  if(npc.kind==='cafe-entrance'){
+    box('#efe2c4',0,1,-.1,2.2,2,1,art);box('#8d5a3b',0,2.12,-.1,2.4,.24,1.2,art);
+    flat(box('#5b3b28',0,.72,.42,.72,1.42,.06,art));
+    for(let i=0;i<4;i++)flat(box(i%2?'#f4ead6':'#c0583e',-.75+i*.5,1.62,.6,.5,.1,.42,art));
+    flat(box('#6b4630',0,2.62,0,.62,.52,.1,art));flat(box('#f4ead6',-.04,2.6,.06,.3,.26,.04,art));flat(box('#f4ead6',.16,2.62,.06,.08,.14,.04,art)); // biển ly
+    flat(box('#a5714a',0,.03,1.15,1.1,.04,.6,art)); // thảm cửa = chỗ đứng để vào quán
+    const lamp=flat(mesh(sphere,'#ffd56a',.55,1.3,.5,.1,.1,.1,art));
+    apply=s=>{if('open' in s)lamp.visible=s.open;};
+  }else if(npc.kind==='order-board'){
+    height=2.3;
+    for(const x of [-.62,.62])box('#7d6243',x,.95,0,.1,1.9,.1,art);
+    box('#b88d58',0,1.3,0,1.4,.9,.08,art);flat(box('#8d5a3b',0,1.9,0,1.6,.12,.3,art));
+    const notes=[[-.4,1.45],[0,1.45],[.4,1.45],[-.2,1.1]].map(([x,y])=>{const n=flat(box('#f6eed8',x,y,.05,.3,.3,.02,art));n.visible=false;return n;});
+    const check=flat(box('#5f9a52',.4,1.08,.06,.26,.26,.03,art));check.visible=false;
+    apply=s=>{if('notes' in s)notes.forEach((n,i)=>{n.visible=i<s.notes;});if('ready' in s)check.visible=s.ready;};
+  }else if(npc.kind==='shop'){
+    box('#b18d60',0,.5,0,2.2,1,.9,art);flat(box('#e8d7a8',0,.6,.46,1.6,.3,.03,art)); // mặt quầy = chỗ mua
+    for(const x of [-1.05,1.05])for(const z of [-.4,.4])box('#877455',x,1.45,z,.08,.9,.08,art);
+    for(let i=0;i<4;i++)flat(box(i%2?'#f1e3bd':npc.color,-.825+i*.55,1.95,0,.55,.1,1.1,art));
+    for(const [x,c] of [[-.6,'#d6bc86'],[0,'#c7ad74'],[.6,'#d6bc86']]){flat(box(c,x,1.2,0,.42,.4,.36,art));flat(box('#7d8b60',x,1.42,0,.18,.06,.18,art));}
+    const flag=flat(box('#c4462a',1.05,2.35,.4,.3,.2,.03,art));flag.visible=false;
+    apply=s=>{if('need' in s)flag.visible=s.need;};
+  }else{
+    height=3.2;
+    box('#d9c7a2',0,.9,-.15,2,1.8,1.1,art);
+    const roof=mesh(new THREE.ConeGeometry(1.6,1,4),npc.color,0,2.3,-.15,1,1,.75,art);roof.rotation.y=Math.PI/4;roof.userData.nonSolid=true; // mái chìa rộng: không chặn lối, thân nhà là collider
+    flat(box('#6a5442',0,.65,.42,.6,1.3,.06,art));
+    flat(box('#a98a5c',0,.28,.75,1.6,.12,.36,art)); // ghế nghỉ trước cửa
+    flat(box('#8f7959',.95,.9,.5,.06,1.6,.06,art));flat(box('#9aa0a0',.95,1.62,.5,.32,.08,.06,art)); // cuốc dựng tường
+    const resting=[figure(-.45,.75,'#4f7c43'),figure(.35,.75,'#788ba6')];
+    apply=s=>{if('resting' in s)resting.forEach((f,i)=>{f.visible=i<s.resting;});};
+  }
+  let rise=1;
+  return {
+    setState(s){apply(s);if(s.raise)rise=0;},
+    update(dt){if(rise<1){rise=Math.min(1,rise+dt/1.2);art.position.y=-height*(1-rise)**3;}},
+  };
 }

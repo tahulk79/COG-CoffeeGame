@@ -1,4 +1,4 @@
-import { DECORATIONS,decorationError } from './decorations.js';
+import { DECORATIONS,decorationError,relocateDecorations } from './decorations.js';
 import { CROPS,FIELDS,PLOTS,MACHINES,PRODUCTS,questsFor,CARE,TUTORIAL_IDS,HUD_UNLOCKS,plotCare,cropById,productById,levelFor } from './content.js';
 import { EXPERTS } from '../heaven/content.js';
 import { answerText } from '../heaven/journey.js';
@@ -23,6 +23,8 @@ const putJobs=(state,jobs)=>{jobs.sort((a,b)=>a.readyAt-b.readyAt);state.batch=j
 const QUESTION_IDS=EXPERTS.flatMap(e=>e.questions.map(q=>q.id));
 const lessonIds=list=>Array.isArray(list)?QUESTION_IDS.filter(id=>list.includes(id)):[];
 const lessonOf=id=>{const expert=EXPERTS.find(e=>e.questions.some(q=>q.id===id));return expert?{expert,question:expert.questions.find(q=>q.id===id)}:null;};
+// Hội đồng so le (05/11/2026, F-45, đề xuất Q1): thứ tự xếp hàng chuyên gia khi nhiều người cùng có mặt.
+const EXPERT_IDS=EXPERTS.map(e=>e.id);
 export const LESSON_PERKS=Object.fromEntries(EXPERTS.flatMap(e=>e.questions.map(q=>[q.id,q.perk])));
 const tutorialId=id=>TUTORIAL_IDS.includes(id)||typeof id==='string'&&/^unlock-[a-z-]+$/.test(id);
 // Robots vs people (robot-staff.md, contracts.md 6). Robot traits always come from the candidate lists, never the save.
@@ -37,7 +39,8 @@ function rollIncident(count,length,odds){const u=Math.random(),type=u<odds.sick?
 const sickNow=(w,at)=>w.incident?.type==='sick'&&w.incident.done&&w.restUntil>at;
 const GIFT_RECIPES=['phin-den','nau-da'],GIFT_CUPS=10;
 
-export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLessons=[],startingRegion) {
+// heavenMet: questionId đã trả lời (đúng hay sai) ở thiên đàng cũ, để suy ra `lessons.met` (F-45).
+export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLessons=[],startingRegion,heavenMet=[]) {
   // Nơi trùng sinh: save có sẵn giữ nơi của nó (save cũ thiếu → Việt Nam); save mới lấy nơi chọn trên bản đồ.
   const region=regionId(saved?saved.region:startingRegion),QUESTS=questsFor(region);
   const modern=saved?.version===3,legacy=saved?.version===2,valid=modern||legacy||saved?.version===1;
@@ -57,10 +60,15 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
     asked:Object.fromEntries(QUESTION_IDS.filter(id=>Number.isSafeInteger(savedLessons.asked?.[id])).map(id=>[id,savedLessons.asked[id]])),
     askedDay:Number.isSafeInteger(savedLessons.askedDay)?savedLessons.askedDay:-1,askedCount:integer(savedLessons.askedCount,99),
   };
+  // F-45: met = câu đã gặp chuyên gia (Hội đồng hoặc thiên đàng cũ). Save thiếu trường suy ra từ câu đã trả lời ở thiên đàng;
+  // câu đã thuộc hoặc đã trả lời sai ở farm cũng là đã gặp. arrived = chuyên gia đã có mặt ở Hội đồng (mốc đã qua, không mất).
+  lessons.met=lessonIds([...(Array.isArray(savedLessons.met)?savedLessons.met:[]),...(Array.isArray(heavenMet)?heavenMet:[]),...lessons.learned,...Object.keys(lessons.asked)]);
+  lessons.arrived=Array.isArray(savedLessons.arrived)?EXPERT_IDS.filter(id=>savedLessons.arrived.includes(id)):[];
+  const decor=relocateDecorations(objects(saved?.decorations).filter(item=>DECORATIONS.some(spec=>spec.id===item.type)&&[item.x,item.z,item.rotation].every(Number.isFinite)).slice(0,100).map(item=>({...item,text:String(item.text||'').slice(0,24),state:item.state==='construction'?'construction':'complete',buildMs:Math.max(0,Number(item.buildMs)||0),buildDuration:Math.max(1000,Number(item.buildDuration)||5000)})),region);
   const progress={
     region,
     lessons,tutorial:{seen:Array.isArray(saved?.tutorial?.seen)?saved.tutorial.seen.filter((id,i,list)=>tutorialId(id)&&list.indexOf(id)===i).slice(0,100):[]},
-    decorations:objects(saved?.decorations).filter(item=>DECORATIONS.some(spec=>spec.id===item.type)&&[item.x,item.z,item.rotation].every(Number.isFinite)).slice(0,100).map(item=>({...item,text:String(item.text||'').slice(0,24),state:item.state==='construction'?'construction':'complete',buildMs:Math.max(0,Number(item.buildMs)||0),buildDuration:Math.max(1000,Number(item.buildDuration)||5000)})),
+    decorations:decor.items, // CT-14: đồ cũ trong vùng cấm xây của công trình mới tự dời
     staffRoutineVersion:1,workRevision:integer(saved?.workRevision),version:3,timingVersion:3,deploymentVersion:1,gift:saved?.gift||startingGift||null,fields:owned,archivedLand:clone(saved?.archivedLand||{fields:[],plots:[]}),
     coins:saved?Math.round(clamp(finite(saved.coins,200),0,5e13)*100)/100:(DEV_START_COINS??200),giftApplied:saved?.giftApplied===true,xp:integer(saved?.xp),upgrades,
     seeds:Object.fromEntries(CROPS.map(c=>[c.id,integer(legacy||modern?saved.seeds?.[c.id]:c.id==='robusta'?(saved?.version===1?integer(saved.seeds):6):0)])),
@@ -105,6 +113,8 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
       const state={level:upgrades[m.id],batch:null,extraBatches:[]};putJobs(state,jobs);return[m.id,state];
     })),
   };
+  // CT-14: món không còn chỗ dời (chưa có kho đồ trang trí) thì hoàn đủ giá, không mất của.
+  if(decor.returned.length)progress.coins=Math.round((progress.coins+decor.returned.reduce((sum,item)=>sum+DECORATIONS.find(spec=>spec.id===item.type).price,0))*100)/100;
   if(modern&&!saved.timingVersion)for(const m of MACHINES){const state=progress.machines[m.id],jobs=jobsOf(state);let cursor=now;for(const j of jobs){if(j.readyAt<=now)continue;const ratio=j.startedAt<=now?clamp((now-j.startedAt)/Math.max(1,j.readyAt-j.startedAt),0,1):0,duration=m.duration/efficiency(state.level);j.startedAt=cursor-ratio*duration;j.readyAt=j.startedAt+duration;cursor=j.readyAt;}putJobs(state,jobs);}
   progress.cafe.shipments=objects(progress.cafe.shipments).filter(t=>Array.isArray(t.lots)&&Number.isFinite(t.readyAt));
   {
@@ -197,11 +207,12 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
     // The gift is picked before the region type is known (audit 04/11): one the region cannot use becomes the capital purse.
     const type=regionType(region),kind=(progress.gift==='seeds'&&type==='cafe')||(progress.gift==='tools'&&type==='farm')?'capital':progress.gift;
     gift=gifts[kind];
-    if(gift){const text=gift();log(kind!==progress.gift?t('farmRules.log.giftSwapped',{gift:t(`farmRules.gift.${progress.gift}`)}):t('farmRules.log.heavenGift',{gift:text}),now);}
+    // Túi hạt giống ở nơi chỉ quán có câu riêng (05/11/2026, F-44, Q2 R2); quà cũ khác vẫn dùng câu đổi chung.
+    if(gift){const text=gift();log(kind===progress.gift?t('farmRules.log.heavenGift',{gift:text}):progress.gift==='seeds'?t('farmRules.log.giftSeedsCafe'):t('farmRules.log.giftSwapped',{gift:t(`farmRules.gift.${progress.gift}`)}),now);}
     progress.giftApplied=true;
   }
   // One-time lesson rewards, guarded by `granted` so reloads and replayed chapters never pay twice.
-  function grantLessons(at){
+  function grantLessons(at,source='heaven'){
     const fresh=progress.lessons.learned.filter(id=>!progress.lessons.granted.includes(id));if(!fresh.length)return;
     const cafe=progress.cafe;
     for(const id of fresh){
@@ -210,7 +221,7 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
       if(id==='recipe')for(const r of ['phin-den','nau-da']){const m=cafe.mastery[r]||(cafe.mastery[r]={best:0,made:0});m.best=Math.max(m.best,40);}
       progress.lessons.granted.push(id);
     }
-    log(t('farmRules.log.heavenTips',{names:fresh.map(id=>LESSON_PERKS[id].name).join(', ')}),at);
+    log(t(source==='council'?'farmRules.log.councilTips':'farmRules.log.heavenTips',{names:fresh.map(id=>LESSON_PERKS[id].name).join(', ')}),at);
   }
   // Old saves without tutorial flags: mark hints the player has clearly outgrown (contracts.md 5, step 4).
   if(!Array.isArray(saved?.tutorial?.seen)&&saved){
@@ -219,6 +230,11 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
     mark('cafe-intro',progress.stats.served>0);mark('bench-intro',Object.keys(progress.cafe.mastery).length>0);
     mark('tools',progress.claimed.includes('expand')||owned.length>=2||levelFor(progress.xp)>=3);
   }
+  // F-46: save mới ghi dấu farm-intro-new; save có sẵn thiếu dấu (trước F-46, đã có farm) hoặc nơi chỉ có quán coi như xong farm-intro (contracts.md 5).
+  if(!saved)progress.tutorial.seen.push('farm-intro-new');
+  if(!progress.tutorial.seen.includes('farm-intro')&&(regionType(region)==='cafe'||saved&&!progress.tutorial.seen.includes('farm-intro-new')))progress.tutorial.seen.push('farm-intro');
+  // F-47 (Q8): save có V60 ★★ (best ≥ 70) coi như đã xem ly làm mẫu 'v60-guided' (contracts.md 5).
+  if(!progress.tutorial.seen.includes('v60-guided')&&(progress.cafe.mastery?.v60?.best||0)>=70)progress.tutorial.seen.push('v60-guided');
   grantLessons(now); // after the tutorial check: the recipe perk creates mastery entries
   function add(product,cropId,grams,quality,at,location='farm',origin='farm'){
     const target=location==='farm'?progress:progress.cafe;
@@ -242,8 +258,19 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
   const waterCapacity=()=>6+4*(progress.upgrades.well-1)+2*progress.lessons.learned.includes('water');
   const workDay=at=>Math.floor(Math.max(0,at-progress.epoch)/WORK_DAY_MS);
   const reliefReady=at=>regionType(progress.region)==='cafe'&&progress.coins<supplierPrice(progress.region)&&progress.cafe.lots.filter(l=>l.product==='roasted').reduce((s,l)=>s+l.grams,0)<10&&progress.cafe.reliefDay!==workDay(at);
-  // A lesson can be re-asked if not learned, not answered wrong this work day, and no re-ask was answered yet this work day.
-  function askable(id,at){const L=progress.lessons,day=workDay(at);return QUESTION_IDS.includes(id)&&!L.learned.includes(id)&&L.asked[id]!==day&&(L.askedDay===day?L.askedCount:0)<1;}
+  // A lesson can be re-asked if met (F-45: never a question the player has not met an expert for), not learned,
+  // not answered wrong this work day, and no re-ask was answered yet this work day.
+  function askable(id,at){const L=progress.lessons,day=workDay(at);return QUESTION_IDS.includes(id)&&L.met.includes(id)&&!L.learned.includes(id)&&L.asked[id]!==day&&(L.askedDay===day?L.askedCount:0)<1;}
+  // F-45 (đề xuất Q1 R5 + vá): mốc có mặt của chuyên gia, chỉ dùng số đã có trong save. Thương Hội do ca thường (act 'shift')
+  // hoặc ngày công đầu sau lần bán đầu (nơi chỉ trồng) đánh dấu riêng. Không điều kiện cấp.
+  function councilArrive(id){const A=progress.lessons.arrived;if(A.includes(id))return;A.push(id);A.sort((a,b)=>EXPERT_IDS.indexOf(a)-EXPERT_IDS.indexOf(b));emit('council_arrived',{expert:id});}
+  function councilCheck(){
+    const s=progress.stats,type=regionType(progress.region);
+    if(progress.tutorial.seen.includes('farm-intro')&&(s.harvested>0||type==='cafe'&&s.served>0))councilArrive('growing');
+    if(type==='farm'?s.sold>0:s.served>0)councilArrive('brewing');
+  }
+  // Chuyên gia đang chờ ở Hội đồng: người đầu hàng (Nông → Pha Chế → Thương Hội) còn câu chưa gặp, kèm các câu đó.
+  function councilWaiting(){const L=progress.lessons,expert=EXPERTS.find(e=>L.arrived.includes(e.id)&&e.questions.some(q=>!L.met.includes(q.id)));return expert?{expert,questions:expert.questions.filter(q=>!L.met.includes(q.id))}:null;}
   const reservoirCapacity=()=>Math.round(60*capacityScale(progress.upgrades.pond));
   const level=()=>levelFor(progress.xp);
   const claims=new Map(),resources=new Map();
@@ -252,10 +279,14 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
   const listeners=new Set();
   function emit(type,props={}){for(const fn of [...listeners])try{fn(type,props);}catch(e){console.error('farm event listener',e);}}
   let lastDay=workDay(lastTick);
+  // F-45: chuyên gia có mặt theo dữ liệu đã có lúc nạp (chưa có listener nên không phát sự kiện). Save trước F-45 thiếu `arrived`:
+  // Thương Hội có mặt khi sổ ca có ≥ 2 ca (ca đầu có thể là ca tập), nơi chỉ trồng khi đã bán.
+  councilCheck();
+  if(saved&&!Array.isArray(savedLessons.arrived)&&(regionType(region)==='farm'?progress.stats.sold>0:progress.cafe.shiftLog.length>=2))councilArrive('business');
   // Victories are checked on every save and never taken back; `keys` (Sixth Keys) comes from the awakening system, which does not exist yet.
   function checkVictories(at,keys=0){const v=progress.victories;if(!v.economic&&economicStatus(progress).met){v.economic=at;emit('victory_reached',{type:'economic'});}if(!v.discovery&&keys>=DISCOVERY_KEYS){v.discovery=at;emit('victory_reached',{type:'discovery'});}}
   function masteryXp(m){m.tiers||=[];for(const star of tiersFor(m.best))if(!m.tiers.includes(star)){m.tiers.push(star);progress.xp+=MASTERY_XP[star];}}
-  function commit(at=Date.now()){checkVictories(at,progress.awakening.keys.length);lastSave=at;onSave(clone(progress));}
+  function commit(at=Date.now()){councilCheck();checkVictories(at,progress.awakening.keys.length);lastSave=at;onSave(clone(progress));}
   function makeOrder(at=lastTick){const c=CROPS.filter(c=>c.level<=level())[progress.orderIndex%CROPS.filter(c=>c.level<=level()).length];return {id:`shop-${progress.orderIndex}`,deadline:at+DAY_MS*8,accepted:false,workers:[],cropId:c.id,product:'roasted',quantity:200,reward:Math.round(200*.07*c.priceScale*1.2),xp:14};}
   progress.order=modern&&productById(saved?.order?.product)&&cropById(saved?.order?.cropId)?clone(saved.order):makeOrder();
   if(!progress.order.deadline)progress.order.deadline=now+DAY_MS*8;
@@ -334,7 +365,7 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
     else if(gift.state==='ready'&&cafeActive&&progress.cafe.open)gift.state='active';
     lastTick=at;progress.lastAt=at;
     // Live ticks only: a gap over 60 s is offline catch-up and must not emit.
-    {const day=workDay(at);if(day>lastDay){lastDay=day;if(elapsed<=60000)emit('workday_ended',{level:level(),coins_bucket:Math.round(progress.coins/100)*100,market_floor_hit:marketHit});}}
+    {const day=workDay(at);if(day>lastDay){lastDay=day;if(regionType(progress.region)==='farm'&&progress.lessons.arrived.includes('brewing'))councilArrive('business');if(elapsed<=60000)emit('workday_ended',{level:level(),coins_bucket:Math.round(progress.coins/100)*100,market_floor_hit:marketHit});}}
     if(elapsed>60000)progress.offline={seconds:Math.floor(Math.min(elapsed,OFFLINE_MS)/1000),message:t('farmRules.offline')};
     return true;
   }
@@ -375,10 +406,12 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
     peek(){return progress;},reliefReady(at=Date.now()){return reliefReady(at);},get level(){return level();},get waterCapacity(){return waterCapacity();},get quest(){return QUESTS.find(q=>!progress.claimed.includes(q.id))||null;},
     get demand(){return demand();},get weather(){return weatherAt(lastTick);},get storageCapacity(){return storageCapacity();},
     setCafeActive(value){cafeActive=value;},
-    // Not saved. fn(type, props); returns unsubscribe. Types: field_bought, workday_ended, victory_reached, challenge_completed, auto_started, shift_ended, tutorial_completed.
+    // Not saved. fn(type, props); returns unsubscribe. Types: field_bought, workday_ended, victory_reached, challenge_completed, auto_started, shift_ended, tutorial_completed, council_arrived, council_answered.
     onEvent(fn){listeners.add(fn);return()=>listeners.delete(fn);},
     // Lesson the UI may re-ask now among `ids` (in order), as {expert, question} from heaven/content.js, or null.
     pendingLesson(ids=QUESTION_IDS){const id=[].concat(ids).find(id=>askable(id,lastTick));return id?lessonOf(id):null;},
+    // F-45: chuyên gia đang chờ ở Hội đồng {expert, questions} (chỉ câu chưa gặp) hoặc null; lượt gặp chỉ 1 chuyên gia.
+    get council(){return councilWaiting();},
     canExpand(id){return !owned.includes(id)&&Boolean(adjacent(id));},
     tick(at){advance(at);if(at-lastSave>=5000)commit(at);return true;},flush(at=Date.now()){advance(at);commit(at);},
     reserve(id,action,owner,choice=null){
@@ -403,7 +436,7 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
       const w=progress.workers.find(w=>w.id===id);return !w||isRobot(w)?{phone:0,sick:0,rude:0}:incidentOdds(workerLevel(w.xp),INCIDENTS.kFarm);
     },
     workDuration(action,worker=null){const base={water:1.8,weed:2.2,fertilize:1.8,harvest:2.5,refill:1.5,collect:1.5,start:1.5,turn:1.8,prune:2.5,ship:2,plant:2.2,clear:2.5}[action]||4;return base/efficiency(worker?workerLevel(worker.xp):progress.upgrades.tools);},
-    act(id,action,choice,at=Date.now(),owner='player'){
+    act(id,action,choice,at=Date.now(),owner='player',via='hand'){ // via: nguồn hành động của nhân vật chính, 'hand' | 'auto' (F-44…F-48 L1; chỉ dùng cho mẫu Decode)
       at=Math.max(lastTick,finite(at,Date.now()));advance(at);const fail=message=>({ok:false,message});let message='',collected=false,extra={};
       const claimant=api.claimed(id,action);if(claimant&&claimant!==owner)return fail(t('farmRules.err.staffBusy'));
       const resourceKey=action==='plant'?`seed:${choice}`:action==='fertilize'?'fertilizer':null;
@@ -416,7 +449,7 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
           else{if(item.state==='complete')return fail(t('farmRules.err.decorBuilt'));const ms=choice.ms;if(!Number.isFinite(ms)||ms<=0||ms>1000)return fail(t('farmRules.err.badBuildTime'));item.buildMs=Math.min(item.buildDuration,item.buildMs+ms);if(item.buildMs>=item.buildDuration)item.state='complete';message=item.state==='complete'?t('farmRules.msg.decorComplete'):t('farmRules.msg.decorBuilding');}
         }else{
         if(action!=='place'||!choice||typeof choice!=='object')return fail(t('farmRules.err.decorPick'));
-        const reason=decorationError(progress.decorations,choice);if(reason)return fail(reason);
+        const reason=decorationError(progress.decorations,choice,progress.region);if(reason)return fail(reason);
         const spec=DECORATIONS.find(item=>item.id===choice.type);if(progress.coins<spec.price)return fail(t('farmRules.err.decorCoins',{n:spec.price-progress.coins,name:spec.name}));
         money(-spec.price,'decoration',at,spec.name);progress.decorations.push({id:nextId('decor'),type:spec.id,x:choice.x,z:choice.z,rotation:choice.rotation,text:String(choice.text||'').trim().slice(0,24),state:'construction',buildMs:0,buildDuration:spec.id==='lamp'?6000:5000});message=t('farmRules.msg.decorPlaced',{name:spec.name});
         }
@@ -577,8 +610,8 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
           }else{const missing=missingFor(recipe,cafe,crop.id);if(missing.length)return fail(t('farmRules.err.missing',{list:missing.join(', ')}));}
           const score=robot?50:clamp(finite(choice.score),0,100),lots=take('roasted',crop.id,recipe.beans,'cafe',robot?'gift':null);
           for(const [supply,amount]of Object.entries(uses))cafe.supplies[supply]-=amount;
-          // Auto pha (demo) cups sell but never raise mastery, so 2 coins cannot unlock ★★ Pha nhanh (chốt 04/11).
-          if(!choice.staff&&!robot){const m=cafe.mastery[recipe.id]||(cafe.mastery[recipe.id]={best:0,made:0});if(!choice.demo){m.best=Math.max(m.best,score);masteryXp(m);}m.made++;}
+          // Auto pha (demo) và ⚡ Pha nhanh (quick) cups sell but never raise mastery, so 2 coins cannot unlock ★★ Pha nhanh (chốt 04/11).
+          if(!choice.staff&&!robot){const m=cafe.mastery[recipe.id]||(cafe.mastery[recipe.id]={best:0,made:0});if(!choice.demo&&!choice.quick){m.best=Math.max(m.best,score);masteryXp(m);}m.made++;}
           if(robot){g.cups++;g.tally.robot.cost+=cupCost(recipe,crop,uses);}else if(g.state==='active'&&!choice.staff)g.tally.you.cost+=cupCost(recipe,crop,uses);
           // Matcha uses no beans: its 25% "ingredient" share is a fixed 80 instead of a bean lot, and no bean-fit penalty.
           const beanFit=!recipe.beans||crop.id===recipe.bean?0:-5,base=recipe.beans?qualityOf(lots):80;
@@ -647,7 +680,9 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
           if(bonus)money(bonus,'cafe-sale',at,t('farmRules.ledger.shiftBonus'));cafe.reputation=clamp(cafe.reputation+rep,10,100);
           const medal=tier?t(`farmRules.msg.medal.${tier}`):'';
           {const pd=cafe.paid;sample(cafe.shiftLog,{id:nextId('shift'),at,cups:served,revenue:integer(choice?.revenue,1e9),costs:integer(choice?.costs,1e9),wages:Math.round((pd.wages-pd.markW)*100)/100,beans:Math.round((pd.beans-pd.markB)*100)/100,left:clamp(integer(choice?.lost),0,200),avgWait:clamp(finite(choice?.avgWait),0,600),tier,meanPrice:clamp(finite(choice?.meanPrice,1),.8,1.3),crew:cafe.crew.filter(m=>!m.gift&&m.paidUntil>at).length,menu:clamp(integer(choice?.menu),0,50),milk:cafe.prefs.milk,water:cafe.prefs.water,staffN:clamp(integer(choice?.staffN),0,200),tiredN:clamp(integer(choice?.tiredN),0,200),staffStars:clamp(finite(choice?.staffStars),0,3),staffSecs:clamp(finite(choice?.staffSecs),0,600)},10);pd.markW=pd.wages;pd.markB=pd.beans;}
-          extra={bonus,met:tier>0,tier,rep};emit('shift_ended',{cups:served,tier,left:clamp(integer(choice?.lost),0,200),revenue:integer(choice?.revenue,1e9),costs:integer(choice?.costs,1e9)});message=tier?t('farmRules.msg.shiftMet',{medal,bonus,rep}):t(rep?'farmRules.msg.shiftMissedRep':'farmRules.msg.shiftMissed');
+          // F-45: ca thường đầu tiên (không phải ca tập, choice.learning) là mốc có mặt của Thần Thương Hội.
+          const learning=choice?.learning===true;if(!learning&&regionType(progress.region)!=='farm')councilArrive('business');
+          extra={bonus,met:tier>0,tier,rep};emit('shift_ended',{learning,cups:served,tier,left:clamp(integer(choice?.lost),0,200),revenue:integer(choice?.revenue,1e9),costs:integer(choice?.costs,1e9)});message=tier?t('farmRules.msg.shiftMet',{medal,bonus,rep}):t(rep?'farmRules.msg.shiftMissedRep':'farmRules.msg.shiftMissed');
         }else if(action==='table'){
           const i=integer(choice),indoor=assetValue(ASSETS.find(a=>a.id==='cafe'),progress.upgrades.cafe);
           // Indoor tables open with the café upgrade; the two garden tables (10, 11) with Sân vườn.
@@ -664,8 +699,19 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
         }else return fail(t('farmRules.err.noCafeAction'));
       }else if(id==='lessons'){
         const lesson=lessonOf(choice?.questionId),L=progress.lessons;
-        if(!['answer','defer'].includes(action)||!lesson)return fail(t('farmRules.err.noQuestion'));
-        const {question}=lesson;if(L.learned.includes(question.id))return fail(t('farmRules.err.knownTip'));
+        if(!['answer','defer','council'].includes(action)||!lesson)return fail(t('farmRules.err.noQuestion'));
+        const {expert,question}=lesson;if(L.learned.includes(question.id))return fail(t('farmRules.err.knownTip'));
+        if(action==='council'){
+          // F-45 lượt đầu ở Hội đồng: không đọc/ghi askedDay/askedCount (không ăn suất hỏi lại trong ngày); sai thì vào hỏi lại như cũ.
+          if(L.met.includes(question.id))return fail(t('farmRules.err.metTip'));
+          if(!L.arrived.includes(expert.id))return fail(t('farmRules.err.councilAbsent'));
+          if(!question.options.some(o=>o.id===choice.optionId))return fail(t('farmRules.err.pickAnswer'));
+          const correct=choice.optionId===question.correct,perk=LESSON_PERKS[question.id];L.met.push(question.id);
+          if(correct){L.learned.push(question.id);grantLessons(at,'council');extra={correct,explanation:answerText(question,true),perk:{id:question.id,...perk}};message=t('farmRules.msg.newTip',{name:perk.name,effect:perk.effect});}
+          else{L.asked[question.id]=workDay(at);extra={correct,explanation:answerText(question,false)};message=t('farmRules.msg.tipMissed');}
+          emit('council_answered',{expert:expert.id,questionId:question.id,correct});
+        }else{
+        if(!L.met.includes(question.id))return fail(t('farmRules.err.notMet'));
         if(!askable(question.id,at))return fail(t('farmRules.err.reviewedToday'));
         if(action==='defer'){if(L.askedDay!==workDay(at)){L.askedDay=workDay(at);L.askedCount=0;}L.askedCount++;} // defer: counts as asked today, no result, no reward
         else{
@@ -673,7 +719,7 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
         const correct=choice.optionId===question.correct,day=workDay(at),perk=LESSON_PERKS[question.id];
         if(L.askedDay!==day){L.askedDay=day;L.askedCount=0;}L.askedCount++;
         if(correct){L.learned.push(question.id);grantLessons(at);extra={correct,explanation:answerText(question,true),perk:{id:question.id,...perk}};message=t('farmRules.msg.newTip',{name:perk.name,effect:perk.effect});}
-        else{L.asked[question.id]=day;extra={correct,explanation:answerText(question,false)};message=t('farmRules.msg.tipMissed');}}
+        else{L.asked[question.id]=day;extra={correct,explanation:answerText(question,false)};message=t('farmRules.msg.tipMissed');}}}
       }else if(id==='autoplay'){
         const a=progress.autoplay;
         if(action==='start'){if(a.leftMs<=0){if(a.runs<=0)return fail(t('crew.auto.none'));a.runs--;a.leftMs=AUTOPLAY.runMs;}message=t('crew.auto.started',{min:Math.ceil(a.leftMs/60000),runs:a.runs});emit('auto_started',{runs_left:a.runs});}
@@ -724,7 +770,7 @@ export function createFarm(saved,startingGift,onSave,now=Date.now(),heavenLesson
           if(!care.ready)return fail(t('farmRules.err.notRipe'));if(usedStorage()+p.readyYield>storageCapacity())return fail(t('farmRules.err.harvestStorage',{left:storageCapacity()-usedStorage(),need:p.readyYield}));
           const amount=p.readyYield;
           add('cherries',p.cropId,amount,owner==='player'&&progress.lessons.learned.includes('ripe')?p.quality+5:p.quality,at,'farm',p.id); // add() caps at 100
-          {const lot=progress.lots.at(-1);sample(progress.awakening.samples.harvests,{id:lot.id,at,day:workDay(at),cropId:p.cropId,by:owner==='player'?'player':'staff',grams:amount,quality:lot.quality,fertilized:p.fertilized,pruned:p.pruned,value:Math.round(amount*productById('cherries').price*cropById(p.cropId).priceScale*marketQualityFactor(lot.quality)*100)/100},20);}
+          {const lot=progress.lots.at(-1);sample(progress.awakening.samples.harvests,{id:lot.id,at,day:workDay(at),cropId:p.cropId,by:via==='auto'?'auto':owner==='player'?'player':'staff',grams:amount,quality:lot.quality,fertilized:p.fertilized,pruned:p.pruned,value:Math.round(amount*productById('cherries').price*cropById(p.cropId).priceScale*marketQualityFactor(lot.quality)*100)/100},20);}
           if(owner==='player')progress.stats.harvested++;progress.today.harvested+=amount;progress.xp+=6;
           Object.assign(p,{stage:'growing',growthMs:0,readyYield:0,remainingFruit:0,secondPick:0,fertilized:false,pruned:false,season:p.season+1});
           collected=true;message=t('farmRules.msg.harvested',{grams:amount});

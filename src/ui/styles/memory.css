@@ -1,17 +1,18 @@
-/* Coffee Notebook modal (#memory-dialog): same frame as #cafe-dialog; chips are neutral (no good/bad colours). */
-#memory-dialog{width:min(700px,calc(100vw - 40px));max-height:min(680px,calc(100dvh - 70px));margin:auto;padding:28px 16px 14px;border:3px solid var(--ui-wood);border-radius:25px;background:var(--ui-window-image),var(--ui-plank);box-shadow:inset 0 0 0 3px var(--ui-wood-trim),0 6px var(--ui-wood-dark),0 16px 50px var(--ui-shadow);color:var(--ui-ink);font-family:var(--game-font);overflow:visible}
-#memory-dialog[open]{display:flex;flex-direction:column}
-#memory-dialog::backdrop{background:var(--ui-backdrop)}
-#memory-dialog header{position:relative;display:grid;justify-items:center;padding:0 32px 10px;text-align:center}
-#memory-dialog h2{display:inline-flex;align-items:center;gap:9px;margin:-50px 0 6px;padding:9px 20px;border:2px solid var(--ui-leaf-edge);border-radius:14px;background:var(--ui-leaf);box-shadow:inset 0 2px var(--ui-leaf-hi),0 4px var(--ui-leaf-drop);color:var(--ui-leaf-ink);font:800 21px/1.2 var(--game-font);text-shadow:0 1px var(--ui-leaf-hi)}
-#memory-dialog h2 span{font:22px/1 "Apple Color Emoji","Segoe UI Emoji",sans-serif}
-#memory-dialog{width:min(740px,calc(100vw - 32px))}
-@media(max-width:700px){#memory-dialog{padding:26px 10px 10px}#memory-dialog h2{font-size:17px}}
+/* Coffee Notebook modal (:is(#memory-dialog,#memory-dialog-guide)): same frame as #cafe-dialog; chips are neutral (no good/bad colours). */
+:is(#memory-dialog,#memory-dialog-guide){width:min(700px,calc(100vw - 40px));max-height:min(680px,calc(100dvh - 70px));margin:auto;padding:28px 16px 14px;border:3px solid var(--ui-wood);border-radius:25px;background:var(--ui-window-image),var(--ui-plank);box-shadow:inset 0 0 0 3px var(--ui-wood-trim),0 6px var(--ui-wood-dark),0 16px 50px var(--ui-shadow);color:var(--ui-ink);font-family:var(--game-font);overflow:visible}
+:is(#memory-dialog,#memory-dialog-guide)[open]{display:flex;flex-direction:column}
+:is(#memory-dialog,#memory-dialog-guide)::backdrop{background:var(--ui-backdrop)}
+:is(#memory-dialog,#memory-dialog-guide) header{position:relative;display:grid;justify-items:center;padding:0 32px 10px;text-align:center}
+:is(#memory-dialog,#memory-dialog-guide) h2{display:inline-flex;align-items:center;gap:9px;margin:-50px 0 6px;padding:9px 20px;border:2px solid var(--ui-leaf-edge);border-radius:14px;background:var(--ui-leaf);box-shadow:inset 0 2px var(--ui-leaf-hi),0 4px var(--ui-leaf-drop);color:var(--ui-leaf-ink);font:800 21px/1.2 var(--game-font);text-shadow:0 1px var(--ui-leaf-hi)}
+:is(#memory-dialog,#memory-dialog-guide) h2 span{font:22px/1 "Apple Color Emoji","Segoe UI Emoji",sans-serif}
+:is(#memory-dialog,#memory-dialog-guide){width:min(740px,calc(100vw - 32px))}
+@media(max-width:700px){:is(#memory-dialog,#memory-dialog-guide){padding:26px 10px 10px}:is(#memory-dialog,#memory-dialog-guide) h2{font-size:17px}}
 .mem-body{display:grid;gap:10px;align-content:start}
 .mem-scales{display:grid;gap:8px}
 .mem-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
 .mem-label{flex:1 1 130px;font-weight:800}
 .mem-chips{display:flex;gap:6px}
+.mem-chips--wrap{flex-wrap:wrap}
 .mem-chip{min-width:44px;min-height:44px;font-weight:800}
 .mem-body .mem-chip[aria-checked="true"]{background:var(--ui-ink);border-color:var(--ui-ink);color:var(--ui-ink-light);box-shadow:none}
 .mem-field{display:grid;gap:3px;font-weight:700}

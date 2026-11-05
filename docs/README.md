@@ -24,6 +24,7 @@ Tài liệu tổ chức theo **màn chơi**. Bắt đầu từ [sơ đồ liên 
 | [game-flow.md](game-flow.md) | Sơ đồ chuyển màn và dữ liệu đi theo |
 | [shared/contracts.md](shared/contracts.md) | Hợp đồng dữ liệu: save, model farm/quán, trường cài đặt |
 | [shared/onboarding-flow.md](shared/onboarding-flow.md) | 5 phút đầu, HUD mở dần, thiên đàng là bài học |
+| [shared/mobile-first-proposal.md](shared/mobile-first-proposal.md) | **Đề xuất** (chưa chốt): 10 quyết định mobile-first — thiên đàng mini, Hội đồng so le, trục Cấp, ca tập quán, công trình thay nút |
 | [shared/robot-staff.md](shared/robot-staff.md) | Robot và nhân viên (farm + quán) |
 | [shared/crew-autoplay.md](shared/crew-autoplay.md) | 3 slot đội, sao robot/nhân viên/bạn, lười-mệt, chia việc không trùng, chế độ Auto |
 | [shared/coffee-memory.md](shared/coffee-memory.md) | Coffee Memory + Quick Taste: ly game và ly ngoài đời, so sánh A/B, xuất/xóa (F-33, F-34; chưa code) |

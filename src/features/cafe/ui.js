@@ -24,7 +24,7 @@ const INTRO_STEPS = t('cafe.intro.steps');
 const coins = n => t('cafe.coins', { n: formatCoins(n) });
 const stepLine = (step, recipe) => step.type === 'bean' ? t('cafe.book.stepBean', { bean: CROPS.find(c => c.id === recipe.bean).name }) : step.type === 'pour' ? `${step.text}: ${step.target[0]}–${step.target[1]} ${step.unit}` : `${step.text}: ${step.options.find(o => o.ok === 1).label}`;
 
-export function createCafeUI({ farm, service, awakening = null, profile, notice, onExit, onOrders, onWalkTable, onWalk = () => {}, onGuide = () => {}, fx = () => {} }) {
+export function createCafeUI({ farm, service, awakening = null, profile, pendingReport: carried = null, council = null, notice, onExit, onOrders, onWalkTable, onWalk = () => {}, onGuide = () => {}, fx = () => {} }) {
   const farmless = regionType(farm.peek().region) === 'cafe'; // chỉ có quán: hạt chỉ nhập ngoài, không đặt farm
   const events = new AbortController(), signal = events.signal;
   let cleanup = null, view = null;
@@ -111,7 +111,7 @@ export function createCafeUI({ farm, service, awakening = null, profile, notice,
   const tile = (icon, text, onClick, modal = false) => { const node = button('', modal ? () => { closeLesson?.(); onClick(); } : onClick, 'ui-hud-btn'); node.append(el('span', '', icon), el('small', '', text)); if (modal) node.dataset.sfx = 'ui.open'; return node; };
   const quest = el('div', 'quest-tracker cafe-quest'), questText = el('div'), name = el('h2'), hint = el('p'), goal = el('p', 'cafe-goal'); // own class: mobile CSS hides .quest-tracker p
   questText.append(name, goal, hint); quest.append(el('span', 'quest-marker', '☕'), questText);
-  // Intro steps 2–4: tapping the card walks the player to that step's spot (the 3D arrow can be off-screen on phones).
+  // Intro steps 1–3: tapping the card walks the player to that step's spot (the 3D arrow can be off-screen on phones).
   const guideHint = el('p', 'ui-guide-hint');
   let walkTarget = null;
   const walkQuest = () => { if (walkTarget) onWalk(walkTarget); };
@@ -145,9 +145,12 @@ export function createCafeUI({ farm, service, awakening = null, profile, notice,
     seatLine.textContent = `${seated}/${seats}${service.dirty.size ? t('cafe.hud.dirty', { n: service.dirty.size }) : ''}`;
     repLine.textContent = `${Math.round(cafe.reputation)}${service.combo > 1 ? ` · x${service.combo}` : ''}`;
     const shift = service.shift, left = shift ? Math.max(0, shift.endsAt - Date.now()) : 0;
-    shiftLine.textContent = shift ? `${Math.floor(left / 60000)}:${String(Math.floor(left / 1000) % 60).padStart(2, '0')} · ${shiftTarget(shift)}${shiftLine.parentElement.dataset.state ? '' : ` · ⭐ ${recipeById(shift.special).name}`}` : t('cafe.hud.noShift');
-    shiftBar.hidden = !shift; if (shift) shiftBar.style.setProperty('--ratio', left / (shift.endsAt - shift.startedAt));
+    // Ca tập (F-47): không đồng hồ, không mốc.
+    shiftLine.textContent = shift?.training ? t('cafe.hud.training') : shift ? `${Math.floor(left / 60000)}:${String(Math.floor(left / 1000) % 60).padStart(2, '0')} · ${shiftTarget(shift)}${shiftLine.parentElement.dataset.state ? '' : ` · ⭐ ${recipeById(shift.special).name}`}` : t('cafe.hud.noShift');
+    shiftBar.hidden = !shift || shift.training; if (shift && !shift.training) shiftBar.style.setProperty('--ratio', left / (shift.endsAt - shift.startedAt));
     toggle.lastChild.textContent = cafe.open ? t('cafe.nav.close') : t('cafe.nav.open'); toggle.dataset.notification = String(!cafe.open);
+    // Q7 R4a: ca tập ẩn nút 🚪 bằng visibility, giữ chỗ để thanh 375px không nhảy; van an toàn thiếu chè thì hiện lại.
+    toggle.style.visibility = service.training && !service.trainingValve ? 'hidden' : '';
     const gu = hasKey(farm.peek(), 'empathy'), key = gu + tickets.map(tk => `${tk.id}:${tk.covered}:${tk.seconds}`).join('|') + `|${service.benchTarget}`;
     rail.hidden = !tickets.length;
     if (rail.dataset.key !== key) {
@@ -167,18 +170,20 @@ export function createCafeUI({ farm, service, awakening = null, profile, notice,
     // One clear next step, in the order a real shift flows.
     const stuck = service.agents.find(a => a.active && a.blocked);
     // No roasted beans in the café: every order would fail, so say where beans come from before inviting customers.
-    const noBeans = !Object.values(cafe.stock.roasted).some(g => g >= 10), beanHint = noBeans && !held && !service.shelf.length;
     const model = farm.peek();
     let intro = !model.tutorial.seen.includes('cafe-intro');
     if (intro && model.stats.served > 0) { farm.act('tutorial', 'seen', 'cafe-intro'); intro = false; }
-    // The bean hint still wins and hides the step until beans are back (spec 5).
-    const step = !intro || beanHint ? 0 : held ? 4 : service.shelf.length ? 0 : tickets.length ? 3 : !cafe.open ? 1 : 2;
-    const guest = step === 4 && service.customers.find(c => c.recipeId === held.id && ['seated', 'toSeat', 'pickup', 'toPickup'].includes(c.phase));
+    // F-47 (Q7 R1/R8): ca tập chưa mở vì thiếu chè rang ≥ liều V60 thì gợi ý thiếu hạt, quán không có đường mở khác.
+    const noChe = intro && service.trainingValve;
+    const noBeans = noChe || !Object.values(cafe.stock.roasted).some(g => g >= 10), beanHint = noBeans && !held && !service.shelf.length;
+    // Thẻ quán 3 bước (Q7 R3), bước dẫn xuất từ state, không tính 'quán mở chưa'. The bean hint still wins and hides the step (spec 5).
+    const step = !intro || beanHint ? 0 : held || service.shelf.length ? 3 : tickets.length ? 2 : 1;
+    const guest = step === 3 && held && service.customers.find(c => c.recipeId === held.id && ['seated', 'toSeat', 'pickup', 'toPickup'].includes(c.phase));
     // Current farm quest (D1b): shown once the intro steps are over; only 'served' progresses inside the café.
     const q = !step && farm.quest;
     goal.hidden = !q; if (q) goal.textContent = q.stat === 'served' ? t('cafe.hud.questProgress', { title: q.title, n: Math.min(model.stats.served, q.count), count: q.count }) : t('cafe.hud.quest', { title: q.title });
-    toggle.classList.toggle('ui-attention', step === 1);
-    const target = [null, null, 'register', 'bar', guest ? (guest.seat ? `table-${guest.seat.table}` : 'register') : null][step];
+    // Bước 3: ly trên kệ thì mũi chỉ trỏ quầy pha (kệ), ly trên tay thì trỏ bàn khách / quầy thu ngân.
+    const target = [null, 'register', 'bar', !held ? 'bar' : guest ? (guest.seat ? `table-${guest.seat.table}` : 'register') : null][step];
     onGuide(target);
     if (walkTarget !== target) {
       walkTarget = target;
@@ -187,7 +192,7 @@ export function createCafeUI({ farm, service, awakening = null, profile, notice,
     }
     if (target) guideHint.textContent = usesTouch() ? t('cafe.guide.tap') : t('cafe.guide.click');
     hint.textContent = step ? t('cafe.intro.step', { step, text: INTRO_STEPS[step - 1] })
-      : beanHint ? t(farmless ? 'cafe.hint.noBeansCafe' : 'cafe.hint.noBeans')
+      : beanHint ? (noChe ? t(farmless ? 'cafe.hint.trainBeansCafe' : 'cafe.hint.trainBeans', { g: RECIPES.find(r => r.id === 'v60').beans, bean: CROPS.find(c => c.id === RECIPES.find(r => r.id === 'v60').bean).name }) : t(farmless ? 'cafe.hint.noBeansCafe' : 'cafe.hint.noBeans'))
       : !cafe.open && !service.customers.length ? t('cafe.hint.open')
       : held ? t('cafe.hint.serve')
       : service.shelf.length ? t('cafe.hint.shelf')
@@ -479,7 +484,12 @@ export function createCafeUI({ farm, service, awakening = null, profile, notice,
     return low ? t('cafe.shift.lowAvg', { n: shift.served, avg: avg.toFixed(1) }) : next < 0 ? t('cafe.shift.gold', { n: shift.served }) : t('cafe.shift.next', { n: shift.served, goal: marks[next], medal: t('cafe.medals')[next] });
   }
   // End-of-shift report: what went well, the reward, and a one-tap next shift.
+  // Báo cáo ca tập (F-47, Q7 R5): mở sau khi hộp Coffee Memory / Quick Taste đã đóng và quầy pha đã đóng.
+  let pendingReport = carried; // báo cáo ca tập chờ từ phiên trước (rời quán khi hộp Memory còn mở)
   function showShiftReport(r) {
+    if (r.training && (memoryUi.isOpen || dialog.open)) { pendingReport = r; return; }
+    pendingReport = null;
+    if (r.training) { trainingReport(r); return; }
     const medal = ['', ...t('cafe.medals')][r.tier || 0], marks = tierGoals(r.goal);
     open('shift', { heading: r.tier ? t('cafe.shift.reached', { medal }) : t('cafe.shift.over'), icon: r.tier ? '🏆' : '⏱' }, root => {
       root.append(row('☕', t('cafe.shift.served', { n: r.served }), t('cafe.shift.marks', { a: marks[0], b: marks[1], c: marks[2], avg: r.avg == null ? '—' : r.avg.toFixed(1), lost: r.lost, home: r.unserved || 0 }), null, r.tier ? 'owned' : null));
@@ -495,15 +505,31 @@ export function createCafeUI({ farm, service, awakening = null, profile, notice,
       if (r.robot) root.append(robotCompare(r.robot));
       const actions = el('div', 'cafe-actions');
       actions.append(button(t('cafe.shift.again'), () => { lessonIds = null; dialog.close(); const res = service.toggleOpen(); notice(res.message, res.ok); refreshHud(); }, 'cafe-primary'), button(t('cafe.shift.rest'), () => dialog.close()));
+      // F-45 (Q1 R7): báo cáo cuối ca là lúc được gặp Hội đồng; chỉ hiện khi có chuyên gia đang chờ, không tự mở.
+      // Ca tập không có nút (mục 5, Q7 R5 ↔ Q1 R7): chỉ chấm 'Mới' ở vật Hội đồng và Sổ tay.
+      const waiting = !r.learning && council?.waiting();
+      if (waiting) actions.append(button(`🏛 ${t('cafe.shift.council', { name: waiting.expert.name })}`, () => { lessonIds = null; dialog.close(); council.open(); }));
       root.append(actions);
     });
     lessonIds = [...(r.angry ? ['customer'] : []), 'recipe', 'costs'];
   }
+  // Ca tập: một báo cáo ngắn tích cực, không mốc Đồng/Bạc/Vàng, nút «🚪 Mở ca mới» dạy cửa; sau đó chỉ hiện chấm, không hỏi lại.
+  function trainingReport(r) {
+    open('shift', { heading: t('cafe.shift.trainingDone'), icon: '🎉' }, root => {
+      root.append(row('☕', t('cafe.shift.served', { n: r.served }), t('cafe.shift.trainingDetail'), null, 'owned'));
+      root.append(row('🪙', t('cafe.shift.revenue', { coins: coins(r.revenue) }), t('cafe.shift.trainingNext')));
+      if (draftCount()) root.append(row('📓', t('memory.shift.pending', { n: draftCount() }), t('memory.shift.pendingDetail')));
+      if (r.robot) root.append(robotCompare(r.robot));
+      const actions = el('div', 'cafe-actions');
+      actions.append(button(t('cafe.shift.again'), () => { dialog.close(); if (service.snap.cafe.open) return; const res = service.toggleOpen(); notice(res.message, res.ok); refreshHud(); }, 'cafe-primary'), button(t('cafe.shift.rest'), () => dialog.close()));
+      root.append(actions);
+    });
+  }
 
   refreshHud();
   return {
-    get open() { return dialog.open || memoryUi.isOpen || Boolean(closeLesson); }, get view() { return view; },
-    tick() { if (!dialog.open || !live) return; const next = live.liveKey(); if (next !== live.key) { live.key = next; live.render(body); } },
+    get open() { return dialog.open || memoryUi.isOpen || Boolean(closeLesson); }, get view() { return view; }, get pendingReport() { return pendingReport; },
+    tick() { if (pendingReport && !dialog.open && !memoryUi.isOpen) showShiftReport(pendingReport); if (!dialog.open || !live) return; const next = live.liveKey(); if (next !== live.key) { live.key = next; live.render(body); } },
     refreshHud, openBench, openMemory: opts => memoryUi.open(opts), openBook, openPantry, openUpgrades, openStaff, openTable, showShiftReport,
     // service onIncident: bong bóng đọc từ service.incidents, nên chỉ cần vẽ ngay (chửi khách chỉ có 3 s).
     showIncident() { refreshHud(); },

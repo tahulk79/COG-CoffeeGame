@@ -1,6 +1,6 @@
 # Luồng người chơi mới — 5 phút đầu, HUD mở dần, thiên đàng là bài học
 
-Ngày 03/11/2026. Trạng thái: **đã chốt toàn bộ** (người dùng chốt 03/11: thiên đàng = bài học; đổi tên quà "Bộ dụng cụ pha" → "Gói mở rộng quán", tác dụng giữ quán cấp 2; gộp Quản lý vào tab "Chỉ thị" của Nhân viên, menu dưới tối đa 6 nút; mức mẹo +30 xu, +3 uy tín, ★ ở điểm 40). Không còn điểm chờ chốt. Đã triển khai 03/11/2026 qua /game-team; playtester chơi 3 lượt (mobile 375 px + desktop), lỗi còn lại ghi ở mục "Sau triển khai" cuối file.
+Ngày 03/11/2026. Trạng thái: **đã chốt toàn bộ** (người dùng chốt 03/11: thiên đàng = bài học; đổi tên quà "Bộ dụng cụ pha" → "Gói mở rộng quán", tác dụng giữ quán cấp 2; gộp Quản lý vào tab "Chỉ thị" của Nhân viên, menu dưới tối đa 6 nút; mức mẹo +30 xu, +3 uy tín, ★ ở điểm 40). Không còn điểm chờ chốt. **Cập nhật 05/11/2026 (F-44):** phần thiên đàng thay bằng thiên đàng mini (≤ 5 hộp, quà Túi hạt giống cố định 1 chạm, không hỏi 6 câu) — xem mục 3.1 và [02-heaven/gameplay.md](../screens/02-heaven/gameplay.md); 6 câu dời xuống Hội đồng so le ở trần gian (05/11/2026, F-45, mục 3.1 «Hội đồng so le»). Đã triển khai 03/11/2026 qua /game-team; playtester chơi 3 lượt (mobile 375 px + desktop), lỗi còn lại ghi ở mục "Sau triển khai" cuối file.
 
 ## 1. Tóm tắt
 
@@ -24,7 +24,7 @@ Spec này sửa bằng 6 việc. Không thêm hệ thống mới ngoài "mẹo t
 | Mốc | Hiện nay (ước từ code) | Mục tiêu | Đo bằng |
 |---|---|---|---|
 | Intro | 23,5 s (`DURATION`), Bỏ qua có sẵn | Giữ 23,5 s; nút Bỏ qua hiện từ giây 0, chạm bất kỳ đâu để tua câu | Đồng hồ |
-| Thiên đàng | 32 hộp thoại + ~72 m đi bộ (4 m/s ≈ 18 s), thường 3–4 phút | 23 hộp, đi tự dẫn; **≤ 150 s** từ lúc vào tới khi qua cổng | Đồng hồ |
+| Thiên đàng | 32 hộp thoại + ~72 m đi bộ (4 m/s ≈ 18 s), thường 3–4 phút | ~~23 hộp, ≤ 150 s~~ → 05/11/2026 (F-44): mini **≤ 5 hộp**, không đi bộ tới ai, mục tiêu **≤ 25 s** (chưa đo, cần playtest) | Đồng hồ |
 | Farm → lần hái đầu | Phụ thuộc người chơi tìm cây | **≤ 20 s** sau khi vào farm | Đồng hồ |
 | Ly cà phê đầu bán được | Nhiệm vụ thứ 6, thường > 4 phút sau khi vào farm | **≤ 2 phút** sau khi vào farm | `stats.served` |
 | Tổng tới ly đầu (từ màn intro) | > 8 phút | **≤ 5 phút** | Đồng hồ |
@@ -33,7 +33,19 @@ Spec này sửa bằng 6 việc. Không thêm hệ thống mới ngoài "mẹo t
 
 ### 3.1. Thiên đàng là bài học (A)
 
-**Giữ:** 3 chuyên gia × 2 câu × 3 đáp án, mỗi câu trả lời một lần trong chương, dấu hoàn thành không phụ thuộc đúng/sai, quà chọn một lần.
+**Thay 05/11/2026 (F-44, đề xuất [mobile-first](mobile-first-proposal.md) Q1 R1–R4, R13, R16; Q2):** thiên đàng chỉ còn **mini**: Thần Chết và Thần Tiếp Nhận đứng sẵn cạnh nhân vật, tối đa 5 hộp (Thần Chết 2: kéo nhầm; Thần Tiếp Nhận 2: dấu «CHƯA CHẾT · CHỈ NGẤT» và câu móc «Hội đồng sẽ tìm con ở trần gian»; hộp 5 lời tiễn kèm nút **Nhận ❧ Túi hạt giống: +6 hạt giống, 6 túi phân**). Không bước nhận hồ sơ, không gợi ý joystick, không huy hiệu/Hồ sơ trùng sinh, không chữ "cà phê". Quà cố định `'seeds'` cho mọi save mới (giữ luật đổi theo nơi: nơi chỉ quán → +150 xu). Sau Nhận: hoạt cảnh tự đi vào cổng (chạm để tua) rồi mở bản đồ. Bỏ qua ↗ 1 lần bấm. **3 chuyên gia × 2 câu không còn hỏi ở thiên đàng**; luật mẹo, chấm và hỏi lại câu sai dưới đây giữ nguyên, câu được hỏi ở Hội đồng so le (05/11/2026, F-45, ngay dưới). Save cũ: `heaven.completed` vào thẳng farm; thiên đàng dở → chạy mini, giữ câu đã trả lời. Các dòng bên dưới về hỏi đáp/thoại 23 hộp/bảng chọn quà là luật cũ.
+
+**Hội đồng so le ở trần gian (05/11/2026, F-45, đề xuất [mobile-first](mobile-first-proposal.md) Q1 R5–R15 + phần vá):**
+- **Mốc có mặt** (chỉ dùng số đã có trong save, không điều kiện cấp): Thần Nông khi `farm.tutorial.seen` có `farm-intro` **và** `stats.harvested ≥ 1` (lần hái của nhân vật chính, tay hay Auto; kiểm cả lúc xong `farm-intro` lẫn sau lần hái — chỉ dựng Cổng và chấm Mới, không mở hộp). Thần Pha Chế khi `stats.served ≥ 1`. Thần Thương Hội sau `shift_ended` đầu tiên của **ca thường** (`act('cafe','shift')` có `learning: false`; báo cáo ca tập không tính). Nơi chỉ trồng: Pha Chế ở lần bán đầu (`stats.sold > 0`), Thương Hội ở ngày công kết thúc đầu tiên sau đó. Nơi chỉ quán: ly đầu → Thần Nông và Thần Pha Chế cùng có mặt, xếp hàng.
+- **Mỗi lượt gặp 1 chuyên gia × các câu chưa gặp của người đó (tối đa 2)**. Nhiều người có mặt thì xếp hàng Nông → Pha Chế → Thương Hội; gặp xong người trước mới tới người sau. Không gộp 4 câu một lượt.
+- **Điểm vào là vật 3D**: Cổng Hội đồng trong farm (ẩn tới khi chuyên gia đầu có mặt rồi trồi lên kèm hiệu ứng; bóng chuyên gia đã có mặt; quả cầu sáng + biển «✨ Mới · tên» khi có người chờ; vùng cấm xây 3,5 m) và chuông/khung chân dung Hội đồng trong quán. Chạm vào là hội thoại đáy màn (`.dialogue`) **mở ngay tại chỗ, không đi bộ**. Lối tắt duy nhất ngoài vật 3D: nút «Gặp Hội đồng» ở Sổ tay ▸ Câu hỏi / Fragment-Key và ở dòng «Chưa gặp chuyên gia» của Sổ tay thiên đàng (farm: lia camera tới Cổng rồi mở). Báo cáo cuối **ca thường** có nút «Gặp Hội đồng · tên» khi có người chờ (ca tập không, mục 5 Q7 R5). Ở farm, thẻ «Việc tiếp theo» hiện «Gặp tên ở Hội đồng» khi không có nhiệm vụ chuỗi (Q1 R7). Mở thì nhân vật quay mặt về vật. Dấu ✓ từng chuyên gia (đủ câu trong `met`) hiện ở Cổng và vật quán.
+- **Chỉ lúc không áp lực:** khung khoá di chuyển; Auto vẫn làm việc phía sau, không bấm hộ đáp án hay nút Đóng. Đang làm việc tay (Auto tắt, có việc/hàng đợi/đang đi tới máy) thì không mở, chỉ toast nhắc; không huỷ việc đang làm. Ở quán chỉ mở khi cửa đóng hoặc từ báo cáo cuối ca thường, không giữa ca. Chuyên gia mới tới: farm có toast (khi không có modal) + chấm Mới; quán chỉ chấm Mới, không toast. Không ép gặp.
+- **Lượt đầu** là action riêng `farm.act('lessons','council',{questionId, optionId})`: không đọc/ghi `askedDay`/`askedCount`, không ăn suất "1 câu hỏi lại mỗi ngày công". Đúng → mẹo ngay (`grantLessons`, không trả hai lần). Sai → giải thích, ghi `asked[id]` = ngày công, từ đó vào cơ chế hỏi lại bên dưới. Nút «Đóng» giữa chừng giữ các câu đã trả lời, không gọi `defer`.
+- **Câu chưa gặp không bao giờ bị hỏi lại** ở mọi nơi kích hoạt (hái tay `ripe`, giếng/mưa `water`, báo cáo cuối ca, ly < 70, khách bỏ về, nút Ôn lại): `pendingLesson`/`askable` chỉ trả câu có trong `farm.lessons.met`.
+- Cổng Hội đồng chỉ trao mẹo, không có quà. Analytics `council_answered {expert, questionId, correct}`.
+- Save cũ: `met` suy ra từ câu đã trả lời ở thiên đàng (đúng hay sai) cộng câu đã thuộc/đã sai ở farm; save `heaven.skipped` hoặc dở: câu chưa trả lời là "chưa gặp", phải gặp ở Hội đồng. Save đã có farm coi như xong `farm-intro` (mục 3.8). `arrived` thiếu: Thương Hội có mặt nếu sổ ca có ≥ 2 ca (nơi chỉ trồng: đã bán).
+
+**Giữ (luật cũ trước 05/11):** 3 chuyên gia × 2 câu × 3 đáp án, mỗi câu trả lời một lần trong chương, dấu hoàn thành không phụ thuộc đúng/sai, quà chọn một lần.
 
 **Mẹo (perk) gắn với từng câu.** Câu đúng → mẹo có hiệu lực ngay khi vào farm. Câu sai → giải thích như hiện nay, kèm dòng "Chưa nhận mẹo · sẽ được hỏi lại ở nông trại/quán". Hộp kết quả của mỗi câu luôn ghi tên mẹo và tác dụng, để người chơi hiểu điểm có ý nghĩa.
 
@@ -49,9 +61,10 @@ Spec này sửa bằng 6 việc. Không thêm hệ thống mới ngoài "mẹo t
 **Hỏi lại (học lại sau):**
 - Câu hỏi lại dùng đúng câu và đáp án gốc trong `heaven/content.js`, hiện trong khung hội thoại đáy màn hình (cùng component `.dialogue` của thiên đàng), có chân dung chuyên gia. Khung khóa di chuyển, **không** dừng model (thời gian farm/quán vẫn chạy), nên chỉ hiện ở lúc không có áp lực (xem điều kiện dưới).
 - Trả lời đúng → nhận mẹo ngay, toast "🎓 Mẹo mới: <tên> · <tác dụng>". Sai → hiện lời giải thích; câu đó không được hỏi lại trong **ngày công hiện tại** (6 phút).
-- Tối đa **1 câu hỏi lại mỗi ngày công** trên toàn game (không dồn nhiều câu).
+- Tối đa **1 câu hỏi lại mỗi ngày công** trên toàn game (không dồn nhiều câu). Lượt đầu ở Hội đồng không tính (05/11/2026, F-45).
+- Chỉ hỏi lại câu đã gặp chuyên gia (`farm.lessons.met`); câu chưa gặp chờ Hội đồng (05/11/2026, F-45).
 - Chỉ hiện khi: không có modal mở, nhân vật không đang làm việc, không đặt trang trí; ở quán chỉ hiện ở màn báo cáo cuối ca hoặc màn kết quả ly (đã là lúc dừng tay). Không đủ điều kiện thì hoãn tới lần kích hoạt sau.
-- **Sổ tay thiên đàng** trong modal Hướng dẫn liệt kê 6 mẹo: ✓ đã thuộc (kèm tác dụng) hoặc "Ôn lại" (bấm để trả lời ngay, cùng giới hạn 1 lần/câu/ngày công). Đây là đường học lại chủ động, không cần chơi lại chương.
+- **Sổ tay thiên đàng** trong modal Hướng dẫn liệt kê 6 mẹo: ✓ đã thuộc (kèm tác dụng) hoặc "Ôn lại" (bấm để trả lời ngay, cùng giới hạn 1 lần/câu/ngày công). Câu chưa gặp chuyên gia (05/11/2026, F-45): "Chưa gặp chuyên gia" kèm nút «Gặp Hội đồng» (tắt, ghi «Tới sau», khi chuyên gia chưa có mặt), không có "Ôn lại". Đây là đường học lại chủ động, không cần chơi lại chương.
 - Chơi lại chương thiên đàng (đã có) chỉ đặt lại tiến trình thiên đàng. Mẹo đã thuộc ở farm **không bị mất**; câu đúng ở lượt chơi lại cũng được tính là thuộc. Thưởng một lần (+30 xu, +3 uy tín, ★ khởi đầu) không bao giờ trả hai lần.
 
 **Giảm thời gian chết ở thiên đàng:**
@@ -59,7 +72,7 @@ Spec này sửa bằng 6 việc. Không thêm hệ thống mới ngoài "mẹo t
 - Thoại: `WELCOME` 5 → 3 câu; lời chào chuyên gia gộp làm dòng mở đầu của hộp câu hỏi 1 (không còn hộp riêng); `REVEAL` 7 → 4 câu; `FAREWELL` 3 → 2 câu. Tổng 32 → 23 hộp. Văn bản cụ thể do người viết thoại chọn, giữ ý: bị kéo nhầm, chỉ ngất, quà và kiến thức được giữ.
 - Bước nhận hồ sơ: giữ hai lựa chọn, **focus mặc định** vào "Dẫn tôi tới chuyên gia tiếp theo". Khi chọn dẫn: sau mỗi chuyên gia, nhân vật tự đi tới người tiếp theo (đã có `lead`), sau chuyên gia cuối tự đi tới Thần Tiếp Nhận.
 - Bảng chọn quà ghi **số thật**: Túi hạt giống "+6 hạt cà phê vối và 6 túi phân bón"; **Gói mở rộng quán** (tên cũ "Bộ dụng cụ pha", đã chốt đổi; id `tools` giữ nguyên) "Quán lên cấp 2: mở sẵn 4 bàn thay vì 3"; Túi vốn nhỏ "+150 xu". (Hiệu ứng thật lấy từ `model.js` dòng 104 và công thức bàn trong `../screens/04-cafe/gameplay.md`.)
-- Màn kết chương hiện "Mẹo đã nhận x/6 · y câu sẽ được ôn lại ở nông trại/quán".
+- Màn kết chương hiện "Mẹo đã nhận x/6 · y câu sẽ được ôn lại ở nông trại/quán". *(05/11/2026, F-44: bỏ vế "ôn lại"; màn kết chỉ hiện dòng điểm khi save đã trả lời câu nào đó — xem `../screens/02-heaven/gameplay.md`.)*
 
 ### 3.2. Gợi ý tiếp hội thoại theo thiết bị (B)
 
@@ -80,7 +93,7 @@ Spec này sửa bằng 6 việc. Không thêm hệ thống mới ngoài "mẹo t
 | 🔧 Nâng cấp | Cấp nông trại ≥ 2 · hoặc có hạng mục nâng cấp > 1 | |
 | 👩‍🌾 Nhân viên | Đã nhận `expand` · hoặc `workers.length > 0` · hoặc cấp ≥ 3 | **Quản lý (chỉ thị) gộp thành tab "Chỉ thị" trong modal Nhân viên**, không còn nút riêng. Cùng lúc cấp Gói thử robot; toast mở khóa thêm dòng "🎁 Tặng 1 ca robot pha + robot bưng ở quán" (không toast riêng, [robot-staff](robot-staff.md) mục 5) |
 | 🏡 Xây dựng | Đã nhận `weed` · hoặc có ít nhất một đồ trang trí · hoặc cấp ≥ 4 | |
-| ⛏️ Dải công cụ + kéo nhiều ô | Đã nhận `expand` · hoặc sở hữu ≥ 2 ruộng · hoặc cấp ≥ 3 | Trước mốc này chạm cây luôn là Tự chọn (3.6) |
+| ⛏️ Dải công cụ + kéo nhiều ô | Đã nhận `expand` · hoặc sở hữu ≥ 2 ruộng · hoặc cấp ≥ 3 | Trước mốc này chạm cây luôn là Tự chọn (3.6); chạm cây chín là hái ngay. **Trừ kéo-gieo 🌱: mở từ save mới** (05/11/2026, F-46); 🧺 và dụng cụ chăm vẫn chờ mốc này |
 | Bảng Cần xử lý | Có ≥ 1 mục | **Gập sẵn** trên mọi màn; tiêu đề hiện số mục "Cần xử lý · 2". Mục mới loại khẩn (hết xu trả lương, kho đầy chặn hái) làm tiêu đề nháy 3 lần, không tự mở |
 | Bảng Hoạt động | Nhân viên đã mở | Gập sẵn trên mọi màn |
 | 🗺️ Thế giới (đang disabled) | Ẩn tới khi có tính năng | |
@@ -91,6 +104,21 @@ Spec này sửa bằng 6 việc. Không thêm hệ thống mới ngoài "mẹo t
 **Khi một thành phần vừa mở trong lúc chơi:** nút xuất hiện với chấm "Mới" và toast một dòng "🔓 Mở: <tên> · <một câu công dụng>". Chấm mất khi bấm nút lần đầu. Đã báo thì không báo lại (cờ `unlock-<id>` trong `farm.tutorial.seen`).
 
 **Lúc tải save:** thành phần nào đã đủ điều kiện mở ngay khi tải thì được đánh dấu đã báo **mà không hiện toast** (save cũ không bị dội 7 thông báo).
+
+**05/11/2026 (F-48 pha 1, đề xuất Q10 CT-1…CT-16 + vá) — công trình thay nút HUD:** bốn mốc trong bảng trên giờ dựng một công trình chạm được trong farm, **dùng nguyên điều kiện `when` hiện tại** (pha 1; pha 2 đổi sang mốc Cấp sau sim Q4, giữ nhánh nhu cầu: hết giống mở Sạp, xong `harvest` mở Cửa quán):
+
+| Mốc (`HUD_UNLOCKS.id`) | Công trình (id) | Nút HUD |
+|---|---|---|
+| `cafe-play` | Cửa quán (`cafe-entrance`), chỉ nơi both | ☕ rời thanh dưới, vào ≡ |
+| `seed-shop` | Sạp ven đường (`seed-shop`) | 🏪 rời thanh dưới, vào ≡; ô xu vẫn mở Sạp |
+| `order-board` | Bảng đơn (`order-board`), chỉ nơi both | 📦 vẫn ở ≡ |
+| `workers` | Nhà thợ (`crew-house`) | 👩‍🌾 vẫn ở ≡ |
+| `upgrades`, `build`, `tools` | Không dựng (Nâng cấp là mục ≡ + ⬆ trên từng vật; Xây dựng, dải công cụ giữ như trên, CT-15) | giữ |
+
+- Công trình hiện khi `when` đúng **hoặc** đã có cờ `unlock-<id>` (cùng cờ "đã báo" ở trên), nên không ẩn lại. Không thêm id hay trường save.
+- Mở trong lúc chơi: công trình trồi lên + hạt sáng + mũi tên 3D chỉ 6 s + toast ngắn "🏗️ Đã dựng <tên> · chạm để dùng" (Nhà thợ gộp dòng 🎁 Gói thử robot), **thay** toast "🔓 Mở" và chấm "Mới" của nút đó; công trình mang biển ✨ Mới tới khi dùng lần đầu (cờ `unlock-<id>-used` như cũ). Lúc tải save: thấy ngay, không hiệu ứng, không toast. Tới mốc trong lúc tutorial ép farm-intro: công trình chờ, hiện toast 'xong hướng dẫn' trước, 3 s sau mới trồi lên + toast dựng (05/11/2026, F-48).
+- Thẻ nhiệm vụ trỏ Sạp/Bảng đơn/quán thì mũi tên 3D chỉ vào công trình thay cho nháy nút HUD; công trình chưa dựng thì như cũ.
+- Cổng gỡ nút (CT-11): một nút chỉ rời thanh dưới khi công trình chạm trúng được ở khung dọc mặc định 375×812 (đã tính chiếu, chờ playtest). Chi tiết: [03-farm/rules.md](../screens/03-farm/rules.md) mục HUD.
 
 ### 3.4. Một bộ nhãn duy nhất (D)
 
@@ -106,7 +134,7 @@ Chữ nhiệm vụ trích **đúng nhãn nút** trong ngoặc kép « ». Chữ 
 | id | title | detail |
 |---|---|---|
 | harvest | Hái lứa quả đầu tiên | Chạm cây có biểu tượng quả chín. Nhân vật tự tới hái. |
-| serve | Bán ly cà phê đầu tiên | Quán đã có sẵn 600 g hạt rang. Bấm «Vào quán» → «Mở cửa», đứng ở quầy thu ngân để nhận order, pha ở quầy pha rồi bấm bàn khách. |
+| serve | Bán ly cà phê đầu tiên | Quán đã có sẵn 600 g hạt rang. Bấm «Vào quán» (ca tập tự mở, F-47), đứng ở quầy thu ngân để nhận order, pha ở quầy pha rồi bấm bàn khách. |
 | dry | Phơi mẻ cà phê đầu tiên | Chạm sân phơi, chọn số phần rồi «Bắt đầu». Xong chạm giỏ trên sân để «Nhận hàng». |
 | roast | Rang một mẻ hạt | Chạm lò rang, «Bắt đầu» với nhân sạch, xong chạm giỏ để «Nhận hàng». |
 | sell | Bán thành quả của mình | Mở «Cửa hàng» → tab «Chợ», chọn món và «Bán». |
@@ -145,7 +173,7 @@ Lý do:
 
 ### 3.6. Điều khiển (F)
 
-**Farm, mặc định:** chạm cây = công cụ Tự chọn (`tool = 'auto'`, đã là mặc định): nhân vật tới gần và làm việc cây đang cần nhất. Trước mốc ⛏️ (3.3) **không hiện** nút ⛏️ nổi (`#farm-tools-prompt`) và không có kéo nhiều ô. Giữ nguyên:
+**Farm, mặc định:** chạm cây = công cụ Tự chọn (`tool = 'auto'`, đã là mặc định): nhân vật tới gần và làm việc cây đang cần nhất. Trước mốc ⛏️ (3.3) **không hiện** nút ⛏️ nổi (`#farm-tools-prompt`) và không có kéo nhiều ô, **trừ kéo-gieo**: từ save mới, túi hạt trong dải giống kéo được qua nhiều ô trống (05/11/2026, F-46, đề xuất Q5 R4a). Chạm cây chín là hái ngay (giữ hành vi sẵn có); đang cầm công cụ khác (sau mốc ⛏️) chạm cây chín vẫn hái, không còn bị từ chối (Q5 R6). Giữ nguyên:
 - Chạm ô trống → sáng viền đúng ô, nhân vật tới gần, dải icon nhỏ phía dưới để chọn giống, không làm tối map, đổi ô ngay được (AGENTS.md).
 - Chạm ô/biển khóa → đi tới biển; đủ tiền và liền kề mới mở xác nhận; thiếu tiền báo số xu thiếu; chỉ trừ khi xác nhận (AGENTS.md).
 - Chạm cây không cần việc gì → toast lý do có số ("Cây chưa khát · khoảng 2 phút nữa"), như `guideQuest` đang làm.
@@ -157,7 +185,7 @@ Lý do:
 - Bỏ luật `.farm-active .movement-hint{display:none}` cho đúng khung này; khung cũ của thiên đàng không dùng lại trong farm (tránh hai gợi ý chồng nhau).
 - Joystick: độ mờ khi rảnh 0,45 → **0,7** trong lúc cờ `controls` chưa bật, sau đó 0,55; khi đang kéo 1.
 
-**Khi mở ⛏️ lần đầu** (cờ `tools`): một dòng trong dải công cụ "Chọn công cụ rồi kéo qua nhiều ô, thả tay để làm". Tắt sau lần thả đầu tiên.
+**Khi mở ⛏️ lần đầu** (cờ `tools`): một dòng trong dải công cụ "Chọn công cụ rồi kéo qua nhiều ô, thả tay để làm". Tắt sau lần thả đầu tiên **của công cụ ⛏️**; thả kéo-gieo 🌱 không bật cờ `tools` (cờ tách nhau, F-46).
 
 ### 3.7. Lần đầu vào quán và lần đầu mở quầy pha
 
@@ -165,16 +193,40 @@ Dùng **thẻ mục tiêu sẵn có của quán** (`cafe/ui.js`, `.cafe-quest`) 
 
 | Bước | Chữ trên thẻ | Qua khi |
 |---|---|---|
-| 1 | Bấm «Mở cửa» để đón khách | Quán mở |
-| 2 | Đứng ở quầy thu ngân: bạn **tự nhận order** của khách đầu hàng | Order đầu tiên được nhận |
-| 3 | Tới quầy pha để pha món khách gọi | Mở quầy pha |
-| 4 | Cầm ly, bấm đúng bàn của khách (khách mang đi: bấm quầy thu ngân) | Bán ly đầu (`stats.served` tăng) |
+**Đổi 05/11/2026 (F-47, đề xuất Q7 R3):** thẻ còn **3 bước**; bỏ bước «Mở cửa» vì ca tập tự mở khi có lô chè rang ≥ liều V60 (15 g) và 1 khách V60 đứng sẵn ở quầy thu ngân. Luật ca tập: [04-cafe/gameplay.md](../screens/04-cafe/gameplay.md) mục "Ca tập".
 
-Đóng quán hoặc rời quán giữa chừng thì lần sau vào tiếp từ bước đang dở (bước dẫn xuất từ state: quán mở chưa, có order chưa, `stats.served`). Khi kho quán dưới 10 g thì gợi ý "Quán chưa có hạt rang…" đã chốt vẫn đứng trước.
+| Bước | Chữ trên thẻ | Mũi chỉ | Qua khi |
+|---|---|---|---|
+| 1 | Đứng ở quầy thu ngân để nhận order của khách | Quầy thu ngân | Order đầu tiên được nhận |
+| 2 | Tới quầy pha để pha Pour-over V60 | Quầy pha | Có ly (trên tay hoặc trên kệ) |
+| 3 | Cầm ly, bấm đúng bàn của khách (khách mang đi: bấm quầy thu ngân) | Bàn khách / quầy thu ngân; ly còn trên kệ thì quầy pha | Bán ly đầu (`stats.served` tăng) |
 
-**Luật mới chốt 04/11/2026, chưa code:** khách đầu tiên của ca đầu luôn gọi **Pour-over V60**, bước 3 ghi "Tới quầy pha để pha Pour-over V60". Kho đầu có thêm 300 g hạt chè rang và 40 giấy lọc. Chi tiết: [04-cafe/gameplay.md](../screens/04-cafe/gameplay.md) mục "Pour-over là phương pháp đầu tiên".
+Rời quán giữa chừng thì quán tạm dừng (luật `resume`), ca tập vẫn mở, lần sau vào tiếp từ bước đang dở (bước dẫn xuất từ state: có order chưa, ly trên tay/kệ, `stats.served`; **không** còn tính "quán mở chưa"). Gợi ý thiếu hạt vẫn đứng trước mọi bước: kho quán dưới 10 g, hoặc ca tập chưa mở vì thiếu chè ("Ca tập tự mở khi quán có 15 g hạt chè rang…" kèm lối lấy hạt đang có). Trong ca tập nút 🚪, mục open-cafe ở farm và cửa 3D trong quán bị khoá; cửa được dạy bằng nút «🚪 Mở ca mới» trong báo cáo ca tập.
+
+Khách đầu (và mọi order trước ly đầu của save) gọi **Pour-over V60** (F-40, sửa 05/11/2026). Kho đầu có 300 g hạt chè rang và 40 giấy lọc. Ly V60 tự pha tay đầu có **làm mẫu** (tutorial id `v60-guided`, F-47 Q8): bước chọn tự sáng đáp án (tối đa 0,8), bước rót không kẹp. Chi tiết: [04-cafe/gameplay.md](../screens/04-cafe/gameplay.md) mục "Lần đầu vào quán" và "Pour-over là phương pháp đầu tiên".
 
 **Lần đầu mở quầy pha** (cờ `bench-intro`): một dòng nền vàng trên đầu modal quầy pha: "Mỗi bước: chọn đúng, hoặc giữ nút để rót tới vạch xanh rồi thả. Sai sẽ được giải thích. 💡 Gợi ý giúp nhưng bước đó tối đa 80% điểm." Tắt khi xong bước đầu tiên của ly đầu.
+
+### 3.8. Tutorial ép `farm-intro` (05/11/2026, F-46)
+
+Nguồn: [đề xuất mobile-first](mobile-first-proposal.md) mục 2 bước 1, mục 5 (định nghĩa 4 bước), Q5 R5/R6/R11, Q1 R11 (Quang chốt 05/11, chưa qua sếp). Code: `src/features/farm/intro.js` (bước), `farm/game.js` (`syncIntro`, `placeIntroHand`), `farm/ui.js` (`introGuide`, `introHand`).
+
+Save mới vào farm bị dẫn đúng 4 bước, không có hộp hỏi nào. Chỉ dẫn chỉ gồm **bàn tay chỉ** (👆 động), **viền sáng + mũi chỉ 3D** trên đích (dùng mũi chỉ nhiệm vụ sẵn có) và **1 dòng chữ ngắn** ở đầu màn. Bước dẫn xuất từ state, không lưu bước dở; xong thì ghi `farm-intro` vào `farm.tutorial.seen` ([contracts](contracts.md) mục 5 bước 4b).
+
+| Bước | Dẫn | Xong khi |
+|---|---|---|
+| 1. Gieo | (a) Tay chạm ô trống đang sáng → dải giống hiện, tay chạm túi hạt. (b) Sau ô đầu, dải giống hiện sẵn (không nút đóng) và tay **kéo túi hạt qua 2 ô trống liền kề**. Chạm từng ô cũng tính. Không dạy kéo trước chạm | Có 3 cây con (`!mature`), hoặc ô trống còn ≤ 1 (save mới có 4 ô trống), hoặc hết hạt. Trong bước này chạm cây quà chín **không hái**: chỉ nhắc lại dòng chỉ dẫn, dải giống giữ nguyên (05/11/2026, F-46) |
+| 2. Hái | Tay chạm cây chín → nhân vật tới hái (hành vi sẵn có) | `stats.harvested ≥ 1` |
+| 3. Phơi | Sân phơi chưa có mẻ: tay chạm Sân phơi, chữ "bấm «Bắt đầu»". Đang phơi: chỉ chữ chờ. Mẻ xong: tay chạm giỏ để **nhận tay** | `stats.dried ≥ 1` (tăng khi người chơi nhận mẻ, không phải lúc bắt đầu) |
+| 4. Rang | Như bước 3 với Lò rang | `stats.roasted ≥ 1` |
+
+- **Cây chín cho bước hái:** dùng cây quà có sẵn — save mới có 4 cây chín và 4 cây đang lớn ở ruộng 1 (`model.js`, khởi tạo `plots`). Không đổi luật lớn cây, không thêm số mới.
+- **Khoá trong lúc ép:** ☕ Vào quán, 🏪 Cửa hàng, ô xu (mở Cửa hàng) và thẻ nhiệm vụ mờ + không bấm được; nút Auto ẩn (Auto không bật được). Gọi nút khác qua phím/đường tắt báo "Làm xong vài bước đầu ở nông trại đã". Vẫn dùng được: 🎒 Kho, ⚙️ Cài đặt, 📖 Hướng dẫn, camera. Mũi chỉ nhiệm vụ và chữ "chạm để được dẫn đường" nhường chỗ cho tutorial. Toast "🔓 Mở: …" chờ tới khi xong (nút đã hiện nhưng mờ).
+- **Hoãn hỏi lại:** `offerLesson` không bật bất kỳ câu nào (hái, giếng, mưa, nút "Ôn lại" trong Sổ tay) khi chưa có `farm-intro` (Q1 R11, Q5 R11); câu chờ lần kích hoạt sau. Câu hái `ripe` vốn chỉ hỏi khi hàng chờ hái đã trống (điều kiện `work`/`workQueue` có sẵn).
+- **Không kẹt:** bước không làm được thì bỏ ép và ghi `farm-intro` — hết hạt khi chưa gieo đủ (qua bước hái), không còn cây chín khi chưa hái, trạm chưa có mẻ mà không đủ nguyên liệu cho 1 mẻ (600 g quả / 100 g hạt khô).
+- **Save cũ:** nơi chỉ quán, hoặc save có sẵn tạo trước F-46 (thiếu dấu `farm-intro-new` mà save mới ghi khi tạo) → coi như xong, không ép. Save mới đang dở → tải lại tiếp từ bước dẫn xuất (`introStep` vẫn bỏ ép nếu đã bán/giao/mở ruộng).
+- Dải giống hiện sẵn ở bước gieo (b) ẩn khi đang mở ⚙️ Cài đặt hoặc hộp hỏi lại.
+- Xong bước 4: toast "🌱 Xong bước đầu" (nếu không có toast mở khóa đang chờ), các nút trở lại bình thường, thẻ nhiệm vụ dẫn tiếp.
 
 ## 4. Số liệu và công thức
 
@@ -241,7 +293,7 @@ Không có cú nhảy sức mạnh: mở khóa chỉ là hiện nút, không c�
 |---|---|---|
 | Farm lúc mới vào | ~20 nút/bảng (2 bảng mở sẵn trên desktop, menu cuộn ngang, ⛏️ nổi) | 6 thành phần, 3 thứ cần theo dõi: thẻ nhiệm vụ, xu, Kho |
 | Farm đầy đủ | 7 nút menu + 4 nút phải + 2 bảng mở | 6 nút menu + 3 nút phải, 2 bảng gập có số |
-| Thiên đàng | Thẻ nhiệm vụ + 3 huy hiệu | Giữ; thêm 1 dòng gợi ý điều khiển 10 s đầu |
+| Thiên đàng | Thẻ nhiệm vụ + 3 huy hiệu | 05/11/2026 (F-44): chỉ thẻ nhiệm vụ; bỏ huy hiệu và gợi ý điều khiển |
 | Quán lần đầu | Thẻ mục tiêu chung | Cùng thẻ, chữ theo bước |
 
 Hệ mới (mẹo) không thêm thứ phải theo dõi liên tục: nó chỉ xuất hiện như câu hỏi tối đa 1 lần/ngày công và một mục trong Hướng dẫn.
@@ -251,7 +303,7 @@ Hệ mới (mẹo) không thêm thứ phải theo dõi liên tục: nó chỉ xu
 | Tình huống | Hành vi |
 |---|---|
 | Tải lại giữa intro | Như hiện nay (về màn chọn nhân vật nếu chưa `introCompleted`). |
-| Tải lại giữa thiên đàng | Giữ câu đã trả lời và dấu (hiện có). Câu đã trả lời không hỏi lại trong chương. Gợi ý điều khiển hiện lại khi vào (không lưu, 10 s). |
+| Tải lại giữa thiên đàng | 05/11/2026 (F-44): chạy mini theo pha đã lưu (chưa tiết lộ → 5 hộp; đã tiết lộ chưa quà → hộp Nhận; có quà → tự đi vào cổng), giữ `heaven.answers`. Luật cũ: giữ câu đã trả lời và dấu (hiện có). Câu đã trả lời không hỏi lại trong chương. Gợi ý điều khiển hiện lại khi vào (không lưu, 10 s). |
 | Tải lại sau khi trả lời sai, trước khi vào farm | Câu sai vẫn ở `heaven.answers` với `correct: false`; vào farm nó nằm trong danh sách hỏi lại. |
 | Save cũ đã qua thiên đàng (chưa có `farm.lessons`) | Lần tải đầu: `learned` = các câu đúng trong `heaven.answers`; cấp thưởng một lần cho những câu này (+30 xu, +3 uy tín, ★ khởi đầu nếu đúng), ghi một dòng Hoạt động "Mẹo từ thiên đàng: …". Câu sai vào danh sách hỏi lại. |
 | Save có farm nhưng không có `heaven` (save rất cũ/dev) | `learned = []`; cả 6 câu chờ hỏi lại; Sổ tay hiện đủ 6. |
@@ -267,15 +319,15 @@ Hệ mới (mẹo) không thêm thứ phải theo dõi liên tục: nó chỉ xu
 | Đóng game khi đang hiện câu hỏi lại | Không ghi gì; lần kích hoạt sau hỏi lại (không bị tính là đã hỏi hôm nay). |
 | Offline lâu (tới 8 giờ) | Không có câu hỏi hay toast mở khóa nào phát sinh offline. Lúc quay lại, mở khóa đã đủ điều kiện hiện không toast nếu ≥ 2 mục cùng lúc (gộp thành một toast "🔓 Mở 2 tính năng mới"). |
 | localStorage bị chặn | Cờ hướng dẫn và mẹo chỉ giữ trong lượt chơi; gợi ý có thể hiện lại lần sau. Không chặn chơi. |
-| Chơi lại chương thiên đàng | Đặt lại `heaven.*` như hiện nay. Không xóa `farm.lessons`. Câu đúng mới được thêm vào `learned` khi vào lại farm; thưởng một lần không lặp. |
+| Chơi lại chương thiên đàng | 05/11/2026 (F-44): đặt lại `revealed`/`gift`/`completed`, giữ `heaven.answers`; farm không áp quà lần nữa nhờ `giftApplied`. Luật cũ: đặt lại `heaven.*` như hiện nay. Không xóa `farm.lessons`. Câu đúng mới được thêm vào `learned` khi vào lại farm; thưởng một lần không lặp. |
 | Màn ngang điện thoại (cao ≤ 450 px) | Gợi ý điều khiển và dòng "Chạm để được dẫn đường" rút còn một dòng; menu dưới 6 nút vẫn không cuộn. |
 
 ## 6. Hợp đồng dữ liệu
 
 Chi tiết trong [contracts](contracts.md) mục 5. Tóm tắt:
 
-- Trường mới trong `farm`: `lessons { learned[], granted[], asked{}, askedDay, askedCount }` và `tutorial { seen[] }`. Không tăng `version` của save chính hay của farm.
-- Hành động mới: `farm.act('lessons', 'answer', { questionId, optionId })`, `farm.act('tutorial', 'seen', id)`.
+- Trường mới trong `farm`: `lessons { learned[], granted[], asked{}, askedDay, askedCount, met[], arrived[] }` (`met`, `arrived` thêm 05/11/2026, F-45) và `tutorial { seen[] }`. Không tăng `version` của save chính hay của farm.
+- Hành động mới: `farm.act('lessons', 'answer', { questionId, optionId })`, `farm.act('lessons', 'council', { questionId, optionId })` (F-45), `farm.act('tutorial', 'seen', id)`.
 - Chữ ký: `createFarm(saved, startingGift, onSave, now, heavenLessons = [])`, `createFarmGame(player, gift, heavenLessons)`. `app/game.js` lấy `heavenLessons` qua hàm mới `correctQuestionIds(heaven)` của `features/heaven/journey.js`.
 - Mở khóa HUD dẫn xuất từ state, không có trường lưu.
 
@@ -297,7 +349,7 @@ Chi tiết trong [contracts](contracts.md) mục 5. Tóm tắt:
 ## 8. Kịch bản liên màn
 
 1. **Thiên đàng → farm (mẹo):** trả lời 6 câu → `saveHeaven` ghi `heaven.answers` → qua cổng → `app/game.js` gọi `correctQuestionIds` → `createFarmGame(..., heavenLessons)` → `createFarm` hợp `learned`, cấp thưởng, ghi `granted`, `commit()`. Người chơi thấy toast "Quà thiên đàng…" + "🎓 4 mẹo đang có tác dụng". Chỗ gãy: tải lại ngay sau cổng trước `commit` → lần tải sau `granted` rỗng → cấp lại đúng một lần (chưa từng lưu nên không trùng). Hai bên không cùng ghi: heaven chỉ ghi `heaven`, farm chỉ ghi `farm.lessons`.
-2. **Hái → quán → bán ly đầu:** hái (quest harvest) → ☕ hiện + toast mở khóa → thẻ "Bán ly đầu" có mũi chỉ trên ☕ → vào quán → thẻ quán bước 1–4 → `cafe/sell` → `stats.served++` → `rewards()` trả 15 xu. Dữ liệu: `cafe.lots` (starter), `stats`, `claimed`, `tutorial.seen` (`cafe-intro`). Chỗ gãy: rời quán ở bước 3 → khách bỏ về (uy tín −1, luật có sẵn); vào lại tiếp bước dẫn xuất từ state.
+2. **Hái → quán → bán ly đầu:** hái (quest harvest) → ☕ hiện + toast mở khóa → thẻ "Bán ly đầu" có mũi chỉ trên ☕ → vào quán → ca tập tự mở → thẻ quán bước 1–3 (05/11/2026, F-47) → `cafe/sell` → `stats.served++` → báo cáo ca tập → `rewards()` trả 15 xu. Dữ liệu: `cafe.lots` (starter, cần chè ≥ 15 g), `stats`, `claimed`, `tutorial.seen` (`cafe-intro`, `v60-guided`). Chỗ gãy: rời quán giữa ca tập → quán tạm dừng, không trừ uy tín; vào lại tiếp bước dẫn xuất từ state. Hết chè → ca tập không mở, chỉ có gợi ý thiếu hạt.
 3. **Ly kém → học lại tại quầy:** ly 62 điểm → màn kết quả; nếu `adjust` chưa thuộc và đủ điều kiện hỏi → khung hỏi lại Thần Pha Chế → đúng → `act('lessons','answer')` → `learned` thêm `adjust` → ngay ly sau màn kết quả có "Sửa bước này trước". Chỗ gãy: model chấm đúng/sai bằng `heaven/content.js` (nguồn duy nhất), UI không tự chấm.
 4. **Gửi hạt về quán (nhãn thống nhất):** thẻ Gửi hạt → `guideQuest` kiểm 252 g → mở Đơn hàng → nút «Chuyển về quán · 2 xu» → `orders/shipOrder` → `cafe.shipments` → tới nơi `stats.delivered++`. Chữ thẻ và nút giống nhau từng chữ.
 5. **Mua ruộng 2 → mở quản lý:** xác nhận ở biển → `fields` có 2 → 👩‍🌾 Nhân viên và ⛏️ hiện cùng lúc, một toast gộp → lần đầu mở ⛏️ có dòng hướng dẫn kéo. Thuê thợ đầu → Hoạt động hiện (gập), đơn quán bắt đầu sinh (luật có sẵn).
@@ -309,9 +361,9 @@ Chạy trên **khung điện thoại 390 × 844 (cảm ứng)** và **desktop 14
 | # | Kịch bản | Bước | Mong đợi (trước → sau) |
 |---|---|---|---|
 | 1 | Tổng thời gian tới ly đầu | Save mới, chơi không bỏ qua, đọc bình thường, theo thẻ nhiệm vụ | Từ lúc intro bắt đầu tới `stats.served = 1`: > 8 phút → **≤ 5 phút**. Thiên đàng ≤ 150 s |
-| 2 | Số hộp thoại thiên đàng | Đếm số lần bấm tiếp từ gặp Thần Chết tới qua cổng | 32 → **23** |
+| 2 | Số hộp thoại thiên đàng | Đếm số lần bấm tiếp từ lúc vào tới bấm Nhận | 32 → 23 → **≤ 5** (05/11/2026, F-44) |
 | 3 | Gợi ý chạm trên mobile | Điện thoại, mở hội thoại bất kỳ | Gợi ý bị ẩn → hiện "Chạm để tiếp". Desktop: "Enter hoặc bấm để tiếp". Khi đang có câu hỏi: "Chọn một đáp án" |
-| 4 | Gợi ý điều khiển thiên đàng | Điện thoại, vào quảng trường | Không có chữ → hiện "Kéo nút tròn để đi · Chạm nhân vật để nói chuyện"; mất sau lần kéo đầu hoặc 10 s |
+| 4 | Gợi ý điều khiển thiên đàng | Điện thoại, vào quảng trường | 05/11/2026 (F-44): không có gợi ý joystick; thoại tự chạy ngay |
 | 5 | Mẹo khi đúng hết | Trả lời đúng 6 câu, chọn Túi vốn | Vào farm: xu = 200 + 150 + 30 = **380**; uy tín quán 50 → **53**; bình tưới cấp 1: 6 → **8**; Phin đen và Sữa đá hiện ★ trong danh sách món; hái tay cây chất lượng 80 → lô **85** (xem trong Kho) |
 | 6 | Mẹo khi sai hết | Trả lời sai 6 câu, chọn Túi vốn | Xu = **350**; uy tín 50; bình 6; món không có ★. Mỗi hộp kết quả câu ghi "Chưa nhận mẹo · sẽ được hỏi lại" |
 | 7 | Hỏi lại ở farm | Từ kịch bản 6, hái tay một cây | Khung hỏi Thần Nông câu `ripe` hiện sau khi hái. Trả lời đúng → toast mẹo; lần hái sau lô +5. Trả lời sai → không hỏi lại câu đó trong ngày công hiện tại (đợi tới mốc 6 phút mới hỏi) |
@@ -332,9 +384,9 @@ Chạy trên **khung điện thoại 390 × 844 (cảm ứng)** và **desktop 14
 | 22 | Chạm cây = tự làm | Save mới, chạm cây chín | Nhân vật tới và hái; không cần mở ⛏️. Chạm ô trống → sáng viền ô, dải icon giống phía dưới, map không tối |
 | 23 | Gợi ý điều khiển farm | Save mới vào farm, PC rồi mobile | Hiện đúng chữ theo thiết bị; tắt sau khi đã đi + làm 1 việc, hoặc 15 s, hoặc ×; tải lại không hiện |
 | 24 | Mua ruộng giữ luật | Thiếu xu, chạm ruộng khóa | Nhân vật tới biển; báo "Thiếu x xu"; không trừ xu |
-| 25 | Lần đầu vào quán | Save mới, vào quán | Thẻ quán chạy đúng 4 bước 3.7; tới quầy thu ngân thì order tự nhận trong ≤ 0,5 s; xong bước 4 thì thẻ về gợi ý thường. Vào lại lần sau không hiện bước 1 |
+| 25 | Lần đầu vào quán | Save mới, vào quán | Ca tập tự mở, 1 khách V60 đứng sẵn; thẻ quán chạy đúng 3 bước 3.7 (05/11/2026, F-47); tới quầy thu ngân thì order tự nhận trong ≤ 0,5 s; nút 🚪/cửa khoá; bán ly đầu thì báo cáo «Ly đầu tiên đã bán!» và thẻ về gợi ý thường |
 | 26 | Lần đầu mở quầy pha | Mở quầy pha lần đầu | Dòng hướng dẫn hiện; mất sau bước đầu; mở lần 2 không có |
-| 27 | Mô tả quà | Tới bước chọn quà | Ba thẻ ghi đúng "+6 hạt cà phê vối và 6 túi phân bón" / "Quán lên cấp 2: mở sẵn 4 bàn thay vì 3" / "+150 xu" |
+| 27 | Mô tả quà | Tới hộp 5 của thiên đàng mini | 05/11/2026 (F-44): một nút Nhận, dòng quà "❧ Túi hạt giống: +6 hạt giống, 6 túi phân", không có thẻ |
 | 28 | Save cũ chưa có `lessons` | Save đã qua thiên đàng với 4 câu đúng (có `costs`), tải bản mới | Xu +30 đúng một lần (tải lại lần 2 không cộng); Hoạt động có dòng "Mẹo từ thiên đàng"; Sổ tay ✓ 4/6 |
 
 ## 10. Chia việc theo vùng file
@@ -355,7 +407,7 @@ Chạy trên **khung điện thoại 390 × 844 (cảm ứng)** và **desktop 14
 
 ## 11. Ngoài phạm vi
 
-Không đổi luật kinh tế, giá, sản lượng, lương. ~~Không thêm nút bỏ qua thiên đàng (đã chốt là bài học).~~ Đã thay 04/11/2026: có nút «Bỏ qua» bấm 2 lần (`02-heaven/gameplay.md` bước 8); câu sai/bỏ qua được hỏi lại ở farm/quán. Không làm pinch zoom (farm chưa có, không thêm trong spec này). Không lưu bật/tắt bảng HUD qua lần mở game (vẫn là điểm chưa chốt ở guide mục 9).
+Không đổi luật kinh tế, giá, sản lượng, lương. ~~Không thêm nút bỏ qua thiên đàng (đã chốt là bài học).~~ Đã thay 04/11/2026: có nút «Bỏ qua» bấm 2 lần; từ 05/11/2026 (F-44) Bỏ qua chỉ 1 lần bấm (`02-heaven/gameplay.md` bước 5). Không làm pinch zoom (farm chưa có, không thêm trong spec này). Không lưu bật/tắt bảng HUD qua lần mở game (vẫn là điểm chưa chốt ở guide mục 9).
 
 ## Sau triển khai (03/11/2026)
 

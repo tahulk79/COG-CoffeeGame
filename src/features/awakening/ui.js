@@ -17,7 +17,7 @@ const center = node => { const r = node.getBoundingClientRect(); return { x: r.l
 
 export function createAwakening({ farm, notice = () => {}, helpButton = () => document.getElementById('farm-help-toggle') }) {
   const seen = new Set(), timers = new Set();
-  let dot = null, dialog = null, point = null, last = { rev: -1, at: 0 };
+  let dot = null, dialog = null, point = null, last = { rev: -1, at: 0 }, council = null;
   const A = () => farm.peek().awakening;
   const list = () => viewQuestions(A());
 
@@ -65,20 +65,31 @@ export function createAwakening({ farm, notice = () => {}, helpButton = () => do
     return art;
   }
   let host = null, afterDecode = null; // last questions host, so a decode started from it can redraw it (and whatever shows the Fragments)
+  // F-45: lối tắt 'Gặp Hội đồng' khi có chuyên gia đang chờ (đóng hộp Sổ tay rồi lia camera/mở). Không dính Decode:
+  // 6 câu mở vẫn `open` từ đầu, trả lời đúng ở Hội đồng không trao Fragment.
+  function councilRow() {
+    const waiting = council?.waiting();
+    if (!waiting) return [];
+    const art = el('article', 'awk-q'); art.dataset.state = 'ready';
+    const go = button(`🏛 ${t('awakening.council.meet')}`, () => { go.closest('dialog')?.close(); council.open(); }, 'ui-btn ui-btn--go awk-btn');
+    art.append(el('strong', 'awk-q__title', t('awakening.council.waiting', { name: waiting.expert.name, n: waiting.questions.length })), go);
+    return [art];
+  }
   function mountQuestions(node, onDecoded = null) {
     host = node; afterDecode = onDecoded; check(true);
     const qs = list(); for (const id of attentionIds(qs, A())) seen.add(id); paintDot();
-    node.replaceChildren(el('p', 'awk-note', t('awakening.intro')), ...sortQuestions(qs).map(questionRow));
+    node.replaceChildren(...councilRow(), el('p', 'awk-note', t('awakening.intro')), ...sortQuestions(qs).map(questionRow));
   }
   function mountKeys(node) {
     const A_ = A(), rows = fragmentRows(A_);
-    node.replaceChildren(el('p', 'awk-note', t('awakening.keys.intro', { n: rows.filter(r => r.hasKey).length })), el('p', 'awk-lore-flag', `ℹ️ ${t('awakening.lore.flag')}`));
+    node.replaceChildren(...councilRow(), el('p', 'awk-note', t('awakening.keys.intro', { n: rows.filter(r => r.hasKey).length })), el('p', 'awk-lore-flag', `ℹ️ ${t('awakening.lore.flag')}`));
     for (const r of rows) {
       const art = el('article', 'awk-q'), key = t(`awakening.key.${r.key}`);
       art.dataset.state = r.hasKey ? 'solved' : r.count ? 'trying' : 'open';
       art.append(el('strong', 'awk-q__title', `${TYPE_ICON[r.type]} ${t('awakening.keys.fragment', { type: tn(r.type) })} → 🗝️ ${key}`), el('p', 'awk-note', t('awakening.keys.opens', { key, dim: t(`awakening.dim.${r.dimension}`) })), el('p', 'awk-note', `🔓 ${t(`awakening.unlock.${r.key}`)}`));
       const pipLine = el('p', 'awk-pips', `${pips(r.count)} ${t('awakening.keys.pips', { n: r.count })}`); pipLine.setAttribute('aria-label', t('awakening.keys.pips', { n: r.count })); art.append(pipLine);
       if (r.message) art.append(el('p', 'awk-lore', `📜 ${t('awakening.lore.label')}: ${t(`awakening.lore.${r.type}`)}`));
+      if (r.hasKey) art.append(el('p', 'awk-lore', `📜 ${t('awakening.lore.label')}: ${t(`awakening.lore.key.${r.key}`)}`));
       if (r.message && !r.hasKey) art.append(el('p', 'awk-note', t('awakening.keys.apply', { text: t(`awakening.apply.${r.type}`) })));
       if (r.hasKey) art.append(el('p', 'awk-done', t('awakening.keys.done', { key })));
       node.append(art);
@@ -198,7 +209,9 @@ export function createAwakening({ farm, notice = () => {}, helpButton = () => do
 
   paintDot();
   return {
+    // provider { waiting(): {expert, questions} | null, open() } do farm game đặt (F-45).
+    setCouncil(provider) { council = provider; },
     check, hasKey: id => hasKey(farm.peek(), id), mountQuestions, mountKeys, mountFirstKey, openDecode, hasNew: () => attentionIds(list(), A()).some(id => !seen.has(id)),
-    dispose() { off(); for (const id of timers) clearTimeout(id); timers.clear(); dot?.remove(); dot = null; dialog?.close?.(); dialog?.remove(); dialog = null; host = null; },
+    dispose() { council = null; off(); for (const id of timers) clearTimeout(id); timers.clear(); dot?.remove(); dot = null; dialog?.close?.(); dialog?.remove(); dialog = null; host = null; },
   };
 }

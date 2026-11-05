@@ -16,6 +16,18 @@
 
 Cả 8 nơi đều chọn được. **Loại nơi bị ẩn tới khi chốt** (04/11, góp ý: lộ loại trước thì ai cũng chọn nơi "cả hai"): cờ, nhãn và thẻ trước khi chốt chỉ có tên, nơi chốn và một câu gợi không khí (`world.region.<id>.teaser`).
 
+**Đánh đổi 05/11/2026 (F-44, Q3):** lần chọn vùng đầu chọn sẵn Việt Nam (`both`), chấp nhận hiệu ứng mặc định nghiêng về loại `both` để người mới vào nhanh; loại nơi vẫn ẩn, vẫn cảnh báo «không đổi được», vẫn khóa vĩnh viễn. Quang chốt 05/11, chưa qua sếp duyệt.
+
+### Chọn sẵn Việt Nam lần đầu (05/11/2026, F-44 — đề xuất [Q3](../../shared/mobile-first-proposal.md); đã code, chưa chạy test/chơi thử)
+
+- Điều kiện: mở bản đồ khi save chưa có `startingRegion` và trong phiên chưa chốt nơi → `src/app/game.js` truyền `preselect: DEFAULT_REGION` (`vn`) vào `createWorldMap`. Đã có `startingRegion` thì như cũ: mở thẳng thẻ kết quả, không chọn sẵn. Mặc định `vn` cho mọi ngôn ngữ. Nếu sau này có trùng sinh lại thì mặc định không chọn sẵn (quyết riêng khi đó).
+- Bản đồ mở ở toàn cảnh (`view` x 2, z −1,5, khoảng cách 20), giữ `PRESELECT_HOLD` giây rồi `select('vn', { auto: true })`: camera lướt tới VN, khối VN trồi lên theo lò xo, cờ VN `is-selected`. Nhánh `auto`: không phát `sfx('ui.open')`, không focus nút «Chọn nơi này», focus đặt vào thẻ đáy (role=status). Chạm một cờ, kéo, chụm/cuộn phóng hoặc bấm phím di chuyển trong lúc giữ toàn cảnh thì hủy chọn sẵn (không kéo camera về VN).
+- Thẻ thu gọn: tên, nơi chốn, teaser, dòng `world.preselectHint` (giữ vế «chỉ lộ ra sau khi chọn»), nút **Xem thêm** và **Chọn nơi này**; năm dòng địa lý tạm ẩn, hiện khi chạm bất kỳ cờ nào (kể cả cờ VN) hoặc **Xem thêm**. Không có nhãn «khuyên dùng/dễ», không icon hay chữ lộ loại nơi, không nút 1 chạm bỏ qua xác nhận.
+- Nút «Chọn nơi này» chỉ nhận chạm/Enter sau `CHOOSE_DELAY` giây kể từ lúc bản đồ mở (chặn chạm/Enter còn sót từ thiên đàng/Bỏ qua). Hai hằng số ở đầu `world-map/scene.js`, chỉnh khi playtest (số hiện tại là số tạm, chưa đo).
+- Chạm cờ khác: chọn như thường (sfx, thẻ đầy đủ), không tự quay về VN. ✕/Esc đứng lại trước cổng; mở lại khi chưa chốt thì VN lại được chọn sẵn.
+- Không lưu gì trước khi bấm **Trùng sinh ở đây**. Đường nhanh nhất vẫn 3 chạm: Chọn nơi này → Trùng sinh ở đây → Bắt đầu.
+- Analytics: `onPick(id, { preselected })` → `region_selected.preselected` = true khi bản đồ đã thật sự chọn sẵn (hết `PRESELECT_HOLD` mà chưa bị hủy), nơi chốt là nơi chọn sẵn và người chơi chưa chạm cờ nơi khác ([analytics.md](../../shared/analytics.md)). Không phải trường save.
+
 Mỗi nơi có hai nhiệm vụ riêng nối sau chuỗi chung theo loại (`REGION_QUESTS`, `farm/content.js`). Cân bằng: nơi chỉ một bên thưởng cao hơn (không có nguồn hạt rẻ hoặc không có đầu ra giá cao).
 
 | id | Nơi | Loại (lộ sau khi chốt) | Nhiệm vụ riêng (chỉ số ≥ mốc · xu) |
@@ -67,6 +79,7 @@ Mục đích: bản đồ thế giới có giá trị thật (tài liệu chuẩ
 
 - Thẻ giống trong Cửa hàng hiện một dòng "Hợp vùng ✓ / Trung tính / Kém hợp ✗" (chữ + icon). Số hệ số cụ thể chỉ hiện khi đã mở Key **Nature** ([decode-awaken](../../shared/decode-awaken.md) mục 6).
 - Loại nơi vẫn ẩn tới khi chốt trùng sinh; hệ số không hiện trên bản đồ trước khi chốt.
+- Đã code: khi đã có Key **Nature**, thẻ kết quả (sau khi chốt) của nơi có farm thêm mục «Hệ số vùng theo giống» — mỗi giống một dòng: ✓/–/✗ + Hợp vùng/Trung tính/Kém hợp + sản lượng · chất lượng · thời gian lớn. Cờ `hasNature` truyền vào `createWorldMap` (không đọc cả save). Bản đồ chỉ mở từ cổng thiên đàng nên lớp này chỉ thấy ở lần trùng sinh sau khi đã mở Key Nature; không thêm đường mở lại bản đồ.
 - Rủi ro: Colombia/Kenya đã là nơi chỉ trồng và có thưởng nhiệm vụ cao hơn; thêm phạt vối/mít có thể làm nơi này khó hơn lúc đầu (cây con khởi đầu là vối). **Đề xuất kèm:** túi hạt đầu ở Colombia/Kenya đổi thành hạt chè. Chạy sim theo vùng trước khi chốt số (D-13).
 
 ### Giao diện
@@ -74,11 +87,12 @@ Mục đích: bản đồ thế giới có giá trị thật (tài liệu chuẩ
 - Lớp phủ toàn màn hình trên canvas; HUD thiên đàng ẩn (`body.world-map-open`). Nút ✕ góc trên trái (góc phải là ⚙️), tiêu đề giữa trên.
 - **Sa bàn 3D nằm ngang, địa hình liền** (04/11: đã thử khối đùn phẳng, lưới ô lục giác, quả địa cầu, bản có cây/núi/mây; người dùng chốt bản này): `world-map/terrain.js` vẽ mặt nạ đất liền từ đường bờ biển rút gọn (`geo.js`, chiếu x = kinh độ/12, z = −vĩ độ/9) lên canvas nhỏ 720×288 (CPU), làm mờ hộp → trường mượt; một tấm lưới 330×176 lấy độ cao từ đó: đáy biển dốc lên bờ, bãi cát sát mép nước, nội địa cao dần, các dãy núi thật (Himalaya, Andes, Rockies, Alps, cao nguyên Đông Phi…) nhô lên có tuyết. Màu đỉnh theo dải khí hậu + sa mạc + độ cao. Mặt nước trong (thấy đáy nông màu ngọc), đáy biển sâu trải rộng để không lộ mép. Nắng đổ bóng thật (shadow map 2048, đi theo camera). Không cây, không mây.
 - Mỗi nơi có **đường biên quốc gia rút gọn** (`outline` trong `content.js`, kinh-vĩ độ): viền vàng mờ nhấp nháy phủ theo địa hình báo chạm được, nhãn DOM nhỏ chỉ có 🚩 + tên. Không có chú giải loại.
+- Việt Nam có thêm **quần đảo Hoàng Sa và Trường Sa** (`islands` của `vn` trong `content.js`): đảo cát nhỏ nổi trên mặt nước, chạm vào là chọn Việt Nam, trồi lên cùng khối Việt Nam khi chọn; nhãn chữ «Quần đảo Hoàng Sa (Việt Nam)», «Quần đảo Trường Sa (Việt Nam)» hiện khi phóng gần (chỉ đọc, không nhận chạm). Thêm 05/11/2026.
 - Kéo một ngón: bản đồ bám đúng ngón tay, thả nhanh thì trôi theo quán tính, giữ yên rồi thả thì dừng; kẹp biên. Hai ngón chụm / con lăn phóng to-thu nhỏ; mũi tên/WASD trượt. Nhãn làm tròn pixel để không rung.
 - Chạm vào trong viền một nước (hoặc ≤ 0,8 đơn vị với nước nhỏ), hay chạm nhãn: camera lướt tới; **khối hình quốc gia** (đùn từ đường biên, mặt cỏ, cạnh đất) **trồi lên theo lò xo** (vượt đích rồi nảy về, lắc nhẹ), cắm cờ màu kem, đổ bóng thật xuống đất, mặt ửng vàng, rồi lơ lửng nhấp nhô.
 - **Không lộ loại nơi trước khi chốt:** thẻ khi chạm chỉ có tên, nơi chốn (`place`), câu gợi (`teaser`) và **thông tin địa lý**: địa hình, khí hậu quanh năm, nhiệt độ, lượng mưa, độ cao so với mực nước biển (`world.region.<id>.terrain|climate|temp|rain|elevation`). Cấm nhắc cà phê, trồng được gì, uống, quán (ví dụ Colombia ghi "Quindío · Caldas" thay vì "Trục cà phê"). Nút **Chọn nơi này** → cảnh báo "không đổi được, chỉ khi đó mới biết" → **Trùng sinh ở đây** / **Quay lại**.
 - **Lộ kết quả** khi bấm Trùng sinh ở đây: lưu nơi, ẩn ✕ (Esc không đóng), các nơi khác mờ đi và không chạm được; khối quốc gia bay cao hơn, mặt khối đổi màu loại (vàng `#e0a93a` trồng + quán, xanh `#5f9a3c` chỉ trồng, đỏ đất `#b5523a` chỉ quán), cờ và viền đổi màu loại, cây/tách nảy lên, nhãn đổi icon loại. Thẻ kết quả trượt lên, viền màu loại: huy hiệu loại, ✓/✕ Nông trại, ✓/✕ Quán, 💰 bán gì, 🛒 mua gì, giống trồng, đặc trưng thật, 🎯 hai nhiệm vụ riêng kèm xu thưởng, một dòng cân bằng (dễ/khó, thưởng thấp/cao) và nút **Bắt đầu** → hoạt cảnh qua cổng.
-- Lúc mở: thẻ đáy là gợi ý thao tác.
+- Lúc mở (05/11/2026, F-44): chưa chốt nơi → toàn cảnh, thẻ đáy là gợi ý thao tác, rồi VN được chọn sẵn với thẻ thu gọn (kể cả khi mở lại sau ✕); đã chốt → thẻ kết quả của nơi đó.
 
 ## Chưa làm (để sau)
 

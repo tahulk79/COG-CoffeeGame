@@ -39,7 +39,8 @@ export function mountAutoHud({ onToggle }) {
     // Heaven re-ask quiz (#caption-box): Auto never answers for you (audit 04/11) — it taps «Để sau» so the question waits for the player.
     quiz() {
       const box = document.getElementById('caption-box');
-      if (!box || box.hidden || !box.classList.contains('lesson-dialogue')) return false;
+      // Hội đồng (council-dialogue, F-45) do người chơi tự mở: Auto không bấm hộ, vẫn làm việc phía sau.
+      if (!box || box.hidden || !box.classList.contains('lesson-dialogue') || box.classList.contains('council-dialogue')) return false;
       const later = box.querySelector('#dialogue-choices:not([hidden]) .dialogue-later');
       if (later) this.tap(later, t('crew.auto.quiz'), 1800);
       else this.tap(document.getElementById('dialogue-next'), t('crew.auto.quizDone'), 2200);

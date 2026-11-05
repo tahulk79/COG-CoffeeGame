@@ -61,17 +61,12 @@
         <div class="dialogue-bottom"><span class="dialogue-hint" data-i18n="dialogue.pressToContinue">Enter hoặc bấm để tiếp</span><button id="dialogue-next" class="ui-btn ui-btn--icon" type="button" aria-label="Tiếp hội thoại" title="Tiếp hội thoại" data-i18n-attr="aria-label:html.dialogue.next;title:html.dialogue.next">▾</button></div>
       </div>
     </section>
-    <section id="heaven-hud" hidden aria-label="Nhiệm vụ và hồ sơ" data-i18n-attr="aria-label:html.heaven.hud">
+    <section id="heaven-hud" hidden aria-label="Nhiệm vụ" data-i18n-attr="aria-label:html.heaven.hud">
       <div id="heaven-quest" class="quest-tracker" role="button" tabindex="0" title="Bấm để tới nơi làm nhiệm vụ" data-i18n-attr="title:html.heaven.questGo"><span class="quest-marker" aria-hidden="true">📜</span><div><h2 id="heaven-objective"></h2><p id="heaven-objective-detail"></p></div></div>
-      <div class="seal-hud">
-        <button id="heaven-passport-toggle" class="ui-btn ui-btn--plain" type="button" aria-label="Xem hồ sơ và dấu chứng nhận" title="Xem hồ sơ" data-i18n-attr="aria-label:html.heaven.passport;title:html.heaven.passportShort" aria-expanded="false" aria-controls="heaven-passport"><span id="heaven-seals" aria-hidden="true"></span><strong id="heaven-seal-count">0 / 3</strong></button>
-        <div id="heaven-passport" hidden><h3 data-i18n="html.heaven.passportTitle">Hồ sơ trùng sinh</h3><p id="heaven-score"></p><ul id="heaven-passport-list"></ul></div>
-      </div>
     </section>
     <button id="heaven-skip" class="ui-btn ui-btn--plain ui-btn--sm" type="button" hidden><span data-i18n="heaven.skip.label">Bỏ qua</span> <span aria-hidden="true">↗</span></button>
     <div id="heaven-controls" hidden>
       <div id="heaven-joystick" class="joystick" aria-label="Kéo joystick để di chuyển" data-i18n-attr="aria-label:html.joystick"><span id="heaven-joystick-knob"></span></div>
-      <p id="heaven-hint" class="ui-coach" role="status" hidden></p>
       <button id="heaven-interact" class="ui-btn ui-btn--gold" type="button" hidden><kbd>E</kbd><span id="heaven-interact-name"></span></button>
     </div>
     <p id="heaven-toast" class="ui-toast" hidden role="status" aria-live="polite"></p>
@@ -87,7 +82,7 @@
       <div class="farm-modal-window ui-modal__window"><header class="ui-modal__head"><span id="farm-modal-icon" aria-hidden="true">❧</span><div><h2 id="farm-modal-title" class="ui-modal__title"></h2><p id="farm-modal-subtitle" class="ui-modal__subtitle"></p></div><button id="farm-modal-close" class="ui-close" type="button" aria-label="Đóng" data-i18n-attr="aria-label:common.close">×</button></header><div id="farm-modal-items" class="ui-modal__body"></div><footer id="farm-modal-footer"></footer></div>
     </section>
     <section id="heaven-ending" class="ui-modal" hidden role="dialog" aria-modal="true" aria-labelledby="heaven-ending-title">
-      <div class="ending-card"><span class="hud-eyebrow" data-i18n="html.ending.eyebrow">HOÀN THÀNH CHƯƠNG THIÊN ĐÀNG</span><div class="ending-seal" aria-hidden="true">✓</div><h1 id="heaven-ending-title" data-i18n="html.ending.title">Hóa ra chỉ là một giấc ngất.</h1><p data-i18n="html.ending.body">Bạn tỉnh lại ở trần gian, mang theo kiến thức từ ba chuyên gia và một cơ hội để bắt đầu khác đi.</p><p id="heaven-final-score"></p><p id="heaven-gift-summary"></p><small data-i18n="html.ending.note">Hành trang đã ghi nhận. Luồng chơi chính tiếp tục tại nông trại sau Cổng trùng sinh.</small><button id="heaven-replay" class="ui-btn ui-btn--go" type="button" data-i18n="html.ending.replay">Chơi lại chương thiên đàng</button></div>
+      <div class="ending-card"><span class="hud-eyebrow" data-i18n="html.ending.eyebrow">HOÀN THÀNH CHƯƠNG THIÊN ĐÀNG</span><div class="ending-seal" aria-hidden="true">✓</div><h1 id="heaven-ending-title" data-i18n="html.ending.title">Hóa ra chỉ là một giấc ngất.</h1><p data-i18n="html.ending.body">Bạn tỉnh lại ở trần gian, mang theo túi hạt giống của Thần Tiếp Nhận và một cơ hội để bắt đầu khác đi.</p><p id="heaven-final-score"></p><p id="heaven-gift-summary"></p><small data-i18n="html.ending.note">Hành trang đã ghi nhận. Luồng chơi chính tiếp tục tại nông trại sau Cổng trùng sinh.</small><button id="heaven-replay" class="ui-btn ui-btn--go" type="button" data-i18n="html.ending.replay">Chơi lại chương thiên đàng</button></div>
     </section>
     <button id="game-settings-toggle" class="ui-btn ui-btn--icon" type="button" aria-label="Cài đặt âm thanh và đồ họa" title="Cài đặt" data-i18n-attr="aria-label:html.settings.label;title:settings.title" aria-haspopup="dialog"><span aria-hidden="true">⚙️</span></button>
     <div id="progress" hidden><div id="progress-fill"></div></div>

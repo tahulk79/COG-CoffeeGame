@@ -66,6 +66,11 @@ test('saveFarm mirrors awakening to the top level like victories', () => {
 });
 
 // ---------- detection per question ----------
+test('detect: ripe bỏ cặp có lô Auto, vẫn nhận player–staff (F-44…F-48 L1)', () => {
+  assert.ok(!detect('ripe', ctx({ harvests: [hv('a'), hv('b', { by: 'auto' })] })).ready);
+  assert.ok(!detect('ripe', ctx({ harvests: [hv('a', { by: 'auto' }), hv('b', { by: 'staff' })] })).ready);
+  assert.ok(detect('ripe', ctx({ harvests: [hv('a'), hv('b', { by: 'staff' })] })).ready);
+});
 test('detect: Origin questions', () => {
   let d = detect('ripe', ctx({ harvests: [hv('a', { quality: 85 }), hv('b', { by: 'staff', quality: 70 })] }));
   assert.ok(d.ready); assert.deepEqual(d.facts, { a: 85, b: 70, tag: 'robusta' });

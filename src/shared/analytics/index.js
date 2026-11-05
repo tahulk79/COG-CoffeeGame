@@ -9,7 +9,7 @@ export const EVENTS = new Set([
   'taste_submitted', 'memory_saved', 'memory_compared', 'discovery_saved', 'challenge_completed',
   'result_shared', 'referral_opened', 'return_visit', 'feedback_submitted', 'purchase_verified',
   'heaven_completed', 'region_selected', 'field_bought', 'shift_ended', 'workday_ended',
-  'victory_reached', 'auto_started',
+  'victory_reached', 'auto_started', 'council_answered',
 ]);
 
 const CODE = /^[a-z0-9_\-.]+$/i;

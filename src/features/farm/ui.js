@@ -54,6 +54,10 @@ export function createFarmUI(callbacks) {
   const coachBox=document.createElement('p');coachBox.className='ui-coach';coachBox.setAttribute('role','status');coachBox.hidden=true;const coachText=document.createElement('span'),coachClose=document.createElement('button');
   coachClose.type='button';coachClose.className='ui-coach__close';coachClose.textContent='×';coachClose.setAttribute('aria-label',tr('farm.ui.hideCoach'));coachBox.append(coachText,coachClose);document.body.append(coachBox);let coachDone=null;
   coachClose.addEventListener('click',()=>coachDone?.(),options);
+  // Tutorial ép farm-intro (F-46): 1 dòng chữ ngắn + bàn tay chỉ (chạm hoặc kéo qua 3 điểm, vị trí qua biến CSS).
+  const introLine=document.createElement('p');introLine.className='farm-intro-line';introLine.setAttribute('role','status');introLine.hidden=true;
+  const introHand=document.createElement('div');introHand.className='farm-intro-hand';introHand.textContent='👆';introHand.setAttribute('aria-hidden','true');introHand.hidden=true;
+  document.body.append(introLine,introHand);const HAND_VARS=['--x0','--y0','--x1','--y1','--x2','--y2'];
   const guideHint=document.createElement('p');guideHint.className='ui-guide-hint';
   const menuToggle=document.createElement('button');menuToggle.id='farm-menu-toggle';menuToggle.type='button';menuToggle.setAttribute('aria-controls','farm-main-nav');document.body.append(menuToggle);
   function setMenuOpen(open){document.body.classList.toggle('farm-menu-open',open);menuToggle.textContent=open?'›':'‹';menuToggle.setAttribute('aria-expanded',String(open));menuToggle.setAttribute('aria-label',open?tr('farm.ui.collapseMenu'):tr('farm.ui.openMenu'));}
@@ -71,10 +75,11 @@ export function createFarmUI(callbacks) {
   const blockerPanel=document.createElement('details');blockerPanel.id='farm-blockers';blockerPanel.hidden=true;const blockerTitle=document.createElement('summary'),blockerBody=document.createElement('div');blockerPanel.append(blockerTitle,blockerBody);blockerTitle.addEventListener('animationend',()=>blockerTitle.classList.remove('ui-attention'),options);document.querySelector('.farm-left-hud').append(operationHud,blockerPanel);let blockersKey='';
   const quickNav=document.createElement('nav');quickNav.id='farm-quick-nav';quickNav.setAttribute('aria-label',tr('farm.ui.quickNav'));quickNav.append(management.querySelector('[data-shortcut="settings"]'),management.querySelector('[data-shortcut="cafe-play"]'),$('farm-help-toggle'));
   const rightHud=document.createElement('div');rightHud.id='farm-right-hud';rightHud.append(document.querySelector('.farm-resources'),quickNav);$('farm-hud').append(rightHud);document.querySelector('.farm-left-hud').append(journalPanel);
-  // HUD v2 (docs/shared/design-system.md §6): bar = Kho, Cửa hàng, Vào quán, Quản lý; the rest moves into the drawer (same nodes).
+  // HUD v2 (docs/shared/design-system.md §6): bar = Kho + Quản lý (≡); the rest moves into the drawer (same nodes). F-48: shop/café left the bar.
   const drawer=mountHudDrawer(primaryNav,{signal:events.signal,id:'farm-drawer'});
-  primaryNav.insertBefore(quickNav.querySelector('[data-shortcut="cafe-play"]'),$('farm-shortcuts'));
-  drawer.grid.append($('farm-upgrade-toggle'),management,$('farm-help-toggle'),quickNav.querySelector('[data-shortcut="settings"]'));
+  // F-48 (Q10 CT-2/CT-11, 05/11/2026): 🏪 Cửa hàng và ☕ Vào quán rời thanh dưới vì Sạp và Cửa quán chạm trúng được ở khung dọc
+  // mặc định 375×812; vẫn giữ trong ≡ làm lối tắt từ xa (lia camera tới công trình rồi mở, CT-4). Chip xu vẫn mở Sạp.
+  drawer.grid.append($('farm-shop-toggle'),quickNav.querySelector('[data-shortcut="cafe-play"]'),$('farm-upgrade-toggle'),management,$('farm-help-toggle'),quickNav.querySelector('[data-shortcut="settings"]'));
   drawer.panel.append(operationHud,blockerPanel,journalPanel);
   let toolDrag=null,ignoreSeedClickUntil=0;
   const ghost=document.createElement('div');ghost.id='farm-drag-tool';ghost.hidden=true;document.body.append(ghost);
@@ -85,17 +90,22 @@ export function createFarmUI(callbacks) {
     toolDrag={id:event.pointerId,x:event.clientX,y:event.clientY,button,action:button.dataset.dragAction,cropId:button.dataset.cropId || null,icon:button.dataset.dragIcon,limit:callbacks.dragLimit(button.dataset.dragAction,button.dataset.cropId || null),ids:[],moved:false};
     event.preventDefault();button.setPointerCapture(event.pointerId);
   },options);
-  document.addEventListener('pointermove',event=>{
-    if(!toolDrag || event.pointerId!==toolDrag.id)return;
-    if(!toolDrag.moved && Math.hypot(event.clientX-toolDrag.x,event.clientY-toolDrag.y)<8)return;
-    if(!toolDrag.moved){toolDrag.moved=true;callbacks.dragStart();}
-    event.preventDefault();ghost.hidden=false;ghost.style.left=`${event.clientX}px`;ghost.style.top=`${event.clientY}px`;
+  // Q5 R13: cập nhật ô dưới ngón tay; game gọi lại mỗi khung khi camera đang trôi ở mép màn, nên tách khỏi sự kiện.
+  function updateToolDrag(x,y) {
+    toolDrag.lastX=x;toolDrag.lastY=y;
+    ghost.hidden=false;ghost.style.left=`${x}px`;ghost.style.top=`${y}px`;
     toolDrag.limit=Math.min(toolDrag.limit,callbacks.dragLimit(toolDrag.action,toolDrag.cropId));
-    const id=callbacks.previewDrop(event.clientX,event.clientY,toolDrag.action,toolDrag.cropId);
+    const id=callbacks.previewDrop(x,y,toolDrag.action,toolDrag.cropId);
     const valid=Boolean(id) && (toolDrag.ids.includes(id) || toolDrag.ids.length<toolDrag.limit);
     toolDrag.ids=editDragSelection(toolDrag.ids,id,toolDrag.limit);callbacks.dragSelection(toolDrag.ids);
     const full=toolDrag.ids.length>=toolDrag.limit;ghost.dataset.invalid=String(!valid);
     ghost.textContent=`${!valid ? '🚫 ' : ''}${toolDrag.icon} ${toolDrag.ids.length}/${toolDrag.limit}${full ? tr('farm.ui.dragFull') : ''}`;
+  }
+  document.addEventListener('pointermove',event=>{
+    if(!toolDrag || event.pointerId!==toolDrag.id)return;
+    if(!toolDrag.moved && Math.hypot(event.clientX-toolDrag.x,event.clientY-toolDrag.y)<8)return;
+    if(!toolDrag.moved){toolDrag.moved=true;callbacks.dragStart();}
+    event.preventDefault();updateToolDrag(event.clientX,event.clientY);
   },{...options,passive:false,capture:true});
   function endToolDrag(event) {
     if(!toolDrag || event.pointerId!==toolDrag.id)return;
@@ -232,7 +242,7 @@ export function createFarmUI(callbacks) {
     button.append(icon, name); button.addEventListener('click', () => callbacks.tool(tool.id), options); $('farm-tools').append(button);
   }
   $('farm-bag-toggle').addEventListener('click', callbacks.bag, options);
-  document.querySelector('.farm-coin').addEventListener('click',()=>callbacks.shortcut('seed-shop'),options);
+  document.querySelector('.farm-coin').addEventListener('click',()=>callbacks.shortcut('seed-shop-seeds'),options);
   for (const [button, id] of [['farm-help-toggle','help'],['farm-shop-toggle','seed-shop'],['farm-upgrade-toggle','upgrades'],['farm-zoom-in','zoom-in'],['farm-zoom-out','zoom-out']]) {
     $(button).addEventListener('click', () => callbacks.shortcut(id), options);
     if (!id.startsWith('zoom')) $(button).dataset.sfx = 'none'; // modal() tự kêu ui.open, tránh kêu đôi
@@ -380,6 +390,17 @@ export function createFarmUI(callbacks) {
     },
     // First-visit controls hint; text null hides it. onClose runs when the player taps ×.
     coach(text, onClose) { coachText.textContent=text||'';coachBox.hidden=!text;coachDone=text?onClose:null; },
+    // Tutorial ép: active bật lớp body.farm-intro (CSS làm mờ/khoá các nút HUD dễ dẫn lạc), text = dòng chỉ dẫn.
+    introGuide(active, text='') {
+      document.body.classList.toggle('farm-intro',active);introLine.hidden=!active||!text;
+      if(active&&introLine.textContent!==text)introLine.textContent=text;if(!active)introHand.hidden=true;
+    },
+    // points: [x0,y0,x1,y1,x2,y2] toạ độ màn hình; n = 1 (chạm tại x0,y0) hoặc 3 (kéo x0 → x1 → x2). null ẩn tay.
+    introHand(points, n=1) {
+      if(!points){introHand.hidden=true;return;}
+      introHand.hidden=false;const mode=n>1?'drag':'tap';if(introHand.dataset.mode!==mode)introHand.dataset.mode=mode;
+      for(let i=0;i<6;i++){const value=`${Math.round(points[i<n*2?i:i%2])}px`;if(introHand.style.getPropertyValue(HAND_VARS[i])!==value)introHand.style.setProperty(HAND_VARS[i],value);}
+    },
     hud(progress) {
       const { coins, level, xp, water, capacity, tool, quest, seedName, playerName, orders = [], order, workers = [], dailyTasks = [] } = progress;
       lastProgress = progress;
@@ -626,16 +647,21 @@ minus.disabled=config.maximum<1||n<=1;plus.disabled=config.maximum<1||n>=Math.mi
         {id:'setting-team-info',label:tr('farm.set.team'),detail:tr('farm.set.teamDetail'),icon:'👩‍🌾',category:'info',readOnly:true}
       ],footer:''});
     },
-    showGuide(notebook=[], goals=null, awakening=null) {
+    showGuide(notebook=[], goals=null, awakening=null, openMemory=null) {
       this.modal({title:tr('farm.help.title'),icon:'📖',kind:'help',entries:[],footer:tr('farm.help.footer')});
       const sections=tr('farm.help.sections'),guidePanel=document.createElement('div');guidePanel.className='awk-panel';
       for(const [heading,text] of sections){const section=document.createElement('section'),title=document.createElement('h3'),body=document.createElement('p');title.textContent=heading;body.textContent=text;section.append(title,body);guidePanel.append(section);}
+      // F-33: Coffee Notebook from the Guide (coffee-memory.md 3): real-life cups only; opens a dialog above this modal (movement stays locked).
+      if(openMemory){const mem=document.createElement('section'),head=document.createElement('h3'),note=document.createElement('p'),open=document.createElement('button');
+        head.textContent=tr('farm.help.memory');note.textContent=tr('farm.help.memoryNote');open.type='button';open.className='ui-btn ui-btn--go ui-btn--sm';open.textContent=tr('farm.help.memoryOpen');open.addEventListener('click',openMemory,options);mem.append(head,note,open);guidePanel.append(mem);}
       // Heaven notebook (onboarding-flow 3.1): learned tips with their effect, or a button to answer again now.
       const book=document.createElement('section'),bookTitle=document.createElement('h3'),bookIntro=document.createElement('p');
       bookTitle.textContent=tr('farm.help.notebook',{n:notebook.filter(item=>item.learned).length,total:notebook.length});bookIntro.textContent=tr('farm.help.notebookIntro');book.append(bookTitle,bookIntro);
       for(const item of notebook){
         const row=document.createElement('div'),text=document.createElement('p');row.className='farm-notebook-row';text.textContent=`${item.learned?'✓':'○'} ${item.name} · ${item.effect}`;row.append(text);
-        if(!item.learned){const button=document.createElement('button');button.type='button';button.className='ui-btn ui-btn--go ui-btn--sm';button.disabled=item.wait>0;button.textContent=item.wait?tr('farm.help.reviewIn',{n:item.wait}):tr('farm.help.review');button.addEventListener('click',()=>callbacks.shortcut(`lesson:${item.id}`),options);row.append(button);}
+        // F-45: câu chưa gặp chuyên gia: 'Chưa gặp chuyên gia' + nút tới Hội đồng (mở được khi chuyên gia đã có mặt), không 'Ôn lại'.
+        if(!item.learned&&item.met===false){text.textContent+=` · ${tr('farm.help.notMet')}`;const button=document.createElement('button');button.type='button';button.className='ui-btn ui-btn--go ui-btn--sm';button.disabled=!item.present;button.textContent=item.present?tr('farm.help.meetCouncil'):tr('farm.help.councilLater');button.addEventListener('click',()=>callbacks.shortcut('council'),options);row.append(button);}
+        else if(!item.learned){const button=document.createElement('button');button.type='button';button.className='ui-btn ui-btn--go ui-btn--sm';button.disabled=item.wait>0;button.textContent=item.wait?tr('farm.help.reviewIn',{n:item.wait}):tr('farm.help.review');button.addEventListener('click',()=>callbacks.shortcut(`lesson:${item.id}`),options);row.append(button);}
         book.append(row);
       }
       guidePanel.append(book);
@@ -665,6 +691,9 @@ minus.disabled=config.maximum<1||n<=1;plus.disabled=config.maximum<1||n>=Math.mi
       flyTo(point,coins?$('farm-coins').parentElement:$('farm-bag-toggle'),{icon:coins?'🪙':'🧺',text:`+${format(quantity)}`,amount:quantity,format});
     },
     closeSeedStrip() { seedStrip.hidden = true; seedKey = ''; },
+    // Q5 R13: toạ độ ngón tay khi đang kéo công cụ (null nếu không kéo) và chọn lại ô sau khi camera trôi.
+    toolDragPoint() { return toolDrag?.moved ? {x:toolDrag.lastX,y:toolDrag.lastY} : null; },
+    refreshToolDrag() { if(toolDrag?.moved)updateToolDrag(toolDrag.lastX,toolDrag.lastY); },
     closeModal,
     // action = { label, action }: một nút trong toast (vd «Nhắc», «Thuê robot thay»), chạy callbacks.shortcut(action); toast có nút đứng 6 s.
     notice(text, success = true, action = null, ms = 0) {
@@ -677,6 +706,7 @@ minus.disabled=config.maximum<1||n<=1;plus.disabled=config.maximum<1||n>=Math.mi
     handleModalKey(event) {
       if (!isModalOpen()) return false;
       // A confirm <dialog> closes itself on Escape; keep the modal underneath open.
+      if (document.querySelector('dialog[open]')?.contains(event.target)) return true; // notebook/confirm dialog owns Tab and Escape
       if (event.code === 'Escape' && document.querySelector('dialog[open]')) return true;
       if (event.code === 'Escape') { event.preventDefault(); callbacks.close(); return true; }
       if (event.code === 'Tab') {
@@ -689,7 +719,7 @@ minus.disabled=config.maximum<1||n<=1;plus.disabled=config.maximum<1||n>=Math.mi
     activate() { $('farm-hud').hidden = false; $('farm-toolbelt').hidden = true; $('heaven-controls').hidden = isModalOpen(); },
     dispose() {
       staffDrag?.ghost?.remove();staffDrag=null;document.body.classList.remove('farm-staff-dragging');document.querySelectorAll('.farm-staff-drop-hover,.farm-staff-lifted').forEach(node=>node.classList.remove('farm-staff-drop-hover','farm-staff-lifted'));dismissDialog.remove();tradeDialog.remove();seedResize.disconnect();events.abort(); document.body.classList.remove('farm-active'); $('farm-hud').hidden = true; $('farm-toolbelt').hidden = true; $('farm-modal').hidden = true;
-      $('farm-notice').hidden = true; document.body.classList.remove('farm-menu-open');for(const id of ['farm-bag-toggle','farm-shop-toggle','farm-upgrade-toggle','farm-help-toggle'])$('farm-shortcuts').append($(id));coachBox.remove();for(const button of Object.values(unlockButtons))button.classList.remove('ui-new','ui-attention');guideHint.remove();document.querySelector('#farm-hud .quest-tracker')?.classList.remove('ui-attention');document.body.append($('farm-shortcuts'));primaryNav.remove();backButton.remove();profileAlert.remove();profileSummary.remove();blockerPanel.remove();menuToggle.remove();$('farm-hud').append(document.querySelector('.farm-resources'));journalPanel.remove();rightHud.remove();document.body.append(viewControls);tabs.remove();stationPanel.remove();workerSheet.remove(); operationHud.remove();management.remove();drawer.remove(); toolsPrompt.remove(); seedStrip.remove();bagDetail.remove();ghost.remove();
+      $('farm-notice').hidden = true; document.body.classList.remove('farm-menu-open');for(const id of ['farm-bag-toggle','farm-shop-toggle','farm-upgrade-toggle','farm-help-toggle'])$('farm-shortcuts').append($(id));coachBox.remove();introLine.remove();introHand.remove();document.body.classList.remove('farm-intro');for(const button of Object.values(unlockButtons))button.classList.remove('ui-new','ui-attention');guideHint.remove();document.querySelector('#farm-hud .quest-tracker')?.classList.remove('ui-attention');document.body.append($('farm-shortcuts'));primaryNav.remove();backButton.remove();profileAlert.remove();profileSummary.remove();blockerPanel.remove();menuToggle.remove();$('farm-hud').append(document.querySelector('.farm-resources'));journalPanel.remove();rightHud.remove();document.body.append(viewControls);tabs.remove();stationPanel.remove();workerSheet.remove(); operationHud.remove();management.remove();drawer.remove(); toolsPrompt.remove(); seedStrip.remove();bagDetail.remove();ghost.remove();
     },
   };
 }

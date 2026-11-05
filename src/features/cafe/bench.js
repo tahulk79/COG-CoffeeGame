@@ -112,7 +112,9 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
     if (missing.length) { lacking(recipe, missing); return; }
     track('brew_started', { recipe: recipe.id }); // mode chỉ biết khi ra ly: xem brew_completed
     const best = cafe.mastery[recipe.id]?.best || 0;
-    brew({ recipe, cropId, index: 0, scores: [], notes: [], values: [], memory: false, canMemory: best >= 90, best });
+    // F-47 (Q8): ly V60 tự pha tay đầu (chưa có 'v60-guided') được làm mẫu: bước chọn tự sáng đáp án (kẹp 0,8), bước rót không kẹp.
+    const guided = recipe.id === 'v60' && !farm.peek().tutorial.seen.includes('v60-guided');
+    brew({ recipe, cropId, index: 0, scores: [], raw: [], notes: [], values: [], memory: false, canMemory: best >= 90, best, guided });
   }
 
   function lacking(recipe, missing) {
@@ -213,10 +215,12 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
       // Picks always pop an icon (△ = partly right); a pour without icon outside the band is a miss.
       fx((inside ?? score >= .99) ? 'good' : icon ? 'partial' : 'bad');
       if (!introSeen()) farm.act('tutorial', 'seen', 'bench-intro');
+      state.raw.push(score); // điểm thực trước khi kẹp: dòng «Sửa bước này trước» của ly làm mẫu tính trên điểm này
+      const guidedCap = state.hinted === 'guided';
       if (state.hinted) score = Math.min(score, .8);
-      const ok = inside ?? score >= .99;
+      const ok = inside ?? (guidedCap ? state.raw.at(-1) : score) >= .99; // ly làm mẫu: chọn đúng vẫn ✓ dù bị kẹp 0,8
       state.scores.push(score); state.values[state.index] = value;
-      state.notes.push({ ok, text, fix: fix || (state.hinted ? t('cafe.bench.hintCap') : '') });
+      state.notes.push({ ok, text, fix: fix || (guidedCap ? t('cafe.bench.guidedCap') : state.hinted ? t('cafe.bench.hintCap') : '') });
       state.hinted = false; body.inert = true; say(text, ok ? 'good' : score >= .5 && inside === null ? '' : 'bad');
       if (icon) { pop.textContent = icon; stage.dataset.anim = 'pop'; }
       const advance = () => { hush(); if (++state.index >= recipe.steps.length) finish(state); else brew(state); };
@@ -260,6 +264,11 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
         if (item) { item.dataset.hint = 'true'; say(`${option.label}: ${option.why}`); }
       }, 'cafe-link'));
       grid.querySelector('button:not(:disabled)')?.focus({ preventScroll: true });
+      // Làm mẫu (Q8 rule 7): sáng viền đáp án đúng còn hàng (chỉ lô chè đang có) kèm lý do ngay khi bước mở.
+      if (state.guided && !state.auto && !state.memory) {
+        const [item, option] = buttons.find(([, o]) => o.ok === 1 && !o.disabled) || [];
+        if (item) { state.hinted = 'guided'; item.dataset.hint = 'true'; say(`${option.label}: ${option.why || ''} ${step.learn || ''}`.trim()); }
+      }
       if (state.auto) {
         // Highlight the right answer, explain it, then tap it (the best bean in stock if the recipe's bean ran out).
         const [item, option] = buttons.filter(([, o]) => !o.disabled && o.ok > 0).sort(([, a], [, b]) => b.ok - a.ok)[0] || [];
@@ -368,12 +377,17 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
     // Floor, not round: 89.6 must stay ★★ so a cup with a failed step cannot reach ★★★ / memory mode.
     const { recipe } = state, quickBrew = quickResult !== null, score = quickBrew ? quickResult : Math.floor(state.scores.reduce((a, b) => a + b, 0) / state.scores.length * 100);
     if (state.auto) { const paid = farm.act('cafe', 'autoBrew', null); notice(paid.message, paid.ok); if (!paid.ok) { lacking(recipe, [paid.message]); return; } }
-    const result = farm.act('cafe', 'brew', { recipeId: recipe.id, cropId: state.cropId, score, demo: Boolean(state.auto) });
+    const result = farm.act('cafe', 'brew', { recipeId: recipe.id, cropId: state.cropId, score, demo: Boolean(state.auto), quick: quickBrew });
     if (!result.ok) { notice(result.message, false); lacking(recipe, [result.message]); return; }
     // Adjust perk: point at the one step that lost most (lowest score, first on ties) with its real reason.
-    const worst = state.scores.reduce((w, s, i) => s < state.scores[w] ? i : w, 0), worstStep = recipe.steps[worst];
-    const miss = state.scores[worst] < 1 ? `${recipe.name}: ${worstStep.type === 'bean' ? t('cafe.bench.bean') : worstStep.text}` : null;
+    // Ly làm mẫu: tính trên điểm thực trước khi kẹp, để không báo sai bước chỉ mất điểm do làm mẫu (Q8 rule 10).
+    const pts = state.guided && !quickBrew ? state.raw : state.scores;
+    const worst = pts.reduce((w, s, i) => s < pts[w] ? i : w, 0), worstStep = recipe.steps[worst];
+    const miss = pts[worst] < 1 ? `${recipe.name}: ${worstStep.type === 'bean' ? t('cafe.bench.bean') : worstStep.text}` : null;
     service.benchEnd();
+    // Ly V60 pha tay đầu xong (không Auto pha, không Pha nhanh, không trí nhớ): đánh dấu đã làm mẫu.
+    const guidedCup = state.guided && !quickBrew && !state.auto && !state.memory;
+    if (guidedCup) farm.act('tutorial', 'seen', 'v60-guided');
     const earned = stars(score);
     track('brew_completed', { recipe: recipe.id, mode: state.auto ? 'auto' : quickBrew ? 'quick' : 'hand', score, stars: earned, model_version: SCORE_MODEL_VERSION });
     const  target = service.addDrink({ recipeId: recipe.id, quality: result.quality, modelVersion: SCORE_MODEL_VERSION, stars: earned, memory: state.memory, miss });
@@ -385,7 +399,8 @@ export function mountBench(root, { farm, service, notice, close, openPantry, ask
     summary.append(starRow, el('strong', '', `${recipe.icon} ${recipe.name}`),
       scoreLine(score, result.quality),
       el('p', 'cafe-lead', target ? t('cafe.bench.serveTo', { target }) : t('cafe.bench.toShelf')));
-    if (farm.peek().lessons.learned.includes('adjust') && state.scores[worst] < 1 && !state.auto) summary.append(el('p', 'ui-alert ui-alert--warn', t('cafe.bench.fixFirst', { step: worstStep.type === 'bean' ? t('cafe.bench.bean') : worstStep.text, fix: state.notes[worst].fix })));
+    if (guidedCup) summary.append(el('p', 'ui-alert', t('cafe.bench.guidedLine')));
+    if (farm.peek().lessons.learned.includes('adjust') && pts[worst] < 1 && !state.auto) summary.append(el('p', 'ui-alert ui-alert--warn', t('cafe.bench.fixFirst', { step: worstStep.type === 'bean' ? t('cafe.bench.bean') : worstStep.text, fix: state.notes[worst].fix })));
     if (score < 70 && !quickBrew) askLater(['adjust']);
     // Unlock line uses the real thresholds of hired baristas (90 − Trí nhớ × 0.4), not a fixed 70.
     const need = Math.min(...service.agents.filter(a => a.role === 'barista').map(a => a.effects?.mastery ?? Infinity));

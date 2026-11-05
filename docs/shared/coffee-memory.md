@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Trạng thái | **Đã chốt 04/11/2026 (Quang). Lát 1 đã code 04/11** (`src/state/memory.js`, `src/features/cafe/memory-ui.js`): nháp ly game, Quick Taste, Journal, ly ngoài đời, So sánh A/B, nhắc «Lần sau đổi». Đã code (T-08c): chế độ Scientist mở bằng Key of Curiosity (đủ 8 nhóm, ghi chú TDS/RDT/thương hiệu, «Thí nghiệm»), Coffee DNA mở bằng Key of Connection. Chưa làm: «Bộ dụng cụ của tôi», mục sổ tay ở nơi chỉ trồng, XP. Chưa kiểm chứng trên trình duyệt |
+| Trạng thái | **Đã chốt 04/11/2026 (Quang). Lát 1 đã code 04/11** (`src/state/memory.js`, `src/features/cafe/memory-ui.js`): nháp ly game, Quick Taste, Journal, ly ngoài đời, So sánh A/B, nhắc «Lần sau đổi». Đã code (T-08c): chế độ Scientist mở bằng Key of Curiosity (đủ 8 nhóm, ghi chú TDS/RDT/thương hiệu, «Thí nghiệm»), Coffee DNA mở bằng Key of Connection. «Bộ dụng cụ của tôi» đã code (`setup.kit`, mục 5); «Thí nghiệm» có khóa biến (mục 5). Đã code (05/11): mục «Sổ tay cà phê» trong Hướng dẫn ở farm (chỉ ly ngoài đời); XP Memory đã nối (`wire.js` → `farm.act('memory','xp')`, trần 30/ngày công). Chưa kiểm chứng trên trình duyệt |
 | Nguồn | Tài liệu chuẩn tr. 4–5 §5.1–5.3 (APPROVED), tr. 9 §11.1, Phụ lục tr. 14–15 §8–9; quyết định Q-10 (lưu cả ly trong game và ly ngoài đời) |
 | Liên quan | [decode-awaken.md](decode-awaken.md) (First Sixth Key dùng Memory), [progression.md](progression.md) (XP Mastery), [analytics.md](analytics.md), [contracts.md](contracts.md) mục 8 |
 
@@ -27,7 +27,7 @@ Ly game chỉ lưu dạng **nháp** (chưa có cảm nhận) cho tới khi ngư�
 - **Sổ tay cà phê** là vật thể 3D trên quầy pha (khối tạm: cuốn sổ có dấu trang). Bấm sổ tay → **modal giữa màn hình**, có nút đóng, khóa di chuyển (ngoại lệ Auto như mọi modal). Không làm trang web hay route riêng.
 - Màn kết quả ly tự pha có nút nhỏ «📓 Ghi sổ» (không chặn «Bưng ly»). Bấm thì ly vẫn ở tay, modal mở Quick Taste; đóng là quay lại đúng chỗ.
 - Báo cáo cuối ca có dòng "n ly mới chờ ghi sổ" nếu có nháp.
-- Nơi chỉ trồng (không có quán): sổ tay mở từ Hướng dẫn ▸ Sổ tay cà phê, chỉ ghi được ly ngoài đời.
+- Nơi chỉ trồng (không có quán): sổ tay mở từ Hướng dẫn ▸ Sổ tay cà phê, chỉ ghi được ly ngoài đời. Đã code: nút «Mở sổ tay» trong tab Hướng dẫn, dialog `realOnly` (tab Lịch sử / Ly ngoài đời, không nháp ly game, không tab Câu hỏi/Key vì Hướng dẫn đã có). Chốt: hiện ở cả vùng `both` (cùng dialog, quán vẫn có sổ tay đầy đủ trên quầy); vùng chỉ quán không vào farm nên không cần.
 
 ## 4. Luồng (theo tài liệu chuẩn tr. 5 §5.3)
 
@@ -49,7 +49,13 @@ Brew → Taste độc lập → So với lịch sử → Reflect → Lưu Insigh
 | Coffee Journal | 1–2 phút | Quick Taste + hạt (tên, xuất xứ, sơ chế, rang, ngày rang) + công thức (liều, nước, tỉ lệ, xay, nhiệt, bloom, thời gian) + Insight |
 | Coffee Scientist | không giới hạn | Journal + đủ 8 nhóm dữ liệu (mục 6) |
 
-Mặc định Quick Taste; công tắc Nhanh / Nhật ký / Scientist (Scientist chỉ hiện khi có Key of Curiosity; mất Key thì coi như Nhật ký). Chế độ đã chọn lần cuối được nhớ (`godbean-memory.setup.mode`: `quick`|`journal`|`scientist`). Ly game ở Scientist chỉ thêm nhóm dụng cụ/chuẩn bị/nguyên liệu/môi trường/cá nhân; nhóm `intended` chỉ nhập cho ly ngoài đời. So bước dùng dung sai 5% (`STEP_TOLERANCE`, Đang chỉnh).
+Mặc định Quick Taste; công tắc Nhanh / Nhật ký / Scientist (Scientist chỉ hiện khi có Key of Curiosity; mất Key thì coi như Nhật ký). Chế độ đã chọn lần cuối được nhớ (`godbean-memory.setup.mode`: `quick`|`journal`|`scientist`). Ly game ở Scientist chỉ thêm nhóm dụng cụ/chuẩn bị/nguyên liệu/môi trường/cá nhân; nhóm `intended` chỉ nhập cho ly ngoài đời. 
+
+**Bộ dụng cụ của tôi** (Scientist, ly ngoài đời): «Lưu làm bộ dụng cụ» ghi nhóm `equipment` + `ingredients.water/milk/brand` đang nhập vào `godbean-memory.setup.kit` (`{ equipment:{…}, ingredients:{water, milk, brand} }`, mỗi chuỗi ≤ 80 ký tự, chuẩn hóa mỗi lần đọc nên dữ liệu cũ/hỏng không làm lỗi); «Điền từ bộ dụng cụ» điền lại các trường đó, không đụng trường khác. «Pha lại ly trước» điền method/hạt/công thức/các nhóm Scientist từ ly ngoài đời gần nhất.
+
+**Thí nghiệm (khóa biến)**: tick «Thí nghiệm» → điền từ ly ngoài đời gần nhất; người chơi chọn MỘT biến trong `VARIABLES` (độ xay, nhiệt độ, liều, nước). Các ô công thức thực tế còn lại bị khóa (disabled) ở giá trị gốc; «Mở khóa hết» quay về chế độ tô/cảnh báo khi đổi > 1 biến; bỏ tick là hủy. Chỉ khóa nhóm `actual` (hạt, dụng cụ… vẫn sửa được). Cổng bằng Key of Curiosity, không đổi kinh tế.
+
+So bước dùng dung sai 5% (`STEP_TOLERANCE`, Đang chỉnh).
 
 **6 thuộc tính** (tài liệu chuẩn tr. 4 §5.1): Aroma · Acidity · Sweetness · Bitterness · Body · Aftertaste, thang 1–5, mỗi thuộc tính một hàng 5 chip có icon + chữ. **Không** tô xanh/đỏ tốt/xấu, **không** cộng thành "độ ngon": chua hay đắng cao không tự động tốt hay xấu. Mức thích (1–5) là ô riêng. Chữ UI gọi là "6 thuộc tính cảm quan", **không** gọi là "Sixth Taste".
 

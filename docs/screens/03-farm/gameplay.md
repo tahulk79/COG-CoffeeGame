@@ -4,6 +4,19 @@
 
 ## Bố cục
 
+**Cổng Hội đồng (05/11/2026, F-45):** cổng đá (2 trụ + xà) ở (−3,4; 1,9), giữa lối ngang z ≈ 0 và rào trước, bên phải ruộng 1 trong khung dọc mặc định. Ẩn tới khi chuyên gia đầu có mặt, rồi trồi lên từ đất kèm hạt sáng; ba bệ có bóng chuyên gia đã có mặt; cầu sáng nhấp nhô + biển «✨ Mới · tên» khi có người chờ. Chạm mở hội thoại Hội đồng tại chỗ (không đi bộ, kể cả khi Auto bật). Vùng cấm xây 3,5 m như công trình khác. Toạ độ chờ playtest 375×812. Luật: [02-heaven/gameplay.md](../02-heaven/gameplay.md) mục Hội đồng so le.
+
+**Công trình (05/11/2026, F-48 pha 1, đề xuất Q10 CT-1…CT-16 + vá):** luật ở [rules.md](rules.md) mục HUD. Mặt trước quay +z (về camera). Khối tạm ở `environment.js` `buildFarmBuilding`, slot thay asset `farm/<id>/art`.
+
+| Công trình | id / kind | Toạ độ (x; z) | Hiện khi | Chạm | Trạng thái nhìn thấy |
+|---|---|---|---|---|---|
+| Cửa quán | `cafe-entrance` / `cafe-entrance` | (−8,6; 1,5), chỗ đứng (−8,6; 2,75), sát giới hạn đi lại z ≤ 2,85 | `when` cafe-play hoặc cờ `unlock-cafe-play`; chỉ nơi both | Đi tới thảm cửa rồi vào quán; ra quán đứng ở thảm | Đèn cửa sáng khi quán mở; biển ✨ Mới tới lần vào đầu |
+| Bảng đơn | `order-board` / `order-board` | (−6,3; 1,7), sát phải Cửa quán | `when` order-board hoặc `unlock-order-board`; chỉ nơi both | Mở Đơn hàng tại chỗ | Tờ đơn = số đơn chờ (≤ 4), ô xanh + biển ✓ khi giao được, biển số đơn chờ |
+| Sạp ven đường | `seed-shop` / `shop` | (−9,6; −6,8), sau ruộng 1, cạnh lối z −8,4 | `when` seed-shop hoặc `unlock-seed-shop` | Mở Cửa hàng 3 tab tại chỗ | Cờ đỏ + biển ! khi hết giống mà còn ô trống |
+| Nhà thợ | `crew-house` / `crew-house` | (−5,6; −6,8), sau ruộng 1, chừa lối cổng sau ruộng | `when` workers hoặc `unlock-workers` | Mở Nhân viên 4 tab tại chỗ | Bóng thợ ngồi ghế = thợ chưa điều/tạm dừng (≤ 2); chưa có ! (chờ `incidentExempt`) |
+
+Cổng CT-11 (kiểm bằng tính chiếu, chưa playtest): camera khung dọc mặc định (`portraitView` focus [−6,4; −0,5], zoom 0,9, fov 55, offset (0; 12,5; 11,5)) trên màn 375×812 đặt chân Cửa quán ở x ≈ 33–136 px, y ≈ 540–550 (đỉnh mái ≈ 454); Bảng đơn x ≈ 160–224, y ≈ 475–536; Sạp x ≈ 44–116, y ≈ 240–322; Nhà thợ x ≈ 181–247, y ≈ 227–323. Tất cả nằm dưới cụm HUD trên (≈ 0–140 px) và trên joystick/thanh dưới (từ ≈ 600 px), không cần xoay. Kiểm lại ở `tests/farm-buildings.test.js` (cùng công thức chiếu). Toạ độ chờ playtest (CT-16).
+
 Bốn ruộng theo cụm 2×2 ở góc trái phía trên. Mỗi ruộng gồm 12 ô vuông theo lưới 4×3: cạnh ô 1.35, khoảng cách tâm 1.5 đơn vị, khe giữa ô 0.15. Tất cả ô của ruộng chưa mua vẫn hiện; mỗi ruộng chỉ có một biển khóa kèm giá, không lặp khóa trên từng ô. Ô trống thuộc ruộng đã mua có dấu cộng nằm phẳng giữa ô. Biển ruộng hiển thị giá 120/180/300 xu. Mua ruộng liền kề mở cả 12 ô và mở rộng giới hạn đi lại.
 
 Giếng sát cạnh phải ruộng đầu (-3.5,-6). Xưởng ở bên phải; mua giống, thu mua và bản đồ và nâng cấp là các nút ở góc phải HUD, mở trực tiếp modal và không cần đi tới quầy. Đã bỏ các cây trang trí và các dải đường dài; chưa đưa asset cảnh quan mới vào. Tán lá và nền luống không chặn chân, thân cây và công trình có va chạm. Ô đang chọn có viền vàng.
@@ -49,7 +62,7 @@ Khi thay bố cục cũ, sáu cây cũ của mỗi ruộng giữ nguyên ID; sá
 
 `/tools/farm-preview/` dùng lưu trong bộ nhớ, không ghi đè tiến trình người chơi.
 
-Cửa hàng chỉ mua giống/phân bón. Nút Nâng cấp riêng mở danh sách bình tưới (tối đa cấp 3) và bốn xưởng với giá/điều kiện cấp. Giếng chỉ lấy nước; bình đầy thì báo đầy, không mở nâng cấp. Bản đồ hiển thị bốn ruộng đúng thứ tự theo vị trí, xem giá mở đất hoặc chọn đi tới giếng/xưởng.
+Cửa hàng chỉ mua giống/phân bón. Nút Nâng cấp riêng mở danh sách bình tưới (tối đa cấp 3) và bốn xưởng với giá/điều kiện cấp. Giếng lấy nước; bình đầy thì báo đầy. **05/11/2026 (F-48, CT-9):** modal máy, Kho, ao, quán và giếng có khối nâng cấp riêng; giếng bình đầy mà có huy hiệu ⬆ (đủ cấp, đủ xu) thì chạm mở khối nâng cấp giếng. Danh sách tổng là mục Nâng cấp trong ≡. Bản đồ hiển thị bốn ruộng đúng thứ tự theo vị trí, xem giá mở đất hoặc chọn đi tới giếng/xưởng.
 
 ## Quan sát bản đồ
 
@@ -115,6 +128,8 @@ Kho dùng ô vuông có số lượng ở góc, chỗ trống và vùng mô tả
 
 Kéo túi giống/bình nước từ thanh công cụ qua các ô: raycast mặt đất giữ danh sách ô không lặp, bỏ ô khóa hoặc sai trạng thái. Thả tay mới xếp hàng; nhân vật tới lần lượt để gieo/tưới, chỉ trừ tài nguyên khi hoàn thành. Lệnh di chuyển khác hủy việc chưa làm; ô đang nhắm sáng viền. Không tự mua ruộng khi kéo.
 
+05/11/2026 (F-46): chạm = 1 ô, kéo = nhiều ô, không gieo cả ruộng một chạm. Túi hạt trong dải giống (mở khi chạm ô trống) kéo được từ save mới, không chờ mốc ⛏️; 🧺 và dụng cụ chăm vẫn nằm trong dải ⛏️ sau mốc. Chạm cây chín là hái ngay, kể cả khi đang cầm công cụ khác (trước đây hiện 🚫); lỗi hái (kho đầy, thợ đang giữ ô) báo bằng toast có số. Ngoại lệ: ở bước gieo của tutorial ép, chạm cây quà chín chỉ nhắc chỉ dẫn, không hái. Thả kéo-gieo không bật cờ `tools` (dòng hướng dẫn dải ⛏️ vẫn hiện ở lần mở đầu). Bài gieo đầu trong tutorial ép `farm-intro`: [onboarding-flow](../../shared/onboarding-flow.md) mục 3.8. Đã code, chưa kiểm chứng (chưa chạy test/chơi thử): **R10** giới hạn kéo 🧺 = min(số cây chín ở ô đã mở, số cây còn vừa kho xét lần lượt theo thứ tự ô và `readyYield`), thay `plots.length` (`harvestCapacity`/`toolCapacity` trong `farm/tools.js`; chỗ trống kho = `storageCapacity` trừ tổng gram `lots`); bóng kéo hiện `n/giới hạn` này; sản lượng và kinh tế không đổi. **R12** ô đã chọn mà nhân vật chưa làm tới (còn trong `workQueue`) sáng viền nhạt kèm số thứ tự 1, 2, 3… (1 = ô kế tiếp, số được đánh lại khi hàng đợi rút bớt); ô đang làm/đang tới sáng đậm như cũ; số tắt khi ô xong, bị huỷ hoặc không tới được; nhãn số là sprite dùng lại theo thứ hạng, không cấp phát mỗi khung (`setPlotQueue` trong `shared/world/scene.js`). **R13** [chờ playtest đo số lần kéo để thu hết 48 ô sau 4 giờ] khi đang kéo công cụ mà ngón tay trong dải 48px mép màn (mép dưới tính phía trên dải giống) thì camera trôi chậm về phía đó (7 đơn vị/giây, nửa tốc độ nếu `prefers-reduced-motion`), kẹp trong `FARM_BOUNDS`, mỗi khung chọn lại ô dưới ngón tay (`edgeScrollDrag` trong `farm/game.js`); không đụng kéo map thường. Nút 'Thu tất cả' vẫn chưa xét.
+
 Rào đặt quanh từng ruộng, không quanh từng ô. Rào cách mép ruộng 0.4, có bốn lối mở rộng 2.2; slot asset `farm/field-N/fence` dành cho mẫu/nâng cấp sau. Header tên/cấp có thanh XP trở lại, không có avatar. Nhân vật bắt đầu ngoài vùng rào và được đưa về chỗ đứng hợp lệ gần nhất nếu thay bố cục khiến điểm đứng cũ lọt vật cản.
 
 Hai hàng ruộng ở z=-3.1 và -14.2, tách xa hơn để cân vùng trước/sau. Giếng (-16.8,-8.4) nằm trong hành lang giữa, quay ngang về lối tiếp cận phía phải. Tên công trình là bảng phẳng theo nền/hướng nhà; ẩn toàn bộ nút nhắc E trong farm. Đường cạnh ruộng chuyển sang x=-3.1 để không trùng rào mới.
@@ -125,13 +140,13 @@ Bỏ vùng hình chữ nhật ảo chặn cả ruộng. Va chạm dựa trên r�
 
 Bấm ô khóa hoặc biển khóa đều đưa nhân vật tới điểm tiếp cận biển. Tới nơi kiểm tra ruộng liền kề và tiền: thiếu báo số tiền thiếu; đủ mở cửa sổ xác nhận 12 ô và số xu. Chỉ bấm xác nhận mới gọi giao dịch trừ tiền/mở ruộng, có kiểm tra lại số dư. Hủy không mất tiền.
 
-Kéo công cụ giữ camera cố định, chặn kéo mặc định của trình duyệt, bắt pointer xuyên qua vùng UI và lấy lại ô tại vị trí thả. Không dựng lại các nút giống trong lúc kéo để tránh mất pointer capture. Túi hạt dùng hình SVG riêng trong ô thanh đồ, không dùng khung thẻ web.
+Kéo công cụ giữ camera cố định (trừ khi ngón tay ở mép màn, xem R13 ở trên), chặn kéo mặc định của trình duyệt, bắt pointer xuyên qua vùng UI và lấy lại ô tại vị trí thả. Không dựng lại các nút giống trong lúc kéo để tránh mất pointer capture. Túi hạt dùng hình SVG riêng trong ô thanh đồ, không dùng khung thẻ web.
 
 ## Công cụ và phản hồi giao dịch
 
 Nút Công cụ mở/đóng thanh giống, tưới, bón phân, cuốc; mặc định không hiện thanh. Mỗi lần vào nông trại lấy đầy bình theo cấp, sau đó mỗi thao tác tưới trừ một lượt. Cuốc bỏ cây đưa ô về trống, không hoàn hạt hoặc nhận quả. Phân bón tuân theo giai đoạn phát triển và một lần mỗi lứa.
 
-Kéo qua 1–2–3–4 rồi quay về 3 rút lựa chọn còn 1–2–3, không tự thực hiện trước khi thả. Tới giới hạn hạt/nước/phân thì không nhận thêm ô mới, vẫn cho kéo ngược để bớt ô. Ô không hợp lệ hiện dấu cấm; một ô không lặp trong danh sách. Thả về thanh công cụ hoặc hủy cử chỉ thì hủy lựa chọn. Tất cả ô chờ làm giữ sáng viền, mỗi ô chỉ tắt sau khi hoàn thành hoặc bị hủy/không thể tiếp cận. Nhận xu có hiệu ứng bay lên bộ đếm tiền; thu hoạch/nhận thành phẩm bay về kho.
+Kéo qua 1–2–3–4 rồi quay về 3 rút lựa chọn còn 1–2–3, không tự thực hiện trước khi thả. Tới giới hạn hạt/nước/phân thì không nhận thêm ô mới, vẫn cho kéo ngược để bớt ô. Ô không hợp lệ hiện dấu cấm; một ô không lặp trong danh sách. Thả về thanh công cụ hoặc hủy cử chỉ thì hủy lựa chọn. Tất cả ô chờ làm giữ sáng viền (nhạt kèm số thứ tự khi chưa tới lượt, R12), mỗi ô chỉ tắt sau khi hoàn thành hoặc bị hủy/không thể tiếp cận. Nhận xu có hiệu ứng bay lên bộ đếm tiền; thu hoạch/nhận thành phẩm bay về kho.
 
 Vốn thử 100.000.000 xu được cấp một lần cho dữ liệu cũ và tiến trình mới, đánh dấu `debugFundsGranted`; tải lại không cộng lại hoặc cắt xuống một triệu. Bộ đếm tiền được lưu tới 1.000.000.000.000, không dùng giới hạn số lượng vật phẩm.
 
@@ -139,4 +154,4 @@ Vốn thử 100.000.000 xu được cấp một lần cho dữ liệu cũ và ti
 
 Mỗi sân phơi/lò/máy xay nhận thêm nhiều lượt khi đủ nguyên liệu, không chặn bởi mẻ đang chạy. Thanh chọn nguyên liệu có Làm 1 và Làm tất cả số mẻ đủ nguyên liệu; nguyên liệu được trừ đúng lúc bắt đầu. Mỗi lượt có giờ bắt đầu/kết thúc riêng, lưu cùng tiến trình; các công trình chạy đồng thời. Nâng cấp rút thời gian mẻ mới, không đổi mẻ đang làm.
 
-Huy hiệu trên trạm dùng icon + thanh tiến độ + giây bên dưới và tổng số mẻ. Huy hiệu ưu tiên mẻ hoàn thành sớm nhất. Chỉ bấm icon giỏ để đi tới nhận tất cả mẻ đã xong tại trạm; mẻ chưa xong tiếp tục chạy. Bấm vào nhà chỉ chọn, sáng viền nền và mở thanh thao tác, không tự nhận/đảo. Icon đảo xử lý các mẻ đủ nửa thời gian và chưa đảo. Nút Hướng dẫn mở nội dung cách chơi dạng chữ trong khung game.
+Huy hiệu trên trạm dùng icon + thanh tiến độ + giây bên dưới và tổng số mẻ. Huy hiệu ưu tiên mẻ hoàn thành sớm nhất. Chỉ bấm icon giỏ để đi tới nhận tất cả mẻ đã xong tại trạm; mẻ chưa xong tiếp tục chạy. Bấm vào nhà chỉ chọn, sáng viền nền và mở thanh thao tác, không tự nhận/đảo. Icon đảo xử lý các mẻ đủ nửa thời gian và chưa đảo. Nút Hướng dẫn mở nội dung cách chơi dạng chữ trong khung game, kèm nút «Mở sổ tay» (Sổ tay cà phê, chỉ ghi ly ngoài đời; [coffee-memory](../../shared/coffee-memory.md) mục 3).

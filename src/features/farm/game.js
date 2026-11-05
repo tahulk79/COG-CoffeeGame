@@ -15,30 +15,34 @@ import { createFarmCrew, onPhone } from './crew.js';
 import { createCafeGame } from '../cafe/game.js';
 import { activeJobs,groupLimit,nextGroupLevel,CARE_JOBS,FARM_SLOTS,ASSETS,assetValue,upgradePrice,formatMass,formatCoins,phaseOf,WORKER_CANDIDATES,workerLevel,workerStat,efficiency,WORKER_JOBS,SEASON_MS,workerWage,DAY_MS,WORK_DAY_MS,assetMaxLevel,upgradeRequirement,assetTier,ASSET_TIERS,contractPlan,contractPrice,contractLeft,FERTILIZER_PRICE,SUPPLIER_PRICE,ROBOT_PACKS,packPrice,ORDERS_PER_DAY,supplierPrice} from './rules.js';
 import { createFarm, LESSON_PERKS } from './model.js';
-import { askLesson } from '../../ui/lesson-prompt.js';
+import { EXPERTS, expertsDone } from '../heaven/content.js';
+import { askLesson, askCouncil } from '../../ui/lesson-prompt.js';
 import { usesTouch } from '../../ui/dialogue.js';
 import { toolCapacity, acceptsTool } from './tools.js';
 import { createFarmUI } from './ui.js';
+import { introStep, introPlots, introHarvestPlot, machineStage, seedlings } from './intro.js';
+import { createMemoryUI } from '../cafe/memory-ui.js';
 import { wireFarm } from '../../shared/analytics/wire.js';
 import { pickAutoTask, pickAutoErrand } from './autoplay.js';
 import { mountAutoHud } from '../../ui/autoplay-hud.js';
 import { createFarmFeedback } from './feedback.js';
 import { createVfx } from '../../shared/vfx/index.js';
-import { setListener } from '../../shared/audio/index.js';
+import { setListener, sfx } from '../../shared/audio/index.js';
 import { isSettingsOpen, openSettings } from '../../ui/settings.js';
 import { buildFarmActor, buildFarmEnvironment } from './environment.js';
 import { loadFarmModels, attachFarmModels } from './assets.js';
 import { attachModels } from '../../shared/three/models.js';
-import { INTERACTIONS, PLOTS, FIELDS, CROPS, PRODUCTS, MACHINES, cropById, productById, plotCare, FARM_BOUNDS, HUD_UNLOCKS } from './content.js';
+import { INTERACTIONS, PLOTS, FIELDS, CROPS, PRODUCTS, MACHINES, cropById, productById, plotCare, FARM_BOUNDS, HUD_UNLOCKS, BUILDINGS } from './content.js';
 import { regionType } from '../world-map/content.js';
 import { economicStatus, titleOf } from './progression.js';
 import { orderPay,regionFit } from './rules.js';
 import { hasKey, regionNumbers, lastBatches } from '../awakening/unlocks.js';
 const $ = id => document.getElementById(id);
+const EDGE_SCROLL_PX = 48, EDGE_SCROLL_SPEED = 7; // Q5 R13: bề rộng dải mép màn (px) và tốc độ cuộn camera (đơn vị thế giới/giây) khi kéo công cụ
 
 // Warm highland sun over cool sky fill, ~3:1 key:fill so beds, trees and roofs get readable shadows (03 §4).
 const FARM_LIGHT = { sky: '#d9e7f2', ground: '#7d8a5a', ambient: 1.1, sun: '#ffe2b0', sunIntensity: 4.2 };
-export async function createFarmGame(profile, startingGift, persistence = { read: () => readProgress().farm, save: saveFarm }, heavenLessons = [], renderer = null, startingRegion) {
+export async function createFarmGame(profile, startingGift, persistence = { read: () => readProgress().farm, save: saveFarm }, heavenLessons = [], renderer = null, startingRegion, heavenMet = []) {
   const models = loadFarmModels(); // tải song song với nhân vật
   const character = await loadPlayer(playerModel(profile.gender));
   const world = createAdventureScene(character, { interactions: INTERACTIONS, theme: 'farm', mapBounds: FARM_BOUNDS, buildActor: buildFarmActor, buildEnvironment: buildFarmEnvironment, lighting: FARM_LIGHT });
@@ -57,14 +61,26 @@ export async function createFarmGame(profile, startingGift, persistence = { read
   let tool = 'auto', selectedSeed = 'robusta', activeEntries = [], toolEntries = [];
   // Onboarding (onboarding-flow 3.1, 3.3, 3.5, 3.6): unlocked HUD parts (null until the load-time pass), open re-ask dialogue, quest arrow window, controls hint.
   let unlocked = null, lessonClose = null, arrowUntil = 0, coach = null, rainAskDay = null;
+  // Hội đồng so le (F-45): hội thoại đang mở (hàm đóng), cổng đã hiện ở lần refresh trước (null = chưa refresh lần nào).
+  let councilClose = null, councilShown = null;
+  // Công trình pha 1 (F-48, Q10): id đang dựng, đã qua lần refresh đầu (save cũ thấy ngay, không hiệu ứng), lia camera đang chờ mở.
+  const BUILDING_IDS = new Set(BUILDINGS.map(b => b.id)), BUILDING_OF = { 'cafe-play': 'cafe-entrance', 'seed-shop': 'seed-shop', 'order-board': 'order-board', workers: 'crew-house' };
+  const builtNow = new Set(), toRaise = new Set(), built = id => builtNow.has(id);
+  // held: công trình đã tới mốc nhưng chờ dựng (đang tutorial ép, hoặc 3 s cho toast 'xong hướng dẫn'); raiseHold = mốc hết chờ.
+  const held = new Set(); let raiseHold = 0;
+  let builtLoaded = false, panned = false, panTimer = 0, navTimer = 0, raised = null;
+  // Tutorial ép farm-intro (F-46, onboarding-flow 3.8): bước hiện tại ('plant'…'roast' | null), chữ/mục tiêu/bàn tay đang chỉ.
+  let intro = null, introView = null, introTick = 0;
+  const INTRO_FREE = new Set(['help','settings','game-settings','center','zoom-in','zoom-out','bag']); // nút HUD vẫn dùng được khi đang ép
   // Tab khác ghi save: tab này ngừng ghi (progress.js readOnly) và báo người chơi tải lại (BG-A3).
   watchOtherTabs(() => ui?.notice(tr('farm.game.otherTab'), false), events.signal);
   const saved = persistence.read();
   const farm = createFarm(saved, startingGift, value => {
     if (!persistence.save(value) && !storageNotice) { storageNotice = true; ui?.notice(tr('farm.game.saveFailed'), false); }
-  }, undefined, heavenLessons, startingRegion);
+  }, undefined, heavenLessons, startingRegion, heavenMet);
   const detachAnalytics = wireFarm(farm);
   const awakening = createAwakening({ farm, notice: (text, ok = true) => ui.notice(text, ok) }); // F-35 UI: toast, badge, decode modal; shared with the café
+  const memoryUi = createMemoryUI({ notice: (text, ok = true) => ui.notice(text, ok), awakening, realOnly: true }); // Guide > Sổ tay cà phê (coffee-memory.md 3): real-life cups only
   // wireFarm dùng chung cho cả quán (cùng farm); gỡ khi rời màn
   // Loại nơi trùng sinh (02b-world-map): 'farm' không có quán, 'cafe' mở thẳng vào quán và không về được nông trại.
   const regionKind = regionType(farm.peek().region);
@@ -107,7 +123,7 @@ export async function createFarmGame(profile, startingGift, persistence = { read
   let auto=false,autoSpent=0,autoWait=0,autoTarget=null,autoHudAt=0;
   const autoHud=mountAutoHud({onToggle:()=>auto?stopAuto():startAuto()});
   function autoStatus(){const a=farm.peek().autoplay;autoHud.status({on:auto,runs:a.runs,leftMs:Math.max(0,a.leftMs-autoSpent)});}
-  function startAuto(){const r=farm.act('autoplay','start');ui.notice(r.message,r.ok);if(!r.ok)return;auto=true;autoSpent=0;autoWait=0;autoTarget=null;autoErrand=null;autoStatus();}
+  function startAuto(){if(intro){ui.notice(tr('farm.intro.locked'),false);return;}const r=farm.act('autoplay','start');ui.notice(r.message,r.ok);if(!r.ok)return;auto=true;autoSpent=0;autoWait=0;autoTarget=null;autoErrand=null;autoStatus();}
   function stopAuto(message=null){
     if(!auto)return;auto=false;if(autoSpent)farm.act('autoplay','spend',autoSpent);autoSpent=0;autoTarget=null;autoStatus();
     if(message)ui.notice(message,true);
@@ -139,14 +155,15 @@ export async function createFarmGame(profile, startingGift, persistence = { read
     const phone=p.workers.find(w=>onPhone(w,now));
     if(phone){autoHud.show(screenOf(crew.position(phone.id),rect),tr('crew.auto.remind',{name:phone.name}));if(!autoErrand||autoErrand.remind!==phone.id)autoErrand={remind:phone.id,at:now+1200};if(now>=autoErrand.at){autoErrand=null;noticeResult(farm.act('workers','remind',phone.id));refresh(now);}return;}
     // The player's own window (shop, staff, orders…) stays open: Auto keeps working behind it, the hand hides.
-    const behind=ui.modalOpen;
+    const behind=ui.modalOpen||Boolean(councilClose); // Hội đồng (F-45) mở: Auto vẫn làm phía sau, bàn tay ẩn
     if(work||pendingTool||pendingPlant||pendingStationAction||workQueue.length){if(autoTarget)autoHud.show(behind?null:world.screenPoint(autoTarget.id,rect),tr(`crew.auto.do.${autoTarget.action}`));return;}
     // An errand in progress: the hand stays on its HUD button for a moment, then Auto does it.
     if(autoErrand?.task){
-      const button=autoErrand.task.button==='seed-shop'?$('farm-shop-toggle'):document.querySelector(`[data-shortcut="${autoErrand.task.button}"]`);
-      autoHud.show(button&&!behind&&!button.closest('[hidden]')?autoHud.at(button):null,tr(`crew.auto.errand.${autoErrand.task.key}`));
+      // F-48: việc vặt ở Sạp/Bảng đơn thì bàn tay chỉ vào công trình 3D; chưa dựng thì chỉ nút HUD như cũ.
+      const target=autoErrand.task.button,building=built(target)?target:null,button=building?null:target==='seed-shop'?$('farm-shop-toggle'):document.querySelector(`[data-shortcut="${target}"]`);
+      autoHud.show(behind?null:building?world.screenPoint(building,rect):button&&!button.closest('[hidden]')?autoHud.at(button):null,tr(`crew.auto.errand.${autoErrand.task.key}`));
       if(now<autoErrand.at)return;
-      const {id,action,choice,key}=autoErrand.task;autoErrand=null;const r=farm.act(id,action,choice);noticeResult(r);if(!r.ok)autoSkip.set(`errand:${key}`,now+15000);refresh(now);autoWait=.6;return;
+      const {id,action,choice,key}=autoErrand.task;autoErrand=null;const r=farm.act(id,action,choice,Date.now(),'player','auto');noticeResult(r);if(!r.ok)autoSkip.set(`errand:${key}`,now+15000);refresh(now);autoWait=.6;return;
     }
     if((autoWait-=dt)>0)return;autoWait=.4;
     // The owner never takes a job a worker holds (claims), and workers yield what the owner heads for (playerTargets).
@@ -165,10 +182,10 @@ export async function createFarmGame(profile, startingGift, persistence = { read
   function clearInput() { cafeGame?.clearInput(); keyboard.clear(); touch = { x: 0, z: 0 }; resetJoystick(); world.stopMovement(); }
   function cancelWork() {
     if (menu?.kind === 'plant') { menu = null; ui?.closeSeedStrip(); }
-    farm.release('player');workQueue=[];pendingTool=null;pendingStationAction=null;world.setPlotSelection([]);
+    farm.release('player');workQueue=[];pendingTool=null;pendingStationAction=null;world.setPlotSelection([]);syncQueue();
     pendingPlant = null; work = null; playerActivity.update(null); world.setFocus(null); }
   function closeMenu() { crew.select(null);toolsOpen = false; menu = null; ui.closeModal(); world.setFocus(null); clearInput(); }
-  function closeUserMenu(){tool='auto';cancelWork();closeMenu();refresh(Date.now());}
+  function closeUserMenu(){tool='auto';cancelWork();closeMenu();if(panned){panned=false;world.resetCamera();}refresh(Date.now());} // CT-4: đóng modal mở qua lối tắt thì camera về nhân vật
   function near(id) {
     const target = world.getInteraction(id);
     return target && Math.hypot(character.position.x - target.position[0], character.position.z - target.position[1]) <= target.interactDistance;
@@ -181,22 +198,27 @@ export async function createFarmGame(profile, startingGift, persistence = { read
     if (!near(id)) return false;
     if(!farm.reserve(id,action,'player',choice)){ui.notice(tr('farm.game.reserved'),false);return false;}
     if(!(auto&&ui.modalOpen)){closeMenu(); clearInput();}
-    work = { id, action, choice, elapsed: 0, duration: farm.workDuration(action) };
+    work = { id, action, choice, via: auto ? 'auto' : 'hand', elapsed: 0, duration: farm.workDuration(action) };
     world.setFocus(id);return true;
   }
-  function nextQueuedWork() {
+  // Q5 R10: kéo 🧺 bị giới hạn bởi chỗ trống kho (gram) ngoài số cây chín; công cụ khác không đổi.
+  function capacity(p,action,choice){return toolCapacity(p,action,choice,farm.storageCapacity-p.lots.reduce((sum,lot)=>sum+lot.grams,0));}
+  // Q5 R12: ô đã chọn mà nhân vật chưa làm tới sáng nhạt + số thứ tự (1 = ô kế tiếp). Ô đang làm/đang tới đã có viền sáng của focus.
+  function syncQueue(){world.setPlotQueue(workQueue.map(task=>task.id));}
+  function nextQueuedWork(){advanceQueue();syncQueue();}
+  function advanceQueue() {
     while(workQueue.length) {
       const task=workQueue.shift(),p=farm.progress,plot=p.plots.find(item=>item.id===task.id);
       if(!plot?.unlocked){world.removePlotSelection(task.id);continue;}
-      if(!acceptsTool(plot,task.action,task.choice,farm.level) || toolCapacity(p,task.action,task.choice)<1){world.removePlotSelection(task.id);continue;}
+      if(!acceptsTool(plot,task.action,task.choice,farm.level) || capacity(p,task.action,task.choice)<1){world.removePlotSelection(task.id);continue;}
       if(near(task.id)){if(!begin(task.id,task.action,task.choice)){world.removePlotSelection(task.id);continue;}}
       else {pendingTool=task;world.moveToNpc(task.id);world.setFocus(task.id);}
       return;
     }
     tool='auto';
   }
-  function applyAction(id,action,choice) {
-    const before=farm.progress,levelBefore=farm.level,result=farm.act(id,action,choice);farm.release('player');
+  function applyAction(id,action,choice,via=auto?'auto':'hand') { // via: nguồn lúc BẮT ĐẦU hành động (work.via), không đọc lúc xong
+    const before=farm.progress,levelBefore=farm.level,result=farm.act(id,action,choice,Date.now(),'player',via);farm.release('player');
     const after=result.ok?farm.progress:before;
     feedback('action',{id,action,result,before,after,levelUp:farm.level>levelBefore});
     if(result.ok&&coach){coach.acted=true;if(coach.moved)endCoach();}
@@ -219,9 +241,9 @@ export async function createFarmGame(profile, startingGift, persistence = { read
   }
   function makeToolEntries(p) {
     const tools=unlocked?.has('tools');
-    const entries=CROPS.filter(crop=>p.seeds[crop.id]>0).map(crop=>({id:`plant:${crop.id}`,label:crop.name,detail:tools?tr('farm.tool.seedDrag'):tr('farm.tool.seedTap'),action:'plant',choice:crop.id,cropId:crop.id,quantity:p.seeds[crop.id],shortName:crop.short,color:crop.color,icon:'🌱',enabled:crop.level<=farm.level,noDrag:!tools}));
+    const entries=CROPS.filter(crop=>p.seeds[crop.id]>0).map(crop=>({id:`plant:${crop.id}`,label:crop.name,detail:tools?tr('farm.tool.seedDrag'):tr('farm.tool.seedTap'),action:'plant',choice:crop.id,cropId:crop.id,quantity:p.seeds[crop.id],shortName:crop.short,color:crop.color,icon:'🌱',enabled:crop.level<=farm.level})); // kéo-gieo 🌱 mở từ save mới (F-46, Q5 R4a)
     if(!entries.length)entries.push({id:'buy-seeds',label:tr('farm.tool.shop'),icon:'🏪',action:'open-shop',enabled:true});
-    if(!tools)return entries; // before field 2 a tap on a tree already does the job it needs, so the strip only picks seeds
+    if(!tools)return entries; // before field 2 a tap on a tree already does the job it needs, so the strip only picks seeds (🧺 and care tools wait for ⛏️)
 
     entries.push({id:'drag-water',label:tr('farm.tool.water'),detail:tr('farm.tool.waterDetail',{water:p.water,cap:farm.waterCapacity}),action:'water',quantity:p.water,shortName:tr('farm.tool.waterShort'),color:'#65a8c4',icon:'💧',enabled:p.water>0});
     entries.push({id:'drag-fertilizer',label:tr('farm.tool.fertilize'),detail:tr('farm.tool.fertilizeDetail'),action:'fertilize',quantity:p.fertilizer,shortName:tr('farm.tool.fertilize'),color:'#8a9653',icon:'🪴',enabled:p.fertilizer>0});
@@ -240,7 +262,7 @@ export async function createFarmGame(profile, startingGift, persistence = { read
   function choose(entryId,confirmed=false) {
     if (!menu) {
       const entry=toolEntries.find(item=>item.id===entryId);if(!entry || entry.enabled===false)return;
-      if(entry.action==='open-shop'){menu={id:'seed-shop',kind:'station',remote:true};renderMenu();return;}
+      if(entry.action==='open-shop'){openShopRemote('seeds');return;} // CT-6: lia tới Sạp rồi mở tab Giống
       tool=entry.action;if(entry.cropId)selectedSeed=entry.cropId;refresh(Date.now());return;
     }
     const entry = activeEntries.find(item => item.id === entryId);
@@ -301,7 +323,7 @@ export async function createFarmGame(profile, startingGift, persistence = { read
       refresh(Date.now());return;
     }
     if(entry.action==='worker-back'){if(menu.kind==='worker-detail'&&menu.returnMenu){backFromDetail();return;}menu={kind:'workers',id:null,remote:true};renderMenu();return;}
-    if (entry.action === 'open-shop') { menu = {id:'seed-shop',kind:'station',remote:true}; renderMenu(); return; }
+    if (entry.action === 'open-shop') { openShopRemote('seeds'); return; }
     if (['clear','water','fertilize','weed','prune','harvest'].includes(entry.action) && menu.kind==='plant') { tool=entry.action;closeMenu();refresh(Date.now());return; }
     if (entry.action === 'plant') {
       const id = menu.id; selectedSeed = entry.cropId;
@@ -442,7 +464,8 @@ export async function createFarmGame(profile, startingGift, persistence = { read
         if(stored)entries.push(entry(`cafe-stock:${crop.id}`,`${crop.short} · ${formatMass(stored)}`,tr('farm.menu.cafe.stockDetail'),null,null,false,tr('farm.menu.cafe.inStock'),'🫘'));
       }
       entries.push({...entry('supplier',tr('farm.menu.cafe.supplier'),tr('farm.menu.cafe.supplierDetail'),'supply',null,p.coins>=supplierPrice(p.region),tr('farm.coins',{n:supplierPrice(p.region)}),'📦'),targetId:'cafe'});
-      if(cafeGame)entries.push({...entry('open-cafe',c.open?tr('farm.menu.cafe.close'):tr('farm.menu.cafe.open'),tr('farm.menu.cafe.served',{n:c.served,rep:Math.round(c.reputation)}),'toggle',null,true,c.open?tr('farm.menu.cafe.closeBtn'):tr('farm.menu.cafe.openBtn'),'🚪'),targetId:'cafe'});
+      // F-47 (Q7 R4b): ca tập (chưa có cafe-intro) ẩn mục Mở/Đóng quán.
+      if(cafeGame&&p.tutorial.seen.includes('cafe-intro'))entries.push({...entry('open-cafe',c.open?tr('farm.menu.cafe.close'):tr('farm.menu.cafe.open'),tr('farm.menu.cafe.served',{n:c.served,rep:Math.round(c.reputation)}),'toggle',null,true,c.open?tr('farm.menu.cafe.closeBtn'):tr('farm.menu.cafe.openBtn'),'🚪'),targetId:'cafe'});
       for(const trip of c.shipments)entries.push(entry(trip.id,tr('farm.menu.cafe.trip'),`${formatMass(trip.lots.reduce((sum,l)=>sum+l.grams,0))} · ${Math.max(0,Math.ceil((trip.readyAt-now)/1000))}s`,null,null,false,tr('farm.order.delivering'),'🛒'));
     } else if (menu.id === 'pond') {
       title=tr('farm.menu.pond.title');icon='💧';subtitle=tr('farm.menu.pond.subtitle',{n:Math.floor(p.reservoir)});entries=[];
@@ -568,10 +591,13 @@ export async function createFarmGame(profile, startingGift, persistence = { read
       else ui.notice(tr('farm.notice.waterLater',{phase:phaseOf(plot),n:Math.max(1,Math.ceil(care.waterInSeconds/60))}));
       return;
     }
+    if(id==='council'){openCouncil();return;}
+    if(BUILDING_IDS.has(id)){openBuilding(id);return;}
     const machine = MACHINES.find(item => item.id === id);
     if(machine){openMenu(id,'machine');return;}
     if (id === 'well') {
       if (p.water < farm.waterCapacity) begin(id, 'refill');
+      else if(upTag(p,'well'))openMenu(id,'station'); // CT-9 (F-48): bình đầy mà giếng có ⬆ thì chạm mở khối nâng cấp giếng
       else {ui.notice(tr('farm.notice.canFull'));offerLesson(['water']);}
       return;
     }
@@ -598,7 +624,9 @@ export async function createFarmGame(profile, startingGift, persistence = { read
     tool(id) { cancelWork(); tool = id; refresh(Date.now()); },
     bag() { if(lessonClose)return; clearInput(); cancelWork(); menu = { kind: 'bag', id: null }; renderMenu(); },
     shortcut(id) {
-      if(lessonClose)return;
+      if(lessonClose||councilClose)return;
+      if(id==='council'){meetCouncil();return;} // Sổ tay ▸ Gặp Hội đồng (F-45): lia camera tới Cổng rồi mở
+      if(intro&&!INTRO_FREE.has(id)){ui.notice(tr('farm.intro.locked'),false);return;}
       if(id.startsWith('lesson:')){ui.closeModal(true);closeUserMenu();const shown=offerLesson([id.slice(7)],true);if(!shown)ui.notice(shown===false?tr('farm.lesson.busy'):tr('farm.lesson.doneToday'),false);return;}
       decorationBuilder?.stopTask();decorationBuilder?.clear();
       if(id==='build'){if(cafeGame){ui.notice(tr('farm.notice.decorFarmOnly'),false);return;}clearInput();cancelWork();menu={kind:'build',id:null,remote:true};renderMenu();return;}
@@ -614,24 +642,26 @@ export async function createFarmGame(profile, startingGift, persistence = { read
       if(id==='bag'){clearInput();cancelWork();menu={kind:'bag',id:null};renderMenu();return;}
       if(id==='well-go'){closeUserMenu();world.moveToNpc('well');world.setFocus('well');return;}
       if(id==='cafe-play'){enterCafe();return;}
-      if(id==='workers'){clearInput();cancelWork();menu={id:null,kind:'workers',remote:true};renderMenu();return;}
+      if(id==='workers'){openRemote('crew-house',()=>openBuildingMenu('crew-house'));return;}
+      if(id==='seed-shop'){openShopRemote();return;}
+      if(id==='seed-shop-seeds'){openShopRemote('seeds');return;} // CT-2: chip xu luôn mở tab Giống của Sạp
       if(id==='pond'){clearInput();cancelWork();menu={id:'pond',kind:'station',remote:true};renderMenu();return;}
-      if(id==='order-board'){openOrderBoard();return;}
+      if(id==='order-board'){openRemote('order-board',openOrderBoard);return;}
       if(id==='delivery'){clearInput();cancelWork();menu={id:'orders',kind:'orders',remote:true};renderMenu();return;}
       // Đóng hẳn modal farm (im tiếng vì nút đã kêu ui.open) rồi mới mở hộp chung: không lồng hai modal.
       if(id==='game-settings'){ui.closeModal(true);closeUserMenu();openSettings();return;}
       if(id==='settings'){clearInput();cancelWork();menu={kind:'help',id:null};ui.closeSeedStrip();ui.showSettings();return;}
-      if(id==='help'){clearInput();cancelWork();menu={kind:'help',id:null};ui.closeSeedStrip();awakening.check(true);ui.showGuide(notebook(),goals(),awakening);return;}
+      if(id==='help'){clearInput();cancelWork();menu={kind:'help',id:null};ui.closeSeedStrip();awakening.check(true);ui.showGuide(notebook(),goals(),awakening,()=>memoryUi.open());return;}
       if (id === 'center') { world.resetCamera(); return; }
       if (id === 'zoom-in' || id === 'zoom-out') { world.zoomView(id === 'zoom-in' ? .15 : -.15); return; }
       clearInput(); cancelWork(); menu = {id: id === 'upgrades' ? null : id, kind: id === 'upgrades' ? id : 'station', remote:true}; renderMenu();
     },
     dragStart() {
-      clearInput();workQueue=[];pendingTool=null;pendingPlant=null;work=null;world.setPlotSelection([]);world.setFocus(null);world.freezeCamera();
+      clearInput();workQueue=[];pendingTool=null;pendingPlant=null;work=null;world.setPlotSelection([]);syncQueue();world.setFocus(null);world.freezeCamera();
     },
     dragSelection(ids) {world.setPlotSelection(ids);},
     dragCancel() {world.setPlotSelection([]);world.setFocus(null);},
-    dragLimit(action,cropId) {return toolCapacity(farm.progress,action,cropId);},
+    dragLimit(action,cropId) {return capacity(farm.progress,action,cropId);},
     previewDrop(x,y,action,cropId) {
       const canvas=$('game').querySelector('canvas');
       const id=world.pickPlotAtScreen(x,y,canvas.getBoundingClientRect()),p=farm.progress;
@@ -639,14 +669,30 @@ export async function createFarmGame(profile, startingGift, persistence = { read
       return valid ? id : null;
     },
     dropTool(action,cropId,ids) {
-      markSeen('tools');clearInput();cancelWork();menu=null;ui.closeModal();
-      const p=farm.progress,limit=toolCapacity(p,action,cropId);
+      if(action!=='plant')markSeen('tools'); // cờ ⛏️ tách khỏi kéo-gieo (Q5): lần mở ⛏️ đầu vẫn có dòng hướng dẫn
+      clearInput();cancelWork();menu=null;ui.closeModal();
+      const p=farm.progress,limit=capacity(p,action,cropId);
       workQueue=[...new Set(ids)].filter(id=>acceptsTool(p.plots.find(item=>item.id===id),action,cropId,farm.level)).slice(0,limit).map(id=>({id,action,choice:cropId}));
       if(!workQueue.length){ui.notice(tr('farm.notice.noTargets'),false);return;}
-      world.setPlotSelection(workQueue.map(task=>task.id));nextQueuedWork();
+      world.setPlotSelection([]);nextQueuedWork(); // viền sáng chuyển sang hàng đợi (R12): ô đang làm sáng đậm, các ô còn lại sáng nhạt + số
     },
     choose, close: closeUserMenu,
   });
+  // Q5 R13 [chờ playtest]: đang kéo công cụ mà ngón tay ở dải mép màn (EDGE_PX) thì camera trôi chậm về phía đó, kẹp trong FARM_BOUNDS;
+  // sau khi camera trôi, chọn lại ô dưới ngón tay. Chỉ chạy khi đang kéo công cụ nên kéo map thường không bị ảnh hưởng.
+  const reduceMotion = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
+  function edgeScrollDrag(dt) {
+    const point = ui.toolDragPoint(); if (!point) return;
+    const rect = (canvasRect ||= $('game').querySelector('canvas').getBoundingClientRect());
+    const strip = $('farm-seed-strip'), stripTop = strip && !strip.hidden ? strip.getBoundingClientRect().top : Infinity;
+    const bottom = Math.min(rect.bottom, stripTop); // dải giống ở đáy: mép dưới tính phía trên dải, ngón tay trong dải là thả huỷ
+    const push = (distance) => Math.max(0, Math.min(1, (EDGE_SCROLL_PX - distance) / EDGE_SCROLL_PX));
+    const sx = push(point.x - rect.left) - push(rect.right - point.x);
+    const sy = point.y >= bottom ? 0 : push(bottom - point.y) - push(point.y - rect.top);
+    if (!sx && !sy) return;
+    world.scrollCamera(sx, sy, EDGE_SCROLL_SPEED * (reduceMotion?.matches ? .5 : 1), dt);
+    ui.refreshToolDrag();
+  }
   function refresh(now) {
     awakening.check();
     const p = farm.progress;
@@ -654,11 +700,16 @@ export async function createFarmGame(profile, startingGift, persistence = { read
     const bounds = FARM_BOUNDS;
     world.setFarmLayout(p.fields, availableFields, bounds);world.setFarmUpgrades(p.upgrades);
     // HUD parts open as the player reaches them; whatever is already open at load is marked seen without a toast.
-    const opened=new Set(HUD_UNLOCKS.filter(u=>u.when(p,farm.level)).map(u=>u.id)),fresh=[...opened].filter(id=>!seen(`unlock-${id}`));
+    // Trong tutorial ép, toast mở khóa chờ tới lúc xong (nút đã hiện nhưng mờ/khoá), không báo một nút chưa bấm được.
+    const opened=new Set(HUD_UNLOCKS.filter(u=>u.when(p,farm.level)).map(u=>u.id)),fresh=intro&&unlocked?[]:[...opened].filter(id=>!seen(`unlock-${id}`));
     // `unlock-<id>` = toast shown; `unlock-<id>-used` = feature used by any path, which clears its "Mới" dot.
     for(const id of fresh){farm.act('tutorial','seen',`unlock-${id}`);if(!unlocked)markSeen(`unlock-${id}-used`);}
-    ui.unlocks(opened,unlocked?HUD_UNLOCKS.filter(u=>fresh.includes(u.id)):[],new Set([...opened].filter(id=>!seen(`unlock-${id}-used`))));unlocked=opened;
+    syncBuildings(p,opened,now);
+    // F-48 (CT-12): mốc đã có công trình dựng thì toast/chấm 'Mới' chuyển sang công trình (hiệu ứng dựng + biển 'Mới').
+    const onBuilding=id=>built(BUILDING_OF[id])||held.has(BUILDING_OF[id]);
+    ui.unlocks(opened,unlocked?HUD_UNLOCKS.filter(u=>fresh.includes(u.id)&&!onBuilding(u.id)):[],new Set([...opened].filter(id=>!seen(`unlock-${id}-used`)&&!onBuilding(id))));unlocked=opened;
     if(p.claimed.includes('roast'))markSeen('quest-guide');
+    syncIntro(p,now);syncCouncil(p);
     ui.blockers(farmBlockers(p,farm.level,farm.storageCapacity,now,opened.has('tools')));ui.journal(p.journal||[],p.workers,0);
     ui.operationHud({today:p.today,weather:farm.weather,workers:p.workers,demand:farm.demand,storage:p.lots.reduce((n,l)=>n+l.grams,0),capacity:farm.storageCapacity});
     celebrate();
@@ -693,18 +744,22 @@ export async function createFarmGame(profile, startingGift, persistence = { read
         ...selected,units:finished.length||1,queueCount:waiting,summary:true,
         icon:machine.id==='dryer'&&!selected.turned&&now>=(selected.startedAt+selected.readyAt)/2&&now<selected.readyAt?'🔄':{dryer:'☀️',roaster:'🔥',grinder:'☕'}[machine.id]
       }]:[]});
+      if(!selected)world.setObjectStatus(machine.id,{text:upTag(p,machine.id)}); // ⬆ chỉ khi máy rảnh: huy hiệu mẻ/giỏ ưu tiên (Q6)
     }
     seenReady=readyNow;
-    world.setObjectStatus('well', { text: '' });
-    world.setActorState('pond',{fish:0,level:p.upgrades.pond});
-    
-    world.setObjectStatus('seed-shop', { text: '' });
-    world.setObjectStatus('market', { text: '' });
+    world.setObjectStatus('well', { text: upTag(p,'well') });
+    world.setActorState('pond',{fish:0,level:p.upgrades.pond});world.setObjectStatus('pond',{text:upTag(p,'pond')});
+    world.setObjectStatus('market', { text: '' }); // trạm 3D 'market' đã bỏ (F-48): không còn actor, lệnh này không làm gì
     // Quest guide: blinking card + 3D arrow until the first card tap (or the roast quest), then 6 s after each tap.
     // Quests done through a HUD button (shop, orders, café) highlight that button instead of the 3D arrow.
-    const guiding=Boolean(farm.quest)&&!seen('quest-guide'),target=guiding||Date.now()<arrowUntil?questTarget():null,hudTarget=HUD_TARGETS.includes(target)?target:null;
-    world.setQuestArrow(hudTarget?null:target);ui.guide(guiding,hudTarget);
+    const guiding=!intro&&Boolean(farm.quest)&&!seen('quest-guide'),target=intro?introView.target:guiding||Date.now()<arrowUntil?questTarget():null,hudTarget=!intro&&HUD_TARGETS.includes(target)?target:null;
+    // F-48: mục tiêu ở Sạp/Bảng đơn/quán chỉ mũi tên 3D vào công trình đã dựng; chưa dựng thì nháy nút HUD như cũ.
+    // Không có mục tiêu thì mũi tên chỉ công trình vừa dựng trong 6 s (CT-10 'bàn tay chỉ').
+    const building=hudTarget&&built(BUILDING_OF[hudTarget])?BUILDING_OF[hudTarget]:null;
+    world.setQuestArrow(building||(hudTarget?null:target)||(!intro&&raised&&now<raised.until?raised.id:null));ui.guide(guiding,building?null:hudTarget);
     if (menu) renderMenu();
+    // Bài gieo đầu bước 2 (Q5 R5): sau ô đầu, dải giống hiện sẵn để bàn tay chỉ kéo túi hạt qua 2 ô bên cạnh.
+    else if(introView?.hand?.path && nearFarm && !isSettingsOpen() && !lessonClose && !toolsOpen && !work && !pendingTool && !pendingPlant && !pendingStationAction && !workQueue.length){toolEntries=makeToolEntries(p).filter(item=>item.action==='plant');ui.seedStrip({title:tr('farm.strip.seeds'),entries:toolEntries,selected:tool==='plant'?`plant:${selectedSeed}`:null,persistent:true});}
     else if(toolsOpen && nearFarm && !work && !pendingTool && !pendingStationAction) {toolEntries=makeToolEntries(p);ui.seedStrip({title:tr('farm.strip.tools'),hint:seen('tools')?null:tr('farm.strip.toolsHint'),entries:toolEntries,selected:tool==='plant' ? `plant:${selectedSeed}` : tool==='water' ? 'drag-water' : tool==='clear' ? 'clear-plant' : tool==='fertilize' ? 'drag-fertilizer' : ['weed','prune','harvest'].includes(tool)?`drag-${tool}`:null});}
     else ui.closeSeedStrip();
   }
@@ -713,7 +768,7 @@ export async function createFarmGame(profile, startingGift, persistence = { read
   const pointerOptions = { capture:true, signal:events.signal };
   document.addEventListener('pointerdown', event => {
     const canvas = event.target.closest('#game canvas');
-    if (cafeGame || lessonClose || decorationBuilder?.active || !canvas || ui.modalOpen || event.button !== 0 || !event.isPrimary) return;
+    if (cafeGame || lessonClose || councilClose || decorationBuilder?.active || !canvas || ui.modalOpen || event.button !== 0 || !event.isPrimary) return;
     drag = {id:event.pointerId, x:event.clientX, y:event.clientY, lastX:event.clientX, lastY:event.clientY, moved:false, canvas};
     canvas.setPointerCapture(event.pointerId);
   }, pointerOptions);
@@ -741,9 +796,44 @@ export async function createFarmGame(profile, startingGift, persistence = { read
   // Đổi tab khi đang kéo thì pointerup không về: bỏ kéo luôn.
   for(const [target,type] of [[window,'blur'],[document,'visibilitychange']])target.addEventListener(type,()=>{if(drag?.canvas.hasPointerCapture(drag.id))drag.canvas.releasePointerCapture(drag.id);drag=null;},{signal:events.signal});
   $('heaven-interact').addEventListener('click', interact, { signal: events.signal });
+  // Tutorial ép farm-intro (F-46, onboarding-flow 3.8): bước dẫn xuất từ state; xong thì ghi cờ, thôi khoá HUD.
+  function syncIntro(p,now){
+    if(seen('farm-intro')){if(intro){intro=null;introView=null;ui.introGuide(false);ui.introHand(null);}return;}
+    const step=regionKind==='cafe'?null:introStep(p,farm.level);
+    if(!step){const live=intro!==null;intro=null;introView=null;markSeen('farm-intro');ui.introGuide(false);ui.introHand(null);if(live&&!HUD_UNLOCKS.some(u=>!BUILDING_OF[u.id]&&u.when(p,farm.level)&&!seen(`unlock-${u.id}`))){ui.notice(tr('farm.intro.done'));raiseHold=now+3000;}return;} // mốc có công trình: toast dựng đi sau toast này
+    intro=step;let text,target=null,hand=null;
+    if(step==='plant'){
+      const sown=seedlings(p).length>0,plots=introPlots(p,sown?2:1);target=plots[0]||null;
+      if(menu?.kind==='plant'){text='farm.intro.plantSeed';target=menu.id;hand={seed:true};}
+      else if(sown){text='farm.intro.plantDrag';hand={seed:true,path:plots};}
+      else{text='farm.intro.plantTap';hand={tap:target};}
+    }else if(step==='harvest'){target=introHarvestPlot(p);text='farm.intro.harvest';hand={tap:target};}
+    else{const machine=step==='dry'?'dryer':'roaster',stage=machineStage(p,machine,now);target=machine;text=`farm.intro.${step}.${stage}`;hand=stage==='running'?null:{tap:machine};}
+    introView={text:tr(text),target,hand};ui.introGuide(true,introView.text);
+  }
+  // Bàn tay chỉ: chạm một ô/trạm, hoặc kéo túi hạt từ dải qua các ô gợi ý. Dùng lại vector/mảng, không cấp phát mỗi khung.
+  const handVec=character.position.clone(),handXY=[0,0,0,0,0,0];
+  function handAt(id,rect,i){
+    const target=id&&world.getInteraction(id);if(!target)return false;
+    handVec.set(target.position[0],1,target.position[1]).project(world.camera);if(handVec.z<-1||handVec.z>1)return false;
+    handXY[i]=rect.left+(handVec.x+1)*rect.width/2;handXY[i+1]=rect.top+(1-handVec.y)*rect.height/2;return true;
+  }
+  function placeIntroHand(rect){
+    const hand=introView?.hand;
+    if(!hand||ui.modalOpen||lessonClose||cafeGame){ui.introHand(null);return;}
+    const button=hand.seed?document.querySelector('#farm-seed-strip:not([hidden]) button[data-drag-action="plant"]'):null;
+    if(button){
+      const r=button.getBoundingClientRect();handXY[0]=r.left+r.width/2;handXY[1]=r.top+r.height/2;
+      if(!hand.path){ui.introHand(handXY,1);return;}
+      const a=hand.path[0],b=hand.path[1]||a;ui.introHand(handAt(a,rect,2)&&handAt(b,rect,4)?handXY:null,3);return;
+    }
+    ui.introHand(handAt(hand.tap||hand.path?.[0],rect,0)?handXY:null,1); // dải chưa hiện (đang đi/làm): chỉ vào ô kế tiếp
+  }
   // After the tutorial quests the card keeps naming the next useful job (same ids as QUESTS), so a tap is never a dead end.
   function freeGoal(){
     const p=farm.peek(),trees=p.plots.filter(t=>t.unlocked),count=test=>trees.filter(t=>test(plotCare(t))).length;
+    // Q1 R7 (F-45): Việc tiếp theo trỏ Cổng Hội đồng khi có chuyên gia chờ; chỉ ở farm (nơi chỉ quán gặp ở vật Hội đồng).
+    const waiting=regionKind!=='cafe'&&farm.council;if(waiting)return{id:'council',target:'council',title:tr('farm.goal.council',{name:waiting.expert.name}),detail:tr('farm.goal.councilDetail')};
     const ready=count(c=>c.ready);if(ready)return{id:'harvest',title:tr('farm.goal.harvest'),detail:tr('farm.goal.harvestDetail',{n:ready})};
     const thirsty=count(c=>c.needsWater);if(thirsty)return{id:'water',title:tr('farm.goal.water'),detail:tr('farm.goal.waterDetail',{n:thirsty})};
     const weedy=count(c=>c.needsWeeding);if(weedy)return{id:'weed',title:tr('farm.goal.weed'),detail:tr('farm.goal.weedDetail',{n:weedy})};
@@ -765,6 +855,7 @@ export async function createFarmGame(profile, startingGift, persistence = { read
   function questTarget(){
     const quest=goal(),p=farm.peek();if(!quest)return null;
     const kind=questKind(quest);
+    if(kind==='council')return 'council';
     if(kind==='sell')return 'seed-shop';
     if(kind==='serve')return 'cafe-play';
     if(kind==='ship'){const crop=p.orders.find(o=>o.status==='open'&&o.source!=='shop')?.cropId||'robusta';return p.stock.roasted[crop]>=252?'order-board':p.stock.dried[crop]>=100?'roaster':'dryer';}
@@ -775,13 +866,15 @@ export async function createFarmGame(profile, startingGift, persistence = { read
   function guideQuest(){
     const quest=goal(),p=farm.peek();if(!quest||cafeGame||ui.modalOpen||lessonClose)return;
     const target=questTarget();
-    if(target==='seed-shop'){clearInput();cancelWork();menu={id:'seed-shop',kind:'station',remote:true,initialFilter:'trade'};renderMenu();return;}
-    if(target==='cafe-play'){void enterCafe();return;}
+    if(target==='council'){meetCouncil();return;}
+    if(target==='seed-shop'){openShopRemote('trade');return;}
+    // F-48 (CT-5): đã có Cửa quán thì nhân vật đi tới cửa, tới nơi mới vào quán (Auto giữ nhân vật nên vào thẳng).
+    if(target==='cafe-play'){if(built('cafe-entrance')&&!auto){closeUserMenu();world.moveToNpc('cafe-entrance');world.setFocus('cafe-entrance');return;}void enterCafe();return;}
     if(questKind(quest)==='ship'){
       // Not enough beans → go roast; otherwise «Đơn hàng» (which creates the 252 g order) where «Chuyển về quán · 2 xu» ships it.
       const crop=shipCrop(p);
       if(target!=='order-board'){closeUserMenu();world.moveToNpc(target);world.setFocus(target);ui.notice(tr('farm.goal.shipNeed',{crop:cropById(crop).short,have:formatMass(p.stock.roasted[crop])}),false);return;}
-      openOrderBoard();return;
+      openRemote('order-board',openOrderBoard);return;
     }
     if(!target){
       // Say how long until the trees need it and what to do meanwhile, instead of a dead end.
@@ -796,23 +889,72 @@ export async function createFarmGame(profile, startingGift, persistence = { read
   function remindWorker(id){noticeResult(applyAction('workers','remind',id));refresh(Date.now());}
   // «Thuê robot thay» only when a robot can be hired right now: no robot yet and a free slot (2 workers incl. a sick one = full).
   function canHireRobotCover(){return farm.peek().workers.length<FARM_SLOTS;}
-  function hireRobotCover(){if(cafeGame||lessonClose)return;clearInput();cancelWork();menu={id:null,kind:'workers',remote:true,initialFilter:'robot'};renderMenu();}
+  function hireRobotCover(){if(cafeGame||lessonClose)return;openRemote('crew-house',()=>openBuildingMenu('crew-house','robot'));} // CT-8: lia tới Nhà thợ rồi mở
   // «Đơn hàng» from the menu button or the quest card: during the ship quest, order 252 g from the café if none is open.
   function openOrderBoard(){
     const p=farm.peek(),ship=questKind(farm.quest)==='ship',crop=shipCrop(p);
     if(ship&&!p.orders.some(o=>o.status==='open'&&o.source!=='shop'))noticeResult(applyAction('cafe','order',crop));
-    clearInput();cancelWork();menu={id:null,kind:'jobs',remote:true,initialFilter:ship?(p.stock.roasted[crop]>=252?'ready':'pending'):null};renderMenu();
+    if(!auto){clearInput();cancelWork();}menu={id:null,kind:'jobs',remote:true,initialFilter:ship?(p.stock.roasted[crop]>=252?'ready':'pending'):null};renderMenu(); // Auto vẫn làm phía sau
+  }
+  // ---- Công trình pha 1 (05/11/2026, F-48, đề xuất Q10 CT-1…CT-16 + vá) ----
+  // CT-3/CT-5: chạm công trình có modal thì mở ngay tại chỗ, nhân vật quay mặt về vật; Cửa quán thì đi tới rồi mới vào quán.
+  function openBuilding(id){
+    if(intro){ui.notice(tr('farm.intro.locked'),false);return true;}
+    if(id==='cafe-entrance'){if(auto||near(id))void enterCafe();else{world.moveToNpc(id);world.setFocus(id);}return true;}
+    if(!auto)world.faceTo(id);
+    openBuildingMenu(id);return true;
+  }
+  // Modal của công trình (giữ đúng modal hiện có): Sạp = seed-shop 3 tab, Bảng đơn = openOrderBoard, Nhà thợ = Nhân viên 4 tab.
+  function openBuildingMenu(id,filter){
+    if(id==='order-board'){openOrderBoard();return;}
+    if(!auto){clearInput();cancelWork();}
+    menu=id==='seed-shop'?{id:'seed-shop',kind:'station',remote:true,initialFilter:filter}:{id:null,kind:'workers',remote:true,initialFilter:filter};renderMenu();
+  }
+  // CT-4: lối tắt từ xa lia camera tới công trình rồi mới mở modal; công trình chưa dựng hoặc đang ở quán thì mở luôn.
+  const PAN_MS=650; // thời gian lia chờ playtest đo (CT-16), không phải luật
+  function openRemote(id,open){
+    clearTimeout(panTimer);
+    if(!built(id)||cafeGame){open();return;}
+    closeCouncilMenu();ui.closeSeedStrip();world.focusOn(id);panned=true;
+    panTimer=setTimeout(()=>{if(!cafeGame&&!lessonClose&&!councilClose&&!ui.modalOpen)open();},PAN_MS);
+  }
+  function openShopRemote(filter){openRemote('seed-shop',()=>openBuildingMenu('seed-shop',filter));}
+  // CT-9: ⬆ trên vật khi vừa đủ cấp vừa đủ xu (giá/mốc giữ nguyên rules.js).
+  function upTag(p,id){const asset=ASSETS.find(a=>a.id===id),lv=p.upgrades[id];if(!asset||!lv)return '';return lv<assetMaxLevel(asset)&&farm.level>=upgradeRequirement(lv+1)&&p.coins>=upgradePrice(id,lv)?'⬆':'';}
+  // Dựng lên: hạt sáng + tiếng; va chạm tính lại khi hiệu ứng trồi xong (lúc đang dưới đất chưa chặn lối).
+  function raiseFx(id){const [x,z]=world.getInteraction(id).position;vfx.burst('sparkle',{x,y:1.6,z},{count:50});sfx('reward.levelup');clearTimeout(navTimer);navTimer=setTimeout(()=>world.invalidateNavigation(),1300);}
+  // CT-10/CT-12: Ẩn → Dựng lên → Rảnh/Có việc. Hiện khi `when` mở hoặc đã có cờ unlock-<id>; đã hiện thì không ẩn lại.
+  // Lần refresh đầu (save cũ đã qua mốc) hiện ngay, không hiệu ứng/toast. Đang ở quán: chờ về farm mới chạy hiệu ứng (toRaise).
+  // Đang tutorial ép (luật toast chờ tới lúc xong): giữ ẩn trong `held`, dựng sau toast 'xong hướng dẫn'.
+  function syncBuildings(p,opened,now){
+    for(const b of BUILDINGS){
+      const show=built(b.id)||(!b.both||regionKind==='both')&&(opened.has(b.unlock)||seen(`unlock-${b.unlock}`));
+      if(!show||built(b.id))continue;
+      if(builtLoaded&&(intro||now<raiseHold)){held.add(b.id);continue;}
+      held.delete(b.id);builtNow.add(b.id);world.setActorVisible(b.id,true);if(builtLoaded)toRaise.add(b.id);
+    }
+    builtLoaded=true;
+    if(!cafeGame)for(const id of toRaise){toRaise.delete(id);world.setActorState(id,{raise:true});raiseFx(id);raised={id,until:now+6000};ui.notice(tr('farm.building.raised',{name:world.getInteraction(id).name})+(id==='crew-house'&&p.robotGift?.state==='ready'?tr('farm.ui.robotGiftLine'):''));} // gói thử robot gộp vào toast Nhà thợ như toast mở Nhân viên cũ
+    const fresh=id=>seen(`unlock-${id}-used`)?'':tr('farm.building.new');
+    const need=p.plots.some(t=>t.unlocked&&t.stage==='empty')&&!CROPS.some(c=>c.level<=farm.level&&p.seeds[c.id]>0);
+    world.setActorState('seed-shop',{need});world.setObjectStatus('seed-shop',{text:need?'!':fresh('seed-shop')});
+    const waiting=p.orders.filter(o=>o.source!=='shop'&&o.status==='open'),ready=waiting.some(o=>p.stock.roasted[o.cropId]>=o.grams);
+    world.setActorState('order-board',{notes:Math.min(4,waiting.length),ready});world.setObjectStatus('order-board',{text:ready?'✓':waiting.length?String(waiting.length):fresh('order-board')});
+    world.setActorState('cafe-entrance',{open:Boolean(p.cafe.open)});world.setObjectStatus('cafe-entrance',{text:fresh('cafe-play')});
+    // Huy hiệu ! ở Nhà thợ theo incidentExempt (vá CT-10): hàm đó chưa có trong code nên chưa hiện !. Ghế trước cửa = thợ đang nghỉ.
+    world.setActorState('crew-house',{resting:Math.min(2,p.workers.filter(w=>w.farmId!=='farm-0'||!w.enabled).length)});world.setObjectStatus('crew-house',{text:fresh('workers')});
   }
   const questCard=document.querySelector('#farm-hud .quest-tracker'); // heaven HUD has its own .quest-tracker earlier in the DOM
   // First tap ends the blinking guide for good; every tap shows the arrow for 6 s.
-  function tapQuestCard(){if(lessonClose)return;markSeen('quest-guide');arrowUntil=Date.now()+6000;guideQuest();refresh(Date.now());}
+  function tapQuestCard(){if(lessonClose||intro)return;markSeen('quest-guide');arrowUntil=Date.now()+6000;guideQuest();refresh(Date.now());}
   if(questCard){questCard.setAttribute('role','button');questCard.tabIndex=0;questCard.title=tr('farm.goal.cardTitle');
     questCard.addEventListener('click',tapQuestCard,{signal:events.signal});
     questCard.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();tapQuestCard();}},{signal:events.signal});}
   // Re-ask a missed heaven lesson (onboarding-flow 3.1) only at a calm moment; returns false when deferred, null when nothing is askable, true when shown.
   // Never queued: a deferred cue simply waits for the next trigger.
   function offerLesson(ids,manual=false){
-    if(lessonClose||(coach&&!manual)||cafeGame||ui.modalOpen||isSettingsOpen()||work||workQueue.length||pendingTool||pendingPlant||pendingStationAction||decorationBuilder?.active||decorationBuilder?.working)return false;
+    if(!seen('farm-intro'))return false; // Q1 R11, Q5 R11: không hỏi lại khi tutorial ép chưa xong; câu chờ lần kích hoạt sau
+    if(lessonClose||councilClose||(coach&&!manual)||cafeGame||ui.modalOpen||isSettingsOpen()||work||workQueue.length||pendingTool||pendingPlant||pendingStationAction||decorationBuilder?.active||decorationBuilder?.working)return false;
     const lesson=farm.pendingLesson(ids);if(!lesson)return null;
     closeUserMenu();$('heaven-controls').hidden=true;$('farm-notice').hidden=true; // toast would cover the first answer on phones
     let answered=false; // closing without an answer defers the question (counts as asked today) so Auto/Esc cannot loop it
@@ -822,6 +964,53 @@ export async function createFarmGame(profile, startingGift, persistence = { read
       onClose:()=>{lessonClose=null;if(!answered)farm.act('lessons','defer',{questionId:lesson.question.id});rainAskDay=farm.weather.day;$('heaven-controls').hidden=ui.modalOpen;clearInput();}});
     return true;
   }
+  // ---- Hội đồng so le (05/11/2026, F-45, đề xuất Q1 R5–R13 + vá) ----
+  // Lượt gặp: 1 chuyên gia × các câu chưa gặp, hội thoại đáy màn mở ngay tại chỗ; khoá di chuyển, Auto vẫn làm phía sau.
+  // Ở quán chỉ mở khi cửa đóng hoặc từ báo cáo ca (lúc đó ca đã đóng). Trả true khi đã mở.
+  function openCouncil(){
+    if(councilClose||lessonClose||isSettingsOpen())return false;
+    const waiting=farm.council;
+    if(!waiting){ui.notice(tr('farm.council.empty'),false);return false;}
+    if(cafeGame&&farm.peek().cafe.open){ui.notice(tr('farm.council.cafeOpen'),false);return false;}
+    // Q1 R7: không ép ngắt việc tay đang làm; Auto thì vẫn mở, Auto làm tiếp phía sau.
+    if(!auto&&!cafeGame&&(work||workQueue.length||pendingTool||pendingPlant||pendingStationAction)){ui.notice(tr('farm.council.busy'),false);return false;}
+    if(!cafeGame)closeCouncilMenu();
+    if(!auto){clearInput();if(!cafeGame)world.faceTo('council');} // CT-3: nhân vật quay mặt về Cổng
+    $('heaven-controls').hidden=true;$('farm-notice').hidden=true;
+    councilClose=askCouncil({expert:waiting.expert,questions:waiting.questions,
+      answer:(questionId,optionId)=>{const result=farm.act('lessons','council',{questionId,optionId});if(!result.ok){ui.notice(result.message,false);return null;}refresh(Date.now());return result;},
+      onDone:()=>{councilClose=null;$('heaven-controls').hidden=ui.modalOpen;if(!auto)clearInput();refresh(Date.now());}});
+    return true;
+  }
+  // Lối tắt Sổ tay (CT-4): lia camera tới Cổng rồi mở; ở quán thì mở luôn (vật Hội đồng nằm trong quán).
+  let councilTimer=0;
+  // Như closeMenu nhưng khi Auto bật thì không dừng đường đi của Auto.
+  function closeCouncilMenu(){crew.select(null);toolsOpen=false;menu=null;ui.closeModal();world.setFocus(null);if(!auto)clearInput();}
+  function meetCouncil(){
+    closeCouncilMenu();
+    if(cafeGame||regionKind==='cafe'){openCouncil();return;}
+    if(!farm.peek().lessons.arrived.length){ui.notice(tr('farm.council.empty'),false);return;}
+    world.focusOn('council');clearTimeout(councilTimer);councilTimer=setTimeout(()=>{if(!cafeGame)openCouncil();},650);
+  }
+  // Cổng Hội đồng: ẩn tới khi chuyên gia đầu có mặt; lần đầu hiện thì trồi lên kèm hiệu ứng; 'Mới' khi có người chờ.
+  function syncCouncil(p){
+    const present=p.lessons.arrived,waiting=farm.council,show=present.length>0,raise=show&&councilShown===false&&!cafeGame;
+    if(cafeGame)return; // đang ở quán: lần về farm sau mới dựng (refresh lúc exitCafe)
+    world.setActorVisible('council',show);
+    world.setActorState('council',{present,done:expertsDone(p.lessons.met),waiting:Boolean(waiting),raise});
+    world.setObjectStatus('council',{text:waiting?tr('farm.council.new',{name:waiting.expert.name}):''});
+    if(raise)raiseFx('council');
+    councilShown=show;
+  }
+  // Chuyên gia mới tới: toast ở farm khi không có modal (không ép gặp). Ở quán chỉ chấm 'Mới' ở vật Hội đồng (mục 5, Q7 R5):
+  // ly đầu của ca tập đang mở hộp Memory/Nếm nhanh. Phát trong act nên hẹn sang lượt sau; dispose huỷ hẹn.
+  let arrivedTimer=0;
+  const offCouncil=farm.onEvent((type,props)=>{
+    if(type!=='council_arrived'||cafeGame||regionKind==='cafe')return;
+    const expert=EXPERTS.find(e=>e.id===props.expert);
+    clearTimeout(arrivedTimer);arrivedTimer=setTimeout(()=>{if(ui&&!cafeGame&&!ui.modalOpen&&!councilClose&&!lessonClose)ui.notice(tr('farm.council.arrived',{name:expert.name}));},0);
+  });
+  awakening.setCouncil({waiting:()=>farm.council,open:meetCouncil}); // nút Gặp Hội đồng ở Sổ tay ▸ Câu hỏi/Key (farm và quán)
   // Heaven notebook rows for the Guide: learned, or when the next re-ask is possible.
   function goals() {
     const p = farm.peek(), e = economicStatus(p);
@@ -829,7 +1018,8 @@ export async function createFarmGame(profile, startingGift, persistence = { read
   }
   function notebook(){
     const p=farm.peek(),left=Math.ceil((WORK_DAY_MS-Math.max(0,Date.now()-p.epoch)%WORK_DAY_MS)/60000);
-    return Object.entries(LESSON_PERKS).map(([id,perk])=>{const learned=p.lessons.learned.includes(id);return {id,name:perk.name,effect:perk.effect,learned,wait:learned||farm.pendingLesson([id])?0:left};});
+    // F-45: câu chưa gặp chuyên gia không có 'Ôn lại'; met=false kèm present (chuyên gia đã tới Hội đồng chưa) cho nút Gặp Hội đồng.
+    return Object.entries(LESSON_PERKS).map(([id,perk])=>{const learned=p.lessons.learned.includes(id),met=p.lessons.met.includes(id),expert=EXPERTS.find(e=>e.questions.some(q=>q.id===id));return {id,name:perk.name,effect:perk.effect,learned,met,present:p.lessons.arrived.includes(expert.id),wait:learned||!met||farm.pendingLesson([id])?0:left};});
   }
   // First-visit controls hint (flag `controls`): ends after moving and doing one job, after 15 s, or on ×.
   function startCoach(){
@@ -841,7 +1031,7 @@ export async function createFarmGame(profile, startingGift, persistence = { read
   function endCoach(){if(!coach)return;coach=null;document.body.classList.remove('farm-coach-pending');ui.coach(null);markSeen('controls');}
   document.addEventListener('click', event => {
     const canvas = event.target.closest('#game canvas');
-    if (cafeGame || lessonClose || !canvas || performance.now() < suppressClickUntil) return;
+    if (cafeGame || lessonClose || councilClose || !canvas || performance.now() < suppressClickUntil) return;
     if(decorationBuilder?.active){decorationBuilder.locate(event,canvas);return;}
     if (ui.modalOpen) {
       if (menu?.kind !== 'care') return;
@@ -851,12 +1041,19 @@ export async function createFarmGame(profile, startingGift, persistence = { read
     decorationBuilder?.stopTask();
     const workerPick=crew.pickAtScreen(event.clientX,event.clientY,canvas.getBoundingClientRect()),workerId=workerPick?.id;
     if(workerId){clearInput();cancelWork();crew.select(workerId);const w=farm.peek().workers.find(x=>x.id===workerId);menu={kind:'worker-detail',id:null,workerId,remote:true,initialFilter:w&&onPhone(w,Date.now())?'settings':undefined};renderMenu();return;}
-    if(auto)return;
+    // Auto giữ nhân vật; chạm Cổng Hội đồng vẫn mở hội thoại tại chỗ (Auto làm tiếp phía sau).
+    if(auto){world.moveToScreen(event.clientX,event.clientY,canvas.getBoundingClientRect(),id=>id==='council'?openCouncil():BUILDING_IDS.has(id)&&openBuilding(id),true);return;} // F-48: công trình cũng mở tại chỗ
     cancelWork(); world.moveToScreen(event.clientX, event.clientY, canvas.getBoundingClientRect(), (id, picked) => {
+      if(id==='council'){openCouncil();return true;} // F-45: mở tại chỗ, không đi bộ (thống nhất CT-3)
+      if(BUILDING_IDS.has(id))return openBuilding(id); // F-48: Sạp/Bảng đơn/Nhà thợ mở tại chỗ; Cửa quán đi tới rồi vào quán
       if (FIELDS.some(field => field.id === id)) {world.moveToNpc(id);world.setFocus(id);return true;}
       if(MACHINES.some(machine=>machine.id===id)){if(picked?.action==='collect'&&near(id)){noticeResult(applyAction(id,'collect',null));refresh(Date.now());return true;}pendingStationAction={id,action:picked?.action || 'select'};world.moveToNpc(id);world.setFocus(id);return true;}
       const plot = farm.progress.plots.find(item => item.id === id);
-      if(plot?.unlocked && ['plant','water','clear','fertilize','weed','prune','harvest'].includes(tool) && (!acceptsTool(plot,tool,selectedSeed,farm.level) || toolCapacity(farm.progress,tool,selectedSeed)<1)){
+      // Q5 R6 (F-46): chạm cây chín luôn là hái, dù đang cầm công cụ nào (trước đây bị từ chối); lỗi (kho đầy, thợ giữ ô) báo bằng toast của act.
+      // Bước gieo của farm-intro (Q5 R5): chạm trượt vào cây quà chín chỉ nhắc lại dòng chỉ dẫn, giữ dải giống, không hái.
+      if(intro==='plant' && plot?.unlocked && plotCare(plot).ready){ui.notice(introView.text,false);return true;}
+      if(plot?.unlocked && tool!=='auto' && plotCare(plot).ready){ui.closeSeedStrip();workQueue=[{id,action:'harvest',choice:null}];nextQueuedWork();return true;}
+      if(plot?.unlocked && ['plant','water','clear','fertilize','weed','prune','harvest'].includes(tool) && (!acceptsTool(plot,tool,selectedSeed,farm.level) || capacity(farm.progress,tool,selectedSeed)<1)){
         ui.rejectDrop(event.clientX,event.clientY,{plant:'🌱',water:'💧',clear:'⛏️',fertilize:'🪴',weed:'🌿',prune:'✂️',harvest:'🧺'}[tool]);return true;
       }
       if(plot?.unlocked && ['plant','water','clear','fertilize','weed','prune','harvest'].includes(tool) && acceptsTool(plot,tool,selectedSeed,farm.level)){
@@ -882,7 +1079,7 @@ export async function createFarmGame(profile, startingGift, persistence = { read
         showLoading(30,tr('farm.loading.openCafe'));
         const cafeCharacter=await loadPlayer(playerModel(profile.gender)).catch(error=>{console.warn('Không tải được nhân vật cho quán, dùng khối tạm.',error);return null;});
         loading(60,tr('farm.loading.buildCafe'));leaveFarm();
-        cafeGame=cafeKept=createCafeGame({farm,ui,awakening,profile,character:cafeCharacter,onExit:regionKind==='cafe'?null:exitCafe,onMenu:id=>{menu={id,kind:id==='orders'?'orders':'station',remote:true};renderMenu();}});
+        cafeGame=cafeKept=createCafeGame({farm,ui,awakening,profile,character:cafeCharacter,council:{open:openCouncil,isOpen:()=>Boolean(councilClose)},onExit:regionKind==='cafe'?null:exitCafe,onMenu:id=>{menu={id,kind:id==='orders'?'orders':'station',remote:true};renderMenu();}});
         // Lift the cover once the art is in (at most 4 s on a slow network: placeholders still work).
         loading(85,tr('farm.loading.furniture'));
         await Promise.race([cafeGame.ready,new Promise(r=>setTimeout(r,4000))]);
@@ -893,7 +1090,9 @@ export async function createFarmGame(profile, startingGift, persistence = { read
     }catch(error){console.error('Không mở được quán.',error);cafeKept?.dispose();cafeGame=cafeKept=null;ui.notice(tr('farm.notice.cafeFailed'),false);}
     finally{enteringCafe=false;hideLoading();}
   }
-  function exitCafe(){if(!cafeGame)return;closeMenu();cafeGame.leave();cafeGame=null;clearInput();world.resetCamera();refresh(Date.now());$('game').setAttribute('aria-label',tr('farm.aria.farm'));setHudLabel('html.farm.label');document.title=tr('farm.docTitle.farm');}
+  function exitCafe(){if(!cafeGame)return;closeMenu();cafeGame.leave();cafeGame=null;clearInput();standAtEntrance();world.resetCamera();refresh(Date.now());$('game').setAttribute('aria-label',tr('farm.aria.farm'));setHudLabel('html.farm.label');document.title=tr('farm.docTitle.farm');}
+  // CT-5: ra khỏi quán thì nhân vật đứng trên thảm trước Cửa quán (khi cửa đã dựng).
+  function standAtEntrance(){const door=world.getInteraction('cafe-entrance');if(!built('cafe-entrance')||!door)return;const [dx,dz]=door.approachOffsets[0];world.stopMovement();character.position.set(door.position[0]+dx,.05,door.position[1]+dz);}
   // Name the HUD region after the scene; data-i18n-attr must follow or a language switch restores the old label.
   function setHudLabel(key){const hud=$('farm-hud');hud.dataset.i18nAttr='aria-label:'+key;hud.setAttribute('aria-label',tr(key));}
   decorationBuilder=createDecorationBuilder({world,farm,player:character,ui,signal:events.signal,defaultName:tr('farm.decor.defaultName',{name:profile.name}),feedback});decorationBuilder.sync();
@@ -907,7 +1106,8 @@ export async function createFarmGame(profile, startingGift, persistence = { read
       autoTick(dt);
       if(cafeGame){crew.update(dt,Date.now(),null,true);cafeGame.update(dt,time);if(time-lastRefresh>=.5){lastRefresh=time;farm.tick(Date.now());celebrate();ui.coins(farm.peek().coins);if(menu)renderMenu();}ui.update();return;}
       crew.update(dt,Date.now(),[work?.id,pendingTool?.id,pendingPlant?.id,...workQueue.map(t=>t.id)].filter(Boolean));
-      const result = world.update(dt, time, keyboard.combine(touch), (ui.modalOpen&&!auto) || Boolean(lessonClose) || Boolean(work) || Boolean(decorationBuilder?.active)||Boolean(decorationBuilder?.working)); nearest = result.nearest;decorationBuilder?.tick(dt,result.navigationFailed,ui.modalOpen);
+      edgeScrollDrag(dt);
+      const result = world.update(dt, time, keyboard.combine(touch), (ui.modalOpen&&!auto) || Boolean(lessonClose) || (Boolean(councilClose)&&!auto) || Boolean(work) || Boolean(decorationBuilder?.active)||Boolean(decorationBuilder?.working)); nearest = result.nearest;decorationBuilder?.tick(dt,result.navigationFailed,ui.modalOpen);
       if(coach){if(!coach.moved&&character.position.distanceTo(coach.start)>1)coach.moved=true;coach.left-=dt;if((coach.moved&&coach.acted)||coach.left<=0)endCoach();}
       if(result.navigationFailed && pendingTool){if(auto)autoSkip.set(`${pendingTool.id}:${pendingTool.action}`,Date.now()+15000);world.removePlotSelection(pendingTool.id);pendingTool=null;nextQueuedWork();}
       if(result.navigationFailed&&pendingStationAction){pendingStationAction=null;world.setFocus(null);ui.notice(tr('farm.notice.stationUnreachable'),false);}
@@ -930,7 +1130,7 @@ export async function createFarmGame(profile, startingGift, persistence = { read
         work.elapsed += dt; 
         if (work.elapsed >= work.duration) {
           const task = work; work = null;playerActivity.update(null);
-          const done = near(task.id) ? applyAction(task.id, task.action, task.choice) : null;
+          const done = near(task.id) ? applyAction(task.id, task.action, task.choice, task.via) : null;
           if (done) noticeResult(done);
           if (auto && done && !done.ok) autoSkip.set(`${task.id}:${task.action}`, Date.now() + 15000);
           world.removePlotSelection(task.id);world.setFocus(null); refresh(Date.now());nextQueuedWork();
@@ -947,6 +1147,7 @@ export async function createFarmGame(profile, startingGift, persistence = { read
       }
       const rect = canvasRect ||= $('game').querySelector('canvas').getBoundingClientRect();
       const point = (promptPoint ||= character.position.clone()).copy(character.position); point.y += 2.5; point.project(world.camera);
+      if(intro&&(introTick-=dt)<=0){introTick=.1;placeIntroHand(rect);}
       ui.toolsPrompt(unlocked?.has('tools') && nearFarm && !lessonClose && !decorationBuilder?.busy && !decorationBuilder?.active && !menu && !toolsOpen && !work && !pendingTool && !pendingPlant && !pendingStationAction && point.z >= -1 && point.z <= 1, {
         x:rect.left+(point.x+1)*rect.width/2, y:rect.top+(1-point.y)*rect.height/2,
       });
@@ -955,7 +1156,7 @@ export async function createFarmGame(profile, startingGift, persistence = { read
     },
     handleKeyDown(event) {
       if(auto&&MOVE_KEYS.has(event.code)&&!event.target.closest?.('input, textarea, select'))return;
-      if (event.target.closest('input, textarea, select') || lessonClose) return; // the re-ask dialogue handles its own keys
+      if (event.target.closest('input, textarea, select') || lessonClose || councilClose) return; // the re-ask / Council dialogue handles its own keys
       if(decorationBuilder?.active&&!ui.modalOpen){decorationBuilder.key(event);return;}
       if (ui.handleModalKey(event)) return;
       if(cafeGame){cafeGame.handleKeyDown(event);return;}
@@ -973,7 +1174,7 @@ export async function createFarmGame(profile, startingGift, persistence = { read
       freshLessons = 0;
       if (!coach && !seen('controls')) startCoach();
     },
-    dispose() { detachAnalytics(); awakening.dispose(); stopAuto(); autoHud.dispose(); delete window.__forceIncident; delete window.__incidentOdds; lessonClose?.();document.body.classList.remove('farm-coach-pending'); cafeKept?.dispose();decorationBuilder?.dispose();vfx.dispose();crew.dispose();playerActivity.dispose();farm.flush(); clearInput(); events.abort(); ui.dispose(); world.dispose(); $('heaven-controls').hidden = true; },
+    dispose() { councilClose?.(); detachAnalytics(); awakening.dispose(); memoryUi.dispose(); stopAuto(); autoHud.dispose(); delete window.__forceIncident; delete window.__incidentOdds; lessonClose?.();offCouncil();clearTimeout(councilTimer);clearTimeout(arrivedTimer);clearTimeout(panTimer);clearTimeout(navTimer);document.body.classList.remove('farm-coach-pending'); cafeKept?.dispose();decorationBuilder?.dispose();vfx.dispose();crew.dispose();playerActivity.dispose();farm.flush(); clearInput(); events.abort(); ui.dispose(); world.dispose(); $('heaven-controls').hidden = true; },
   };
   } catch (error) { events.abort(); world.dispose(); throw error; }
 }

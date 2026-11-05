@@ -101,6 +101,11 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
   // Until the café intro is done: at most LEARN_GUESTS guests at once, walk-outs cost no reputation, a missed shift goal costs nothing.
   const LEARN_GUESTS = 2;
   const learning = () => { const p = farm.peek(); return !p.tutorial.seen.includes('cafe-intro') || !p.stats.served; };
+  // F-47 (Q7): ca tập = chưa có 'cafe-intro'. Tự mở khi có lô chè rang ≥ liều V60; khoá mọi điểm Mở/Đóng tới khi bán ly đầu.
+  const V60 = RECIPES.find(r => r.id === 'v60');
+  const training = () => !farm.peek().tutorial.seen.includes('cafe-intro');
+  const trainingBeans = () => (snap.cafe.stock.roasted[V60.bean] || 0) >= V60.beans && !lockReason(V60, snap.cafe);
+  let autoOpened = false; // cờ phiên: tự mở ca tập đúng một lần
   let orderedAt = 0;
   const indoorCount = () => assetValue(ASSETS.find(a => a.id === 'cafe'), snap.upgrades.cafe);
   const isOpen = table => table < INDOOR_TABLES ? table < indoorCount() : table < TABLES.length && gear('terrace') > 0;
@@ -184,10 +189,9 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
     // Prefer an empty table so strangers do not share while space remains.
     return seats.find(s => !customers.some(c => c.seat?.table === s.table)) || seats[0] || null;
   }
-  let ordersPlaced = 0;
   function pickRecipe() {
-    // F-40: the very first order of a save that never sold a cup is the Pour-over V60.
-    const first = !ordersPlaced++ && !snap.stats?.served && RECIPES.find(r => r.id === 'v60' && !lockReason(r, snap.cafe));
+    // F-40 (sửa 05/11/2026, F-47 Q7 R2b): mọi order trước ly đầu của save là Pour-over V60, kể cả khách thay khách bỏ về.
+    const first = !snap.stats?.served && !lockReason(V60, snap.cafe) && V60;
     if (first) return first;
     const menu = RECIPES.filter(r => !lockReason(r, snap.cafe));
     // The shift's special is ordered three times as often.
@@ -500,7 +504,16 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
   // ---- Shifts: a timed goal with a special drink keeps every opening short and rewarding ----
   function startShift(now) {
     const menu = RECIPES.filter(r => !lockReason(r, snap.cafe));
-    shift = { startedAt: now, endsAt: now + SHIFT_MS, goal: shiftGoal(cafeRank(snap.cafe.reputation), helpers().H), served: 0, stars: 0, own: 0, ownStars: 0, revenue: 0, byRecipe: {}, waitS: 0, waitN: 0, lost: 0, angry: 0, rude: 0, robotWalked: 0, costs0: snap.cafe.costs || 0, gift: false, misses: {}, special: menu[Math.floor(Math.random() * menu.length)].id, learning: learning() };
+    const train = training();
+    // Ca tập: không giờ hết, không mốc; kết thúc ngay khi bán ly đầu (update).
+    shift = { training: train, startedAt: now, endsAt: train ? Infinity : now + SHIFT_MS, goal: shiftGoal(cafeRank(snap.cafe.reputation), helpers().H), served: 0, stars: 0, own: 0, ownStars: 0, revenue: 0, byRecipe: {}, waitS: 0, waitN: 0, lost: 0, angry: 0, rude: 0, robotWalked: 0, costs0: snap.cafe.costs || 0, gift: false, misses: {}, special: menu[Math.floor(Math.random() * menu.length)].id, learning: learning() };
+    if (train && !customers.some(c => !['drinking', 'leaving'].includes(c.phase))) guestAtRegister();
+  }
+  // Q7 R2: khách ca tập đứng sẵn ở đầu hàng quầy thu ngân, không đi bộ từ cổng, không qua kiosk.
+  function guestAtRegister() {
+    const spot = registerFront(0);
+    customers.push({ id: ++seq, color: COLORS[seq % COLORS.length], phase: 'queue', inLine: true, pos: { ...spot }, path: [],
+      recipeId: null, seat: null, kiosk: null, patience: PATIENCE.queue * learner(), patienceMax: PATIENCE.queue * learner(), mood: null, timer: 0, facing: Math.PI });
   }
   function waste(drink, quiet = false) {
     if (shift) shift.wasted = (shift.wasted || 0) + 1;
@@ -520,12 +533,20 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
     const unserved = customers.filter(c => !['drinking', 'leaving'].includes(c.phase));
     for (const c of unserved) leave(c, '👋');
     // Same met rule as the model's 'shift' action; a learning shift that misses skips the action so it gets no −1.
+    // `learning` báo cho model biết ca tập: ca tập không là mốc có mặt của Thần Thương Hội (F-45, contracts.md).
     const missed = shiftMissed(done, avg);
-    const result = done.learning && missed ? { met: false, message: S('learnShiftMiss') } : act('shift', { served: done.served, goal: done.goal, avg: avg ?? 2, lost: done.lost + unserved.length, revenue: Math.round(done.revenue), costs: Math.round(Math.max(0, farm.peek().cafe.costs - done.costs0)), avgWait: done.waitN ? done.waitS / done.waitN : 0, ...shiftMenu(), staffN: done.staffN || 0, tiredN: done.tiredN || 0, staffStars: done.staffN ? done.staffStars / done.staffN : 0, staffSecs: done.staffN ? done.staffSecs / done.staffN : 0 });
+    // Ca tập (F-47): báo cáo tích cực, không mốc, không ghi shiftLog, không phát shift_ended.
+    const result = done.training ? { met: true, message: S('trainingDone') } : done.learning && missed ? { met: false, message: S('learnShiftMiss') } : act('shift', { learning: done.learning === true, served: done.served, goal: done.goal, avg: avg ?? 2, lost: done.lost + unserved.length, revenue: Math.round(done.revenue), costs: Math.round(Math.max(0, farm.peek().cafe.costs - done.costs0)), avgWait: done.waitN ? done.waitS / done.waitN : 0, ...shiftMenu(), staffN: done.staffN || 0, tiredN: done.tiredN || 0, staffStars: done.staffN ? done.staffStars / done.staffN : 0, staffSecs: done.staffN ? done.staffSecs / done.staffN : 0 });
     fx('shift', { met: Boolean(result.met) });
     const robot = done.gift ? giftReport(done) : null;
     onShiftEnd({ ...done, avg, unserved: unserved.length, bonus: result.bonus || 0, met: Boolean(result.met), tier: result.tier || 0, rep: result.rep ?? 0, message: result.message, robot });
     if (robot) act('giftReport');
+  }
+  function openDoor() {
+    const result = act('toggle');
+    // syncAgents first so the new shift's goal counts the baristas who start working now.
+    if (result.ok) { fx('door', { open: snap.cafe.open }); if (snap.cafe.open) { syncAgents(); startShift(Date.now()); } else endShift(); }
+    return result;
   }
   // "Your cups vs robot cups" block for a shift the robot trial ran in (robot-staff.md 5, "Hết gói"). Tally totals are the whole trial so far.
   function giftReport(done) {
@@ -556,20 +577,36 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
     isClaimed: key => claims.has(key),
     guestsAt: table => customers.filter(c => c.seat?.table === table),
     staffOn: role => [...agents.values()].some(a => a.role === role && a.active),
+    get training() { return training(); },
+    trainingBeans,
+    // Van an toàn ca tập: quán đóng, không có chè rang ≥ liều V60 (save cũ, nơi chỉ quán hết lô starter) thì 🚪 mở ca thường.
+    get trainingValve() { return training() && !snap.cafe.open && !shift && !trainingBeans(); },
+    trainingHint: () => S('trainingBeans', { g: V60.beans, bean: CROPS.find(c => c.id === V60.bean).name }),
+    // Ca tập khoá nút 🚪, cửa 3D và open-cafe (Q7 R4) khi đang mở; đóng mà đủ chè thì mở lại ca tập.
     toggleOpen() {
-      const result = act('toggle');
-      // syncAgents first so the new shift's goal counts the baristas who start working now.
-      if (result.ok) { fx('door', { open: snap.cafe.open }); if (snap.cafe.open) { syncAgents(); startShift(Date.now()); } else endShift(); }
-      return result;
+      if (training()) {
+        if (snap.cafe.open || shift) return { ok: false, message: S('trainingDoor') };
+        if (trainingBeans()) { autoOpened = true; return openDoor(); }
+        // Không có nguồn chè: bỏ ca tập (ghi 'cafe-intro'), mở ca thường như trước F-47 để quán không kẹt mãi.
+        farm.act('tutorial', 'seen', 'cafe-intro'); refresh();
+        const result = openDoor();
+        if (result.ok) notice(S('trainingSkip', { bean: CROPS.find(c => c.id === V60.bean).name }));
+        return result;
+      }
+      return openDoor();
     },
     update(dt, now, player = null) {
       syncAgents();
+      // Q7 R1: ca tập tự mở một lần khi đủ chè; đúng đường mở thường (fx cửa, syncAgents, startShift).
+      if (!autoOpened && training() && !snap.cafe.open && !shift && trainingBeans()) { autoOpened = true; openDoor(); }
       if (snap.cafe.open && !shift) startShift(now);
-      if (shift && now >= shift.endsAt) {
+      if (shift && (now >= shift.endsAt || shift.training && shift.served >= 1)) {
+        if (shift.training) farm.act('tutorial', 'seen', 'cafe-intro');
         if (snap.cafe.open) act('toggle');
         endShift();
       }
-      const learnFull = () => learning() && customers.filter(c => !['drinking', 'leaving'].includes(c.phase)).length >= LEARN_GUESTS;
+      // Ca tập chỉ 1 khách chưa phục vụ; trước đó (cafe-intro chưa có nhưng không phải ca tập) tối đa LEARN_GUESTS.
+      const learnFull = () => learning() && customers.filter(c => !['drinking', 'leaving'].includes(c.phase)).length >= (shift?.training ? 1 : LEARN_GUESTS);
       if (snap.cafe.open && (spawnIn -= dt) <= 0 && learnFull()) spawnIn = 2; // retry in 2 s; nobody is turned away while learning
       else if (snap.cafe.open && spawnIn <= 0) {
         const rep = snap.cafe.reputation;
@@ -583,7 +620,7 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
         if (c.phase === 'enter' && !c.path.length) {
           // At the lobby a guest uses a free kiosk if the cafe has one, otherwise joins the counter line.
           const used = customers.filter(o => o.kiosk !== null).map(o => o.kiosk);
-          const k = [...Array(kiosksOwned).keys()].find(i => !used.includes(i));
+          const k = shift?.training ? undefined : [...Array(kiosksOwned).keys()].find(i => !used.includes(i));
           if (k !== undefined) { c.phase = 'kiosk'; c.kiosk = k; c.timer = 4; walk(c, kioskFront(k)); }
           else { c.phase = 'queue'; c.inLine = true; queue.push(c); }
         }
@@ -623,10 +660,11 @@ export function createCafeService(farm, { notice, reward, route = (from, to) => 
       if (r.ok) orderedAt = Date.now();
     },
     // Standing at the register: take the next order / hand over a take-away cup as soon as a customer reaches the front, no re-tap.
-    autoRegister() {
+    // take = false: chỉ trao ly mang đi, không nhận order (Auto trong ca tập, Q7 R9).
+    autoRegister(take = true) {
       const c = hand && customers.find(c => !c.seat && wants(hand)(c));
       if (c) { if (serve(c, hand)) hand = null; return true; }
-      if (!line().some(atFront)) return false;
+      if (!take || !line().some(atFront)) return false;
       const r = takeOrder(); if (r.ok) { notice(r.message, true); orderedAt = Date.now(); } return r.ok;
     },
     arrivePickup() {

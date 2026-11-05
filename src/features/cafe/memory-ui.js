@@ -2,6 +2,7 @@
 // Own <dialog> (stacks above the bench dialog, so closing it returns to the cup result). Scientist mode is a later unlock: only Quick/Journal here.
 import { CROPS } from '../farm/content.js';
 import { recipeById } from './recipes.js';
+import { VARIABLES } from '../awakening/rules.js';
 import { experimentDiff, coffeeDna } from '../awakening/unlocks.js';
 import * as Memory from '../../state/memory.js';
 import { t, formatNumber, numberLocale } from '../../i18n/index.js';
@@ -40,10 +41,12 @@ function varValue(entry, key) {
   return v === undefined || v === null || v === '' ? '—' : String(v);
 }
 
-export function createMemoryUI({ notice = () => {}, awakening = null } = {}) {
-  const dialog = el('dialog', 'ui-modal ui-modal__window'); dialog.id = 'memory-dialog'; dialog.setAttribute('aria-labelledby', 'memory-title');
+// realOnly: the Guide's notebook in the farm (coffee-memory.md §3): only cups outside the game, no game-cup drafts, no Questions/Keys tab (the Guide has them).
+export function createMemoryUI({ notice = () => {}, awakening = null, realOnly = false } = {}) {
+  const home = realOnly ? 'history' : 'log';
+  const dialog = el('dialog', 'ui-modal ui-modal__window'); dialog.id = realOnly ? 'memory-dialog-guide' : 'memory-dialog'; dialog.setAttribute('aria-labelledby', realOnly ? 'memory-title-guide' : 'memory-title');
   const header = el('header'), title = el('h2'), tabs = el('div', 'cafe-tabs'), body = el('div', 'cafe-dialog-body mem-body');
-  title.id = 'memory-title'; title.append(el('span', '', '📓'), t('memory.title')); tabs.setAttribute('role', 'tablist');
+  title.id = realOnly ? 'memory-title-guide' : 'memory-title'; title.append(el('span', '', '📓'), t('memory.title')); tabs.setAttribute('role', 'tablist');
   const closeButton = button('×', () => dialog.close(), 'cafe-close'); closeButton.setAttribute('aria-label', t('cafe.close'));
   header.append(title, closeButton); dialog.append(header, tabs, body); document.body.append(dialog);
   dialog.addEventListener('close', () => { body.replaceChildren(); s = {}; });
@@ -55,13 +58,13 @@ export function createMemoryUI({ notice = () => {}, awakening = null } = {}) {
     body.replaceChildren(); tabs.replaceChildren();
     const main = ['log', 'history', 'quest'].includes(s.view), onTabs = main || (s.view === 'taste' && s.fresh);
     tabs.hidden = !onTabs;
-    if (onTabs) for (const id of ['log', 'history', 'real', ...(awakening ? ['quest'] : [])]) {
+    if (onTabs) for (const id of realOnly ? ['history', 'real'] : ['log', 'history', 'real', ...(awakening ? ['quest'] : [])]) {
       const tab = button(id === 'quest' ? t('awakening.tab.quest') + (awakening.hasNew() ? ' ●' : '') : t(`memory.tab.${id}`), () => { if (id === 'real') startReal(); else go(id, { picks: [], fresh: false }); });
       tab.setAttribute('role', 'tab'); tab.setAttribute('aria-selected', String(main ? id === s.view : id === 'real')); tabs.append(tab);
     }
     ({ log: viewLog, history: viewHistory, taste: viewTaste, after: viewAfter, compare: viewCompare, quest: viewQuest })[s.view]();
   }
-  const back = () => body.append(button(t('memory.back'), () => go(s.back || 'log'), 'cafe-link'));
+  const back = () => body.append(button(t('memory.back'), () => go(s.back || home), 'cafe-link'));
   const emptyForm = () => ({ taste: Object.fromEntries([...Memory.TASTE_KEYS, 'liking'].map(k => [k, 0])), notes: '', bean: {}, actual: {}, method: '', ...Object.fromEntries(SCI_GROUPS.map(g => [g, {}])) });
   const sci = () => Boolean(awakening?.hasKey?.('curiosity'));
   const curMode = () => { const m = Memory.getMode(); return m === 'scientist' && !sci() ? 'journal' : m; }; // a kept notebook without the Key falls back
@@ -84,16 +87,18 @@ export function createMemoryUI({ notice = () => {}, awakening = null } = {}) {
     }
   }
 
-  function startTaste(entry) { go('taste', { entry, form: formOf(entry), fresh: false, back: s.view === 'history' ? 'history' : 'log' }); }
+  function startTaste(entry) { go('taste', { entry, form: formOf(entry), fresh: false, back: s.view === 'history' ? 'history' : home }); }
   // "Ly ngoài đời": blank form, or prefilled from the last real cup.
   function startReal(prefill = null) {
     const f = emptyForm(); f.kind = 'real'; f.recipeId = 'custom';
     if (prefill) { f.method = prefill.method; f.bean = { ...prefill.bean }; f.actual = { ...prefill.actual }; for (const g of SCI_GROUPS) f[g] = { ...prefill[g] }; }
-    go('taste', { entry: null, form: f, fresh: true, back: 'history' });
+    go('taste', { entry: null, form: f, fresh: true, back: 'history', expBase: null, expVar: null });
   }
 
   // ---- Quick Taste form (also Journal details). Past entries and scores are never shown here (independent tasting). ----
   let inputs = [], onChange = () => {};
+  // Experiment lock: with a baseline and one chosen variable, every other recipe (actual) field is read-only at the baseline value.
+  const locked = (group, key) => Boolean(curMode() === 'scientist' && s.expBase && s.expVar && s.fresh && group === 'actual' && key !== s.expVar);
   function field(group, key, type = 'text', labelKey = null) {
     const f = s.form, label = el('label', 'mem-field'), input = el('input');
     if (group === 'personal') { input.min = 1; input.max = 5; }
@@ -101,6 +106,7 @@ export function createMemoryUI({ notice = () => {}, awakening = null } = {}) {
     inputs.push({ group, key, label });
     input.type = type; input.value = (group ? f[group][key] : f[key]) ?? ''; input.maxLength = 80;
     if (NUMERIC.has(key)) input.inputMode = 'decimal';
+    if (locked(group, key)) { input.disabled = true; label.classList.add('mem-locked'); }
     input.addEventListener('input', () => { if (group) f[group][key] = input.value; else f[key] = input.value; onChange(); });
     label.append(el('span', '', t(labelKey || `memory.var.${group ? `${group}.${key}` : key}`)), input); return label;
   }
@@ -152,11 +158,27 @@ export function createMemoryUI({ notice = () => {}, awakening = null } = {}) {
     input.addEventListener('change', () => { f[group][key] = input.checked; });
     label.append(input, el('span', '', t(`memory.var.${group}.${key}`))); return label;
   }
+  // "Bộ dụng cụ của tôi": save the gear typed in the form / fill it back (equipment + water, milk, brand; other fields untouched).
+  function kitBar() {
+    const f = s.form, row = el('div', 'cafe-actions'), kit = Memory.getKit();
+    row.append(button(t('memory.kit.save'), () => {
+      if (!Memory.KIT_FIELDS.equipment.some(k => String(f.equipment?.[k] ?? '').trim()) && !Memory.KIT_FIELDS.ingredients.some(k => String(f.ingredients?.[k] ?? '').trim())) { notice(t('memory.kit.empty'), false); return; }
+      const ok = Memory.setKit({ equipment: f.equipment, ingredients: Object.fromEntries(Memory.KIT_FIELDS.ingredients.map(k => [k, f.ingredients[k]])) });
+      notice(t(ok ? 'memory.kit.saved' : 'memory.err.failed'), ok); render();
+    }, 'cafe-link'));
+    const fill = button(t('memory.kit.fill'), () => {
+      const k = Memory.getKit(); if (!k) return;
+      f.equipment = { ...f.equipment, ...k.equipment }; f.ingredients = { ...f.ingredients, ...k.ingredients }; render();
+    }, 'cafe-link');
+    fill.disabled = !kit; if (!kit) fill.title = t('memory.kit.none');
+    row.append(fill); return row;
+  }
   function sciBlock(real) {
     const out = [el('p', 'cafe-note', t('memory.sci.hint'))];
     const sect = (g, nodes, note) => { out.push(el('h4', 'cafe-subhead', t(`memory.sci.g.${g}`)), ...nodes); if (note) out.push(el('small', 'cafe-note', note)); };
     if (real) sect('intended', REAL.map(k => field('intended', k, 'text', `memory.var.actual.${k}`)));
     sect('equipment', SCI.equipment.map(k => field('equipment', k)), t('memory.tip.equipment'));
+    if (real) out.push(kitBar());
     sect('preparation', SCI.preparation.map(k => check('preparation', k)), t('memory.tip.rdt'));
     sect('ingredients', SCI.ingredients.map(k => field('ingredients', k)), t('memory.tip.tds'));
     sect('environment', SCI.environment.map(k => field('environment', k)));
@@ -176,11 +198,21 @@ export function createMemoryUI({ notice = () => {}, awakening = null } = {}) {
       status.className = diff.length > 1 ? 'ui-alert ui-alert--warn' : 'cafe-note';
     };
     onChange = refresh;
+    if (s.expBase) { // lock: choose the ONE recipe variable to change; the other recipe fields stay at the baseline (disabled)
+      const pick = el('div', 'mem-chips mem-chips--wrap'); pick.setAttribute('role', 'radiogroup'); pick.setAttribute('aria-label', t('memory.exp.pick'));
+      const choose = v => {
+        s.expVar = v;
+        if (v) for (const k of REAL) if (k !== v) f.actual[k] = s.expBase.actual?.[k] ?? '';
+        render();
+      };
+      for (const v of [...VARIABLES, null]) { const c = button(v ? t(`memory.var.actual.${v}`) : t('memory.exp.free'), () => choose(v), 'mem-chip'); c.setAttribute('role', 'radio'); c.setAttribute('aria-checked', String((s.expVar || null) === v)); pick.append(c); }
+      wrap.append(el('small', 'cafe-note', s.expVar ? t('memory.exp.locked', { var: t(`memory.var.actual.${s.expVar}`) }) : t('memory.exp.pickHint')), pick);
+    }
     box.addEventListener('change', () => {
-      if (!box.checked) { s.expBase = null; render(); return; }
+      if (!box.checked) { s.expBase = null; s.expVar = null; render(); return; }
       const base = Memory.lastReal();
       if (!base) { box.checked = false; status.textContent = t('memory.exp.none'); return; }
-      s.expBase = base; f.method = base.method; f.bean = { ...base.bean }; f.actual = { ...base.actual }; for (const g of SCI_GROUPS) f[g] = { ...base[g] };
+      s.expBase = base; s.expVar = null; f.method = base.method; f.bean = { ...base.bean }; f.actual = { ...base.actual }; for (const g of SCI_GROUPS) f[g] = { ...base[g] };
       render();
     });
     refresh();
@@ -206,7 +238,7 @@ export function createMemoryUI({ notice = () => {}, awakening = null } = {}) {
 
   // ---- After the taste is locked: suggested comparison (history now visible) and the 3-field Insight. ----
   function viewAfter() {
-    const entry = s.entry, other = Memory.suggestCompare(entry);
+    const entry = s.entry, other = realOnly ? Memory.list({ drafts: false, kind: 'real' }).find(e => e.id !== entry.id && (e.recipeId === entry.recipeId || e.method === entry.method) && e.taste) || null : Memory.suggestCompare(entry);
     body.append(el('p', 'ui-alert', t('memory.after.done')));
     if (other) {
       body.append(el('p', 'cafe-lead', t('memory.after.suggest', { drink: drinkName(other), time: when(other.createdAt) })));
@@ -239,7 +271,7 @@ export function createMemoryUI({ notice = () => {}, awakening = null } = {}) {
   }
   // ---- History: pick 2 cups to compare, or edit one. ----
   function viewHistory() {
-    const entries = Memory.list({ drafts: false }), picks = s.picks || [];
+    const entries = Memory.list(realOnly ? { drafts: false, kind: 'real' } : { drafts: false }), picks = s.picks || [];
     body.append(el('p', 'cafe-note', t('memory.history.pick')));
     if (!entries.length) body.append(el('p', 'cafe-lead', t('memory.history.empty')));
     else if (awakening?.hasKey?.('connection')) body.append(dnaBlock(entries));
@@ -277,10 +309,11 @@ export function createMemoryUI({ notice = () => {}, awakening = null } = {}) {
   return {
     get isOpen() { return dialog.open; },
     // entryId: jump straight into the taste form for that draft (from the cup result); otherwise the tab (default Ghi sổ).
-    open({ entryId = null, tab = 'log' } = {}) {
+    open({ entryId = null, tab = home } = {}) {
       s = {};
       const entry = entryId && Memory.get(entryId);
-      if (entry) go('taste', { entry, form: formOf(entry), back: 'log', fresh: false });
+      if (realOnly && tab === 'log') tab = 'history';
+      if (entry && !(realOnly && entry.kind !== 'real')) go('taste', { entry, form: formOf(entry), back: home, fresh: false });
       else if (tab === 'real') startReal(); else go(tab, { picks: [] });
       if (!dialog.open) dialog.showModal();
     },
