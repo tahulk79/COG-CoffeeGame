@@ -29,7 +29,7 @@ import { createCinematics } from './cinematics.js';
 import { createInput } from './input.js';
 import { groundPoint, unionRect, fmtTimer, clamp } from './util.js';
 
-const SKY = 0xbfe6f5;
+const SKY = 0xb4e2f7; // fog uses the same color so the horizon melts into the sky
 const TREE_PARTS = { tree: 'farm/coffee-tree.glb#tree', fruitGreen: 'farm/coffee-tree.glb#fruit_green', fruitRipe: 'farm/coffee-tree.glb#fruit_ripe' };
 const GATE_PARTS = { gateFrame: 'heaven/portal.glb#portal_frame', gateLeft: 'heaven/portal.glb#portal_left_leaf', gateRight: 'heaven/portal.glb#portal_right_leaf' };
 const EXTRA_MODELS = ['cafe/espresso-machine.glb#machine', 'cafe/table.glb#chairs_pair', 'cafe/props.glb#cup'];
@@ -51,9 +51,10 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   scene.background = new THREE.Color(SKY);
   scene.fog = new THREE.Fog(SKY, 60, 160);
 
-  // ---------- lights: hemisphere + one tight shadow-casting sun that follows the camera target ----------
-  const hemi = new THREE.HemisphereLight(0xfff4dc, 0x6d8f4a, 1.5);
-  const sun = new THREE.DirectionalLight(0xfff0d2, 2.3);
+  // ---------- lights: soft sky/ground hemisphere + one warm shadow-casting key light that follows the camera target ----------
+  // (renderer tone mapping / exposure are owned by the app; the brighter look comes from light intensity only)
+  const hemi = new THREE.HemisphereLight(0xdcefff, 0x9c8a55, 1.75);
+  const sun = new THREE.DirectionalLight(0xffe3b8, 2.85);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.bias = -.0004;
@@ -418,8 +419,8 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       sc.left = sc.bottom = -half; sc.right = sc.top = half;
       sc.updateProjectionMatrix();
     }
-    scene.fog.near = cam.cur.dist * 1.6;
-    scene.fog.far = cam.cur.dist * 4 + 40;
+    scene.fog.near = cam.cur.dist * 1.7;
+    scene.fog.far = cam.cur.dist * 3.6 + 45;
     vfx.update(dt);
   }
 

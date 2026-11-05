@@ -37,5 +37,5 @@ export const regionId = id => REGIONS.some(region => region.id === id) ? id : DE
 export const regionById = id => REGIONS.find(region => region.id === regionId(id));
 export const regionType = id => regionById(id).type;
 export const TYPE_ICON = { both: '🌱☕', farm: '🌱', cafe: '☕' };
-// Màu loại dùng chung cho cờ 3D, nhãn, chú giải và thẻ (world-map.css có bản CSS cùng giá trị).
+// Màu loại dùng chung cho cờ 3D, nhãn, chú giải và thẻ.
 export const TYPE_COLOR = { both: '#e0a93a', farm: '#5f9a3c', cafe: '#b5523a' };

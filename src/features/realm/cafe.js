@@ -13,6 +13,9 @@ import { makeCanvasSprite, drawEmoji, dampK } from './util.js';
 
 const SPEED = 2.4;
 const SHIRTS = ['#e0794f', '#4f8fd0', '#6aa85a', '#c45a8a', '#e3b13e', '#7a6bc4'];
+// The guest GLB textures are pale beige/olive, so every guest read as the same grey figure. Once dressed, each walker
+// gets its own material clone tinted with a pastel (per look) and brightened a little; the texture stays shared.
+const TINTS = ['#ffc9b0', '#bcd6ff', '#c8efb4', '#ffc4df', '#ffe49a', '#d6c8ff', '#a8ece4', '#ffd6a0'].map(h => new THREE.Color(h).multiplyScalar(1.12));
 const PICKUP_DX = [0, .9, -.9];
 const RING_STEPS = 48; // bubble redraws only when the patience ring moves a step
 
@@ -53,7 +56,19 @@ export function createCafe({ scene, vfx, dispatch }) {
     bubble.sprite.position.y = 2.55;
     person.add(bubble.sprite);
     group.add(person);
-    return { id: order.id, person, bubble, icon: DRINKS[order.drink]?.icon || '☕', stage: '', ringStep: -1, path: [], phase: Math.random() * 6, faceYaw: Math.PI, leftSent: false, mood: '', bounce: 0 };
+    return { id: order.id, person, bubble, icon: DRINKS[order.drink]?.icon || '☕', stage: '', ringStep: -1, path: [], phase: Math.random() * 6, faceYaw: Math.PI, leftSent: false, mood: '', bounce: 0, tint: TINTS[look % TINTS.length], tinted: false };
+  }
+
+  // dressPerson loads asynchronously: tint on the first frame the rig is attached (textured meshes only).
+  function tint(w) {
+    w.tinted = true;
+    w.person.traverse(o => {
+      if (!o.isMesh || !o.material || Array.isArray(o.material) || !o.material.map) return;
+      const m = o.material.clone();
+      m.userData = {}; // the shared source is marked keep; this clone is per walker and disposed with it (texture stays kept)
+      m.color.copy(w.tint);
+      o.material = m;
+    });
   }
 
   function setPath(w, tx, tz) {
@@ -125,6 +140,7 @@ export function createCafe({ scene, vfx, dispatch }) {
   }
 
   function step(w, dt, speed) {
+    if (!w.tinted && w.person.userData.dressed) tint(w);
     const p = w.person.position;
     const legs = w.person.userData.legs;
     if (!w.path.length) return true;

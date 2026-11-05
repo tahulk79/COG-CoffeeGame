@@ -84,7 +84,7 @@ const handlers = {
     ev.push({ type: 'regionEntered', regionId });
   },
   'country/unlock'(s, { countryId }, ev) {
-    const c = COUNTRIES[countryId];
+    const c = D.own(COUNTRIES, countryId);
     if (!c) return fail('unknown');
     if (s.world.countries[countryId]?.unlocked) return { noop: true };
     if (s.player.round < c.round) return fail('round');
@@ -111,7 +111,7 @@ const handlers = {
   },
   'farm/harvest'(s, { plotId }, ev, ctx) {
     const r = D.region(s);
-    if (!r || !r.plots[plotId]) return fail('empty');
+    if (!r || !D.own(r.plots, plotId)) return fail('empty');
     const st = D.plotState(s, plotId, ctx.now);
     if (st.stage !== 'ready') return fail('notReady', { remainingMs: st.remainingMs });
     const cap = D.capacity(s);
@@ -332,9 +332,11 @@ const handlers = {
   // ---------- dev / QA (test profile only) ----------
   'dev/grant'(s, { coins = 0, xp = 0, beans = 0 }, ev, ctx) {
     if (!ctx.dev) return fail('forbidden');
-    if (coins) earn(s, coins);
+    const fin = v => (Number.isFinite(Number(v)) ? Number(v) : 0);
+    coins = fin(coins); xp = fin(xp);
+    if (coins > 0) earn(s, coins);
     if (beans) s.inventory.beans += beans | 0;
-    if (xp) grantXp(s, xp / D.xpMultiplier(s), ev);
+    if (xp > 0) grantXp(s, xp / D.xpMultiplier(s), ev);
   },
   'dev/ripen'(s, _p, ev, ctx) {
     if (!ctx.dev) return fail('forbidden');

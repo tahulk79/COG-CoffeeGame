@@ -3,6 +3,9 @@ import { BUILDINGS, CROPS, CROP_ORDER, DRINKS, DRINK_ORDER, STAFF, STAFF_SLOTS, 
 import { PARCELS, ROADS, RESERVED, plotsOf, rectsOverlap, inRect } from './config/layout.js';
 import { COUNTRIES, REGION_ROUND, parseRegionId, regionIdOf, REGIONS_PER_COUNTRY, COUNTRY_ORDER } from './config/world.js';
 
+// Own-property lookup: ids come from payloads, so 'toString' / '__proto__' must not resolve to Object.prototype.
+export const own = (table, id) => (table && typeof id === 'string' && Object.hasOwn(table, id) ? table[id] : undefined);
+
 export const level = s => levelForXp(s.player.xp);
 export const levelProgress = s => {
   const l = level(s), a = xpForLevel(l), b = xpForLevel(l + 1);
@@ -33,18 +36,18 @@ export const queueCap = s => (effect(s, 'orderCounter', 'queue') || 2) + effectS
 export const arrivalMs = s => Math.round((effect(s, 'orderCounter', 'arrivalSeconds') || 9) * 1000 / (1 + effect(s, 'kiosk', 'arrivalBonus')));
 export const xpMultiplier = s => 1 + blessing(s, 'xp');
 
-export const cropUnlocked = (s, cropId) => !!CROPS[cropId] && level(s) >= CROPS[cropId].level && s.player.round >= CROPS[cropId].round;
+export const cropUnlocked = (s, cropId) => !!own(CROPS, cropId) && level(s) >= CROPS[cropId].level && s.player.round >= CROPS[cropId].round;
 export const unlockedCrops = s => CROP_ORDER.filter(id => cropUnlocked(s, id));
-export const drinkUnlocked = (s, drinkId) => !!DRINKS[drinkId] && level(s) >= DRINKS[drinkId].level && buildingLevel(s, 'roaster') >= DRINKS[drinkId].roaster;
+export const drinkUnlocked = (s, drinkId) => !!own(DRINKS, drinkId) && level(s) >= DRINKS[drinkId].level && buildingLevel(s, 'roaster') >= DRINKS[drinkId].roaster;
 export const unlockedDrinks = s => DRINK_ORDER.filter(id => drinkUnlocked(s, id));
 
 export const ownsParcel = (s, parcelId) => !!region(s)?.parcels.includes(parcelId);
-export const roadOpen = (s, roadId) => !!(ROADS[roadId]?.open || region(s)?.roads.includes(roadId));
+export const roadOpen = (s, roadId) => !!(own(ROADS, roadId)?.open || region(s)?.roads.includes(roadId));
 export const ownedPlots = s => (region(s)?.parcels || []).flatMap(plotsOf);
 
 export function plotState(s, plotId, now) {
   const r = region(s);
-  const p = r?.plots[plotId];
+  const p = r ? own(r.plots, plotId) : undefined;
   if (!p) return { stage: 'empty' };
   const total = growMs(s, p.crop), elapsed = Math.max(0, now - p.plantedAt);
   const ratio = Math.min(1, elapsed / total);
@@ -79,7 +82,7 @@ export function snapPosition(type, x, z, rot = 0) {
 const PARCEL_FOR_ZONE = { farm: ['build'], shop: ['shop'], any: ['build', 'shop'] };
 // Returns null when placement is valid, else an error code.
 export function placementError(s, type, x, z, rot = 0, ignoreUid = null) {
-  const def = BUILDINGS[type];
+  const def = own(BUILDINGS, type);
   const r = region(s);
   if (!def || !r) return 'unknown';
   const fp = footprint(type, x, z, rot);
@@ -97,7 +100,7 @@ export function placementError(s, type, x, z, rot = 0, ignoreUid = null) {
 
 export const MAX_INSTANCES = { tables: 4, flowers: 12, plant: 12, lamp: 12 };
 export function buildError(s, type) {
-  const def = BUILDINGS[type];
+  const def = own(BUILDINGS, type);
   if (!def || def.starter) return 'unknown';
   if (s.player.round < def.round) return 'round';
   if (level(s) < def.level) return 'level';
@@ -122,7 +125,7 @@ export function upgradeError(s, b) {
 }
 
 export function parcelError(s, parcelId) {
-  const p = PARCELS[parcelId];
+  const p = own(PARCELS, parcelId);
   const r = region(s);
   if (!p || !r) return 'unknown';
   if (r.parcels.includes(parcelId)) return 'owned';
@@ -132,7 +135,7 @@ export function parcelError(s, parcelId) {
   return null;
 }
 export function roadError(s, roadId) {
-  const road = ROADS[roadId];
+  const road = own(ROADS, roadId);
   if (!road || !region(s)) return 'unknown';
   if (roadOpen(s, roadId)) return 'owned';
   if (s.player.round < road.round) return 'round';
@@ -141,7 +144,7 @@ export function roadError(s, roadId) {
 }
 
 export function staffError(s, type) {
-  const def = STAFF[type];
+  const def = own(STAFF, type);
   if (!def) return 'unknown';
   if (s.player.round < def.round) return 'round';
   if (level(s) < def.level) return 'level';
@@ -175,7 +178,7 @@ export const regionsOfCountry = countryId => Array.from({ length: REGIONS_PER_CO
 export const allCountries = () => COUNTRY_ORDER;
 
 export function rebirthError(s, blessingKey) {
-  if (!(blessingKey in REBIRTH.blessings)) return 'unknown';
+  if (own(REBIRTH.blessings, blessingKey) === undefined) return 'unknown';
   if (s.rebirth.credits <= 0) return 'noCredits';
   if (level(s) < REBIRTH.minLevel) return 'level';
   if ((s.rebirth.blessings[blessingKey] || 0) >= REBIRTH.maxStacks) return 'maxStacks';

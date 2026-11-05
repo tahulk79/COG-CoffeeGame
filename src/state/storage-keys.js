@@ -15,7 +15,7 @@ export const MEMORY_KEY = `godbean-memory${SUFFIX}`;
 export const V3_KEY = `godbean-v3${SUFFIX}`;
 // Dev QA profile active (`?profile=test` or `?profile=max` in dev): enables the QA panel and dev/* actions.
 export const DEV_PROFILE = SUFFIX !== '';
-// Starting coins for a brand-new save in the max profile (null otherwise); farm/model.js createFarm should use `?? 200`.
+// Starting coins for a brand-new save in the max profile (null otherwise).
 export const DEV_START_COINS = SUFFIX ? 9999999999999 : null;
 const OLD_KEYS = ['cog-coffee-progress', 'cog-coffee-player', 'cog-coffee-progress-backup'];
 

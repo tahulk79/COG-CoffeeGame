@@ -1,5 +1,5 @@
 // Save schema v3 (Farm & Café V3). Stored under its own localStorage key, so the old v1 save is never overwritten.
-import { START } from './config/economy.js';
+import { START, BUILDINGS, STAFF } from './config/economy.js';
 import { COUNTRIES } from './config/world.js';
 
 export const SCHEMA = 3;
@@ -58,7 +58,7 @@ export function normalizeSave(raw, now = Date.now()) {
   out.world.countries = { ...base.world.countries, ...obj(out.world.countries) };
   out.world.regions = obj(out.world.regions) || {};
   for (const [id, r] of Object.entries(out.world.regions)) out.world.regions[id] = normalizeRegion(r);
-  out.staff = { units: Array.isArray(s.staff?.units) ? s.staff.units.filter(u => obj(u) && typeof u.type === 'string') : [] };
+  out.staff = { units: Array.isArray(s.staff?.units) ? s.staff.units.filter(u => obj(u) && typeof u.type === 'string' && Object.hasOwn(STAFF, u.type)) : [] };
   out.tutorial = { ...base.tutorial, ...obj(s.tutorial) };
   out.stats = { ...base.stats, ...obj(s.stats) };
   out.tx = Array.isArray(s.tx) ? s.tx.slice(-64) : [];
@@ -73,7 +73,7 @@ export function normalizeRegion(r) {
     enteredAt: num(v.enteredAt, 0), expiredAt: num(v.expiredAt, 0),
     parcels: Array.isArray(v.parcels) ? [...new Set(v.parcels)] : [],
     roads: Array.isArray(v.roads) ? [...new Set(v.roads)] : [],
-    buildings: Array.isArray(v.buildings) ? v.buildings.filter(b => obj(b) && typeof b.type === 'string') : [],
+    buildings: Array.isArray(v.buildings) ? v.buildings.filter(b => obj(b) && typeof b.type === 'string' && Object.hasOwn(BUILDINGS, b.type)) : [],
     plots: obj(v.plots) || {},
     shop: { orders: Array.isArray(v.shop?.orders) ? v.shop.orders : [], nextOrder: num(v.shop?.nextOrder, 1) },
   };

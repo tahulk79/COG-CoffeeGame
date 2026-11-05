@@ -1,14 +1,6 @@
 /* Readable type floor (mobile first): no text below 11px (captions) / 12px (body); secondary text colors keep ≥ 4.5:1 contrast on the cream panels. */
 @import './ui-kit.css';
 @import './dialogue.css';
-@import './heaven.css';
-@import './farm.css';
-@import './cafe.css';
-@import './memory.css';
-@import './awakening.css';
-@import './hud.css';
-@import './menus.css';
-@import './world-map.css';
 
 :root{--game-font:'Baloo 2',system-ui,sans-serif;font-family:var(--game-font);color:#29493f;background:#edf5e7;font-synthesis:none}
 /* Bộ khung UI chung cho mọi màn (gỗ + giấy da của farm). Thay asset: gán url() vào các biến --ui-*-image, không sửa selector. */
@@ -97,6 +89,10 @@ body:has(#error:not([hidden])) #game-settings-toggle{display:none}
 
 
 
+/* Moved from the deleted farm/heaven sheets: still used by the loading screen, currency.js coins and vfx flyTo chips. */
+#loading{z-index:9}
+.farm-gold-coin{display:inline-grid;place-items:center;flex:none;width:24px;height:24px;box-sizing:border-box;border:2px solid #d39a24;border-radius:50%;background:radial-gradient(circle at 30% 25%,#fff9bc,#ffd64e 55%,#e9aa29);box-shadow:inset 0 0 0 2px var(--ui-coin-hi),0 2px var(--ui-coin-edge);color:#9b5c08;font:bold 15px/1 Georgia;text-shadow:0 1px #ffe99a}
+.farm-reward-flight{position:fixed;z-index:30;pointer-events:none;font:800 20px/1.2 var(--game-font);color:var(--ui-coin-hi);white-space:nowrap;text-shadow:0 2px 2px var(--ui-chip-edge),1px 0 var(--ui-chip-edge),-1px 0 var(--ui-chip-edge);filter:drop-shadow(0 3px 3px var(--ui-drop-soft))}
 .game-currency{display:inline;white-space:nowrap}
 .game-currency>.farm-gold-coin{display:inline-grid;vertical-align:-.16em;width:1.1em;height:1.1em;margin-right:.12em;border-width:1px;font-size:.85em;line-height:1;box-shadow:inset 0 0 0 1px var(--ui-coin-hi),0 1px var(--ui-coin-edge)}
 

@@ -97,9 +97,10 @@ export function drawEmoji(g, emoji, x, y, px) {
 const box = new THREE.Box3(), size = new THREE.Vector3(), center = new THREE.Vector3();
 /**
  * Wraps `model` in a group scaled so its XZ bounds fit `w`×`d` meters (times `fill`), centered on the origin,
- * standing on y=0. Returns the wrapper with userData.height (world height after scaling).
+ * standing on y=0 (scale also capped so the height stays under maxHeight). Returns the wrapper with userData.height
+ * (world height after scaling) and userData.scale.
  */
-export function normalizeModel(model, w, d, { fill = .9, maxScale = 1.4, minScale = .2 } = {}) {
+export function normalizeModel(model, w, d, { fill = .9, maxScale = 1.4, minScale = .2, maxHeight = Infinity } = {}) {
   const wrapper = new THREE.Group();
   const inner = new THREE.Group();
   inner.add(model);
@@ -107,7 +108,7 @@ export function normalizeModel(model, w, d, { fill = .9, maxScale = 1.4, minScal
   model.updateMatrixWorld(true);
   box.setFromObject(model);
   box.getSize(size); box.getCenter(center);
-  const s = clamp(Math.min((w * fill) / Math.max(size.x, 1e-3), (d * fill) / Math.max(size.z, 1e-3)), minScale, maxScale);
+  const s = clamp(Math.min((w * fill) / Math.max(size.x, 1e-3), (d * fill) / Math.max(size.z, 1e-3), maxHeight / Math.max(size.y, 1e-3)), minScale, maxScale);
   inner.scale.setScalar(s);
   inner.position.set(-center.x * s, -box.min.y * s, -center.z * s);
   wrapper.userData.height = size.y * s;
@@ -133,3 +134,36 @@ export function placeholderBox(w, h, d, color = 0xc9a77a) {
 export const rectSize = r => ({ w: r[2] - r[0], d: r[3] - r[1] });
 export const unionRect = (a, b) => [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])];
 export const fmtTimer = ms => { const s = Math.ceil(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+
+// ---------- art helpers (static decor) ----------
+const _paint = new THREE.Color();
+/** Non-indexed copy of `geo` with a constant vertex color (sRGB hex/string); disposes the source. */
+export function paint(geo, color) {
+  const g = geo.index ? geo.toNonIndexed() : geo;
+  if (g !== geo) geo.dispose();
+  _paint.set(color);
+  const n = g.attributes.position.count, arr = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { arr[i * 3] = _paint.r; arr[i * 3 + 1] = _paint.g; arr[i * 3 + 2] = _paint.b; }
+  g.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+  return g;
+}
+
+/** Deterministic smooth 2D value noise in [0, 1]. */
+function hash2(ix, iz, seed) {
+  let h = Math.imul(ix, 374761393) + Math.imul(iz, 668265263) + Math.imul(seed, 1442695041) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+export function valueNoise(x, z, seed = 0) {
+  const ix = Math.floor(x), iz = Math.floor(z), fx = x - ix, fz = z - iz;
+  const u = fx * fx * (3 - 2 * fx), v = fz * fz * (3 - 2 * fz);
+  const a = hash2(ix, iz, seed), b = hash2(ix + 1, iz, seed), c = hash2(ix, iz + 1, seed), d = hash2(ix + 1, iz + 1, seed);
+  return (a + (b - a) * u) * (1 - v) + (c + (d - c) * u) * v;
+}
+
+/** Sets `color` from an sRGB hex shifted in sRGB HSL space (dh, ds, dl). */
+const _hsl = {};
+export function tone(color, hex, dh = 0, ds = 0, dl = 0) {
+  color.setHex(hex).getHSL(_hsl, THREE.SRGBColorSpace);
+  return color.setHSL((_hsl.h + dh + 1) % 1, clamp(_hsl.s + ds, 0, 1), clamp(_hsl.l + dl, 0, 1), THREE.SRGBColorSpace);
+}

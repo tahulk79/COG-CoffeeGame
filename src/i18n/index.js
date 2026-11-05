@@ -4,14 +4,7 @@ import html from './locales/html.js';
 import common from './locales/common.js';
 import selection from './locales/selection.js';
 import intro from './locales/intro.js';
-import heaven from './locales/heaven.js';
-import farm from './locales/farm.js';
-import farmRules from './locales/farm-rules.js';
-import cafe from './locales/cafe.js';
-import cafeRecipes from './locales/cafe-recipes.js';
 import worldMap from './locales/world-map.js';
-import crew from './locales/crew.js';
-import awakening from './locales/awakening.js';
 // Farm & Café V3 packs (docs/design/v3-architecture.md "Locale packs"): realm.*, hud.*/err.*/…, story.*/atlas.*/country.*/regionName.*
 import v3Realm from './locales/v3-realm.js';
 import v3Hud from './locales/v3-hud.js';
@@ -24,7 +17,7 @@ const LOCALES = { en: 'en-US', vi: 'vi-VN' };
 import { PROGRESS_KEY as SETTINGS_KEY } from '../state/storage-keys.js';
 
 const dict = { en: {}, vi: {} };
-for (const pack of [html, common, selection, intro, heaven, farm, farmRules, cafe, cafeRecipes, worldMap, crew, awakening, v3Realm, v3Hud, v3Story]) {
+for (const pack of [html, common, selection, intro, worldMap, v3Realm, v3Hud, v3Story]) {
   for (const lang of LANGS) Object.assign(dict[lang], pack?.[lang]);
 }
 

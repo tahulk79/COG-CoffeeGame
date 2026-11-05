@@ -1,5 +1,5 @@
 /* Bộ UI dùng chung (round-1 §1.2). Code mới dùng thẳng class ui-*.
-   Selector cũ của farm/quán đứng làm bí danh trong :where() nên độ ưu tiên = 0: rule riêng trong farm.css/cafe.css vẫn thắng, không vỡ bố cục. */
+   Selector bí danh nằm trong :where() nên độ ưu tiên = 0, rule riêng của từng màn vẫn thắng. */
 
 /* ---------- Icon (src/ui/icons.js): cỡ theo font-size của chỗ chứa nên CSS cỡ emoji cũ vẫn áp; nét luôn màu mực ---------- */
 .ui-icon{display:inline-block;flex:none;width:1.15em;height:1.15em;vertical-align:-.22em;color:var(--ui-ink);overflow:visible}
@@ -133,22 +133,9 @@ dialog.ui-modal__window[open]{display:flex;flex-direction:column;place-items:str
  .ui-coach{bottom:calc(max(8px,env(safe-area-inset-bottom)) + 104px);white-space:nowrap}
  .ui-coach>span,.ui-guide-hint{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 }
-/* Bong bóng sự cố nhân viên 📱🤒😤 (robot-staff mục 4, markup src/ui/incidents.js): giữa phía trên dưới toast, chỉ bong bóng nhận chạm. */
-.ui-incidents{position:fixed;z-index:31;top:max(132px,calc(env(safe-area-inset-top) + 108px));left:50%;transform:translateX(-50%);display:grid;gap:6px;width:max-content;max-width:min(440px,calc(100vw - 24px));pointer-events:none}
-.ui-incidents[hidden]{display:none}
-.ui-incident{position:relative;display:flex;align-items:center;gap:8px;padding:5px 5px 5px 12px;border:2px solid var(--ui-cream-edge);border-radius:16px;background:var(--ui-panel-image),var(--ui-paper);box-shadow:0 3px var(--ui-paper-drop),0 6px 16px var(--ui-drop-soft);color:var(--ui-ink);font:800 13px/1.35 var(--game-font);overflow:hidden;pointer-events:auto;animation:ui-incident-pop .3s ease-out}
-.ui-incident[data-type="rude"]{border-color:var(--ui-bad-edge);background:var(--ui-bad-bg);color:var(--ui-bad)}
-.ui-incident__icon{flex:none;font-size:22px;line-height:1}
-.ui-incident__text{flex:1;min-width:0}
-.ui-incident>.ui-btn{flex:none}
-.ui-incident__timer{position:absolute;left:0;bottom:0;width:100%;height:4px;background:var(--ui-bad);transform-origin:left;animation:ui-incident-timer var(--ms,3s) linear forwards}
-@keyframes ui-incident-timer{to{transform:scaleX(0)}}
-@keyframes ui-incident-pop{from{opacity:0;transform:translateY(-6px) scale(.95)}}
 @media(prefers-reduced-motion:reduce){
  .ui-attention{animation:none;outline-color:var(--ui-gold)}
  .ui-toast--unlock{animation:none}
- .ui-incident{animation:none}
- .ui-incident__timer{display:none}
 }
 
 /* ---------- Chip bay của vfx (flyTo/popNumber): class="vfx-chip farm-reward-flight" data-tone ---------- */
