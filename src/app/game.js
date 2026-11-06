@@ -9,7 +9,7 @@ import { DEFAULT_NAME, randomName } from '../state/names.js';
 import { applyRendererQuality, getQuality, onQuality, setQuality } from '../shared/vfx/index.js';
 import { lowerQuality, mountSettings, openSettings, closeSettings } from '../ui/settings.js';
 import { attachModels, releaseModels } from '../shared/three/models.js';
-import { loading, showLoading, hideLoading } from '../ui/loading.js';
+import { loading, showLoading, hideLoading, setLoadingRunner } from '../ui/loading.js';
 import { getLang, hasKey, t } from '../i18n/index.js';
 import { sfx } from '../shared/audio/index.js';
 import { detectPlatform, initAnalytics, track } from '../shared/analytics/wire.js';
@@ -42,6 +42,7 @@ const store = createStore({ key: V3_KEY, legacyKeys: { progress: PROGRESS_KEY, p
 const legacyPlayer = readPlayer();
 // The character in the V3 save wins; the v1 player key is only a default for the selection screen.
 const profile = { gender: store.state.character?.gender ?? legacyPlayer.gender, name: store.state.character?.name || legacyPlayer.name || DEFAULT_NAME };
+setLoadingRunner(profile.gender); // the loading runner looks like the player's character
 const countryOf = regionId => (typeof regionId === 'string' ? regionId.slice(0, 2) : null);
 initAnalytics({
   appVersion: pkg.version, platform: detectPlatform(Math.min(window.innerWidth, window.innerHeight), usesTouch()),
@@ -153,6 +154,7 @@ async function enterSelection() {
 // Male stands left, female right: only show the arrow pointing at the other one.
 function showGender(gender) {
   profile.gender = gender;
+  setLoadingRunner(gender);
   document.querySelector('.selection-arrow--prev').hidden = gender === 'male';
   document.querySelector('.selection-arrow--next').hidden = gender === 'female';
 }

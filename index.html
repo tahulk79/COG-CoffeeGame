@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#edf5e7" />
+    <meta name="theme-color" content="#9acd65" />
     <link rel="icon" type="image/svg+xml" href="%BASE_URL%favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -16,9 +16,35 @@
       html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#edf5e7;color:#355342;font-family:'Baloo 2',system-ui,sans-serif}
       *,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}
       body.booting > :not(#loading):not(#error){visibility:hidden}
-      .loading-screen{position:fixed;inset:0;z-index:5;background:radial-gradient(ellipse at 50% 40%,#fff8e4,#edf5e7 75%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;color:#355342}.loading-screen p{font-size:13px;letter-spacing:1px}.loading-screen small{font-size:10px;color:#5b7560}.coffee-loader{position:relative;width:74px;height:96px}.cup{position:absolute;bottom:0;left:4px;width:52px;height:48px;border:2px solid #8c6b36;border-radius:5px 5px 23px 23px;background:linear-gradient(0deg,#e9bd6b33,transparent)}.cup:after{content:'';position:absolute;right:-18px;top:5px;width:16px;height:24px;border:2px solid #8c6b36;border-left:0;border-radius:0 14px 14px 0}.coffee-loader>span{position:absolute;left:17px;top:18px;width:2px;height:25px;background:linear-gradient(transparent,#68877099,transparent);animation:steam 2s infinite ease-in-out}.coffee-loader>span:nth-child(2){left:30px;animation-delay:.4s}.coffee-loader>span:nth-child(3){left:43px;animation-delay:.8s}@keyframes steam{0%{transform:translateY(10px) scaleY(.5);opacity:0}45%{opacity:1}100%{transform:translateY(-18px) scaleY(1.3);opacity:0}}#load-track{width:200px;height:3px;background:#a5bf9b40;border-radius:4px;overflow:hidden}#load-fill{width:0;height:100%;background:#8c6b36;transition:width .35s ease}
-      .loading-logo{display:grid;justify-items:center;margin:0 0 6px;color:#694427;font:800 52px/1 'Baloo 2',system-ui,sans-serif;letter-spacing:2px;text-shadow:0 3px 0 #e5c387}.loading-logo small{margin-top:6px;color:#5b7560;font:700 13px/1.3 'Baloo 2',system-ui,sans-serif;letter-spacing:1px;text-shadow:none}.loading-tip{max-width:min(320px,calc(100vw - 48px));margin:10px 0 0;color:#6f5333;font-size:12px;line-height:1.5;text-align:center}.loading-tip:empty{display:none}
-      @media(prefers-reduced-motion:reduce){.coffee-loader>span{animation:none}}
+      /* Loading screen, in the play HUD's own look (src/ui/styles/v3.css): grass ground like the realm, one cream card
+         (same as the HUD confirm card), a green "go" progress bar with the player's own character running on it
+         (the player's own character model, see .ld-runner), 🫘 beans picked up on the way, dark-brown
+         percent pill (like the coin / bean pills) and the white tip bubble. src/ui/loading.js drives --p and the beans. */
+      .loading-screen{--ld-ink:#694427;--ld-cream:#fff8e6;position:fixed;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:16px;color:var(--ld-ink);font-family:'Baloo 2',system-ui,sans-serif;
+        background:radial-gradient(ellipse at 50% 45%,#0000 40%,#2e4a1a55 100%),repeating-conic-gradient(from 45deg,#9fd16b 0 25%,#94c95f 0 50%) 0 0/56px 56px,#9acd65;transition:opacity .35s ease}
+      .loading-screen.is-leaving{opacity:0;pointer-events:none}
+      .loading-logo{display:grid;justify-items:center;margin:0;color:#fff;font:800 clamp(40px,12vw,54px)/1 'Baloo 2',system-ui,sans-serif;letter-spacing:1px;-webkit-text-stroke:6px #694427;paint-order:stroke fill;filter:drop-shadow(0 4px 0 #4a2f1b80)}
+      .loading-logo small{margin-top:6px;padding:2px 12px;border-radius:999px;background:#4a2f1bd9;color:#fff;font:800 13px/1.5 'Baloo 2',system-ui,sans-serif;letter-spacing:.3px;-webkit-text-stroke:0}
+      .ld-card{width:min(340px,100%);padding:18px 18px 16px;border-radius:24px;background:var(--ld-cream);box-shadow:0 6px 0 #d8bf8d,0 18px 40px #0004}
+      .ld-road{position:relative;padding-top:92px}
+      #load-track{position:relative;height:22px;border-radius:999px;background:#e8dcc2;box-shadow:inset 0 2px 2px #0002}
+      #load-fill{position:absolute;left:0;top:0;bottom:0;width:calc(var(--p,0) * 1%);min-width:22px;border-radius:inherit;background:linear-gradient(#8cd45a,#5aab35);box-shadow:inset 0 -3px 0 #3e7f2266,inset 0 3px 0 #ffffff55}
+      .ld-bean{position:absolute;top:50%;width:18px;margin:-10px 0 0 -9px;font-size:15px;line-height:20px;text-align:center;filter:drop-shadow(0 1px 0 #0003);transition:transform .35s cubic-bezier(.3,1.8,.5,1),opacity .35s ease}
+      .ld-bean.got{transform:translateY(-30px) scale(1.3);opacity:0}
+      /* Runner: the player's own character (public/models girl.glb / male.glb) rendered from its "Running" clip into a
+         10-frame sprite sheet (public/assets/loading/runner-*.png, 160×200 per frame), played with steps(). */
+      .ld-runner{position:absolute;bottom:calc(100% - 8px);left:calc(var(--p,0) * 1%);width:84px;height:105px;margin-left:-42px;pointer-events:none}
+      .ld-sprite{position:absolute;inset:0;background:url('%BASE_URL%assets/loading/runner-female.png') 0 0/840px 105px no-repeat;animation:ld-run .63s steps(10) infinite}
+      .loading-screen[data-gender="male"] .ld-sprite{background-image:url('%BASE_URL%assets/loading/runner-male.png')}
+      @keyframes ld-run{to{background-position:-840px 0}}
+      .ld-shadow{position:absolute;left:50%;bottom:2px;width:34px;height:7px;margin-left:-17px;border-radius:50%;background:#3e2a1a;opacity:.22}
+      .ld-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px}
+      #load-status{min-width:0;overflow:hidden;color:var(--ld-ink);font:700 14px/1.3 'Baloo 2',system-ui,sans-serif;text-overflow:ellipsis;white-space:nowrap}
+      #load-pct{flex:none;min-width:58px;padding:0 12px;border-radius:999px;background:#4a2f1bd9;box-shadow:0 3px 0 #2a1a0e66;color:#fff;font:800 16px/30px 'Baloo 2',system-ui,sans-serif;text-align:center;font-variant-numeric:tabular-nums}
+      .loading-tip{position:relative;display:flex;gap:8px;align-items:flex-start;width:min(340px,100%);margin:0;padding:10px 14px;border-radius:20px;background:#fff;box-shadow:0 4px 0 #a2763a40,0 8px 18px #4a32101f;color:var(--ld-ink);font:700 14px/1.35 'Baloo 2',system-ui,sans-serif}
+      .loading-tip::before{content:'💡';flex:none;font-size:17px;line-height:19px}
+      .loading-tip:empty{display:none}
+      @media(prefers-reduced-motion:reduce){.ld-sprite{animation:none}}
     </style>
     <link rel="stylesheet" href="/src/ui/styles/game.css">
   </head>
@@ -27,10 +53,16 @@
     <div class="vignette"></div>
     <section id="loading" class="loading-screen" aria-label="Đang tải trò chơi" data-i18n-attr="aria-label:html.loading.label">
       <h1 class="loading-logo">Godbean<small data-i18n="html.tagline">Build your own Coffee Empire!</small></h1>
-      <div class="coffee-loader"><span></span><span></span><span></span><div class="cup"></div></div>
-      <p data-i18n="html.loading.brewing">Đang pha một khởi đầu mới…</p>
-      <div id="load-track" role="progressbar" aria-label="Tiến trình tải" data-i18n-attr="aria-label:html.loading.progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="load-fill"></div></div>
-      <small id="load-status" role="status" data-i18n="html.loading.status">Chuẩn bị thế giới · 0%</small>
+      <div class="ld-card">
+        <div class="ld-road">
+          <div id="load-track" role="progressbar" aria-label="Tiến trình tải" data-i18n-attr="aria-label:html.loading.progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <div id="load-fill"></div>
+            <div id="load-beans" aria-hidden="true"></div>
+            <div id="load-runner" class="ld-runner" aria-hidden="true"><i class="ld-shadow"></i><i class="ld-sprite"></i></div>
+          </div>
+        </div>
+        <div class="ld-meta"><small id="load-status" role="status" data-i18n="html.loading.status">Chuẩn bị thế giới</small><strong id="load-pct" aria-hidden="true">0%</strong></div>
+      </div>
       <p id="load-tip" class="loading-tip"></p>
     </section>
     <section id="selection" hidden aria-label="Chọn nhân vật" data-i18n-attr="aria-label:html.selection.label">
