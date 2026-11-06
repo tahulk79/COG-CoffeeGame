@@ -235,8 +235,9 @@ export function createBuildings({ scene, prefabs, templates, vfx }) {
     vfx.burst('sparkle', tmp, { count: 14 });
   }
 
-  // orders: current region orders (store objects, read only). now: Date.now().
-  function update(dt, time, orders, now) {
+  // orders: current region orders (store objects, read only). now: Date.now(). carried: order id in the player's hand
+  // (its cup is no longer shown on the counter).
+  function update(dt, time, orders, now, carried = null) {
     for (const e of entities.values()) {
       if (e.rise >= 0) {
         const k = (time - e.rise) / RISE;
@@ -248,7 +249,7 @@ export function createBuildings({ scene, prefabs, templates, vfx }) {
       for (let i = 0; i < orders.length; i++) {
         const o = orders[i];
         if (o.stage !== 'brewing') continue;
-        if (now - o.brewStart >= o.brewMs) ready++; else brewing++;
+        if (now - o.brewStart >= o.brewMs) { if (o.id !== carried) ready++; } else brewing++;
       }
       for (let i = 0; i < e.cups.length; i++) e.cups[i].visible = i < ready;
       if (brewing && !e.steam) {

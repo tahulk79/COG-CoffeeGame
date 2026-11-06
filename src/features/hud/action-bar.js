@@ -41,7 +41,7 @@ export function createActionBar(ctx) {
         // Live numbers shown on some cards: storehouse fill, café seats.
         const live = b.type === 'silo' ? { beans: s.inventory.beans, capacity: capacity(s) }
           : b.type === 'orderCounter' || b.type === 'tables' ? { used: seatsUsed(s), seats: seatCount(s) } : null;
-        return { kind: 'building', uid: b.uid, type: b.type, level: b.level, cap: levelCap(s), err, cost: upgradeCost(b.type, b.level), missing: err === 'coins' ? upgradeCost(b.type, b.level) - coins : 0, live };
+        return { kind: 'building', uid: b.uid, type: b.type, level: b.level, cap: levelCap(s), err, upgrade: !!target.upgrade, cost: upgradeCost(b.type, b.level), missing: err === 'coins' ? upgradeCost(b.type, b.level) - coins : 0, live };
       }
       case 'parcel': {
         const p = PARCELS[target.id];
@@ -96,7 +96,10 @@ export function createActionBar(ctx) {
     if (m.live?.seats) body.append(h('p', { class: 'hud-line' }, T('hud.seats.line', { n: m.live.used, max: m.live.seats })));
     body.append(h('p', { class: 'hud-line' }, buildingEffect(m.type, m.level, m.err !== 'maxLevel' && m.err !== 'roundCap')));
     const row = h('div', { class: 'hud-row' });
-    if (!def.decor) {
+    // Upgrades are reached only through the ▲ badge above the building (target.upgrade); a body tap shows the info card.
+    if (!def.decor && !m.upgrade) {
+      if (m.err === null || m.err === 'coins') body.append(h('p', { class: 'hud-hint' }, T('hud.upgradeHint')));
+    } else if (!def.decor) {
       if (m.err === 'maxLevel') row.append(h('span', { class: 'hud-tag' }, T('hud.maxLevel')));
       else if (m.err === 'roundCap') row.append(h('span', { class: 'hud-tag' }, T('hud.maxForRound')));
       else row.append(actionButton({ id: 'upgrade', label: T('hud.upgrade'), icon: '⬆️', cost: m.cost, disabled: m.err === 'coins', note: m.err === 'coins' ? needMore(m.missing) : null,

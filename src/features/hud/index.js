@@ -62,7 +62,7 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
       const silo = region(store.state)?.buildings.find(b => b.type === 'silo');
       if (!silo) return;
       sfx('ui.open');
-      const target = { kind: 'building', uid: silo.uid, type: 'silo' };
+      const target = { kind: 'building', uid: silo.uid, type: 'silo', upgrade: true };
       if (ctx.realm?.select) Promise.resolve(ctx.realm.select(target)).catch(() => {}); // the realm reports it back via onSelect
       else setSelection(target);
       return;
@@ -103,11 +103,11 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
     if (noticeClock < .5) return;
     noticeClock = 0;
     const list = ctx.realm?.notices || [];
-    const sig = list.map(n => `${n.key}:${n.kind}:${n.up ? 1 : 0}`).join('|');
+    const sig = list.map(n => `${n.key}:${n.kind}:${n.up || 0}`).join('|');
     if (sig === noticeSig) return;
     noticeSig = sig;
     const name = n => (n.target?.type ? T(`building.${n.target.type}`) : '');
-    const lines = list.flatMap(n => [T(`hud.notice.${n.kind}`, { name: name(n), id: n.target?.id || '' }), ...(n.up && n.kind !== 'up' ? [T('hud.notice.up', { name: name(n) })] : [])]);
+    const lines = list.flatMap(n => [T(`hud.notice.${n.kind}`, { name: name(n), id: n.target?.id || '' }), ...(n.up && n.kind !== 'up' && n.kind !== 'upMuted' ? [T(n.up === 'ok' ? 'hud.notice.up' : 'hud.notice.upMuted', { name: name(n) })] : [])]);
     notices.textContent = lines.join('. ');
   }
 

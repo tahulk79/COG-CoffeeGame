@@ -108,10 +108,14 @@ export function createTutorial(ctx) {
         break;
       }
       case 'serve': {
+        // Pick up the cup at the coffee bar, then carry it to the seated customer (hand points at them).
+        const carrying = ctx.realm?.carrying;
         const o = r?.shop.orders.find(x => x.stage === 'brewing');
-        const left = o ? o.brewStart + o.brewMs - now : 0;
-        text = o && left > 0 ? T('tut.brewing', { time: clock(left) }) : T('tut.serve');
-        target = building('brewCounter');
+        if (carrying != null) { text = T('tut.deliver'); target = { kind: 'customer', orderId: carrying }; }
+        else {
+          text = o && o.brewStart + o.brewMs > now ? T('tut.brewing') : T('tut.serve');
+          target = building('brewCounter');
+        }
         break;
       }
       case 'build': {
@@ -134,8 +138,9 @@ export function createTutorial(ctx) {
       }
       case 'upgrade': {
         const silo = building('silo');
-        if (selected?.kind === 'building' && selected.type === 'silo') { text = T('tut.upgradeBtn'); node = ctx.actionBar.el.querySelector('[data-hud-id="upgrade"]'); }
-        else { text = T('tut.upgrade'); target = silo; }
+        // Upgrades open from the ▲ badge above the storehouse (or the Storage button): point at the badge.
+        if (selected?.kind === 'building' && selected.type === 'silo' && selected.upgrade) { text = T('tut.upgradeBtn'); node = ctx.actionBar.el.querySelector('[data-hud-id="upgrade"]'); }
+        else { text = T('tut.upgrade'); target = silo && { ...silo, upgrade: true }; }
         break;
       }
       case 'buyLand': {

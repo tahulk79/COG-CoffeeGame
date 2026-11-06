@@ -39,6 +39,7 @@ const TREE_PARTS = { tree: 'farm/coffee-tree.glb#tree', fruitGreen: 'farm/coffee
 const GATE_PARTS = { gateFrame: 'heaven/portal.glb#portal_frame', gateLeft: 'heaven/portal.glb#portal_left_leaf', gateRight: 'heaven/portal.glb#portal_right_leaf' };
 const EXTRA_MODELS = ['cafe/espresso-machine.glb#machine', 'cafe/table.glb#chairs_pair', 'cafe/props.glb#cup'];
 const FADE_OUT = .2, FADE_IN = .32; // view switch fade (seconds)
+const BADGE_Y = 1.05; // object-notice anchor above a building's top
 const KEYS = { KeyW: 'f', ArrowUp: 'f', KeyS: 'b', ArrowDown: 'b', KeyA: 'l', ArrowLeft: 'l', KeyD: 'r', ArrowRight: 'r' };
 const COUNTER_RECT = unionRect(
   unionRect(footprint('orderCounter', FIXED.orderCounter.x, FIXED.orderCounter.z), footprint('brewCounter', FIXED.brewCounter.x, FIXED.brewCounter.z)),
@@ -145,7 +146,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   function syncAll(state, instant = false) {
     const id = state.world.currentRegion || null;
     if (id !== regionId) {
-      if (regionId !== undefined) { plots.clear(); buildings.clear(); cafe.reset(); staff.clear(); placement.cancel(); setSelection(null); needArrive = !!id; cancelSwitch(); swapView('farm'); }
+      if (regionId !== undefined) { setCarry(null); plots.clear(); buildings.clear(); cafe.reset(); staff.clear(); placement.cancel(); setSelection(null); needArrive = !!id; cancelSwitch(); swapView('farm'); }
       regionId = id;
       instant = true;
       avatar.teleport(avatar.position.x, avatar.position.z);
@@ -220,6 +221,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   function areaOf(t) {
     if (!t) return null;
     if (t.kind === 'plot' || t.kind === 'field' || t.kind === 'gate') return 'farm';
+    if (t.kind === 'customer') return 'cafe';
     if (t.kind === 'parcel') return PARCELS[t.id] ? areaOfParcel(t.id) : null;
     if (t.kind === 'building') {
       const e = buildingOf(t);
@@ -242,6 +244,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       return { rect: [r[0] - 2, r[1] - 2, r[2] + 2, r[3] + 2], key: `b:${e.uid}` };
     }
     if (t.kind === 'parcel' && PARCELS[t.id]) return { rect: PARCELS[t.id].rect, key: `parcel:${t.id}` };
+    if (t.kind === 'customer') return { rect: CAFE_LOOP_RECT, key: 'counters' };
     if (t.kind === 'gate') return { rect: [GATE.x - 4, GATE.z - 5, GATE.x + 4, GATE.z + 2], key: 'gate' };
     return null;
   }
@@ -257,7 +260,8 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   function targetPoint(t, out, now) {
     if (!t || switching || areaOf(t) !== view) return false; // targets of the other area are not on screen
     if (t.kind === 'plot') { const p = resolvePlot(t, now); if (!p) return false; out.set(p.x, 1.3, p.z); return true; }
-    if (t.kind === 'building') { const e = buildingOf(t); if (!e) return false; out.set(e.x, e.height + 1.1, e.z); return true; }
+    if (t.kind === 'building') { const e = buildingOf(t); if (!e) return false; out.set(e.x, e.height + (t.upgrade ? BADGE_Y : 1.1), e.z); return true; }
+    if (t.kind === 'customer') { const w = cafe.walker(t.orderId); if (!w) return false; out.set(w.person.position.x, 2.9, w.person.position.z); return true; }
     if (t.kind === 'parcel' && PARCELS[t.id]) { const c = parcelSignPoint(t.id); out.set(c.x, 2.7, c.z); return true; }
     if (t.kind === 'gate') { out.set(GATE.x, 6.4, GATE.z); return true; }
     return false;
@@ -290,8 +294,15 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     const farm = view === 'farm';
     // Object notices are on top of everything: a tap on a badge is a tap on its object.
     if (includeBuildings && badges.visible) {
-      const hits = raycaster.intersectObjects([...badges.pickers()], false);
-      if (hits.length && hits[0].object.userData.target) return hits[0].object.userData.target;
+      for (const set of [badges.smallPickers(), badges.pickers()]) { // small ▲ first: it overlaps its interaction badge
+        const hits = raycaster.intersectObjects([...set], false);
+        if (hits.length && hits[0].object.userData.target) return hits[0].object.userData.target;
+      }
+    }
+    // Seated customers (café): tap to deliver their cup.
+    if (includeBuildings && !farm) {
+      const hits = raycaster.intersectObjects([...cafe.pickers()], false);
+      if (hits.length) return hits[0].object.userData.target;
     }
     const list = farm ? [...plots.pickers()] : []; // plots + gate: farm only; buildings: current area only
     if (includeBuildings) { list.push(...buildings.pickers()); if (farm) list.push(world.gatePicker); }
@@ -307,15 +318,83 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     if (stage === 'empty') dispatch('farm/plant', { plotId: id, crop: activeCrop });
     else if (stage === 'ready') dispatch('farm/harvest', { plotId: id });
   }
+  // Body taps. The two counters only ACT (no card): order counter → take the order; brewing counter → pick up a ready
+  // cup and carry it to its customer, else brew the next taken order, else resume a delivery, else a hint toast.
+  // Upgrades are reached only through the ▲ badge (target.upgrade). Other buildings open their info card.
   function tapBuilding(t) {
-    const state = store.state, now = Date.now();
-    const orders = regionOf(state)?.shop.orders || [];
-    setSelection(t);
-    if (t.type === 'orderCounter' && orders.some(o => o.stage === 'waiting')) dispatch('shop/takeOrder', {});
-    else if (t.type === 'brewCounter') {
-      if (orders.some(o => o.stage === 'brewing' && now - o.brewStart >= o.brewMs)) dispatch('shop/serve', {});
-      else if (orders.some(o => o.stage === 'taken')) dispatch('shop/brew', {});
+    if (t.upgrade || (t.type !== 'orderCounter' && t.type !== 'brewCounter')) { setSelection(t); return; }
+    const orders = regionOf(store.state)?.shop.orders || [];
+    if (selection) setSelection(null);
+    cam.focusRect(CAFE_LOOP_RECT, { key: 'counters' });
+    if (t.type === 'orderCounter') { dispatch('shop/takeOrder', {}); return; } // no customer / no seat → toast
+    const now = Date.now();
+    const ready = !carry && orders.find(o => o.stage === 'brewing' && now - o.brewStart >= o.brewMs);
+    if (ready) { pickUp(ready.id); return; }
+    if (orders.some(o => o.stage === 'taken')) { dispatch('shop/brew', {}); return; } // out of beans / busy → toast
+    if (carry) { deliver(); return; }
+    if (orders.some(o => o.stage === 'brewing')) return; // still brewing: the bubbles show the progress
+    dispatch('shop/brew', {}); // → "Take an order first"
+  }
+
+  // ---------- carrying a cup to a seated customer ----------
+  // carry = { orderId, route: [{x,z}], walking }. The order stays 'brewing' (ready) in the save until shop/serve, so a
+  // reload or an interrupted walk never loses it: the cup simply goes back on the counter / stays in hand.
+  let carry = null;
+  const handCup = (() => {
+    const t = templates['cafe/props.glb#cup'];
+    const g = new THREE.Group();
+    const cup = t ? t.clone() : new THREE.Mesh(new THREE.CylinderGeometry(.08, .065, .16, 10).translate(0, .08, 0), new THREE.MeshStandardMaterial({ color: 0xf4f1e6 }));
+    if (t) cup.scale.setScalar(1.8);
+    const tray = new THREE.Mesh(new THREE.CylinderGeometry(.2, .2, .03, 14), new THREE.MeshStandardMaterial({ color: 0x8a5a35, roughness: .8 }));
+    g.add(tray, cup);
+    cup.position.y = .015;
+    g.position.set(.12, 1.02, .38);
+    g.visible = false;
+    g.traverse(o => { o.raycast = () => {}; });
+    avatar.root.add(g);
+    return g;
+  })();
+  function setCarry(next) { carry = next; handCup.visible = !!carry; }
+  function pickUp(orderId) {
+    setCarry({ orderId, route: [], walking: false });
+    sfx('cafe.cup');
+    deliver();
+  }
+  // Route: counter lane → queue lane (always free of buildings) → sidewalk → the free side of the seat.
+  function deliver() {
+    const w = carry && cafe.walker(carry.orderId);
+    if (!w?.seat) { if (carry) carry.walking = false; return; }
+    const seat = w.seat, p = avatar.position;
+    const out = { x: -Math.sin(seat.yaw), z: -Math.cos(seat.yaw) }; // away from the table
+    const stand = seat.z >= 114.5 ? { x: seat.x, z: seat.z + .85 } : { x: seat.x + out.x * .8, z: seat.z + out.z * .8 };
+    const LANE_Z = 107.8, QUEUE_X = -2.6, WALK_Z = 115.9;
+    const route = [];
+    if (p.z < LANE_Z + 1.5) route.push({ x: clamp(p.x, -5, 4), z: LANE_Z }, { x: QUEUE_X, z: LANE_Z });
+    if (p.z < WALK_Z - .5) route.push({ x: p.z < LANE_Z + 1.5 ? QUEUE_X : p.x, z: WALK_Z });
+    route.push({ x: stand.x, z: WALK_Z }, stand);
+    carry.route = route;
+    carry.walking = true;
+    gateWalk = false;
+    avatar.stop();
+  }
+  function updateCarry(orders) {
+    if (!carry) return;
+    if (!orders.some(o => o.id === carry.orderId && o.stage === 'brewing')) { setCarry(null); return; } // served / gone
+    if (!carry.walking || avatar.moving) return;
+    if (carry.route.length) { const n = carry.route.shift(); avatar.walkTo(n.x, n.z); return; }
+    carry.walking = false;
+    const w = cafe.walker(carry.orderId);
+    if (w && Math.hypot(w.person.position.x - avatar.position.x, w.person.position.z - avatar.position.z) < 2.6) {
+      dispatch('shop/serve', { orderId: carry.orderId });
     }
+  }
+  function tapCustomer(t) {
+    if (selection) setSelection(null);
+    if (carry) { deliver(); return; }
+    // Forgiving: tapping a customer whose cup is ready picks it up and brings it over.
+    const now = Date.now();
+    const o = regionOf(store.state)?.shop.orders.find(x => x.id === t.orderId);
+    if (o?.stage === 'brewing' && now - o.brewStart >= o.brewMs) pickUp(o.id);
   }
 
   function onTap(p) {
@@ -328,6 +407,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     const target = pick();
     if (target?.kind === 'plot') return tapPlot(target.id);
     if (target?.kind === 'building') return tapBuilding(target);
+    if (target?.kind === 'customer') return tapCustomer(target);
     if (target?.kind === 'field') return harvestField(target.id);
     if (target?.kind === 'parcel') return setSelection(target);
     if (target?.kind === 'gate') {
@@ -341,6 +421,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     if (parcel && areaOfParcel(parcel.id) === view && world.parcelState(parcel.id) !== 'owned') return setSelection({ kind: 'parcel', id: parcel.id });
     setSelection(null);
     gateWalk = false;
+    if (carry) carry.walking = false; // the cup stays in hand; tap the customer / counter to resume
     avatar.walkTo(hit.x, hit.z);
     vfx.burst('dust', hit, { count: 4 });
   }
@@ -375,15 +456,23 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       if (!def || areaAt(b.x, b.z) !== view) continue;
       const e = buildings.get(b.uid);
       if (!e || !e.root.visible) continue;
-      const up = !def.decor && !upgradeError(state, b);
+      // ▲ whenever an upgrade exists within the Round cap: 'ok' (affordable, green) or 'muted' (needs coins, grey).
+      const err = def.decor ? 'maxLevel' : upgradeError(state, b);
+      const up = err === null ? 'ok' : err === 'coins' ? 'muted' : null;
       let kind = null;
       if (b.type === 'orderCounter' && waiting) kind = seatsUsed(state) < seatCount(state) ? 'order' : 'noSeat';
       else if (b.type === 'brewCounter') {
-        if (ready) kind = 'serve';
-        else if (taken && brewing + ready < brewSlots(state) && state.inventory.beans >= (DRINKS[taken.drink]?.beans || 1)) kind = 'brew';
+        if (ready && !carry) kind = 'serve'; // while carrying, the counter's next job is brewing
+        if (!kind && taken && brewing + ready < brewSlots(state) && state.inventory.beans >= (DRINKS[taken.drink]?.beans || 1)) kind = 'brew';
       }
       if (!kind && !up) continue;
-      badgeItems.push({ key: b.uid, kind: kind || 'up', up: !!kind && up, x: b.x, y: e.height + 1.05, z: b.z, target: { kind: 'building', uid: b.uid, type: b.type } });
+      const target = { kind: 'building', uid: b.uid, type: b.type }, upTarget = { ...target, upgrade: true };
+      badgeItems.push({ key: b.uid, kind: kind || (up === 'ok' ? 'up' : 'upMuted'), up: kind ? up : null, upTarget, x: b.x, y: e.height + BADGE_Y, z: b.z, target: kind ? target : upTarget });
+    }
+    // Carrying a cup: ☕ over the customer it belongs to (tap = deliver).
+    if (carry && view === 'cafe') {
+      const w = cafe.walker(carry.orderId);
+      if (w) badgeItems.push({ key: `c${carry.orderId}`, kind: 'serve', x: w.person.position.x, y: 2.9, z: w.person.position.z, target: { kind: 'customer', orderId: carry.orderId } });
     }
     for (const p of Object.values(PARCELS)) {
       if (areaOfParcel(p.id) !== view) continue;
@@ -475,6 +564,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       placement.cancel();
       if (selection) setSelection(null);
       gateWalk = false;
+      if (carry) carry.walking = false; // the cup stays in hand across the switch
       input.cancel(); endDrag();
       avatar.teleport(area.spawn.x, area.spawn.z, Math.PI);
     }
@@ -529,7 +619,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     const yaw = cam.cur.yaw, s = Math.sin(yaw), c = Math.cos(yaw);
     // forward = away from the camera; right = screen right on the ground.
     avatar.setKeyDir(-s * f + c * r, -c * f - s * r);
-    if (f || r) { gateWalk = false; if (selection) setSelection(null); else if (cam.mode === 'free') cam.explore(); }
+    if (f || r) { gateWalk = false; if (carry) carry.walking = false; if (selection) setSelection(null); else if (cam.mode === 'free') cam.explore(); }
   }
 
   // ---------- frame ----------
@@ -550,13 +640,15 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     avatar.update(dt, clock);
     const orders = regionOf(state)?.shop.orders || [];
     plots.update(dt, clock, now);
-    buildings.update(dt, clock, orders, now);
+    updateCarry(orders);
+    buildings.update(dt, clock, orders, now, carry?.orderId);
     cafe.update(dt, clock, state, now, state.story.phase === 'play');
     staff.update(dt, clock);
     world.update(clock);
     placement.update(clock);
     // Tutorial arrow + selected plot timer.
-    if (tutorialTarget && targetPoint(tutorialTarget, arrowPos, now)) markers.setArrow(arrowPos); else markers.setArrow(null);
+    // (no 3D arrow over a ▲ badge target: the tap hand points at the badge itself)
+    if (tutorialTarget && !tutorialTarget.upgrade && targetPoint(tutorialTarget, arrowPos, now)) markers.setArrow(arrowPos); else markers.setArrow(null);
     if (selection?.kind === 'plot') {
       const st = plots.stage(selection.id, now);
       const secs = st === 'planted' || st === 'growing' ? Math.ceil(plots.remainingMs(selection.id, now) / 1000) : -1;
@@ -662,6 +754,8 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     get placement() { return placement.info; },
 
     setTutorialTarget(t) { tutorialTarget = t || null; },
+    /** Order id of the cup the player is carrying (null when empty-handed). */
+    get carrying() { return carry?.orderId ?? null; },
     /** Object notices currently shown in the view: [{ key, kind, up, target }] (read only; refreshed ~4×/s). */
     get notices() { return badgeItems; },
     /** Screen point above a target (CSS px); visible:false for targets of the other area or during a view switch. */
@@ -669,7 +763,9 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       if (!targetPoint(t, v3, Date.now())) return { x: 0, y: 0, visible: false };
       v3.project(camera);
       const visible = v3.z > -1 && v3.z < 1 && Math.abs(v3.x) <= 1 && Math.abs(v3.y) <= 1;
-      return { x: canvasRect.left + (v3.x + 1) / 2 * canvasRect.width, y: canvasRect.top + (1 - v3.y) / 2 * canvasRect.height, visible };
+      // ▲ badge: point at the middle of the pin (it stands on the anchor, ~46 px tall).
+      const lift = t.kind === 'building' && t.upgrade ? 26 : 0;
+      return { x: canvasRect.left + (v3.x + 1) / 2 * canvasRect.width, y: canvasRect.top + (1 - v3.y) / 2 * canvasRect.height - lift, visible };
     },
 
     dispose() {
