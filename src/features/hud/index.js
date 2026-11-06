@@ -46,18 +46,6 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
   ctx.confirm = opts => modals.confirm(opts);
   ctx.clearSelection = () => { ctx.realm?.select?.(null); setSelection(null); };
   ctx.onSheetClosed = () => { delete root.dataset.sheet; tutorial.refresh(); };
-  // Café ⇄ Farm: the realm shows one area of the region at a time (the HUD button is the way into the café).
-  ctx.switchView = () => {
-    const realm = ctx.realm;
-    if (!realm?.setView || realm.switching) return; // allowed during auto: the autopilot follows the view
-    sheet.close();
-    if (ctx.selection) ctx.clearSelection();
-    sfx('ui.open');
-    const next = realm.view === 'cafe' ? 'farm' : 'cafe';
-    Promise.resolve(realm.setView(next)).then(() => tutorial.refresh(), () => {});
-    tutorial.refresh();
-  };
-
   const progressRender = progressSheet(ctx); // keeps its "pending" flags across re-renders
   ctx.onTool = id => {
     if (id === 'world') { if (ctx.blockedByAuto()) return; sheet.close(); ctx.onOpenAtlas?.(); return; }
@@ -139,28 +127,6 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
     }
   }
 
-  // ---------- game choice: farm or café (asked once, when the player first plays without a chosen game) ----------
-  let choosing = false;
-  function updateMode() {
-    const s = store.state;
-    if (choosing || s.mode || !ctx.isPlaying() || modals.open || ctx.isAuto()) return;
-    choosing = true;
-    sheet.close();
-    modals.choose({
-      title: T('hud.mode.title'), note: T('hud.mode.note'),
-      options: [
-        { id: 'farm', icon: '🌱', title: T('hud.mode.farm'), body: T('hud.mode.farmInfo') },
-        { id: 'cafe', icon: '☕', title: T('hud.mode.cafe'), body: T('hud.mode.cafeInfo') },
-      ],
-    }).then(mode => {
-      choosing = false;
-      if (mode !== 'farm' && mode !== 'cafe') return; // closed by something else: ask again next frame
-      sfx('ui.open');
-      store.dispatch('play/setMode', { mode });
-      Promise.resolve(ctx.realm?.setView?.(mode)).then(() => tutorial.refresh(), () => {});
-    });
-  }
-
   // Screen-reader summary of the object notices the realm shows at objects (▲ upgrade, ! order, + brew…).
   const notices = h('p', { class: 'hud-sr', attrs: { 'aria-live': 'polite', 'aria-label': T('hud.notices') } });
   let noticeSig = '', noticeClock = 0;
@@ -177,7 +143,7 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
     notices.textContent = lines.join('. ');
   }
 
-  root.append(top.el, autoBtn, autoBar, actionBar.el, toolbar.el, placement.el, sheet.el, tutorial.el, feedback.el, modals.el, notices, devPanel?.el);
+  root.append(...[top.el, autoBtn, autoBar, actionBar.el, toolbar.el, placement.el, sheet.el, tutorial.el, feedback.el, modals.el, notices, devPanel?.el].filter(Boolean)); // no dev panel → nothing (not the text "undefined")
   document.body.append(root);
 
   function renderAll(s) {
@@ -218,7 +184,6 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
       actionBar.update(dt);
       placement.update(dt);
       updateAuto();
-      updateMode();
       tutorial.update(dt);
       updateNotices(dt);
     },

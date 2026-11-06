@@ -7,7 +7,9 @@ import { pathToFileURL } from 'node:url';
 import { apply } from '../src/core/game.js';
 import { createSave } from '../src/core/state.js';
 import * as D from '../src/core/derive.js';
-import { BUILDINGS, STAFF } from '../src/core/config/economy.js';
+import { BUILDINGS, STAFF, PLAYTEST } from '../src/core/config/economy.js';
+
+PLAYTEST.coins = 0; // the sim measures the balanced economy, not the founder's playtest coins
 import { PARCEL_ORDER, PARCELS } from '../src/core/config/layout.js';
 
 const TAP = 1200; // ms per player action (walk + tap)

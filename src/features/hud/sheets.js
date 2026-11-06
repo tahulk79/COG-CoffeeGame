@@ -1,7 +1,7 @@
 // Sheet contents: Build (café), Seeds (farm), Menu (café drinks), Staff (per area) and Progress (Round + Rebirth).
 // Pure render functions of the store state. Each screen has its own toolbar (toolbar.js), so sheets filter by view.
-import { BUILD_MENU, BUILD_MENU_FARM, BUILD_MENU_CAFE, BUILDINGS, AUTO, autoPrice, CROPS, CROP_ORDER, STAFF, STAFF_ORDER, STAFF_SLOTS, ROUNDS, ROUND_LEVEL_CAP, REBIRTH, DRINKS, DRINK_ORDER, BEANS } from '../../core/config/economy.js';
-import { buildError, buildingsOf, buildingLevel, MAX_INSTANCES, cropUnlocked, drinkUnlocked, drinkPrice, brewMs, seedCost, growMs, staffError, freeSlots, roundStatus, rebirthError, level, region, capacity, beanBuyQuote } from '../../core/derive.js';
+import { BUILD_MENU, BUILD_MENU_FARM, BUILD_MENU_CAFE, BUILDINGS, AUTO, autoPrice, CROPS, CROP_ORDER, STAFF, STAFF_ORDER, STAFF_SLOTS, ROUNDS, ROUND_LEVEL_CAP, REBIRTH, DRINKS, DRINK_ORDER, BEANS, CAFE_MIN_ROUND } from '../../core/config/economy.js';
+import { buildError, buildingsOf, buildingLevel, MAX_INSTANCES, cropUnlocked, drinkUnlocked, drinkPrice, brewMs, seedCost, growMs, staffError, freeSlots, roundStatus, rebirthError, level, region, capacity, beanBuyQuote, upgradeError, upgradeCost } from '../../core/derive.js';
 import { newTxId } from '../../core/store.js';
 import { h } from './dom.js';
 import { T, fmt, duration } from './text.js';
@@ -93,8 +93,19 @@ export function beansSheet(ctx) {
       h('p', { class: `hud-line${cap && s.inventory.beans >= cap ? ' hud-line--bad' : ''}` }, T('hud.storage.fill', { n: Math.floor(s.inventory.beans), max: cap })),
       h('p', { class: 'hud-hint' }, T('hud.beans.hint', { price: BEANS.buyPrice })),
       h('div', { class: 'hud-row' }, actionButton({ id: 'buyBeans', label, icon: '🫘', cost: q.error ? null : q.cost, disabled: !!q.error, note,
-        onClick: () => ctx.act('shop/buyBeans') })));
+        onClick: () => ctx.act('shop/buyBeans') })),
+      storageRow(ctx, s));
   };
+}
+// The café has no storehouse on screen: its bean storage is upgraded from here (same building, same prices).
+function storageRow(ctx, s) {
+  const silo = region(s)?.buildings.find(b => b.type === 'silo');
+  if (!silo) return null;
+  const err = upgradeError(s, silo), cost = upgradeCost('silo', silo.level);
+  const head = h('p', { class: 'hud-sub' }, `📦 ${T('building.silo')} · ${T('hud.levelOf', { level: silo.level, cap: BUILDINGS.silo.upgrade.length + 1 })}`);
+  if (err === 'maxLevel' || err === 'roundCap') return h('div', null, head, h('span', { class: 'hud-tag' }, T('hud.maxLevel')));
+  return h('div', null, head, h('div', { class: 'hud-row' }, actionButton({ id: 'upgradeStorage', label: T('hud.beans.moreRoom'), icon: '⬆️', cost, tone: 'plain',
+    disabled: err === 'coins', note: err === 'coins' ? needMore(cost - s.player.coins) : null, onClick: () => ctx.act('build/upgrade', { uid: silo.uid }) })));
 }
 
 // ---------- Staff ----------
@@ -156,6 +167,7 @@ export function staffSheet(ctx) {
  * (land and regions are bought with coins, never with Rounds). */
 export function roundUnlocks(n) {
   const items = [];
+  if (n === CAFE_MIN_ROUND) items.push(['☕', T('hud.unlock.cafe')]); // the café game can be picked on the world map
   const name = (prefix, ids) => ids.map(id => T(`${prefix}.${id}`)).join(', ');
   const crops = CROP_ORDER.filter(id => CROPS[id].round === n);
   if (crops.length) items.push(['🌱', T('hud.unlock.crops', { list: name('crop', crops) })]);

@@ -337,13 +337,29 @@ test('tutorial: skipping one game keeps the other; an old full skip covers both'
   assert.equal(old.tutorial.farmDone && old.tutorial.cafeDone, true);
 });
 
-test('game choice: play/setMode stores farm | café, rejects anything else', () => {
-  const h = playing();
-  assert.equal(h.state.mode, null);
-  h.must('play/setMode', { mode: 'cafe' });
+test('region game: picked on first entry, café needs Round 2, fixed per region', () => {
+  const h = harness();
+  h.must('story/introDone'); h.must('story/teacherDone');
+  h.must('world/unlockRegion', { regionId: 'vn-1' });
+  // Round 1: the café cannot be picked yet
+  assert.equal(h.act('world/enterRegion', { regionId: 'vn-1', mode: 'cafe' }).error, 'cafeRound');
+  h.must('world/enterRegion', { regionId: 'vn-1', mode: 'farm' });
+  assert.equal(h.region().mode, 'farm');
+  assert.equal(h.state.mode, 'farm');
+  // Round 2 opens the café: a new region can be a café, an old one keeps its game
+  h.state.player.round = 2; h.state.player.coins = 1e6;
+  h.must('world/unlockRegion', { regionId: 'vn-2' });
+  h.must('world/enterRegion', { regionId: 'vn-2', mode: 'cafe' });
+  assert.equal(h.region().mode, 'cafe');
   assert.equal(h.state.mode, 'cafe');
-  assert.equal(h.act('play/setMode', { mode: 'moon' }).ok, false);
-  assert.equal(normalizeSave({ ...h.state, mode: 'moon' }, T0).mode, null);
+  h.must('world/enterRegion', { regionId: 'vn-1', mode: 'cafe' });
+  assert.equal(h.region().mode, 'farm');
+  assert.equal(h.state.mode, 'farm');
+  assert.equal(h.act('play/setMode', { mode: 'cafe' }).error, 'regionMode');
+  // Saves from before the per-region choice: regions take the last played game
+  const old = normalizeSave({ ...h.state, mode: 'cafe', world: { ...h.state.world, regions: { 'vn-1': { ...h.state.world.regions['vn-1'], mode: undefined } }, currentRegion: 'vn-1' } }, T0);
+  assert.equal(old.world.regions['vn-1'].mode, 'cafe');
+  assert.equal(old.mode, 'cafe');
 });
 
 test('beans trade: farm sells beans for coins, café buys within coins and storage', () => {

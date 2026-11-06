@@ -1,5 +1,5 @@
 // Pure selectors over the v3 save. No mutation. Used by the reducer, the scene and the HUD.
-import { BUILDINGS, CROPS, CROP_ORDER, DRINKS, DRINK_ORDER, STAFF, STAFF_SLOTS, ROUND_LEVEL_CAP, REBIRTH, CELL, levelForXp, xpForLevel, GRACE, ROUNDS, MAX_ROUND, SHOP, BEANS } from './config/economy.js';
+import { BUILDINGS, CROPS, CROP_ORDER, DRINKS, DRINK_ORDER, STAFF, STAFF_SLOTS, ROUND_LEVEL_CAP, REBIRTH, CELL, levelForXp, xpForLevel, GRACE, ROUNDS, MAX_ROUND, SHOP, BEANS, CAFE_MIN_ROUND } from './config/economy.js';
 import { PARCELS, ROADS, RESERVED, AREAS, areaAt, plotsOf, rectsOverlap, inRect } from './config/layout.js';
 import { parseRegionId, regionIdOf, REGIONS_PER_COUNTRY, COUNTRY_ORDER, regionCost } from './config/world.js';
 
@@ -85,6 +85,10 @@ export function beanBuyQuote(s, amount = BEANS.buyPack) {
   return { amount: 0, cost: want * BEANS.buyPrice, free: false, error: 'coins', missing: BEANS.buyPrice - s.player.coins };
 }
 export const shopPaused = s => !!region(s)?.shop.pausedAt;
+/** The café game can be picked on the world map once Round 2 is open. */
+export const cafeUnlocked = s => s.player.round >= CAFE_MIN_ROUND;
+/** Game a region is (or would be) played as: its saved mode, else null (not chosen yet). */
+export const regionMode = (s, regionId) => s.world.regions[regionId]?.mode || null;
 // Café staff / robots assigned here and working (not on a break): the café keeps running without the player.
 export const cafeStaffed = s => assignedUnits(s, s.world.currentRegion, 'shop').some(unitWorking);
 

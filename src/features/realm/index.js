@@ -14,7 +14,7 @@
 import * as THREE from 'three';
 import { BUILDINGS, CROPS, CROP_ORDER, DRINKS } from '../../core/config/economy.js';
 import { PARCELS, GATE, FIXED, PLOT_SIZE, CUSTOMER, CAFE_SEATS, AREAS, BOUNDS, CAFE_BOUNDS, RESERVED, plotById, plotsOf, parcelAt, areaAt, areaOfParcel, rectCenter } from '../../core/config/layout.js';
-import { region as regionOf, footprint, upgradeError, parcelError, seatCount, seatsUsed, brewSlots, seatPatienceRatio, ownedPlots, capacity, cropUnlocked, seedCost, cafeStaffed } from '../../core/derive.js';
+import { region as regionOf, footprint, upgradeError, parcelError, seatCount, seatsUsed, brewSlots, seatPatienceRatio, ownedPlots, capacity, cropUnlocked, seedCost } from '../../core/derive.js';
 import { loadModel } from '../../shared/three/models.js';
 import { disposeScene } from '../../shared/three/dispose-scene.js';
 import { createVfx, flyTo, popNumber } from '../../shared/vfx/index.js';
@@ -151,6 +151,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   let gateWalk = false;
   let disposed = false;
   let timerSeconds = -1;
+  let lastInputAt = 0;      // performance.now() of the last touch / zoom (the tutorial waits for a calm moment)
   let view = 'farm';        // area on screen: 'farm' | 'cafe'
   let viewApplied = false;  // visibility is applied on the first frame, so compileAsync sees both areas' materials
   let switching = null;     // { to, t, phase: 'out'|'in', promise, resolve } while the fade runs
@@ -163,20 +164,19 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   const drag = { mode: null, visited: new Set(), stopped: false, ghostX: 0, ghostZ: 0, startX: 0, startZ: 0 };
   let canvasRect = canvas.getBoundingClientRect();
 
-  // The game being played decides the area shown on load / region change ('farm' until the player picks one).
+  // Each region is played as ONE game (region.mode, picked on the world map): the realm shows only that area.
   const modeView = state => (state.mode === 'cafe' ? 'cafe' : 'farm');
-  // Farm and café are separate games: the café only runs while it is on screen, or while café staff / robots are
-  // working there (then it keeps serving without the player). Otherwise it is paused on the farm. The chosen game
-  // follows the view so a reload opens where the player was. Checked every frame, dispatches only on change.
+  // The café runs only in a café region (in a farm region it stays paused: no customers, nothing times out).
+  // Checked every frame, dispatches only on change.
   function syncArea(state) {
     if (switching || state.story.phase !== 'play') return;
     const r = regionOf(state);
     if (!r) return;
+    if (view !== modeView(state)) { swapView(modeView(state)); return; }
     const paused = !!r.shop.pausedAt;
-    const run = view === 'cafe' || cafeStaffed(state);
+    const run = view === 'cafe';
     if (run && paused) store.dispatch('shop/resume');
     else if (!run && !paused) store.dispatch('shop/pause');
-    if (state.mode && state.mode !== view) store.dispatch('play/setMode', { mode: view });
   }
 
   function dispatch(type, payload) {
@@ -284,23 +284,6 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     }
     return null;
   }
-  // Camera focus rect + key (taps inside the same key keep the camera still).
-  function focusInfo(t) {
-    if (!t) return null;
-    if (t.kind === 'plot') { const p = resolvePlot(t, Date.now()); return p ? { rect: PARCELS[p.parcel].rect, key: `parcel:${p.parcel}` } : null; }
-    if (t.kind === 'building') {
-      const e = buildingOf(t);
-      const type = e?.type || t.type;
-      if (type === 'orderCounter' || type === 'brewCounter') return { rect: CAFE_LOOP_RECT, key: 'counters' };
-      if (!e) return null;
-      const r = footprint(e.type, e.x, e.z, e.rot);
-      return { rect: [r[0] - 2, r[1] - 2, r[2] + 2, r[3] + 2], key: `b:${e.uid}` };
-    }
-    if (t.kind === 'parcel' && PARCELS[t.id]) return { rect: PARCELS[t.id].rect, key: `parcel:${t.id}` };
-    if (t.kind === 'customer') return { rect: CAFE_LOOP_RECT, key: 'counters' };
-    if (t.kind === 'gate') return { rect: [GATE.x - 4, GATE.z - 5, GATE.x + 4, GATE.z + 2], key: 'gate' };
-    return null;
-  }
   // Highlight rect drawn on the ground for the selection.
   function frameRect(t) {
     if (t.kind === 'plot') { const p = plotById(t.id); return p ? [p.x - PLOT_SIZE / 2, p.z - PLOT_SIZE / 2, p.x + PLOT_SIZE / 2, p.z + PLOT_SIZE / 2] : null; }
@@ -326,13 +309,12 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     timerSeconds = -1;
     markers.setTimer(null);
     if (!t) {
-      markers.setFrame(null);
-      if (cam.mode !== 'cinematic') cam.explore();
+      markers.setFrame(null); // Hay Day rule: deselecting never moves the camera
     } else {
       markers.setFrame(frameRect(t));
       if (t.kind === 'building') { const e = buildingOf(t); if (e) outline = vfx.outline(e.model); }
-      const f = focusInfo(t);
-      if (f) cam.focusRect(f.rect, { key: f.key });
+      // The target was tapped (so it is on screen) or picked from the HUD: glide only when it is off-screen.
+      if (targetPoint(t, v3, Date.now())) cam.ensureVisible(v3.x, v3.z, .12);
     }
     if (notify) hooks.onSelect?.(selection);
   }
@@ -383,7 +365,6 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     if (t.upgrade || (t.type !== 'orderCounter' && t.type !== 'brewCounter')) { setSelection(t); return; }
     const orders = regionOf(store.state)?.shop.orders || [];
     if (selection) setSelection(null);
-    cam.focusRect(CAFE_LOOP_RECT, { key: 'counters' });
     // Act right away AND walk the player to the counter's pad (the pad then keeps working by proximity). The shared
     // cooldown stops the pad from firing the same action again on arrival.
     const padId = t.type === 'orderCounter' ? 'order' : 'brew';
@@ -618,7 +599,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     if (locked() || auto.on) return; // auto play: the player watches (camera pan / zoom only)
     rayFrom(p);
     if (placement.info) {
-      if (groundPoint(raycaster, hit)) { placement.moveTo(hit.x, hit.z); focusPlacement(); }
+      if (groundPoint(raycaster, hit)) placement.moveTo(hit.x, hit.z);
       return;
     }
     const target = pick();
@@ -719,6 +700,8 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   }
 
   const input = createInput(canvas, {
+    down() { cam.grab(); lastInputAt = performance.now(); },
+    up() { cam.letGo(); lastInputAt = performance.now(); },
     tap: onTap,
     dragStart(start, p) {
       if (locked()) return;
@@ -743,6 +726,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       if (drag.mode === 'pan') { cam.pan(dx, dy); return; }
       rayFrom(p);
       if (drag.mode === 'place') {
+        drag.px = p.x; drag.py = p.y;
         if (groundPoint(raycaster, hit)) placement.moveTo(drag.ghostX + hit.x - drag.startX, drag.ghostZ + hit.z - drag.startZ);
         return;
       }
@@ -752,17 +736,36 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
         if (target?.kind === 'plot') dragPlot(target.id);
       }
     },
-    dragEnd() { if (drag.mode === 'place') focusPlacement(); endDrag(); },
+    dragEnd() { if (drag.mode === 'pan') cam.release(); endDrag(); },
     cancel: endDrag,
-    zoom(f) { if (!locked()) cam.zoomBy(f); },
+    zoom(f, at) {
+      if (locked()) return;
+      lastInputAt = performance.now();
+      canvasRect = canvas.getBoundingClientRect();
+      const anchor = at ? { x: (at.x - canvasRect.left) / canvasRect.width * 2 - 1, y: -((at.y - canvasRect.top) / canvasRect.height) * 2 + 1 } : null;
+      cam.zoomBy(f, anchor);
+    },
   }, locked);
   function endDrag() { drag.mode = null; drag.visited.clear(); markers.setCursor(null); }
+  // Dragging a building near a screen edge scrolls the view that way (Hay Day), the ghost stays under the finger.
+  const EDGE = 48, EDGE_SPEED = 520; // px from the edge, px/s at the very edge
+  function edgeScroll(dt) {
+    if (drag.mode !== 'place' || !placement.info || drag.px == null) return;
+    const w = canvasRect.width, h = canvasRect.height, x = drag.px - canvasRect.left, y = drag.py - canvasRect.top;
+    const push = (d) => (d < EDGE ? (1 - d / EDGE) : 0);
+    const sx = push(w - x) - push(x), sy = push(h - y) - push(y);
+    if (!sx && !sy) return;
+    // pan(dx, dy) moves the world with the finger; scrolling towards an edge = the world moves the other way.
+    cam.pan(-sx * EDGE_SPEED * dt, -sy * EDGE_SPEED * dt);
+    cam.stopGlide();
+    rayFrom({ x: drag.px, y: drag.py });
+    if (groundPoint(raycaster, hit)) placement.moveTo(drag.ghostX + hit.x - drag.startX, drag.ghostZ + hit.z - drag.startZ);
+  }
 
+  // Placement start: keep the player's zoom, slide only if the ghost would be off-screen.
   function focusPlacement() {
     const info = placement.info;
-    const parcel = info && parcelAt(info.x, info.z);
-    if (parcel && areaOfParcel(parcel.id) === 'cafe') cam.focusRect(parcel.rect, { key: `parcel:${parcel.id}` });
-    else if (info) { const r = footprint(info.type, info.x, info.z, info.rot); cam.focusRect([r[0] - 4, r[1] - 4, r[2] + 4, r[3] + 4], { key: `place:${Math.round(info.x / 6)},${Math.round(info.z / 6)}` }); }
+    if (info) cam.ensureVisible(info.x, info.z, .2);
   }
 
   // ---------- views (farm / café) ----------
@@ -798,6 +801,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   }
   function setView(v, { instant = false } = {}) {
     if (!AREAS[v] || disposed) return Promise.resolve(view);
+    if (store.state.mode && v !== modeView(store.state)) return Promise.resolve(view); // the other game's area is closed
     if (switching) return switching.to === v ? switching.promise : switching.promise.then(() => setView(v, { instant }));
     if (v === view) return Promise.resolve(view);
     if (instant) { swapView(v); return Promise.resolve(view); }
@@ -895,6 +899,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       }
       pads.update(clock, { order: waiting && seatsUsed(state) < seatCount(state) && cafe.queuedOrder(state) != null, brew: (ready && !carry) || (brewable && brewing < brewSlots(state)) });
     }
+    edgeScroll(dt);
     cinematics.update(dt);
     cam.update(dt);
     // Sun + shadow frustum follow the camera target; fog scales with the camera distance.
@@ -936,19 +941,23 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     /** Selects a target; a target in the other area switches the view first (returns a Promise then). */
     select(t) {
       const area = areaOf(t);
+      if (t && area && area !== modeView(store.state)) return undefined; // the other game's area is closed
       if (t && area && (area !== view || switching)) return setView(area).then(() => setSelection(t));
       setSelection(t || null);
       return undefined;
     },
     get selection() { return selection; },
     /** Focuses a target; a target in the other area switches the view first. Returns a Promise. */
-    focus(t, { zoom = 1 } = {}) {
+    focus(t, { force = false } = {}) {
       const area = areaOf(t);
-      if (area && (area !== view || switching)) return setView(area).then(() => realm.focus(t, { zoom }));
-      const f = focusInfo(t);
-      if (f) cam.focusRect(f.rect, { key: f.key, zoom, force: true });
+      if (area && area !== modeView(store.state)) return Promise.resolve();
+      if (area && (area !== view || switching)) return setView(area).then(() => realm.focus(t, { force }));
+      // Hay Day rule: keep the player's zoom, only slide the view (and only when the target is not already in view).
+      if (targetPoint(t, v3, Date.now())) { if (force) cam.glideTo(v3.x, v3.z); else cam.ensureVisible(v3.x, v3.z, .15); }
       return Promise.resolve();
     },
+    /** True while a finger is down or within `ms` of the last touch / zoom (automatic camera moves wait for calm). */
+    busy(ms = 1500) { return cam.held || performance.now() - lastInputAt < ms; },
     resetCamera() { cam.zoomBy(1 / cam.zoom); cam.explore(); },
     cinematic(name) { return cinematics.play(name); },
 
@@ -963,6 +972,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       const zone = BUILDINGS[type]?.zone;
       // Farm buildings (dryer) go on the farm's free grass, café buildings in the café; decorations stay in the view.
       const area = uid ? areaOf({ kind: 'building', uid, type }) || view : zone === 'farm' ? 'farm' : zone === 'shop' ? 'cafe' : realm.view;
+      if (area !== modeView(store.state)) return null; // e.g. a café building in a farm region
       if (area !== view || switching) return setView(area).then(() => realm.startPlacement(type, { uid }));
       if (placement.info?.uid) buildings.setHidden(placement.info.uid, false);
       // Start near the player (the camera follows them): the placement searches the nearest valid spot from there.
@@ -986,6 +996,22 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       placement.cancel();
     },
     get placement() { return placement.info; },
+    /**
+     * Screen point (CSS px) just under the placement ghost's footprint: { x, y, top, visible }. x = ghost centre, y = the
+     * lowest footprint corner on screen, top = the highest point of the ghost (for when there is no room below).
+     * The HUD keeps the ✓ ↻ ✕ buttons there, so they follow the building while it is dragged.
+     */
+    placementPoint() {
+      const info = placement.info;
+      if (!info || switching) return null;
+      const fp = footprint(info.type, info.x, info.z, info.rot);
+      const toScreen = (x, y, z) => { v3.set(x, y, z).project(camera); return { x: canvasRect.left + (v3.x + 1) / 2 * canvasRect.width, y: canvasRect.top + (1 - v3.y) / 2 * canvasRect.height, z: v3.z }; };
+      const c = toScreen(info.x, 0, info.z);
+      let bottom = -Infinity;
+      for (const [x, z] of [[fp[0], fp[1]], [fp[2], fp[1]], [fp[0], fp[3]], [fp[2], fp[3]]]) bottom = Math.max(bottom, toScreen(x, 0, z).y);
+      const top = toScreen(info.x, BUILDINGS[info.type]?.size?.[0] > 1 ? 3.2 : 2, info.z).y;
+      return { x: c.x, y: bottom, top, visible: c.z > -1 && c.z < 1 };
+    },
 
     setTutorialTarget(t) { tutorialTarget = t || null; },
     /** Order id of the cup the player is carrying (null when empty-handed). */
@@ -1003,7 +1029,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       const visible = v3.z > -1 && v3.z < 1 && Math.abs(v3.x) <= 1 && Math.abs(v3.y) <= 1;
       // ▲ badge: point at the middle of the pin (it stands on the anchor, ~46 px tall).
       const lift = t.kind === 'building' && t.upgrade ? 26 : 0;
-      return { x: canvasRect.left + (v3.x + 1) / 2 * canvasRect.width, y: canvasRect.top + (1 - v3.y) / 2 * canvasRect.height - lift, visible };
+      return { x: canvasRect.left + (v3.x + 1) / 2 * canvasRect.width, y: canvasRect.top + (1 - v3.y) / 2 * canvasRect.height - lift, visible, valid: v3.z < 1 };
     },
 
     dispose() {

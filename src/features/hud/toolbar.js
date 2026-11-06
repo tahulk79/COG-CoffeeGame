@@ -1,13 +1,13 @@
 // Bottom toolbar (thumb zone). Each screen has its own menu (founder's rule "mỗi màn hình có menu phù hợp"):
-//  · farm: Seeds, Build (farm menu: dryer + decor), [☕ Café], Staff (farm), Progress
-//  · café: Build (café menu), Menu (drinks), [🌱 Farm], Staff (café), Progress
-// The World map moved into the Progress sheet (and the World Gate on the farm).
-// Exactly 4 menus per screen (founder). The storehouse opens from the 🫘 bean pill at the top.
-// The big middle button switches the realm view; on the farm it shows a badge with the customers waiting at the café.
+//  · farm: Seeds, Build (farm menu: dryer + decor), [🫘 Sell beans], Staff (farm), Progress
+//  · café: Build (café menu), Menu (drinks), [🫘 Buy beans], Staff (café), Progress
+// Each region is ONE game (farm or café, picked on the world map), so there is no farm ⇄ café switch any more: the big
+// middle button is the beans link of that game — the farm sells its beans, the café imports beans.
+// The World map is in the Progress sheet (and the World Gate on the farm). Exactly 4 menus per screen (founder).
 // Red dot when something is new or affordable. Buttons of the other screen are hidden (never removed: the tutorial and
 // tests can still find them by id).
-import { BUILD_MENU_FARM, BUILD_MENU_CAFE, BUILDINGS, CROPS, CROP_ORDER, DRINK_ORDER, STAFF, STAFF_ORDER, REBIRTH } from '../../core/config/economy.js';
-import { buildError, buildingsOf, staffError, unlockedCrops, unlockedDrinks, roundStatus, rebirthError, freeSlots, region, upgradeError, shopPaused } from '../../core/derive.js';
+import { BUILD_MENU_FARM, BUILD_MENU_CAFE, BUILDINGS, CROPS, CROP_ORDER, DRINK_ORDER, STAFF, STAFF_ORDER, REBIRTH, BEANS } from '../../core/config/economy.js';
+import { buildError, buildingsOf, staffError, unlockedCrops, unlockedDrinks, roundStatus, rebirthError, freeSlots, region, upgradeError, capacity, beanBuyQuote } from '../../core/derive.js';
 import { h, setText } from './dom.js';
 import { T } from './text.js';
 import { drinkSeenKey } from './sheets.js';
@@ -39,6 +39,9 @@ export function toolDots(s, view = 'farm') {
   const idle = s.staff.units.some(u => !u.assigned && STAFF[u.type]?.zone === zone && r && freeSlots(s, zone) > 0);
   dots.staff = s.staff.units.some(u => u.stopped) || !!r && (idle || STAFF_ORDER.some(type => STAFF[type].zone === zone && !s.staff.units.some(u => u.type === type) && !staffError(s, type)));
   dots.world = false;
+  // Beans link: farm → storehouse full (sell!); café → almost out of beans and a pack can be bought.
+  const cap = r ? capacity(s) : 0;
+  dots.trade = !!r && (view === 'cafe' ? s.inventory.beans < 2 && !beanBuyQuote(s).error : cap > 0 && s.inventory.beans >= cap);
   dots.progress = !!roundStatus(s).canUnlock || Object.keys(REBIRTH.blessings).some(k => !rebirthError(s, k));
   return dots;
 }
@@ -53,11 +56,12 @@ export function waitingCustomers(s) {
 
 export function createToolbar(ctx) {
   const buttons = {};
-  const viewIco = h('span', { class: 'hud-tool-ico', attrs: { 'aria-hidden': 'true' } }, '☕');
-  const viewLabel = h('span', { class: 'hud-tool-label' }, T('hud.view.cafe'));
+  // Middle button: the beans link of this game (farm: sell at the storehouse; café: buy from the supplier).
+  const viewIco = h('span', { class: 'hud-tool-ico', attrs: { 'aria-hidden': 'true' } }, '🫘');
+  const viewLabel = h('span', { class: 'hud-tool-label' }, T('hud.trade.sell'));
   const viewBadge = h('span', { class: 'hud-view-badge', hidden: true, attrs: { 'aria-hidden': 'true' } });
-  const viewBtn = h('button', { id: 'hud-btn-view', class: 'hud-tool hud-view', type: 'button', dataset: { hudId: 'view', view: 'farm' },
-    on: { click: () => ctx.switchView?.() } }, viewIco, viewLabel, viewBadge);
+  const viewBtn = h('button', { id: 'hud-btn-trade', class: 'hud-tool hud-view', type: 'button', dataset: { hudId: 'trade', view: 'farm' },
+    on: { click: () => ctx.onTool(ctx.realm?.view === 'cafe' ? 'beans' : 'storage') } }, viewIco, viewLabel, viewBadge);
   for (const tool of TOOLS) {
     const icon = h('span', { class: 'hud-tool-ico', attrs: { 'aria-hidden': 'true' } }, tool.icon);
     const dot = h('span', { class: 'hud-dot', attrs: { 'aria-hidden': 'true' } });
@@ -89,30 +93,22 @@ export function createToolbar(ctx) {
     lastState = s;
     const dots = toolDots(s, ctx.realm?.view || 'farm');
     for (const [id, b] of Object.entries(buttons)) b.btn.classList.toggle('has-dot', !!dots[id]);
+    viewBadge.hidden = !dots.trade; setText(viewBadge, '!');
   }
   // The Seeds button shows the active crop icon (realm owns the active crop).
   function update() {
     const crop = ctx.realm?.activeCrop;
     if (crop !== lastCrop) { lastCrop = crop; setText(buttons.seeds.icon, CROPS[crop]?.icon || '🌱'); }
-    // View button: label = where it takes you. Badge (farm only) = customers waiting at the café.
     const view = ctx.realm?.view || 'farm';
-    const waiting = view === 'farm' && !shopPaused(ctx.store.state) ? waitingCustomers(ctx.store.state) : 0; // paused café: nobody is waiting
-    const sig = `${view}|${waiting}`;
-    if (sig === viewSig) return;
-    const viewChanged = !viewSig.startsWith(`${view}|`);
-    viewSig = sig;
-    const toCafe = view === 'farm';
-    if (viewChanged) {
-      ctx.root.dataset.view = view;
-      viewBtn.dataset.view = view;
-      setText(viewIco, toCafe ? '☕' : '🌱');
-      setText(viewLabel, T(toCafe ? 'hud.view.cafe' : 'hud.view.farm'));
-      layout(view);
-      if (lastState) render(lastState); // staff dot depends on the screen
-    }
-    viewBadge.hidden = !waiting;
-    setText(viewBadge, waiting > 9 ? '9+' : String(waiting));
-    viewBtn.setAttribute('aria-label', waiting ? T('hud.view.toCafeWaiting', { n: waiting }) : T(toCafe ? 'hud.view.toCafe' : 'hud.view.toFarm'));
+    if (view === viewSig) return;
+    viewSig = view;
+    ctx.root.dataset.view = view;
+    viewBtn.dataset.view = view;
+    const cafe = view === 'cafe';
+    setText(viewLabel, T(cafe ? 'hud.trade.buy' : 'hud.trade.sell'));
+    viewBtn.setAttribute('aria-label', T(cafe ? 'hud.trade.buyAria' : 'hud.trade.sellAria', { price: cafe ? BEANS.buyPrice : BEANS.sellPrice }));
+    layout(view);
+    if (lastState) render(lastState); // staff / trade dots depend on the screen
   }
-  return { el, render, update, viewButton: viewBtn, button: id => (id === 'view' ? viewBtn : buttons[id]?.btn || null), dispose() {} };
+  return { el, render, update, tradeButton: viewBtn, viewButton: viewBtn, button: id => (id === 'trade' || id === 'view' ? viewBtn : buttons[id]?.btn || null), dispose() {} };
 }

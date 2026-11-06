@@ -38,6 +38,11 @@
 .atlas-confirm-actions{display:flex;gap:8px;justify-content:flex-end}
 .atlas-regions{display:grid;gap:8px;margin:0;padding:0;list-style:none}
 .atlas-region{display:flex;align-items:center;gap:10px;min-height:56px;padding:8px 10px;border:2px solid var(--ui-cream-edge);border-radius:16px;background:var(--ui-cream)}
+.atlas-region.has-modes{flex-wrap:wrap}
+.atlas-modes{display:grid;grid-template-columns:1fr 1fr;gap:8px;flex-basis:100%}
+.atlas-mode{display:grid;justify-items:center;gap:0;min-height:48px;padding:6px 8px;font-size:14px}
+.atlas-mode.is-locked{opacity:1}
+.atlas-mode-lock{display:block;font:700 11px/1.2 var(--game-font)}
 .atlas-region[data-state=expired]{opacity:.72;background:#f3efe4}
 .atlas-region-info{flex:1;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;min-width:0}
 .atlas-region-name{font:800 15px/1.3 var(--game-font)}

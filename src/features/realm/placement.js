@@ -78,7 +78,7 @@ export function createPlacement({ scene, prefabs }) {
     tileMat.color.copy(info.valid ? GREEN : RED);
     const why = info.valid ? t('realm.place.hint') : info.noRoom ? t(info.noRoom) : hasKey(`err.${info.error}`) ? t(`err.${info.error}`) : '';
     hint.set(why);
-    hint.sprite.visible = !!why;
+    hint.sprite.visible = false; // the HUD's ✓ ↻ ✕ buttons + reason follow the ghost now (hud/placement.js)
     hint.sprite.position.set(info.x, .35, fp[3] + .7);
   }
 
