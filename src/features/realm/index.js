@@ -388,6 +388,42 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       dispatch('shop/serve', { orderId: carry.orderId });
     }
   }
+  // ---------- proximity auto-actions (walk close = confirm) ----------
+  // Walking near a counter/customer does the job without a tap: order counter → take the order, brewing counter →
+  // pick up a ready cup (then it is carried to its customer) or start brewing a taken order, customer → serve the cup
+  // you carry. Only dispatched when it will succeed, so walking around never spams error toasts.
+  const NEAR_COUNTER = 2.6, NEAR_CUSTOMER = 1.8;
+  let nearTimer = 0, nearCooldown = 0;
+  const distTo = (x, z) => Math.hypot(avatar.position.x - x, avatar.position.z - z);
+  function autoNear(dt, state, orders, now) {
+    nearCooldown = Math.max(0, nearCooldown - dt);
+    nearTimer += dt;
+    if (nearTimer < .2 || nearCooldown > 0) return;
+    nearTimer = 0;
+    if (view !== 'cafe' || state.story.phase !== 'play' || inputLocked || switching || placement.info || cinematics.active) return;
+    const done = () => { nearCooldown = .6; };
+    // Carrying: serve as soon as the player reaches that customer.
+    if (carry) {
+      const w = cafe.walker(carry.orderId);
+      if (w?.seat && distTo(w.person.position.x, w.person.position.z) < NEAR_CUSTOMER) {
+        dispatch('shop/serve', { orderId: carry.orderId }); done(); return;
+      }
+    }
+    const oc = FIXED.orderCounter, bc = FIXED.brewCounter;
+    if (distTo(oc.x, oc.z) < NEAR_COUNTER && orders.some(o => o.stage === 'waiting') && seatsUsed(state) < seatCount(state)) {
+      dispatch('shop/takeOrder', {}); done(); return;
+    }
+    if (distTo(bc.x, bc.z) < NEAR_COUNTER) {
+      const ready = !carry && orders.find(o => o.stage === 'brewing' && now - o.brewStart >= o.brewMs);
+      if (ready) { pickUp(ready.id); done(); return; }
+      const taken = orders.find(o => o.stage === 'taken');
+      const brewing = orders.filter(o => o.stage === 'brewing').length;
+      if (taken && brewing < brewSlots(state) && state.inventory.beans >= (DRINKS[taken.drink]?.beans || 1)) {
+        dispatch('shop/brew', {}); done();
+      }
+    }
+  }
+
   function tapCustomer(t) {
     if (selection) setSelection(null);
     if (carry) { deliver(); return; }
@@ -641,6 +677,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     const orders = regionOf(state)?.shop.orders || [];
     plots.update(dt, clock, now);
     updateCarry(orders);
+    autoNear(dt, state, orders, now);
     buildings.update(dt, clock, orders, now, carry?.orderId);
     cafe.update(dt, clock, state, now, state.story.phase === 'play');
     staff.update(dt, clock);
