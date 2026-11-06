@@ -26,6 +26,7 @@ export function createSave(now = Date.now(), character = null) {
     },
     staff: { units: [] },
     tutorial: { step: 0, done: false },
+    autoplay: { runs: 0, granted: false, active: null },   // active = { startedAt, endsAt } while a run plays
     stats: { harvested: 0, planted: 0, served: 0, built: 0, upgraded: 0, parcels: 0, earned: 0 },
     tx: [],
     nextUid: 1,
@@ -72,6 +73,11 @@ export function normalizeSave(raw, now = Date.now()) {
   out.world.freeUnlocks = num(out.world.freeUnlocks, 0, 0, 9) | 0;
   out.staff = { units: Array.isArray(s.staff?.units) ? s.staff.units.filter(u => obj(u) && typeof u.type === 'string' && Object.hasOwn(STAFF, u.type)) : [] };
   out.tutorial = { ...base.tutorial, ...obj(s.tutorial) };
+  out.autoplay = { ...base.autoplay, ...obj(s.autoplay) };
+  out.autoplay.runs = num(out.autoplay.runs, 0, 0, 99) | 0;
+  if (!obj(out.autoplay.active)) out.autoplay.active = null;
+  // Saves from before auto play existed get their free run once.
+  if (!obj(s.autoplay) && s.story?.teacherMet) { out.autoplay.runs = 1; out.autoplay.granted = true; }
   out.stats = { ...base.stats, ...obj(s.stats) };
   out.tx = Array.isArray(s.tx) ? s.tx.slice(-64) : [];
   out.nextUid = num(s.nextUid, 1, 1) | 0;

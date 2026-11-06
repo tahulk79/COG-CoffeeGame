@@ -87,23 +87,32 @@ test('café: brew needs beans; queue capped', () => {
   assert.equal(h.act('shop/brew').error, 'beans');
 });
 
-test('build: valid placement, red/invalid cases, upgrade with round cap', () => {
+test('build: valid placement, red/invalid cases, upgrade to max in Round 1', () => {
   const h = playing();
   h.state.player.coins = 100000;
   assert.equal(D.placementError(h.state, 'roaster', 2, 111, 0), null);
   assert.equal(D.placementError(h.state, 'roaster', -3, 108, 0), 'blocked');   // customer lane
-  assert.equal(D.placementError(h.state, 'roaster', -9, 5, 0), 'wrongZone');  // nothing is built on farm fields
+  assert.equal(D.placementError(h.state, 'roaster', -9, 5, 0), 'wrongZone');  // café buildings never go on the farm
   assert.equal(D.placementError(h.state, 'tables', 13, 107, 0), 'notOwned');   // café expansion C2 not bought yet
-  assert.equal(h.act('build/place', { type: 'dryer', x: 9, z: -5 }).error, 'unknown'); // retired: the farm is fields only
+  // Farm buildings go on free grass of the farm: not on fields, roads, the gate plaza or other buildings.
+  h.state.player.xp = xpForLevel(3);
+  assert.equal(D.placementError(h.state, 'dryer', -9, 5, 0), 'onField');
+  assert.equal(D.placementError(h.state, 'dryer', 0, 5, 0), 'blocked');       // main road
+  assert.equal(D.placementError(h.state, 'dryer', 9, 14, 0), 'overlap');      // storehouse
+  assert.equal(D.placementError(h.state, 'dryer', 20, 14, 0), null);
+  assert.equal(D.placementError(h.state, 'dryer', 2, 111, 0), 'wrongZone');   // not in the café
+  h.must('build/place', { type: 'dryer', x: 20, z: 14 });
+  h.must('build/place', { type: 'flowers', x: 23, z: 17 });                   // decor on the farm grass
   assert.equal(D.placementError(h.state, 'roaster', 0, 0, 0), 'outside');   // road
   h.must('build/place', { type: 'roaster', x: 2, z: 111 });
   assert.equal(D.placementError(h.state, 'tables', 2, 111, 0), 'overlap');
   assert.equal(h.act('build/place', { type: 'roaster', x: 2, z: 111 }).error, 'limit');
   const roaster = h.region().buildings.find(b => b.type === 'roaster');
-  h.must('build/upgrade', { uid: roaster.uid });
-  h.must('build/upgrade', { uid: roaster.uid });
-  assert.equal(h.act('build/upgrade', { uid: roaster.uid }).error, 'roundCap');
-  assert.equal(D.region(h.state).buildings.find(b => b.uid === roaster.uid).level, 3);
+  // Round 1 already allows every level (no Round cap): upgrade to 8, then maxLevel.
+  for (let i = 0; i < 7; i++) h.must('build/upgrade', { uid: roaster.uid });
+  assert.equal(D.region(h.state).buildings.find(b => b.uid === roaster.uid).level, 8);
+  assert.equal(h.act('build/upgrade', { uid: roaster.uid }).error, 'maxLevel');
+  assert.equal(h.state.player.round, 1);
 });
 
 test('layout sanity: plots, parcels and fixed buildings never sit on roads or reserved lanes', () => {
@@ -147,7 +156,9 @@ test('staff: 2 worker + 2 robot types, max 3 active per farm, effects apply', ()
   assert.equal(units.filter(u => u.assigned).length, 3);
   assert.equal(h.act('staff/assign', { uid: units[3].uid }).error, 'slotsFull');
   assert.ok(D.growMs(h.state, 'robusta') < base);
-  assert.equal(h.act('staff/hire', { type: 'sproutBot' }).error, 'round');
+  // Robots can be hired in Round 1 too (founder: everything available in Round 1).
+  h.must('staff/hire', { type: 'sproutBot' });
+  assert.equal(h.state.staff.units.filter(u => u.assigned).length, 3, 'still max 3 active on the farm');
   h.must('staff/unassign', { uid: units[0].uid });
   h.must('staff/assign', { uid: units[3].uid });
 });
@@ -189,57 +200,6 @@ function toLevel10(h) {
   h.must('shop/takeOrder'); h.must('shop/brew'); h.tick(20_000); h.must('shop/serve');
 }
 
-test('level 10: triggers once, pauses gameplay, resets only that region, keeps account progress', () => {
-  const h = playing();
-  h.state.player.coins = 50000;
-  h.state.player.xp = xpForLevel(8);
-  h.must('land/buyParcel', { parcelId: 'F2' });
-  h.must('build/place', { type: 'roaster', x: 2, z: 111 });
-  const roaster = h.region().buildings.find(b => b.type === 'roaster');
-  h.must('build/upgrade', { uid: roaster.uid });
-  const silo = h.region().buildings.find(b => b.type === 'silo');
-  h.must('build/upgrade', { uid: silo.uid });
-  h.must('staff/hire', { type: 'farmhand' });
-  h.must('farm/plant', { plotId: 'F1-1' });
-  // Another region with progress that must survive.
-  h.state.world.regions['br-1'] = { ...structuredClone(h.region()), status: 'idle' };
-  toLevel10(h);
-  assert.equal(h.state.story.phase, 'expiry');
-  assert.equal(h.act('farm/plant', { plotId: 'F1-2' }).error, 'paused');
-  assert.equal(h.act('round/unlock', { round: 2 }).error, 'paused');
-  const keep = { coins: h.state.player.coins, xp: h.state.player.xp, round: h.state.player.round, credits: h.state.rebirth.credits, beans: h.state.inventory.beans, units: h.state.staff.units.length };
-  h.must('expiry/execute');
-  const r = h.state.world.regions['vn-1'];
-  assert.equal(r.status, 'expired');
-  assert.deepEqual(r.plots, {});
-  assert.deepEqual(r.buildings.map(b => [b.type, b.level]).sort(), [['brewCounter', 1], ['orderCounter', 1], ['silo', 1], ['terrace', 1]]);
-  assert.ok(r.parcels.includes('F2'), 'land ownership kept');
-  assert.equal(h.state.player.coins, keep.coins);
-  assert.equal(h.state.player.xp, keep.xp);
-  assert.equal(h.state.player.round, keep.round);
-  assert.equal(h.state.rebirth.credits, keep.credits);
-  assert.equal(h.state.inventory.beans, keep.beans);
-  assert.equal(h.state.staff.units.length, keep.units);
-  assert.ok(h.state.staff.units.every(u => u.assigned === null), 'staff returned to unassigned');
-  assert.ok(h.state.world.regions['br-1'].buildings.some(b => b.type === 'roaster'), 'other region untouched');
-  assert.equal(h.state.story.phase, 'chooseRegion');
-  assert.ok(h.state.story.expiry.snapshot.buildings.some(b => b.type === 'roaster'));
-  // Idempotent: second execute changes nothing.
-  const before = JSON.stringify(h.state);
-  assert.equal(h.act('expiry/execute').noop, true);
-  assert.equal(JSON.stringify(h.state), before);
-  // Never triggers again.
-  assert.equal(h.act('world/enterRegion', { regionId: 'vn-1' }).error, 'expired');
-  h.go('vn-2');
-  h.state.player.xp = xpForLevel(12);
-  h.state.inventory.beans = 3;
-  h.must('shop/spawnCustomer', { roll: 0 }); h.must('shop/takeOrder'); h.must('shop/brew'); h.tick(20_000); h.must('shop/serve');
-  assert.equal(h.state.story.phase, 'play');
-  // New region is playable for free (no softlock).
-  h.state.player.coins = 0; h.state.inventory.beans = 0;
-  h.must('farm/plant', { plotId: 'F1-1' });
-});
-
 test('level 10 recovery: reload while pending still resets exactly once', () => {
   const storage = createMemoryStorage();
   let clock = T0;
@@ -257,17 +217,6 @@ test('level 10 recovery: reload while pending still resets exactly once', () => 
   assert.equal(again.state.story.phase, 'chooseRegion');
   assert.equal(again.dispatch('expiry/execute').noop, true);
   assert.equal(again.state.world.regions['co-1'].status, 'expired');
-});
-
-test('expired region reopens in round 2 with buildings to rebuild', () => {
-  const h = playing();
-  h.state.player.coins = 1e6;
-  toLevel10(h);
-  h.must('expiry/execute');
-  h.go('vn-2');
-  h.must('round/unlock', { round: 2 }, 'r2');
-  h.go('vn-1');
-  assert.equal(h.region().buildings.length, 4);
 });
 
 test('rebirth: confirmable spend of 1 credit, permanent blessing, no coin loss; independent from rounds', () => {
@@ -405,4 +354,49 @@ test('layout migration 1→3: café buildings move to the café area, farm build
   const n = normalizeSave(save);
   assert.equal(n.player.coins, 10 + 150 + 120 + BUILDINGS.dryer.upgrade[0]);
   assert.deepEqual(n.world.ownedRegions, ['vn-1']);
+});
+
+test('level 10 incident: pauses, then a FULL restart — only 1 empty field and an empty café in the new region', () => {
+  const h = playing();
+  h.state.player.coins = 50000;
+  h.state.player.xp = xpForLevel(8);
+  h.must('land/buyParcel', { parcelId: 'F2' });
+  h.must('land/buyParcel', { parcelId: 'C2' });
+  h.must('build/place', { type: 'roaster', x: 2, z: 111 });
+  h.must('staff/hire', { type: 'farmhand' });
+  h.must('farm/plant', { plotId: 'F1-1' });
+  h.must('world/unlockRegion', { regionId: 'br-1' });
+  const credits = h.state.rebirth.credits;
+  toLevel10(h);
+  assert.equal(h.state.story.phase, 'expiry');
+  assert.equal(h.act('farm/plant', { plotId: 'F1-2' }).error, 'paused');
+  h.must('expiry/execute');
+  // Nothing kept…
+  assert.equal(h.state.player.coins, START.coins);
+  assert.equal(h.state.player.xp, 0);
+  assert.equal(h.state.player.round, 1);
+  assert.equal(h.state.inventory.beans, 0);
+  assert.equal(h.state.staff.units.length, 0);
+  assert.deepEqual(h.state.world.ownedRegions, []);
+  assert.deepEqual(Object.keys(h.state.world.regions), ['vn-1']);
+  assert.equal(h.state.world.regions['vn-1'].status, 'expired');
+  // …except who you are.
+  assert.equal(h.state.rebirth.credits, credits);
+  assert.equal(h.state.character.name, 'Test');
+  assert.equal(h.state.story.phase, 'chooseRegion');
+  // Idempotent.
+  assert.equal(h.act('expiry/execute').noop, true);
+  // Must move on: the expired region can't be picked now; the next region is free.
+  assert.equal(h.act('world/enterRegion', { regionId: 'vn-1' }).error, 'expired');
+  assert.equal(D.regionUnlockCost(h.state, 'us-3'), 0);
+  h.go('br-2');
+  const r = h.region();
+  assert.deepEqual(r.parcels.filter(id => id.startsWith('F')), ['F1'], 'exactly 1 field');
+  assert.deepEqual(r.plots, {}, 'empty field');
+  assert.ok(r.buildings.every(b => BUILDINGS[b.type].starter && b.level === 1), 'empty café: only the free starters at Lv 1');
+  h.must('farm/plant', { plotId: 'F1-1' });
+  // The incident happens only once.
+  h.state.player.xp = xpForLevel(12); h.state.inventory.beans = 3;
+  h.must('shop/spawnCustomer', { roll: 0 }); h.must('shop/takeOrder'); h.must('shop/brew'); h.tick(20_000); h.must('shop/serve');
+  assert.equal(h.state.story.phase, 'play');
 });

@@ -1,8 +1,10 @@
 // Café customers. Store orders are the source of truth: each order has one walker (createPerson + dressPerson).
-//  · waiting        → queue slot at the Order Counter; bubble = drink + horizontal patience bar (green → yellow → red,
+//  · waiting        → queue slot at the Order Counter; bubble = "💬" (no drink until ordered) + patience bar (green → yellow → red,
 //                     blinking + shaking in the last 20 %). No numbers.
 //  · taken/brewing  → walks to a free seat (seats.js: terrace stools + Tables chairs) and SITS (person.userData.seated);
 //                     bubble = drink + a brew bar that fills up, then a big ☕ (bouncing) when the cup is ready
+//                     + under it the SEAT patience bar (SHOP.seatPatienceSeconds, green → yellow → red, blinks in
+//                     the last 20 %). Out of patience → shop/customerLeft: they stand up, swear ("💢 #@!%"), stomp off.
 //  · served         → the player carries the cup over (realm index.js); the cup lands on the table, coins fly up,
 //                     the customer stands up and leaves
 // Seated customers have an invisible pick box (target { kind: 'customer', orderId }) so the player can tap them.
@@ -11,12 +13,13 @@
 import * as THREE from 'three';
 import { DRINKS, SHOP } from '../../core/config/economy.js';
 import { CUSTOMER, CAFE_ROADS } from '../../core/config/layout.js';
-import { region as regionOf, arrivalMs, queueCap } from '../../core/derive.js';
+import { region as regionOf, arrivalMs, queueCap, seatPatienceRatio } from '../../core/derive.js';
 import { currentStep } from '../../core/tutorial.js';
 import { createPerson } from '../../characters/player.js';
 import { dressPerson } from '../../characters/npc.js';
 import { disposeScene } from '../../shared/three/dispose-scene.js';
-import { makeCanvasSprite, drawEmoji, dampK } from './util.js';
+import { makeCanvasSprite, makeLabel, drawEmoji, dampK } from './util.js';
+import { sfx } from '../../shared/audio/index.js';
 import { seatSpots } from './seats.js';
 
 const SPEED = 2.4;
@@ -39,25 +42,31 @@ function roundRect(g, x, y, w, h, r) {
 const barColor = k => (k > .5 ? '#4cc24a' : k > LOW ? '#f2b53a' : '#e5482f');
 
 // mode: 'patience' (bar = time left) | 'brew' (bar fills while brewing) | 'ready' (big ☕) | 'mood' (emoji only)
-function drawBubble(g, size, icon = '☕', mode = 'patience', k = 1) {
+function drawBubble(g, size, icon = '☕', mode = 'patience', k = 1, p = -1) {
   const c = size / 2;
   const x = 10, y = 6, w = size - 20, h = size * .66;
   g.fillStyle = 'rgba(60,35,15,.22)'; roundRect(g, x, y + 4, w, h, 22); g.fill();
   g.fillStyle = mode === 'ready' ? '#eaffdf' : '#fffaf0'; roundRect(g, x, y, w, h, 22); g.fill();
   g.beginPath(); g.moveTo(c - 12, y + h - 1); g.lineTo(c, size * .86); g.lineTo(c + 12, y + h - 1); g.fill();
+  if (mode === 'mood') { drawEmoji(g, icon, c, y + h / 2 + 2, size * .44); return; }
+  const bx = x + 12, bw = w - 24;
+  const bar = (by, bh, kk, color) => {
+    g.fillStyle = 'rgba(70,45,25,.18)'; roundRect(g, bx, by, bw, bh, bh / 2); g.fill();
+    kk = Math.max(0, Math.min(1, kk));
+    if (kk > .01) { g.fillStyle = color; roundRect(g, bx, by, Math.max(bh, bw * kk), bh, bh / 2); g.fill(); }
+    g.lineWidth = 2.5; g.strokeStyle = 'rgba(70,45,25,.35)'; roundRect(g, bx, by, bw, bh, bh / 2); g.stroke();
+  };
+  const seated = p >= 0;
   if (mode === 'ready') {
     g.lineWidth = 5; g.strokeStyle = '#4cc24a'; roundRect(g, x + 2, y + 2, w - 4, h - 4, 20); g.stroke();
-    drawEmoji(g, '☕', c, y + h / 2 + 2, size * .44);
-    return;
+    drawEmoji(g, '☕', c, y + h * (seated ? .38 : .5) + 2, size * (seated ? .34 : .44));
+  } else {
+    drawEmoji(g, icon, c, y + h * (seated ? .27 : .36), size * (seated ? .24 : .3));
+    // patience (queue) or brew progress (seated) bar under the drink
+    if (mode === 'brew') bar(y + h * .5, 10, k, '#38a8c8');
+    else bar(y + h * .68, 13, k, barColor(k));
   }
-  if (mode === 'mood') { drawEmoji(g, icon, c, y + h / 2 + 2, size * .44); return; }
-  drawEmoji(g, icon, c, y + h * .36, size * .3);
-  // Horizontal bar under the drink: track + fill.
-  const bx = x + 12, bw = w - 24, by = y + h * .68, bh = 13;
-  g.fillStyle = 'rgba(70,45,25,.18)'; roundRect(g, bx, by, bw, bh, 6.5); g.fill();
-  const kk = Math.max(0, Math.min(1, k));
-  if (kk > .01) { g.fillStyle = mode === 'brew' ? '#38a8c8' : barColor(kk); roundRect(g, bx, by, Math.max(bh, bw * kk), bh, 6.5); g.fill(); }
-  g.lineWidth = 2.5; g.strokeStyle = 'rgba(70,45,25,.35)'; roundRect(g, bx, by, bw, bh, 6.5); g.stroke();
+  if (seated) bar(y + h * .74, 11, p, barColor(p)); // seated: how long they will still wait
 }
 
 const pickGeo = new THREE.BoxGeometry(.9, 1.9, .9).translate(0, .95, 0);
@@ -65,7 +74,7 @@ pickGeo.userData.keep = true;
 const pickMat = new THREE.MeshBasicMaterial();
 pickMat.userData.keep = true;
 
-export function createCafe({ scene, vfx, dispatch, templates = {} }) {
+export function createCafe({ scene, vfx, dispatch, templates = {}, navigate = null }) {
   const group = new THREE.Group();
   group.name = 'realm-customers';
   scene.add(group);
@@ -112,10 +121,13 @@ export function createCafe({ scene, vfx, dispatch, templates = {} }) {
   function stand(w) { w.person.userData.seated = false; w.bubble.sprite.position.y = BUBBLE_Y; }
 
   // Queue: up the alley (spawn lane), then across to the queue slot. Seat: straight to the chair.
+  // Grid path (nav.js) around counters, buildings and houses; seats inside a Tables footprint are reached exactly.
   function setPath(w, tx, tz, toSeat) {
     const p = w.person.position;
     w.path.length = 0;
     stand(w);
+    const list = navigate ? navigate(p.x, p.z, tx, tz, { exact: true }) : null;
+    if (list?.length) { for (const q of list) w.path.push(q); return; }
     if (!toSeat && Math.abs(p.x - tx) > 1 && Math.abs(p.z - tz) > .8) w.path.push({ x: CUSTOMER.spawn.x, z: tz });
     w.path.push({ x: tx, z: tz });
   }
@@ -158,6 +170,7 @@ export function createCafe({ scene, vfx, dispatch, templates = {} }) {
       }
       if (w.stage !== o.stage || w.slotX !== slot.x || w.slotZ !== slot.z) {
         const wasSeated = w.stage === 'taken' || w.stage === 'brewing';
+        if (w.stage === 'waiting' && o.stage === 'taken') w.pop = .45; // the drink pops into the bubble once ordered
         w.stage = o.stage; w.slotX = slot.x; w.slotZ = slot.z; w.ringStep = -1; w.seat = seat;
         // taken → brewing keeps the customer seated; anything else walks to the new slot.
         if (!(wasSeated && seated && w.person.userData.seated && Math.hypot(w.person.position.x - slot.x, w.person.position.z - slot.z) < .05)) setPath(w, slot.x, slot.z, seated);
@@ -176,7 +189,9 @@ export function createCafe({ scene, vfx, dispatch, templates = {} }) {
     w.path.length = 0;
     const p = w.person.position;
     // Out to the street, along it to the alley, then away (same way they came).
-    w.path.push({ x: p.x, z: STREET_Z }, { x: CUSTOMER.exit.x, z: STREET_Z }, { x: CUSTOMER.exit.x, z: CUSTOMER.exit.z });
+    const list = navigate ? navigate(p.x, p.z, CUSTOMER.exit.x, CUSTOMER.exit.z) : null;
+    if (list?.length) for (const q of list) w.path.push(q);
+    else w.path.push({ x: p.x, z: STREET_Z }, { x: CUSTOMER.exit.x, z: CUSTOMER.exit.z });
     w.bubble.redraw(w.mood || w.icon, 'mood');
     w.bubble.sprite.visible = !!w.mood;
     w.bubble.sprite.material.opacity = 1; w.bubble.sprite.center.x = .5;
@@ -184,6 +199,7 @@ export function createCafe({ scene, vfx, dispatch, templates = {} }) {
   }
   function drop(w) {
     leaving.delete(w);
+    w.swear?.dispose();
     w.bubble.dispose();
     w.person.removeFromParent();
     disposeScene(w.person);
@@ -217,9 +233,19 @@ export function createCafe({ scene, vfx, dispatch, templates = {} }) {
     vfx.burst('heart', w.person.position);
     return w.person.position;
   }
-  function onLeft(orderId) {
+  // angry: a seated customer ran out of patience — red swear bubble, shake, red puff, stomps off fast.
+  function onLeft(orderId, angry = false) {
     const w = walkers.get(orderId);
-    if (w) { w.mood = '💢'; vfx.burst('puff', w.person.position); }
+    if (!w) return;
+    w.mood = '💢';
+    vfx.burst('puff', w.person.position, angry ? { color: 0xe5533f, count: 10 } : undefined);
+    if (!angry) return;
+    w.angry = true;
+    w.shake = .7;
+    sfx('cafe.angry');
+    w.swear = makeLabel('💢 #@!%', { bg: '#e5482f', fg: '#ffffff', border: '#ffffff', height: .62, onTop: true });
+    w.swear.sprite.position.set(.15, 3.05, 0);
+    w.person.add(w.swear.sprite);
   }
 
   function step(w, dt, speed) {
@@ -262,7 +288,8 @@ export function createCafe({ scene, vfx, dispatch, templates = {} }) {
       if (o.stage === 'waiting') {
         const left = Math.max(0, 1 - (now - o.at) / patienceMs);
         const s = Math.ceil(left * BAR_STEPS);
-        if (s !== w.ringStep || w.status !== 'patience') { w.ringStep = s; w.status = 'patience'; w.bubble.redraw(w.icon, 'patience', left); }
+        // Not ordered yet: no drink shown, just "💬" (wants to order) + the patience bar.
+        if (s !== w.ringStep || w.status !== 'patience') { w.ringStep = s; w.status = 'patience'; w.bubble.redraw('💬', 'patience', left); }
         // About to run out: blink + shake so the player sees who to serve first.
         const low = left <= LOW;
         sprite.material.opacity = low ? .55 + .45 * Math.abs(Math.sin(time * 9)) : 1;
@@ -270,17 +297,35 @@ export function createCafe({ scene, vfx, dispatch, templates = {} }) {
         if (left <= 0 && playing && !w.leftSent) { w.leftSent = true; dispatch('shop/customerLeft', { orderId: o.id }); }
         continue;
       }
-      sprite.material.opacity = 1; sprite.center.x = .5;
       const ready = o.stage === 'brewing' && now - o.brewStart >= o.brewMs;
       const k = o.stage === 'brewing' ? Math.min(1, (now - o.brewStart) / o.brewMs) : 0;
-      const status = ready ? 'ready' : 'brew', s = ready ? -3 : Math.floor(k * BAR_STEPS);
-      if (w.status !== status || w.ringStep !== s) { w.status = status; w.ringStep = s; w.bubble.redraw(w.icon, status, k); }
+      // Seat patience: counts from takenAt; out of time (even with a ready cup) → they leave angry.
+      const pLeft = 1 - seatPatienceRatio(o, now);
+      const status = ready ? 'ready' : 'brew', s = (ready ? 1000 : Math.floor(k * BAR_STEPS) * 100) + Math.ceil(pLeft * BAR_STEPS);
+      if (w.status !== status || w.ringStep !== s) { w.status = status; w.ringStep = s; w.bubble.redraw(w.icon, status, k, pLeft); }
+      const low = pLeft <= LOW && w.person.userData.seated;
+      sprite.material.opacity = low ? .55 + .45 * Math.abs(Math.sin(time * 9)) : 1;
+      sprite.center.x = low ? .5 + Math.sin(time * 38 + w.phase) * .035 : .5;
+      if (pLeft <= 0 && playing && !w.leftSent) { w.leftSent = true; dispatch('shop/customerLeft', { orderId: o.id }); }
       // Ready drinks make the bubble bounce to draw attention.
       const base = w.person.userData.seated ? BUBBLE_SEATED_Y : BUBBLE_Y;
       sprite.position.y = base + (ready ? Math.abs(Math.sin(time * 5)) * .25 : 0);
+      if (w.pop > 0) { // order just taken: the bubble pops with the drink
+        w.pop = Math.max(0, w.pop - dt);
+        const k = 1.05 * (1 + Math.sin((1 - w.pop / .45) * Math.PI) * .45);
+        sprite.scale.set(k, k, 1);
+        if (!w.pop) sprite.scale.set(1.05, 1.05, 1);
+      }
     }
     for (const w of leaving) {
-      if (step(w, dt, w.mood === '💢' ? SPEED * .7 : SPEED)) drop(w);
+      // Angry customers shake on the spot for a moment, then stomp off quickly.
+      if (w.shake > 0) {
+        w.shake -= dt;
+        w.person.position.x += Math.sin(time * 60) * .025;
+        if (w.swear) w.swear.sprite.position.y = 3.05 + Math.abs(Math.sin(time * 14)) * .12;
+        continue;
+      }
+      if (step(w, dt, w.angry ? SPEED * 1.45 : w.mood === '💢' ? SPEED * .7 : SPEED)) drop(w);
       else turn(w, w.faceYaw, dt);
     }
     for (let i = cups.length - 1; i >= 0; i--) {
@@ -304,6 +349,19 @@ export function createCafe({ scene, vfx, dispatch, templates = {} }) {
   return {
     group, sync, update, onServed, onLeft,
     walker: id => walkers.get(id) || null,
+    /**
+     * Order id of the first waiting customer who is standing in the queue at the Order Counter (null while everyone
+     * is still walking in). Orders are only taken from customers who reached the counter — otherwise a customer
+     * would go straight from the street to a seat without ever queueing.
+     */
+    queuedOrder(state) {
+      for (const o of regionOf(state)?.shop.orders || []) {
+        if (o.stage !== 'waiting') continue;
+        const w = walkers.get(o.id);
+        if (w && !w.path.length && Math.hypot(w.person.position.x - w.slotX, w.person.position.z - w.slotZ) < .3) return o.id;
+      }
+      return null;
+    },
     /** Pick boxes of seated customers (tap a customer to deliver their cup). */
     *pickers() { for (const w of walkers.values()) if (w.person.userData.seated) yield w.pick; },
     /** Seat spots of the current region (for badges / debugging). */

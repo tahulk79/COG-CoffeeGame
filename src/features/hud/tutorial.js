@@ -3,7 +3,7 @@
 // found only the tip is shown. The farm and the café are separate views: when the step's target is in the other area,
 // the hand points at the toolbar's Café / Farm button instead ("Tap Café to open your café").
 import { BUILDINGS, DRINKS } from '../../core/config/economy.js';
-import { region, plotState, ownedPlots } from '../../core/derive.js';
+import { region, plotState, ownedPlots, upgradeError, upgradeCost } from '../../core/derive.js';
 import { currentStep } from '../../core/tutorial.js';
 import { h } from './dom.js';
 import { T, fmt, clock } from './text.js';
@@ -35,11 +35,27 @@ export function createTutorial(ctx) {
   let lastFocus = '';       // step+area the camera was last pointed at
   let lastView = '';        // realm view at the last resolve (a view change re-focuses the target)
 
+  // Keep the tip 6 px below whatever top HUD it would overlap (pills row, Auto chip/banner), on any screen size.
+  const placeTip = () => {
+    if (tip.hidden) return;
+    const tr = tip.getBoundingClientRect();
+    let bottom = 0;
+    for (const node of document.querySelectorAll('#hud-root .hud-top, #hud-root .hud-auto-btn, #hud-root .hud-auto-bar')) {
+      if (node.hidden || !node.offsetParent && getComputedStyle(node).position !== 'fixed') continue;
+      for (const r of [node.getBoundingClientRect(), ...[...node.children].map(c => c.getBoundingClientRect())]) {
+        if (!r.width || r.right < tr.left || r.left > tr.right) continue; // only what sits above the tip horizontally
+        bottom = Math.max(bottom, r.bottom);
+      }
+    }
+    const want = bottom ? Math.round(bottom + 6) : null;
+    tip.style.top = want ? `${want}px` : '';
+  };
   const setTip = text => {
-    if (text === tipKey) return;
+    if (text === tipKey) { placeTip(); return; }
     tipKey = text;
     tipText.replaceChildren(...(text ? rich(text) : []));
     tip.hidden = !text;
+    placeTip();
   };
   const setWorld = target => {
     world = target;
@@ -60,6 +76,20 @@ export function createTutorial(ctx) {
   // Decides the tip + pointer target for the current step. Runs ~5×/s (and on store changes), not every frame.
   function resolve() {
     const s = ctx.store.state;
+    // Auto play: the tutorial pauses; the same tip bubble + tap hand narrate what the autopilot does.
+    const auto = ctx.isAuto?.() && ctx.isPlaying() ? ctx.realm?.autoStatus : null;
+    skip.hidden = !!auto;
+    if (auto) {
+      if (ctx.modals.open) { hide(); return; }
+      // Caption = what the autopilot does now ({ key, params }; drink / crop ids translated here).
+      const c = auto.caption, p = c?.params ? { ...c.params } : {};
+      if (p.drink) p.drink = T(`drink.${p.drink}`);
+      if (p.crop) p.crop = T(`crop.${p.crop}`);
+      setTip(c ? T(c.key, p) : '');
+      setUi(null);
+      setWorld(ctx.sheet.openId ? null : auto.target || null);
+      return;
+    }
     const cur = ctx.isPlaying() ? currentStep(s) : null;
     if (!cur || ctx.modals.open) { hide(); return; }
     const r = region(s);
@@ -139,7 +169,13 @@ export function createTutorial(ctx) {
       case 'upgrade': {
         const silo = building('silo');
         // Upgrades open from the ▲ badge above the storehouse (or the Storage button): point at the badge.
-        if (selected?.kind === 'building' && selected.type === 'silo' && selected.upgrade) { text = T('tut.upgradeBtn'); node = ctx.actionBar.el.querySelector('[data-hud-id="upgrade"]'); }
+        // Not enough coins (grey ▲): say how many are missing and send the player to sell coffee at the Café.
+        const siloB = r?.buildings.find(b => b.type === 'silo');
+        const cost = siloB ? upgradeCost('silo', siloB.level) : null;
+        if (siloB && upgradeError(s, siloB) === 'coins' && cost != null) {
+          text = T('tut.upgradeCoins', { n: fmt(cost - s.player.coins), name: T('building.silo') });
+          if (ctx.realm?.view === 'cafe') target = building('orderCounter'); else node = ctx.toolbar.viewButton;
+        } else if (selected?.kind === 'building' && selected.type === 'silo' && selected.upgrade) { text = T('tut.upgradeBtn'); node = ctx.actionBar.el.querySelector('[data-hud-id="upgrade"]'); }
         else { text = T('tut.upgrade'); target = silo && { ...silo, upgrade: true }; }
         break;
       }
@@ -185,13 +221,14 @@ export function createTutorial(ctx) {
       if (rect.width) placeHand(rect.left + rect.width / 2, rect.top + rect.height / 2); else hideHand();
     } else if (world) {
       const p = ctx.realm?.screenPoint?.(world);
-      const visible = p && p.visible !== false && Number.isFinite(p.x) && p.y > 90 && p.y < innerHeight - 90;
+      // Near an edge counts as off-screen too (a target half cut at the border must be framed by the camera).
+      const visible = p && p.visible !== false && Number.isFinite(p.x) && p.y > 110 && p.y < innerHeight - 150 && p.x > 36 && p.x < innerWidth - 36;
       if (visible) { placeHand(p.x, p.y); offscreen = 0; }
       else {
         hideHand();
         // Target hidden (player panned or tapped elsewhere) for 2 s → bring the camera back to it.
         offscreen += dt;
-        if (offscreen > 2 && !ctx.realm?.placement && !ctx.sheet.openId && !ctx.realm?.switching) { offscreen = 0; ctx.realm?.focus?.(world, { zoom: 1 }); }
+        if (offscreen > .6 && !ctx.realm?.placement && !ctx.sheet.openId && !ctx.realm?.switching) { offscreen = 0; ctx.realm?.focus?.(world, { zoom: 1 }); }
       }
     } else hideHand();
   }

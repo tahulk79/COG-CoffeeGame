@@ -1,16 +1,20 @@
 // Café seats (founder: "after ordering, customers go sit on chairs"). Same count and order as the core
-// (derive.seatCount = SHOP.baseSeats terrace seats from layout CAFE_SEATS + SHOP.seatsPerTable per 'tables' building):
-//  · terrace: CAFE_SEATS, two plastic stools per low sidewalk table (pairs → table at their midpoint)
+// (derive.seatCount = terrace seats + SHOP.seatsPerTable per 'tables' building):
+//  · terrace (the upgradable 'terrace' building): the first N of layout CAFE_SEATS, N = BUILDINGS.terrace.effect.seats
+//    at its level. Two rows of plastic stools (z 115.2 / 117.2); each column shares one low table between the rows.
 //  · each Tables building: its two chairs, left / right of the table in the building's own frame (rotates with it)
-// Each spot: { x, z, yaw (facing the table), cup: {x, y, z} (where the served cup is put), key }.
+// Each spot: { x, z, yaw (facing the table), cup: {x, y, z} (where the served cup is put), row, key }.
 import { CAFE_SEATS } from '../../core/config/layout.js';
+import { BUILDINGS, SHOP } from '../../core/config/economy.js';
 import { region as regionOf } from '../../core/derive.js';
 
-export const TERRACE_TABLE_TOP = .52;   // low plastic sidewalk table (city.js draws it)
-export const TERRACE_TABLES = [];
-for (let i = 0; i + 1 < CAFE_SEATS.length; i += 2) {
-  const a = CAFE_SEATS[i], b = CAFE_SEATS[i + 1];
-  TERRACE_TABLES.push({ x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 });
+export const TERRACE_TABLE_TOP = .52;   // low plastic sidewalk table (buildings.js draws the terrace)
+export const TERRACE_TABLE_Z = (Math.min(...CAFE_SEATS.map(s => s.z)) + Math.max(...CAFE_SEATS.map(s => s.z))) / 2;
+/** Terrace seats in use at a terrace level. */
+export function terraceSeats(level) {
+  const list = BUILDINGS.terrace?.effect?.seats;
+  if (!list || level < 1) return SHOP.baseSeats;
+  return list[Math.min(list.length, level) - 1];
 }
 
 // Chair offset / table height of the Tables prefab (table.glb: chairs_pair at ±0.85, table 0.8 high, scaled by
@@ -27,11 +31,14 @@ function cupAt(sx, sz, tx, tz, y, k) {
 /** All seat spots of the current region, in core seat order. */
 export function seatSpots(state) {
   const out = [];
-  CAFE_SEATS.forEach((s, i) => {
-    const t = TERRACE_TABLES[Math.floor(i / 2)] || s;
-    out.push({ key: `t${i}`, x: s.x, z: s.z, yaw: yawTo(s.x, s.z, t.x, t.z), cup: cupAt(s.x, s.z, t.x, t.z, TERRACE_TABLE_TOP + .02, .2) });
+  const buildings = regionOf(state)?.buildings || [];
+  const terrace = buildings.find(b => b.type === 'terrace');
+  const n = terrace ? terraceSeats(terrace.level) : SHOP.baseSeats;
+  CAFE_SEATS.slice(0, n).forEach((s, i) => {
+    const tz = TERRACE_TABLE_Z;
+    out.push({ key: `t${i}`, x: s.x, z: s.z, row: s.z < tz ? 0 : 1, terrace: true, yaw: yawTo(s.x, s.z, s.x, tz), cup: cupAt(s.x, s.z, s.x, tz, TERRACE_TABLE_TOP + .02, .2) });
   });
-  for (const b of regionOf(state)?.buildings || []) {
+  for (const b of buildings) {
     if (b.type !== 'tables') continue;
     const a = -(b.rot % 4) * Math.PI / 2, c = Math.cos(a), sn = Math.sin(a);
     for (const side of [-1, 1]) {
@@ -41,4 +48,10 @@ export function seatSpots(state) {
     }
   }
   return out;
+}
+
+/** Where someone stands to hand a cup to the customer on `seat` (behind a terrace stool, or the free side of a chair). */
+export function standSpot(seat) {
+  if (seat.terrace) return { x: seat.x, z: seat.row === 0 ? TERRACE_TABLE_Z - 1.8 : TERRACE_TABLE_Z + 1.8 };
+  return { x: seat.x - Math.sin(seat.yaw) * .8, z: seat.z - Math.cos(seat.yaw) * .8 };
 }

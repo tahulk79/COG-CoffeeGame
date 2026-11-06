@@ -48,6 +48,17 @@
 .hud-pill-ico{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:#7a5032;font-size:15px}
 .hud-pill--bean.is-full{background:linear-gradient(#ffd877,#f0a92c);color:#5a3510;box-shadow:0 3px 0 #b5741b,0 0 0 3px #fff3}
 .hud-pill--bean.is-full .hud-pill-cap{opacity:1}
+/* Bean pill = the storehouse button: small "Kho" tag, "Đầy!" when full. */
+button.hud-pill{border:0;cursor:pointer;font:800 16px/1 var(--h-font);-webkit-tap-highlight-color:transparent}
+button.hud-pill:active{transform:translateY(1px)}
+/* `#hud-root button{color:inherit}` would make the pill text dark on dark brown: force the pill colors. */
+#hud-root .hud-pill{color:#fff}
+#hud-root .hud-pill--bean.is-full{color:#5a3510;animation:hud-full-blink 1s ease-in-out infinite}
+@keyframes hud-full-blink{0%,100%{transform:scale(1);box-shadow:0 3px 0 #b5741b,0 0 0 0 #ff7a1a00}50%{transform:scale(1.06);box-shadow:0 3px 0 #b5741b,0 0 0 6px #ff7a1acc}}
+@media(prefers-reduced-motion:reduce){#hud-root .hud-pill--bean.is-full{animation:none}}
+.hud-pill-tag{margin-left:4px;padding:3px 6px;border-radius:999px;background:#ffffff26;font:800 10px/1 var(--h-font);letter-spacing:.3px;text-transform:uppercase}
+.hud-pill--bean.is-full .hud-pill-tag{background:#c2410c;color:#fff;animation:hud-pulse 1s ease-in-out infinite}
+.hud-line--muted{opacity:.8;font-size:13px}
 .hud-coin-ico{flex:none;display:inline-block;width:24px;height:24px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff6b8 0 18%,#ffd34d 20% 58%,#e9a521 60%);box-shadow:inset 0 0 0 2px #c98a17,0 1px 0 #8a5a0c}
 .hud-pill .hud-coin-ico{width:26px;height:26px}
 .hud-chips{display:flex;gap:4px}
@@ -195,6 +206,8 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
 .hud-toast{max-width:100%;padding:8px 16px;border-radius:16px;background:#3c2716e6;color:#fff;font:700 14px/1.3 var(--h-font);text-align:center;box-shadow:0 4px 12px #0003;animation:hud-toast-in .2s ease-out;transition:opacity .3s,transform .3s}
 .hud-toast--good{background:#2f7a22eb}
 .hud-toast--bad{background:#b13c27eb}
+.hud-toast--warn{background:#d9731feb;color:#fff;animation:hud-shake .45s ease-in-out}
+@keyframes hud-shake{20%,60%{transform:translateX(-5px)}40%,80%{transform:translateX(5px)}}
 .hud-toast.is-out{opacity:0;transform:translateY(-6px)}
 .hud-banner{position:absolute;left:50%;top:calc(var(--h-st) + 22vh);transform:translateX(-50%);display:grid;justify-items:center;gap:4px;min-width:min(300px,calc(100vw - 32px));max-width:calc(100vw - 32px);padding:14px 22px;border-radius:24px;background:linear-gradient(#fff3c4,#ffd76a);box-shadow:0 6px 0 #c99027,0 14px 30px #0003;text-align:center;animation:hud-banner-in .45s cubic-bezier(.2,1.6,.4,1)}
 .hud-banner-title{font:800 32px/1 var(--h-font);color:#7a3f0e;text-shadow:0 2px 0 #fff8}
@@ -279,3 +292,12 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
   .hud-hand::before{animation:none!important;opacity:.9}
   .hud-pulse,.hud-tool.hud-pulse .hud-tool-ico{animation:none!important;box-shadow:0 0 0 4px #ffd23f}
 }
+
+/* ---------- auto play ---------- */
+.hud-auto-btn{position:fixed;z-index:var(--z-hud,5);top:calc(var(--h-st) + 64px);right:calc(var(--h-sr) + 10px);min-height:40px;padding:6px 14px;border:3px solid #fff;border-radius:20px;background:linear-gradient(#8fd3ff,#3f8fd6);color:#fff;font:800 15px/1 var(--h-font);box-shadow:var(--h-shadow);animation:hud-bob 1.6s ease-in-out infinite}
+.hud-auto-btn[hidden],.hud-autobar[hidden]{display:none}
+.hud-auto-btn.is-buy{background:linear-gradient(#ffe58a,#f2b53a);color:#5a3a0a;animation:none}
+.hud-autobar{position:fixed;z-index:calc(var(--z-hud,5) + 1);top:calc(var(--h-st) + 64px);right:calc(var(--h-sr) + 10px);display:flex;align-items:center;gap:6px;padding:4px 4px 4px 12px;border-radius:22px;background:#1f3d5cee;color:#fff;box-shadow:var(--h-shadow)}
+.hud-autobar-chip{font:800 14px/1 var(--h-font);font-variant-numeric:tabular-nums;white-space:nowrap}
+.hud-autobar-stop{min-height:36px;padding:4px 12px;border:0;border-radius:18px;background:linear-gradient(#ffe58a,#f2b53a);color:#5a3a0a;font:800 14px/1 var(--h-font);box-shadow:0 2px 0 #b8861d}
+#hud-root[data-auto] .hud-tip-skip{display:none}

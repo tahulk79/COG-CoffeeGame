@@ -73,6 +73,8 @@ export function createBadges({ scene, camera }) {
     mats[kind] = new THREE.SpriteMaterial({ map, transparent: true, depthTest: false, depthWrite: false, sizeAttenuation: false });
   }
   const pool = [];      // { sprite, small, phase }
+  const ndc = new THREE.Vector3();
+  const EDGE = .04, EDGE_TOP = .22; // NDC margins (the top HUD covers the upper ~11 % of a portrait screen)
   let used = 0;
   let scale = .05, smallScale = .03;
   let sig = '';
@@ -123,13 +125,24 @@ export function createBadges({ scene, camera }) {
       for (const s of pool) { s.sprite.scale.set(scale, scale, 1); s.small.scale.set(smallScale, smallScale, 1); }
     },
     update(time) {
+      const P = camera.projectionMatrix.elements, wN = scale * P[0], hN = scale * P[5]; // badge size in NDC
       for (let i = 0; i < used; i++) {
         const s = pool[i];
         if (s.sprite.scale.x !== scale) { s.sprite.scale.set(scale, scale, 1); s.small.scale.set(smallScale, smallScale, 1); }
         // Bounce in screen space (sprite center), so it is the same on every zoom level.
         // Muted (not affordable) ▲ stays still; everything else bounces.
-        s.sprite.center.y = s.still ? 0 : -Math.abs(Math.sin(time * 3.2 + s.phase)) * .22;
-        s.small.center.y = s.sprite.center.y * scale / smallScale - .9; // rides along with its interaction badge
+        let cy = s.still ? 0 : -Math.abs(Math.sin(time * 3.2 + s.phase)) * .22;
+        // Keep the whole pin (and its small ▲) inside the viewport margins: slide it in from the edges.
+        ndc.copy(s.sprite.position).project(camera);
+        let cx = .5;
+        const maxX = 1 - wN * (s.small.visible ? 1.3 : .5) - EDGE, minX = -1 + wN * .5 + EDGE, maxY = 1 - hN * 1.25 - EDGE_TOP;
+        if (ndc.z < 1) {
+          if (ndc.x > maxX) cx += (ndc.x - maxX) / wN; else if (ndc.x < minX) cx -= (minX - ndc.x) / wN;
+          if (ndc.y > maxY) cy += (ndc.y - maxY) / hN;
+        }
+        s.sprite.center.set(cx, cy);
+        const k = scale / smallScale;
+        s.small.center.set(-.35 + (cx - .5) * k, cy * k - .9); // rides along with its interaction badge
       }
     },
     /** Visible badge sprites (for raycasting before the objects themselves). */

@@ -93,6 +93,7 @@ export function createActionBar(ctx) {
     const max = def.decor ? 1 : def.upgrade.length + 1;
     if (!def.decor) body.append(h('p', { class: 'hud-sub' }, T('hud.levelOf', { level: m.level, cap: Math.min(m.cap, max) })));
     if (m.live?.capacity) body.append(h('p', { class: `hud-line${m.live.beans >= m.live.capacity ? ' hud-line--bad' : ''}` }, T('hud.storage.fill', { n: Math.floor(m.live.beans), max: m.live.capacity })));
+    if (m.type === 'silo') body.append(h('p', { class: 'hud-line hud-line--muted' }, T(m.live?.capacity && m.live.beans >= m.live.capacity ? 'hud.storage.explainFull' : 'hud.storage.explain')));
     if (m.live?.seats) body.append(h('p', { class: 'hud-line' }, T('hud.seats.line', { n: m.live.used, max: m.live.seats })));
     body.append(h('p', { class: 'hud-line' }, buildingEffect(m.type, m.level, m.err !== 'maxLevel' && m.err !== 'roundCap')));
     const row = h('div', { class: 'hud-row' });
@@ -105,7 +106,7 @@ export function createActionBar(ctx) {
       else row.append(actionButton({ id: 'upgrade', label: T('hud.upgrade'), icon: '⬆️', cost: m.cost, disabled: m.err === 'coins', note: m.err === 'coins' ? needMore(m.missing) : null,
         onClick: () => ctx.act('build/upgrade', { uid: m.uid }) }));
     }
-    if (!def.fixed) row.append(actionButton({ label: T('hud.move'), icon: '✥', tone: 'plain', onClick: () => { ctx.clearSelection(); ctx.realm?.startPlacement?.(m.type, { uid: m.uid }); } }));
+    if (!def.fixed) row.append(actionButton({ label: T('hud.move'), icon: '✥', tone: 'plain', onClick: () => { if (ctx.blockedByAuto?.()) return; ctx.clearSelection(); ctx.realm?.startPlacement?.(m.type, { uid: m.uid }); } }));
     body.append(row);
   }
 

@@ -1,6 +1,6 @@
 // Pure selectors over the v3 save. No mutation. Used by the reducer, the scene and the HUD.
 import { BUILDINGS, CROPS, CROP_ORDER, DRINKS, DRINK_ORDER, STAFF, STAFF_SLOTS, ROUND_LEVEL_CAP, REBIRTH, CELL, levelForXp, xpForLevel, GRACE, ROUNDS, MAX_ROUND, SHOP } from './config/economy.js';
-import { PARCELS, ROADS, RESERVED, plotsOf, rectsOverlap, inRect } from './config/layout.js';
+import { PARCELS, ROADS, RESERVED, AREAS, areaAt, plotsOf, rectsOverlap, inRect } from './config/layout.js';
 import { parseRegionId, regionIdOf, REGIONS_PER_COUNTRY, COUNTRY_ORDER, regionCost } from './config/world.js';
 
 // Own-property lookup: ids come from payloads, so 'toString' / '__proto__' must not resolve to Object.prototype.
@@ -22,7 +22,9 @@ const effectSum = (s, type, key) => buildingsOf(s, type).reduce((sum, b) => sum 
 
 export const assignedUnits = (s, regionId = s.world.currentRegion, zone) =>
   s.staff.units.filter(u => u.assigned && u.assigned.regionId === regionId && (!zone || u.assigned.zone === zone));
-const staffBonus = (s, key) => assignedUnits(s).reduce((sum, u) => sum + (STAFF[u.type]?.effect?.[key] || 0), 0);
+// Stopped units (worker on the phone / robot out of battery) give no bonus until resumed.
+export const unitWorking = u => !u.stopped;
+const staffBonus = (s, key) => assignedUnits(s).filter(unitWorking).reduce((sum, u) => sum + (STAFF[u.type]?.effect?.[key] || 0), 0);
 const blessing = (s, key) => (s.rebirth.blessings[key] || 0) * (REBIRTH.blessings[key] || 0);
 
 export const capacity = s => effect(s, 'silo', 'capacity') || 0;
@@ -80,12 +82,28 @@ export function snapPosition(type, x, z, rot = 0) {
 }
 
 const PARCEL_FOR_ZONE = { farm: ['build'], shop: ['shop'], any: ['build', 'shop'] };
+// The farm has no build lots: farm buildings (and decorations placed on the farm) go on FREE GRASS inside the farm
+// bounds — never on a field, a road, the gate plaza or another building.
 // Returns null when placement is valid, else an error code.
 export function placementError(s, type, x, z, rot = 0, ignoreUid = null) {
   const def = own(BUILDINGS, type);
   const r = region(s);
   if (!def || !r) return 'unknown';
   const fp = footprint(type, x, z, rot);
+  const onFarm = areaAt(x, z) === 'farm';
+  if (onFarm && (def.zone === 'farm' || def.zone === 'any')) {
+    const B = AREAS.farm.bounds;
+    if (fp[0] < B.minX + 1 || fp[2] > B.maxX - 1 || fp[1] < B.minZ + 1 || fp[3] > B.maxZ - 1) return 'outside';
+    if (Object.values(PARCELS).some(p => rectsOverlap(fp, p.rect))) return 'onField';
+    if (Object.values(ROADS).some(rd => rectsOverlap(fp, rd.rect))) return 'blocked';
+    if (RESERVED.some(res => rectsOverlap(fp, res.rect))) return 'blocked';
+    for (const b of r.buildings) {
+      if (b.uid === ignoreUid) continue;
+      if (rectsOverlap(fp, footprint(b.type, b.x, b.z, b.rot))) return 'overlap';
+    }
+    return null;
+  }
+  if (def.zone === 'farm') return 'wrongZone';
   const parcel = Object.values(PARCELS).find(p => inRect(fp[0], fp[1], p.rect) && inRect(fp[2], fp[3], p.rect));
   if (!parcel) return 'outside';
   if (!PARCEL_FOR_ZONE[def.zone].includes(parcel.kind)) return 'wrongZone';
@@ -174,6 +192,8 @@ export function regionAccess(s, regionId) {
   if (!parseRegionId(regionId)) return { ok: false, reason: 'unknown' };
   const r = s.world.regions[regionId];
   const expired = r?.status === 'expired';
+  // Right after the Level-10 incident the player must start somewhere else.
+  if (expired && s.story.phase === 'chooseRegion') return { ok: false, reason: 'expired', owned: false };
   if (!ownsRegion(s, regionId)) {
     const cost = regionUnlockCost(s, regionId);
     return { ok: false, reason: 'locked', cost, free: cost === 0, affordable: s.player.coins >= cost, missing: Math.max(0, cost - s.player.coins) };
@@ -185,6 +205,13 @@ export function regionAccess(s, regionId) {
 }
 // Café seats: terrace seats + 2 per Tables building. Orders being prepared (taken/brewing) occupy a seat.
 export const seatCount = s => (effect(s, 'terrace', 'seats') || SHOP.baseSeats) + buildingsOf(s, 'tables').length * SHOP.seatsPerTable;
+// Seated-customer patience (0 → 1 as time runs out). Orders saved before takenAt existed start counting at brewStart/at.
+export const seatPatienceRatio = (o, now) => {
+  if (o.stage !== 'taken' && o.stage !== 'brewing') return 0;
+  const since = o.takenAt ?? o.brewStart ?? o.at ?? now;
+  return Math.max(0, Math.min(1, (now - since) / (SHOP.seatPatienceSeconds * 1000)));
+};
+export const seatPatienceOver = (o, now) => seatPatienceRatio(o, now) >= 1;
 export const seatsUsed = s => (region(s)?.shop.orders || []).filter(o => o.stage === 'taken' || o.stage === 'brewing').length;
 export const regionsOfCountry = countryId => Array.from({ length: REGIONS_PER_COUNTRY }, (_, i) => regionIdOf(countryId, i + 1));
 export const allCountries = () => COUNTRY_ORDER;

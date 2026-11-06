@@ -1,7 +1,7 @@
 // Pure reducer for Farm & Café V3. `apply(state, action, ctx)` → { ok, state, events, error }.
 // The input state is never mutated: a successful action returns a new state object. All timing comes from ctx.now,
 // randomness from action payloads, so every transition is deterministic and testable (tests/core/*.test.mjs).
-import { BUILDINGS, CROPS, DRINKS, STAFF, XP, ROUNDS, MAX_ROUND, REBIRTH, START, EXPIRY_LEVEL, levelForXp } from './config/economy.js';
+import { AUTO, autoPrice, STAFF_BREAKS, staffFee, BUILDINGS, CROPS, DRINKS, STAFF, XP, ROUNDS, MAX_ROUND, REBIRTH, START, EXPIRY_LEVEL, levelForXp } from './config/economy.js';
 import { PARCELS, ROADS, FIXED, plotById } from './config/layout.js';
 import { parseRegionId } from './config/world.js';
 import { clone, normalizeRegion } from './state.js';
@@ -61,6 +61,7 @@ const handlers = {
   },
   // Teacher explains rebirth and grants the 3 free credits exactly once.
   'story/teacherDone'(s, _p, ev) {
+    if (!s.autoplay.granted) { s.autoplay.runs += AUTO.freeRuns; s.autoplay.granted = true; }
     if (!s.rebirth.granted) { s.rebirth.credits += START.rebirthCredits; s.rebirth.granted = true; ev.push({ type: 'creditsGranted', amount: START.rebirthCredits }); }
     s.story.teacherMet = true;
     if (s.story.phase === 'teacher' || s.story.phase === 'intro' || s.story.phase === 'select') s.story.phase = 'gate';
@@ -139,19 +140,23 @@ const handlers = {
     r.shop.orders.push(order);
     ev.push({ type: 'customerArrived', orderId: order.id, drink });
   },
-  'shop/customerLeft'(s, { orderId }, ev) {
+  // A customer gives up: queue customers after SHOP.patienceSeconds, seated customers (order taken, no drink yet)
+  // after SHOP.seatPatienceSeconds from takenAt — those leave ANGRY. A ready cup still counts as waiting (no refund).
+  'shop/customerLeft'(s, { orderId }, ev, ctx) {
     const r = D.region(s);
-    const i = r ? r.shop.orders.findIndex(o => o.id === orderId && o.stage === 'waiting') : -1;
-    if (i < 0) return fail('unknown');
-    r.shop.orders.splice(i, 1);
-    ev.push({ type: 'customerLeft', orderId });
+    const o = r?.shop.orders.find(x => x.id === orderId);
+    if (!o) return fail('unknown');
+    if (o.stage !== 'waiting' && !D.seatPatienceOver(o, ctx.now)) return fail('notYet');
+    r.shop.orders.splice(r.shop.orders.indexOf(o), 1);
+    ev.push({ type: 'customerLeft', orderId, drink: o.drink, angry: o.stage !== 'waiting' });
   },
-  'shop/takeOrder'(s, { orderId } = {}, ev) {
+  'shop/takeOrder'(s, { orderId } = {}, ev, ctx) {
     const r = D.region(s);
     const o = r?.shop.orders.find(x => x.stage === 'waiting' && (orderId == null || x.id === orderId));
     if (!o) return fail('noCustomer');
     if (D.seatsUsed(s) >= D.seatCount(s)) return fail('noSeat', { seats: D.seatCount(s) });
     o.stage = 'taken';
+    o.takenAt = ctx.now;
     ev.push({ type: 'orderTaken', orderId: o.id, drink: o.drink });
   },
   'shop/brew'(s, { orderId } = {}, ev, ctx) {
@@ -258,6 +263,28 @@ const handlers = {
     unit.assigned = { regionId: s.world.currentRegion, zone };
     ev.push({ type: 'assigned', uid: id, zone });
   },
+  // A unit stops working: worker slacks on the phone (kind 'phone'), robot runs out of battery (kind 'battery').
+  // Triggered by the realm's staff simulation; persisted so a reload keeps it stopped.
+  'staff/stop'(s, { uid: id }, ev, ctx) {
+    const unit = s.staff.units.find(u => u.uid === id);
+    if (!unit || !STAFF[unit.type]) return fail('unknown');
+    if (unit.stopped) return { noop: true };
+    const kind = STAFF_BREAKS[STAFF[unit.type].kind].kind;
+    unit.stopped = { kind, at: ctx.now, fee: staffFee(unit.type) };
+    ev.push({ type: 'staffStopped', uid: id, kind, fee: unit.stopped.fee });
+  },
+  // Player taps the coin bubble: pay the fee, the unit works again (robot recharged / worker back to work).
+  'staff/resume'(s, { uid: id }, ev) {
+    const unit = s.staff.units.find(u => u.uid === id);
+    if (!unit) return fail('unknown');
+    if (!unit.stopped) return { noop: true };
+    const fee = unit.stopped.fee ?? staffFee(unit.type);
+    if (s.player.coins < fee) return fail('coins', { missing: fee - s.player.coins });
+    spend(s, fee);
+    const kind = unit.stopped.kind;
+    delete unit.stopped;
+    ev.push({ type: 'staffResumed', uid: id, kind, fee });
+  },
   'staff/unassign'(s, { uid: id }, ev) {
     const unit = s.staff.units.find(u => u.uid === id);
     if (!unit) return fail('unknown');
@@ -286,22 +313,22 @@ const handlers = {
     const ex = s.story.expiry;
     if (!ex) return fail('none');
     if (ex.status === 'reset') { s.story.phase = s.world.currentRegion ? 'play' : 'chooseRegion'; return { noop: true }; }
-    const r = s.world.regions[ex.regionId];
-    if (r) {
-      ex.snapshot = { buildings: clone(r.buildings), plots: clone(r.plots), orders: clone(r.shop.orders), units: s.staff.units.filter(u => u.assigned?.regionId === ex.regionId).map(u => u.uid) };
-      r.buildings = [];
-      ensureStarters(s, r); // basic free buildings come back at level 1 when the region is revisited
-      r.plots = {};
-      r.shop = { orders: [], nextOrder: r.shop.nextOrder };
-      r.status = 'expired';
-      r.expiredAt = ctx.now;
-      // Land ownership (parcels, roads) is kept on purpose.
-    }
-    for (const u of s.staff.units) if (u.assigned?.regionId === ex.regionId) u.assigned = null;
+    // Founder rule: the incident is a FULL restart. Nothing is kept except who you are (character, story, rebirth
+    // credits/blessings, auto runs, tutorial done). The new region starts with exactly 1 empty field and an empty café.
+    // A full copy of the save is written to `<key>-pre-expiry` by the store just before this runs.
+    ex.snapshot = { coins: s.player.coins, xp: s.player.xp, round: s.player.round, beans: s.inventory.beans,
+      regions: Object.keys(s.world.regions), units: s.staff.units.length };
+    s.player.coins = START.coins;
+    s.player.xp = 0;
+    s.player.round = 1;
+    s.inventory.beans = 0;
+    s.staff.units = [];
+    s.world.regions = { [ex.regionId]: { ...normalizeRegion({ status: 'expired' }), expiredAt: ctx.now } };
+    s.world.ownedRegions = [];   // the next region is free again (first-region rule)
+    s.world.freeUnlocks = 0;
     ex.status = 'reset';
     ex.at = ctx.now;
     s.story.level10Done = true;
-    s.world.freeUnlocks = (s.world.freeUnlocks || 0) + 1; // the next new region is free (no softlock)
     s.world.currentRegion = null;
     s.story.phase = 'chooseRegion';
     ev.push({ type: 'regionExpired', regionId: ex.regionId });
@@ -324,6 +351,30 @@ const handlers = {
     const n = Math.max(0, Math.min(99, amount | 0));
     s.rebirth.credits += n; s.rebirth.purchased += n;
     ev.push({ type: 'creditsAdded', amount: n, source });
+  },
+
+  // ---------- auto play ----------
+  'auto/start'(s, _p, ev, ctx) {
+    if (s.autoplay.active && ctx.now < s.autoplay.active.endsAt) return { noop: true };
+    if (s.autoplay.runs <= 0) return fail('noRuns');
+    if (s.story.phase !== 'play' || !s.world.currentRegion) return fail('notPlaying');
+    s.autoplay.runs--;
+    s.autoplay.active = { startedAt: ctx.now, endsAt: ctx.now + AUTO.runSeconds * 1000 };
+    ev.push({ type: 'autoStarted', runs: s.autoplay.runs, endsAt: s.autoplay.active.endsAt });
+  },
+  // Buy one more auto run with coins (in-game currency only).
+  'auto/buy'(s, _p, ev) {
+    const price = autoPrice(s.autoplay.bought || 0);
+    if (s.player.coins < price) return fail('coins', { missing: price - s.player.coins });
+    spend(s, price);
+    s.autoplay.runs++;
+    s.autoplay.bought = (s.autoplay.bought || 0) + 1;
+    ev.push({ type: 'autoBought', price, runs: s.autoplay.runs });
+  },
+  'auto/stop'(s, { reason = 'user' } = {}, ev) {
+    if (!s.autoplay.active) return { noop: true };
+    s.autoplay.active = null;
+    ev.push({ type: 'autoStopped', reason });
   },
 
   // ---------- tutorial ----------

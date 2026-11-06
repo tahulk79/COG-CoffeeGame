@@ -1,10 +1,12 @@
 // Bottom toolbar (thumb zone). Each screen has its own menu (founder's rule "mỗi màn hình có menu phù hợp"):
-//  · farm: Seeds, Storage, [☕ Café], Staff (farm), World, Progress
-//  · café: Build (café buildings), Menu (drinks), [🌱 Farm], Staff (café), Progress
+//  · farm: Seeds, Build (farm menu: dryer + decor), [☕ Café], Staff (farm), Progress
+//  · café: Build (café menu), Menu (drinks), [🌱 Farm], Staff (café), Progress
+// The World map moved into the Progress sheet (and the World Gate on the farm).
+// Exactly 4 menus per screen (founder). The storehouse opens from the 🫘 bean pill at the top.
 // The big middle button switches the realm view; on the farm it shows a badge with the customers waiting at the café.
 // Red dot when something is new or affordable. Buttons of the other screen are hidden (never removed: the tutorial and
 // tests can still find them by id).
-import { BUILD_MENU, BUILDINGS, CROPS, CROP_ORDER, DRINK_ORDER, STAFF, STAFF_ORDER, REBIRTH } from '../../core/config/economy.js';
+import { BUILD_MENU_FARM, BUILD_MENU_CAFE, BUILDINGS, CROPS, CROP_ORDER, DRINK_ORDER, STAFF, STAFF_ORDER, REBIRTH } from '../../core/config/economy.js';
 import { buildError, buildingsOf, staffError, unlockedCrops, unlockedDrinks, roundStatus, rebirthError, freeSlots, region, upgradeError } from '../../core/derive.js';
 import { h, setText } from './dom.js';
 import { T } from './text.js';
@@ -12,11 +14,11 @@ import { drinkSeenKey } from './sheets.js';
 
 export const TOOLS = [
   { id: 'seeds', icon: '🌱', views: ['farm'] },
-  { id: 'storage', icon: '📦', views: ['farm'] },
-  { id: 'build', icon: '🔨', views: ['cafe'] },
+  { id: 'storage', icon: '📦', views: [] },          // opened from the bean pill (kept for ids/tutorial)
+  { id: 'build', icon: '🔨', views: ['farm', 'cafe'] },
   { id: 'menu', icon: '📋', views: ['cafe'] },
   { id: 'staff', icon: '👥', views: ['farm', 'cafe'] },
-  { id: 'world', icon: '🌍', views: ['farm'] },
+  { id: 'world', icon: '🌍', views: [] },             // World map: button in the Progress sheet
   { id: 'progress', icon: '⭐', views: ['farm', 'cafe'] },
 ];
 const VIEW_SLOT = 2; // the view switch sits in the middle (after the first two tools of the screen)
@@ -27,7 +29,7 @@ export const seenKey = cropId => `hudCrop:${cropId}`;
 export function toolDots(s, view = 'farm') {
   const r = region(s);
   const dots = {};
-  dots.build = !!r && BUILD_MENU.some(type => !BUILDINGS[type].decor && buildingsOf(s, type).length === 0 && !buildError(s, type));
+  dots.build = !!r && (view === 'cafe' ? BUILD_MENU_CAFE : BUILD_MENU_FARM).some(type => !BUILDINGS[type].decor && buildingsOf(s, type).length === 0 && !buildError(s, type));
   // New crop / drink unlocked and not looked at yet (the starter one never counts). Marked seen by its sheet.
   dots.seeds = unlockedCrops(s).some(id => id !== CROP_ORDER[0] && !s.story.seen?.[seenKey(id)]);
   dots.menu = unlockedDrinks(s).some(id => id !== DRINK_ORDER[0] && !s.story.seen?.[drinkSeenKey(id)]);
@@ -35,7 +37,7 @@ export function toolDots(s, view = 'farm') {
   dots.storage = !!silo && !upgradeError(s, silo);
   const zone = view === 'cafe' ? 'shop' : 'farm';
   const idle = s.staff.units.some(u => !u.assigned && STAFF[u.type]?.zone === zone && r && freeSlots(s, zone) > 0);
-  dots.staff = !!r && (idle || STAFF_ORDER.some(type => STAFF[type].zone === zone && !s.staff.units.some(u => u.type === type) && !staffError(s, type)));
+  dots.staff = s.staff.units.some(u => u.stopped) || !!r && (idle || STAFF_ORDER.some(type => STAFF[type].zone === zone && !s.staff.units.some(u => u.type === type) && !staffError(s, type)));
   dots.world = false;
   dots.progress = !!roundStatus(s).canUnlock || Object.keys(REBIRTH.blessings).some(k => !rebirthError(s, k));
   return dots;

@@ -5,19 +5,25 @@
 //  · the café's own house (Godbean) behind the starter block S, lantern string + brand awning
 //  · asphalt street (CAFE_ROADS.cafeFront) + alley (cafeStreet) with lane dashes, a zebra crossing and curbs
 //  · sidewalks with street trees, lamp posts, power poles + wires, parked scooters
-//  · the starter terrace seats (CAFE_SEATS): low plastic tables + stools on the sidewalk
+//  (the terrace seating in front of the café is the upgradable 'terrace' building, drawn by buildings.js)
 //  · shop sign texts: one canvas atlas, all boards in one mesh
 // Returns { blockers (house rects the player cannot enter), dispose() }.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { CAFE_ROADS, CAFE_SEATS, PARCELS } from '../../core/config/layout.js';
-import { TERRACE_TABLES, TERRACE_TABLE_TOP } from './seats.js';
+import { CAFE_ROADS, PARCELS, FIXED } from '../../core/config/layout.js';
+import { BUILDINGS, CELL } from '../../core/config/economy.js';
 import { mulberry32, paint, FONT } from './util.js';
 
-const STREET = CAFE_ROADS.cafeFront.rect;   // [-22, 116, 24, 119]
-const ALLEY = CAFE_ROADS.cafeStreet.rect;   // [-9.5, 96, -6.5, 128]
-const STREET_X = [-46, 50];                  // the street runs on past the playable area into the fog
-const ALLEY_Z = [84, 140];
+const STREET = CAFE_ROADS.cafeFront.rect;   // [-26, 118.5, 28, 121.5]
+const ALLEY = CAFE_ROADS.cafeStreet.rect;   // [-9.5, 94, -6.5, 130]
+const STREET_X = [-50, 54];                  // the street runs on past the playable area into the fog
+const ALLEY_Z = [80, 144];
+// Street rows sit just outside the café lots (S / C2 / C3 share z 100–114) and the terrace (FIXED.terrace).
+const LOTS = ['S', 'C2', 'C3'].map(id => PARCELS[id].rect);
+const LOT_Z0 = Math.min(...LOTS.map(r => r[1])), LOT_Z1 = Math.max(...LOTS.map(r => r[3]));
+const LOT_X0 = Math.min(...LOTS.map(r => r[0])), LOT_X1 = Math.max(...LOTS.map(r => r[2]));
+const TERRACE_HALF_W = BUILDINGS.terrace.size[0] * CELL / 2;
+const TERRACE_X = [FIXED.terrace.x - TERRACE_HALF_W, FIXED.terrace.x + TERRACE_HALF_W];
 const FLOOR_H = 2.8;
 const WALLS = ['#f6d36b', '#9fd8c4', '#f4a7a1', '#a9cdef', '#fbe7c6', '#f2b36d', '#c9e59a', '#e9c2e6', '#ffe08a', '#bfe3f2'];
 const TRIM = ['#ffffff', '#fff4e0', '#5c8f6a', '#3f6f9f', '#b5523a'];
@@ -170,18 +176,20 @@ export function buildCity(target, keep, mats) {
   }
 
   // ---------- street rows ----------
-  const NORTH_FRONT = 101.6, SOUTH_FRONT = 121.6;
-  const CAFE_HOUSE = [-6.2, 94.2, 6.2, NORTH_FRONT];
-  row(-34, ALLEY[0] - .3, (a, b) => tubeHouse([a, 94.4, b, NORTH_FRONT], 's'));
-  row(CAFE_HOUSE[2], 34, (a, b) => tubeHouse([a, 94.4, b, NORTH_FRONT], 's'));
-  row(102, 114.6, (a, b) => tubeHouse([-30, a, -22.6, b], 'e', { floors: 2 + Math.floor(rnd() * 2) }));
-  row(102, 114.6, (a, b) => tubeHouse([19.6, a, 27, b], 'w', { floors: 2 + Math.floor(rnd() * 2) }));
-  row(-34, ALLEY[0] - 1, (a, b) => tubeHouse([a, SOUTH_FRONT, b, 128.8], 'n', { floors: 1 + Math.floor(rnd() * 2) }));
-  row(ALLEY[2] + 1, 34, (a, b) => tubeHouse([a, SOUTH_FRONT, b, 128.8], 'n', { floors: 1 + Math.floor(rnd() * 2) }));
-  row(-40, ALLEY[0] - 1.5, (a, b) => skyline([a, 84, b, 93.6], 's'), 5, 8);
-  row(ALLEY[2] + 1.5, 42, (a, b) => skyline([a, 84, b, 93.6], 's'), 5, 8);
-  row(-40, -12, (a, b) => skyline([a, 129.6, b, 138], 'n'), 5, 8);
-  row(-4, 42, (a, b) => skyline([a, 129.6, b, 138], 'n'), 5, 8);
+  const NORTH_FRONT = LOT_Z0 - .4, SOUTH_FRONT = STREET[3] + 2.6, DEPTH = 7.2;
+  const S = PARCELS.S.rect;
+  const CAFE_HOUSE = [S[0] - .2, NORTH_FRONT - DEPTH, S[2] + .2, NORTH_FRONT];
+  row(-36, ALLEY[0] - .3, (a, b) => tubeHouse([a, NORTH_FRONT - DEPTH, b, NORTH_FRONT], 's'));
+  row(CAFE_HOUSE[2], 38, (a, b) => tubeHouse([a, NORTH_FRONT - DEPTH, b, NORTH_FRONT], 's'));
+  row(LOT_Z0, LOT_Z1 - .4, (a, b) => tubeHouse([LOT_X0 - 9.4, a, LOT_X0 - 1.6, b], 'e', { floors: 2 + Math.floor(rnd() * 2) }));
+  row(LOT_Z0, LOT_Z1 - .4, (a, b) => tubeHouse([LOT_X1 + 1.6, a, LOT_X1 + 9.4, b], 'w', { floors: 2 + Math.floor(rnd() * 2) }));
+  row(-36, ALLEY[0] - 1, (a, b) => tubeHouse([a, SOUTH_FRONT, b, SOUTH_FRONT + DEPTH], 'n', { floors: 1 + Math.floor(rnd() * 2) }));
+  row(ALLEY[2] + 1, 38, (a, b) => tubeHouse([a, SOUTH_FRONT, b, SOUTH_FRONT + DEPTH], 'n', { floors: 1 + Math.floor(rnd() * 2) }));
+  const NB = NORTH_FRONT - DEPTH - 1.2, SB = SOUTH_FRONT + DEPTH + 1.2;
+  row(-44, ALLEY[0] - 1.5, (a, b) => skyline([a, NB - 9.6, b, NB], 's'), 5, 8);
+  row(ALLEY[2] + 1.5, 46, (a, b) => skyline([a, NB - 9.6, b, NB], 's'), 5, 8);
+  row(-44, ALLEY[0] - 3, (a, b) => skyline([a, SB, b, SB + 8.4], 'n'), 5, 8);
+  row(ALLEY[2] + 3, 46, (a, b) => skyline([a, SB, b, SB + 8.4], 'n'), 5, 8);
 
   // ---------- the café's own house (Godbean): 2 floors, brand awning, lantern string, open front ----------
   {
@@ -220,7 +228,7 @@ export function buildCity(target, keep, mats) {
     const curb = (x0, z0, x1, z1) => add(box(Math.max(.16, x1 - x0), .14, Math.max(.16, z1 - z0)), '#b9b4aa', (x0 + x1) / 2, .07, (z0 + z1) / 2);
     curb(STREET_X[0], STREET[1] - .08, ALLEY[0], STREET[1] + .08); curb(ALLEY[2], STREET[1] - .08, STREET_X[1], STREET[1] + .08);
     curb(STREET_X[0], STREET[3] - .08, ALLEY[0], STREET[3] + .08); curb(ALLEY[2], STREET[3] - .08, STREET_X[1], STREET[3] + .08);
-    for (const x of [ALLEY[0], ALLEY[2]]) { curb(x - .08, ALLEY_Z[0], x + .08, 101.8); curb(x - .08, STREET[3], x + .08, ALLEY_Z[1]); }
+    for (const x of [ALLEY[0], ALLEY[2]]) { curb(x - .08, ALLEY_Z[0], x + .08, LOT_Z0 - .2); curb(x - .08, STREET[3], x + .08, ALLEY_Z[1]); }
     flush();
     const mesh = new THREE.Mesh(keep(mergeGeometries(asphalt)), keep(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .95 })));
     asphalt.forEach(g => g.dispose());
@@ -232,24 +240,28 @@ export function buildCity(target, keep, mats) {
   {
     const { add, flush } = frame(0, 0, 0);
     const SOUTH_WALK = (STREET[3] + SOUTH_FRONT) / 2, NORTH_WALK = STREET[1] - .7;
+    const solid = (x, z, h) => blockers.push([x - h, z - h, x + h, z + h]); // small props block walking (nav + player)
     const tree = (x, z, s = 1) => {
+      solid(x, z, .3);
       add(box(1, .06, 1), '#6b5a48', x, .03, z);
       add(new THREE.CylinderGeometry(.13 * s, .18 * s, 2.4 * s, 6), '#7a5a3c', x, 1.2 * s, z);
       for (let k = 0; k < 3; k++) add(new THREE.IcosahedronGeometry((.9 + rnd() * .3) * s, 0), pick(['#4f9e3a', '#5fae46', '#3f8a35', '#6cbf4a']), x + (rnd() - .5) * .9 * s, (2.6 + rnd() * .6) * s, z + (rnd() - .5) * .9 * s);
     };
     for (const x of [-27, -20, -13.5, -2.5, 4.5, 11.5, 17.5, 25]) tree(x, SOUTH_WALK - .2, .95 + rnd() * .2);
-    for (const x of [-16.5, 9.8, 17.4]) tree(x, NORTH_WALK - .3, .9);
+    for (const x of [-16.5, 19.5]) tree(x, NORTH_WALK - .6, .9); // north sidewalk, clear of the terrace
     const lamp = (x, z, dir) => {
+      solid(x, z, .15);
       add(new THREE.CylinderGeometry(.07, .1, 4.6, 6), '#5d6168', x, 2.3, z);
       add(box(.08, .08, 1.1), '#5d6168', x, 4.55, z + dir * .5);
       add(box(.34, .14, .5), '#5d6168', x, 4.5, z + dir * 1.05);
       add(box(.28, .05, .42), '#fff2b8', x, 4.42, z + dir * 1.05);
     };
     for (const x of [-21.8, -4.8, 8, 20.2]) lamp(x, STREET[3] + .45, -1);
-    for (const x of [-12.5, 7.6, 19.6]) lamp(x, STREET[1] - .35, 1);
+    for (const x of [-12.5, TERRACE_X[1] + 2.2, 23.5]) lamp(x, STREET[1] - .35, 1);
     // Power poles along the south sidewalk with three wires and a sagging cable bundle.
     const poles = [-30, -16, -1, 14, 29];
     for (const x of poles) {
+      solid(x, SOUTH_WALK + .55, .2);
       add(new THREE.CylinderGeometry(.12, .18, 7, 4), '#a9a59c', x, 3.5, SOUTH_WALK + .55);
       add(box(1.5, .1, .1), '#8a867d', x, 6.6, SOUTH_WALK + .55);
       add(box(.3, .45, .25), '#5d6168', x, 5.2, SOUTH_WALK + .45);
@@ -263,6 +275,7 @@ export function buildCity(target, keep, mats) {
       }
     }
     const scooter = (x, z, rot, color) => {
+      solid(x, z, .45);
       const s = frame(rot, x, z);
       for (const zz of [-.58, .6]) s.add(new THREE.CylinderGeometry(.24, .24, .1, 10).rotateZ(Math.PI / 2), '#26262a', 0, .24, zz);
       s.add(box(.3, .3, .95), color, 0, .42, -.05);
@@ -276,29 +289,15 @@ export function buildCity(target, keep, mats) {
     };
     const parked = [[-25.6, -.45], [-24.4, -.45], [-23.2, -.45], [-18.5, -.4], [-17.3, -.4], [1.2, -.45], [2.4, -.45], [12.7, -.4], [22.6, -.4], [23.8, -.4]];
     for (const [x, rot] of parked) scooter(x, SOUTH_WALK + .2, Math.PI + rot, pick(SCOOTERS));
-    for (const x of [-19.6, -18.4, -14.4, 11.6, 12.8, 15.2]) scooter(x, NORTH_WALK, .4, pick(SCOOTERS));
+    for (const x of [-19.6, -18.4, -14.4, 13.4, 14.6, 16.6]) scooter(x, NORTH_WALK - .4, .4, pick(SCOOTERS));
     flush();
   }
 
-  // ---------- terrace: low plastic tables + stools on the sidewalk in front of the café (CAFE_SEATS) ----------
+  // ---------- a menu board on the sidewalk beside the terrace ----------
   {
     const { add, flush } = frame(0, 0, 0);
-    const tableColor = ['#2f6fd6', '#d8342c'];
-    TERRACE_TABLES.forEach((t, i) => {
-      const top = TERRACE_TABLE_TOP;
-      add(box(.78, .05, .78), tableColor[i % 2], t.x, top, t.z);
-      for (const [dx, dz] of [[-.32, -.32], [.32, -.32], [-.32, .32], [.32, .32]]) add(box(.05, top, .05), tableColor[i % 2], t.x + dx, top / 2, t.z + dz);
-      add(new THREE.CylinderGeometry(.05, .05, .12, 8), '#f4f1e6', t.x + .14, top + .08, t.z - .1);   // chopstick / tissue box
-      add(box(.16, .1, .12), '#e8d7b8', t.x - .15, top + .07, t.z + .1);
-    });
-    CAFE_SEATS.forEach((s, i) => {
-      const c = i % 2 ? '#d8342c' : '#2f6fd6';
-      add(new THREE.CylinderGeometry(.18, .22, .36, 8), c, s.x, .18, s.z);
-      add(new THREE.CylinderGeometry(.2, .2, .04, 10), c, s.x, .38, s.z);
-    });
-    // A menu board and potted plants by the terrace.
-    const S = PARCELS.S.rect;
-    const mx = S[2] - .4, mz = STREET[1] - .45;
+    const mx = TERRACE_X[1] + .9, mz = STREET[1] - .9;
+    blockers.push([mx - .4, mz - .1, mx + .4, mz + .1]);
     add(box(.06, 1.1, .06), '#5e3f26', mx, .55, mz - .04);
     add(box(.7, .9, .06), '#3a3a36', mx, 1.05, mz);
     add(box(.6, .06, .07), '#f4f1e6', mx, 1.2, mz + .04);

@@ -1,16 +1,16 @@
 // V3 HUD (DOM only): minimal top HUD, bottom toolbar, contextual action bar, sheets, placement controls,
 // confirm modal, Teacher dialogue, toasts and the tutorial overlay. API per docs/design/v3-architecture.md §HUD API.
 import '../../ui/styles/v3.css';
-import { CROP_ORDER, DRINK_ORDER } from '../../core/config/economy.js';
+import { CROP_ORDER, DRINK_ORDER, autoPrice } from '../../core/config/economy.js';
 import { cropUnlocked, drinkUnlocked, region } from '../../core/derive.js';
 import { sfx } from '../../shared/audio/index.js';
 import { h } from './dom.js';
-import { T, errorText } from './text.js';
+import { T, errorText, clock } from './text.js';
 import { createTopBar } from './top-bar.js';
 import { createToolbar, seenKey } from './toolbar.js';
 import { createActionBar } from './action-bar.js';
 import { createSheetHost } from './sheet.js';
-import { buildSheet, seedsSheet, menuSheet, staffSheet, progressSheet, drinkSeenKey } from './sheets.js';
+import { buildSheet, seedsSheet, menuSheet, staffSheet, progressSheet, drinkSeenKey, buyAuto } from './sheets.js';
 import { createPlacementBar } from './placement.js';
 import { createModals } from './modal.js';
 import { createFeedback } from './feedback.js';
@@ -20,7 +20,7 @@ import { createDevPanel } from './dev-panel.js';
 export { errorText };
 
 // Purchases started from the HUD get a small "buy" chime on success.
-const PURCHASE = /^(build\/upgrade|land\/|staff\/hire|round\/unlock|rebirth\/perform|world\/unlockRegion)/;
+const PURCHASE = /^(build\/upgrade|land\/|staff\/hire|round\/unlock|rebirth\/perform|world\/unlockRegion|staff\/resume)/;
 
 /**
  * @param {{ store: object, realm?: object, dev?: boolean, onOpenAtlas?: () => void, onOpenSettings?: () => void }} opts
@@ -31,7 +31,12 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
   const ctx = { store, realm, dev, root, onOpenAtlas, onOpenSettings, selection: null };
 
   ctx.isPlaying = () => store.state.story.phase === 'play' && !!store.state.world.currentRegion;
+  // Auto play: the game plays itself; the player may look around (camera, info sheets) but every action is blocked.
+  ctx.isAuto = () => { const a = store.state.autoplay?.active; return !!a && Date.now() < a.endsAt; };
+  const AUTO_OK = new Set(['auto/stop', 'auto/start', 'auto/buy', 'story/seen']);
+  ctx.blockedByAuto = () => { if (!ctx.isAuto()) return false; feedback.toast(T('hud.auto.blocked'), 'info'); sfx('ui.deny'); return true; };
   ctx.act = (type, payload = {}, opts = {}) => {
+    if (!AUTO_OK.has(type) && ctx.blockedByAuto()) return { ok: false, error: 'auto' };
     const result = store.dispatch(type, payload, opts);
     if (!result.ok) { feedback.toast(errorText(result), 'bad'); sfx('ui.deny'); }
     else if (!result.noop && !result.duplicate && PURCHASE.test(type)) sfx('ui.buy');
@@ -44,7 +49,7 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
   // Café ⇄ Farm: the realm shows one area of the region at a time (the HUD button is the way into the café).
   ctx.switchView = () => {
     const realm = ctx.realm;
-    if (!realm?.setView || realm.switching) return;
+    if (!realm?.setView || realm.switching) return; // allowed during auto: the autopilot follows the view
     sheet.close();
     if (ctx.selection) ctx.clearSelection();
     sfx('ui.open');
@@ -55,7 +60,7 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
 
   const progressRender = progressSheet(ctx); // keeps its "pending" flags across re-renders
   ctx.onTool = id => {
-    if (id === 'world') { sheet.close(); ctx.onOpenAtlas?.(); return; }
+    if (id === 'world') { if (ctx.blockedByAuto()) return; sheet.close(); ctx.onOpenAtlas?.(); return; }
     // Storage: the storehouse's own card (capacity + upgrade), with the camera on the building.
     if (id === 'storage') {
       sheet.close();
@@ -95,6 +100,44 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
   const tutorial = createTutorial(ctx);
   const devPanel = dev ? createDevPanel(ctx) : null;
 
+  // ---------- auto play: "▶ Auto ×N" button (top-right, under the gear) + banner with time left and Stop ----------
+  const autoBtn = h('button', { type: 'button', class: 'hud-auto-btn', hidden: true, attrs: { 'aria-label': T('hud.auto.aria') },
+    on: { click: () => {
+      sfx('ui.open');
+      if ((store.state.autoplay?.runs || 0) <= 0) { buyAuto(ctx); return; } // no runs: buy one with coins (confirm card)
+      const r = ctx.act('auto/start'); if (r.ok && !r.noop) ctx.toast(T('hud.toast.autoStart'), 'good');
+    } } });
+  // Compact one-row bar while auto plays: "🤖 AUTO · 2:31" chip (time left) + "⏹ Stop".
+  const autoChip = h('strong', { class: 'hud-autobar-chip' });
+  const autoStop = h('button', { type: 'button', class: 'hud-autobar-stop', on: { click: () => stopAuto('user') } }, T('hud.auto.stop'));
+  const autoBar = h('section', { class: 'hud-autobar', hidden: true, attrs: { role: 'status', 'aria-label': T('hud.auto.aria') } }, autoChip, autoStop);
+  let autoSecs = -1;
+  let autoSig = '';
+  function stopAuto(reason) {
+    if (!store.state.autoplay?.active) return;
+    const r = store.dispatch('auto/stop', { reason });
+    if (r.ok && !r.noop) ctx.toast(T(reason === 'timeout' ? 'hud.toast.autoEnd' : 'hud.toast.autoStopped'), reason === 'timeout' ? 'good' : 'info');
+  }
+  function updateAuto() {
+    const s = store.state, a = s.autoplay?.active, now = Date.now();
+    if (a && now >= a.endsAt) stopAuto('timeout'); // time out (also right after a reload with an expired run)
+    const on = !!s.autoplay?.active && ctx.isPlaying();
+    const runs = s.autoplay?.runs || 0, price = autoPrice(s.autoplay?.bought || 0);
+    const sig = `${on}|${runs}|${price}|${ctx.isPlaying()}`;
+    if (sig !== autoSig) {
+      autoSig = sig;
+      autoBar.hidden = !on;
+      autoBtn.hidden = on || !ctx.isPlaying();
+      autoBtn.textContent = runs > 0 ? T('hud.auto.button', { n: runs }) : T('hud.auto.buy', { price });
+      autoBtn.classList.toggle('is-buy', runs <= 0);
+      if (on) { root.dataset.auto = '1'; sheet.close(); } else delete root.dataset.auto;
+    }
+    if (on) {
+      const secs = Math.max(0, Math.ceil((a.endsAt - now) / 1000));
+      if (secs !== autoSecs) { autoSecs = secs; autoChip.textContent = T('hud.auto.chip', { time: clock(secs * 1000) }); }
+    }
+  }
+
   // Screen-reader summary of the object notices the realm shows at objects (▲ upgrade, ! order, + brew…).
   const notices = h('p', { class: 'hud-sr', attrs: { 'aria-live': 'polite', 'aria-label': T('hud.notices') } });
   let noticeSig = '', noticeClock = 0;
@@ -111,7 +154,7 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
     notices.textContent = lines.join('. ');
   }
 
-  root.append(top.el, actionBar.el, toolbar.el, placement.el, sheet.el, tutorial.el, feedback.el, modals.el, notices, devPanel?.el);
+  root.append(top.el, autoBtn, autoBar, actionBar.el, toolbar.el, placement.el, sheet.el, tutorial.el, feedback.el, modals.el, notices, devPanel?.el);
   document.body.append(root);
 
   function renderAll(s) {
@@ -151,6 +194,7 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
       toolbar.update(dt);
       actionBar.update(dt);
       placement.update(dt);
+      updateAuto();
       tutorial.update(dt);
       updateNotices(dt);
     },

@@ -6,7 +6,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BUILDINGS, CELL } from '../../core/config/economy.js';
 import { region as regionOf } from '../../core/derive.js';
-import { areaAt } from '../../core/config/layout.js';
+import { areaAt, CAFE_SEATS, FIXED } from '../../core/config/layout.js';
+import { terraceSeats, TERRACE_TABLE_TOP, TERRACE_TABLE_Z } from './seats.js';
 import { t, hasKey } from '../../i18n/index.js';
 import { makeLabel, normalizeModel, placeholderBox, easeOutBack, paint, mulberry32 } from './util.js';
 
@@ -50,9 +51,60 @@ function deckGeometry(w, d, type, front) {
   return g;
 }
 
+// ---------- terrace (procedural, walkable): a tiled sidewalk deck; stools + low tables depend on the level ----------
+const TERRACE_COLORS = ['#2f6fd6', '#d8342c'];
+function terraceDeckGeometry(w, d) {
+  const parts = [];
+  const add = (g, color, x, y, z) => parts.push(paint(g.translate(x, y, z), color));
+  add(new THREE.BoxGeometry(w, .04, d), '#d7cbb5', 0, .02, 0);
+  const n = Math.round(w / 1), m = Math.round(d / 1);
+  for (let i = 0; i < n; i++) for (let j = 0; j < m; j++) if ((i + j) % 2) add(new THREE.BoxGeometry(w / n - .06, .012, d / m - .06), '#e6dcc8', -w / 2 + w / n * (i + .5), .046, -d / 2 + d / m * (j + .5));
+  const g = mergeGeometries(parts);
+  parts.forEach(p => p.dispose());
+  return g;
+}
+// Stools of the first `active` CAFE_SEATS (+ their column tables) and dim discs where the next level adds stools.
+// Coordinates are local to the terrace building (centered on FIXED.terrace).
+function terraceSeatsGeometry(active, next) {
+  const parts = [];
+  const add = (g, color, x, y, z) => parts.push(paint(g.translate(x - FIXED.terrace.x, y, z - FIXED.terrace.z), color));
+  const columns = new Map();
+  CAFE_SEATS.forEach((s, i) => {
+    if (i >= next) return;
+    const key = s.x.toFixed(2);
+    if (i < active) {
+      const c = TERRACE_COLORS[i % 2];
+      add(new THREE.CylinderGeometry(.18, .22, .36, 8), c, s.x, .18, s.z);
+      add(new THREE.CylinderGeometry(.2, .2, .04, 10), c, s.x, .38, s.z);
+      columns.set(key, s.x);
+    } else add(new THREE.CylinderGeometry(.22, .22, .02, 12), '#b9ad97', s.x, .06, s.z); // "more seats with the next upgrade"
+  });
+  let k = 0;
+  for (const x of columns.values()) {
+    const c = TERRACE_COLORS[k++ % 2], top = TERRACE_TABLE_TOP, z = TERRACE_TABLE_Z;
+    add(new THREE.BoxGeometry(.62, .05, .62), c, x, top, z);
+    for (const [dx, dz] of [[-.25, -.25], [.25, -.25], [-.25, .25], [.25, .25]]) add(new THREE.BoxGeometry(.05, top, .05), c, x + dx, top / 2, z + dz);
+    add(new THREE.CylinderGeometry(.05, .05, .12, 8), '#f4f1e6', x + .14, top + .08, z - .1);
+  }
+  if (!parts.length) return new THREE.BufferGeometry();
+  const g = mergeGeometries(parts);
+  parts.forEach(p => p.dispose());
+  return g;
+}
+
 /** Builds the normalized prefab for a building type from loaded GLB templates (path → Object3D|null). */
 export function makePrefab(type, templates) {
   const def = BUILDINGS[type];
+  if (type === 'terrace') {
+    const prefab = new THREE.Group();
+    const deck = new THREE.Mesh(terraceDeckGeometry(def.size[0] * CELL, def.size[1] * CELL), propMaterial());
+    deck.receiveShadow = true;
+    deck.name = 'deck';
+    prefab.add(deck);
+    prefab.userData.height = .5;
+    prefab.userData.scale = 1;
+    return prefab;
+  }
   const w = def.size[0] * CELL, d = def.size[1] * CELL;
   const raw = new THREE.Group();
   const base = templates[def.model];
@@ -207,11 +259,24 @@ export function createBuildings({ scene, prefabs, templates, vfx }) {
       let e = entities.get(b.uid);
       if (!e) { e = create(b); entities.set(b.uid, e); }
       place(e, b);
-      if (e.level !== b.level) { e.level = b.level; e.badge?.set(t('realm.level', { level: b.level })); }
+      if (e.level !== b.level) {
+        e.level = b.level;
+        e.badge?.set(t('realm.level', { level: b.level }));
+        if (b.type === 'terrace') setTerraceLevel(e, b.level);
+      }
     }
     for (const [uid, e] of entities) if (!seen.has(uid)) remove(uid, e);
   }
+  function setTerraceLevel(e, level) {
+    const g = terraceSeatsGeometry(terraceSeats(level), terraceSeats(level + 1));
+    if (!e.seats) {
+      e.seats = new THREE.Mesh(g, propMaterial());
+      e.seats.castShadow = true; e.seats.receiveShadow = true; e.seats.raycast = () => {};
+      e.model.add(e.seats);
+    } else { e.seats.geometry.dispose(); e.seats.geometry = g; }
+  }
   function remove(uid, e) {
+    e.seats?.geometry.dispose();
     e.emitter?.stop(); e.steam?.stop();
     e.badge?.dispose();
     e.sign?.dispose();
@@ -235,9 +300,9 @@ export function createBuildings({ scene, prefabs, templates, vfx }) {
     vfx.burst('sparkle', tmp, { count: 14 });
   }
 
-  // orders: current region orders (store objects, read only). now: Date.now(). carried: order id in the player's hand
-  // (its cup is no longer shown on the counter).
-  function update(dt, time, orders, now, carried = null) {
+  // orders: current region orders (store objects, read only). now: Date.now(). isCarried(orderId): the cup is in the
+  // player's or a barista's hand (no longer shown on the counter).
+  function update(dt, time, orders, now, isCarried = () => false) {
     for (const e of entities.values()) {
       if (e.rise >= 0) {
         const k = (time - e.rise) / RISE;
@@ -249,7 +314,7 @@ export function createBuildings({ scene, prefabs, templates, vfx }) {
       for (let i = 0; i < orders.length; i++) {
         const o = orders[i];
         if (o.stage !== 'brewing') continue;
-        if (now - o.brewStart >= o.brewMs) { if (o.id !== carried) ready++; } else brewing++;
+        if (now - o.brewStart >= o.brewMs) { if (!isCarried(o.id)) ready++; } else brewing++;
       }
       for (let i = 0; i < e.cups.length; i++) e.cups[i].visible = i < ready;
       if (brewing && !e.steam) {
@@ -263,7 +328,7 @@ export function createBuildings({ scene, prefabs, templates, vfx }) {
     group, sync, update, onBuilt, onUpgraded,
     get: uid => entities.get(uid) || null,
     byType: type => { for (const e of entities.values()) if (e.type === type) return e; return null; },
-    pickers: function* () { for (const e of entities.values()) if (e.root.visible && (!view || e.area === view)) yield e.pick; },
+    pickers: function* () { for (const e of entities.values()) if (e.root.visible && (!view || e.area === view) && !BUILDINGS[e.type].walkable) yield e.pick; },
     /** Shows only the buildings of one area ('farm' | 'cafe'). */
     setView(v) { view = v; areas.farm.visible = v === 'farm'; areas.cafe.visible = v === 'cafe'; },
     setHidden(uid, hidden) { const e = entities.get(uid); if (e) e.root.visible = !hidden; },

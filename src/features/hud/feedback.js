@@ -51,7 +51,9 @@ export function createFeedback(ctx) {
         case 'roundUnlocked': toast(T('hud.toast.round', { round: ev.round }), 'good'); sfx('reward.levelup'); break;
         case 'reborn': toast(T('hud.toast.reborn', { blessing: T(`blessing.${ev.blessing}`) }), 'good'); break;
         case 'creditsGranted': case 'creditsAdded': toast(T('hud.toast.credits', { n: ev.amount }), 'good'); break;
-        case 'customerLeft': toast(T('hud.toast.customerLeft'), 'info'); break;
+        case 'staffStopped': toast(T(ev.kind === 'battery' ? 'hud.toast.staffBattery' : 'hud.toast.staffPhone', { name: T(`staff.${ctx.store.state.staff.units.find(u => u.uid === ev.uid)?.type || 'farmhand'}`), fee: ev.fee }), 'warn'); break;
+        case 'staffResumed': toast(T('hud.toast.staffBack'), 'good'); break;
+        case 'customerLeft': toast(T(ev.angry ? 'hud.toast.customerAngry' : 'hud.toast.customerLeft'), ev.angry ? 'warn' : 'info'); break;
         default: break;
       }
     }

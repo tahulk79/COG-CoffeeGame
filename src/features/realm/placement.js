@@ -1,9 +1,13 @@
 // Placement preview: translucent ghost + footprint tiles (green = derive.placementError is null, red otherwise),
-// valid-zone tint on owned build/shop parcels of the current area (farm / café), snapping with derive.snapPosition. Confirm dispatches build/place|build/move.
+// snapping with derive.snapPosition. Café: valid-zone tint on owned café lots. Farm: buildings go on FREE GRASS (not
+// fields / roads / gate plaza): a faint tint over the farm grass and the ghost starts at the nearest valid spot near
+// the player (spiral search). Confirm dispatches build/place|build/move.
 import * as THREE from 'three';
 import { BUILDINGS, CELL } from '../../core/config/economy.js';
-import { PARCELS, TUTORIAL_BUILD, rectCenter, areaOfParcel } from '../../core/config/layout.js';
+import { PARCELS, TUTORIAL_BUILD, BOUNDS, areaOfParcel } from '../../core/config/layout.js';
 import { region as regionOf, placementError, snapPosition, footprint } from '../../core/derive.js';
+import { t, hasKey } from '../../i18n/index.js';
+import { makeLabel } from './util.js';
 
 const ZONE_KINDS = { farm: ['build'], shop: ['shop'], any: ['build', 'shop'] };
 const GREEN = new THREE.Color(0x58d06a), RED = new THREE.Color(0xe5533f);
@@ -24,6 +28,10 @@ export function createPlacement({ scene, prefabs }) {
   const zoneMat = new THREE.MeshBasicMaterial({ color: 0x8af59a, transparent: true, opacity: .22, depthWrite: false });
   const zones = [];
   const ghostMats = new Map(); // original material → translucent clone
+  // Short hint under the ghost: "Drag to move · tap ✓ to build", or why it cannot stand here.
+  const hint = makeLabel('', { bg: '#fff8e8', fg: '#5a3a1c', border: '#c99a5e', height: .55, onTop: true });
+  hint.sprite.visible = false;
+  group.add(hint.sprite);
   let ghost = null;
   let info = null; // { type, uid, x, z, rot, valid, error }
   let getState = () => null;
@@ -68,37 +76,60 @@ export function createPlacement({ scene, prefabs }) {
     tiles.count = n;
     tiles.instanceMatrix.needsUpdate = true;
     tileMat.color.copy(info.valid ? GREEN : RED);
+    const why = info.valid ? t('realm.place.hint') : info.noRoom ? t(info.noRoom) : hasKey(`err.${info.error}`) ? t(`err.${info.error}`) : '';
+    hint.set(why);
+    hint.sprite.visible = !!why;
+    hint.sprite.position.set(info.x, .35, fp[3] + .7);
   }
 
   // area: 'farm' | 'cafe' — the view the preview runs in; the start spot is an owned parcel of that area.
-  function initialPosition(state, type, uid, area) {
+  // Nearest valid spot to (x, z): 1 m spiral rings up to 24 m.
+  function nearestValid(state, type, x, z) {
+    for (let r = 0; r <= 24; r++) {
+      const n = Math.max(1, r * 8);
+      for (let i = 0; i < n; i++) {
+        const a = i / n * Math.PI * 2;
+        const p = snapPosition(type, x + Math.cos(a) * r, z + Math.sin(a) * r, 0);
+        if (placementError(state, type, p.x, p.z, 0) === null) return { ...p, rot: 0 };
+      }
+    }
+    return null;
+  }
+  function initialPosition(state, type, uid, area, near) {
     const r = regionOf(state);
     const b = uid ? r?.buildings.find(v => v.uid === uid) : null;
     if (b) return { x: b.x, z: b.z, rot: b.rot || 0 };
-    if (TUTORIAL_BUILD[type]) return { ...TUTORIAL_BUILD[type], rot: 0 };
-    const kinds = ZONE_KINDS[BUILDINGS[type].zone] || [];
-    const owned = r?.parcels || [];
-    const parcel = Object.values(PARCELS).find(p => kinds.includes(p.kind) && owned.includes(p.id) && areaOfParcel(p.id) === area);
-    // The starter café block's center is the customer lane: start beside the counters instead.
-    if (parcel) return parcel.id === 'S' ? { ...TUTORIAL_BUILD.roaster, rot: 0 } : { ...rectCenter(parcel.rect), rot: 0 };
-    return area === 'cafe' ? { ...TUTORIAL_BUILD.roaster, rot: 0 } : { x: 9, z: -5, rot: 0 };
+    if (area === 'farm') return nearestValid(state, type, near?.x ?? 9, near?.z ?? 10) || { x: near?.x ?? 9, z: near?.z ?? 10, rot: 0, noRoom: 'realm.place.noRoomFarm' };
+    // Café: the nearest valid spot from the tutorial spot (beside the counters) / the player; none → red at that spot.
+    const from = TUTORIAL_BUILD[type] || TUTORIAL_BUILD.roaster;
+    const found = (near && nearestValid(state, type, near.x, near.z)) || nearestValid(state, type, from.x, from.z);
+    if (found) return TUTORIAL_BUILD[type] && placementError(state, type, from.x, from.z, 0) === null ? { ...from, rot: 0 } : found;
+    return { ...from, rot: 0, noRoom: 'realm.place.noRoom' };
   }
 
   function clearZones() { for (const z of zones) { z.geometry.dispose(); z.removeFromParent(); } zones.length = 0; }
 
   return {
     get info() { return info; },
-    start(type, { uid = null, area = 'farm' } = {}, stateGetter) {
+    start(type, { uid = null, area = 'farm', near = null } = {}, stateGetter) {
       this.cancel();
       if (!BUILDINGS[type] || !prefabs[type]) return null;
       getState = stateGetter;
       const state = getState();
-      const p = initialPosition(state, type, uid, area);
-      info = { type, uid, x: p.x, z: p.z, rot: p.rot, valid: false, error: null };
+      const p = initialPosition(state, type, uid, area, near);
+      info = { type, uid, x: p.x, z: p.z, rot: p.rot, valid: false, error: null, noRoom: p.noRoom || null };
       ghost = ghostOf(type);
       group.add(ghost);
-      // Tint the parcels of the current area where this building may stand.
-      const kinds = ZONE_KINDS[BUILDINGS[type].zone] || [];
+      // Farm: free grass is the valid zone (a faint tint over the farm; fields / roads draw on top of it).
+      if (area === 'farm') {
+        const mesh = new THREE.Mesh(new THREE.PlaneGeometry(BOUNDS.maxX - BOUNDS.minX - 2, BOUNDS.maxZ - BOUNDS.minZ - 2).rotateX(-Math.PI / 2), zoneMat);
+        mesh.position.set((BOUNDS.minX + BOUNDS.maxX) / 2, .008, (BOUNDS.minZ + BOUNDS.maxZ) / 2);
+        mesh.raycast = () => {};
+        group.add(mesh);
+        zones.push(mesh);
+      }
+      // Café: tint the owned lots where this building may stand.
+      const kinds = area === 'farm' ? [] : ZONE_KINDS[BUILDINGS[type].zone] || ['shop'];
       for (const id of regionOf(state)?.parcels || []) {
         const pr = PARCELS[id];
         if (!pr || !kinds.includes(pr.kind) || areaOfParcel(id) !== area) continue;
@@ -113,7 +144,7 @@ export function createPlacement({ scene, prefabs }) {
       refresh();
       return info;
     },
-    moveTo(x, z) { if (!info) return; info.x = x; info.z = z; refresh(); },
+    moveTo(x, z) { if (!info) return; info.x = x; info.z = z; info.noRoom = null; refresh(); },
     rotate() { if (!info) return; info.rot = (info.rot + 1) % 4; refresh(); },
     refresh,
     /** Dispatches the placement; ends the preview on success. */
@@ -131,15 +162,16 @@ export function createPlacement({ scene, prefabs }) {
       ghostMats.clear();
       clearZones();
       tiles.count = 0;
+      hint.sprite.visible = false;
       group.visible = false;
       info = null;
     },
     update(time) {
       if (!info) return;
-      const a = .45 + .15 * Math.sin(time * 5);
-      for (const m of ghostMats.values()) m.opacity = a + .15;
+      const a = .45 + .1 * Math.sin(time * 4); // translucent ghost (~45 %) with a slight pulse
+      for (const m of ghostMats.values()) m.opacity = a;
       tileMat.opacity = a + .1;
     },
-    dispose() { this.cancel(); tileGeo.dispose(); tileMat.dispose(); zoneMat.dispose(); tiles.dispose(); group.removeFromParent(); },
+    dispose() { this.cancel(); hint.dispose(); tileGeo.dispose(); tileMat.dispose(); zoneMat.dispose(); tiles.dispose(); group.removeFromParent(); },
   };
 }

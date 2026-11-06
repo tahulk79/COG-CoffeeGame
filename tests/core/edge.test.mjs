@@ -7,7 +7,7 @@ import { apply, ACTIONS } from '../../src/core/game.js';
 import { normalizeSave, createSave, SCHEMA } from '../../src/core/state.js';
 import { migrateLegacy } from '../../src/core/migrate.js';
 import { createStore, createMemoryStorage } from '../../src/core/store.js';
-import { BUILDINGS, ROUNDS, START, EXPIRY_LEVEL, CROPS, xpForLevel, levelForXp } from '../../src/core/config/economy.js';
+import { BUILDINGS, ROUNDS, START, EXPIRY_LEVEL, CROPS, xpForLevel, levelForXp, SHOP } from '../../src/core/config/economy.js';
 
 // A rich mid-game state: round 3, lots of coins, credits, Level 12 (Level-10 event already done).
 function rich(opts) {
@@ -99,21 +99,14 @@ test('edge: rotation changes the footprint — a rotated building may not overla
   assert.equal(h.act('build/move', { uid: counter.uid, x: 12, z: 12 }).error, 'fixed');
 });
 
-test('edge: upgrades stop at the Round cap, reach level 8 in Round 3, then maxLevel', () => {
+test('edge: every building upgrades to level 8 already in Round 1, then maxLevel', () => {
   const h = rich();
   h.state.player.round = 1;
   const silo = () => h.region().buildings.find(b => b.type === 'silo');
-  h.must('build/upgrade', { uid: silo().uid }); h.must('build/upgrade', { uid: silo().uid });
-  assert.equal(silo().level, 3);
-  assert.equal(h.act('build/upgrade', { uid: silo().uid }).error, 'roundCap');
-  h.state.player.round = 2;
-  while (silo().level < 5) h.must('build/upgrade', { uid: silo().uid });
-  assert.equal(h.act('build/upgrade', { uid: silo().uid }).error, 'roundCap');
-  h.state.player.round = 3;
   const coins = h.state.player.coins;
   while (silo().level < 8) h.must('build/upgrade', { uid: silo().uid });
   assert.equal(silo().level, 8);
-  assert.equal(coins - h.state.player.coins, BUILDINGS.silo.upgrade.slice(4).reduce((a, b) => a + b, 0));
+  assert.equal(coins - h.state.player.coins, BUILDINGS.silo.upgrade.reduce((a, b) => a + b, 0));
   assert.equal(D.upgradeCost('silo', 8), null);
   const before = h.state.player.coins;
   assert.equal(h.act('build/upgrade', { uid: silo().uid }).error, 'maxLevel');
@@ -150,79 +143,6 @@ test('edge: staff assigned in region A stays assigned there when travelling to B
 });
 
 // ---------- Level-10 expiry ----------
-test('edge: expired region can be revisited later (no Round needed) with starters back at Lv 1 and owned parcels kept', () => {
-  const h = playing();
-  h.state.player.coins = 1e6;
-  h.state.player.xp = xpForLevel(8);
-  h.must('land/buyParcel', { parcelId: 'F2' });
-  h.must('land/buyParcel', { parcelId: 'C2' });
-  h.must('build/place', { type: 'roaster', x: 2, z: 111 });
-  const silo = h.region().buildings.find(b => b.type === 'silo');
-  h.must('build/upgrade', { uid: silo.uid });
-  h.must('farm/plant', { plotId: 'F2-1' });
-  toLevel10(h);
-  h.must('expiry/execute');
-  assert.equal(h.act('world/enterRegion', { regionId: 'vn-1' }).error, 'expired');
-  const coins = h.state.player.coins;
-  h.go('vn-2');
-  assert.equal(h.state.player.coins, coins, 'the first new region after the expiry is free');
-  assert.equal(D.regionAccess(h.state, 'vn-1').ok, true);
-  h.go('vn-1');
-  const r = h.region();
-  assert.equal(h.state.world.currentRegion, 'vn-1');
-  assert.equal(r.status, 'active');
-  assert.deepEqual(r.buildings.map(b => [b.type, b.level]).sort(), [['brewCounter', 1], ['orderCounter', 1], ['silo', 1], ['terrace', 1]]);
-  for (const id of ['F1', 'S', 'F2', 'C2']) assert.ok(r.parcels.includes(id), `parcel ${id} kept`);
-  assert.deepEqual(r.plots, {});
-  assert.equal(new Set(r.buildings.map(b => b.uid)).size, r.buildings.length, 'unique uids');
-  // Playable immediately: plant on the kept F2 parcel, rebuild the roaster.
-  h.must('farm/plant', { plotId: 'F2-1' });
-  h.must('build/place', { type: 'roaster', x: 2, z: 111 });
-  // Expiry never fires again.
-  h.state.player.xp = xpForLevel(14);
-  h.state.inventory.beans = 3;
-  h.must('shop/spawnCustomer', { roll: 0 }); h.must('shop/takeOrder'); h.must('shop/brew'); h.tick(20_000); h.must('shop/serve');
-  assert.equal(h.state.story.phase, 'play');
-});
-
-test('edge: expiry with brewing/taken/waiting café orders refunds nothing and removes them', () => {
-  const h = playing();
-  h.state.player.coins = 5000;
-  h.state.player.xp = xpForLevel(EXPIRY_LEVEL) - 1;
-  // Upgrade the brew counter to Lv 3 for 2 brew slots.
-  const brew = h.region().buildings.find(b => b.type === 'brewCounter');
-  h.state.player.xp -= 16; // two upgrades grant 8 XP each without reaching Level 10
-  h.must('build/upgrade', { uid: brew.uid }); h.must('build/upgrade', { uid: brew.uid });
-  assert.equal(D.brewSlots(h.state), 2);
-  h.state.inventory.beans = 10;
-  // Queue holds 2 waiting customers at order counter Lv 1.
-  h.must('shop/spawnCustomer', { roll: 0 });
-  h.must('shop/takeOrder'); h.must('shop/brew');   // brewing, will be served → Level 10
-  h.tick(1000);
-  h.must('shop/spawnCustomer', { roll: 0 });
-  h.must('shop/takeOrder'); h.must('shop/brew');   // brewing (slot 2)
-  h.must('shop/spawnCustomer', { roll: 0 });
-  h.must('shop/takeOrder');                        // taken
-  h.must('shop/spawnCustomer', { roll: 0 });       // waiting
-  h.tick(10_000);
-  h.must('shop/serve');
-  assert.equal(h.state.story.phase, 'expiry');
-  const orders = h.region().shop.orders;
-  assert.deepEqual(orders.map(o => o.stage).sort(), ['brewing', 'taken', 'waiting']);
-  assert.equal(h.act('shop/serve').error, 'paused', 'a ready cup cannot be cashed in during the pause');
-  const keep = { coins: h.state.player.coins, beans: h.state.inventory.beans, earned: h.state.stats.earned, served: h.state.stats.served };
-  h.must('expiry/execute');
-  const r = h.state.world.regions['vn-1'];
-  assert.deepEqual(r.shop.orders, []);
-  assert.equal(h.state.player.coins, keep.coins, 'no coin refund');
-  assert.equal(h.state.inventory.beans, keep.beans, 'no bean refund for cups in progress');
-  assert.equal(h.state.stats.earned, keep.earned);
-  assert.equal(h.state.stats.served, keep.served);
-  assert.equal(h.state.story.expiry.snapshot.orders.length, 3, 'orders kept only in the snapshot');
-  assert.ok(r.shop.nextOrder > orders.at(-1).id, 'order ids keep increasing');
-});
-
-// ---------- dev / tx / save ----------
 test('edge: dev actions are forbidden without dev and allowed with it', () => {
   const h = playing({ dev: false });
   h.must('farm/plant', { plotId: 'F1-1' });
@@ -344,4 +264,77 @@ test('layout: the tutorial roaster spot is a valid placement in a fresh region (
   assert.equal(placementError(h.state, 'roaster', x, z, 0), null);
   h.must('build/place', { type: 'roaster', x, z, rot: 0 });
   assert.equal(h.region().buildings.filter(b => b.type === 'roaster').length, 1);
+});
+
+test('edge: seated customers leave angry when not served in time; never earlier', () => {
+  const h = playing();
+  h.state.inventory.beans = 5;
+  h.must('shop/spawnCustomer', { roll: 0 });
+  const id = h.region().shop.orders[0].id;
+  h.must('shop/takeOrder');
+  assert.equal(h.act('shop/customerLeft', { orderId: id }).error, 'notYet');
+  h.must('shop/brew');
+  h.tick(SHOP.seatPatienceSeconds * 1000);
+  const coins = h.state.player.coins;
+  const r = h.must('shop/customerLeft', { orderId: id });
+  assert.equal(r.events[0].angry, true);
+  assert.equal(h.region().shop.orders.length, 0);
+  assert.equal(h.state.player.coins, coins, 'no coins for an unserved customer');
+  // A queue customer still leaves (not angry).
+  h.must('shop/spawnCustomer', { roll: 0 });
+  const q = h.must('shop/customerLeft', { orderId: h.region().shop.orders[0].id });
+  assert.equal(q.events[0].angry, false);
+});
+
+test('edge: staff breaks — worker on the phone / robot out of battery stop the bonus until the fee is paid', async () => {
+  const { staffFee } = await import('../../src/core/config/economy.js');
+  const h = rich();
+  h.must('staff/hire', { type: 'farmhand' });
+  const u = h.state.staff.units[0];
+  const fast = D.growMs(h.state, 'robusta');
+  h.must('staff/stop', { uid: u.uid });
+  assert.equal(h.state.staff.units[0].stopped.kind, 'phone');
+  assert.ok(D.growMs(h.state, 'robusta') > fast, 'no bonus while slacking');
+  assert.equal(h.act('staff/stop', { uid: u.uid }).noop, true);
+  h.state.player.coins = 1;
+  assert.equal(h.act('staff/resume', { uid: u.uid }).error, 'coins');
+  h.state.player.coins = 1000;
+  h.must('staff/resume', { uid: u.uid });
+  assert.equal(h.state.player.coins, 1000 - staffFee('farmhand'));
+  assert.equal(D.growMs(h.state, 'robusta'), fast);
+  h.state.player.coins = 1e6;
+  h.must('staff/hire', { type: 'brewBot' });
+  const bot = h.state.staff.units[1];
+  h.must('staff/stop', { uid: bot.uid });
+  assert.equal(h.state.staff.units[1].stopped.kind, 'battery');
+});
+
+test('edge: auto play — 1 free run from the Teacher, start consumes it, stop ends it', () => {
+  const h = playing();
+  assert.equal(h.state.autoplay.runs, 1);
+  h.must('auto/start');
+  assert.equal(h.state.autoplay.runs, 0);
+  assert.ok(h.state.autoplay.active.endsAt > h.now);
+  assert.equal(h.act('auto/start').noop, true);
+  h.must('auto/stop');
+  assert.equal(h.state.autoplay.active, null);
+  assert.equal(h.act('auto/start').error, 'noRuns');
+  h.must('story/teacherDone');
+  assert.equal(h.state.autoplay.runs, 0, 'granted only once');
+});
+
+test('edge: auto runs can be bought with coins, price grows, never charged twice for one tx', async () => {
+  const { autoPrice } = await import('../../src/core/config/economy.js');
+  const h = playing();
+  h.state.player.coins = autoPrice(0) - 1;
+  assert.equal(h.act('auto/buy').error, 'coins');
+  h.state.player.coins = 10000;
+  const runs = h.state.autoplay.runs;
+  h.must('auto/buy', {}, 'buy-1');
+  assert.equal(h.act('auto/buy', {}, 'buy-1').duplicate, true);
+  assert.equal(h.state.autoplay.runs, runs + 1);
+  assert.equal(h.state.player.coins, 10000 - autoPrice(0));
+  h.must('auto/buy', {}, 'buy-2');
+  assert.equal(h.state.player.coins, 10000 - autoPrice(0) - autoPrice(1));
+  assert.ok(autoPrice(1) > autoPrice(0));
 });

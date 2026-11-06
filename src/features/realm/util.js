@@ -37,9 +37,8 @@ function roundRect(g, x, y, w, h, r) {
 export function makeLabel(text = '', { bg = '#fff8ea', fg = '#4a2f1c', border = '#c99a5e', height = .7, onTop = false } = {}) {
   const canvas = document.createElement('canvas');
   canvas.height = 96;
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 2;
+  const makeTexture = () => { const tex = new THREE.CanvasTexture(canvas); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 2; return tex; };
+  let texture = makeTexture();
   const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, depthTest: !onTop });
   const sprite = new THREE.Sprite(material);
   sprite.geometry.userData.keep = true; // Sprite geometry is shared by every sprite in three.js
@@ -53,8 +52,17 @@ export function makeLabel(text = '', { bg = '#fff8ea', fg = '#4a2f1c', border = 
     const g = canvas.getContext('2d');
     const font = FONT.replace('{size}', '54');
     g.font = font;
-    const w = Math.max(96, Math.ceil(g.measureText(next).width) + 56);
-    if (canvas.width !== w) canvas.width = w; else g.clearRect(0, 0, canvas.width, canvas.height);
+    // Width rounded up to 32 px so small text changes ("Lv 1" → "Lv 2") keep the same canvas. When the size does change,
+    // the texture must be recreated: three.js keeps the GPU storage of an uploaded texture, so a resized canvas would
+    // fail to upload (GL_INVALID_VALUE) and the label would silently keep its old text (the "level not shown" bug).
+    const w = Math.max(96, Math.ceil((g.measureText(next).width + 56) / 32) * 32);
+    if (canvas.width !== w) {
+      canvas.width = w;
+      texture.dispose();
+      texture = makeTexture();
+      material.map = texture;
+      material.needsUpdate = true;
+    } else g.clearRect(0, 0, canvas.width, canvas.height);
     g.font = font;
     g.fillStyle = 'rgba(60,35,15,.25)'; roundRect(g, 4, 10, w - 8, 82, 38); g.fill();
     g.fillStyle = bg; roundRect(g, 4, 4, w - 8, 82, 38); g.fill();

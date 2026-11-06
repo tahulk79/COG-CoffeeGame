@@ -27,5 +27,6 @@ export function buildingEffect(type, level = 1, withNext = true) {
 
 export function staffEffect(type) {
   const eff = STAFF[type]?.effect || {};
-  return Object.entries(eff).map(([key, v]) => T(`hud.staffFx.${key}`, { v: fmt(v * 100) })).join(' · ');
+  // What the unit does for you (it really works — staff.js), then its passive bonus.
+  return [T(`hud.staffJob.${type}`), ...Object.entries(eff).map(([key, v]) => T(`hud.staffFx.${key}`, { v: fmt(v * 100) }))].join(' · ');
 }

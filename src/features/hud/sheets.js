@@ -1,6 +1,6 @@
 // Sheet contents: Build (café), Seeds (farm), Menu (café drinks), Staff (per area) and Progress (Round + Rebirth).
 // Pure render functions of the store state. Each screen has its own toolbar (toolbar.js), so sheets filter by view.
-import { BUILD_MENU, BUILDINGS, CROPS, CROP_ORDER, STAFF, STAFF_ORDER, STAFF_SLOTS, ROUNDS, ROUND_LEVEL_CAP, REBIRTH, DRINKS, DRINK_ORDER } from '../../core/config/economy.js';
+import { BUILD_MENU, BUILD_MENU_FARM, BUILD_MENU_CAFE, BUILDINGS, AUTO, autoPrice, CROPS, CROP_ORDER, STAFF, STAFF_ORDER, STAFF_SLOTS, ROUNDS, ROUND_LEVEL_CAP, REBIRTH, DRINKS, DRINK_ORDER } from '../../core/config/economy.js';
 import { buildError, buildingsOf, buildingLevel, MAX_INSTANCES, cropUnlocked, drinkUnlocked, drinkPrice, brewMs, seedCost, growMs, staffError, freeSlots, roundStatus, rebirthError, level, region } from '../../core/derive.js';
 import { newTxId } from '../../core/store.js';
 import { h } from './dom.js';
@@ -12,7 +12,8 @@ import { actionButton, coinAmount, lockTag, needMore } from './widgets.js';
 export function buildSheet(ctx) {
   return s => {
     const grid = h('div', { class: 'hud-cards' });
-    for (const type of BUILD_MENU) {
+    // Each screen builds its own things: farm = dryer + decorations on free grass, café = café buildings + decorations.
+    for (const type of ctx.realm?.view === 'cafe' ? BUILD_MENU_CAFE : BUILD_MENU_FARM) {
       const def = BUILDINGS[type];
       const err = buildError(s, type);
       const count = buildingsOf(s, type).length, limit = MAX_INSTANCES[type] || 1;
@@ -23,7 +24,7 @@ export function buildSheet(ctx) {
       else if (err === 'coins') lock = h('span', { class: 'hud-need' }, needMore(def.cost - s.player.coins));
       const card = h('button', { type: 'button', class: `hud-card${err ? ' is-locked' : ''}`, disabled: !!err,
         dataset: { hudId: `build-${type}` }, attrs: { 'aria-label': `${T(`building.${type}`)} · ${fmt(def.cost)}` },
-        on: { click: () => { ctx.sheet.close(); ctx.realm?.startPlacement?.(type); } } },
+        on: { click: () => { if (ctx.blockedByAuto?.()) return; ctx.sheet.close(); ctx.realm?.startPlacement?.(type); } } },
       h('span', { class: 'hud-card-ico', attrs: { 'aria-hidden': 'true' } }, def.icon),
       h('span', { class: 'hud-card-name' }, T(`building.${type}`)),
       h('span', { class: 'hud-card-meta' }, coinAmount(def.cost), h('span', { class: 'hud-size' }, `${def.size[0]}×${def.size[1]}`)),
@@ -114,8 +115,15 @@ export function staffSheet(ctx) {
       for (const u of units) {
         const def = STAFF[u.type];
         const here = r && u.assigned?.regionId === s.world.currentRegion;
-        const status = here ? T('hud.staff.working', { zone: T(`hud.zone.${def.zone}`) }) : u.assigned ? T('hud.staff.elsewhere') : T('hud.staff.idle');
-        const btn = here
+        const doing = here ? ctx.realm?.staffStatus?.(u.uid) : '';
+        // On a break (phone / empty battery): say so and offer to pay the fee right here.
+        const stop = u.stopped;
+        const status = stop ? T(stop.kind === 'battery' ? 'hud.staff.stopBattery' : 'hud.staff.stopPhone', { fee: fmt(stop.fee) })
+          : here ? (doing ? T(`hud.staff.doing.${doing}`) : T('hud.staff.working', { zone: T(`hud.zone.${def.zone}`) })) : u.assigned ? T('hud.staff.elsewhere') : T('hud.staff.idle');
+        const btn = stop
+          ? actionButton({ label: T(stop.kind === 'battery' ? 'hud.staff.recharge' : 'hud.staff.backToWork'), icon: stop.kind === 'battery' ? '⚡' : '📵', tone: 'gold', cost: stop.fee,
+            disabled: s.player.coins < stop.fee, note: s.player.coins < stop.fee ? needMore(stop.fee - s.player.coins) : null, onClick: () => ctx.act('staff/resume', { uid: u.uid }) })
+          : here
           ? actionButton({ label: T('hud.staff.unassign'), tone: 'plain', onClick: () => ctx.act('staff/unassign', { uid: u.uid }) })
           : actionButton({ label: T('hud.staff.assign'), disabled: !r || freeSlots(s, def.zone) <= 0, note: r && freeSlots(s, def.zone) <= 0 ? T('err.slotsFull') : null,
             onClick: () => ctx.act('staff/assign', { uid: u.uid }) });
@@ -140,8 +148,20 @@ export function roundUnlocks(n) {
   if (builds.length) items.push(['🔨', T('hud.unlock.buildings', { list: name('building', builds) })]);
   const staff = STAFF_ORDER.filter(id => STAFF[id].round === n);
   if (staff.length) items.push(['🤖', T('hud.unlock.staff', { list: name('staff', staff) })]);
-  if (ROUND_LEVEL_CAP[n]) items.push(['⬆️', T('hud.unlock.levelCap', { cap: ROUND_LEVEL_CAP[n] })]);
+  if (ROUND_LEVEL_CAP[n] > (ROUND_LEVEL_CAP[n - 1] || 0)) items.push(['⬆️', T('hud.unlock.levelCap', { cap: ROUND_LEVEL_CAP[n] })]);
   return items;
+}
+
+/** Buys one auto run after a small confirm card; one txId per confirm, so a double tap can never charge twice. */
+export async function buyAuto(ctx) {
+  if (ctx.buyingAuto) return;
+  ctx.buyingAuto = true;
+  try {
+    const price = autoPrice(ctx.store.state.autoplay?.bought || 0);
+    const txId = newTxId('auto');
+    const yes = await ctx.confirm({ title: T('hud.auto.buyTitle'), body: T('hud.auto.buyBody', { min: Math.round(AUTO.runSeconds / 60) }), cost: price, confirmLabel: T('hud.auto.buyGo') });
+    if (yes) { const r = ctx.act('auto/buy', {}, { txId }); if (r.ok && !r.duplicate) ctx.toast(T('hud.toast.autoBought'), 'good'); }
+  } finally { ctx.buyingAuto = false; ctx.sheet.rerender(); }
 }
 
 export function progressSheet(ctx) {
@@ -203,7 +223,19 @@ export function progressSheet(ctx) {
           note: err && err !== 'maxStacks' ? (err === 'level' ? T('hud.levelN', { level: REBIRTH.minLevel }) : T(`err.${err}`)) : null, onClick: () => bless(key) })));
     }
     reb.append(cards, h('p', { class: 'hud-hint' }, T('hud.rebirth.more')));
-    return h('div', { class: 'hud-progress' }, round, reb);
+    // World map (moved here from the toolbar; the World Gate on the farm opens it too).
+    const world = actionButton({ id: 'worldMap', label: T('hud.worldMapBtn'), tone: 'plain', onClick: () => ctx.onTool('world') });
+    // Auto play: runs left, start, buy one more with coins.
+    const ap = s.autoplay || { runs: 0 };
+    const price = autoPrice(ap.bought || 0);
+    const auto = h('section', { class: 'hud-panel' }, h('h3', { class: 'hud-h3' }, `🤖 ${T('hud.auto.panel')}`),
+      h('p', { class: 'hud-line' }, T('hud.auto.explain', { min: Math.round(AUTO.runSeconds / 60) })),
+      h('p', { class: 'hud-sub' }, T('hud.auto.runs', { n: ap.runs || 0 })),
+      h('div', { class: 'hud-row' },
+        ap.runs > 0 && !ap.active ? actionButton({ label: T('hud.auto.startBtn'), icon: '▶', onClick: () => { ctx.sheet.close(); const r = ctx.act('auto/start'); if (r.ok && !r.noop) ctx.toast(T('hud.toast.autoStart'), 'good'); } }) : null,
+        actionButton({ id: 'buyAuto', label: T('hud.auto.buyGo'), icon: '🛒', tone: 'gold', cost: price, disabled: s.player.coins < price || ctx.buyingAuto,
+          note: s.player.coins < price ? needMore(price - s.player.coins) : null, onClick: () => buyAuto(ctx) })));
+    return h('div', { class: 'hud-progress' }, world, auto, round, reb);
   };
 }
 

@@ -1,4 +1,5 @@
-// Top HUD: level badge with XP ring + name (top-left), coin / bean pills, Round + rebirth credits, gear (top-right).
+// Top HUD: level badge with XP ring + name (top-left), coin pill, bean pill (= the storehouse: tap it), gear (top-right).
+// Round and rebirth-credit chips were removed (founder: confusing); credits live in the Progress sheet.
 import { levelProgress, capacity } from '../../core/derive.js';
 import { h, setText, bump } from './dom.js';
 import { T, fmt } from './text.js';
@@ -30,15 +31,15 @@ export function createTopBar(ctx) {
   const coins = h('div', { id: 'hud-coins', class: 'hud-pill hud-pill--coin' }, h('span', { class: 'hud-coin-ico', attrs: { 'aria-hidden': 'true' } }), coinsVal);
   const beansVal = h('span', { class: 'hud-pill-val' });
   const beansCap = h('span', { class: 'hud-pill-cap' });
-  const beans = h('div', { id: 'hud-beans', class: 'hud-pill hud-pill--bean' }, h('span', { class: 'hud-pill-ico', attrs: { 'aria-hidden': 'true' } }, '🫘'), beansVal, beansCap);
-  const round = h('span', { class: 'hud-chip hud-chip--round' });
-  const credits = h('span', { class: 'hud-chip hud-chip--credits' });
+  const beansTag = h('span', { class: 'hud-pill-tag' }, T('hud.storage.tag'));
+  const beans = h('button', { id: 'hud-beans', class: 'hud-pill hud-pill--bean', type: 'button', attrs: { 'aria-label': T('hud.storage.open') },
+    on: { click: () => ctx.onTool?.('storage') } }, h('span', { class: 'hud-pill-ico', attrs: { 'aria-hidden': 'true' } }, '🫘'), beansVal, beansCap, beansTag);
   const gear = h('button', { class: 'hud-gear', type: 'button', attrs: { 'aria-label': T('hud.settings') }, on: { click: () => ctx.onOpenSettings?.() } }, '⚙️');
 
   const el = h('div', { class: 'hud-top' },
     h('div', { class: 'hud-top-left' },
       h('div', { class: 'hud-player' }, badge, h('div', { class: 'hud-player-text' }, name, xpBar)),
-      h('div', { class: 'hud-pills' }, coins, beans, h('div', { class: 'hud-chips' }, round, credits))),
+      h('div', { class: 'hud-pills' }, coins, beans)),
     gear);
 
   const coinCounter = counter(coinsVal), beanCounter = counter(beansVal);
@@ -55,11 +56,7 @@ export function createTopBar(ctx) {
     }
     setText(name, next.name || T('hud.farmer'));
     setText(beansCap, cap ? `/${fmt(cap)}` : '');
-    if (next.full !== last.full) beans.classList.toggle('is-full', next.full);
-    setText(round, `R${next.round}`);
-    round.title = T('hud.roundN', { round: next.round });
-    setText(credits, `✨${next.credits}`);
-    credits.title = T('hud.creditsTitle', { n: next.credits });
+    if (next.full !== last.full) { beans.classList.toggle('is-full', next.full); setText(beansTag, T(next.full ? 'hud.storage.tagFull' : 'hud.storage.tag')); }
     coinCounter.set(s.player.coins);
     beanCounter.set(s.inventory.beans);
     last = next;

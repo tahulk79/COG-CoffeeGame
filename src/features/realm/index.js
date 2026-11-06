@@ -12,9 +12,9 @@
  * cinematics, input (gesture recognizer). Every action dispatched here is reported through hooks.onResult.
  */
 import * as THREE from 'three';
-import { BUILDINGS, CROPS, DRINKS } from '../../core/config/economy.js';
-import { PARCELS, GATE, FIXED, PLOT_SIZE, CUSTOMER, CAFE_SEATS, AREAS, plotById, plotsOf, parcelAt, areaAt, areaOfParcel, rectCenter } from '../../core/config/layout.js';
-import { region as regionOf, footprint, upgradeError, parcelError, seatCount, seatsUsed, brewSlots } from '../../core/derive.js';
+import { BUILDINGS, CROPS, CROP_ORDER, DRINKS } from '../../core/config/economy.js';
+import { PARCELS, GATE, FIXED, PLOT_SIZE, CUSTOMER, CAFE_SEATS, AREAS, BOUNDS, CAFE_BOUNDS, RESERVED, plotById, plotsOf, parcelAt, areaAt, areaOfParcel, rectCenter } from '../../core/config/layout.js';
+import { region as regionOf, footprint, upgradeError, parcelError, seatCount, seatsUsed, brewSlots, seatPatienceRatio, ownedPlots, capacity, cropUnlocked, seedCost } from '../../core/derive.js';
 import { loadModel } from '../../shared/three/models.js';
 import { disposeScene } from '../../shared/three/dispose-scene.js';
 import { createVfx, flyTo, popNumber } from '../../shared/vfx/index.js';
@@ -30,7 +30,9 @@ import { createPlacement } from './placement.js';
 import { createMarkers } from './markers.js';
 import { createCinematics } from './cinematics.js';
 import { createBadges } from './badges.js';
-import { setTableInfo } from './seats.js';
+import { createPads } from './pads.js';
+import { setTableInfo, standSpot } from './seats.js';
+import { createNav, navObstacles, rectArea } from './nav.js';
 import { createInput } from './input.js';
 import { groundPoint, unionRect, fmtTimer, clamp } from './util.js';
 
@@ -40,13 +42,22 @@ const GATE_PARTS = { gateFrame: 'heaven/portal.glb#portal_frame', gateLeft: 'hea
 const EXTRA_MODELS = ['cafe/espresso-machine.glb#machine', 'cafe/table.glb#chairs_pair', 'cafe/props.glb#cup'];
 const FADE_OUT = .2, FADE_IN = .32; // view switch fade (seconds)
 const BADGE_Y = 1.05; // object-notice anchor above a building's top
+// The seated customer closest to running out of patience comes first (brew / pick up / serve).
+const mostUrgent = (orders, test, now) => { let best = null, bp = -1; for (const o of orders) if (test(o)) { const p = seatPatienceRatio(o, now); if (p > bp) { bp = p; best = o; } } return best; };
 const KEYS = { KeyW: 'f', ArrowUp: 'f', KeyS: 'b', ArrowDown: 'b', KeyA: 'l', ArrowLeft: 'l', KeyD: 'r', ArrowRight: 'r' };
 const COUNTER_RECT = unionRect(
   unionRect(footprint('orderCounter', FIXED.orderCounter.x, FIXED.orderCounter.z), footprint('brewCounter', FIXED.brewCounter.x, FIXED.brewCounter.z)),
   [CUSTOMER.queue.x - 1, CUSTOMER.queue.z, CUSTOMER.pickup.x + 1, CUSTOMER.pickup.z + 1],
 );
 // The café loop on one screen: counters, queue and the terrace seats where served customers sit.
-const CAFE_LOOP_RECT = unionRect(COUNTER_RECT, [Math.min(...CAFE_SEATS.map(p => p.x)) - .8, Math.min(...CAFE_SEATS.map(p => p.z)) - .8, Math.max(...CAFE_SEATS.map(p => p.x)) + .8, Math.max(...CAFE_SEATS.map(p => p.z)) + .8]);
+const FIRST_SEATS = CAFE_SEATS.slice(0, 6); // the starter terrace seats (middle of the terrace)
+const CAFE_LOOP_RECT = unionRect(COUNTER_RECT, [Math.min(...FIRST_SEATS.map(p => p.x)) - .8, Math.min(...FIRST_SEATS.map(p => p.z)) - .8, Math.max(...FIRST_SEATS.map(p => p.x)) + .8, Math.max(...FIRST_SEATS.map(p => p.z)) + .8]);
+// Action pads in the counter lane, in front of each counter (stand on one → its action fires; see autoNear).
+const PADS = {
+  order: { x: FIXED.orderCounter.x + 1.4, z: 107.5, color: '#ff8a2a' },  // beside the queue head, in front of the counter
+  brew: { x: FIXED.brewCounter.x, z: 107.5, color: '#2f9e8f' },
+};
+const NEAR_PAD = 1.4; // generous: walking across the pad is enough
 
 /**
  * @param {{ renderer: THREE.WebGLRenderer, store: object, gender: 'male'|'female', hooks?: { onSelect?, onResult?, onWalkToGate? } }} opts
@@ -75,7 +86,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   const SUN_OFFSET = new THREE.Vector3(-14, 28, 12);
 
   // ---------- assets ----------
-  const paths = [...new Set([...Object.values(BUILDINGS).map(b => b.model), ...EXTRA_MODELS, ...Object.values(TREE_PARTS), ...Object.values(GATE_PARTS)])];
+  const paths = [...new Set([...Object.values(BUILDINGS).map(b => b.model), ...EXTRA_MODELS, ...Object.values(TREE_PARTS), ...Object.values(GATE_PARTS)])].filter(Boolean); // procedural buildings (terrace) have no model
   const [loaded, avatar] = await Promise.all([
     Promise.all(paths.map(p => loadModel(p).catch(() => null))),
     createAvatar({ scene, gender }),
@@ -91,11 +102,27 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   const world = createWorld({ scene, templates });
   const plots = createPlots({ scene, templates, vfx });
   const buildings = createBuildings({ scene, prefabs, templates, vfx });
-  const staff = createStaff({ scene });
+  // Grid pathfinding, one navigator per area (nav.js): shared by the player's walks, staff and customers.
+  // Agent radius .45 m keeps paths clear of the avatar's own collision margin.
+  const navs = { farm: createNav(BOUNDS, { radius: .45 }), cafe: createNav(CAFE_BOUNDS, { radius: .45 }) };
+  const navigate = (sx, sz, tx, tz, opts) => navs[areaAt(tx, tz)].path(sx, sz, tx, tz, opts);
+  let navKey = '';
+  avatar.setNavigator(navigate);
+  // Staff work for real (staff.js): they read the player's crop / carried cup and dispatch straight to the store.
+  const staff = createStaff({
+    scene, store, vfx, templates, pads: PADS, navigate,
+    getActiveCrop: () => activeCrop,
+    getCarrying: () => carry?.orderId ?? null,
+    getSeat: id => cafe.walker(id)?.seat || null,
+    getQueued: () => cafe.queuedOrder(store.state),
+    canStand: (zone, x, z) => canStand(zone, x, z),
+    isPaused: () => inputLocked || !!cinematics.active || disposed,
+  });
   const placement = createPlacement({ scene, prefabs });
   const markers = createMarkers({ scene });
-  const cafe = createCafe({ scene, vfx, dispatch, templates });
+  const cafe = createCafe({ scene, vfx, dispatch, templates, navigate });
   const badges = createBadges({ scene, camera });
+  const pads = createPads({ scene, points: PADS });
   const cinematics = createCinematics({
     cam, camera, vfx, getPlayer: () => avatar.position,
     env: { fog: scene.fog, background: scene.background, hemi, sun, tintMaterials: () => Object.values(world.mats).filter(m => m?.color) },
@@ -157,10 +184,16 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     cafe.sync(state, instant);
     staff.sync(state);
     // Building footprints block the player (slightly shrunk so doorways feel forgiving).
-    avatar.setBlockers([...world.blockers, ...(regionOf(state)?.buildings || []).filter(b => BUILDINGS[b.type]).map(b => {
-      const r = footprint(b.type, b.x, b.z, b.rot);
-      return [r[0] + .15, r[1] + .15, r[2] - .15, r[3] - .15];
-    })]);
+    // (walkable buildings — the terrace — never block the player)
+    const solidBuildings = (regionOf(state)?.buildings || []).filter(b => BUILDINGS[b.type] && !BUILDINGS[b.type].walkable);
+    const blockRects = navObstacles(world.blockers, solidBuildings);
+    avatar.setBlockers(blockRects);
+    // Navigation grids: rebuilt only when the buildings change (built / moved / region entered).
+    const key = `${id}|${solidBuildings.map(b => `${b.uid}:${b.x},${b.z},${b.rot}`).join(';')}`;
+    if (key !== navKey) {
+      navKey = key;
+      for (const area of ['farm', 'cafe']) navs[area].rebuild(blockRects.filter(r => rectArea(r) === area));
+    }
     if (selection?.kind === 'building' && !buildings.get(selection.uid)) setSelection(null);
     if (placement.info) placement.refresh();
   }
@@ -175,10 +208,14 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
         sfx('farm.harvest');
         if (plot) reward({ x: plot.x, y: 1, z: plot.z }, 'hud-beans', '🫘', ev.beans);
       } else if (ev.type === 'served') {
+        if (auto.on) { say('auto.coins', { n: ev.coins }); auto.wait = Math.max(auto.wait, .7); }
         const at = cafe.onServed(ev.orderId);
         sfx('cafe.serve'); sfx('coin.gain');
         reward(at ? { x: at.x, y: 2, z: at.z } : { x: CUSTOMER.pickup.x, y: 2, z: CUSTOMER.pickup.z }, 'hud-coins', '🪙', ev.coins);
-      } else if (ev.type === 'customerLeft') cafe.onLeft(ev.orderId);
+      } else if (ev.type === 'customerLeft') {
+        if (ev.angry && carry?.orderId === ev.orderId) setCarry(null); // the cup in hand is no longer wanted
+        cafe.onLeft(ev.orderId, !!ev.angry);
+      }
     }
     syncAll(state);
     badgeClock = 1; // refresh object notices right away
@@ -187,7 +224,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       else if (ev.type === 'built') { buildings.onBuilt(ev.uid, clock); sfx('farm.build'); }
       else if (ev.type === 'moved') { const e = buildings.get(ev.uid); if (e) vfx.burst('dust', e.root.position); sfx('farm.build'); }
       else if (ev.type === 'upgraded') { buildings.onUpgraded(ev.uid); sfx('farm.build'); }
-      else if (ev.type === 'orderTaken') sfx('cafe.order');
+      else if (ev.type === 'orderTaken') { sfx('cafe.order'); const w = cafe.walker(ev.orderId); if (w) vfx.burst('sparkle', v3.set(w.person.position.x, 2.4, w.person.position.z), { count: 8 }); }
       else if (ev.type === 'brewStarted') sfx('cafe.cup');
       else if (ev.type === 'parcelBought') { const c = parcelSignPoint(ev.parcelId); vfx.burst('sparkle', v3.set(c.x, 1, c.z), { count: 20 }); vfx.burst('leaf', v3); }
       else if (ev.type === 'hired' || ev.type === 'assigned') vfx.burst('sparkle', avatar.position, { count: 10 });
@@ -299,6 +336,11 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
         if (hits.length && hits[0].object.userData.target) return hits[0].object.userData.target;
       }
     }
+    // Staff on a break (both areas): tap their coin bubble or body to pay and get them working again.
+    if (includeBuildings) {
+      const hits = raycaster.intersectObjects([...staff.pickers()], false);
+      if (hits.length) return hits[0].object.userData.target;
+    }
     // Seated customers (café): tap to deliver their cup.
     if (includeBuildings && !farm) {
       const hits = raycaster.intersectObjects([...cafe.pickers()], false);
@@ -326,18 +368,30 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     const orders = regionOf(store.state)?.shop.orders || [];
     if (selection) setSelection(null);
     cam.focusRect(CAFE_LOOP_RECT, { key: 'counters' });
-    if (t.type === 'orderCounter') { dispatch('shop/takeOrder', {}); return; } // no customer / no seat → toast
+    // Act right away AND walk the player to the counter's pad (the pad then keeps working by proximity). The shared
+    // cooldown stops the pad from firing the same action again on arrival.
+    const padId = t.type === 'orderCounter' ? 'order' : 'brew';
+    const acted = r => { if (r?.ok) { nearCooldown = 1; pads.pop(padId, clock); } };
+    const goPad = () => { if (carry) carry.walking = false; gateWalk = false; avatar.walkTo(PADS[padId].x, PADS[padId].z); };
+    if (t.type === 'orderCounter') {
+      // Only a customer standing at the counter can order (the ones still walking in come next).
+      const queued = cafe.queuedOrder(store.state);
+      if (queued != null || !orders.some(o => o.stage === 'waiting')) acted(dispatch('shop/takeOrder', queued != null ? { orderId: queued } : {})); // none → "No customer yet" / no seat → toast
+      goPad(); return;
+    }
     const now = Date.now();
-    const ready = !carry && orders.find(o => o.stage === 'brewing' && now - o.brewStart >= o.brewMs);
-    if (ready) { pickUp(ready.id); return; }
-    if (orders.some(o => o.stage === 'taken')) { dispatch('shop/brew', {}); return; } // out of beans / busy → toast
+    const ready = !carry && mostUrgent(orders, o => o.stage === 'brewing' && now - o.brewStart >= o.brewMs && !staff.isClaimed(o.id), now);
+    if (ready) { nearCooldown = 1; pads.pop('brew', clock); pickUp(ready.id); return; } // pickUp walks to the customer
+    const next = mostUrgent(orders, o => o.stage === 'taken', now);
+    if (next) { acted(dispatch('shop/brew', { orderId: next.id })); goPad(); return; } // out of beans / busy → toast
     if (carry) { deliver(); return; }
+    goPad();
     if (orders.some(o => o.stage === 'brewing')) return; // still brewing: the bubbles show the progress
     dispatch('shop/brew', {}); // → "Take an order first"
   }
 
   // ---------- carrying a cup to a seated customer ----------
-  // carry = { orderId, route: [{x,z}], walking }. The order stays 'brewing' (ready) in the save until shop/serve, so a
+  // carry = { orderId, walking } (walking: auto-walking a grid path to the customer). The order stays 'brewing' (ready) in the save until shop/serve, so a
   // reload or an interrupted walk never loses it: the cup simply goes back on the counter / stays in hand.
   let carry = null;
   const handCup = (() => {
@@ -356,32 +410,24 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   })();
   function setCarry(next) { carry = next; handCup.visible = !!carry; }
   function pickUp(orderId) {
-    setCarry({ orderId, route: [], walking: false });
+    setCarry({ orderId, walking: false });
     sfx('cafe.cup');
     deliver();
   }
   // Route: counter lane → queue lane (always free of buildings) → sidewalk → the free side of the seat.
+  // Walks (grid path, nav.js) to the stand spot beside the customer's seat; updateCarry serves on arrival.
   function deliver() {
     const w = carry && cafe.walker(carry.orderId);
     if (!w?.seat) { if (carry) carry.walking = false; return; }
-    const seat = w.seat, p = avatar.position;
-    const out = { x: -Math.sin(seat.yaw), z: -Math.cos(seat.yaw) }; // away from the table
-    const stand = seat.z >= 114.5 ? { x: seat.x, z: seat.z + .85 } : { x: seat.x + out.x * .8, z: seat.z + out.z * .8 };
-    const LANE_Z = 107.8, QUEUE_X = -2.6, WALK_Z = 115.9;
-    const route = [];
-    if (p.z < LANE_Z + 1.5) route.push({ x: clamp(p.x, -5, 4), z: LANE_Z }, { x: QUEUE_X, z: LANE_Z });
-    if (p.z < WALK_Z - .5) route.push({ x: p.z < LANE_Z + 1.5 ? QUEUE_X : p.x, z: WALK_Z });
-    route.push({ x: stand.x, z: WALK_Z }, stand);
-    carry.route = route;
+    const stand = standSpot(w.seat);
     carry.walking = true;
     gateWalk = false;
-    avatar.stop();
+    avatar.walkTo(stand.x, stand.z);
   }
   function updateCarry(orders) {
     if (!carry) return;
     if (!orders.some(o => o.id === carry.orderId && o.stage === 'brewing')) { setCarry(null); return; } // served / gone
     if (!carry.walking || avatar.moving) return;
-    if (carry.route.length) { const n = carry.route.shift(); avatar.walkTo(n.x, n.z); return; }
     carry.walking = false;
     const w = cafe.walker(carry.orderId);
     if (w && Math.hypot(w.person.position.x - avatar.position.x, w.person.position.z - avatar.position.z) < 2.6) {
@@ -392,7 +438,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   // Walking near a counter/customer does the job without a tap: order counter → take the order, brewing counter →
   // pick up a ready cup (then it is carried to its customer) or start brewing a taken order, customer → serve the cup
   // you carry. Only dispatched when it will succeed, so walking around never spams error toasts.
-  const NEAR_COUNTER = 2.6, NEAR_CUSTOMER = 1.8;
+  const NEAR_CUSTOMER = 1.8;
   let nearTimer = 0, nearCooldown = 0;
   const distTo = (x, z) => Math.hypot(avatar.position.x - x, avatar.position.z - z);
   function autoNear(dt, state, orders, now) {
@@ -400,7 +446,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     nearTimer += dt;
     if (nearTimer < .2 || nearCooldown > 0) return;
     nearTimer = 0;
-    if (view !== 'cafe' || state.story.phase !== 'play' || inputLocked || switching || placement.info || cinematics.active) return;
+    if (auto.on || view !== 'cafe' || state.story.phase !== 'play' || inputLocked || switching || placement.info || cinematics.active) return;
     const done = () => { nearCooldown = .6; };
     // Carrying: serve as soon as the player reaches that customer.
     if (carry) {
@@ -409,17 +455,18 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
         dispatch('shop/serve', { orderId: carry.orderId }); done(); return;
       }
     }
-    const oc = FIXED.orderCounter, bc = FIXED.brewCounter;
-    if (distTo(oc.x, oc.z) < NEAR_COUNTER && orders.some(o => o.stage === 'waiting') && seatsUsed(state) < seatCount(state)) {
-      dispatch('shop/takeOrder', {}); done(); return;
+    // Standing on (or walking across) a pad fires its counter's action — only when it will succeed.
+    const queued = cafe.queuedOrder(state);
+    if (distTo(PADS.order.x, PADS.order.z) < NEAR_PAD && queued != null && seatsUsed(state) < seatCount(state)) {
+      dispatch('shop/takeOrder', { orderId: queued }); pads.pop('order', clock); done(); return;
     }
-    if (distTo(bc.x, bc.z) < NEAR_COUNTER) {
-      const ready = !carry && orders.find(o => o.stage === 'brewing' && now - o.brewStart >= o.brewMs);
-      if (ready) { pickUp(ready.id); done(); return; }
-      const taken = orders.find(o => o.stage === 'taken');
+    if (distTo(PADS.brew.x, PADS.brew.z) < NEAR_PAD) {
+      const ready = !carry && mostUrgent(orders, o => o.stage === 'brewing' && now - o.brewStart >= o.brewMs && !staff.isClaimed(o.id), now);
+      if (ready) { pads.pop('brew', clock); pickUp(ready.id); done(); return; }
+      const taken = mostUrgent(orders, o => o.stage === 'taken', now);
       const brewing = orders.filter(o => o.stage === 'brewing').length;
       if (taken && brewing < brewSlots(state) && state.inventory.beans >= (DRINKS[taken.drink]?.beans || 1)) {
-        dispatch('shop/brew', {}); done();
+        dispatch('shop/brew', { orderId: taken.id }); pads.pop('brew', clock); done();
       }
     }
   }
@@ -433,8 +480,123 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     if (o?.stage === 'brewing' && now - o.brewStart >= o.brewMs) pickUp(o.id);
   }
 
+  // Where an idle staff member may stroll: walkable, inside its zone, off the fields / queue / seats / player pads.
+  function canStand(zone, x, z) {
+    const area = zone === 'farm' ? 'farm' : 'cafe';
+    const b = AREAS[area].bounds;
+    if (x < b.minX + 1 || x > b.maxX - 1 || z < b.minZ + 1 || z > b.maxZ - 1 || navs[area].blockedAt(x, z)) return false;
+    if (area === 'farm') {
+      for (const p of Object.values(PARCELS)) if (p.kind === 'farm' && x > p.rect[0] - .5 && x < p.rect[2] + .5 && z > p.rect[1] - .5 && z < p.rect[3] + .5) return false;
+      return Math.hypot(x - GATE.x, z - GATE.z) > GATE.radius + 2;
+    }
+    const r = regionOf(store.state);
+    const terrace = r?.buildings.find(bd => bd.type === 'terrace');
+    const tr = terrace ? footprint('terrace', terrace.x, terrace.z, terrace.rot) : null;
+    const onFloor = (r?.parcels || []).some(id => PARCELS[id]?.kind === 'shop' && x > PARCELS[id].rect[0] + .4 && x < PARCELS[id].rect[2] - .4 && z > PARCELS[id].rect[1] + .4 && z < PARCELS[id].rect[3] - .4);
+    const onTerraceEdge = tr && x > tr[0] - .6 && x < tr[2] + .6 && (Math.abs(z - tr[1]) < .6 || Math.abs(z - tr[3]) < .6);
+    if (!onFloor && !onTerraceEdge) return false;
+    for (const p of Object.values(PADS)) if (Math.hypot(x - p.x, z - p.z) < 2) return false;
+    for (const lane of RESERVED) if (lane.id === 'queueLane' && x > lane.rect[0] - .3 && x < lane.rect[2] + .3 && z > lane.rect[1] - .3 && z < lane.rect[3] + .3) return false;
+    for (const seat of cafe.seats) { const st = standSpot(seat); if (Math.hypot(x - st.x, z - st.z) < .9 || Math.hypot(x - seat.x, z - seat.z) < .9) return false; }
+    return true;
+  }
+
+  // ---------- auto play (state.autoplay.active): the game plays itself, right where you are ----------
+  // Works in the CURRENT view from the first frame: café → take order / brew / carry & serve (else stand ready at the
+  // order pad); farm → harvest / plant. The player may switch view; the autopilot follows. It switches view itself
+  // only after > 3 s with nothing to do here (announced in the caption). Same functions / pathfinding as the player,
+  // ~0.35 s beat between actions. Captions say what it is doing now: { key, params } (HUD translates).
+  // Never buys anything: only seeds (affordable), harvests, café orders / brewing / serving.
+  const BEAT = .35, IDLE_SWITCH = 3, IDLE_CAPTION = 2;
+  const auto = { on: false, phase: 'pause', wait: 0, timer: 0, step: null, caption: null, target: null, idleT: 0 };
+  const autoNearest = list => { let best = null, bd = Infinity; for (const p of list) { const d = Math.hypot(p.x - avatar.position.x, p.z - avatar.position.z); if (d < bd) { bd = d; best = p; } } return best; };
+  function autoCrop(state) {
+    if (cropUnlocked(state, activeCrop) && seedCost(state, activeCrop) <= state.player.coins) return activeCrop;
+    for (let i = CROP_ORDER.length - 1; i >= 0; i--) if (cropUnlocked(state, CROP_ORDER[i]) && seedCost(state, CROP_ORDER[i]) <= state.player.coins) return CROP_ORDER[i];
+    return null;
+  }
+  const say = (key, params = null, target = null) => { auto.caption = key ? { key, params } : null; auto.target = target; };
+  function autoGo(x, z, key, params, target, act) {
+    say(key, params, target); auto.step = act; auto.timer = 0; auto.phase = 'walk'; auto.idleT = 0;
+    avatar.walkTo(x, z);
+  }
+  // Nothing to do right now: keep checking every beat; caption only after a short while; switch area after a longer one.
+  function autoIdle(dt, waitKey, switchTo, switchKey) {
+    auto.idleT += dt;
+    auto.phase = 'pause'; auto.wait = BEAT;
+    if (switchTo && auto.idleT > IDLE_SWITCH) { say(switchKey); auto.idleT = 0; auto.wait = 1; setView(switchTo); return; }
+    say(auto.idleT > IDLE_CAPTION ? waitKey : null);
+  }
+  function autoDecide(state, now, dt) {
+    const r = regionOf(state);
+    if (!r) return;
+    const orders = r.shop.orders, beans = state.inventory.beans;
+    if (view === 'farm') {
+      const mine = ownedPlots(state);
+      const room = beans < capacity(state);
+      const ready = room && autoNearest(mine.filter(p => plots.stage(p.id, now) === 'ready'));
+      if (ready) return autoGo(ready.x, ready.z + 1.25, 'auto.harvest', { id: ready.id }, { kind: 'plot', id: ready.id }, () => {
+        const s = store.state;
+        if (plots.stage(ready.id, Date.now()) === 'ready' && s.inventory.beans < capacity(s)) dispatch('farm/harvest', { plotId: ready.id });
+      });
+      const crop = autoCrop(state);
+      const empty = crop && autoNearest(mine.filter(p => plots.stage(p.id, now) === 'empty'));
+      if (empty) return autoGo(empty.x, empty.z + 1.25, 'auto.plant', { crop }, { kind: 'plot', id: empty.id }, () => {
+        const c = autoCrop(store.state);
+        if (c && plots.stage(empty.id, Date.now()) === 'empty') dispatch('farm/plant', { plotId: empty.id, crop: c });
+      });
+      const cafeWaits = orders.length > 0 && (beans >= 2 || orders.some(o => o.stage === 'brewing'));
+      return autoIdle(dt, 'auto.waitGrow', cafeWaits || !room ? 'cafe' : null, 'auto.goCafe');
+    }
+    // café
+    if (carry) { say('auto.serve', null, { kind: 'customer', orderId: carry.orderId }); deliver(); auto.step = null; auto.timer = 0; auto.phase = 'walk'; auto.idleT = 0; return; }
+    const ready = mostUrgent(orders, o => o.stage === 'brewing' && now - o.brewStart >= o.brewMs && !staff.isClaimed(o.id), now);
+    if (ready) return autoGo(PADS.brew.x, PADS.brew.z, 'auto.pickup', { drink: ready.drink }, { kind: 'building', type: 'brewCounter' }, () => {
+      const o = regionOf(store.state)?.shop.orders.find(x => x.id === ready.id);
+      if (!carry && o?.stage === 'brewing' && Date.now() - o.brewStart >= o.brewMs && !staff.isClaimed(o.id)) { pads.pop('brew', clock); pickUp(o.id); auto.phase = 'pause'; auto.wait = 0; }
+    });
+    const brewing = orders.filter(o => o.stage === 'brewing').length;
+    const taken = mostUrgent(orders, o => o.stage === 'taken', now);
+    if (taken && brewing < brewSlots(state) && beans >= (DRINKS[taken.drink]?.beans || 1)) return autoGo(PADS.brew.x, PADS.brew.z, 'auto.brew', { drink: taken.drink }, { kind: 'building', type: 'brewCounter' }, () => {
+      const s = store.state, o = regionOf(s)?.shop.orders.find(x => x.id === taken.id);
+      if (o?.stage === 'taken' && s.inventory.beans >= (DRINKS[o.drink]?.beans || 1)) { pads.pop('brew', clock); dispatch('shop/brew', { orderId: o.id }); }
+    });
+    if (cafe.queuedOrder(state) != null && seatsUsed(state) < seatCount(state)) return autoGo(PADS.order.x, PADS.order.z, 'auto.takeOrder', null, { kind: 'building', type: 'orderCounter' }, () => {
+      const s = store.state, q = cafe.queuedOrder(s);
+      if (q != null && seatsUsed(s) < seatCount(s)) { pads.pop('order', clock); dispatch('shop/takeOrder', { orderId: q }); }
+    });
+    // Nothing to do: stand ready at the order pad (customers walking in / cups brewing).
+    if (distTo(PADS.order.x, PADS.order.z) > .6 && !avatar.moving) avatar.walkTo(PADS.order.x, PADS.order.z);
+    if (brewing) { const o = orders.find(x => x.stage === 'brewing'); say('auto.brewing', { drink: o.drink }, { kind: 'building', type: 'brewCounter' }); auto.phase = 'pause'; auto.wait = BEAT; auto.idleT = 0; return; }
+    const stuckBeans = taken && beans < (DRINKS[taken.drink]?.beans || 1);
+    const farmWork = ownedPlots(state).some(p => plots.stage(p.id, now) === 'ready') || (beans < 2 && !orders.some(o => o.stage === 'waiting'));
+    return autoIdle(dt, 'auto.waitCustomer', stuckBeans || (!orders.length && farmWork) ? 'farm' : null, 'auto.goFarm');
+  }
+  function updateAuto(dt, state, now) {
+    const a = state.autoplay?.active;
+    const on = !!a && now < a.endsAt && state.story.phase === 'play' && !!state.world.currentRegion;
+    if (on !== auto.on) {
+      auto.on = on;
+      avatar.stop();
+      if (carry) carry.walking = false;
+      Object.assign(auto, { phase: 'pause', wait: 0, step: null, caption: null, target: null, idleT: 0 }); // act on the very next frame
+      if (on) { placement.cancel(); setSelection(null); input.cancel(); endDrag(); keys.clear(); avatar.setKeyDir(0, 0); cam.explore(); }
+    }
+    if (!on || cinematics.active || inputLocked) return;
+    if (switching) { avatar.stop(); auto.phase = 'pause'; auto.wait = .1; auto.step = null; return; } // view changed: re-decide there
+    if (auto.phase === 'walk') {
+      auto.timer += dt;
+      if ((avatar.moving || carry?.walking) && auto.timer < 12) return;
+      auto.step?.(); auto.step = null;
+      auto.phase = 'pause'; auto.wait = BEAT;
+      return;
+    }
+    if ((auto.wait -= dt) > 0) return;
+    autoDecide(state, now, BEAT);
+  }
+
   function onTap(p) {
-    if (locked()) return;
+    if (locked() || auto.on) return; // auto play: the player watches (camera pan / zoom only)
     rayFrom(p);
     if (placement.info) {
       if (groundPoint(raycaster, hit)) { placement.moveTo(hit.x, hit.z); focusPlacement(); }
@@ -444,6 +606,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     if (target?.kind === 'plot') return tapPlot(target.id);
     if (target?.kind === 'building') return tapBuilding(target);
     if (target?.kind === 'customer') return tapCustomer(target);
+    if (target?.kind === 'staff') { dispatch('staff/resume', { uid: target.uid }); return; } // not enough coins → toast
     if (target?.kind === 'field') return harvestField(target.id);
     if (target?.kind === 'parcel') return setSelection(target);
     if (target?.kind === 'gate') {
@@ -496,7 +659,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       const err = def.decor ? 'maxLevel' : upgradeError(state, b);
       const up = err === null ? 'ok' : err === 'coins' ? 'muted' : null;
       let kind = null;
-      if (b.type === 'orderCounter' && waiting) kind = seatsUsed(state) < seatCount(state) ? 'order' : 'noSeat';
+      if (b.type === 'orderCounter' && waiting && cafe.queuedOrder(state) != null) kind = seatsUsed(state) < seatCount(state) ? 'order' : 'noSeat';
       else if (b.type === 'brewCounter') {
         if (ready && !carry) kind = 'serve'; // while carrying, the counter's next job is brewing
         if (!kind && taken && brewing + ready < brewSlots(state) && state.inventory.beans >= (DRINKS[taken.drink]?.beans || 1)) kind = 'brew';
@@ -540,6 +703,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     tap: onTap,
     dragStart(start, p) {
       if (locked()) return;
+      if (auto.on) { drag.mode = 'pan'; return; }
       rayFrom(start);
       if (placement.info) {
         drag.mode = 'place';
@@ -578,7 +742,8 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   function focusPlacement() {
     const info = placement.info;
     const parcel = info && parcelAt(info.x, info.z);
-    if (parcel) cam.focusRect(parcel.rect, { key: `parcel:${parcel.id}` });
+    if (parcel && areaOfParcel(parcel.id) === 'cafe') cam.focusRect(parcel.rect, { key: `parcel:${parcel.id}` });
+    else if (info) { const r = footprint(info.type, info.x, info.z, info.rot); cam.focusRect([r[0] - 4, r[1] - 4, r[2] + 4, r[3] + 4], { key: `place:${Math.round(info.x / 6)},${Math.round(info.z / 6)}` }); }
   }
 
   // ---------- views (farm / café) ----------
@@ -589,6 +754,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     staff.setView(view);
     plots.group.visible = view === 'farm';
     cafe.group.visible = view === 'cafe';
+    pads.setVisible(view === 'cafe');
   }
   // Immediate switch: clears selection / placement / drags, moves the player to the area's spawn, snaps the camera.
   function swapView(v) {
@@ -677,10 +843,11 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     const orders = regionOf(state)?.shop.orders || [];
     plots.update(dt, clock, now);
     updateCarry(orders);
+    updateAuto(dt, state, now);
     autoNear(dt, state, orders, now);
-    buildings.update(dt, clock, orders, now, carry?.orderId);
+    buildings.update(dt, clock, orders, now, id => id === carry?.orderId || staff.isClaimed(id));
     cafe.update(dt, clock, state, now, state.story.phase === 'play');
-    staff.update(dt, clock);
+    staff.update(dt, clock, state, now);
     world.update(clock);
     placement.update(clock);
     // Tutorial arrow + selected plot timer.
@@ -699,6 +866,15 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     badgeClock += dt;
     if (badgeClock >= .25) { badgeClock = 0; refreshBadges(state, now); }
     badges.update(clock);
+    if (view === 'cafe') {
+      let waiting = false, ready = false, brewable = false, brewing = 0;
+      for (const o of orders) {
+        if (o.stage === 'waiting') waiting = true;
+        else if (o.stage === 'taken' && state.inventory.beans >= (DRINKS[o.drink]?.beans || 1)) brewable = true;
+        else if (o.stage === 'brewing') { brewing++; if (now - o.brewStart >= o.brewMs) ready = true; }
+      }
+      pads.update(clock, { order: waiting && seatsUsed(state) < seatCount(state) && cafe.queuedOrder(state) != null, brew: (ready && !carry) || (brewable && brewing < brewSlots(state)) });
+    }
     cinematics.update(dt);
     cam.update(dt);
     // Sun + shadow frustum follow the camera target; fog scales with the camera distance.
@@ -722,7 +898,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     update,
     resize(w, h) { cam.resize(w, h); canvasRect = canvas.getBoundingClientRect(); badges.resize(canvasRect.height || h); },
     handleKeyDown(e) {
-      if (locked() || e.repeat || !KEYS[e.code] || e.target?.closest?.('input, textarea, select, [contenteditable]')) return;
+      if (locked() || auto.on || e.repeat || !KEYS[e.code] || e.target?.closest?.('input, textarea, select, [contenteditable]')) return;
       keys.add(e.code); updateKeyDir();
     },
     handleKeyUp(e) { if (keys.delete(e.code)) updateKeyDir(); },
@@ -765,11 +941,12 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
      */
     startPlacement(type, { uid = null } = {}) {
       const zone = BUILDINGS[type]?.zone;
-      // The farm is fields only: every buildable thing (shop buildings and decor) goes in the café.
-      const area = uid ? areaOf({ kind: 'building', uid, type }) || view : zone === 'farm' ? 'farm' : 'cafe';
+      // Farm buildings (dryer) go on the farm's free grass, café buildings in the café; decorations stay in the view.
+      const area = uid ? areaOf({ kind: 'building', uid, type }) || view : zone === 'farm' ? 'farm' : zone === 'shop' ? 'cafe' : realm.view;
       if (area !== view || switching) return setView(area).then(() => realm.startPlacement(type, { uid }));
       if (placement.info?.uid) buildings.setHidden(placement.info.uid, false);
-      const info = placement.start(type, { uid, area: view }, () => store.state);
+      // Start near the player (the camera follows them): the placement searches the nearest valid spot from there.
+      const info = placement.start(type, { uid, area: view, near: { x: avatar.position.x, z: avatar.position.z } }, () => store.state);
       if (!info) return null;
       if (uid) buildings.setHidden(uid, true);
       setSelection(null, { notify: false });
@@ -793,6 +970,10 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     setTutorialTarget(t) { tutorialTarget = t || null; },
     /** Order id of the cup the player is carrying (null when empty-handed). */
     get carrying() { return carry?.orderId ?? null; },
+    /** Auto play: { on, caption (i18n key), target (descriptor the HUD hand points at) }. */
+    get autoStatus() { return auto; },
+    /** What a staff unit is doing now ('harvest' | 'plant' | 'brew' | 'order' | 'deliver' | ''). */
+    staffStatus: uid => staff.statusOf(uid),
     /** Object notices currently shown in the view: [{ key, kind, up, target }] (read only; refreshed ~4×/s). */
     get notices() { return badgeItems; },
     /** Screen point above a target (CSS px); visible:false for targets of the other area or during a view switch. */
@@ -817,6 +998,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       placement.dispose();
       markers.dispose();
       badges.dispose();
+      pads.dispose();
       cafe.dispose();
       staff.dispose();
       buildings.dispose();
