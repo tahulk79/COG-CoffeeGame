@@ -62,7 +62,7 @@ export function normalizeSave(raw, now = Date.now()) {
     const nr = normalizeRegion(r);
     if (nr.refund) { out.player.coins += nr.refund; delete nr.refund; }
     // Starter buildings added after a region was created (e.g. the terrace) appear at level 1 on load.
-    if (nr.buildings.length) for (const [type, def] of Object.entries(BUILDINGS)) {
+    if (nr.buildings.some(b => b.type === 'orderCounter')) for (const [type, def] of Object.entries(BUILDINGS)) {
       if (def.starter && FIXED[type] && !nr.buildings.some(b => b.type === type)) nr.buildings.push({ uid: `s-${type}-${id}`, type, x: FIXED[type].x, z: FIXED[type].z, rot: FIXED[type].rot, level: 1 });
     }
     out.world.regions[id] = nr;
