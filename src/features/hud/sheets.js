@@ -1,7 +1,7 @@
 // Sheet contents: Build (café), Seeds (farm), Menu (café drinks), Staff (per area) and Progress (Round + Rebirth).
 // Pure render functions of the store state. Each screen has its own toolbar (toolbar.js), so sheets filter by view.
-import { BUILD_MENU, BUILD_MENU_FARM, BUILD_MENU_CAFE, BUILDINGS, AUTO, autoPrice, CROPS, CROP_ORDER, STAFF, STAFF_ORDER, STAFF_SLOTS, ROUNDS, ROUND_LEVEL_CAP, REBIRTH, DRINKS, DRINK_ORDER } from '../../core/config/economy.js';
-import { buildError, buildingsOf, buildingLevel, MAX_INSTANCES, cropUnlocked, drinkUnlocked, drinkPrice, brewMs, seedCost, growMs, staffError, freeSlots, roundStatus, rebirthError, level, region } from '../../core/derive.js';
+import { BUILD_MENU, BUILD_MENU_FARM, BUILD_MENU_CAFE, BUILDINGS, AUTO, autoPrice, CROPS, CROP_ORDER, STAFF, STAFF_ORDER, STAFF_SLOTS, ROUNDS, ROUND_LEVEL_CAP, REBIRTH, DRINKS, DRINK_ORDER, BEANS } from '../../core/config/economy.js';
+import { buildError, buildingsOf, buildingLevel, MAX_INSTANCES, cropUnlocked, drinkUnlocked, drinkPrice, brewMs, seedCost, growMs, staffError, freeSlots, roundStatus, rebirthError, level, region, capacity, beanBuyQuote } from '../../core/derive.js';
 import { newTxId } from '../../core/store.js';
 import { h } from './dom.js';
 import { T, fmt, duration } from './text.js';
@@ -79,6 +79,21 @@ export function menuSheet() {
           : h('span', { class: 'hud-seed-meta' }, needs.map(text => lockTag(text)))));
     }
     return h('div', null, h('p', { class: 'hud-hint' }, T('hud.menu.hint')), list);
+  };
+}
+
+// ---------- Beans (café: buy from the supplier) ----------
+export function beansSheet(ctx) {
+  return s => {
+    const cap = region(s) ? capacity(s) : 0;
+    const q = beanBuyQuote(s);
+    const label = q.free ? T('hud.beans.free', { n: q.amount }) : T('hud.beans.buy', { n: q.amount || BEANS.buyPack });
+    const note = q.error === 'storageFull' ? T('hud.beans.full') : q.error === 'coins' ? needMore(q.missing) : null;
+    return h('div', null,
+      h('p', { class: `hud-line${cap && s.inventory.beans >= cap ? ' hud-line--bad' : ''}` }, T('hud.storage.fill', { n: Math.floor(s.inventory.beans), max: cap })),
+      h('p', { class: 'hud-hint' }, T('hud.beans.hint', { price: BEANS.buyPrice })),
+      h('div', { class: 'hud-row' }, actionButton({ id: 'buyBeans', label, icon: '🫘', cost: q.error ? null : q.cost, disabled: !!q.error, note,
+        onClick: () => ctx.act('shop/buyBeans') })));
   };
 }
 

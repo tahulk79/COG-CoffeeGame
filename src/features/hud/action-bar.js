@@ -1,7 +1,7 @@
 // Contextual action card above the toolbar, driven by hud.setSelection(target). Every action goes through the store.
 import { BUILDINGS, CROPS } from '../../core/config/economy.js';
 import { PARCELS, plotById } from '../../core/config/layout.js';
-import { region, plotState, upgradeCost, upgradeError, levelCap, parcelError, seedCost, capacity, seatCount, seatsUsed } from '../../core/derive.js';
+import { region, plotState, upgradeCost, upgradeError, levelCap, parcelError, seedCost, capacity, seatCount, seatsUsed, beanSellQuote } from '../../core/derive.js';
 import { h, setText } from './dom.js';
 import { T, clock } from './text.js';
 import { buildingEffect } from './effects.js';
@@ -39,7 +39,7 @@ export function createActionBar(ctx) {
         if (!b) return null;
         const err = upgradeError(s, b);
         // Live numbers shown on some cards: storehouse fill, café seats.
-        const live = b.type === 'silo' ? { beans: s.inventory.beans, capacity: capacity(s) }
+        const live = b.type === 'silo' ? { beans: s.inventory.beans, capacity: capacity(s), sell: beanSellQuote(s).coins }
           : b.type === 'orderCounter' || b.type === 'tables' ? { used: seatsUsed(s), seats: seatCount(s) } : null;
         return { kind: 'building', uid: b.uid, type: b.type, level: b.level, cap: levelCap(s), err, upgrade: !!target.upgrade, cost: upgradeCost(b.type, b.level), missing: err === 'coins' ? upgradeCost(b.type, b.level) - coins : 0, live };
       }
@@ -97,6 +97,9 @@ export function createActionBar(ctx) {
     if (m.live?.seats) body.append(h('p', { class: 'hud-line' }, T('hud.seats.line', { n: m.live.used, max: m.live.seats })));
     body.append(h('p', { class: 'hud-line' }, buildingEffect(m.type, m.level, m.err !== 'maxLevel' && m.err !== 'roundCap')));
     const row = h('div', { class: 'hud-row' });
+    // Farm game: the storehouse buys the beans (all of them) → coins.
+    if (m.type === 'silo') row.append(actionButton({ id: 'sellBeans', label: T('hud.beans.sell', { n: Math.floor(m.live.beans) }), icon: '🫘', cost: m.live.sell, tone: 'gold',
+      disabled: m.live.beans < 1, note: m.live.beans < 1 ? T('hud.beans.none') : null, onClick: () => ctx.act('farm/sellBeans') }));
     // Upgrades are reached only through the ▲ badge above the building (target.upgrade); a body tap shows the info card.
     if (!def.decor && !m.upgrade) {
       if (m.err === null || m.err === 'coins') body.append(h('p', { class: 'hud-hint' }, T('hud.upgradeHint')));

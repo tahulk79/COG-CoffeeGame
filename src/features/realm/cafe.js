@@ -271,8 +271,10 @@ export function createCafe({ scene, vfx, dispatch, templates = {}, navigate = nu
 
   // Per frame: movement, sitting, bubbles, patience timeout, spawn timer, tutorial customer, served cups.
   function update(dt, time, state, now, playing) {
-    clockNow = now;
     const r = regionOf(state);
+    // Paused café (player on the farm): the clock stands still at the pause moment, nothing times out or arrives.
+    if (r?.shop.pausedAt) { now = Math.min(now, r.shop.pausedAt); playing = false; }
+    clockNow = now;
     const orders = r?.shop.orders || [];
     let waiting = 0;
     for (let i = 0; i < orders.length; i++) {
@@ -336,7 +338,7 @@ export function createCafe({ scene, vfx, dispatch, templates = {}, navigate = nu
     if (!playing || !r || r.status !== 'active') return;
     // Tutorial needs a customer right now.
     spawnClock += dt * 1000;
-    const tutorialNeedsCustomer = waiting === 0 && spawnClock > 400 && currentStep(state)?.step.id === 'takeOrder';
+    const tutorialNeedsCustomer = waiting === 0 && spawnClock > 400 && currentStep(state, 'cafe')?.step.id === 'takeOrder';
     if (tutorialNeedsCustomer || spawnClock >= arrivalMs(state)) {
       spawnClock = 0;
       if (waiting < queueCap(state)) spawn();

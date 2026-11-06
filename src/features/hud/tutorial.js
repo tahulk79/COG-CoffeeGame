@@ -1,7 +1,7 @@
 // Tutorial overlay: ONE short tip bubble at the top + a white tap-hand pointer. The step always comes from the save
 // (currentStep(store.state)), so a reload resumes where the player was. Never blocks input: when a target cannot be
-// found only the tip is shown. The farm and the café are separate views: when the step's target is in the other area,
-// the hand points at the toolbar's Café / Farm button instead ("Tap Café to open your café").
+// found only the tip is shown. The farm and the café are separate games with their own tutorial track: only the track of
+// the area on screen runs (a target in the other area still falls back to pointing at the Café / Farm button).
 import { BUILDINGS, DRINKS } from '../../core/config/economy.js';
 import { region, plotState, ownedPlots, upgradeError, upgradeCost } from '../../core/derive.js';
 import { currentStep } from '../../core/tutorial.js';
@@ -17,13 +17,15 @@ function rich(text) {
 
 export function createTutorial(ctx) {
   const tipText = h('span', { class: 'hud-tip-text' });
-  const skip = h('button', { type: 'button', class: 'hud-tip-skip', on: { click: () => ctx.act('tutorial/set', { done: true }) } }, T('hud.tut.skip'));
+  const skip = h('button', { type: 'button', class: 'hud-tip-skip', on: { click: () => ctx.act('tutorial/set', { done: true, track: track() }) } }, T('hud.tut.skip'));
   const tip = h('div', { class: 'hud-tip', hidden: true, attrs: { role: 'status', 'aria-live': 'polite' } },
     h('span', { class: 'hud-tip-ico', attrs: { 'aria-hidden': 'true' } }, '💡'), tipText, skip);
   const hand = h('div', { class: 'hud-hand', hidden: true });
   hand.innerHTML = `<div class="hud-hand-inner">${HAND_SVG}</div>`; // static, trusted markup
   const el = h('div', { class: 'hud-tut' }, tip, hand);
 
+  // Farm and café are separate games, each with its own tutorial track: the one on screen.
+  const track = () => (ctx.realm?.view === 'cafe' ? 'cafe' : 'farm');
   let tipKey = '';
   let worldKey = '';        // last target sent to realm.setTutorialTarget
   let world = null;         // world target the hand follows
@@ -90,14 +92,13 @@ export function createTutorial(ctx) {
       setWorld(ctx.sheet.openId ? null : auto.target || null);
       return;
     }
-    const cur = ctx.isPlaying() ? currentStep(s) : null;
+    const cur = ctx.isPlaying() && !ctx.realm?.switching ? currentStep(s, track()) : null;
     if (!cur || ctx.modals.open) { hide(); return; }
     const r = region(s);
     const now = Date.now();
     const sheetId = ctx.sheet.openId;
     let text = '', target = null, node = null;
     let area = null;          // area the step happens in when it is not the target's (build: the café for shop buildings)
-    let beansFirst = false;   // brew step without enough beans: back to the farm
     const building = type => {
       const b = r?.buildings.find(x => x.type === type);
       return b ? { kind: 'building', uid: b.uid, type } : null;
@@ -120,6 +121,12 @@ export function createTutorial(ctx) {
         target = id ? { kind: 'plot', id } : null;
         break;
       }
+      case 'sell': {
+        // Farm game: sell the harvest at the storehouse (tap it → Sell beans).
+        if (selected?.kind === 'building' && selected.type === 'silo') { text = T('tut.sellBtn'); node = ctx.actionBar.el.querySelector('[data-hud-id="sellBeans"]'); }
+        else { text = T('tut.sell'); target = building('silo'); }
+        break;
+      }
       case 'takeOrder': {
         const waiting = r?.shop.orders.some(o => o.stage === 'waiting');
         text = T(waiting ? 'tut.takeOrder' : 'tut.waitCustomer');
@@ -130,10 +137,9 @@ export function createTutorial(ctx) {
         const order = r?.shop.orders.find(o => o.stage === 'taken');
         const need = order ? DRINKS[order.drink]?.beans || 1 : 1;
         if (s.inventory.beans < need) {
-          text = T('tut.needBeans');
-          beansFirst = true;
-          const plot = ownedPlots(s).find(p => plotState(s, p.id, now).stage === 'ready') || ownedPlots(s).find(p => !r.plots[p.id]);
-          target = plot ? { kind: 'plot', id: plot.id } : null;
+          // Café game: out of beans → buy them from the supplier (bean pill → Buy beans).
+          text = T('tut.buyBeans');
+          node = sheetId === 'beans' ? ctx.sheet.query('[data-hud-id="buyBeans"]') : ctx.top.beansEl;
         } else { text = T('tut.brew'); target = building('brewCounter'); }
         break;
       }
@@ -173,8 +179,9 @@ export function createTutorial(ctx) {
         const siloB = r?.buildings.find(b => b.type === 'silo');
         const cost = siloB ? upgradeCost('silo', siloB.level) : null;
         if (siloB && upgradeError(s, siloB) === 'coins' && cost != null) {
-          text = T('tut.upgradeCoins', { n: fmt(cost - s.player.coins), name: T('building.silo') });
-          if (ctx.realm?.view === 'cafe') target = building('orderCounter'); else node = ctx.toolbar.viewButton;
+          // Not enough coins: grow and sell more beans (the farm earns its own coins).
+          text = T('tut.upgradeCoinsFarm', { n: fmt(cost - s.player.coins), name: T('building.silo') });
+          target = building('silo');
         } else if (selected?.kind === 'building' && selected.type === 'silo' && selected.upgrade) { text = T('tut.upgradeBtn'); node = ctx.actionBar.el.querySelector('[data-hud-id="upgrade"]'); }
         else { text = T('tut.upgrade'); target = silo && { ...silo, upgrade: true }; }
         break;
@@ -192,7 +199,7 @@ export function createTutorial(ctx) {
     if (view !== lastView) { lastView = view; lastFocus = ''; }
     const need = area || (target && ctx.realm?.areaOf?.(target)) || null;
     if (view && need && need !== view && !sheetId && !ctx.realm?.placement) {
-      text = T(need === 'cafe' ? 'tut.goCafe' : beansFirst ? 'tut.goFarmBeans' : 'tut.goFarm');
+      text = T(need === 'cafe' ? 'tut.goCafe' : 'tut.goFarm');
       target = null;
       node = ctx.toolbar.viewButton;
     }

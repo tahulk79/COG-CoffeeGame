@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { harness, playing, T0 } from './helpers.mjs';
 import * as D from '../../src/core/derive.js';
-import { CROPS, ROUNDS, START, xpForLevel, BUILDINGS } from '../../src/core/config/economy.js';
+import { CROPS, ROUNDS, START, xpForLevel, BUILDINGS, BEANS } from '../../src/core/config/economy.js';
 import { apply } from '../../src/core/game.js';
+import { createSave, normalizeSave } from '../../src/core/state.js';
 import { createStore, createMemoryStorage } from '../../src/core/store.js';
 import { migrateLegacy } from '../../src/core/migrate.js';
 import { currentStep, STEPS } from '../../src/core/tutorial.js';
@@ -295,27 +296,112 @@ test('migration from v1 keeps coins/level/character, never touches old keys', ()
   assert.equal(migrateLegacy(null, null), null);
 });
 
-test('tutorial: one step at a time, follows real progress, survives reload', () => {
+test('tutorial: farm and café are separate tracks, one step at a time, survive reload', () => {
   const h = playing();
-  assert.equal(currentStep(h.state).step.id, 'plant');
+  // Farm game
+  assert.equal(currentStep(h.state, 'farm').step.id, 'plant');
   h.must('farm/plant', { plotId: 'F1-1' });
-  assert.equal(currentStep(h.state).step.id, 'harvest');
+  assert.equal(currentStep(h.state, 'farm').step.id, 'harvest');
   h.tick(60_000); h.must('farm/harvest', { plotId: 'F1-1' });
-  assert.equal(currentStep(h.state).step.id, 'takeOrder');
-  h.must('shop/spawnCustomer', { roll: 0 }); h.must('shop/takeOrder');
-  assert.equal(currentStep(h.state).step.id, 'brew');
-  h.must('shop/brew');
-  assert.equal(currentStep(h.state).step.id, 'serve');
-  h.tick(10_000); h.must('shop/serve');
-  assert.equal(currentStep(h.state).step.id, 'build');
+  assert.equal(currentStep(h.state, 'farm').step.id, 'sell');
+  h.must('farm/sellBeans');
+  assert.equal(currentStep(h.state, 'farm').step.id, 'upgrade');
   h.state.player.coins = 1000;
-  h.must('build/place', { type: 'roaster', x: 2, z: 111 });
-  assert.equal(currentStep(h.state).step.id, 'upgrade');
   h.must('build/upgrade', { uid: h.region().buildings.find(b => b.type === 'silo').uid });
-  assert.equal(currentStep(h.state).step.id, 'buyLand');
+  assert.equal(currentStep(h.state, 'farm').step.id, 'buyLand');
   h.must('land/buyParcel', { parcelId: 'F2' });
-  assert.equal(currentStep(h.state), null);
-  assert.equal(STEPS.length, 8);
+  assert.equal(currentStep(h.state, 'farm'), null);
+  // Café game: its own track, untouched by the farm one
+  assert.equal(currentStep(h.state, 'cafe').step.id, 'takeOrder');
+  h.must('shop/spawnCustomer', { roll: 0 }); h.must('shop/takeOrder');
+  assert.equal(currentStep(h.state, 'cafe').step.id, 'brew');
+  h.must('shop/buyBeans');
+  h.must('shop/brew');
+  assert.equal(currentStep(h.state, 'cafe').step.id, 'serve');
+  h.tick(10_000); h.must('shop/serve');
+  assert.equal(currentStep(h.state, 'cafe').step.id, 'build');
+  h.must('build/place', { type: 'roaster', x: 2, z: 111 });
+  assert.equal(currentStep(h.state, 'cafe'), null);
+  assert.equal(STEPS.length, 9);
+});
+
+test('tutorial: skipping one game keeps the other; an old full skip covers both', () => {
+  const h = playing();
+  h.must('tutorial/set', { done: true, track: 'cafe' });
+  assert.equal(currentStep(h.state, 'cafe'), null);
+  assert.equal(currentStep(h.state, 'farm').step.id, 'plant');
+  assert.equal(h.state.tutorial.done, false);
+  h.must('tutorial/set', { done: true, track: 'farm' });
+  assert.equal(h.state.tutorial.done, true);
+  const old = normalizeSave({ ...createSave(T0), tutorial: { step: 0, done: true } }, T0);
+  assert.equal(old.tutorial.farmDone && old.tutorial.cafeDone, true);
+});
+
+test('game choice: play/setMode stores farm | café, rejects anything else', () => {
+  const h = playing();
+  assert.equal(h.state.mode, null);
+  h.must('play/setMode', { mode: 'cafe' });
+  assert.equal(h.state.mode, 'cafe');
+  assert.equal(h.act('play/setMode', { mode: 'moon' }).ok, false);
+  assert.equal(normalizeSave({ ...h.state, mode: 'moon' }, T0).mode, null);
+});
+
+test('beans trade: farm sells beans for coins, café buys within coins and storage', () => {
+  const h = playing();
+  h.state.inventory.beans = 10;
+  const coins = h.state.player.coins;
+  h.must('farm/sellBeans');
+  assert.equal(h.state.inventory.beans, 0);
+  assert.equal(h.state.player.coins, coins + 10 * BEANS.sellPrice);
+  assert.equal(h.act('farm/sellBeans').error, 'noBeans');
+  // Buy one pack
+  h.state.player.coins = 100;
+  h.must('shop/buyBeans');
+  assert.equal(h.state.inventory.beans, BEANS.buyPack);
+  assert.equal(h.state.player.coins, 100 - BEANS.buyPack * BEANS.buyPrice);
+  // Limited by the coins
+  h.state.player.coins = BEANS.buyPrice * 3;
+  h.must('shop/buyBeans');
+  assert.equal(h.state.inventory.beans, BEANS.buyPack + 3);
+  // Storehouse full
+  h.state.inventory.beans = D.capacity(h.state);
+  assert.equal(h.act('shop/buyBeans').error, 'storageFull');
+  // Broke with beans left: no grace
+  h.state.inventory.beans = 2; h.state.player.coins = 0;
+  assert.equal(h.act('shop/buyBeans').error, 'coins');
+  // Broke and empty: the supplier's grace beans
+  h.state.inventory.beans = 0;
+  h.must('shop/buyBeans');
+  assert.equal(h.state.inventory.beans, BEANS.grace);
+  assert.equal(h.state.player.coins, 0);
+});
+
+test('café pause: frozen while paused, timestamps shift on resume', () => {
+  const h = playing();
+  h.state.inventory.beans = 10;
+  h.must('shop/spawnCustomer', { roll: 0 });
+  const at = h.region().shop.orders[0].at;
+  h.must('shop/pause');
+  for (const type of ['shop/spawnCustomer', 'shop/takeOrder', 'shop/brew', 'shop/serve']) assert.equal(h.act(type, { roll: 0 }).error, 'cafeClosed');
+  assert.equal(h.act('shop/customerLeft', { orderId: 1 }).error, 'cafeClosed');
+  h.tick(10 * 60_000);
+  h.must('shop/resume');
+  assert.equal(h.region().shop.pausedAt, 0);
+  assert.equal(h.region().shop.orders[0].at, at + 10 * 60_000);
+  // Seated patience does not count the paused time either.
+  h.must('shop/takeOrder');
+  h.must('shop/pause'); h.tick(10 * 60_000); h.must('shop/resume');
+  assert.ok(!D.seatPatienceOver(h.region().shop.orders[0], h.now));
+});
+
+test('café staff keep the café running: cafeStaffed', () => {
+  const h = playing();
+  assert.equal(D.cafeStaffed(h.state), false);
+  h.state.player.coins = 10_000;
+  h.must('staff/hire', { type: 'barista' });
+  assert.equal(D.cafeStaffed(h.state), true);
+  h.state.staff.units[0].stopped = { kind: 'phone', at: h.now, fee: 10 };
+  assert.equal(D.cafeStaffed(h.state), false);
 });
 
 test('reducer never mutates input state', () => {

@@ -25,9 +25,12 @@ export function createSave(now = Date.now(), character = null) {
       freeUnlocks: 0,     // free region unlocks granted by the Level-10 expiration
     },
     staff: { units: [] },
-    tutorial: { step: 0, done: false },
+    // Which game the player is playing: 'farm' | 'cafe' (null = not chosen yet → the HUD asks once). The two games
+    // share coins / XP / level; beans harvested on the farm can be used in the café. Follows the last view shown.
+    mode: null,
+    tutorial: { step: 0, done: false, farmDone: false, cafeDone: false },
     autoplay: { runs: 0, granted: false, active: null },   // active = { startedAt, endsAt } while a run plays
-    stats: { harvested: 0, planted: 0, served: 0, built: 0, upgraded: 0, parcels: 0, earned: 0 },
+    stats: { harvested: 0, planted: 0, served: 0, built: 0, upgraded: 0, parcels: 0, earned: 0, sold: 0, bought: 0 },
     tx: [],
     nextUid: 1,
   };
@@ -72,7 +75,9 @@ export function normalizeSave(raw, now = Date.now()) {
   out.world.ownedRegions = [...new Set([...(Array.isArray(s.world?.ownedRegions) ? s.world.ownedRegions : []), ...Object.keys(out.world.regions)].filter(isRegionId))];
   out.world.freeUnlocks = num(out.world.freeUnlocks, 0, 0, 9) | 0;
   out.staff = { units: Array.isArray(s.staff?.units) ? s.staff.units.filter(u => obj(u) && typeof u.type === 'string' && Object.hasOwn(STAFF, u.type)) : [] };
+  out.mode = s.mode === 'farm' || s.mode === 'cafe' ? s.mode : null;
   out.tutorial = { ...base.tutorial, ...obj(s.tutorial) };
+  if (out.tutorial.done) { out.tutorial.farmDone = true; out.tutorial.cafeDone = true; } // skipped before the split
   out.autoplay = { ...base.autoplay, ...obj(s.autoplay) };
   out.autoplay.runs = num(out.autoplay.runs, 0, 0, 99) | 0;
   if (!obj(out.autoplay.active)) out.autoplay.active = null;
@@ -128,7 +133,8 @@ export function normalizeRegion(r) {
     roads: Array.isArray(v.roads) ? [...new Set(v.roads)] : [],
     buildings: Array.isArray(v.buildings) ? v.buildings.filter(b => obj(b) && typeof b.type === 'string' && Object.hasOwn(BUILDINGS, b.type)) : [],
     plots: obj(v.plots) || {},
-    shop: { orders: Array.isArray(v.shop?.orders) ? v.shop.orders : [], nextOrder: num(v.shop?.nextOrder, 1) },
+    // pausedAt: the café stands still while the player is on the farm (no customers, patience / brewing frozen).
+    shop: { orders: Array.isArray(v.shop?.orders) ? v.shop.orders : [], nextOrder: num(v.shop?.nextOrder, 1), pausedAt: num(v.shop?.pausedAt, 0, 0) },
   };
 }
 

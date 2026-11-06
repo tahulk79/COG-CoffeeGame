@@ -7,7 +7,7 @@
 // Red dot when something is new or affordable. Buttons of the other screen are hidden (never removed: the tutorial and
 // tests can still find them by id).
 import { BUILD_MENU_FARM, BUILD_MENU_CAFE, BUILDINGS, CROPS, CROP_ORDER, DRINK_ORDER, STAFF, STAFF_ORDER, REBIRTH } from '../../core/config/economy.js';
-import { buildError, buildingsOf, staffError, unlockedCrops, unlockedDrinks, roundStatus, rebirthError, freeSlots, region, upgradeError } from '../../core/derive.js';
+import { buildError, buildingsOf, staffError, unlockedCrops, unlockedDrinks, roundStatus, rebirthError, freeSlots, region, upgradeError, shopPaused } from '../../core/derive.js';
 import { h, setText } from './dom.js';
 import { T } from './text.js';
 import { drinkSeenKey } from './sheets.js';
@@ -96,7 +96,7 @@ export function createToolbar(ctx) {
     if (crop !== lastCrop) { lastCrop = crop; setText(buttons.seeds.icon, CROPS[crop]?.icon || '🌱'); }
     // View button: label = where it takes you. Badge (farm only) = customers waiting at the café.
     const view = ctx.realm?.view || 'farm';
-    const waiting = view === 'farm' ? waitingCustomers(ctx.store.state) : 0;
+    const waiting = view === 'farm' && !shopPaused(ctx.store.state) ? waitingCustomers(ctx.store.state) : 0; // paused café: nobody is waiting
     const sig = `${view}|${waiting}`;
     if (sig === viewSig) return;
     const viewChanged = !viewSig.startsWith(`${view}|`);

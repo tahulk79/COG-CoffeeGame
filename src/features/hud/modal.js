@@ -49,6 +49,28 @@ export function createModals(ctx) {
     return promise;
   }
 
+  /**
+   * Pick one of a few big options (the farm / café game choice). No cancel: Escape does nothing.
+   * options: [{ id, icon, title, body }] → Promise<id>
+   */
+  function choose({ title = '', note = '', options = [] } = {}) {
+    const buttons = options.map(o => h('button', { type: 'button', class: 'hud-choice', dataset: { hudId: `choice-${o.id}` }, on: { click: () => active?.close(o.id) } },
+      h('span', { class: 'hud-choice-ico', attrs: { 'aria-hidden': 'true' } }, o.icon),
+      h('span', { class: 'hud-choice-text' }, h('strong', null, o.title), h('span', null, o.body))));
+    const card = h('div', { class: 'hud-confirm hud-confirm--choice', attrs: { role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'hud-choice-title' } },
+      h('h2', { id: 'hud-choice-title' }, title), h('div', { class: 'hud-choices' }, buttons), note ? h('p', { class: 'hud-hint' }, note) : null);
+    const promise = open(h('div', { class: 'hud-modal' }, h('div', { class: 'hud-scrim' }), card), e => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); }
+      else if (e.key === 'Tab') {
+        e.preventDefault();
+        const i = buttons.indexOf(document.activeElement);
+        buttons[(i + (e.shiftKey ? buttons.length - 1 : 1)) % buttons.length]?.focus();
+      }
+    });
+    buttons[0]?.focus({ preventScroll: true });
+    return promise;
+  }
+
   /** Teacher speech overlay. lines: string | {text, speaker}. Tap / Enter / Space advances. */
   function dialogue(lines = []) {
     const list = (Array.isArray(lines) ? lines : [lines]).map(l => (typeof l === 'string' ? { text: l } : l)).filter(l => l && l.text);
@@ -78,5 +100,5 @@ export function createModals(ctx) {
     return promise;
   }
 
-  return { el: layer, confirm, dialogue, get open() { return !!active; }, dispose() { active?.close(false); layer.remove(); } };
+  return { el: layer, confirm, choose, dialogue, get open() { return !!active; }, dispose() { active?.close(false); layer.remove(); } };
 }

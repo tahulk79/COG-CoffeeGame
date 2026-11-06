@@ -306,6 +306,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     return null;
   }
   function shopJob(e, state, now) {
+    if (regionOf(state)?.shop.pausedAt) return null; // café paused while the player is on the farm
     const orders = regionOf(state)?.shop.orders || [];
     const carrying = getCarrying();
     if (e.type === 'barista') {

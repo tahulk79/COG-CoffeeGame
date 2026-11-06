@@ -14,7 +14,7 @@
 import * as THREE from 'three';
 import { BUILDINGS, CROPS, CROP_ORDER, DRINKS } from '../../core/config/economy.js';
 import { PARCELS, GATE, FIXED, PLOT_SIZE, CUSTOMER, CAFE_SEATS, AREAS, BOUNDS, CAFE_BOUNDS, RESERVED, plotById, plotsOf, parcelAt, areaAt, areaOfParcel, rectCenter } from '../../core/config/layout.js';
-import { region as regionOf, footprint, upgradeError, parcelError, seatCount, seatsUsed, brewSlots, seatPatienceRatio, ownedPlots, capacity, cropUnlocked, seedCost } from '../../core/derive.js';
+import { region as regionOf, footprint, upgradeError, parcelError, seatCount, seatsUsed, brewSlots, seatPatienceRatio, ownedPlots, capacity, cropUnlocked, seedCost, cafeStaffed } from '../../core/derive.js';
 import { loadModel } from '../../shared/three/models.js';
 import { disposeScene } from '../../shared/three/dispose-scene.js';
 import { createVfx, flyTo, popNumber } from '../../shared/vfx/index.js';
@@ -163,6 +163,22 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   const drag = { mode: null, visited: new Set(), stopped: false, ghostX: 0, ghostZ: 0, startX: 0, startZ: 0 };
   let canvasRect = canvas.getBoundingClientRect();
 
+  // The game being played decides the area shown on load / region change ('farm' until the player picks one).
+  const modeView = state => (state.mode === 'cafe' ? 'cafe' : 'farm');
+  // Farm and café are separate games: the café only runs while it is on screen, or while café staff / robots are
+  // working there (then it keeps serving without the player). Otherwise it is paused on the farm. The chosen game
+  // follows the view so a reload opens where the player was. Checked every frame, dispatches only on change.
+  function syncArea(state) {
+    if (switching || state.story.phase !== 'play') return;
+    const r = regionOf(state);
+    if (!r) return;
+    const paused = !!r.shop.pausedAt;
+    const run = view === 'cafe' || cafeStaffed(state);
+    if (run && paused) store.dispatch('shop/resume');
+    else if (!run && !paused) store.dispatch('shop/pause');
+    if (state.mode && state.mode !== view) store.dispatch('play/setMode', { mode: view });
+  }
+
   function dispatch(type, payload) {
     const result = store.dispatch(type, payload);
     hooks.onResult?.(type, result);
@@ -173,7 +189,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   function syncAll(state, instant = false) {
     const id = state.world.currentRegion || null;
     if (id !== regionId) {
-      if (regionId !== undefined) { setCarry(null); plots.clear(); buildings.clear(); cafe.reset(); staff.clear(); placement.cancel(); setSelection(null); needArrive = !!id; cancelSwitch(); swapView('farm'); }
+      if (regionId !== undefined) { setCarry(null); plots.clear(); buildings.clear(); cafe.reset(); staff.clear(); placement.cancel(); setSelection(null); needArrive = !!id; cancelSwitch(); swapView(modeView(state)); }
       regionId = id;
       instant = true;
       avatar.teleport(avatar.position.x, avatar.position.z);
@@ -228,7 +244,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       else if (ev.type === 'brewStarted') sfx('cafe.cup');
       else if (ev.type === 'parcelBought') { const c = parcelSignPoint(ev.parcelId); vfx.burst('sparkle', v3.set(c.x, 1, c.z), { count: 20 }); vfx.burst('leaf', v3); }
       else if (ev.type === 'hired' || ev.type === 'assigned') vfx.burst('sparkle', avatar.position, { count: 10 });
-      else if (ev.type === 'regionEntered') { cancelSwitch(); swapView('farm'); avatar.teleport(GATE.x, GATE.z - 4); needArrive = true; }
+      else if (ev.type === 'regionEntered') { cancelSwitch(); swapView(modeView(state)); if (view === 'farm') avatar.teleport(GATE.x, GATE.z - 4); needArrive = true; }
     }
   });
 
@@ -545,8 +561,11 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
         const c = autoCrop(store.state);
         if (c && plots.stage(empty.id, Date.now()) === 'empty') dispatch('farm/plant', { plotId: empty.id, crop: c });
       });
-      const cafeWaits = orders.length > 0 && (beans >= 2 || orders.some(o => o.stage === 'brewing'));
-      return autoIdle(dt, 'auto.waitGrow', cafeWaits || !room ? 'cafe' : null, 'auto.goCafe');
+      // Farm game: the storehouse is full → sell the beans there (never leaves for the café on its own).
+      if (!room && beans > 0) return autoGo(FIXED.silo.x, FIXED.silo.z + 2.4, 'auto.sell', { n: Math.floor(beans) }, { kind: 'building', type: 'silo' }, () => {
+        if (store.state.inventory.beans > 0) dispatch('farm/sellBeans');
+      });
+      return autoIdle(dt, 'auto.waitGrow', null, 'auto.goCafe');
     }
     // café
     if (carry) { say('auto.serve', null, { kind: 'customer', orderId: carry.orderId }); deliver(); auto.step = null; auto.timer = 0; auto.phase = 'walk'; auto.idleT = 0; return; }
@@ -568,9 +587,9 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     // Nothing to do: stand ready at the order pad (customers walking in / cups brewing).
     if (distTo(PADS.order.x, PADS.order.z) > .6 && !avatar.moving) avatar.walkTo(PADS.order.x, PADS.order.z);
     if (brewing) { const o = orders.find(x => x.stage === 'brewing'); say('auto.brewing', { drink: o.drink }, { kind: 'building', type: 'brewCounter' }); auto.phase = 'pause'; auto.wait = BEAT; auto.idleT = 0; return; }
+    // Café game: stays in the café (out of beans → the caption says so; buying is the player's call).
     const stuckBeans = taken && beans < (DRINKS[taken.drink]?.beans || 1);
-    const farmWork = ownedPlots(state).some(p => plots.stage(p.id, now) === 'ready') || (beans < 2 && !orders.some(o => o.stage === 'waiting'));
-    return autoIdle(dt, 'auto.waitCustomer', stuckBeans || (!orders.length && farmWork) ? 'farm' : null, 'auto.goFarm');
+    return autoIdle(dt, stuckBeans ? 'auto.needBeans' : 'auto.waitCustomer', null, 'auto.goFarm');
   }
   function updateAuto(dt, state, now) {
     const a = state.autoplay?.active;
@@ -839,6 +858,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       needArrive = false;
       if (state.story.phase === 'play') cinematics.play('arrive');
     }
+    syncArea(state);
     avatar.update(dt, clock);
     const orders = regionOf(state)?.shop.orders || [];
     plots.update(dt, clock, now);
@@ -1013,6 +1033,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   };
 
   syncAll(store.state, true);
+  if (modeView(store.state) !== view) swapView(modeView(store.state));
   if (import.meta.env.DEV) window.__realm = realm;
   return realm;
 }
