@@ -329,7 +329,7 @@ const unsubscribeStory = store.subscribe((state, evts) => {
   for (const e of evts || []) {
     if (e.type === 'expiryTriggered' && mode === 'play') setTimeout(() => runExpiry().catch(fail)); // after the current dispatch returns
     else if (e.type === 'roundUnlocked') { track('round_unlocked', { round: e.round }); cinematic('round'); }
-    else if (e.type === 'countryUnlocked') cinematic('country');
+    else if (e.type === 'regionUnlocked') track('region_selected', { region: e.regionId, cost: e.cost });
     else if (e.type === 'reborn') { track('rebirth_used', { blessing: e.blessing }); cinematic('rebirth'); }
   }
 });

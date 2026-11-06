@@ -2,9 +2,6 @@
 export default {
   en: {
     'realm.forSale': ({ price }) => `🪙 ${price}`,
-    'realm.roundLocked': ({ n }) => `🔒 Round ${n}`,
-    'realm.needsRoad': '🚧 Open the road first',
-    'realm.openRoad': ({ price }) => `🚧 🪙 ${price}`,
     'realm.level': ({ level }) => `Lv ${level}`,
     'realm.sign.order': 'ORDER',
     'realm.sign.brew': 'BREW',
@@ -12,9 +9,6 @@ export default {
   },
   vi: {
     'realm.forSale': ({ price }) => `🪙 ${price}`,
-    'realm.roundLocked': ({ n }) => `🔒 Vòng ${n}`,
-    'realm.needsRoad': '🚧 Cần mở đường trước',
-    'realm.openRoad': ({ price }) => `🚧 🪙 ${price}`,
     'realm.level': ({ level }) => `Cấp ${level}`,
     'realm.sign.order': 'GỌI MÓN',
     'realm.sign.brew': 'PHA CHẾ',

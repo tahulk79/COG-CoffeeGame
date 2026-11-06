@@ -1,8 +1,7 @@
-// Sheet contents: Build, Seeds, Staff and Progress (Round + Rebirth). Pure render functions of the store state.
+// Sheet contents: Build (café), Seeds (farm), Menu (café drinks), Staff (per area) and Progress (Round + Rebirth).
+// Pure render functions of the store state. Each screen has its own toolbar (toolbar.js), so sheets filter by view.
 import { BUILD_MENU, BUILDINGS, CROPS, CROP_ORDER, STAFF, STAFF_ORDER, STAFF_SLOTS, ROUNDS, ROUND_LEVEL_CAP, REBIRTH, DRINKS, DRINK_ORDER } from '../../core/config/economy.js';
-import { PARCELS, PARCEL_ORDER, ROADS, ROAD_ORDER } from '../../core/config/layout.js';
-import { COUNTRIES, COUNTRY_ORDER, REGION_ROUND } from '../../core/config/world.js';
-import { buildError, buildingsOf, MAX_INSTANCES, cropUnlocked, seedCost, growMs, staffError, freeSlots, roundStatus, rebirthError, level, region } from '../../core/derive.js';
+import { buildError, buildingsOf, buildingLevel, MAX_INSTANCES, cropUnlocked, drinkUnlocked, drinkPrice, brewMs, seedCost, growMs, staffError, freeSlots, roundStatus, rebirthError, level, region } from '../../core/derive.js';
 import { newTxId } from '../../core/store.js';
 import { h } from './dom.js';
 import { T, fmt, duration } from './text.js';
@@ -58,15 +57,43 @@ export function seedsSheet(ctx) {
   };
 }
 
+// ---------- Menu (café drinks) ----------
+export const drinkSeenKey = drinkId => `hudDrink:${drinkId}`;
+export function menuSheet() {
+  return s => {
+    const list = h('div', { class: 'hud-chips-list' });
+    const hasRegion = !!region(s);
+    for (const id of DRINK_ORDER) {
+      const def = DRINKS[id];
+      const open = drinkUnlocked(s, id);
+      const needs = [];
+      if (!open && level(s) < def.level) needs.push(T('hud.levelN', { level: def.level }));
+      if (!open && buildingLevel(s, 'roaster') < def.roaster) needs.push(T('hud.menu.needRoaster', { level: def.roaster }));
+      const price = hasRegion ? drinkPrice(s, id) : def.price;
+      list.append(h('div', { class: `hud-seed hud-drink${open ? '' : ' is-locked'}`, dataset: { hudId: `drink-${id}` } },
+        h('span', { class: 'hud-seed-ico', attrs: { 'aria-hidden': 'true' } }, def.icon),
+        h('span', { class: 'hud-seed-name' }, T(`drink.${id}`)),
+        open ? h('span', { class: 'hud-seed-meta' }, coinAmount(price), h('span', null, T('hud.menu.beans', { n: def.beans })),
+          h('span', null, `⏱ ${duration(hasRegion ? brewMs(s, id) : def.brewSeconds * 1000)}`))
+          : h('span', { class: 'hud-seed-meta' }, needs.map(text => lockTag(text)))));
+    }
+    return h('div', null, h('p', { class: 'hud-hint' }, T('hud.menu.hint')), list);
+  };
+}
+
 // ---------- Staff ----------
+/** Staff zone shown on the current screen: farm staff on the farm, café staff in the café. */
+export const staffZone = ctx => (ctx.realm?.view === 'cafe' ? 'shop' : 'farm');
+
 export function staffSheet(ctx) {
   return s => {
     const r = region(s);
-    const used = zone => (r ? STAFF_SLOTS[zone] - freeSlots(s, zone) : 0);
+    const zone = staffZone(ctx);
+    const used = r ? STAFF_SLOTS[zone] - freeSlots(s, zone) : 0;
     const out = h('div', { class: 'hud-staff' },
-      h('p', { class: 'hud-slots' }, T('hud.staff.slots', { farm: used('farm'), farmMax: STAFF_SLOTS.farm, shop: used('shop'), shopMax: STAFF_SLOTS.shop })));
+      h('p', { class: 'hud-slots' }, T(zone === 'farm' ? 'hud.staff.slotsFarm' : 'hud.staff.slotsCafe', { n: used, max: STAFF_SLOTS[zone] })));
     const cards = h('div', { class: 'hud-cards hud-cards--wide' });
-    for (const type of STAFF_ORDER) {
+    for (const type of STAFF_ORDER.filter(id => STAFF[id].zone === zone)) {
       const def = STAFF[type];
       const err = staffError(s, type);
       let foot;
@@ -81,11 +108,11 @@ export function staffSheet(ctx) {
         h('span', { class: 'hud-card-fx' }, staffEffect(type)), foot));
     }
     out.append(cards);
-    if (s.staff.units.length) {
+    const units = s.staff.units.filter(u => STAFF[u.type]?.zone === zone);
+    if (units.length) {
       const list = h('ul', { class: 'hud-units' });
-      for (const u of s.staff.units) {
+      for (const u of units) {
         const def = STAFF[u.type];
-        if (!def) continue;
         const here = r && u.assigned?.regionId === s.world.currentRegion;
         const status = here ? T('hud.staff.working', { zone: T(`hud.zone.${def.zone}`) }) : u.assigned ? T('hud.staff.elsewhere') : T('hud.staff.idle');
         const btn = here
@@ -102,7 +129,8 @@ export function staffSheet(ctx) {
 }
 
 // ---------- Progress: Round + Rebirth ----------
-/** What Round `n` adds, derived from config. */
+/** What Round `n` adds, derived from config. Rounds only gate crops, café buildings, robots and building level caps
+ * (land and regions are bought with coins, never with Rounds). */
 export function roundUnlocks(n) {
   const items = [];
   const name = (prefix, ids) => ids.map(id => T(`${prefix}.${id}`)).join(', ');
@@ -111,15 +139,7 @@ export function roundUnlocks(n) {
   const builds = BUILD_MENU.filter(id => BUILDINGS[id].round === n);
   if (builds.length) items.push(['🔨', T('hud.unlock.buildings', { list: name('building', builds) })]);
   const staff = STAFF_ORDER.filter(id => STAFF[id].round === n);
-  if (staff.length) items.push(['👥', T('hud.unlock.staff', { list: name('staff', staff) })]);
-  const parcels = PARCEL_ORDER.filter(id => PARCELS[id].round === n);
-  const roads = ROAD_ORDER.filter(id => ROADS[id].round === n);
-  if (parcels.length) items.push(['🌾', T('hud.unlock.parcels', { n: parcels.length, roads: roads.length })]);
-  const regions = Object.entries(REGION_ROUND).filter(([, r]) => r === n).map(([k]) => k);
-  if (regions.length) items.push(['🗺️', T('hud.unlock.regions', { list: regions.map(k => `#${k}`).join(', ') })]);
-  if (n === 2) items.push(['🌿', T('hud.unlock.reopen')]);
-  const countries = COUNTRY_ORDER.filter(id => !COUNTRIES[id].starter && COUNTRIES[id].round === n);
-  if (countries.length) items.push(['🌍', T('hud.unlock.countries', { n: countries.length })]);
+  if (staff.length) items.push(['🤖', T('hud.unlock.staff', { list: name('staff', staff) })]);
   if (ROUND_LEVEL_CAP[n]) items.push(['⬆️', T('hud.unlock.levelCap', { cap: ROUND_LEVEL_CAP[n] })]);
   return items;
 }

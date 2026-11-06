@@ -69,8 +69,10 @@ export function makePrefab(type, templates) {
   const prefab = normalizeModel(raw, w, d, def.decor ? DECOR_FIT : FIT);
   const s = prefab.userData.scale;
   const inner = prefab.children[0];
+  // Tables: customers sit on its two chairs (seats.js reads the measured chair offset + table height).
+  if (type === 'tables') prefab.userData.tableInfo = { dx: .85 * s, top: .8 * s };
   // Deck under small models: lifts the model, pushes it to the back half when there is room for props in front.
-  if (!def.decor) {
+  if (!def.decor && type !== 'tables') {
     const box = new THREE.Box3().setFromObject(inner);
     const mw = box.max.x - box.min.x, md = box.max.z - box.min.z;
     if (mw * md < w * d * DECK_COVERAGE) {

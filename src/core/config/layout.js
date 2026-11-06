@@ -102,7 +102,7 @@ export const AREAS = {
 };
 export const areaAt = (x, z) => (z >= CAFE_BOUNDS.minZ - 10 ? 'cafe' : 'farm');
 // Suggested tutorial build spot for the roaster (inside the café block).
-export const TUTORIAL_BUILD = { roaster: { x: 2, z: 110 } };
+export const TUTORIAL_BUILD = { roaster: { x: 2, z: 111 } }; // roaster is 4×4 m: z 109–113 clears the counter lane (≤ 108.6)
 
 export const inRect = (x, z, [x0, z0, x1, z1], pad = 0) => x >= x0 - pad && x <= x1 + pad && z >= z0 - pad && z <= z1 + pad;
 export const rectsOverlap = (a, b) => a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1];

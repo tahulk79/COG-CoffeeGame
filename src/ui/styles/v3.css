@@ -72,7 +72,7 @@
 .hud-view .hud-tool-label{font-size:12.5px;font-weight:800}
 .hud-view-badge{position:absolute;top:-4px;right:2px;min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:var(--h-red);border:2px solid #fff;color:#fff;font:800 13px/18px var(--h-font);text-align:center;box-shadow:0 1px 3px #0004;animation:hud-bob 1.2s ease-in-out infinite}
 #hud-root[data-sheet="build"] #hud-btn-build .hud-tool-ico,#hud-root[data-sheet="seeds"] #hud-btn-seeds .hud-tool-ico,
-#hud-root[data-sheet="staff"] #hud-btn-staff .hud-tool-ico,#hud-root[data-sheet="progress"] #hud-btn-progress .hud-tool-ico{background:linear-gradient(#c9f29c,#8cd45a);box-shadow:inset 0 -3px 0 #5aab35,0 2px 0 #3e7f2255}
+#hud-root[data-sheet="staff"] #hud-btn-staff .hud-tool-ico,#hud-root[data-sheet="progress"] #hud-btn-progress .hud-tool-ico,#hud-root[data-sheet="menu"] #hud-btn-menu .hud-tool-ico,#hud-root[data-selection="silo"] #hud-btn-storage .hud-tool-ico{background:linear-gradient(#c9f29c,#8cd45a);box-shadow:inset 0 -3px 0 #5aab35,0 2px 0 #3e7f2255}
 
 /* ---------- Shared bits: buttons, tags, costs ---------- */
 .hud-btn{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-height:44px;min-width:44px;padding:6px 14px;border:0;border-radius:16px;font:800 15px/1.1 var(--h-font);color:#fff!important;text-shadow:0 1px 0 #0003;transition:transform .1s,filter .1s}
@@ -99,6 +99,8 @@
 .hud-x:active{background:#0000000d}
 .hud-line{margin:2px 0;font:600 14px/1.35 var(--h-font)}
 .hud-line--good{color:var(--h-good);font-weight:800}
+.hud-line--bad{color:var(--h-red);font-weight:800}
+.hud-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 .hud-sub{margin:0;font:700 12px/1.3 var(--h-font);color:var(--h-ink-soft)}
 .hud-hint{margin:4px 0 0;font:600 12px/1.35 var(--h-font);color:var(--h-ink-soft)}
 .hud-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px}
@@ -137,6 +139,8 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
 .hud-seed-ico{grid-row:1/3;font-size:30px;text-align:center}
 .hud-seed-name{font:800 16px/1.1 var(--h-font)}
 .hud-seed>.hud-lock{justify-self:start}
+.hud-drink .hud-seed-meta .hud-lock{margin-right:4px}
+.hud-tool[hidden]{display:none}
 .hud-seed-meta{display:flex;flex-wrap:wrap;gap:10px;font:700 13px/1.2 var(--h-font);color:var(--h-ink-soft)}
 .hud-slots{margin:0 0 8px;padding:6px 12px;border-radius:12px;background:#fff;font:800 14px/1.2 var(--h-font);box-shadow:inset 0 0 0 2px var(--h-line)}
 .hud-units{list-style:none;margin:0;padding:0;display:grid;gap:8px}

@@ -1,11 +1,11 @@
 // Contextual action card above the toolbar, driven by hud.setSelection(target). Every action goes through the store.
 import { BUILDINGS, CROPS } from '../../core/config/economy.js';
-import { PARCELS, ROADS, plotById } from '../../core/config/layout.js';
-import { region, plotState, upgradeCost, upgradeError, levelCap, parcelError, roadError, seedCost } from '../../core/derive.js';
+import { PARCELS, plotById } from '../../core/config/layout.js';
+import { region, plotState, upgradeCost, upgradeError, levelCap, parcelError, seedCost, capacity, seatCount, seatsUsed } from '../../core/derive.js';
 import { h, setText } from './dom.js';
 import { T, clock } from './text.js';
 import { buildingEffect } from './effects.js';
-import { actionButton, lockTag, needMore } from './widgets.js';
+import { actionButton, needMore } from './widgets.js';
 
 export function createActionBar(ctx) {
   const title = h('div', { class: 'hud-card-title' });
@@ -38,18 +38,15 @@ export function createActionBar(ctx) {
         const b = building(s, target);
         if (!b) return null;
         const err = upgradeError(s, b);
-        return { kind: 'building', uid: b.uid, type: b.type, level: b.level, cap: levelCap(s), err, cost: upgradeCost(b.type, b.level), missing: err === 'coins' ? upgradeCost(b.type, b.level) - coins : 0 };
+        // Live numbers shown on some cards: storehouse fill, café seats.
+        const live = b.type === 'silo' ? { beans: s.inventory.beans, capacity: capacity(s) }
+          : b.type === 'orderCounter' || b.type === 'tables' ? { used: seatsUsed(s), seats: seatCount(s) } : null;
+        return { kind: 'building', uid: b.uid, type: b.type, level: b.level, cap: levelCap(s), err, cost: upgradeCost(b.type, b.level), missing: err === 'coins' ? upgradeCost(b.type, b.level) - coins : 0, live };
       }
       case 'parcel': {
         const p = PARCELS[target.id];
         if (!p) return null;
-        const err = parcelError(s, p.id);
-        const roadErr = err === 'road' ? roadError(s, p.road) : null;
-        return { kind: 'parcel', id: p.id, err, roadErr, coins: Math.floor(coins) };
-      }
-      case 'road': {
-        const road = ROADS[target.id];
-        return road ? { kind: 'road', id: road.id, err: roadError(s, road.id), coins: Math.floor(coins) } : null;
+        return { kind: 'parcel', id: p.id, err: parcelError(s, p.id), coins: Math.floor(coins) };
       }
       case 'gate': return { kind: 'gate' };
       default: return null;
@@ -66,7 +63,7 @@ export function createActionBar(ctx) {
     el.dataset.kind = m?.kind || '';
     body.replaceChildren();
     if (!m) return;
-    const fill = { plot: plotCard, building: buildingCard, parcel: parcelCard, road: roadCard, gate: gateCard }[m.kind];
+    const fill = { plot: plotCard, building: buildingCard, parcel: parcelCard, gate: gateCard }[m.kind];
     fill(m, s);
   }
 
@@ -95,6 +92,8 @@ export function createActionBar(ctx) {
     setText(title, `${def.icon} ${T(`building.${m.type}`)}`);
     const max = def.decor ? 1 : def.upgrade.length + 1;
     if (!def.decor) body.append(h('p', { class: 'hud-sub' }, T('hud.levelOf', { level: m.level, cap: Math.min(m.cap, max) })));
+    if (m.live?.capacity) body.append(h('p', { class: `hud-line${m.live.beans >= m.live.capacity ? ' hud-line--bad' : ''}` }, T('hud.storage.fill', { n: Math.floor(m.live.beans), max: m.live.capacity })));
+    if (m.live?.seats) body.append(h('p', { class: 'hud-line' }, T('hud.seats.line', { n: m.live.used, max: m.live.seats })));
     body.append(h('p', { class: 'hud-line' }, buildingEffect(m.type, m.level, m.err !== 'maxLevel' && m.err !== 'roundCap')));
     const row = h('div', { class: 'hud-row' });
     if (!def.decor) {
@@ -109,35 +108,12 @@ export function createActionBar(ctx) {
 
   function parcelCard(m) {
     const p = PARCELS[m.id];
-    setText(title, `${p.kind === 'farm' ? '🌾' : p.kind === 'shop' ? '☕' : '🧱'} ${T(`hud.parcel.${p.kind}`, { id: p.id })}`);
-    const row = h('div', { class: 'hud-row' });
-    if (m.err === 'owned') body.append(h('p', { class: 'hud-line hud-line--good' }, T('hud.parcel.owned')));
-    else if (m.err === 'round') {
-      body.append(h('p', { class: 'hud-line' }, T(p.kind === 'farm' ? 'hud.parcel.farmInfo' : 'hud.parcel.buildInfo')));
-      row.append(lockTag(T('hud.roundN', { round: p.round })));
-    }
-    else if (m.err === 'road') {
-      const road = ROADS[p.road];
-      body.append(h('p', { class: 'hud-line' }, T('hud.parcel.needRoad')));
-      if (m.roadErr === 'round') row.append(lockTag(T('hud.roundN', { round: road.round })));
-      else row.append(actionButton({ label: T('hud.openRoadFirst'), icon: '🛣️', tone: 'gold', cost: road.cost, disabled: m.roadErr === 'coins',
-        note: m.roadErr === 'coins' ? needMore(road.cost - m.coins) : null, onClick: () => ctx.act('land/openRoad', { roadId: road.id }) }));
-    } else {
-      body.append(h('p', { class: 'hud-line' }, T(p.kind === 'farm' ? 'hud.parcel.farmInfo' : 'hud.parcel.buildInfo')));
-      row.append(actionButton({ id: 'buy', label: T('hud.buy'), icon: '🏷️', cost: p.cost, disabled: m.err === 'coins', note: m.err === 'coins' ? needMore(p.cost - m.coins) : null,
-        onClick: () => ctx.act('land/buyParcel', { parcelId: p.id }) }));
-    }
-    if (row.childElementCount) body.append(row);
-  }
-
-  function roadCard(m) {
-    const road = ROADS[m.id];
-    setText(title, `🛣️ ${T('hud.road')}`);
-    if (m.err === 'owned') { body.append(h('p', { class: 'hud-line hud-line--good' }, T('hud.road.open'))); return; }
-    body.append(h('p', { class: 'hud-line' }, T('hud.road.info')));
-    if (m.err === 'round') body.append(h('div', { class: 'hud-row' }, lockTag(T('hud.roundN', { round: road.round }))));
-    else body.append(h('div', { class: 'hud-row' }, actionButton({ id: 'openRoad', label: T('hud.openRoad'), icon: '🛣️', tone: 'gold', cost: road.cost,
-      disabled: m.err === 'coins', note: m.err === 'coins' ? needMore(road.cost - m.coins) : null, onClick: () => ctx.act('land/openRoad', { roadId: road.id }) })));
+    const farm = p.kind === 'farm';
+    setText(title, `${farm ? '🌾' : '☕'} ${T(farm ? 'hud.parcel.farm' : 'hud.parcel.shop', { id: p.id })}`);
+    if (m.err === 'owned') { body.append(h('p', { class: 'hud-line hud-line--good' }, T('hud.parcel.owned'))); return; }
+    body.append(h('p', { class: 'hud-line' }, T(farm ? 'hud.parcel.farmInfo' : 'hud.parcel.shopInfo')));
+    body.append(h('div', { class: 'hud-row' }, actionButton({ id: 'buy', label: T('hud.buy'), icon: '🏷️', cost: p.cost, disabled: m.err === 'coins',
+      note: m.err === 'coins' ? needMore(p.cost - m.coins) : null, onClick: () => ctx.act('land/buyParcel', { parcelId: p.id }) })));
   }
 
   function gateCard() {

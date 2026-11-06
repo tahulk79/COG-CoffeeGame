@@ -47,10 +47,8 @@ export function createFeedback(ctx) {
         case 'moved': toast(T('hud.toast.moved'), 'info'); break;
         case 'upgraded': toast(T('hud.toast.upgraded', { name: T(`building.${ev.building}`), level: ev.level }), 'good'); break;
         case 'parcelBought': toast(T('hud.toast.parcel'), 'good'); break;
-        case 'roadOpened': toast(T('hud.toast.road'), 'good'); break;
         case 'hired': toast(T(ev.assigned ? 'hud.toast.hired' : 'hud.toast.hiredIdle', { name: T(`staff.${ev.staff}`), icon: STAFF[ev.staff]?.icon || '' }), 'good'); break;
         case 'roundUnlocked': toast(T('hud.toast.round', { round: ev.round }), 'good'); sfx('reward.levelup'); break;
-        case 'countryUnlocked': toast(T('hud.toast.country'), 'good'); break;
         case 'reborn': toast(T('hud.toast.reborn', { blessing: T(`blessing.${ev.blessing}`) }), 'good'); break;
         case 'creditsGranted': case 'creditsAdded': toast(T('hud.toast.credits', { n: ev.amount }), 'good'); break;
         case 'customerLeft': toast(T('hud.toast.customerLeft'), 'info'); break;

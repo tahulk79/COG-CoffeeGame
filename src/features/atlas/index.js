@@ -1,5 +1,7 @@
-// World atlas (V3): a tilted 3D world map. Countries are raised slabs coloured by status (unlocked = bright + flag,
-// current = pulsing ring, locked = grey + 🔒). Tap a country → bottom sheet with its 3 regions and an Enter button.
+// World atlas (V3): a tilted 3D world map. No Rounds: every country can be tapped and every region opened with coins
+// (more coins → more places). Countries are raised slabs coloured by status (owned region inside = bright + flag,
+// current = pulsing ring, nothing owned = grey + 🔒 with the cheapest price). Tap a country → bottom sheet with its
+// 3 regions: owned → Go, not owned → price + Open (small confirm card for paid ones, then unlockRegion + enterRegion).
 // Reuses the terrain/outlines of the old world map (world-map/terrain.js, geo.js, content.js); logic is new.
 //
 // createAtlas({ store, mode, onEntered, onClose }) → { scene, camera, update(dt), resize(w, h), setMode(mode),
@@ -11,7 +13,7 @@ import { REGIONS as OUTLINES } from '../world-map/content.js';
 import { project } from '../world-map/geo.js';
 import { buildTerrain, DEEP } from '../world-map/terrain.js';
 import { COUNTRIES, COUNTRY_ORDER, parseRegionId } from '../../core/config/world.js';
-import { regionAccess, regionsOfCountry } from '../../core/derive.js';
+import { regionAccess, regionsOfCountry, ownsRegion } from '../../core/derive.js';
 import { disposeScene } from '../../shared/three/dispose-scene.js';
 import { sfx } from '../../shared/audio/index.js';
 import { hasKey, t } from '../../i18n/index.js';
@@ -35,9 +37,9 @@ const countryOfRegion = id => parseRegionId(id)?.countryId ?? null;
 /** Readable text for a failed store result (HUD err.* pack first, then this pack's fallbacks). */
 export function atlasErrorText(result) {
   const code = result?.error || 'unknown';
+  if (code === 'locked') return t('atlas.err.locked');
   if (hasKey(`err.${code}`)) return t(`err.${code}`, result.data || {});
   if (code === 'coins') return t('story.err.coins', result.data || {});
-  if (code === 'round') return t('story.err.round');
   return t('story.err.generic');
 }
 
@@ -123,15 +125,21 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
     pins.append(pin); return [entry, pin];
   }));
 
-  let selected = null, confirming = false, toastTimer = 0;
+  let selected = null, confirming = null, toastTimer = 0; // confirming: region id whose confirm card is open
   const state = () => store.state;
   function toast(text, tone = 'info') { toastEl.textContent = text; toastEl.dataset.tone = tone; toastEl.hidden = false; toastTimer = 2.6; }
 
+  // Country status from its regions: 'current' (the player is there), 'owned' (≥ 1 region opened) or 'locked'
+  // (nothing opened yet; `cost` = cheapest region, 0 when the next opening is free).
   function statusOf(id) {
-    const s = state(), unlocked = !!s.world.countries[id]?.unlocked;
-    if (!unlocked) return { kind: 'locked', round: COUNTRIES[id].round, cost: COUNTRIES[id].unlockCost, buyable: s.player.round >= COUNTRIES[id].round };
-    return { kind: countryOfRegion(s.world.currentRegion) === id ? 'current' : 'unlocked' };
+    const s = state(), regions = regionsOfCountry(id);
+    const owned = regions.filter(r => ownsRegion(s, r)).length;
+    const closed = regions.filter(r => !ownsRegion(s, r)).map(r => regionAccess(s, r)).filter(a => a.reason === 'locked');
+    const cost = closed.length ? Math.min(...closed.map(a => a.cost)) : null;
+    const kind = countryOfRegion(s.world.currentRegion) === id ? 'current' : owned ? 'owned' : 'locked';
+    return { kind, owned, total: regions.length, cost };
   }
+  const coinText = cost => (cost === 0 ? t('atlas.free') : t('atlas.country.cost', { cost }));
   // Colours, flags and pin labels follow the save.
   function refreshCountries() {
     for (const entry of countries) {
@@ -146,7 +154,8 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
       pin.classList.toggle('is-selected', selected === entry.id);
       const name = t(`country.${entry.id}`);
       const icon = status.kind === 'locked' ? '🔒' : status.kind === 'current' ? '📍' : '🚩';
-      const extra = status.kind === 'locked' ? (status.buyable ? t('atlas.country.cost', { cost: status.cost }) : t('atlas.country.locked', { round: status.round })) : '';
+      // Owned: "2/3" regions opened. Locked: the cheapest region's price (or Free).
+      const extra = status.kind === 'locked' ? (status.cost == null ? '' : coinText(status.cost)) : t('atlas.country.owned', { n: status.owned, total: status.total });
       pin.replaceChildren(el('span', 'atlas-pin-icon', icon), el('span', 'atlas-pin-name', name), ...(extra ? [el('small', 'atlas-pin-extra', extra)] : []));
       pin.setAttribute('aria-label', extra ? `${name} · ${extra}` : name);
     }
@@ -161,31 +170,42 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
   function regionRow(regionId) {
     const s = state(), access = regionAccess(s, regionId), saved = s.world.regions[regionId];
     const row = el('li', 'atlas-region');
+    row.dataset.region = regionId;
     const info = el('div', 'atlas-region-info');
     info.append(el('strong', 'atlas-region-name', t(`regionName.${regionId}`)));
-    let chip, action = null, note = null;
-    if (!access.ok) {
-      if (access.reason === 'expired') { chip = ['expired', t('atlas.chip.expired')]; note = t('atlas.expiredNote'); }
-      else if (access.reason === 'round' && access.round) chip = ['round', t('atlas.chip.round', { round: access.round })];
-      else chip = ['locked', '🔒'];
+    let chip = null, action = null, note = null;
+    if (!access.ok && access.reason === 'locked') {
+      // Not opened yet: price chip + Open (disabled with "need X more" when the player cannot pay).
+      chip = ['price', access.free ? `🎁 ${t('atlas.free')}` : coinText(access.cost)];
+      action = button(`🔓 ${t('atlas.open')}`, `${access.free ? 'ui-btn--go' : 'ui-btn--gold'} atlas-enter atlas-open`, () => ask(regionId));
+      if (!access.affordable) { action.disabled = true; note = t('atlas.needMore', { n: access.missing }); }
+    } else if (!access.ok) {
+      chip = ['expired', t('atlas.chip.expired')]; note = t('atlas.expiredNote');
     } else if (access.current) {
-      chip = ['current', t('atlas.chip.current')];
-      if (mode === 'play') action = button(t('atlas.here'), 'ui-btn--plain ui-btn--sm', () => enter(regionId));
+      chip = ['current', t('atlas.here')];
     } else {
-      chip = access.expired ? ['reopened', t('atlas.chip.reopened')] : saved ? ['visited', t('atlas.chip.visited')] : ['new', t('atlas.chip.new')];
-      action = button(mode === 'play' ? t('atlas.travel') : t('atlas.enter'), 'ui-btn--go atlas-enter', () => enter(regionId));
+      chip = access.expired ? ['expired', t('atlas.chip.expired')] : saved ? ['visited', t('atlas.chip.visited')] : ['new', t('atlas.chip.new')];
+      action = button(`➜ ${t('atlas.go')}`, 'ui-btn--go atlas-enter', () => enter(regionId));
     }
     info.append(el('span', `atlas-chip is-${chip[0]}`, chip[1]));
     if (note) info.append(el('small', 'atlas-region-note', note));
     row.append(info);
     if (action) row.append(action);
     row.dataset.state = chip[0];
+    if (confirming === regionId) {
+      const cost = regionAccess(s, regionId).cost;
+      const card = el('div', 'atlas-confirm');
+      card.append(el('p', 'atlas-confirm-title', t('atlas.unlock.title', { name: t(`regionName.${regionId}`) })), el('p', 'atlas-confirm-cost', coinText(cost)), el('div', 'atlas-confirm-actions'));
+      card.lastChild.append(button(t('atlas.unlock.cancel'), 'ui-btn--plain', () => { confirming = null; renderSheet(); }), button(t('atlas.unlock.go'), 'ui-btn--gold atlas-confirm-go', () => unlock(regionId)));
+      const wrap = el('li', 'atlas-region-confirm'); wrap.append(card);
+      const frag = document.createDocumentFragment(); frag.append(row, wrap); return frag;
+    }
     return row;
   }
   function renderSheet() {
     renderHeader();
     if (!selected) { sheet.hidden = true; return; }
-    const entry = countries.find(c => c.id === selected), status = entry.status || statusOf(selected);
+    const status = statusOf(selected);
     sheet.hidden = false; sheet.replaceChildren();
     sheet.setAttribute('aria-label', t(`country.${selected}`));
     const head = el('div', 'atlas-sheet-head');
@@ -194,16 +214,7 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
     back.addEventListener('click', event => { event.stopPropagation(); select(null); }, { signal });
     head.append(back);
     sheet.append(head);
-    if (status.kind === 'locked') {
-      if (!status.buyable) sheet.append(el('p', 'atlas-note', t('atlas.country.lockedNote', { round: status.round })));
-      else if (confirming) {
-        const card = el('div', 'atlas-confirm');
-        card.append(el('p', 'atlas-confirm-title', t('atlas.unlock.title', { name: t(`country.${selected}`), cost: status.cost })),
-          el('div', 'atlas-confirm-actions'));
-        card.lastChild.append(button(t('atlas.unlock.cancel'), 'ui-btn--plain', () => { confirming = false; renderSheet(); }), button(t('atlas.unlock.go'), 'ui-btn--gold', () => unlock(selected)));
-        sheet.append(card);
-      } else sheet.append(button(`🔓 ${t('atlas.unlock.go')} · ${t('atlas.country.cost', { cost: status.cost })}`, 'ui-btn--gold atlas-unlock', () => { confirming = true; renderSheet(); }));
-    }
+    sheet.append(el('p', 'atlas-note', t(status.owned ? 'atlas.note.owned' : 'atlas.note.open')));
     sheet.append(el('h4', 'atlas-sheet-sub', t('atlas.regions')));
     const list = el('ul', 'atlas-regions');
     for (const regionId of regionsOfCountry(selected)) list.append(regionRow(regionId));
@@ -216,19 +227,25 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
     sfx('ui.buy');
     onEntered?.(regionId, result);
   }
-  function unlock(countryId) {
-    const result = store.dispatch('country/unlock', { countryId });
-    confirming = false;
+  // Free openings go straight in; paid ones ask a small confirm card (title + price) first.
+  function ask(regionId) {
+    const access = regionAccess(state(), regionId);
+    if (access.reason !== 'locked') { enter(regionId); return; }
+    if (!access.affordable) { sfx('ui.deny'); toast(atlasErrorText({ error: 'coins', data: { missing: access.missing } }), 'bad'); return; }
+    if (access.free) { unlock(regionId); return; }
+    confirming = regionId; sfx('ui.open'); renderSheet();
+  }
+  function unlock(regionId) {
+    confirming = null;
+    const result = store.dispatch('world/unlockRegion', { regionId });
     if (!result.ok) { sfx('ui.deny'); toast(atlasErrorText(result), 'bad'); renderSheet(); return; }
-    sfx('ui.buy');
-    const entry = countries.find(c => c.id === countryId); entry.speed += 8;
-    toast(t('atlas.unlock.done', { name: t(`country.${countryId}`) }), 'good');
-    refreshCountries(); renderSheet();
+    const entry = countries.find(c => c.id === countryOfRegion(regionId)); if (entry) entry.speed += 8;
+    enter(regionId);
   }
   function focusOn(entry, distance) { goal.x = entry.x; goal.z = entry.z + (portrait ? 2.4 : 1.4); goal.distance = Math.min(goal.distance, distance); clampView(goal); velocity.x = velocity.z = 0; }
   function select(id) {
     if (selected === id) return;
-    selected = id; confirming = false;
+    selected = id; confirming = null;
     if (id) { const entry = countries.find(c => c.id === id); entry.speed += 4; focusOn(entry, portrait ? 13 : 11); sfx('ui.open'); }
     refreshCountries(); renderSheet();
   }
@@ -349,7 +366,7 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
       if (event.target.closest?.('input, textarea, select, dialog')) return;
       if (event.code === 'Escape') {
         event.preventDefault();
-        if (confirming) { confirming = false; renderSheet(); } else if (selected) select(null); else if (mode === 'play') onClose?.();
+        if (confirming) { confirming = null; renderSheet(); } else if (selected) select(null); else if (mode === 'play') onClose?.();
         return;
       }
       if (KEYS[event.code]) { event.preventDefault(); held.add(event.code); }

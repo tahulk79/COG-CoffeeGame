@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { makeLabel, makeCanvasSprite } from './util.js';
 
-function drawSickle(g, size) {
+export function drawSickle(g, size) {
   const c = size / 2;
   g.lineCap = 'round';
   g.strokeStyle = '#8a5a30'; g.lineWidth = size * .1;

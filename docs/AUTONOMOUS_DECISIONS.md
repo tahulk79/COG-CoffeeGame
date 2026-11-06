@@ -41,3 +41,27 @@ Decisions made during the overnight rebuild without the founder in the loop. Eac
 ## Reference
 
 The founder sent casual-farm screenshots as a simple visual reference. Only patterns were used (bright isometric look, compact HUD, speech-bubble tips, bouncing arrow + tap hand, drag-to-harvest); no assets, text or UI art were copied.
+
+## Founder corrections — 2026-11-06 (Vietnamese feedback, translated)
+
+> “On the world map it is NOT split by Rounds. You can open any place, but it costs money. More money → open more.”
+> “In the farm also no Rounds: empty land is opened with money, and the farm is ONLY a farm for growing.”
+> “The café is a separate menu, with a map shown the same way as the farm. Scenery: a Vietnamese city, simple and easy to play. After ordering, customers go sit on chairs. Each screen has its own fitting menu.”
+> “Any object that has an interaction or an upgrade must show a notice AT that object (e.g. the brewing counter shows an arrow or a + sign).”
+
+These override G1, G5, G6, G8 (land/region parts), G9 (“rests until Round 2”) and T3 above.
+
+| # | Decision | Why |
+|---|---|---|
+| F1 | Regions are bought with coins (`world/unlockRegion`), any country, any region. Price = country base × tier (1 / 1.6 / 2.5). Country unlock and every Round/country gate on the map are removed. | Founder: no Rounds on the map, more money → more places. |
+| F2 | The **first region of the game is free**, and after the Level-10 expiration the **next new region is free once** (`world.freeUnlocks`). | A new player can never be stuck on the map, and the expiry can never softlock (coins may be low right after it). |
+| F3 | Farm = 14 fields only (F1 free, F2–F14 for coins) + the fixed storehouse + the World Gate. Build lots B1–B5 and closed roads are removed; every road is open. | Founder: the farm is only for growing, land is opened with money. |
+| F4 | The **Drying yard is retired** (not in the build menu, `build/place` refuses it); old saves keep rendering an existing one. | It was the only farm-side building; its +yield is not needed for the loop. |
+| F5 | **Migration (layout v3) refunds** everything that no longer fits: bought build lots (their price) and every farm-side building (cost + upgrades paid); starter buildings snap to their new fixed spots; regions visited before the change count as owned. | Nobody loses value from a design change. |
+| F6 | **Rounds are kept only** for: Liberica, Kiosk (R2), Pastry case (R3), the two robots (R2) and building level caps 3 → 5 → 8. Never for land, regions or countries. | Keeps a long-term goal without gating space. |
+| F7 | Café = its own map styled as a small **Vietnamese city street** (tube houses, balconies with plants, shop signs, awnings, red lanterns, asphalt street + alley, zebra crossing, trees, lamps, power poles, parked scooters, plastic stools). Static scenery is merged into ~4 meshes (vertex colors + one sign-text atlas) to keep draw calls low. Café lots S (starter) / C2 500¢ / C3 1,400¢. | Founder: Vietnamese city, simple and easy to read; mobile performance. |
+| F8 | **Seats**: 4 terrace seats + 2 per Tables building. Taking an order needs a free seat (`noSeat` otherwise: “Hết ghế — xây thêm bàn”). After ordering the customer walks to the seat and sits; when served the cup appears on the table and the customer leaves. | Founder: customers sit after ordering; seats make Tables meaningful. |
+| F9 | **Per-screen toolbars**: farm = Seeds, Storage, [☕ Café], Staff (farm), World, Progress; café = Build, Menu (drinks), [🌱 Farm], Staff (café), Progress. Storage opens the storehouse card (fill + upgrade). | Founder: each screen has its own fitting menu. |
+| F10 | **Object notices** in the world: ▲ (upgrade available, affordable, within the Round cap), “!” / no-seat on the Order Counter, “+” / “☕” on the Brewing Counter, sickle over a ripe field, “+” on an affordable for-sale sign. Constant screen size, on top, bouncing, tap = tap the object; an interaction pin with an available upgrade gets a small ▲. Hidden in the other area, during placement and cinematics. A screen-reader live region lists them. | Founder: notice AT the object. |
+| F11 | The tutorial roaster spot moved to (2, 111): the old (2, 110) overlapped the customer lane (the roaster is 4 × 4 m), so the tutorial's suggested placement was invalid. Covered by a test. | Bug found while verifying the build step. |
+

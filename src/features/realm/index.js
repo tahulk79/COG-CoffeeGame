@@ -6,20 +6,21 @@
  * far south) — and the realm shows one at a time: `realm.view` ('farm' | 'cafe'), switched with `setView(view)` (short
  * fade, player + camera move to AREAS[view].spawn). Customers keep simulating in either view; they render in the café. Store orders/plots/buildings are the source of truth: visuals are diffed by id on every
  * store change (subscribe), and only time-based visuals (growth, brewing, patience) are evaluated per frame.
- * Sub-modules: world (ground/roads/parcels/scenery/gate), plots, buildings, cafe (customers), staff, avatar,
- * camera (CameraController), placement (ghost preview), markers (tutorial arrow, selection, drag cursor),
+ * Sub-modules: world (ground/roads/fields/gate; café city via city.js), plots, buildings, cafe (customers: queue →
+ * seat → served), seats, staff, avatar, camera (CameraController), placement (ghost preview), markers (tutorial arrow,
+ * selection, drag cursor), badges (object notices: ▲ upgrade, ! order, + brew, ☕ serve, sickle, + for sale),
  * cinematics, input (gesture recognizer). Every action dispatched here is reported through hooks.onResult.
  */
 import * as THREE from 'three';
-import { BUILDINGS, CROPS } from '../../core/config/economy.js';
-import { PARCELS, ROADS, GATE, FIXED, PLOT_SIZE, CUSTOMER, AREAS, plotById, parcelAt, inRect, areaAt, areaOfParcel } from '../../core/config/layout.js';
-import { region as regionOf, footprint } from '../../core/derive.js';
+import { BUILDINGS, CROPS, DRINKS } from '../../core/config/economy.js';
+import { PARCELS, GATE, FIXED, PLOT_SIZE, CUSTOMER, CAFE_SEATS, AREAS, plotById, plotsOf, parcelAt, areaAt, areaOfParcel, rectCenter } from '../../core/config/layout.js';
+import { region as regionOf, footprint, upgradeError, parcelError, seatCount, seatsUsed, brewSlots } from '../../core/derive.js';
 import { loadModel } from '../../shared/three/models.js';
 import { disposeScene } from '../../shared/three/dispose-scene.js';
 import { createVfx, flyTo, popNumber } from '../../shared/vfx/index.js';
 import { sfx } from '../../shared/audio/index.js';
 import { createCameraController } from './camera.js';
-import { createWorld, roadSignPoint, parcelSignPoint, isRoadOpen } from './world.js';
+import { createWorld, parcelSignPoint } from './world.js';
 import { createPlots } from './plots.js';
 import { createBuildings, makePrefab } from './buildings.js';
 import { createCafe } from './cafe.js';
@@ -28,6 +29,8 @@ import { createAvatar } from './avatar.js';
 import { createPlacement } from './placement.js';
 import { createMarkers } from './markers.js';
 import { createCinematics } from './cinematics.js';
+import { createBadges } from './badges.js';
+import { setTableInfo } from './seats.js';
 import { createInput } from './input.js';
 import { groundPoint, unionRect, fmtTimer, clamp } from './util.js';
 
@@ -41,6 +44,8 @@ const COUNTER_RECT = unionRect(
   unionRect(footprint('orderCounter', FIXED.orderCounter.x, FIXED.orderCounter.z), footprint('brewCounter', FIXED.brewCounter.x, FIXED.brewCounter.z)),
   [CUSTOMER.queue.x - 1, CUSTOMER.queue.z, CUSTOMER.pickup.x + 1, CUSTOMER.pickup.z + 1],
 );
+// The café loop on one screen: counters, queue and the terrace seats where served customers sit.
+const CAFE_LOOP_RECT = unionRect(COUNTER_RECT, [Math.min(...CAFE_SEATS.map(p => p.x)) - .8, Math.min(...CAFE_SEATS.map(p => p.z)) - .8, Math.max(...CAFE_SEATS.map(p => p.x)) + .8, Math.max(...CAFE_SEATS.map(p => p.z)) + .8]);
 
 /**
  * @param {{ renderer: THREE.WebGLRenderer, store: object, gender: 'male'|'female', hooks?: { onSelect?, onResult?, onWalkToGate? } }} opts
@@ -77,6 +82,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   const templates = Object.fromEntries(paths.map((p, i) => [p, loaded[i]]));
   for (const [k, p] of Object.entries({ ...TREE_PARTS, ...GATE_PARTS })) templates[k] = templates[p];
   const prefabs = Object.fromEntries(Object.keys(BUILDINGS).map(type => [type, makePrefab(type, templates)]));
+  setTableInfo(prefabs.tables?.userData.tableInfo); // customers sit on the Tables prefab's real chairs
 
   // ---------- sub-modules ----------
   const vfx = createVfx({ scene });
@@ -87,7 +93,8 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   const staff = createStaff({ scene });
   const placement = createPlacement({ scene, prefabs });
   const markers = createMarkers({ scene });
-  const cafe = createCafe({ scene, vfx, dispatch });
+  const cafe = createCafe({ scene, vfx, dispatch, templates });
+  const badges = createBadges({ scene, camera });
   const cinematics = createCinematics({
     cam, camera, vfx, getPlayer: () => avatar.position,
     env: { fog: scene.fog, background: scene.background, hemi, sun, tintMaterials: () => Object.values(world.mats).filter(m => m?.color) },
@@ -173,6 +180,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       } else if (ev.type === 'customerLeft') cafe.onLeft(ev.orderId);
     }
     syncAll(state);
+    badgeClock = 1; // refresh object notices right away
     for (const ev of events) {
       if (ev.type === 'planted') { plots.onPlanted(ev.plotId, clock); sfx('farm.plant'); }
       else if (ev.type === 'built') { buildings.onBuilt(ev.uid, clock); sfx('farm.build'); }
@@ -181,7 +189,6 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       else if (ev.type === 'orderTaken') sfx('cafe.order');
       else if (ev.type === 'brewStarted') sfx('cafe.cup');
       else if (ev.type === 'parcelBought') { const c = parcelSignPoint(ev.parcelId); vfx.burst('sparkle', v3.set(c.x, 1, c.z), { count: 20 }); vfx.burst('leaf', v3); }
-      else if (ev.type === 'roadOpened') { const c = roadSignPoint(ev.roadId); vfx.burst('dust', v3.set(c.x, .3, c.z), { count: 16 }); }
       else if (ev.type === 'hired' || ev.type === 'assigned') vfx.burst('sparkle', avatar.position, { count: 10 });
       else if (ev.type === 'regionEntered') { cancelSwitch(); swapView('farm'); avatar.teleport(GATE.x, GATE.z - 4); needArrive = true; }
     }
@@ -212,7 +219,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   // Which area a target lives in ('farm' | 'cafe'), null when unknown.
   function areaOf(t) {
     if (!t) return null;
-    if (t.kind === 'plot' || t.kind === 'road' || t.kind === 'gate') return 'farm';
+    if (t.kind === 'plot' || t.kind === 'field' || t.kind === 'gate') return 'farm';
     if (t.kind === 'parcel') return PARCELS[t.id] ? areaOfParcel(t.id) : null;
     if (t.kind === 'building') {
       const e = buildingOf(t);
@@ -229,13 +236,12 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     if (t.kind === 'building') {
       const e = buildingOf(t);
       const type = e?.type || t.type;
-      if (type === 'orderCounter' || type === 'brewCounter') return { rect: COUNTER_RECT, key: 'counters' };
+      if (type === 'orderCounter' || type === 'brewCounter') return { rect: CAFE_LOOP_RECT, key: 'counters' };
       if (!e) return null;
       const r = footprint(e.type, e.x, e.z, e.rot);
       return { rect: [r[0] - 2, r[1] - 2, r[2] + 2, r[3] + 2], key: `b:${e.uid}` };
     }
     if (t.kind === 'parcel' && PARCELS[t.id]) return { rect: PARCELS[t.id].rect, key: `parcel:${t.id}` };
-    if (t.kind === 'road' && ROADS[t.id]) { const c = roadSignPoint(t.id); return { rect: [c.x - 6, c.z - 4, c.x + 4, c.z + 4], key: `road:${t.id}` }; }
     if (t.kind === 'gate') return { rect: [GATE.x - 4, GATE.z - 5, GATE.x + 4, GATE.z + 2], key: 'gate' };
     return null;
   }
@@ -244,7 +250,6 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     if (t.kind === 'plot') { const p = plotById(t.id); return p ? [p.x - PLOT_SIZE / 2, p.z - PLOT_SIZE / 2, p.x + PLOT_SIZE / 2, p.z + PLOT_SIZE / 2] : null; }
     if (t.kind === 'building') { const e = buildingOf(t); return e ? footprint(e.type, e.x, e.z, e.rot) : null; }
     if (t.kind === 'parcel') return PARCELS[t.id]?.rect || null;
-    if (t.kind === 'road') return ROADS[t.id]?.rect || null;
     if (t.kind === 'gate') return [GATE.x - GATE.radius, GATE.z - 1, GATE.x + GATE.radius, GATE.z + 1];
     return null;
   }
@@ -254,7 +259,6 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     if (t.kind === 'plot') { const p = resolvePlot(t, now); if (!p) return false; out.set(p.x, 1.3, p.z); return true; }
     if (t.kind === 'building') { const e = buildingOf(t); if (!e) return false; out.set(e.x, e.height + 1.1, e.z); return true; }
     if (t.kind === 'parcel' && PARCELS[t.id]) { const c = parcelSignPoint(t.id); out.set(c.x, 2.7, c.z); return true; }
-    if (t.kind === 'road' && ROADS[t.id]) { const c = roadSignPoint(t.id); out.set(c.x, 2.5, c.z); return true; }
     if (t.kind === 'gate') { out.set(GATE.x, 6.4, GATE.z); return true; }
     return false;
   }
@@ -284,6 +288,11 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   }
   function pick(includeBuildings = true) {
     const farm = view === 'farm';
+    // Object notices are on top of everything: a tap on a badge is a tap on its object.
+    if (includeBuildings && badges.visible) {
+      const hits = raycaster.intersectObjects([...badges.pickers()], false);
+      if (hits.length && hits[0].object.userData.target) return hits[0].object.userData.target;
+    }
     const list = farm ? [...plots.pickers()] : []; // plots + gate: farm only; buildings: current area only
     if (includeBuildings) { list.push(...buildings.pickers()); if (farm) list.push(world.gatePicker); }
     const hits = raycaster.intersectObjects(list, false);
@@ -319,6 +328,8 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     const target = pick();
     if (target?.kind === 'plot') return tapPlot(target.id);
     if (target?.kind === 'building') return tapBuilding(target);
+    if (target?.kind === 'field') return harvestField(target.id);
+    if (target?.kind === 'parcel') return setSelection(target);
     if (target?.kind === 'gate') {
       setSelection({ kind: 'gate' });
       gateWalk = true;
@@ -326,16 +337,68 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       return;
     }
     if (!groundPoint(raycaster, hit)) return;
-    const state = store.state;
     const parcel = parcelAt(hit.x, hit.z);
-    if (parcel && world.parcelState(parcel.id) !== 'owned') return setSelection({ kind: 'parcel', id: parcel.id });
-    if (view === 'farm') for (const road of Object.values(ROADS)) {
-      if (!road.open && inRect(hit.x, hit.z, road.rect) && !isRoadOpen(state, road.id) && !inRect(hit.x, hit.z, ROADS.mainNS.rect)) return setSelection({ kind: 'road', id: road.id });
-    }
+    if (parcel && areaOfParcel(parcel.id) === view && world.parcelState(parcel.id) !== 'owned') return setSelection({ kind: 'parcel', id: parcel.id });
     setSelection(null);
     gateWalk = false;
     avatar.walkTo(hit.x, hit.z);
     vfx.burst('dust', hit, { count: 4 });
+  }
+
+  // Sickle badge over a field: harvest every ripe plot in it (stops at the first refusal, e.g. storehouse full).
+  function harvestField(parcelId) {
+    const now = Date.now();
+    const ready = plotsOf(parcelId).filter(p => plots.stage(p.id, now) === 'ready');
+    if (!ready.length) return;
+    setSelection({ kind: 'plot', id: ready[0].id });
+    for (const p of ready) if (!dispatch('farm/harvest', { plotId: p.id }).ok) break;
+  }
+
+  // ---------- object notices (badges) ----------
+  let badgeClock = 1;
+  const badgeItems = [];
+  function refreshBadges(state, now) {
+    badgeItems.length = 0;
+    const r = regionOf(state);
+    const show = r && state.story.phase === 'play' && !placement.info && !cinematics.active && !switching && !inputLocked;
+    badges.setVisible(!!show);
+    if (!show) { badges.clear(); return; }
+    const orders = r.shop.orders;
+    let waiting = 0, taken = null, brewing = 0, ready = 0;
+    for (const o of orders) {
+      if (o.stage === 'waiting') waiting++;
+      else if (o.stage === 'taken') taken ||= o;
+      else if (o.stage === 'brewing') { if (now - o.brewStart >= o.brewMs) ready++; else brewing++; }
+    }
+    for (const b of r.buildings) {
+      const def = BUILDINGS[b.type];
+      if (!def || areaAt(b.x, b.z) !== view) continue;
+      const e = buildings.get(b.uid);
+      if (!e || !e.root.visible) continue;
+      const up = !def.decor && !upgradeError(state, b);
+      let kind = null;
+      if (b.type === 'orderCounter' && waiting) kind = seatsUsed(state) < seatCount(state) ? 'order' : 'noSeat';
+      else if (b.type === 'brewCounter') {
+        if (ready) kind = 'serve';
+        else if (taken && brewing + ready < brewSlots(state) && state.inventory.beans >= (DRINKS[taken.drink]?.beans || 1)) kind = 'brew';
+      }
+      if (!kind && !up) continue;
+      badgeItems.push({ key: b.uid, kind: kind || 'up', up: !!kind && up, x: b.x, y: e.height + 1.05, z: b.z, target: { kind: 'building', uid: b.uid, type: b.type } });
+    }
+    for (const p of Object.values(PARCELS)) {
+      if (areaOfParcel(p.id) !== view) continue;
+      if (r.parcels.includes(p.id)) {
+        if (p.kind !== 'farm') continue;
+        if (plotsOf(p.id).some(pl => plots.stage(pl.id, now) === 'ready')) {
+          const c = rectCenter(p.rect);
+          badgeItems.push({ key: p.id, kind: 'harvest', x: c.x, y: 1.7, z: c.z, target: { kind: 'field', id: p.id } });
+        }
+      } else if (!parcelError(state, p.id)) {
+        const c = parcelSignPoint(p.id);
+        badgeItems.push({ key: p.id, kind: 'buy', x: c.x, y: 2.75, z: c.z, target: { kind: 'parcel', id: p.id } });
+      }
+    }
+    badges.set(badgeItems);
   }
 
   function dragPlot(id) {
@@ -419,7 +482,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     cam.setBounds(area.bounds);
     if (changed) { cam.explore(); cam.snapTo(avatar.position); }
     // Opening the café frames both counters (Area Focus) so the player sees where to work right away.
-    if (changed && v === 'cafe') cam.focusRect(COUNTER_RECT, { key: 'counters', force: true });
+    if (changed && v === 'cafe') cam.focusRect(CAFE_LOOP_RECT, { key: 'counters', force: true });
     if (viewApplied) applyView();
   }
   function setView(v, { instant = false } = {}) {
@@ -504,6 +567,9 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       }
     }
     markers.update(clock);
+    badgeClock += dt;
+    if (badgeClock >= .25) { badgeClock = 0; refreshBadges(state, now); }
+    badges.update(clock);
     cinematics.update(dt);
     cam.update(dt);
     // Sun + shadow frustum follow the camera target; fog scales with the camera distance.
@@ -525,7 +591,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   const realm = {
     scene, camera,
     update,
-    resize(w, h) { cam.resize(w, h); canvasRect = canvas.getBoundingClientRect(); },
+    resize(w, h) { cam.resize(w, h); canvasRect = canvas.getBoundingClientRect(); badges.resize(canvasRect.height || h); },
     handleKeyDown(e) {
       if (locked() || e.repeat || !KEYS[e.code] || e.target?.closest?.('input, textarea, select, [contenteditable]')) return;
       keys.add(e.code); updateKeyDir();
@@ -570,7 +636,8 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
      */
     startPlacement(type, { uid = null } = {}) {
       const zone = BUILDINGS[type]?.zone;
-      const area = uid ? areaOf({ kind: 'building', uid, type }) || view : zone === 'shop' ? 'cafe' : zone === 'farm' ? 'farm' : realm.view;
+      // The farm is fields only: every buildable thing (shop buildings and decor) goes in the café.
+      const area = uid ? areaOf({ kind: 'building', uid, type }) || view : zone === 'farm' ? 'farm' : 'cafe';
       if (area !== view || switching) return setView(area).then(() => realm.startPlacement(type, { uid }));
       if (placement.info?.uid) buildings.setHidden(placement.info.uid, false);
       const info = placement.start(type, { uid, area: view }, () => store.state);
@@ -595,6 +662,8 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     get placement() { return placement.info; },
 
     setTutorialTarget(t) { tutorialTarget = t || null; },
+    /** Object notices currently shown in the view: [{ key, kind, up, target }] (read only; refreshed ~4×/s). */
+    get notices() { return badgeItems; },
     /** Screen point above a target (CSS px); visible:false for targets of the other area or during a view switch. */
     screenPoint(t) {
       if (!targetPoint(t, v3, Date.now())) return { x: 0, y: 0, visible: false };
@@ -614,6 +683,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       fade.removeFromParent(); fade.geometry.dispose(); fadeMat.dispose();
       placement.dispose();
       markers.dispose();
+      badges.dispose();
       cafe.dispose();
       staff.dispose();
       buildings.dispose();

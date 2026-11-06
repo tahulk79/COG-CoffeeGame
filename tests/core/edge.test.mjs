@@ -335,3 +335,13 @@ test('edge: migration of a v1 dev save with 1e13 coins caps to 50,000 and never 
   store.dispatch('world/unlockRegion', { regionId: 'vn-1' }); store.dispatch('world/enterRegion', { regionId: 'vn-1' });
   assert.equal(store.state.story.phase, 'play');
 });
+
+test('layout: the tutorial roaster spot is a valid placement in a fresh region (and the build succeeds)', async () => {
+  const { TUTORIAL_BUILD } = await import('../../src/core/config/layout.js');
+  const { placementError } = await import('../../src/core/derive.js');
+  const h = playing();
+  const { x, z } = TUTORIAL_BUILD.roaster;
+  assert.equal(placementError(h.state, 'roaster', x, z, 0), null);
+  h.must('build/place', { type: 'roaster', x, z, rot: 0 });
+  assert.equal(h.region().buildings.filter(b => b.type === 'roaster').length, 1);
+});

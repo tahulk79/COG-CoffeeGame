@@ -38,7 +38,7 @@
 .atlas-confirm-actions{display:flex;gap:8px;justify-content:flex-end}
 .atlas-regions{display:grid;gap:8px;margin:0;padding:0;list-style:none}
 .atlas-region{display:flex;align-items:center;gap:10px;min-height:56px;padding:8px 10px;border:2px solid var(--ui-cream-edge);border-radius:16px;background:var(--ui-cream)}
-.atlas-region[data-state=expired],.atlas-region[data-state=round],.atlas-region[data-state=locked]{opacity:.72;background:#f3efe4}
+.atlas-region[data-state=expired]{opacity:.72;background:#f3efe4}
 .atlas-region-info{flex:1;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;min-width:0}
 .atlas-region-name{font:800 15px/1.3 var(--game-font)}
 .atlas-region-note{flex-basis:100%;color:var(--ui-ink-soft);font:600 12px/1.3 var(--game-font)}
@@ -47,6 +47,12 @@
 .atlas-chip.is-new{background:#d9f0b8;color:#3e6a1e}
 .atlas-chip.is-reopened,.atlas-chip.is-visited{background:#d8ecf4;color:#245a74}
 .atlas-chip.is-expired{background:#f6d9c6;color:#8a3f1c}
+.atlas-chip.is-price{background:#fff0c2;color:#7a4a10;font-size:12px}
+.atlas-region[data-state=price]{background:#fffaf0}
+.atlas-enter:disabled{opacity:.55;filter:grayscale(.6);cursor:not-allowed}
+.atlas-region-confirm{list-style:none}
+.atlas-region-confirm .atlas-confirm{margin-top:0}
+.atlas-confirm-cost{margin:0 0 8px;font:800 18px/1.3 var(--game-font);color:#7a4a10}
 .atlas-enter{min-width:88px}
 .atlas-toast{position:absolute;left:50%;top:calc(max(12px,env(safe-area-inset-top)) + 84px);transform:translateX(-50%);max-width:calc(100% - 32px);margin:0;padding:8px 14px;border-radius:14px;
   background:var(--ui-toast-bg);box-shadow:0 4px 14px #0003;font:800 14px/1.35 var(--game-font);text-align:center}

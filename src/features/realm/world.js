@@ -1,33 +1,25 @@
 // Static-ish world from layout.js, split in two areas that are never on screen together (setView toggles them):
-//  · farm (BOUNDS): ground (country tint + large-scale vertex-color variation), soft-edged dirt roads with border stones
-//    (open) / overgrown + barrier + price (closed), farm + build parcels (tilled earth, outlined build lots, wild meadow
-//    + for-sale sign), merged fences, gate lanterns + flower pots and the World Gate on a cobblestone plaza.
-//  · café (CAFE_BOUNDS, far south): its own ground, the café street + front road (CAFE_ROADS) customers walk in on,
-//    a stone terrace with the café house backdrop, the café block S (terracotta floor) and the C2 expansion lot,
-//    planters, lamps, umbrella tables, a little fountain garden.
-// Each area gets instanced grass tufts / flowers / pebbles and border scenery. Rebuilt only on store changes (sync),
-// never per frame except the gate glow pulse.
+//  · farm (BOUNDS) — a pure farm: ground (country tint + large-scale vertex-color variation), soft-edged dirt roads
+//    with border stones (all open, nothing to buy), the 14 fields (owned: tilled earth + fence; for sale: wild meadow +
+//    wooden for-sale sign with the price), gate lanterns + flower pots and the World Gate on a cobblestone plaza.
+//  · café (CAFE_BOUNDS, far south) — a small Vietnamese city street (city.js): tube houses, asphalt street + alley,
+//    sidewalks, trees, lamps, scooters, the terrace seats; the café lots S / C2 / C3 (owned: terracotta floor, for
+//    sale: vacant lot + sign).
+// Each area gets its own instanced decor. Rebuilt only on store changes (sync), never per frame except the gate glow.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { BOUNDS, CAFE_BOUNDS, CAFE_ROADS, ROADS, ROAD_ORDER, PARCELS, GATE, RESERVED, FIXED, rectCenter, inRect, areaOfParcel } from '../../core/config/layout.js';
+import { BOUNDS, CAFE_BOUNDS, ROADS, ROAD_ORDER, PARCELS, GATE, RESERVED, rectCenter, inRect, areaOfParcel } from '../../core/config/layout.js';
 import { COUNTRIES, parseRegionId } from '../../core/config/world.js';
 import { region as regionOf } from '../../core/derive.js';
 import { t, formatNumber } from '../../i18n/index.js';
 import { makeLabel, mulberry32, normalizeModel, paint, valueNoise, tone } from './util.js';
+import { buildCity } from './city.js';
 
 const ROAD_COLOR = 0xe6a462; // warm orange-tan dirt
-const OVERGROWN = 0x5f8f3f;
 const MAIN_NS = ROADS.mainNS.rect;
 const ROAD_FADE_OUT = .35, ROAD_FADE_IN = .45; // soft road shoulders (m outside / inside the rect)
 const PLAZA_R = GATE.radius + 1.4;
 const SHOP_RECT = PARCELS.S.rect;
-const CAFE_ROAD_LIST = Object.values(CAFE_ROADS);
-// Café layout (decor only, outside every parcel): house backdrop behind the counters, stone terrace around the lots.
-const CAFE_HOUSE = [-5.5, 96.4, 6.5, 100.8];
-const CAFE_TERRACE = [-6.5, 101, 22.5, 116];
-const FOUNTAIN = { x: -15.5, z: 107.5, r: 2.1 };
-const UMBRELLAS = [[10, 114], [14.5, 114], [19, 114], [21.2, 104.2], [21.2, 108.8]];
-const LAMPS = [[-11, 100], [-11, 110], [-17, 115.4], [-4.5, 115.4], [7, 115.4], [16.8, 115.4], [23, 101.5]];
 const PARCEL_IDS = { farm: Object.keys(PARCELS).filter(id => areaOfParcel(id) === 'farm'), cafe: Object.keys(PARCELS).filter(id => areaOfParcel(id) === 'cafe') };
 
 function noiseTexture(base, spread, size = 128, dots = 6) {
@@ -189,12 +181,6 @@ function roadSegments(road) {
   if (r[0] < MAIN_NS[0] && r[2] > MAIN_NS[2]) return [[r[0], r[1], MAIN_NS[0], r[3]], [MAIN_NS[2], r[1], r[2], r[3]]];
   return [r];
 }
-// Where the barrier/sign of a closed road stands: next to the main road.
-export function roadSignPoint(roadId) {
-  const r = ROADS[roadId].rect;
-  const x = r[2] <= MAIN_NS[0] + .01 ? r[2] - 1 : r[0] < MAIN_NS[0] && r[2] > MAIN_NS[2] ? MAIN_NS[0] - 1 : r[0] + 1;
-  return { x, z: (r[1] + r[3]) / 2 };
-}
 export function parcelSignPoint(parcelId) {
   const c = rectCenter(PARCELS[parcelId].rect);
   return { x: c.x, z: c.z };
@@ -204,12 +190,9 @@ export function regionPalette(state) {
   const id = state.world.currentRegion || (state.world.startCountry ? `${state.world.startCountry}-1` : 'vn-1');
   return COUNTRIES[parseRegionId(id)?.countryId || 'vn'].palette;
 }
-// Owned parcels/roads; before a region is entered the starter layout is shown.
+// Owned parcels; before a region is entered the starter layout is shown.
 export function ownedParcels(state) {
   return regionOf(state)?.parcels || Object.values(PARCELS).filter(p => p.starter).map(p => p.id);
-}
-export function isRoadOpen(state, roadId) {
-  return !!(ROADS[roadId].open || regionOf(state)?.roads.includes(roadId));
 }
 
 // Free grass for scattered decor. Farm: not on roads, parcels or the gate plaza.
@@ -217,13 +200,6 @@ function isFreeGrass(x, z) {
   for (const id of ROAD_ORDER) if (inRect(x, z, ROADS[id].rect, .6)) return false;
   for (const p of Object.values(PARCELS)) if (inRect(x, z, p.rect, .8)) return false;
   return Math.hypot(x - GATE.x, z - GATE.z) >= PLAZA_R + 1.2;
-}
-// Café: not on the street / front road, the terrace, the house or the fountain.
-function isFreeCafeGrass(x, z) {
-  for (const r of CAFE_ROAD_LIST) if (inRect(x, z, r.rect, .6)) return false;
-  for (const id of PARCEL_IDS.cafe) if (inRect(x, z, PARCELS[id].rect, .8)) return false;
-  if (inRect(x, z, CAFE_TERRACE, .5) || inRect(x, z, CAFE_HOUSE, 1)) return false;
-  return Math.hypot(x - FOUNTAIN.x, z - FOUNTAIN.z) >= FOUNTAIN.r + 1.6;
 }
 
 /**
@@ -279,43 +255,35 @@ export function createWorld({ scene, templates }) {
   const mats = {
     ground: keep(new THREE.MeshStandardMaterial({ color: 0x7fae5a, map: grassTex, roughness: 1, vertexColors: true })),
     road: keep(new THREE.MeshStandardMaterial({ color: ROAD_COLOR, map: dirtTex, roughness: 1, vertexColors: true, transparent: true, depthWrite: false })),
-    overgrown: keep(new THREE.MeshStandardMaterial({ color: OVERGROWN, map: grassTex, roughness: 1 })),
     tilled: keep(new THREE.MeshStandardMaterial({ color: 0xb07e4c, map: dirtTex, roughness: 1 })),
     paved: keep(new THREE.MeshStandardMaterial({ color: 0xffffff, map: tileTex, roughness: .85 })),
-    terrace: keep(new THREE.MeshStandardMaterial({ color: 0xffffff, map: stoneTex, roughness: .92 })),
-    buildGround: keep(new THREE.MeshStandardMaterial({ color: 0x8dbb5e, map: grassTex, roughness: 1 })),
+    pavement: keep(new THREE.MeshStandardMaterial({ color: 0xe2dccf, map: stoneTex, roughness: .92 })),
+    vacant: keep(new THREE.MeshStandardMaterial({ color: 0xb59a74, map: dirtTex, roughness: 1 })),
     meadow: keep(new THREE.MeshStandardMaterial({ color: 0x8dbb5e, map: grassTex, roughness: 1 })),
-    lockedMeadow: keep(new THREE.MeshStandardMaterial({ color: 0x6f8f55, map: grassTex, roughness: 1 })),
     wood: keep(new THREE.MeshStandardMaterial({ color: 0xb07a43, roughness: .9 })),
-    woodDark: keep(new THREE.MeshStandardMaterial({ color: 0x7a5230, roughness: .9 })),
-    stripe: null,
     plaza: keep(new THREE.MeshStandardMaterial({ color: 0xb8916a, map: dirtTex, roughness: 1 })),
     tuft: keep(new THREE.MeshStandardMaterial({ color: 0x7cc04f, roughness: 1, vertexColors: true })),
     flower: keep(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .8 })),
     rock: keep(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .95, flatShading: true })),
     props: keep(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .85, vertexColors: true, flatShading: true })),
-    outline: keep(new THREE.MeshBasicMaterial({ color: 0xfff7e0, transparent: true, opacity: .55, depthWrite: false })),
   };
-  {
-    const c = document.createElement('canvas'); c.width = 64; c.height = 16;
-    const g = c.getContext('2d');
-    for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? '#f6f1e6' : '#d9573f'; g.beginPath(); g.moveTo(i * 8, 0); g.lineTo(i * 8 + 8, 0); g.lineTo(i * 8, 16); g.lineTo(i * 8 - 8, 16); g.fill(); }
-    const tex = keep(new THREE.CanvasTexture(c)); tex.colorSpace = THREE.SRGBColorSpace;
-    mats.stripe = keep(new THREE.MeshStandardMaterial({ map: tex, roughness: .8 }));
-  }
 
-  // ---------- ground (one per area; the café one darkens outside CAFE_BOUNDS) ----------
-  for (const [target, b, name] of [[farm, BOUNDS, 'ground'], [cafe, CAFE_BOUNDS, 'cafe-ground']]) {
+  // ---------- ground: farm grass (country tint), café pavement (city sidewalks) ----------
+  {
+    const b = BOUNDS;
     const ground = new THREE.Mesh(keep(groundGeometry([b.minX - 60, b.minZ - 55, b.maxX + 60, b.maxZ + 60], b)), mats.ground);
     ground.receiveShadow = true;
-    ground.name = name;
-    target.add(ground);
+    ground.name = 'ground';
+    farm.add(ground);
+    const c = CAFE_BOUNDS;
+    const pavement = new THREE.Mesh(keep(worldUV(rectGeometry([c.minX - 70, c.minZ - 40, c.maxX + 70, c.maxZ + 40], 0, 2))), mats.pavement);
+    pavement.receiveShadow = true;
+    pavement.name = 'cafe-ground';
+    cafe.add(pavement);
   }
 
   // ---------- shared small geometries ----------
   const geo = {
-    barrierPost: keep(new THREE.BoxGeometry(.16, .9, .16).translate(0, .45, 0)),
-    plank: keep(new THREE.BoxGeometry(1, .24, .08)),
     bush: keep(new THREE.IcosahedronGeometry(.7, 0)),
     rock: keep(new THREE.DodecahedronGeometry(.5, 0)),
     sign: keep(signGeometry()),
@@ -350,72 +318,17 @@ export function createWorld({ scene, templates }) {
     farm.add(mesh);
   }
 
-  // ---------- farm roads ----------
-  const roads = {};
-  for (const id of ROAD_ORDER) {
-    const road = ROADS[id];
-    const segs = roadSegments(road);
-    const openGeo = keep(mergeGeometries(segs.map(r => roadGeometry(r, .02))));
-    const open = new THREE.Mesh(openGeo, mats.road);
-    open.receiveShadow = true;
-    open.renderOrder = -1; // ground decals: draw before other transparent things (labels, vfx)
-    farm.add(open);
-    const closed = new THREE.Group();
-    if (!road.open) {
-      const over = new THREE.Mesh(keep(mergeGeometries(segs.map(r => rectGeometry(r, .02)))), mats.overgrown);
-      over.receiveShadow = true;
-      closed.add(over);
-      // Bushes scattered along the overgrown road.
-      const rnd = mulberry32(id.length * 97);
-      const total = segs.reduce((n, r) => n + Math.round((r[2] - r[0]) / 2.2), 0);
-      const bushes = keep(new THREE.InstancedMesh(geo.bush, mats.overgrown, total));
-      const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
-      let i = 0;
-      for (const r of segs) for (let x = r[0] + 1.2; x < r[2] - .6 && i < total; x += 2.2) {
-        const k = .5 + rnd() * .6;
-        m.compose(p.set(x + (rnd() - .5), .25 * k, r[1] + (r[3] - r[1]) * rnd()), q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, rnd() * 6), s.set(k, k * .8, k));
-        bushes.setMatrixAt(i++, m);
-      }
-      bushes.count = i;
-      bushes.castShadow = true;
-      bushes.raycast = () => {};
-      closed.add(bushes);
-      // Barrier + price sign next to the main road.
-      const sp = roadSignPoint(id);
-      const barrier = new THREE.Group();
-      barrier.position.set(sp.x, 0, sp.z);
-      barrier.rotation.y = Math.PI / 2;
-      const span = road.rect[3] - road.rect[1];
-      for (const side of [-1, 1]) { const post = new THREE.Mesh(geo.barrierPost, mats.woodDark); post.position.x = side * span / 2; post.castShadow = true; barrier.add(post); }
-      const plank = new THREE.Mesh(geo.plank, mats.stripe); plank.scale.x = span + .3; plank.position.y = .72; plank.castShadow = true;
-      barrier.add(plank);
-      closed.add(barrier);
-      const label = makeLabel('', { bg: '#fff3d6', height: .75 });
-      label.sprite.position.set(sp.x, 1.9, sp.z);
-      closed.add(label.sprite);
-      closed.userData.label = label;
-      farm.add(closed);
-    }
-    roads[id] = { open, closed };
+  // ---------- farm roads (all open: the farm has nothing to unlock but fields) ----------
+  {
+    const road = new THREE.Mesh(keep(mergeGeometries(ROAD_ORDER.flatMap(id => roadSegments(ROADS[id]).map(r => roadGeometry(r, .02))))), mats.road);
+    road.receiveShadow = true;
+    road.renderOrder = -1; // ground decals: draw before other transparent things (labels, vfx)
+    farm.add(road);
   }
 
-  // ---------- café street + front road (always open, cosmetic) and the stone terrace ----------
-  {
-    const street = new THREE.Mesh(keep(mergeGeometries(CAFE_ROAD_LIST.map(r => roadGeometry(r.rect, .02, CAFE_BOUNDS, true)))), mats.road);
-    street.receiveShadow = true;
-    street.renderOrder = -1;
-    cafe.add(street);
-    const path = [-12.6, FOUNTAIN.z - .8, -9.5, FOUNTAIN.z + .8]; // garden path from the street to the fountain
-    const parts = [
-      worldUV(rectGeometry(CAFE_TERRACE, .006)),
-      worldUV(rectGeometry(path, .006)),
-      worldUV(new THREE.CircleGeometry(FOUNTAIN.r + 1.3, 32).rotateX(-Math.PI / 2).translate(FOUNTAIN.x, .006, FOUNTAIN.z)),
-    ];
-    const terrace = new THREE.Mesh(keep(mergeGeometries(parts.map(g => (g.index ? g.toNonIndexed() : g)))), mats.terrace);
-    parts.forEach(g => g.dispose());
-    terrace.receiveShadow = true;
-    cafe.add(terrace);
-  }
+  // ---------- café city (street, houses, sidewalk furniture, terrace seats) ----------
+  const city = buildCity(cafe, keep, mats);
+  const CAFE_HOUSE = city.cafeHouse;
 
   // ---------- parcels (overlay + for-sale sign, in their own area) ----------
   const parcels = {};
@@ -472,30 +385,6 @@ export function createWorld({ scene, templates }) {
     post.dispose(); rail.dispose();
     fence.geometry.dispose();
     fence.geometry = parts.length ? mergeGeometries(parts) : new THREE.BufferGeometry();
-    parts.forEach(g => g.dispose());
-  }
-
-  // ---------- owned empty build lots: subtle light outline (merged, rebuilt on ownership change) ----------
-  const outline = new THREE.Mesh(new THREE.BufferGeometry(), mats.outline);
-  outline.raycast = () => {};
-  outline.renderOrder = -1;
-  farm.add(outline);
-  let outlineKey = '';
-  function rebuildOutline(owned) {
-    const lots = owned.filter(id => PARCELS[id]?.kind === 'build').sort();
-    const key = lots.join(',');
-    if (key === outlineKey) return;
-    outlineKey = key;
-    const parts = [];
-    const strip = (x0, z0, x1, z1) => parts.push(new THREE.PlaneGeometry(x1 - x0, z1 - z0).rotateX(-Math.PI / 2).translate((x0 + x1) / 2, .035, (z0 + z1) / 2));
-    const w = .14, inset = .12;
-    for (const id of lots) {
-      const [x0, z0, x1, z1] = PARCELS[id].rect;
-      const a = x0 + inset, b = x1 - inset, c = z0 + inset, d = z1 - inset;
-      strip(a, c, b, c + w); strip(a, d - w, b, d); strip(a, c + w, a + w, d - w); strip(b - w, c + w, b, d - w);
-    }
-    outline.geometry.dispose();
-    outline.geometry = parts.length ? mergeGeometries(parts) : new THREE.BufferGeometry();
     parts.forEach(g => g.dispose());
   }
 
@@ -604,13 +493,13 @@ export function createWorld({ scene, templates }) {
   const decor = {
     farm: scatter(farm, {
       seed: 2024, bounds: BOUNDS, clumps: 230, pebbles: 110, isFree: isFreeGrass, parcelIds: PARCEL_IDS.farm,
-      roads: ROAD_ORDER.map(id => ({ id, open: ROADS[id].open, segs: roadSegments(ROADS[id]) })),
+      roads: ROAD_ORDER.map(id => ({ id, open: true, segs: roadSegments(ROADS[id]) })),
       skipStone: (x, z) => Math.hypot(x - GATE.x, z - GATE.z) < PLAZA_R + .6,
     }),
+    // Café: no grass on city pavement, only weeds on the vacant lots that are still for sale.
     cafe: scatter(cafe, {
-      seed: 4048, bounds: CAFE_BOUNDS, clumps: 120, pebbles: 55, isFree: isFreeCafeGrass, parcelIds: PARCEL_IDS.cafe,
-      roads: CAFE_ROAD_LIST.map(r => ({ id: r.id, open: true, segs: [r.rect] })),
-      skipStone: (x, z) => inRect(x, z, CAFE_TERRACE, .3),
+      seed: 4048, bounds: CAFE_BOUNDS, clumps: 0, pebbles: 0, isFree: () => false, parcelIds: PARCEL_IDS.cafe,
+      roads: [], skipStone: () => true,
     }),
   };
 
@@ -652,44 +541,18 @@ export function createWorld({ scene, templates }) {
     }
     propMesh(farm, parts);
   }
-  // Café: house backdrop, deck curb + boardwalk lanes, planters, lamps, umbrella tables, fountain garden.
+  // Café block S: low wooden curb (open on the west side where customers come in), boardwalk over the customer lanes,
+  // planters between the block and the C2 lot.
   {
     const parts = [];
-    const { rnd, add, bloom, lantern } = propKit(parts, 57);
-    // House behind the counters (decor only, blocks the player).
-    const [hx0, hz0, hx1, hz1] = CAFE_HOUSE, hw = hx1 - hx0, hd = hz1 - hz0, hx = (hx0 + hx1) / 2, hz = (hz0 + hz1) / 2, front = hz1;
-    add(new THREE.BoxGeometry(hw + .3, .25, hd + .3), '#a89580', hx, .125, hz);
-    add(new THREE.BoxGeometry(hw, 3, hd), '#fff1d6', hx, 1.75, hz);
-    add(new THREE.BoxGeometry(hw + .1, .22, hd + .1), '#a8743f', hx, 3.3, hz);
-    add(new THREE.CylinderGeometry(2.9, 2.9, hw + .8, 3).rotateZ(Math.PI / 2).rotateX(-Math.PI / 2).scale(1, .45, 1), '#c4553a', hx, 4.06, hz);
-    add(new THREE.BoxGeometry(.7, 1.3, .7), '#9a6a48', hx + 3.6, 4.3, hz - .6);
-    add(new THREE.BoxGeometry(1.3, 2.15, .12), '#7a5230', hx + .8, 1.32, front + .02);
-    add(new THREE.BoxGeometry(.12, .12, .1), '#f4c44f', hx + 1.25, 1.3, front + .1);
-    for (const wx of [hx - 3.4, hx + 4.3]) {
-      add(new THREE.BoxGeometry(2, 1.35, .1), '#ffffff', wx, 1.95, front + .02);
-      add(new THREE.BoxGeometry(1.76, 1.12, .12), '#ffe7a6', wx, 1.95, front + .03);
-      add(new THREE.BoxGeometry(.08, 1.12, .14), '#ffffff', wx, 1.95, front + .04);
-      add(new THREE.BoxGeometry(2.2, .12, .4), '#ffffff', wx, 1.22, front + .18);
-      add(new THREE.BoxGeometry(1.9, .22, .3), '#6aa84f', wx, 1.38, front + .2);
-      bloom(wx, 1.52, front + .2, 1.5, 6);
-    }
-    // Striped awning over the front.
-    const stripes = 12, sw = (hw + .4) / stripes;
-    for (let i = 0; i < stripes; i++) {
-      const x = hx0 - .2 + sw * (i + .5);
-      const g = new THREE.BoxGeometry(sw, .06, 1.3).rotateX(.38);
-      add(g, i % 2 ? '#fff4e0' : '#e8673c', x, 2.98, front + .62);
-      add(new THREE.BoxGeometry(sw, .26, .05), i % 2 ? '#fff4e0' : '#e8673c', x, 2.62, front + 1.24);
-    }
-    // Low wooden curb around the café block, open on the west side where customers enter from the street.
+    const { add, bloom } = propKit(parts, 57);
     const [sx0, sz0, sx1, sz1] = SHOP_RECT;
     const cl = RESERVED.find(r => r.id === 'counterLane')?.rect, ql = RESERVED.find(r => r.id === 'queueLane')?.rect;
     const curb = (x0, z0, x1, z1) => add(new THREE.BoxGeometry(Math.max(.18, x1 - x0), .14, Math.max(.18, z1 - z0)), '#a8743f', (x0 + x1) / 2, .07, (z0 + z1) / 2);
-    curb(sx0 - .1, sz0 - .1, sx1 + .1, sz0 - .1);
     curb(sx1 + .1, sz0 - .1, sx1 + .1, sz1 + .1);
-    curb(sx0 - .1, sz1 + .1, sx1 + .1, sz1 + .1);
+    curb(sx0 - .1, sz1 + .1, ql ? ql[0] : sx0, sz1 + .1);
+    curb(ql ? ql[2] + .3 : sx0, sz1 + .1, sx1 + .1, sz1 + .1);
     curb(sx0 - .1, sz0 - .1, sx0 - .1, cl ? cl[1] : sz0 + 4);
-    // Wooden boardwalk over the reserved customer lanes (queue → order counter → pickup), plus the entry from the street.
     const lane = (x0, z0, x1, z1, alongX) => {
       const span = alongX ? z1 - z0 : x1 - x0, n = Math.floor(span / .36), pw = span / n;
       for (let i = 0; i < n; i++) {
@@ -700,7 +563,6 @@ export function createWorld({ scene, templates }) {
     };
     if (cl) lane(Math.max(cl[0], sx0) + .15, cl[1] + .25, Math.min(cl[2], sx1) - .15, cl[3] - .1, true);
     if (cl && ql) lane(Math.max(ql[0], sx0) + .15, cl[3] - .1, ql[2] - .1, Math.min(ql[3], sz1) - .2, false);
-    // Planters between the block and the expansion lot, and along the front road.
     const planter = (x, z) => {
       add(new THREE.BoxGeometry(.9, .46, .9), '#b5794a', x, .23, z);
       add(new THREE.BoxGeometry(1, .1, 1), '#8a5a35', x, .5, z);
@@ -709,52 +571,13 @@ export function createWorld({ scene, templates }) {
       bloom(x, 1.02, z, .5, 4);
     };
     const C2 = PARCELS.C2.rect;
-    for (const [x, z] of [[(sx1 + C2[0]) / 2, sz0 + 1], [(sx1 + C2[0]) / 2, (sz0 + sz1) / 2], [(sx1 + C2[0]) / 2, sz1 - .8], [1.2, 115.2], [4.2, 115.2], [-5.6, 101.4], [hx1 + .9, 101.3]]) planter(x, z);
-    for (const [x, z] of LAMPS) lantern(x, z, 2.3);
-    // Umbrella tables on the terrace.
-    const CANOPY = ['#e8673c', '#2f9e8f', '#f4b63c'];
-    UMBRELLAS.forEach(([x, z], i) => {
-      add(new THREE.CylinderGeometry(.05, .05, 2.3, 6), '#7a5230', x, 1.15, z);
-      add(new THREE.ConeGeometry(1.45, .55, 8), CANOPY[i % CANOPY.length], x, 2.45, z);
-      add(new THREE.CylinderGeometry(.08, .08, .2, 6), '#7a5230', x, 2.8, z);
-      add(new THREE.CylinderGeometry(.58, .58, .07, 14), '#fff7ea', x, .78, z);
-      add(new THREE.CylinderGeometry(.09, .14, .74, 6), '#7a5230', x, .37, z);
-      for (let k = 0; k < 3; k++) {
-        const a = k / 3 * Math.PI * 2 + i;
-        add(new THREE.CylinderGeometry(.22, .2, .44, 8), '#a8743f', x + Math.cos(a) * .95, .22, z + Math.sin(a) * .95);
-        add(new THREE.CylinderGeometry(.24, .24, .06, 8), '#e8d7b8', x + Math.cos(a) * .95, .47, z + Math.sin(a) * .95);
-      }
-    });
-    // Fountain garden west of the street: basin, water, bowl; benches and flower beds around it.
-    const { x: fx, z: fz, r: fr } = FOUNTAIN;
-    add(new THREE.CylinderGeometry(fr, fr + .12, .52, 20), '#d8cbb4', fx, .26, fz);
-    add(new THREE.CylinderGeometry(fr - .2, fr - .2, .05, 20), '#7fcde6', fx, .48, fz);
-    add(new THREE.CylinderGeometry(.28, .36, 1.2, 10), '#d8cbb4', fx, .6, fz);
-    add(new THREE.CylinderGeometry(.8, .5, .2, 14), '#d8cbb4', fx, 1.25, fz);
-    add(new THREE.CylinderGeometry(.66, .66, .04, 14), '#9adcf0', fx, 1.35, fz);
-    add(new THREE.IcosahedronGeometry(.18, 0), '#c8f0ff', fx, 1.55, fz);
-    const bench = (x, z, ry) => {
-      const g = [];
-      const local = (geo, color, lx, ly, lz) => g.push([geo.translate(lx, ly, lz), color]);
-      local(new THREE.BoxGeometry(1.7, .09, .5), '#b07a43', 0, .46, 0);
-      local(new THREE.BoxGeometry(1.7, .4, .08), '#b07a43', 0, .78, -.24);
-      for (const lx of [-.7, .7]) local(new THREE.BoxGeometry(.1, .46, .44), '#5e3f26', lx, .23, 0);
-      for (const [gg, color] of g) add(gg.rotateY(ry), color, x, 0, z);
-    };
-    bench(fx, fz - fr - 1.7, 0); bench(fx, fz + fr + 1.7, Math.PI); bench(fx - fr - 1.7, fz, Math.PI / 2);
-    for (let i = 0; i < 9; i++) {
-      const a = i / 9 * Math.PI * 2 + .3, rr = fr + 3.1 + rnd() * .5;
-      const x = fx + Math.cos(a) * rr, z = fz + Math.sin(a) * rr;
-      if (x > -10.4 || Math.abs(Math.sin(a)) > .93 || Math.abs(Math.cos(a)) > .93) continue; // keep the path + benches clear
-      add(new THREE.IcosahedronGeometry(.5, 0).scale(1, .7, 1), '#5fae46', x, .3, z);
-      bloom(x, .55, z, .6, 5);
-    }
+    for (const [x, z] of [[(sx1 + C2[0]) / 2, sz0 + 1], [(sx1 + C2[0]) / 2, (sz0 + sz1) / 2], [(sx1 + C2[0]) / 2, sz1 - .8]]) planter(x, z);
     propMesh(cafe, parts);
   }
   // Café sign over the door.
   {
-    const sign = makeLabel(t('realm.cafeSign'), { bg: '#7a4a2a', fg: '#fff4e0', border: '#f2c27a', height: 1 });
-    sign.sprite.position.set((CAFE_HOUSE[0] + CAFE_HOUSE[2]) / 2, 4.9, CAFE_HOUSE[3] + .3);
+    const sign = makeLabel(t('realm.cafeSign'), { bg: '#7a4a2a', fg: '#fff4e0', border: '#f2c27a', height: 1.1 });
+    sign.sprite.position.set((CAFE_HOUSE[0] + CAFE_HOUSE[2]) / 2, 6.9, CAFE_HOUSE[3] + .2);
     cafe.add(sign.sprite);
     labels.push(sign);
   }
@@ -815,9 +638,6 @@ export function createWorld({ scene, templates }) {
   // Farm: empty grass corners inside the map also get a few trees.
   border(farm, BOUNDS, { seed: 42, margin: [22, 20, 22], trees: [170, 22], bushes: [90, 20], rocks: 50,
     pockets: [[18, 15, 29, 25], [-29, 19, -6, 25.5], [-29, -21.5, -3, -19], [3, -21.5, 29, -19.5]] });
-  // Café: a green ring around the plaza, trees in the corners away from the street.
-  border(cafe, CAFE_BOUNDS, { seed: 43, margin: [22, 18, 20], trees: [130, 18], bushes: [70, 16], rocks: 30,
-    pockets: [[-21.5, 120.5, -11.5, 127.5], [-4.5, 121, 23.5, 127.5], [9, 94.3, 23.5, 100], [-21.5, 94.3, -12.5, 99.2]] });
 
   // ---------- World Gate (farm) ----------
   const gate = new THREE.Group();
@@ -856,7 +676,7 @@ export function createWorld({ scene, templates }) {
 
   // ---------- sync from the save ----------
   let paletteKey = null;
-  const activeWild = [], activeRoads = [];
+  const activeWild = [];
   function sync(state) {
     const pal = regionPalette(state);
     if (paletteKey !== pal) {
@@ -864,43 +684,23 @@ export function createWorld({ scene, templates }) {
       // Country tint, pushed brighter / more saturated for a cheerful read under ACES tone mapping.
       tone(mats.ground.color, pal.ground, 0, .24, .02);
       tone(mats.tuft.color, pal.ground, .01, .3, .04);
-      tone(mats.buildGround.color, pal.ground, 0, .22, .08);
       tone(mats.meadow.color, pal.ground, .015, .2, .12);
-      tone(mats.lockedMeadow.color, pal.ground, 0, .12, -.03);
-      tone(mats.overgrown.color, pal.ground, .01, .18, -.1);
     }
     const owned = ownedParcels(state);
-    const round = state.player.round;
     activeWild.length = 0;
+    // No Rounds, no roads to buy: a field / café lot is either owned or for sale (price on the sign).
     for (const p of Object.values(PARCELS)) {
       const e = parcels[p.id];
-      const isOwned = owned.includes(p.id);
-      const roadClosed = p.road && !isRoadOpen(state, p.road);
-      const st = isOwned ? 'owned' : round < p.round ? 'round' : roadClosed ? 'road' : 'sale';
+      const st = owned.includes(p.id) ? 'owned' : 'sale';
       if (e.state !== st) {
         e.state = st;
-        e.overlay.material = st === 'owned' ? (p.kind === 'farm' ? mats.tilled : p.kind === 'shop' ? mats.paved : mats.buildGround) : st === 'sale' ? mats.meadow : mats.lockedMeadow;
+        e.overlay.material = st === 'owned' ? (p.kind === 'farm' ? mats.tilled : mats.paved) : p.kind === 'farm' ? mats.meadow : mats.vacant;
         e.sign.visible = st !== 'owned';
       }
-      if (st !== 'owned') activeWild.push(p.id);
-      if (st === 'sale') e.label.set(t('realm.forSale', { price: formatNumber(p.cost) }));
-      else if (st === 'round') e.label.set(t('realm.roundLocked', { n: p.round }));
-      else if (st === 'road') e.label.set(t('realm.needsRoad'));
+      if (st !== 'owned') { activeWild.push(p.id); e.label.set(t('realm.forSale', { price: formatNumber(p.cost) })); }
     }
     for (const d of Object.values(decor)) { d.tufts.show(activeWild); d.flowers.show(activeWild); }
-    activeRoads.length = 0;
-    for (const id of ROAD_ORDER) {
-      const road = ROADS[id], e = roads[id];
-      const open = isRoadOpen(state, id);
-      e.open.visible = open;
-      e.closed.visible = !open;
-      if (open && !road.open) activeRoads.push(id);
-      const label = e.closed.userData.label;
-      if (!open && label) label.set(round < road.round ? t('realm.roundLocked', { n: road.round }) : t('realm.openRoad', { price: formatNumber(road.cost) }));
-    }
-    decor.farm.rocks.show(activeRoads);
     rebuildFences(owned);
-    rebuildOutline(owned);
   }
 
   function update(time) {
@@ -910,17 +710,15 @@ export function createWorld({ scene, templates }) {
 
   return {
     group, areas, mats, gate, gatePicker, sync, update,
-    /** Static decor the player cannot walk through (café house, fountain). */
-    blockers: [CAFE_HOUSE, [FOUNTAIN.x - FOUNTAIN.r, FOUNTAIN.z - FOUNTAIN.r, FOUNTAIN.x + FOUNTAIN.r, FOUNTAIN.z + FOUNTAIN.r]],
+    /** Static decor the player cannot walk through (the city's houses). */
+    blockers: city.blockers,
     /** Shows only one area: 'farm' | 'cafe' (null → both, used while shaders compile). */
     setView(v) { farm.visible = !v || v === 'farm'; cafe.visible = !v || v === 'cafe'; },
     parcelState: id => parcels[id]?.state || null,
     dispose() {
       for (const e of Object.values(parcels)) e.label.dispose();
-      for (const e of Object.values(roads)) e.closed.userData.label?.dispose();
       for (const l of labels) l.dispose();
       fence.geometry.dispose();
-      outline.geometry.dispose();
       for (const d of disposables) d.dispose?.();
       group.removeFromParent();
     },
