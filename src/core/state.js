@@ -1,5 +1,5 @@
 // Save schema v3 (Farm & Café V3). Stored under its own localStorage key, so the old v1 save is never overwritten.
-import { START, BUILDINGS, STAFF } from './config/economy.js';
+import { START, BUILDINGS, STAFF, PLAYTEST, startCoins } from './config/economy.js';
 import { isRegionId } from './config/world.js';
 import { FIXED } from './config/layout.js';
 
@@ -14,7 +14,7 @@ export function createSave(now = Date.now(), character = null) {
     rev: 0,
     character: character ? { gender: character.gender === 'male' ? 'male' : 'female', name: String(character.name || '').slice(0, 20) } : null,
     story: { phase: character ? 'intro' : 'select', teacherMet: false, level10Done: false, expiry: null, seen: {} },
-    player: { coins: START.coins, xp: 0, round: 1 },
+    player: { coins: startCoins(), xp: 0, round: 1 },
     rebirth: { credits: 0, granted: false, used: 0, purchased: 0, blessings: { grow: 0, price: 0, xp: 0 }, history: [] },
     inventory: { beans: 0 },
     world: {
@@ -25,8 +25,9 @@ export function createSave(now = Date.now(), character = null) {
       freeUnlocks: 0,     // free region unlocks granted by the Level-10 expiration
     },
     staff: { units: [] },
-    // Which game the player is playing: 'farm' | 'cafe' (null = not chosen yet → the HUD asks once). The two games
-    // share coins / XP / level; beans harvested on the farm can be used in the café. Follows the last view shown.
+    // firstGame: the game picked when first playing ('farm' | 'cafe'; null → the HUD asks). Round 2 opens the other one.
+    // mode: the game on screen now (follows the view). Coins / XP / level / beans are shared by both games.
+    firstGame: null,
     mode: null,
     tutorial: { step: 0, done: false, farmDone: false, cafeDone: false },
     autoplay: { runs: 0, granted: false, active: null },   // active = { startedAt, endsAt } while a run plays
@@ -54,6 +55,11 @@ export function normalizeSave(raw, now = Date.now()) {
   out.player.coins = num(out.player.coins, base.player.coins, 0, 1e15);
   out.player.xp = num(out.player.xp, 0, 0, 1e12);
   out.player.round = num(out.player.round, 1, 1, 3) | 0;
+  // Playtest coins: an existing save is raised to PLAYTEST.coins once per amount (never lowered).
+  if (PLAYTEST.coins > 0 && out.story.seen.playtestCoins !== PLAYTEST.coins) {
+    out.story.seen = { ...out.story.seen, playtestCoins: PLAYTEST.coins }; // a new playtest amount tops up once more
+    out.player.coins = Math.max(out.player.coins, PLAYTEST.coins);
+  }
   out.rebirth = { ...base.rebirth, ...obj(s.rebirth) };
   out.rebirth.credits = num(out.rebirth.credits, 0, 0, 999) | 0;
   out.rebirth.blessings = { ...base.rebirth.blessings, ...obj(out.rebirth.blessings) };
@@ -75,7 +81,10 @@ export function normalizeSave(raw, now = Date.now()) {
   out.world.ownedRegions = [...new Set([...(Array.isArray(s.world?.ownedRegions) ? s.world.ownedRegions : []), ...Object.keys(out.world.regions)].filter(isRegionId))];
   out.world.freeUnlocks = num(out.world.freeUnlocks, 0, 0, 9) | 0;
   out.staff = { units: Array.isArray(s.staff?.units) ? s.staff.units.filter(u => obj(u) && typeof u.type === 'string' && Object.hasOwn(STAFF, u.type)) : [] };
-  out.mode = s.mode === 'farm' || s.mode === 'cafe' ? s.mode : null;
+  const game = v => (v === 'farm' || v === 'cafe' ? v : null);
+  out.mode = game(s.mode);
+  out.firstGame = game(s.firstGame) || out.mode; // saves from before the first-game pick: the game they played
+  if (out.firstGame && !out.mode) out.mode = out.firstGame;
   out.tutorial = { ...base.tutorial, ...obj(s.tutorial) };
   if (out.tutorial.done) { out.tutorial.farmDone = true; out.tutorial.cafeDone = true; } // skipped before the split
   out.autoplay = { ...base.autoplay, ...obj(s.autoplay) };

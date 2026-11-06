@@ -2,7 +2,7 @@
 // confirm modal, Teacher dialogue, toasts and the tutorial overlay. API per docs/design/v3-architecture.md §HUD API.
 import '../../ui/styles/v3.css';
 import { CROP_ORDER, DRINK_ORDER, autoPrice } from '../../core/config/economy.js';
-import { cropUnlocked, drinkUnlocked, region } from '../../core/derive.js';
+import { cropUnlocked, drinkUnlocked, region, bothGames } from '../../core/derive.js';
 import { sfx } from '../../shared/audio/index.js';
 import { h } from './dom.js';
 import { T, errorText, clock } from './text.js';
@@ -46,16 +46,14 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
   ctx.confirm = opts => modals.confirm(opts);
   ctx.clearSelection = () => { ctx.realm?.select?.(null); setSelection(null); };
   ctx.onSheetClosed = () => { delete root.dataset.sheet; tutorial.refresh(); };
-  // Café ⇄ Farm: the realm shows one area of the region at a time (the HUD button is the way into the café).
+  // Farm ⇄ Café: only once both games are open (Round 2). The realm shows one area at a time.
   ctx.switchView = () => {
     const realm = ctx.realm;
-    if (!realm?.setView || realm.switching) return; // allowed during auto: the autopilot follows the view
+    if (!realm?.setView || realm.switching || !bothGames(store.state)) return;
     sheet.close();
     if (ctx.selection) ctx.clearSelection();
     sfx('ui.open');
-    const next = realm.view === 'cafe' ? 'farm' : 'cafe';
-    Promise.resolve(realm.setView(next)).then(() => tutorial.refresh(), () => {});
-    tutorial.refresh();
+    Promise.resolve(realm.setView(realm.view === 'cafe' ? 'farm' : 'cafe')).then(() => tutorial.refresh(), () => {});
   };
 
   const progressRender = progressSheet(ctx); // keeps its "pending" flags across re-renders
@@ -139,11 +137,11 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
     }
   }
 
-  // ---------- game choice: farm or café (asked once, when the player first plays without a chosen game) ----------
+  // ---------- first game: farm or café (asked once, both can be picked; Round 2 opens the other one) ----------
   let choosing = false;
-  function updateMode() {
+  function updateFirstGame() {
     const s = store.state;
-    if (choosing || s.mode || !ctx.isPlaying() || modals.open || ctx.isAuto()) return;
+    if (choosing || s.firstGame || !ctx.isPlaying() || modals.open || ctx.isAuto()) return;
     choosing = true;
     sheet.close();
     modals.choose({
@@ -152,13 +150,31 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
         { id: 'farm', icon: '🌱', title: T('hud.mode.farm'), body: T('hud.mode.farmInfo') },
         { id: 'cafe', icon: '☕', title: T('hud.mode.cafe'), body: T('hud.mode.cafeInfo') },
       ],
-    }).then(mode => {
+    }).then(game => {
       choosing = false;
-      if (mode !== 'farm' && mode !== 'cafe') return; // closed by something else: ask again next frame
+      if (game !== 'farm' && game !== 'cafe') return; // closed by something else: asked again next frame
       sfx('ui.open');
-      store.dispatch('play/setMode', { mode });
-      Promise.resolve(ctx.realm?.setView?.(mode)).then(() => tutorial.refresh(), () => {});
+      store.dispatch('play/chooseGame', { game });
+      Promise.resolve(ctx.realm?.setView?.(game)).then(() => tutorial.refresh(), () => {});
     });
+  }
+
+  // Farm ⇄ Café switch (floating, above the toolbar's left side): shown once both games are open.
+  const switchIco = h('span', { class: 'hud-switch-ico', attrs: { 'aria-hidden': 'true' } });
+  const switchLabel = h('span', { class: 'hud-switch-label' });
+  const switchBtn = h('button', { type: 'button', id: 'hud-btn-switch', class: 'hud-switch', hidden: true, dataset: { hudId: 'switch' },
+    on: { click: () => ctx.switchView() } }, switchIco, switchLabel);
+  let switchSig = '';
+  function updateSwitch() {
+    const both = bothGames(store.state) && ctx.isPlaying();
+    const toCafe = ctx.realm?.view !== 'cafe';
+    const sig = `${both}|${toCafe}`;
+    if (sig === switchSig) return;
+    switchSig = sig;
+    switchBtn.hidden = !both;
+    switchIco.textContent = toCafe ? '☕' : '🌱';
+    switchLabel.textContent = T(toCafe ? 'hud.view.cafe' : 'hud.view.farm');
+    switchBtn.setAttribute('aria-label', T(toCafe ? 'hud.view.toCafe' : 'hud.view.toFarm'));
   }
 
   // Screen-reader summary of the object notices the realm shows at objects (▲ upgrade, ! order, + brew…).
@@ -177,7 +193,7 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
     notices.textContent = lines.join('. ');
   }
 
-  root.append(top.el, autoBtn, autoBar, actionBar.el, toolbar.el, placement.el, sheet.el, tutorial.el, feedback.el, modals.el, notices, devPanel?.el);
+  root.append(...[top.el, autoBtn, autoBar, actionBar.el, switchBtn, toolbar.el, placement.el, sheet.el, tutorial.el, feedback.el, modals.el, notices, devPanel?.el].filter(Boolean)); // no dev panel → nothing (not the text "undefined")
   document.body.append(root);
 
   function renderAll(s) {
@@ -218,7 +234,8 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
       actionBar.update(dt);
       placement.update(dt);
       updateAuto();
-      updateMode();
+      updateFirstGame();
+      updateSwitch();
       tutorial.update(dt);
       updateNotices(dt);
     },

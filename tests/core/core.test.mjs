@@ -337,13 +337,26 @@ test('tutorial: skipping one game keeps the other; an old full skip covers both'
   assert.equal(old.tutorial.farmDone && old.tutorial.cafeDone, true);
 });
 
-test('game choice: play/setMode stores farm | café, rejects anything else', () => {
+test('first game: pick farm or café once, Round 2 opens the other one', () => {
   const h = playing();
-  assert.equal(h.state.mode, null);
-  h.must('play/setMode', { mode: 'cafe' });
+  assert.equal(h.state.firstGame, null);
+  assert.equal(h.act('play/setMode', { mode: 'farm' }).error, 'gameLocked'); // nothing picked yet
+  h.must('play/chooseGame', { game: 'cafe' });
+  assert.equal(h.state.firstGame, 'cafe');
   assert.equal(h.state.mode, 'cafe');
-  assert.equal(h.act('play/setMode', { mode: 'moon' }).ok, false);
-  assert.equal(normalizeSave({ ...h.state, mode: 'moon' }, T0).mode, null);
+  assert.equal(h.act('play/chooseGame', { game: 'farm' }).noop, true); // once only
+  assert.equal(h.act('play/chooseGame', { game: 'moon' }).ok, false);
+  // Round 1: the farm is locked; Round 2 opens it
+  assert.equal(h.act('play/setMode', { mode: 'farm' }).error, 'gameLocked');
+  assert.equal(D.bothGames(h.state), false);
+  h.state.player.round = 2;
+  assert.equal(D.bothGames(h.state), true);
+  h.must('play/setMode', { mode: 'farm' });
+  assert.equal(h.state.mode, 'farm');
+  // Saves from before the pick: the game they played becomes the first game
+  const old = normalizeSave({ ...createSave(T0), mode: 'farm', firstGame: undefined }, T0);
+  assert.equal(old.firstGame, 'farm');
+  assert.equal(normalizeSave({ ...createSave(T0), mode: 'moon' }, T0).firstGame, null);
 });
 
 test('beans trade: farm sells beans for coins, café buys within coins and storage', () => {
@@ -485,4 +498,19 @@ test('level 10 incident: pauses, then a FULL restart — only 1 empty field and 
   h.state.player.xp = xpForLevel(12); h.state.inventory.beans = 3;
   h.must('shop/spawnCustomer', { roll: 0 }); h.must('shop/takeOrder'); h.must('shop/brew'); h.tick(20_000); h.must('shop/serve');
   assert.equal(h.state.story.phase, 'play');
+});
+
+test('dev/set (QA URL params): exact coins / beans / round / level, test profile only', () => {
+  const h = playing();
+  h.must('dev/set', { coins: '9999999', beans: '40', round: '2', level: '9' });
+  assert.equal(h.state.player.coins, 9999999);
+  assert.equal(h.state.inventory.beans, 40);
+  assert.equal(h.state.player.round, 2);
+  assert.equal(D.level(h.state), 9);
+  h.must('dev/set', { level: '15' });
+  assert.equal(D.level(h.state), 9); // never jumps past the Level-10 incident
+  h.must('dev/set', { coins: 'abc' });
+  assert.equal(h.state.player.coins, 9999999); // junk ignored
+  const prod = harness({ dev: false });
+  assert.equal(prod.act('dev/set', { coins: 1 }).error, 'forbidden');
 });

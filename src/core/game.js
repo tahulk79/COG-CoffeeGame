@@ -1,7 +1,7 @@
 // Pure reducer for Farm & Café V3. `apply(state, action, ctx)` → { ok, state, events, error }.
 // The input state is never mutated: a successful action returns a new state object. All timing comes from ctx.now,
 // randomness from action payloads, so every transition is deterministic and testable (tests/core/*.test.mjs).
-import { AUTO, autoPrice, BEANS, STAFF_BREAKS, staffFee, BUILDINGS, CROPS, DRINKS, STAFF, XP, ROUNDS, MAX_ROUND, REBIRTH, START, EXPIRY_LEVEL, levelForXp } from './config/economy.js';
+import { AUTO, autoPrice, BEANS, startCoins, OTHER_GAME_ROUND, xpForLevel, STAFF_BREAKS, staffFee, BUILDINGS, CROPS, DRINKS, STAFF, XP, ROUNDS, MAX_ROUND, REBIRTH, START, EXPIRY_LEVEL, levelForXp } from './config/economy.js';
 import { PARCELS, ROADS, FIXED, plotById } from './config/layout.js';
 import { parseRegionId } from './config/world.js';
 import { clone, normalizeRegion } from './state.js';
@@ -353,7 +353,7 @@ const handlers = {
     // A full copy of the save is written to `<key>-pre-expiry` by the store just before this runs.
     ex.snapshot = { coins: s.player.coins, xp: s.player.xp, round: s.player.round, beans: s.inventory.beans,
       regions: Object.keys(s.world.regions), units: s.staff.units.length };
-    s.player.coins = START.coins;
+    s.player.coins = startCoins();
     s.player.xp = 0;
     s.player.round = 1;
     s.inventory.beans = 0;
@@ -365,6 +365,7 @@ const handlers = {
     ex.at = ctx.now;
     s.story.level10Done = true;
     s.world.currentRegion = null;
+    s.mode = s.firstGame; // Round 1 again: back to the first game only
     s.story.phase = 'chooseRegion';
     ev.push({ type: 'regionExpired', regionId: ex.regionId });
   },
@@ -424,8 +425,17 @@ const handlers = {
   },
 
   // ---------- game choice (farm | café) ----------
+  // The game picked when first playing: farm or café (both allowed). Once only.
+  'play/chooseGame'(s, { game }) {
+    if (game !== 'farm' && game !== 'cafe') return fail('invalid');
+    if (s.firstGame) return { noop: true };
+    s.firstGame = game;
+    s.mode = game;
+  },
+  // The game on screen (follows the view). The other game needs Round 2.
   'play/setMode'(s, { mode }) {
     if (mode !== 'farm' && mode !== 'cafe') return fail('invalid');
+    if (!D.canPlay(s, mode)) return fail('gameLocked', { round: OTHER_GAME_ROUND });
     if (s.mode === mode) return { noop: true };
     s.mode = mode;
   },
@@ -438,6 +448,19 @@ const handlers = {
     if (coins > 0) earn(s, coins);
     if (beans) s.inventory.beans += beans | 0;
     if (xp > 0) grantXp(s, xp / D.xpMultiplier(s), ev);
+  },
+  // QA URL params (?profile=test&coins=…&beans=…&round=…&level=…): set exact values (test profile only).
+  'dev/set'(s, { coins, beans, round, level }, ev, ctx) {
+    if (!ctx.dev) return fail('forbidden');
+    const n = v => (v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
+    if (n(coins) != null) s.player.coins = Math.max(0, Math.min(1e15, n(coins)));
+    if (n(beans) != null) s.inventory.beans = Math.max(0, Math.min(1e9, Math.floor(n(beans))));
+    if (n(round) != null) s.player.round = Math.max(1, Math.min(MAX_ROUND, Math.floor(n(round))));
+    if (n(level) != null) {
+      // Below the Level-10 incident unless it already happened (setting XP never triggers it here).
+      const cap = s.story.level10Done ? 30 : EXPIRY_LEVEL - 1;
+      s.player.xp = xpForLevel(Math.max(1, Math.min(cap, Math.floor(n(level)))));
+    }
   },
   'dev/ripen'(s, _p, ev, ctx) {
     if (!ctx.dev) return fail('forbidden');

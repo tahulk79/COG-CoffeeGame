@@ -22,10 +22,15 @@ export function createTutorial(ctx) {
     h('span', { class: 'hud-tip-ico', attrs: { 'aria-hidden': 'true' } }, '💡'), tipText, skip);
   const hand = h('div', { class: 'hud-hand', hidden: true });
   hand.innerHTML = `<div class="hud-hand-inner">${HAND_SVG}</div>`; // static, trusted markup
-  const el = h('div', { class: 'hud-tut' }, tip, hand);
+  // Target off-screen: a round arrow at the screen edge points to it; tapping it glides the camera there (Hay Day: the
+  // game never yanks the camera away from the player's fingers).
+  const edgeIco = h('span', { class: 'hud-edge-ico', attrs: { 'aria-hidden': 'true' } }, '➜');
+  const edge = h('button', { type: 'button', class: 'hud-edge', hidden: true, attrs: { 'aria-label': T('hud.tut.goTarget') },
+    on: { click: () => { if (world) ctx.realm?.focus?.(world, { force: true }); } } }, edgeIco);
+  const el = h('div', { class: 'hud-tut' }, tip, hand, edge);
 
   // Farm and café are separate games, each with its own tutorial track: the one on screen.
-  const track = () => (ctx.realm?.view === 'cafe' ? 'cafe' : 'farm');
+  const track = () => (ctx.store.state.mode === 'cafe' ? 'cafe' : 'farm'); // the region's game
   let tipKey = '';
   let worldKey = '';        // last target sent to realm.setTutorialTarget
   let world = null;         // world target the hand follows
@@ -33,7 +38,7 @@ export function createTutorial(ctx) {
   let pulsed = null;
   let acc = 1;              // seconds since the last re-resolve
   let handVisible = false;
-  let offscreen = 0;        // seconds the world target has been off-screen
+  let edgeVisible = false;
   let lastFocus = '';       // step+area the camera was last pointed at
   let lastView = '';        // realm view at the last resolve (a view change re-focuses the target)
 
@@ -122,9 +127,9 @@ export function createTutorial(ctx) {
         break;
       }
       case 'sell': {
-        // Farm game: sell the harvest at the storehouse (tap it → Sell beans).
+        // Farm game: sell the harvest (middle 🫘 Sell button → storehouse card → Sell beans).
         if (selected?.kind === 'building' && selected.type === 'silo') { text = T('tut.sellBtn'); node = ctx.actionBar.el.querySelector('[data-hud-id="sellBeans"]'); }
-        else { text = T('tut.sell'); target = building('silo'); }
+        else { text = T('tut.sell'); node = ctx.toolbar.tradeButton; }
         break;
       }
       case 'takeOrder': {
@@ -137,9 +142,9 @@ export function createTutorial(ctx) {
         const order = r?.shop.orders.find(o => o.stage === 'taken');
         const need = order ? DRINKS[order.drink]?.beans || 1 : 1;
         if (s.inventory.beans < need) {
-          // Café game: out of beans → buy them from the supplier (bean pill → Buy beans).
+          // Café game: out of beans → import them (middle 🫘 button → Buy beans).
           text = T('tut.buyBeans');
-          node = sheetId === 'beans' ? ctx.sheet.query('[data-hud-id="buyBeans"]') : ctx.top.beansEl;
+          node = sheetId === 'beans' ? ctx.sheet.query('[data-hud-id="buyBeans"]') : ctx.toolbar.tradeButton;
         } else { text = T('tut.brew'); target = building('brewCounter'); }
         break;
       }
@@ -194,21 +199,19 @@ export function createTutorial(ctx) {
       }
       default: text = '';
     }
-    // Target in the other area (farm ⇄ café): point at the view-switch button instead.
+    // Each region is one game: a target of the other area cannot be reached here, so it is not pointed at.
     const view = ctx.realm?.view;
     if (view !== lastView) { lastView = view; lastFocus = ''; }
     const need = area || (target && ctx.realm?.areaOf?.(target)) || null;
-    if (view && need && need !== view && !sheetId && !ctx.realm?.placement) {
-      text = T(need === 'cafe' ? 'tut.goCafe' : 'tut.goFarm');
-      target = null;
-      node = ctx.toolbar.viewButton;
-    }
+    if (view && need && need !== view) { target = null; if (node === ctx.toolbar.button('build')) node = null; }
     // A sheet covers the world: only point inside it (or nowhere) while one is open.
     if (sheetId) { target = null; if (node && !ctx.sheet.el.contains(node)) node = null; }
     setTip(text);
     // Camera focus: once per step (and again if the focused area changes), so the target is never off-screen.
     const focusKey = target && !node ? `${cur.step.id}:${target.kind}:${target.kind === 'plot' ? 'farm' : target.id || target.type}` : '';
-    if (focusKey && focusKey !== lastFocus && !ctx.realm?.placement && !ctx.realm?.switching) { lastFocus = focusKey; ctx.realm?.focus?.(target, { zoom: 1 }); }
+    // New step: slide the camera to the target ONCE, only if it is off-screen, and only when the player is not touching
+    // the screen (waits for a calm moment). The player's zoom is kept.
+    if (focusKey && focusKey !== lastFocus && !ctx.realm?.placement && !ctx.realm?.switching && !ctx.realm?.busy?.(1200)) { lastFocus = focusKey; ctx.realm?.focus?.(target); }
     setWorld(node ? null : target);
     setUi(node && node.isConnected && !node.disabled ? node : null);
   }
@@ -218,6 +221,19 @@ export function createTutorial(ctx) {
     hand.style.transform = `translate3d(${Math.round(x)}px,${Math.round(y)}px,0)`;
   }
   function hideHand() { if (handVisible) { hand.hidden = true; handVisible = false; } }
+  // Edge arrow: on the line from the screen centre to the target, inset from the edges (clear of the top HUD and toolbar).
+  function placeEdge(tx, ty) {
+    const cx = innerWidth / 2, cy = innerHeight / 2;
+    const dx = tx - cx, dy = ty - cy;
+    if (!dx && !dy) { hideEdge(); return; }
+    const left = 34, right = innerWidth - 34, top = 150, bottom = innerHeight - 130;
+    const k = Math.min(dx > 0 ? (right - cx) / dx : dx < 0 ? (left - cx) / dx : Infinity, dy > 0 ? (bottom - cy) / dy : dy < 0 ? (top - cy) / dy : Infinity);
+    const x = cx + dx * k, y = cy + dy * k;
+    if (!edgeVisible) { edge.hidden = false; edgeVisible = true; }
+    edge.style.transform = `translate3d(${Math.round(x)}px,${Math.round(y)}px,0)`;
+    edgeIco.style.transform = `rotate(${Math.atan2(dy, dx)}rad)`;
+  }
+  function hideEdge() { if (edgeVisible) { edge.hidden = true; edgeVisible = false; } }
 
   function update(dt) {
     acc += dt;
@@ -230,19 +246,18 @@ export function createTutorial(ctx) {
       const p = ctx.realm?.screenPoint?.(world);
       // Near an edge counts as off-screen too (a target half cut at the border must be framed by the camera).
       const visible = p && p.visible !== false && Number.isFinite(p.x) && p.y > 110 && p.y < innerHeight - 150 && p.x > 36 && p.x < innerWidth - 36;
-      if (visible) { placeHand(p.x, p.y); offscreen = 0; }
+      if (visible) { placeHand(p.x, p.y); hideEdge(); }
       else {
         hideHand();
-        // Target hidden (player panned or tapped elsewhere) for 2 s → bring the camera back to it.
-        offscreen += dt;
-        if (offscreen > .6 && !ctx.realm?.placement && !ctx.sheet.openId && !ctx.realm?.switching) { offscreen = 0; ctx.realm?.focus?.(world, { zoom: 1 }); }
+        // Off-screen: arrow at the screen edge towards the target (the camera stays where the player put it).
+        if (p?.valid && !ctx.sheet.openId && !ctx.realm?.placement && !ctx.realm?.switching) placeEdge(p.x, p.y); else hideEdge();
       }
-    } else hideHand();
+    } else { hideHand(); hideEdge(); }
   }
 
   return {
     el, update,
     refresh() { acc = 1; },
-    dispose() { hide(); hideHand(); el.remove(); },
+    dispose() { hide(); hideHand(); hideEdge(); el.remove(); },
   };
 }

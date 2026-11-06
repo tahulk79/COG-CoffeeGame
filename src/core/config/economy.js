@@ -2,8 +2,13 @@
 // UI and scenes must read numbers from here (never hardcode). Tuned with `node scripts/economy-sim.mjs`.
 // See docs/design/v3-gdd.md §Economy and docs/AUTONOMOUS_DECISIONS.md.
 
+// Founder playtest (2026-11-06): every game starts with PLAYTEST.coins, and an existing save is raised to it once
+// (story.seen.playtestCoins = that amount; raising PLAYTEST.coins tops up again). Set coins to 0 to go back to the balanced START.coins. Tests run with it off.
+export const PLAYTEST = { coins: 9_999_999 };
+export const startCoins = () => (PLAYTEST.coins > 0 ? PLAYTEST.coins : START.coins);
+
 export const START = {
-  coins: 60,          // enough for the first seeds + first building during the tutorial
+  coins: 60,          // balanced start: enough for the first seeds + first building during the tutorial
   rebirthCredits: 3,  // free rebirths (independent from Rounds)
 };
 
@@ -131,6 +136,11 @@ export const REBIRTH = {
   // Future: credits can be bought. No real payment is wired — see src/core/systems/rebirth.js `purchaseCredits`.
   shopPacks: [{ id: 'credit1', credits: 1, price: null }],
 };
+
+// Two games, farm and café. The player picks ONE when first playing (both can be picked); Round 2 opens the other one
+// (founder: "lúc đầu chọn 1 là chơi farm hay cafe … lên vòng 2 thì mở game còn lại").
+export const OTHER_GAME_ROUND = 2;
+export const GAMES = ['farm', 'cafe'];
 
 // Beans trade, so the farm and the café can each be played on their own (founder: "2 game riêng").
 //  · Farm: sell beans at the storehouse for coins (cheaper than turning them into drinks).

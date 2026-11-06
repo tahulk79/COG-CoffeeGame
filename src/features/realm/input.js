@@ -3,14 +3,15 @@
 const TAP_SLOP = 8;
 
 /**
- * handlers: { down(p), tap(p), dragStart(start, p), dragMove(p, dx, dy), dragEnd(p), zoom(factor), cancel() }
+ * handlers: { down(p), up(), tap(p), dragStart(start, p), dragMove(p, dx, dy), dragEnd(p), zoom(factor, at), cancel() }
+ * zoom `at` = client point the zoom is anchored to (pinch midpoint / wheel cursor).
  * p = { x, y } client pixels (reused object; copy if kept).
  */
 export function createInput(canvas, handlers, isLocked) {
   const ac = new AbortController();
   const opts = { signal: ac.signal };
   const pointers = new Map();
-  const start = { x: 0, y: 0 }, last = { x: 0, y: 0 }, p = { x: 0, y: 0 };
+  const start = { x: 0, y: 0 }, last = { x: 0, y: 0 }, p = { x: 0, y: 0 }, mid = { x: 0, y: 0 };
   let dragging = false, pinching = false, spoiled = false, pinchDist = 0;
   const prevTouchAction = canvas.style.touchAction;
   canvas.style.touchAction = 'none';
@@ -44,7 +45,11 @@ export function createInput(canvas, handlers, isLocked) {
     if (isLocked()) { cancel(); return; }
     pt.x = e.clientX; pt.y = e.clientY;
     if (pinching) {
-      if (pointers.size >= 2) { const d = spread(); if (d > 0 && pinchDist > 0) handlers.zoom?.(pinchDist / d); pinchDist = d; }
+      if (pointers.size >= 2) {
+        const d = spread();
+        if (d > 0 && pinchDist > 0) { const [a, b] = [...pointers.values()]; mid.x = (a.x + b.x) / 2; mid.y = (a.y + b.y) / 2; handlers.zoom?.(pinchDist / d, mid); }
+        pinchDist = d;
+      }
       return;
     }
     if (spoiled) return;
@@ -61,6 +66,7 @@ export function createInput(canvas, handlers, isLocked) {
     if (!pointers.has(e.pointerId)) return;
     pointers.delete(e.pointerId);
     p.x = e.clientX; p.y = e.clientY;
+    if (!pointers.size) handlers.up?.();
     if (pinching) { if (pointers.size < 2) pinching = false; spoiled = true; return; }
     if (spoiled || isLocked()) { if (dragging) handlers.cancel?.(); dragging = false; return; }
     if (e.type !== 'pointerup') { if (dragging) handlers.cancel?.(); dragging = false; return; }
@@ -73,7 +79,8 @@ export function createInput(canvas, handlers, isLocked) {
   canvas.addEventListener('wheel', e => {
     if (e.target !== canvas || isLocked()) return;
     e.preventDefault();
-    handlers.zoom?.(Math.exp(Math.max(-1, Math.min(1, e.deltaY * .0015))));
+    mid.x = e.clientX; mid.y = e.clientY;
+    handlers.zoom?.(Math.exp(Math.max(-1, Math.min(1, e.deltaY * .0015))), mid);
   }, { signal: ac.signal, passive: false });
   canvas.addEventListener('contextmenu', e => e.preventDefault(), opts);
 

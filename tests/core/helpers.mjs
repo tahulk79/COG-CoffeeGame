@@ -1,5 +1,9 @@
 import { apply } from '../../src/core/game.js';
 import { createSave } from '../../src/core/state.js';
+import { PLAYTEST } from '../../src/core/config/economy.js';
+
+// Tests check the balanced economy: the founder's playtest coins are off here.
+PLAYTEST.coins = 0;
 
 export const T0 = 1_800_000_000_000;
 

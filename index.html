@@ -15,6 +15,15 @@
     <style>
       html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#edf5e7;color:#355342;font-family:'Baloo 2',system-ui,sans-serif}
       *,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}
+      /* Game, not a web page: no text selection / "Select all · Copy" callout on long-press or double-tap, no grey tap
+         flash, no double-tap page zoom. Text fields (if any) stay selectable. */
+      html{-webkit-text-size-adjust:100%;touch-action:manipulation}
+      *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+      input,textarea,[contenteditable="true"]{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
+      img,canvas,svg{-webkit-user-drag:none}
+      /* Focus rings only for keyboard players (src/main.js sets data-input="key" on Tab / arrows): a tap must never
+         leave a ring on a button or on the game view. */
+      html:not([data-input="key"]) :focus{outline:none!important}
       body.booting > :not(#loading):not(#error){visibility:hidden}
       /* Loading screen, in the play HUD's own look (src/ui/styles/v3.css): grass ground like the realm, one cream card
          (same as the HUD confirm card), a green "go" progress bar with the player's own character running on it

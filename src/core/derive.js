@@ -1,5 +1,5 @@
 // Pure selectors over the v3 save. No mutation. Used by the reducer, the scene and the HUD.
-import { BUILDINGS, CROPS, CROP_ORDER, DRINKS, DRINK_ORDER, STAFF, STAFF_SLOTS, ROUND_LEVEL_CAP, REBIRTH, CELL, levelForXp, xpForLevel, GRACE, ROUNDS, MAX_ROUND, SHOP, BEANS } from './config/economy.js';
+import { BUILDINGS, CROPS, CROP_ORDER, DRINKS, DRINK_ORDER, STAFF, STAFF_SLOTS, ROUND_LEVEL_CAP, REBIRTH, CELL, levelForXp, xpForLevel, GRACE, ROUNDS, MAX_ROUND, SHOP, BEANS, OTHER_GAME_ROUND } from './config/economy.js';
 import { PARCELS, ROADS, RESERVED, AREAS, areaAt, plotsOf, rectsOverlap, inRect } from './config/layout.js';
 import { parseRegionId, regionIdOf, REGIONS_PER_COUNTRY, COUNTRY_ORDER, regionCost } from './config/world.js';
 
@@ -85,6 +85,11 @@ export function beanBuyQuote(s, amount = BEANS.buyPack) {
   return { amount: 0, cost: want * BEANS.buyPrice, free: false, error: 'coins', missing: BEANS.buyPrice - s.player.coins };
 }
 export const shopPaused = s => !!region(s)?.shop.pausedAt;
+/** Can `game` ('farm' | 'cafe') be played now? The first game always; the other one from Round 2. */
+export const canPlay = (s, game) => !!s.firstGame && (game === s.firstGame || s.player.round >= OTHER_GAME_ROUND);
+/** Both games open (the Farm ⇄ Café switch is shown). */
+export const bothGames = s => !!s.firstGame && s.player.round >= OTHER_GAME_ROUND;
+export const otherGame = s => (s.firstGame === 'cafe' ? 'farm' : 'cafe');
 // Café staff / robots assigned here and working (not on a break): the café keeps running without the player.
 export const cafeStaffed = s => assignedUnits(s, s.world.currentRegion, 'shop').some(unitWorking);
 
