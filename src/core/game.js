@@ -3,7 +3,7 @@
 // randomness from action payloads, so every transition is deterministic and testable (tests/core/*.test.mjs).
 import { BUILDINGS, CROPS, DRINKS, STAFF, XP, ROUNDS, MAX_ROUND, REBIRTH, START, EXPIRY_LEVEL, levelForXp } from './config/economy.js';
 import { PARCELS, ROADS, FIXED, plotById } from './config/layout.js';
-import { COUNTRIES, parseRegionId } from './config/world.js';
+import { parseRegionId } from './config/world.js';
 import { clone, normalizeRegion } from './state.js';
 import * as D from './derive.js';
 
@@ -68,6 +68,17 @@ const handlers = {
   'story/seen'(s, { key }) { if (typeof key === 'string') s.story.seen[key] = true; },
 
   // ---------- world ----------
+  // Buy access to a region with coins (free for the first region, and once after the Level-10 expiration).
+  'world/unlockRegion'(s, { regionId }, ev) {
+    const cost = D.regionUnlockCost(s, regionId);
+    if (cost === null) return fail('unknown');
+    if (D.ownsRegion(s, regionId)) return { noop: true };
+    if (s.player.coins < cost) return fail('coins', { missing: cost - s.player.coins });
+    spend(s, cost);
+    if (cost === 0 && s.world.ownedRegions.length > 0) s.world.freeUnlocks = Math.max(0, (s.world.freeUnlocks || 0) - 1);
+    s.world.ownedRegions.push(regionId);
+    ev.push({ type: 'regionUnlocked', regionId, cost });
+  },
   'world/enterRegion'(s, { regionId }, ev, ctx) {
     if (!['gate', 'chooseRegion', 'play'].includes(s.story.phase)) return fail('phase');
     const access = D.regionAccess(s, regionId);
@@ -82,16 +93,6 @@ const handlers = {
     if (!s.world.startCountry) s.world.startCountry = parseRegionId(regionId).countryId;
     s.story.phase = 'play';
     ev.push({ type: 'regionEntered', regionId });
-  },
-  'country/unlock'(s, { countryId }, ev) {
-    const c = D.own(COUNTRIES, countryId);
-    if (!c) return fail('unknown');
-    if (s.world.countries[countryId]?.unlocked) return { noop: true };
-    if (s.player.round < c.round) return fail('round');
-    if (s.player.coins < c.unlockCost) return fail('coins', { missing: c.unlockCost - s.player.coins });
-    spend(s, c.unlockCost);
-    s.world.countries[countryId] = { unlocked: true };
-    ev.push({ type: 'countryUnlocked', countryId, cost: c.unlockCost });
   },
 
   // ---------- farm ----------
@@ -149,6 +150,7 @@ const handlers = {
     const r = D.region(s);
     const o = r?.shop.orders.find(x => x.stage === 'waiting' && (orderId == null || x.id === orderId));
     if (!o) return fail('noCustomer');
+    if (D.seatsUsed(s) >= D.seatCount(s)) return fail('noSeat', { seats: D.seatCount(s) });
     o.stage = 'taken';
     ev.push({ type: 'orderTaken', orderId: o.id, drink: o.drink });
   },
@@ -299,6 +301,7 @@ const handlers = {
     ex.status = 'reset';
     ex.at = ctx.now;
     s.story.level10Done = true;
+    s.world.freeUnlocks = (s.world.freeUnlocks || 0) + 1; // the next new region is free (no softlock)
     s.world.currentRegion = null;
     s.story.phase = 'chooseRegion';
     ev.push({ type: 'regionExpired', regionId: ex.regionId });

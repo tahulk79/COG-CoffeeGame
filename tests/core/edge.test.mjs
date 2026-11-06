@@ -120,7 +120,7 @@ test('edge: upgrades stop at the Round cap, reach level 8 in Round 3, then maxLe
   assert.equal(h.state.player.coins, before);
   assert.equal(D.capacity(h.state), BUILDINGS.silo.effect.capacity[7]);
   // Decorations never upgrade.
-  h.must('build/place', { type: 'flowers', x: 5, z: -4 });
+  h.must('build/place', { type: 'flowers', x: -1, z: 103 });
   assert.equal(h.act('build/upgrade', { uid: h.region().buildings.find(b => b.type === 'flowers').uid }).error, 'maxLevel');
 });
 
@@ -133,7 +133,7 @@ test('edge: staff assigned in region A stays assigned there when travelling to B
   assert.deepEqual(unit.assigned, { regionId: 'vn-1', zone: 'farm' });
   const inA = D.growMs(h.state, 'robusta');
   assert.ok(inA < base);
-  h.must('world/enterRegion', { regionId: 'vn-2' });
+  h.go('vn-2');
   assert.deepEqual(h.state.staff.units[0].assigned, { regionId: 'vn-1', zone: 'farm' }, 'travelling does not move staff');
   assert.equal(D.growMs(h.state, 'robusta'), base, 'no bonus in region B');
   assert.equal(D.assignedUnits(h.state).length, 0);
@@ -144,18 +144,18 @@ test('edge: staff assigned in region A stays assigned there when travelling to B
   // Re-assigning in B moves it (and removes the bonus from A).
   h.must('staff/assign', { uid: unit.uid });
   assert.equal(D.growMs(h.state, 'robusta'), inA);
-  h.must('world/enterRegion', { regionId: 'vn-1' });
+  h.go('vn-1');
   assert.equal(D.growMs(h.state, 'robusta'), base);
   assert.equal(D.assignedUnits(h.state, 'vn-2').length, 1);
 });
 
 // ---------- Level-10 expiry ----------
-test('edge: expired region reopens in Round 2 with starters back at Lv 1 and owned parcels kept', () => {
+test('edge: expired region can be revisited later (no Round needed) with starters back at Lv 1 and owned parcels kept', () => {
   const h = playing();
   h.state.player.coins = 1e6;
   h.state.player.xp = xpForLevel(8);
   h.must('land/buyParcel', { parcelId: 'F2' });
-  h.must('land/buyParcel', { parcelId: 'B2' });
+  h.must('land/buyParcel', { parcelId: 'C2' });
   h.must('build/place', { type: 'roaster', x: 2, z: 111 });
   const silo = h.region().buildings.find(b => b.type === 'silo');
   h.must('build/upgrade', { uid: silo.uid });
@@ -163,15 +163,16 @@ test('edge: expired region reopens in Round 2 with starters back at Lv 1 and own
   toLevel10(h);
   h.must('expiry/execute');
   assert.equal(h.act('world/enterRegion', { regionId: 'vn-1' }).error, 'expired');
-  h.must('world/enterRegion', { regionId: 'vn-2' });
-  h.must('round/unlock', { round: 2 }, 'r2');
+  const coins = h.state.player.coins;
+  h.go('vn-2');
+  assert.equal(h.state.player.coins, coins, 'the first new region after the expiry is free');
   assert.equal(D.regionAccess(h.state, 'vn-1').ok, true);
-  h.must('world/enterRegion', { regionId: 'vn-1' });
+  h.go('vn-1');
   const r = h.region();
   assert.equal(h.state.world.currentRegion, 'vn-1');
   assert.equal(r.status, 'active');
   assert.deepEqual(r.buildings.map(b => [b.type, b.level]).sort(), [['brewCounter', 1], ['orderCounter', 1], ['silo', 1]]);
-  for (const id of ['F1', 'S', 'B1', 'F2', 'B2']) assert.ok(r.parcels.includes(id), `parcel ${id} kept`);
+  for (const id of ['F1', 'S', 'F2', 'C2']) assert.ok(r.parcels.includes(id), `parcel ${id} kept`);
   assert.deepEqual(r.plots, {});
   assert.equal(new Set(r.buildings.map(b => b.uid)).size, r.buildings.length, 'unique uids');
   // Playable immediately: plant on the kept F2 parcel, rebuild the roaster.
@@ -331,6 +332,6 @@ test('edge: migration of a v1 dev save with 1e13 coins caps to 50,000 and never 
   assert.equal(store.state.player.coins, 50_000);
   assert.ok(D.level(store.state) < EXPIRY_LEVEL);
   assert.equal(store.state.story.phase, 'gate');
-  store.dispatch('world/enterRegion', { regionId: 'vn-1' });
+  store.dispatch('world/unlockRegion', { regionId: 'vn-1' }); store.dispatch('world/enterRegion', { regionId: 'vn-1' });
   assert.equal(store.state.story.phase, 'play');
 });

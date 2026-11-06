@@ -36,7 +36,7 @@ export function runSim(minutes = 60) {
     } else failures[`${type}:${r.error}`] = (failures[`${type}:${r.error}`] || 0) + 1;
     return r.ok && !r.noop && !r.duplicate;
   };
-  act('story/introDone'); act('story/teacherDone'); act('world/enterRegion', { regionId: 'vn-1' });
+  act('story/introDone'); act('story/teacherDone'); act('world/unlockRegion', { regionId: 'vn-1' }); act('world/enterRegion', { regionId: 'vn-1' });
   const start = now;
   let nextCustomer = now, lastMinute = 0, earnedAtLastMinute = s.stats.earned;
   const perMinute = [];
@@ -58,7 +58,7 @@ export function runSim(minutes = 60) {
   while (now - start < minutes * 60000) {
     // Region expired → pick the next region of the start country.
     if (s.story.phase === 'expiry') act('expiry/execute');
-    if (s.story.phase === 'chooseRegion') act('world/enterRegion', { regionId: 'vn-2' });
+    if (s.story.phase === 'chooseRegion') { act('world/unlockRegion', { regionId: 'vn-2' }); act('world/enterRegion', { regionId: 'vn-2' }); }
     // customers
     while (now >= nextCustomer) { act('shop/spawnCustomer', { roll: rnd() }); nextCustomer += D.region(s) ? D.arrivalMs(s) : 9000; }
     let did = false;

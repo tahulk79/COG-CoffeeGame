@@ -1,14 +1,15 @@
 // Region map template (meters). Same layout for every region; the scene tints it per country.
 // x → east, z → south. Origin at the central crossroads. Nothing may be built on roads (validated in core/systems/build.js).
 //
+// The farm is ONLY for growing: 12 fields (6 plots each) bought with coins, plus the fixed storehouse. No Rounds, no roads to buy.
 //            north
-//   F8  F7 | B4  B5          (Round 3, behind the north road)
-//   ------ north road ------ (road 'north')
-//   F4  F3 | B1  B2
+//   F8  F7 | F11 F12
+//   ------ north road ------
+//   F4  F3 | F9  F10
 //   ======= main road =======
-//   F2  F1 | B3
-//   ------ south-west road (road 'southWest')
-//   F6  F5 |   GATE
+//   F2  F1 | F13 F14
+//   ------ south road ------
+//   F6  F5 | KHO  GATE
 //            south
 //
 // The café is NOT on the farm: it is its own area (CAFE_* below), far south of the farm and hidden by fog.
@@ -22,32 +23,34 @@ export const GATE = { x: 0, z: 23, radius: 2.5 };
 export const ROADS = {
   mainEW: { id: 'mainEW', rect: [-30, -1.5, 30, 1.5], open: true },
   mainNS: { id: 'mainNS', rect: [-1.5, -22, 1.5, 26], open: true },
-  southWest: { id: 'southWest', rect: [-28, 9.2, -1.5, 10.8], open: false, cost: 300, round: 2 },
-  north: { id: 'north', rect: [-28, -10.8, 28, -9.2], open: false, cost: 900, round: 3 },
+  southWest: { id: 'southWest', rect: [-28, 9.2, -1.5, 10.8], open: true },
+  north: { id: 'north', rect: [-28, -10.8, 28, -9.2], open: true },
 };
 export const ROAD_ORDER = ['mainEW', 'mainNS', 'southWest', 'north'];
 
 // Parcels: kind 'farm' (contains plots) or 'build' (free cells for buildings) or 'shop' (café block, free cells).
 // starter parcels are owned for free in every region. cost in coins. road: road that must be open first.
 export const PARCELS = {
-  F1: { id: 'F1', kind: 'farm', rect: [-14, 2.5, -4, 8.5], starter: true, cost: 0, round: 1 },
-  F2: { id: 'F2', kind: 'farm', rect: [-26, 2.5, -16, 8.5], cost: 80, round: 1 },
-  F3: { id: 'F3', kind: 'farm', rect: [-14, -8.5, -4, -2.5], cost: 220, round: 1 },
-  F4: { id: 'F4', kind: 'farm', rect: [-26, -8.5, -16, -2.5], cost: 500, round: 1 },
-  F5: { id: 'F5', kind: 'farm', rect: [-14, 11.5, -4, 17.5], cost: 1200, round: 2, road: 'southWest' },
-  F6: { id: 'F6', kind: 'farm', rect: [-26, 11.5, -16, 17.5], cost: 2000, round: 2, road: 'southWest' },
-  F7: { id: 'F7', kind: 'farm', rect: [-14, -17.5, -4, -11.5], cost: 4000, round: 3, road: 'north' },
-  F8: { id: 'F8', kind: 'farm', rect: [-26, -17.5, -16, -11.5], cost: 6000, round: 3, road: 'north' },
-  B1: { id: 'B1', kind: 'build', rect: [4, -8, 14, -2], starter: true, cost: 0, round: 1 },
-  B2: { id: 'B2', kind: 'build', rect: [16, -8, 26, -2], cost: 150, round: 1 },
-  B3: { id: 'B3', kind: 'build', rect: [5, 2.5, 15, 8.5], cost: 800, round: 2 },
-  // Café area (see CAFE_BOUNDS): S = starter café block with the two counters, C2 = Round 2 café expansion.
-  S: { id: 'S', kind: 'shop', rect: [-6, 102, 6, 114], starter: true, cost: 0, round: 1, area: 'cafe' },
-  C2: { id: 'C2', kind: 'shop', rect: [8, 102, 18, 112], cost: 1500, round: 2, area: 'cafe' },
-  B4: { id: 'B4', kind: 'build', rect: [4, -18, 14, -12], cost: 3000, round: 3, road: 'north' },
-  B5: { id: 'B5', kind: 'build', rect: [16, -18, 26, -12], cost: 4500, round: 3, road: 'north' },
+  F1: { id: 'F1', kind: 'farm', rect: [-14, 2.5, -4, 8.5], starter: true, cost: 0 },
+  F2: { id: 'F2', kind: 'farm', rect: [-26, 2.5, -16, 8.5], cost: 80 },
+  F3: { id: 'F3', kind: 'farm', rect: [-14, -8.5, -4, -2.5], cost: 180 },
+  F4: { id: 'F4', kind: 'farm', rect: [-26, -8.5, -16, -2.5], cost: 350 },
+  F5: { id: 'F5', kind: 'farm', rect: [-14, 11.5, -4, 17.5], cost: 600 },
+  F6: { id: 'F6', kind: 'farm', rect: [-26, 11.5, -16, 17.5], cost: 900 },
+  F7: { id: 'F7', kind: 'farm', rect: [-14, -17.5, -4, -11.5], cost: 1300 },
+  F8: { id: 'F8', kind: 'farm', rect: [-26, -17.5, -16, -11.5], cost: 1800 },
+  F9: { id: 'F9', kind: 'farm', rect: [4, -8.5, 14, -2.5], cost: 2400 },
+  F10: { id: 'F10', kind: 'farm', rect: [16, -8.5, 26, -2.5], cost: 3200 },
+  F11: { id: 'F11', kind: 'farm', rect: [4, -17.5, 14, -11.5], cost: 4200 },
+  F12: { id: 'F12', kind: 'farm', rect: [16, -17.5, 26, -11.5], cost: 5500 },
+  F13: { id: 'F13', kind: 'farm', rect: [4, 2.5, 14, 8.5], cost: 7000 },
+  F14: { id: 'F14', kind: 'farm', rect: [16, 2.5, 26, 8.5], cost: 9000 },
+  // Café area (see CAFE_BOUNDS): S = starter café block with the two counters; C2/C3 = café expansions bought with coins.
+  S: { id: 'S', kind: 'shop', rect: [-6, 102, 6, 114], starter: true, cost: 0, area: 'cafe' },
+  C2: { id: 'C2', kind: 'shop', rect: [8, 102, 18, 112], cost: 500, area: 'cafe' },
+  C3: { id: 'C3', kind: 'shop', rect: [-20, 102, -11, 112], cost: 1400, area: 'cafe' },
 };
-export const PARCEL_ORDER = ['F1', 'S', 'B1', 'F2', 'B2', 'F3', 'F4', 'B3', 'F5', 'F6', 'C2', 'F7', 'F8', 'B4', 'B5'];
+export const PARCEL_ORDER = ['F1', 'S', 'F2', 'C2', 'F3', 'F4', 'F5', 'C3', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12', 'F13', 'F14'];
 export const areaOfParcel = id => PARCELS[id]?.area || 'farm';
 
 // 6 plots per farm parcel: 3 columns × 2 rows, 2.4 m soil beds.
@@ -69,13 +72,18 @@ export const plotById = id => ALL_PLOTS.find(p => p.id === id) || null;
 
 // Fixed starter building positions (center, meters). Counters face the customers walking up from the gate road.
 export const FIXED = {
-  silo: { x: 9, z: -5, rot: 0 },
+  silo: { x: 9, z: 14, rot: 0 },        // storehouse beside the farm road, south-east
   orderCounter: { x: -3, z: 105, rot: 0 },
   brewCounter: { x: 2, z: 105, rot: 0 },
 };
 // ---- Café area (separate from the farm) ----
 export const CAFE_BOUNDS = { minX: -22, maxX: 24, minZ: 94, maxZ: 128 };
 export const CAFE_SPAWN = { x: -1, z: 113.5 };          // where the player stands when entering the café
+// Starter café seats on the terrace in front of the café block (2 small tables × 2 stools, Vietnamese sidewalk style).
+// Customers sit here after ordering until served. Each 'tables' building adds 2 seats around it (derive.seatCount).
+export const CAFE_SEATS = [
+  { x: -1.4, z: 115 }, { x: 0.2, z: 115 }, { x: 2.8, z: 115 }, { x: 4.4, z: 115 },
+];
 // Customers walk in from the street (south-west), up the street, then east to the order counter.
 export const CUSTOMER = {
   spawn: { x: -8, z: 127 },
@@ -94,7 +102,7 @@ export const AREAS = {
 };
 export const areaAt = (x, z) => (z >= CAFE_BOUNDS.minZ - 10 ? 'cafe' : 'farm');
 // Suggested tutorial build spot for the roaster (inside the café block).
-export const TUTORIAL_BUILD = { roaster: { x: 2, z: 111 } };
+export const TUTORIAL_BUILD = { roaster: { x: 2, z: 110 } };
 
 export const inRect = (x, z, [x0, z0, x1, z1], pad = 0) => x >= x0 - pad && x <= x1 + pad && z >= z0 - pad && z <= z1 + pad;
 export const rectsOverlap = (a, b) => a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1];

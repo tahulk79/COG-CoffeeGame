@@ -39,7 +39,7 @@ export function migrateLegacy(progress, player, now = Date.now()) {
     s.player.xp = xpForLevel(lvl);
     if (levelForXp(s.player.xp) !== lvl) s.player.xp = xpForLevel(lvl);
     const country = String(p.startingRegion || farm.region || '');
-    if (COUNTRIES[country]?.starter) s.world.startCountry = country;
+    if (COUNTRIES[country]) s.world.startCountry = country;
     s.tutorial = { step: 0, done: false };
   }
   return s;

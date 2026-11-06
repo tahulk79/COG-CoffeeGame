@@ -1,7 +1,7 @@
 // Pure selectors over the v3 save. No mutation. Used by the reducer, the scene and the HUD.
-import { BUILDINGS, CROPS, CROP_ORDER, DRINKS, DRINK_ORDER, STAFF, STAFF_SLOTS, ROUND_LEVEL_CAP, REBIRTH, CELL, levelForXp, xpForLevel, GRACE, ROUNDS, MAX_ROUND } from './config/economy.js';
+import { BUILDINGS, CROPS, CROP_ORDER, DRINKS, DRINK_ORDER, STAFF, STAFF_SLOTS, ROUND_LEVEL_CAP, REBIRTH, CELL, levelForXp, xpForLevel, GRACE, ROUNDS, MAX_ROUND, SHOP } from './config/economy.js';
 import { PARCELS, ROADS, RESERVED, plotsOf, rectsOverlap, inRect } from './config/layout.js';
-import { COUNTRIES, REGION_ROUND, parseRegionId, regionIdOf, REGIONS_PER_COUNTRY, COUNTRY_ORDER } from './config/world.js';
+import { parseRegionId, regionIdOf, REGIONS_PER_COUNTRY, COUNTRY_ORDER, regionCost } from './config/world.js';
 
 // Own-property lookup: ids come from payloads, so 'toString' / '__proto__' must not resolve to Object.prototype.
 export const own = (table, id) => (table && typeof id === 'string' && Object.hasOwn(table, id) ? table[id] : undefined);
@@ -101,7 +101,7 @@ export function placementError(s, type, x, z, rot = 0, ignoreUid = null) {
 export const MAX_INSTANCES = { tables: 4, flowers: 12, plant: 12, lamp: 12 };
 export function buildError(s, type) {
   const def = own(BUILDINGS, type);
-  if (!def || def.starter) return 'unknown';
+  if (!def || def.starter || def.retired) return 'unknown';
   if (s.player.round < def.round) return 'round';
   if (level(s) < def.level) return 'level';
   const count = buildingsOf(s, type).length;
@@ -129,7 +129,7 @@ export function parcelError(s, parcelId) {
   const r = region(s);
   if (!p || !r) return 'unknown';
   if (r.parcels.includes(parcelId)) return 'owned';
-  if (s.player.round < p.round) return 'round';
+  // No Round gating on land: any field / café lot can be bought with coins.
   if (p.road && !roadOpen(s, p.road)) return 'road';
   if (s.player.coins < p.cost) return 'coins';
   return null;
@@ -161,19 +161,31 @@ export function roundStatus(s) {
   return { next, cost: def.cost, minLevel: def.minLevel, levelOk: lvl >= def.minLevel, missing: Math.max(0, def.cost - s.player.coins), canUnlock: lvl >= def.minLevel && s.player.coins >= def.cost };
 }
 
-// Region availability on the world map.
-export function regionAccess(s, regionId) {
-  const parsed = parseRegionId(regionId);
-  if (!parsed) return { ok: false, reason: 'unknown' };
-  const country = COUNTRIES[parsed.countryId];
-  const owned = s.world.countries[parsed.countryId]?.unlocked;
-  const r = s.world.regions[regionId];
-  if (!owned) return { ok: false, reason: s.player.round < country.round ? 'round' : 'countryLocked', cost: country.unlockCost };
-  if (s.player.round < REGION_ROUND[parsed.n]) return { ok: false, reason: 'round', round: REGION_ROUND[parsed.n] };
-  if (r?.status === 'expired' && s.player.round < 2) return { ok: false, reason: 'expired' };
-  if (s.world.currentRegion === regionId) return { ok: true, current: true };
-  return { ok: true, visited: !!r, expired: r?.status === 'expired' };
+// Region availability on the world map. Every region can be opened with coins (no Rounds).
+// Free: the very first region of the game, and one new region right after the Level-10 expiration (no softlock).
+export const ownsRegion = (s, regionId) => (s.world.ownedRegions || []).includes(regionId);
+export function regionUnlockCost(s, regionId) {
+  const cost = regionCost(regionId);
+  if (cost === null) return null;
+  if ((s.world.ownedRegions || []).length === 0 || (s.world.freeUnlocks || 0) > 0) return 0;
+  return cost;
 }
+export function regionAccess(s, regionId) {
+  if (!parseRegionId(regionId)) return { ok: false, reason: 'unknown' };
+  const r = s.world.regions[regionId];
+  const expired = r?.status === 'expired';
+  if (!ownsRegion(s, regionId)) {
+    const cost = regionUnlockCost(s, regionId);
+    return { ok: false, reason: 'locked', cost, free: cost === 0, affordable: s.player.coins >= cost, missing: Math.max(0, cost - s.player.coins) };
+  }
+  // Right after the Level-10 expiration the player must move on to a different region.
+  if (expired && s.story.phase === 'chooseRegion') return { ok: false, reason: 'expired', owned: true };
+  if (s.world.currentRegion === regionId) return { ok: true, owned: true, current: true };
+  return { ok: true, owned: true, visited: !!r, expired };
+}
+// Café seats: terrace seats + 2 per Tables building. Orders being prepared (taken/brewing) occupy a seat.
+export const seatCount = s => SHOP.baseSeats + buildingsOf(s, 'tables').length * SHOP.seatsPerTable;
+export const seatsUsed = s => (region(s)?.shop.orders || []).filter(o => o.stage === 'taken' || o.stage === 'brewing').length;
 export const regionsOfCountry = countryId => Array.from({ length: REGIONS_PER_COUNTRY }, (_, i) => regionIdOf(countryId, i + 1));
 export const allCountries = () => COUNTRY_ORDER;
 

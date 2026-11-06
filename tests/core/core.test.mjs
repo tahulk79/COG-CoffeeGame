@@ -19,7 +19,7 @@ test('story flow: select → intro → teacher grants 3 credits once → gate �
   assert.equal(h.state.rebirth.credits, START.rebirthCredits);
   assert.equal(h.state.story.phase, 'gate');
   assert.equal(h.act('farm/plant', { plotId: 'F1-1' }).error, 'notPlaying');
-  h.must('world/enterRegion', { regionId: 'vn-1' });
+  h.go('vn-1');
   assert.equal(h.state.story.phase, 'play');
   assert.deepEqual(h.region().buildings.map(b => b.type).sort(), ['brewCounter', 'orderCounter', 'silo']);
 });
@@ -92,9 +92,9 @@ test('build: valid placement, red/invalid cases, upgrade with round cap', () => 
   h.state.player.coins = 100000;
   assert.equal(D.placementError(h.state, 'roaster', 2, 111, 0), null);
   assert.equal(D.placementError(h.state, 'roaster', -3, 108, 0), 'blocked');   // customer lane
-  assert.equal(D.placementError(h.state, 'roaster', -9, 5, 0), 'wrongZone');  // farm parcel is not a build parcel
-  assert.equal(D.placementError(h.state, 'roaster', 21, -5, 0), 'wrongZone'); // B2 is not shop
-  assert.equal(D.placementError(h.state, 'dryer', 21, -5, 0), 'notOwned');
+  assert.equal(D.placementError(h.state, 'roaster', -9, 5, 0), 'wrongZone');  // nothing is built on farm fields
+  assert.equal(D.placementError(h.state, 'tables', 13, 107, 0), 'notOwned');   // café expansion C2 not bought yet
+  assert.equal(h.act('build/place', { type: 'dryer', x: 9, z: -5 }).error, 'unknown'); // retired: the farm is fields only
   assert.equal(D.placementError(h.state, 'roaster', 0, 0, 0), 'outside');   // road
   h.must('build/place', { type: 'roaster', x: 2, z: 111 });
   assert.equal(D.placementError(h.state, 'tables', 2, 111, 0), 'overlap');
@@ -113,23 +113,27 @@ test('layout sanity: plots, parcels and fixed buildings never sit on roads or re
     const fp = D.footprint(type, pos.x, pos.z, pos.rot);
     for (const res of RESERVED) assert.ok(!rectsOverlap(fp, res.rect), `${type} on ${res.id}`);
   }
-  assert.equal(ALL_PLOTS.length, 8 * 6);
+  assert.equal(ALL_PLOTS.length, 14 * 6);
+  // The farm is fields only: every non-café parcel is a farm field.
+  for (const p of Object.values(PARCELS)) assert.ok(p.kind === 'farm' || p.area === 'cafe', `${p.id} on the farm must be a field`);
   assert.ok(h.region().buildings.every(b => BUILDINGS[b.type].starter));
 });
 
-test('land: buy parcel, road gating, round gating, idempotent', () => {
+test('land: every field and café lot is bought with coins only (no Rounds, no roads), idempotent', () => {
   const h = playing();
+  h.state.player.coins = 3;
+  const r = h.act('land/buyParcel', { parcelId: 'F2' });
+  assert.equal(r.error, 'coins');
+  assert.equal(r.data.missing, PARCELS.F2.cost - 3);
   h.state.player.coins = 100000;
   h.must('land/buyParcel', { parcelId: 'F2' });
   const coins = h.state.player.coins;
   assert.equal(h.act('land/buyParcel', { parcelId: 'F2' }).noop, true);
   assert.equal(h.state.player.coins, coins);
-  assert.equal(h.act('land/buyParcel', { parcelId: 'F5' }).error, 'round');
-  h.state.player.round = 2;
-  assert.equal(h.act('land/buyParcel', { parcelId: 'F5' }).error, 'road');
-  h.must('land/openRoad', { roadId: 'southWest' });
-  h.must('land/buyParcel', { parcelId: 'F5' });
-  h.must('farm/plant', { plotId: 'F5-1' });
+  for (const id of ['F5', 'F8', 'F14', 'C2', 'C3']) h.must('land/buyParcel', { parcelId: id });
+  assert.equal(h.state.player.round, 1, 'still Round 1');
+  h.must('farm/plant', { plotId: 'F14-1' });
+  h.must('build/place', { type: 'tables', x: 13, z: 107 });
 });
 
 test('staff: 2 worker + 2 robot types, max 3 active per farm, effects apply', () => {
@@ -226,7 +230,7 @@ test('level 10: triggers once, pauses gameplay, resets only that region, keeps a
   assert.equal(JSON.stringify(h.state), before);
   // Never triggers again.
   assert.equal(h.act('world/enterRegion', { regionId: 'vn-1' }).error, 'expired');
-  h.must('world/enterRegion', { regionId: 'vn-2' });
+  h.go('vn-2');
   h.state.player.xp = xpForLevel(12);
   h.state.inventory.beans = 3;
   h.must('shop/spawnCustomer', { roll: 0 }); h.must('shop/takeOrder'); h.must('shop/brew'); h.tick(20_000); h.must('shop/serve');
@@ -241,7 +245,7 @@ test('level 10 recovery: reload while pending still resets exactly once', () => 
   let clock = T0;
   const store = createStore({ storage, key: 'k', dev: true, now: () => clock });
   store.dispatch('story/introDone'); store.dispatch('story/teacherDone');
-  store.dispatch('world/enterRegion', { regionId: 'co-1' });
+  store.dispatch('world/unlockRegion', { regionId: 'co-1' }); store.dispatch('world/enterRegion', { regionId: 'co-1' });
   store.dispatch('dev/grant', { coins: 1000, beans: 10, xp: xpForLevel(10) });
   assert.equal(store.state.story.phase, 'expiry');
   const reloaded = createStore({ storage, key: 'k', dev: true, now: () => clock });
@@ -260,9 +264,9 @@ test('expired region reopens in round 2 with buildings to rebuild', () => {
   h.state.player.coins = 1e6;
   toLevel10(h);
   h.must('expiry/execute');
-  h.must('world/enterRegion', { regionId: 'vn-2' });
+  h.go('vn-2');
   h.must('round/unlock', { round: 2 }, 'r2');
-  h.must('world/enterRegion', { regionId: 'vn-1' });
+  h.go('vn-1');
   assert.equal(h.region().buildings.length, 3);
 });
 
@@ -288,17 +292,26 @@ test('rebirth credits cannot be added outside dev', () => {
   assert.equal(h.act('dev/grant', { coins: 5 }).error, 'forbidden');
 });
 
-test('world: countries unlock in round 3 with coins; region 3 needs round 2', () => {
-  const h = playing();
-  assert.equal(D.regionAccess(h.state, 'vn-3').reason, 'round');
-  assert.equal(D.regionAccess(h.state, 'jp-1').reason, 'round');
-  h.state.player.round = 3; h.state.player.coins = 7000;
-  assert.equal(D.regionAccess(h.state, 'jp-1').reason, 'countryLocked');
-  assert.equal(h.act('country/unlock', { countryId: 'jp' }).error, 'coins');
-  h.must('country/unlock', { countryId: 'it' });
-  h.must('world/enterRegion', { regionId: 'it-1' });
-  assert.equal(h.state.world.currentRegion, 'it-1');
-  assert.equal(h.state.world.regions['vn-1'].status, 'idle');
+test('world: any region can be opened with coins (first free), no Rounds; free unlock after expiry', () => {
+  const h = harness();
+  h.must('story/introDone'); h.must('story/teacherDone');
+  assert.equal(D.regionAccess(h.state, 'us-3').reason, 'locked');
+  assert.equal(D.regionUnlockCost(h.state, 'us-3'), 0, 'first region is free, wherever it is');
+  h.go('jp-2');
+  const cost = D.regionUnlockCost(h.state, 'it-1');
+  assert.ok(cost > 0);
+  h.state.player.coins = cost - 1;
+  const r = h.act('world/unlockRegion', { regionId: 'it-1' });
+  assert.equal(r.error, 'coins'); assert.equal(r.data.missing, 1);
+  h.state.player.coins = cost + 10;
+  h.must('world/unlockRegion', { regionId: 'it-1' });
+  assert.equal(h.state.player.coins, 10);
+  assert.equal(h.act('world/unlockRegion', { regionId: 'it-1' }).noop, true);
+  h.go('it-1');
+  assert.equal(h.state.world.regions['jp-2'].status, 'idle');
+  h.go('jp-2');                       // owned regions can be revisited for free
+  assert.equal(h.state.player.coins, 10);
+  assert.equal(h.state.player.round, 1);
 });
 
 test('store: persists, keeps -prev, recovers from corrupt save, reload keeps data', () => {
@@ -363,21 +376,33 @@ test('reducer never mutates input state', () => {
   assert.equal(JSON.stringify(h.state), frozen);
 });
 
-test('layout 2 migration: old on-farm café buildings move to the café area, B3 café lot becomes C2', async () => {
-  const { normalizeRegion } = await import('../../src/core/state.js');
-  const r = normalizeRegion({ status: 'active', parcels: ['F1', 'S', 'B1', 'B3'], buildings: [
+test('layout migration 1→3: café buildings move to the café area, farm build lots/buildings refunded, nothing lost', async () => {
+  const { normalizeRegion, normalizeSave, createSave } = await import('../../src/core/state.js');
+  const old = { status: 'active', parcels: ['F1', 'S', 'B1', 'B2', 'B3'], buildings: [
     { uid: 'b1', type: 'silo', x: 9, z: -5, rot: 0, level: 2 },
     { uid: 'b2', type: 'orderCounter', x: 7, z: 5, rot: 0, level: 1 },
     { uid: 'b3', type: 'roaster', x: 12, z: 11, rot: 0, level: 2 },
     { uid: 'b4', type: 'flowers', x: 15, z: 13, rot: 0, level: 1 },
-  ] });
+    { uid: 'b5', type: 'dryer', x: 21, z: -5, rot: 0, level: 2 },
+  ] };
+  const r = normalizeRegion(old);
   const by = id => r.buildings.find(b => b.uid === id);
-  assert.deepEqual([by('b1').x, by('b1').z], [9, -5]);
+  assert.deepEqual([by('b1').x, by('b1').z, by('b1').level], [FIXED.silo.x, FIXED.silo.z, 2], 'storehouse keeps its level, moves to its new spot');
   assert.deepEqual([by('b2').x, by('b2').z], [FIXED.orderCounter.x, FIXED.orderCounter.z]);
   assert.deepEqual([by('b3').x, by('b3').z], [2, 111]);
   assert.deepEqual([by('b4').x, by('b4').z], [5, 113]);
-  assert.ok(r.parcels.includes('C2') && !r.parcels.includes('B3'));
-  assert.equal(r.layout, 2);
-  // Idempotent: a migrated region is not shifted again.
-  assert.deepEqual(normalizeRegion(r).buildings, r.buildings);
+  assert.equal(by('b5'), undefined, 'farm dryer removed…');
+  assert.equal(r.refund, 150 + 120 + BUILDINGS.dryer.upgrade[0], '…and refunded with the bought lot B2');
+  assert.ok(r.parcels.includes('C2') && !r.parcels.includes('B1') && !r.parcels.includes('B2'));
+  assert.equal(r.layout, 3);
+  // Idempotent.
+  const again = normalizeRegion({ ...r, refund: undefined });
+  assert.equal(again.refund, undefined);
+  assert.deepEqual(again.buildings, r.buildings);
+  // The refund lands in the player's coins when a whole save is normalized.
+  const save = createSave(1, { gender: 'male', name: 'x' });
+  save.player.coins = 10; save.world.regions['vn-1'] = old;
+  const n = normalizeSave(save);
+  assert.equal(n.player.coins, 10 + 150 + 120 + BUILDINGS.dryer.upgrade[0]);
+  assert.deepEqual(n.world.ownedRegions, ['vn-1']);
 });

@@ -43,7 +43,8 @@ export const BUILDINGS = {
   roaster: { id: 'roaster', zone: 'shop', size: [2, 2], cost: 40, round: 1, level: 1,
     upgrade: [150, 400, 900, 2000, 4000, 8000, 16000], model: 'farm/roaster-tier-1.glb', icon: '🔥',
     effect: { priceBonus: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8] } },
-  dryer: { id: 'dryer', zone: 'farm', size: [2, 2], cost: 120, round: 1, level: 2,
+  // Retired from the build menu (the farm is fields only). Kept so old saves still load/render it.
+  dryer: { id: 'dryer', zone: 'farm', size: [2, 2], cost: 120, round: 1, level: 2, retired: true,
     upgrade: [200, 500, 1100, 2400, 4800, 9600, 19200], model: 'farm/dryer-tier-1.glb', icon: '🟫',
     effect: { yieldBonus: [0.25, 0.4, 0.55, 0.7, 0.85, 1, 1.15, 1.3] } },
   tables: { id: 'tables', zone: 'shop', size: [1, 1], cost: 60, round: 1, level: 2,
@@ -60,7 +61,7 @@ export const BUILDINGS = {
   lamp: { id: 'lamp', zone: 'any', size: [1, 1], cost: 40, round: 1, level: 3, decor: true, upgrade: [], model: 'farm/decor.glb#decor_lamp', icon: '🏮', xp: 4 },
   plant: { id: 'plant', zone: 'any', size: [1, 1], cost: 30, round: 1, level: 2, decor: true, upgrade: [], model: 'cafe/plant.glb#cafe_plant', icon: '🪴', xp: 3 },
 };
-export const BUILD_MENU = ['roaster', 'dryer', 'tables', 'kiosk', 'pastry', 'flowers', 'plant', 'lamp'];
+export const BUILD_MENU = ['roaster', 'tables', 'kiosk', 'pastry', 'flowers', 'plant', 'lamp']; // café only
 
 // Staff: 2 worker types + 2 robot types. Hired once (owned forever), assigned to a zone of the current region.
 // Max 3 active units per farm and 3 per shop. Passive bonuses only (no auto plant/harvest yet).
@@ -110,7 +111,8 @@ export const REBIRTH = {
 };
 
 // Shop. Customers arrive while the region is active and the queue has room.
-export const SHOP = { patienceSeconds: 45, maxPendingTips: 0 };
+// baseSeats: terrace seats (layout CAFE_SEATS); each Tables building adds seatsPerTable. A taken order needs a free seat.
+export const SHOP = { patienceSeconds: 45, maxPendingTips: 0, baseSeats: 4, seatsPerTable: 2 };
 
 // Safety net: if the player cannot afford the cheapest seed and has nothing growing, no beans and no pending café income,
 // planting robusta is free (the Teacher's grace). Never grants coins.

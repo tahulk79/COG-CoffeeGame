@@ -18,6 +18,11 @@ export function harness({ dev = true, now = T0 } = {}) {
       return r;
     },
     tick(ms) { h.now += ms; },
+    // Buy (if needed) and enter a region.
+    go(regionId) {
+      if (!(h.state.world.ownedRegions || []).includes(regionId)) h.must('world/unlockRegion', { regionId });
+      return h.must('world/enterRegion', { regionId });
+    },
     region() { return h.state.world.regions[h.state.world.currentRegion]; },
   };
   return h;
@@ -28,6 +33,6 @@ export function playing(opts) {
   const h = harness(opts);
   h.must('story/introDone');
   h.must('story/teacherDone');
-  h.must('world/enterRegion', { regionId: 'vn-1' });
+  h.go('vn-1');
   return h;
 }
