@@ -10,7 +10,7 @@ import { createTopBar } from './top-bar.js';
 import { createToolbar, seenKey } from './toolbar.js';
 import { createActionBar } from './action-bar.js';
 import { createSheetHost } from './sheet.js';
-import { buildSheet, seedsSheet, menuSheet, staffSheet, progressSheet, drinkSeenKey, buyAuto } from './sheets.js';
+import { buildSheet, seedsSheet, menuSheet, staffSheet, progressSheet, drinkSeenKey, buyAuto, beansSheet } from './sheets.js';
 import { createPlacementBar } from './placement.js';
 import { createModals } from './modal.js';
 import { createFeedback } from './feedback.js';
@@ -20,7 +20,7 @@ import { createDevPanel } from './dev-panel.js';
 export { errorText };
 
 // Purchases started from the HUD get a small "buy" chime on success.
-const PURCHASE = /^(build\/upgrade|land\/|staff\/hire|round\/unlock|rebirth\/perform|world\/unlockRegion|staff\/resume)/;
+const PURCHASE = /^(shop\/buyBeans|build\/upgrade|land\/|staff\/hire|round\/unlock|rebirth\/perform|world\/unlockRegion|staff\/resume)/;
 
 /**
  * @param {{ store: object, realm?: object, dev?: boolean, onOpenAtlas?: () => void, onOpenSettings?: () => void }} opts
@@ -62,6 +62,7 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
   ctx.onTool = id => {
     if (id === 'world') { if (ctx.blockedByAuto()) return; sheet.close(); ctx.onOpenAtlas?.(); return; }
     // Storage: the storehouse's own card (capacity + upgrade), with the camera on the building.
+    if (id === 'storage' && ctx.realm?.view === 'cafe') id = 'beans'; // café: the bean pill opens the supplier
     if (id === 'storage') {
       sheet.close();
       const silo = region(store.state)?.buildings.find(b => b.type === 'silo');
@@ -81,7 +82,7 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
     if (id === 'menu') { // same for new drinks
       for (const drink of DRINK_ORDER) if (drinkUnlocked(s, drink) && !s.story.seen?.[drinkSeenKey(drink)]) store.dispatch('story/seen', { key: drinkSeenKey(drink) });
     }
-    const render = { build: () => buildSheet(ctx), seeds: () => seedsSheet(ctx), menu: () => menuSheet(ctx), staff: () => staffSheet(ctx), progress: () => progressRender }[id];
+    const render = { beans: () => beansSheet(ctx), build: () => buildSheet(ctx), seeds: () => seedsSheet(ctx), menu: () => menuSheet(ctx), staff: () => staffSheet(ctx), progress: () => progressRender }[id];
     if (!render) return;
     if (ctx.selection) ctx.clearSelection();
     root.dataset.sheet = id;
@@ -136,6 +137,28 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
       const secs = Math.max(0, Math.ceil((a.endsAt - now) / 1000));
       if (secs !== autoSecs) { autoSecs = secs; autoChip.textContent = T('hud.auto.chip', { time: clock(secs * 1000) }); }
     }
+  }
+
+  // ---------- game choice: farm or café (asked once, when the player first plays without a chosen game) ----------
+  let choosing = false;
+  function updateMode() {
+    const s = store.state;
+    if (choosing || s.mode || !ctx.isPlaying() || modals.open || ctx.isAuto()) return;
+    choosing = true;
+    sheet.close();
+    modals.choose({
+      title: T('hud.mode.title'), note: T('hud.mode.note'),
+      options: [
+        { id: 'farm', icon: '🌱', title: T('hud.mode.farm'), body: T('hud.mode.farmInfo') },
+        { id: 'cafe', icon: '☕', title: T('hud.mode.cafe'), body: T('hud.mode.cafeInfo') },
+      ],
+    }).then(mode => {
+      choosing = false;
+      if (mode !== 'farm' && mode !== 'cafe') return; // closed by something else: ask again next frame
+      sfx('ui.open');
+      store.dispatch('play/setMode', { mode });
+      Promise.resolve(ctx.realm?.setView?.(mode)).then(() => tutorial.refresh(), () => {});
+    });
   }
 
   // Screen-reader summary of the object notices the realm shows at objects (▲ upgrade, ! order, + brew…).
@@ -195,6 +218,7 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
       actionBar.update(dt);
       placement.update(dt);
       updateAuto();
+      updateMode();
       tutorial.update(dt);
       updateNotices(dt);
     },

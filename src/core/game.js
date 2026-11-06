@@ -1,7 +1,7 @@
 // Pure reducer for Farm & Café V3. `apply(state, action, ctx)` → { ok, state, events, error }.
 // The input state is never mutated: a successful action returns a new state object. All timing comes from ctx.now,
 // randomness from action payloads, so every transition is deterministic and testable (tests/core/*.test.mjs).
-import { AUTO, autoPrice, STAFF_BREAKS, staffFee, BUILDINGS, CROPS, DRINKS, STAFF, XP, ROUNDS, MAX_ROUND, REBIRTH, START, EXPIRY_LEVEL, levelForXp } from './config/economy.js';
+import { AUTO, autoPrice, BEANS, STAFF_BREAKS, staffFee, BUILDINGS, CROPS, DRINKS, STAFF, XP, ROUNDS, MAX_ROUND, REBIRTH, START, EXPIRY_LEVEL, levelForXp } from './config/economy.js';
 import { PARCELS, ROADS, FIXED, plotById } from './config/layout.js';
 import { parseRegionId } from './config/world.js';
 import { clone, normalizeRegion } from './state.js';
@@ -126,7 +126,42 @@ const handlers = {
     ev.push({ type: 'harvested', plotId, crop: st.crop, beans, xp: CROPS[st.crop].xp });
   },
 
+  // Farm game: sell beans at the storehouse (all by default) → coins.
+  'farm/sellBeans'(s, { amount } = {}, ev) {
+    const q = D.beanSellQuote(s, amount ?? Infinity);
+    if (q.amount <= 0) return fail('noBeans');
+    s.inventory.beans -= q.amount;
+    earn(s, q.coins);
+    s.stats.sold = (s.stats.sold || 0) + q.amount;
+    ev.push({ type: 'beansSold', amount: q.amount, coins: q.coins });
+  },
+
   // ---------- café ----------
+  // Café game: buy beans from the supplier (one pack by default; the grace beans are free when the café is stuck).
+  'shop/buyBeans'(s, { amount = BEANS.buyPack } = {}, ev) {
+    const q = D.beanBuyQuote(s, amount);
+    if (q.error) return fail(q.error, q.error === 'coins' ? { missing: q.missing } : undefined);
+    spend(s, q.cost);
+    s.inventory.beans += q.amount;
+    s.stats.bought = (s.stats.bought || 0) + q.amount;
+    ev.push({ type: 'beansBought', amount: q.amount, cost: q.cost, free: q.free });
+  },
+  // The café stands still while the player is on the farm: pause stores the moment, resume shifts every order's
+  // timestamps by the paused time (patience, seat patience and brewing continue where they were).
+  'shop/pause'(s, _p, ev, ctx) {
+    const r = D.region(s);
+    if (!r) return fail('noRegion');
+    if (r.shop.pausedAt) return { noop: true };
+    r.shop.pausedAt = ctx.now;
+  },
+  'shop/resume'(s, _p, ev, ctx) {
+    const r = D.region(s);
+    if (!r) return fail('noRegion');
+    if (!r.shop.pausedAt) return { noop: true };
+    const d = Math.max(0, ctx.now - r.shop.pausedAt);
+    for (const o of r.shop.orders) for (const k of ['at', 'takenAt', 'brewStart']) if (Number.isFinite(o[k])) o[k] += d;
+    r.shop.pausedAt = 0;
+  },
   'shop/spawnCustomer'(s, { roll = 0, look = 0 }, ev, ctx) {
     const r = D.region(s);
     if (!r) return fail('noRegion');
@@ -378,9 +413,21 @@ const handlers = {
   },
 
   // ---------- tutorial ----------
-  'tutorial/set'(s, { step, done }) {
+  // done + track ('farm' | 'cafe'): skip that game's tutorial; done alone: skip both.
+  'tutorial/set'(s, { step, done, track }) {
     if (Number.isFinite(step)) s.tutorial.step = Math.max(s.tutorial.step, step | 0);
-    if (done === true) s.tutorial.done = true;
+    if (done === true) {
+      if (track === 'farm' || track === 'cafe') s.tutorial[`${track}Done`] = true;
+      else { s.tutorial.farmDone = true; s.tutorial.cafeDone = true; }
+      if (s.tutorial.farmDone && s.tutorial.cafeDone) s.tutorial.done = true;
+    }
+  },
+
+  // ---------- game choice (farm | café) ----------
+  'play/setMode'(s, { mode }) {
+    if (mode !== 'farm' && mode !== 'cafe') return fail('invalid');
+    if (s.mode === mode) return { noop: true };
+    s.mode = mode;
   },
 
   // ---------- dev / QA (test profile only) ----------
@@ -401,6 +448,8 @@ const handlers = {
 };
 
 export const ACTIONS = Object.keys(handlers);
+// The café loop is frozen while the café is paused (player on the farm): no customers, no orders moving.
+const CAFE_LOOP = new Set(['shop/spawnCustomer', 'shop/customerLeft', 'shop/takeOrder', 'shop/brew', 'shop/serve']);
 
 /**
  * @param {object} state  current save (not mutated)
@@ -415,6 +464,7 @@ export function apply(state, action, ctx = { now: Date.now() }) {
   if (/^(farm|shop|build|land|staff)\//.test(action.type) && (state.story.phase !== 'play' || !state.world.currentRegion)) {
     return { ok: false, state, events: [], error: 'notPlaying' };
   }
+  if (CAFE_LOOP.has(action.type) && D.shopPaused(state)) return { ok: false, state, events: [], error: 'cafeClosed' };
   const draft = clone(state);
   const events = [];
   const result = handler(draft, action.payload || {}, events, ctx) || {};

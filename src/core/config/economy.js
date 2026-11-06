@@ -132,6 +132,12 @@ export const REBIRTH = {
   shopPacks: [{ id: 'credit1', credits: 1, price: null }],
 };
 
+// Beans trade, so the farm and the café can each be played on their own (founder: "2 game riêng").
+//  · Farm: sell beans at the storehouse for coins (cheaper than turning them into drinks).
+//  · Café: buy beans from the supplier when the store is empty (dearer than growing them: home-grown beans stay best).
+//  · grace: café softlock guard: no coins for one bean, no beans, nothing being brewed → a few free beans.
+export const BEANS = { sellPrice: 2, buyPrice: 4, buyPack: 10, grace: 3 }; // split sim: farm-only ≈ L10 at 20 min, café-only ≈ 22–30 min
+
 // Shop. Customers arrive while the region is active and the queue has room.
 // baseSeats: terrace seats (layout CAFE_SEATS); each Tables building adds seatsPerTable. A taken order needs a free seat.
 // seatPatienceSeconds: a seated customer whose drink has not been SERVED within this time leaves angry.

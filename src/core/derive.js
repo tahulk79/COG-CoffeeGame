@@ -1,5 +1,5 @@
 // Pure selectors over the v3 save. No mutation. Used by the reducer, the scene and the HUD.
-import { BUILDINGS, CROPS, CROP_ORDER, DRINKS, DRINK_ORDER, STAFF, STAFF_SLOTS, ROUND_LEVEL_CAP, REBIRTH, CELL, levelForXp, xpForLevel, GRACE, ROUNDS, MAX_ROUND, SHOP } from './config/economy.js';
+import { BUILDINGS, CROPS, CROP_ORDER, DRINKS, DRINK_ORDER, STAFF, STAFF_SLOTS, ROUND_LEVEL_CAP, REBIRTH, CELL, levelForXp, xpForLevel, GRACE, ROUNDS, MAX_ROUND, SHOP, BEANS } from './config/economy.js';
 import { PARCELS, ROADS, RESERVED, AREAS, areaAt, plotsOf, rectsOverlap, inRect } from './config/layout.js';
 import { parseRegionId, regionIdOf, REGIONS_PER_COUNTRY, COUNTRY_ORDER, regionCost } from './config/world.js';
 
@@ -63,6 +63,31 @@ export function graceActive(s) {
   const cheapest = CROPS[GRACE.freeCrop].seedCost;
   return s.player.coins < cheapest && Object.keys(r.plots).length === 0 && s.inventory.beans === 0 && r.shop.orders.every(o => o.stage === 'waiting');
 }
+// ---------- beans trade (farm sells, café buys) ----------
+/** Selling beans at the storehouse: all of them by default. */
+export function beanSellQuote(s, amount = Infinity) {
+  const n = Math.max(0, Math.min(Math.floor(s.inventory.beans), Math.floor(Number.isFinite(amount) ? amount : Infinity)));
+  return { amount: n, coins: n * BEANS.sellPrice };
+}
+/**
+ * Buying beans in the café: up to `amount` (default one pack), limited by the storehouse room and the coins.
+ * error: 'storageFull' | 'coins' | null. free: the grace beans (broke, no beans, nothing being brewed).
+ */
+export function beanBuyQuote(s, amount = BEANS.buyPack) {
+  const r = region(s);
+  const room = Math.max(0, capacity(s) - Math.floor(s.inventory.beans));
+  if (room <= 0) return { amount: 0, cost: 0, free: false, error: 'storageFull' };
+  const want = Math.max(1, Math.min(room, Math.floor(amount) || BEANS.buyPack));
+  const n = Math.min(want, Math.floor(s.player.coins / BEANS.buyPrice));
+  if (n > 0) return { amount: n, cost: n * BEANS.buyPrice, free: false, error: null };
+  const brewing = (r?.shop.orders || []).some(o => o.stage === 'brewing');
+  if (s.inventory.beans < 1 && !brewing) return { amount: Math.min(room, BEANS.grace), cost: 0, free: true, error: null };
+  return { amount: 0, cost: want * BEANS.buyPrice, free: false, error: 'coins', missing: BEANS.buyPrice - s.player.coins };
+}
+export const shopPaused = s => !!region(s)?.shop.pausedAt;
+// Café staff / robots assigned here and working (not on a break): the café keeps running without the player.
+export const cafeStaffed = s => assignedUnits(s, s.world.currentRegion, 'shop').some(unitWorking);
+
 export const seedCost = (s, cropId) => (cropId === GRACE.freeCrop && graceActive(s) ? 0 : CROPS[cropId].seedCost);
 
 export function footprint(type, x, z, rot = 0) {
