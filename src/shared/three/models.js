@@ -20,6 +20,7 @@ export function matteBakedMetal(root) {
 // Cache theo URL: vào lại cảnh dùng lại GLB đã parse; lỗi tải trả null để cảnh giữ khối tạm.
 // path 'file.glb#node' lấy riêng một node (vd. khung và hai cánh cổng chung một file).
 export function loadModel(path) {
+  if (typeof path !== 'string' || !path) return Promise.resolve(null); // no model: caller keeps its placeholder
   const [file, node] = path.split('#');
   const url = `${import.meta.env.BASE_URL}models/${file}`;
   if (!cache.has(url)) cache.set(url, loader.loadAsync(url).then(gltf => markCached(matteBakedMetal(gltf.scene)), error => { console.warn(`Không tải được ${url}, giữ khối tạm.`, error); return null; }));

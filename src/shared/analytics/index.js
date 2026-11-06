@@ -10,6 +10,8 @@ export const EVENTS = new Set([
   'result_shared', 'referral_opened', 'return_visit', 'feedback_submitted', 'purchase_verified',
   'heaven_completed', 'region_selected', 'field_bought', 'shift_ended', 'workday_ended',
   'victory_reached', 'auto_started', 'council_answered',
+  // Farm & Café V3 story events.
+  'region_entered', 'round_unlocked', 'region_expired', 'rebirth_used',
 ]);
 
 const CODE = /^[a-z0-9_\-.]+$/i;

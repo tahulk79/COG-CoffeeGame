@@ -1,30 +1,34 @@
-# Tài liệu game Godbean
+# Tài liệu Godbean — Farm & Café V3
 
-**Godbean: Build your own Coffee Empire!**
+Code là nguồn sự thật; tài liệu mô tả code hiện tại. Mọi con số nằm trong `src/core/config/*.js`.
 
-Thư mục `docs/` chỉ gồm 3 phần:
+## Hiện hành
 
-| Phần | File | Dùng để |
-|---|---|---|
-| GDD tổng | [design/godbean-gdd.md](design/godbean-gdd.md) | Toàn bộ thiết kế: tổng quan, sơ đồ màn (§4), hệ thống, kinh tế, UI, âm thanh, dữ liệu và save (§13), lộ trình. Mục 0 là bảng trạng thái F-xx |
-| Tài liệu từng màn | `screens/<NN-màn>/` | Luật hiện hành của từng màn, khớp code trong `src/features/<màn>/` |
-| Tài liệu gốc | [references/GODBEAN_MASTER_HANDOFF_2026-11-04.pdf](references/GODBEAN_MASTER_HANDOFF_2026-11-04.pdf) | Bản handoff của founder |
+| File | Dùng để |
+|---|---|
+| [design/v3-gdd.md](design/v3-gdd.md) | GDD V3: luồng truyện, vòng chơi, nội dung, tiến trình, kinh tế, camera, UI, save, test |
+| [design/v3-architecture.md](design/v3-architecture.md) | Kiến trúc và hợp đồng module: lớp, store/action/event/error, pha truyện, API realm và HUD, gói ngôn ngữ |
+| [AUTONOMOUS_DECISIONS.md](AUTONOMOUS_DECISIONS.md) | Các quyết định đã tự đưa ra khi dựng lại V3 (an toàn dữ liệu, gameplay, UI) |
 
-## Theo màn
+## Từng màn
 
 | Màn | Tài liệu | Code |
 |---|---|---|
-| 00 · Chọn nhân vật | [README](screens/00-selection/README.md) | `src/features/selection/` |
-| 01 · Intro | [README](screens/01-intro/README.md) | `src/features/intro/` |
-| 02 · Thiên đàng mini + Hội đồng | [README](screens/02-heaven/README.md) · [rules](screens/02-heaven/rules.md) | `src/features/heaven/`, `src/features/awakening/` |
-| 02b · Bản đồ thế giới | [README](screens/02b-world-map/README.md) · [rules](screens/02b-world-map/rules.md) | `src/features/world-map/` |
-| 03 · Nông trại | [README](screens/03-farm/README.md) · [rules](screens/03-farm/rules.md) | `src/features/farm/` |
-| 04 · Quán cà phê | [README](screens/04-cafe/README.md) · [rules](screens/04-cafe/rules.md) | `src/features/cafe/` |
+| 00 · Chọn nhân vật | [screens/00-selection.md](screens/00-selection.md) | `src/features/selection/` |
+| 01 · Intro | [screens/01-intro.md](screens/01-intro.md) | `src/features/intro/` |
+| 02 · Gặp Thầy | [screens/02-teacher.md](screens/02-teacher.md) | `src/features/teacher/` |
+| 03 · Bản đồ thế giới | [screens/03-atlas.md](screens/03-atlas.md) | `src/features/atlas/` |
+| 04 · Vùng đất 3D | [screens/04-realm.md](screens/04-realm.md) | `src/features/realm/` |
+| 05 · HUD | [screens/05-hud.md](screens/05-hud.md) | `src/features/hud/`, `src/ui/styles/v3.css` |
+
+## Lưu trữ (lịch sử, không còn khớp gameplay)
+
+| File | Ghi chú |
+|---|---|
+| [design/godbean-gdd.md](design/godbean-gdd.md) | GDD bản trước (thiên đàng, nông trại/quán cũ). Mục §5–§10 đã được V3 thay thế; phần tầm nhìn, âm thanh, analytics vẫn tham khảo được |
+| [references/GODBEAN_MASTER_HANDOFF_2026-11-04.pdf](references/GODBEAN_MASTER_HANDOFF_2026-11-04.pdf) · [GODBEAN_MASTER_HANDOFF_FIXED.md](references/GODBEAN_MASTER_HANDOFF_FIXED.md) | Bản handoff gốc của founder |
 
 ## Quy ước
 
-- Code là nguồn sự thật. Tài liệu viết theo code hiện tại, không ghi nhật ký hay ngày tháng trong luật.
-- Mỗi màn có `README.md` theo cùng một mẫu: vào/ra, luồng chơi, điều khiển, dữ liệu, code, asset, analytics, chưa làm. Màn nhiều luật có thêm `rules.md` (luật và số liệu hiện hành).
-- Đổi luật hay số liệu: sửa `rules.md`/`README.md` của màn và cập nhật GDD trong cùng thay đổi.
-- Ý tưởng chưa code: ghi một dòng ở mục "Chưa làm" của màn, hoặc ở GDD §14.3.
+- Đổi luật hay số liệu: sửa `src/core/config/`, chạy `npm test` và `npm run sim`, cập nhật GDD V3 trong cùng thay đổi.
 - Không commit ảnh chụp màn hình hay log test vào `docs/`.
