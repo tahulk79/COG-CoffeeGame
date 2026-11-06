@@ -196,6 +196,12 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
 .hud-tip-text{flex:1;min-width:0}
 .hud-tip mark{background:none;color:var(--h-mark);font-weight:800}
 .hud-tip-skip{position:relative;z-index:1;flex:none;min-height:44px;padding:0 8px;border:0;background:none;font:700 11px/1.1 var(--h-font);color:var(--h-ink-soft);text-decoration:underline;pointer-events:auto;max-width:76px}
+/* Farm ⇄ Café switch (both games open, Round 2+): round button above the toolbar's left end. */
+.hud-switch{position:fixed;z-index:var(--z-hud,5);left:calc(var(--h-sl) + 12px);bottom:calc(var(--h-sb) + var(--h-toolbar) + 22px);display:grid;justify-items:center;gap:0;width:64px;height:64px;padding:6px 0 0;border:0;border-radius:50%;background:var(--h-go);box-shadow:0 4px 0 var(--h-go-drop),0 0 0 3px #fff;color:#fff!important;text-shadow:0 1px 0 #0003}
+.hud-switch-ico{font-size:24px;line-height:1}
+.hud-switch-label{font:800 11px/1.1 var(--h-font)}
+.hud-switch:active{transform:translateY(3px);box-shadow:0 1px 0 var(--h-go-drop),0 0 0 3px #fff}
+#hud-root[data-placing] .hud-switch,#hud-root[data-sheet] .hud-switch,#hud-root:not([data-phase="play"]) .hud-switch{display:none}
 .hud-edge{position:fixed;z-index:calc(var(--z-hud,5) + 2);left:0;top:0;width:52px;height:52px;margin:-26px 0 0 -26px;display:grid;place-items:center;border:0;border-radius:50%;background:#fff;box-shadow:0 4px 0 #a2763a55,0 0 0 3px var(--h-mark);color:var(--h-mark);will-change:transform;animation:hud-edge-pulse 1.1s ease-in-out infinite}
 .hud-edge-ico{display:block;font:900 26px/1 var(--h-font)}
 @keyframes hud-edge-pulse{50%{box-shadow:0 4px 0 #a2763a55,0 0 0 7px #e8691c55}}

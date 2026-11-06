@@ -1,9 +1,7 @@
 // World atlas (V3): a tilted 3D world map. No Rounds: every country can be tapped and every region opened with coins
 // (more coins → more places). Countries are raised slabs coloured by status (owned region inside = bright + flag,
 // current = pulsing ring, nothing owned = grey + 🔒 with the cheapest price). Tap a country → bottom sheet with its
-// 3 regions. Each region is played as ONE game, picked here at its first entry: 🌱 Farm or ☕ Café (the café opens with
-// Round 2). Not owned → price + the two game buttons (small confirm card for paid ones, then unlockRegion + enterRegion).
-// Already played → its game's icon + Go.
+// 3 regions: owned → Go, not owned → price + Open (small confirm card for paid ones, then unlockRegion + enterRegion).
 // Reuses the terrain/outlines of the old world map (world-map/terrain.js, geo.js, content.js); logic is new.
 //
 // createAtlas({ store, mode, onEntered, onClose }) → { scene, camera, update(dt), resize(w, h), setMode(mode),
@@ -15,8 +13,7 @@ import { REGIONS as OUTLINES } from '../world-map/content.js';
 import { project } from '../world-map/geo.js';
 import { buildTerrain, DEEP } from '../world-map/terrain.js';
 import { COUNTRIES, COUNTRY_ORDER, parseRegionId } from '../../core/config/world.js';
-import { regionAccess, regionsOfCountry, ownsRegion, cafeUnlocked, regionMode } from '../../core/derive.js';
-import { CAFE_MIN_ROUND } from '../../core/config/economy.js';
+import { regionAccess, regionsOfCountry, ownsRegion } from '../../core/derive.js';
 import { disposeScene } from '../../shared/three/dispose-scene.js';
 import { sfx } from '../../shared/audio/index.js';
 import { hasKey, t } from '../../i18n/index.js';
@@ -128,7 +125,7 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
     pins.append(pin); return [entry, pin];
   }));
 
-  let selected = null, confirming = null, toastTimer = 0; // confirming: { regionId, mode } whose confirm card is open
+  let selected = null, confirming = null, toastTimer = 0; // confirming: region id whose confirm card is open
   const state = () => store.state;
   function toast(text, tone = 'info') { toastEl.textContent = text; toastEl.dataset.tone = tone; toastEl.hidden = false; toastTimer = 2.6; }
 
@@ -177,46 +174,29 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
     const info = el('div', 'atlas-region-info');
     info.append(el('strong', 'atlas-region-name', t(`regionName.${regionId}`)));
     let chip = null, action = null, note = null;
-    const played = saved && !access.expired ? regionMode(s, regionId) : null; // the region's game, once chosen
-    const modeTag = m => `${m === 'cafe' ? '☕' : '🌱'} ${t(m === 'cafe' ? 'atlas.mode.cafe' : 'atlas.mode.farm')}`;
-    // The two game buttons for a region that has no game yet (café locked before Round 2).
-    const choices = (run, disabled) => {
-      const box = el('div', 'atlas-modes');
-      const farm = button(modeTag('farm'), 'ui-btn--go atlas-enter atlas-mode', () => run('farm'));
-      const cafe = button(modeTag('cafe'), 'ui-btn--gold atlas-enter atlas-mode', () => run('cafe'));
-      farm.dataset.mode = 'farm'; cafe.dataset.mode = 'cafe';
-      if (disabled) farm.disabled = cafe.disabled = true;
-      if (!cafeUnlocked(s)) { cafe.disabled = true; cafe.classList.add('is-locked'); cafe.append(el('small', 'atlas-mode-lock', `🔒 ${t('atlas.mode.cafeLock', { round: CAFE_MIN_ROUND })}`)); }
-      box.append(farm, cafe);
-      return box;
-    };
     if (!access.ok && access.reason === 'locked') {
-      // Not opened yet: price chip + the two games (disabled with "need X more" when the player cannot pay).
+      // Not opened yet: price chip + Open (disabled with "need X more" when the player cannot pay).
       chip = ['price', access.free ? `🎁 ${t('atlas.free')}` : coinText(access.cost)];
-      action = choices(m => ask(regionId, m), !access.affordable);
-      if (!access.affordable) note = t('atlas.needMore', { n: access.missing });
+      action = button(`🔓 ${t('atlas.open')}`, `${access.free ? 'ui-btn--go' : 'ui-btn--gold'} atlas-enter atlas-open`, () => ask(regionId));
+      if (!access.affordable) { action.disabled = true; note = t('atlas.needMore', { n: access.missing }); }
     } else if (!access.ok) {
       chip = ['expired', t('atlas.chip.expired')]; note = t('atlas.expiredNote');
     } else if (access.current) {
-      chip = ['current', `${t('atlas.here')} · ${modeTag(played || 'farm')}`];
-    } else if (played) {
-      chip = ['visited', modeTag(played)];
-      action = button(`➜ ${t('atlas.go')}`, 'ui-btn--go atlas-enter', () => enter(regionId, played));
+      chip = ['current', t('atlas.here')];
     } else {
-      chip = access.expired ? ['expired', t('atlas.chip.expired')] : ['new', t('atlas.chip.new')];
-      action = choices(m => enter(regionId, m), false);
+      chip = access.expired ? ['expired', t('atlas.chip.expired')] : saved ? ['visited', t('atlas.chip.visited')] : ['new', t('atlas.chip.new')];
+      action = button(`➜ ${t('atlas.go')}`, 'ui-btn--go atlas-enter', () => enter(regionId));
     }
     info.append(el('span', `atlas-chip is-${chip[0]}`, chip[1]));
     if (note) info.append(el('small', 'atlas-region-note', note));
     row.append(info);
     if (action) row.append(action);
-    if (action?.classList.contains('atlas-modes')) row.classList.add('has-modes');
     row.dataset.state = chip[0];
-    if (confirming?.regionId === regionId) {
+    if (confirming === regionId) {
       const cost = regionAccess(s, regionId).cost;
       const card = el('div', 'atlas-confirm');
       card.append(el('p', 'atlas-confirm-title', t('atlas.unlock.title', { name: t(`regionName.${regionId}`) })), el('p', 'atlas-confirm-cost', coinText(cost)), el('div', 'atlas-confirm-actions'));
-      card.lastChild.append(button(t('atlas.unlock.cancel'), 'ui-btn--plain', () => { confirming = null; renderSheet(); }), button(t('atlas.unlock.go'), 'ui-btn--gold atlas-confirm-go', () => unlock(regionId, confirming.mode)));
+      card.lastChild.append(button(t('atlas.unlock.cancel'), 'ui-btn--plain', () => { confirming = null; renderSheet(); }), button(t('atlas.unlock.go'), 'ui-btn--gold atlas-confirm-go', () => unlock(regionId)));
       const wrap = el('li', 'atlas-region-confirm'); wrap.append(card);
       const frag = document.createDocumentFragment(); frag.append(row, wrap); return frag;
     }
@@ -241,26 +221,26 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
     sheet.append(list);
   }
 
-  function enter(regionId, mode = 'farm') {
-    const result = store.dispatch('world/enterRegion', { regionId, mode });
+  function enter(regionId) {
+    const result = store.dispatch('world/enterRegion', { regionId });
     if (!result.ok) { sfx('ui.deny'); toast(atlasErrorText(result), 'bad'); return; }
     sfx('ui.buy');
     onEntered?.(regionId, result);
   }
   // Free openings go straight in; paid ones ask a small confirm card (title + price) first.
-  function ask(regionId, mode) {
+  function ask(regionId) {
     const access = regionAccess(state(), regionId);
-    if (access.reason !== 'locked') { enter(regionId, mode); return; }
+    if (access.reason !== 'locked') { enter(regionId); return; }
     if (!access.affordable) { sfx('ui.deny'); toast(atlasErrorText({ error: 'coins', data: { missing: access.missing } }), 'bad'); return; }
-    if (access.free) { unlock(regionId, mode); return; }
-    confirming = { regionId, mode }; sfx('ui.open'); renderSheet();
+    if (access.free) { unlock(regionId); return; }
+    confirming = regionId; sfx('ui.open'); renderSheet();
   }
-  function unlock(regionId, mode) {
+  function unlock(regionId) {
     confirming = null;
     const result = store.dispatch('world/unlockRegion', { regionId });
     if (!result.ok) { sfx('ui.deny'); toast(atlasErrorText(result), 'bad'); renderSheet(); return; }
     const entry = countries.find(c => c.id === countryOfRegion(regionId)); if (entry) entry.speed += 8;
-    enter(regionId, mode);
+    enter(regionId);
   }
   function focusOn(entry, distance) { goal.x = entry.x; goal.z = entry.z + (portrait ? 2.4 : 1.4); goal.distance = Math.min(goal.distance, distance); clampView(goal); velocity.x = velocity.z = 0; }
   function select(id) {

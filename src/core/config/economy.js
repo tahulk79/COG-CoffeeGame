@@ -3,8 +3,8 @@
 // See docs/design/v3-gdd.md §Economy and docs/AUTONOMOUS_DECISIONS.md.
 
 // Founder playtest (2026-11-06): every game starts with PLAYTEST.coins, and an existing save is raised to it once
-// (story.seen.playtestCoins). Set coins to 0 to go back to the balanced START.coins. Tests run with it off.
-export const PLAYTEST = { coins: 500_000 };
+// (story.seen.playtestCoins = that amount; raising PLAYTEST.coins tops up again). Set coins to 0 to go back to the balanced START.coins. Tests run with it off.
+export const PLAYTEST = { coins: 9_999_999 };
 export const startCoins = () => (PLAYTEST.coins > 0 ? PLAYTEST.coins : START.coins);
 
 export const START = {
@@ -137,10 +137,10 @@ export const REBIRTH = {
   shopPacks: [{ id: 'credit1', credits: 1, price: null }],
 };
 
-// A region is played as ONE game, picked on the world map when it is first entered: 'farm' or 'cafe'.
-// The café game opens with Round 2 (founder: "Sau khi mở vòng 2 thì mới có thể mở quán").
-export const CAFE_MIN_ROUND = 2;
-export const REGION_MODES = ['farm', 'cafe'];
+// Two games, farm and café. The player picks ONE when first playing (both can be picked); Round 2 opens the other one
+// (founder: "lúc đầu chọn 1 là chơi farm hay cafe … lên vòng 2 thì mở game còn lại").
+export const OTHER_GAME_ROUND = 2;
+export const GAMES = ['farm', 'cafe'];
 
 // Beans trade, so the farm and the café can each be played on their own (founder: "2 game riêng").
 //  · Farm: sell beans at the storehouse for coins (cheaper than turning them into drinks).

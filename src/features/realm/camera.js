@@ -2,8 +2,8 @@
 // the player. It never jumps on taps / selections, keeps the player's zoom, pans with momentum, zooms around the fingers.
 // Modes:
 //  · free        — the default: the camera stays where the player left it (pan / pinch / glides).
-//  · exploration — follows the avatar with a dead zone (keyboard walking, view entry, auto play): the camera only moves
-//                  when the avatar gets near the edge of a calm central box.
+//  · exploration — follows the avatar with a small dead zone whenever the player walks (tap to walk, keys, counters,
+//                  gate), on view entry and in auto play. A pan or a pinch on a spot hands the camera back (free).
 //  · cinematic   — pose written directly by cinematics.js, restored smoothly afterwards.
 // One distance: baseDist() × zoom. Pinch / wheel change `zoom`; an explicit frame (focusRect) sets it once; automatic
 // moves (glideTo / ensureVisible) only slide the look target and never touch the zoom.
@@ -17,7 +17,7 @@ export const YAW = -45 * DEG; // founder: view turned 90° left (camera south-we
 const ZOOM_MIN = .45, ZOOM_MAX = 1.9;
 const FOCUS_FILL = .9;      // explicit frames fill ~90% of the shorter screen side
 const ZOOM_IN = .62;        // founder: closer default view than the original rig
-const DEAD_ZONE = .22;      // follow: the avatar may wander this fraction of the view height before the camera moves
+const DEAD_ZONE = .06;      // follow: the avatar may wander this fraction of the view height before the camera moves (small: stays close)
 const FRICTION = 5.5;       // momentum decay per second after a flick
 const MIN_FLICK = 2.5;      // world units / s below which a release does not glide
 

@@ -502,6 +502,18 @@ if (import.meta.hot) import.meta.hot.dispose(() => {
 });
 // Dev QA hook (?profile=test): inspect the store from the console.
 if (DEV_PROFILE) window.__godbeanStore = store;
+// QA URL params on the test profile, applied on every load (only the test save is touched):
+//   ?profile=test&coins=9999999&beans=40&round=2&level=9
+// coins / beans / round / level are set to exactly that value (round 2 opens the other game; level stays below 10
+// unless the Level-10 incident already happened).
+if (DEV_PROFILE) {
+  const q = new URLSearchParams(location.search);
+  const params = Object.fromEntries(['coins', 'beans', 'round', 'level'].filter(k => q.has(k)).map(k => [k, q.get(k)]));
+  if (Object.keys(params).length) {
+    const r = store.dispatch('dev/set', params);
+    console.info('[QA] URL params', params, r.ok ? 'applied' : r.error);
+  }
+}
 export function startGame() {
   initialize();
 }

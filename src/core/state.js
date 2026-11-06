@@ -25,8 +25,9 @@ export function createSave(now = Date.now(), character = null) {
       freeUnlocks: 0,     // free region unlocks granted by the Level-10 expiration
     },
     staff: { units: [] },
-    // Game of the current region: 'farm' | 'cafe' (null outside a region). Each region is played as ONE game, chosen on
-    // the world map at its first entry (region.mode); this mirrors the current region's. Coins / XP / level / beans are shared.
+    // firstGame: the game picked when first playing ('farm' | 'cafe'; null → the HUD asks). Round 2 opens the other one.
+    // mode: the game on screen now (follows the view). Coins / XP / level / beans are shared by both games.
+    firstGame: null,
     mode: null,
     tutorial: { step: 0, done: false, farmDone: false, cafeDone: false },
     autoplay: { runs: 0, granted: false, active: null },   // active = { startedAt, endsAt } while a run plays
@@ -54,9 +55,9 @@ export function normalizeSave(raw, now = Date.now()) {
   out.player.coins = num(out.player.coins, base.player.coins, 0, 1e15);
   out.player.xp = num(out.player.xp, 0, 0, 1e12);
   out.player.round = num(out.player.round, 1, 1, 3) | 0;
-  // Playtest coins: an existing save is raised to PLAYTEST.coins once (never lowered, never repeated).
-  if (PLAYTEST.coins > 0 && !out.story.seen.playtestCoins) {
-    out.story.seen = { ...out.story.seen, playtestCoins: true };
+  // Playtest coins: an existing save is raised to PLAYTEST.coins once per amount (never lowered).
+  if (PLAYTEST.coins > 0 && out.story.seen.playtestCoins !== PLAYTEST.coins) {
+    out.story.seen = { ...out.story.seen, playtestCoins: PLAYTEST.coins }; // a new playtest amount tops up once more
     out.player.coins = Math.max(out.player.coins, PLAYTEST.coins);
   }
   out.rebirth = { ...base.rebirth, ...obj(s.rebirth) };
@@ -80,10 +81,10 @@ export function normalizeSave(raw, now = Date.now()) {
   out.world.ownedRegions = [...new Set([...(Array.isArray(s.world?.ownedRegions) ? s.world.ownedRegions : []), ...Object.keys(out.world.regions)].filter(isRegionId))];
   out.world.freeUnlocks = num(out.world.freeUnlocks, 0, 0, 9) | 0;
   out.staff = { units: Array.isArray(s.staff?.units) ? s.staff.units.filter(u => obj(u) && typeof u.type === 'string' && Object.hasOwn(STAFF, u.type)) : [] };
-  // Regions saved before the per-region game choice keep the game the player last played (farm by default).
-  const legacyMode = s.mode === 'cafe' ? 'cafe' : 'farm';
-  for (const r of Object.values(out.world.regions)) if (!r.mode) r.mode = legacyMode;
-  out.mode = out.world.regions[out.world.currentRegion]?.mode || null;
+  const game = v => (v === 'farm' || v === 'cafe' ? v : null);
+  out.mode = game(s.mode);
+  out.firstGame = game(s.firstGame) || out.mode; // saves from before the first-game pick: the game they played
+  if (out.firstGame && !out.mode) out.mode = out.firstGame;
   out.tutorial = { ...base.tutorial, ...obj(s.tutorial) };
   if (out.tutorial.done) { out.tutorial.farmDone = true; out.tutorial.cafeDone = true; } // skipped before the split
   out.autoplay = { ...base.autoplay, ...obj(s.autoplay) };
@@ -134,7 +135,6 @@ export function normalizeRegion(r) {
   const v = migrateLayout(obj(r) || {});
   return {
     layout: LAYOUT_VERSION,
-    mode: v.mode === 'farm' || v.mode === 'cafe' ? v.mode : null, // the game this region is played as
     ...(v.refund ? { refund: v.refund } : {}),
     status: ['active', 'idle', 'expired'].includes(v.status) ? v.status : 'idle',
     enteredAt: num(v.enteredAt, 0), expiredAt: num(v.expiredAt, 0),

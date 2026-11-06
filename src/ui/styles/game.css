@@ -51,6 +51,9 @@ button:disabled{cursor:not-allowed;opacity:.6}
 [aria-busy="true"]{cursor:wait!important} /* beats scene-specific :disabled cursors */
 #game,canvas,.vignette{position:fixed;inset:0;width:100%;height:100%;display:block}
 #game{outline:none}
+/* Settings → Progress: the restart button sits in the middle (founder). */
+.settings-reset{display:grid;justify-items:center;text-align:center}
+.settings-reset h3{justify-self:start}
 .vignette{pointer-events:none;background:linear-gradient(0deg,#fff6db29,transparent 24%,transparent 85%,#fff4d614)}
 .primary{border:2px solid var(--ui-go-edge);background:var(--ui-button-image),var(--ui-go);color:var(--ui-ink-light);text-shadow:0 1px var(--ui-go-drop);box-shadow:0 4px 0 var(--ui-go-drop);padding:19px 25px;border-radius:24px;font-size:14px;font-weight:800;min-width:235px;display:flex;justify-content:space-between;gap:36px;align-items:center}
 .primary:hover{filter:brightness(1.06)}.primary:active{transform:translateY(2px);box-shadow:0 2px 0 var(--ui-go-drop)}

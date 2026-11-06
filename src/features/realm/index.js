@@ -14,7 +14,7 @@
 import * as THREE from 'three';
 import { BUILDINGS, CROPS, CROP_ORDER, DRINKS } from '../../core/config/economy.js';
 import { PARCELS, GATE, FIXED, PLOT_SIZE, CUSTOMER, CAFE_SEATS, AREAS, BOUNDS, CAFE_BOUNDS, RESERVED, plotById, plotsOf, parcelAt, areaAt, areaOfParcel, rectCenter } from '../../core/config/layout.js';
-import { region as regionOf, footprint, upgradeError, parcelError, seatCount, seatsUsed, brewSlots, seatPatienceRatio, ownedPlots, capacity, cropUnlocked, seedCost } from '../../core/derive.js';
+import { region as regionOf, footprint, upgradeError, parcelError, seatCount, seatsUsed, brewSlots, seatPatienceRatio, ownedPlots, capacity, cropUnlocked, seedCost, canPlay, cafeStaffed } from '../../core/derive.js';
 import { loadModel } from '../../shared/three/models.js';
 import { disposeScene } from '../../shared/three/dispose-scene.js';
 import { createVfx, flyTo, popNumber } from '../../shared/vfx/index.js';
@@ -164,19 +164,22 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   const drag = { mode: null, visited: new Set(), stopped: false, ghostX: 0, ghostZ: 0, startX: 0, startZ: 0 };
   let canvasRect = canvas.getBoundingClientRect();
 
-  // Each region is played as ONE game (region.mode, picked on the world map): the realm shows only that area.
+  // Two games (farm / café): the player's first game, plus the other one from Round 2 (core derive.canPlay).
+  // The game on screen is state.mode; a game that is not open yet cannot be shown.
   const modeView = state => (state.mode === 'cafe' ? 'cafe' : 'farm');
-  // The café runs only in a café region (in a farm region it stays paused: no customers, nothing times out).
-  // Checked every frame, dispatches only on change.
+  const openArea = (state, area) => !state.firstGame || canPlay(state, area);
+  // The café runs while it is on screen, or while café staff / robots work there; otherwise it is paused (no customers,
+  // nothing times out). The game on screen follows the view. Checked every frame, dispatches only on change.
   function syncArea(state) {
     if (switching || state.story.phase !== 'play') return;
     const r = regionOf(state);
     if (!r) return;
-    if (view !== modeView(state)) { swapView(modeView(state)); return; }
+    if (!openArea(state, view)) { swapView(modeView(state)); return; }
     const paused = !!r.shop.pausedAt;
-    const run = view === 'cafe';
+    const run = view === 'cafe' || (canPlay(state, 'cafe') && cafeStaffed(state));
     if (run && paused) store.dispatch('shop/resume');
     else if (!run && !paused) store.dispatch('shop/pause');
+    if (state.firstGame && state.mode !== view) store.dispatch('play/setMode', { mode: view });
   }
 
   function dispatch(type, payload) {
@@ -369,7 +372,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     // cooldown stops the pad from firing the same action again on arrival.
     const padId = t.type === 'orderCounter' ? 'order' : 'brew';
     const acted = r => { if (r?.ok) { nearCooldown = 1; pads.pop(padId, clock); } };
-    const goPad = () => { if (carry) carry.walking = false; gateWalk = false; avatar.walkTo(PADS[padId].x, PADS[padId].z); };
+    const goPad = () => { if (carry) carry.walking = false; gateWalk = false; cam.explore(); avatar.walkTo(PADS[padId].x, PADS[padId].z); };
     if (t.type === 'orderCounter') {
       // Only a customer standing at the counter can order (the ones still walking in come next).
       const queued = cafe.queuedOrder(store.state);
@@ -419,6 +422,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     const stand = standSpot(w.seat);
     carry.walking = true;
     gateWalk = false;
+    cam.explore(); // the camera follows the player while they walk (founder)
     avatar.walkTo(stand.x, stand.z);
   }
   function updateCarry(orders) {
@@ -612,6 +616,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     if (target?.kind === 'gate') {
       setSelection({ kind: 'gate' });
       gateWalk = true;
+      cam.explore();
       avatar.walkTo(GATE.x, GATE.z - GATE.radius, () => { if (gateWalk) { gateWalk = false; hooks.onWalkToGate?.(); } });
       return;
     }
@@ -621,6 +626,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     setSelection(null);
     gateWalk = false;
     if (carry) carry.walking = false; // the cup stays in hand; tap the customer / counter to resume
+    cam.explore(); // walking: the camera follows the player (dead zone), a pan stops it again
     avatar.walkTo(hit.x, hit.z);
     vfx.burst('dust', hit, { count: 4 });
   }
@@ -801,7 +807,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   }
   function setView(v, { instant = false } = {}) {
     if (!AREAS[v] || disposed) return Promise.resolve(view);
-    if (store.state.mode && v !== modeView(store.state)) return Promise.resolve(view); // the other game's area is closed
+    if (!openArea(store.state, v)) return Promise.resolve(view); // the other game opens with Round 2
     if (switching) return switching.to === v ? switching.promise : switching.promise.then(() => setView(v, { instant }));
     if (v === view) return Promise.resolve(view);
     if (instant) { swapView(v); return Promise.resolve(view); }
@@ -941,7 +947,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     /** Selects a target; a target in the other area switches the view first (returns a Promise then). */
     select(t) {
       const area = areaOf(t);
-      if (t && area && area !== modeView(store.state)) return undefined; // the other game's area is closed
+      if (t && area && !openArea(store.state, area)) return undefined; // the other game opens with Round 2
       if (t && area && (area !== view || switching)) return setView(area).then(() => setSelection(t));
       setSelection(t || null);
       return undefined;
@@ -950,7 +956,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     /** Focuses a target; a target in the other area switches the view first. Returns a Promise. */
     focus(t, { force = false } = {}) {
       const area = areaOf(t);
-      if (area && area !== modeView(store.state)) return Promise.resolve();
+      if (area && !openArea(store.state, area)) return Promise.resolve();
       if (area && (area !== view || switching)) return setView(area).then(() => realm.focus(t, { force }));
       // Hay Day rule: keep the player's zoom, only slide the view (and only when the target is not already in view).
       if (targetPoint(t, v3, Date.now())) { if (force) cam.glideTo(v3.x, v3.z); else cam.ensureVisible(v3.x, v3.z, .15); }
@@ -972,7 +978,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       const zone = BUILDINGS[type]?.zone;
       // Farm buildings (dryer) go on the farm's free grass, café buildings in the café; decorations stay in the view.
       const area = uid ? areaOf({ kind: 'building', uid, type }) || view : zone === 'farm' ? 'farm' : zone === 'shop' ? 'cafe' : realm.view;
-      if (area !== modeView(store.state)) return null; // e.g. a café building in a farm region
+      if (!openArea(store.state, area)) return null; // e.g. a café building before Round 2
       if (area !== view || switching) return setView(area).then(() => realm.startPlacement(type, { uid }));
       if (placement.info?.uid) buildings.setHidden(placement.info.uid, false);
       // Start near the player (the camera follows them): the placement searches the nearest valid spot from there.

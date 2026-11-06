@@ -337,29 +337,26 @@ test('tutorial: skipping one game keeps the other; an old full skip covers both'
   assert.equal(old.tutorial.farmDone && old.tutorial.cafeDone, true);
 });
 
-test('region game: picked on first entry, café needs Round 2, fixed per region', () => {
-  const h = harness();
-  h.must('story/introDone'); h.must('story/teacherDone');
-  h.must('world/unlockRegion', { regionId: 'vn-1' });
-  // Round 1: the café cannot be picked yet
-  assert.equal(h.act('world/enterRegion', { regionId: 'vn-1', mode: 'cafe' }).error, 'cafeRound');
-  h.must('world/enterRegion', { regionId: 'vn-1', mode: 'farm' });
-  assert.equal(h.region().mode, 'farm');
-  assert.equal(h.state.mode, 'farm');
-  // Round 2 opens the café: a new region can be a café, an old one keeps its game
-  h.state.player.round = 2; h.state.player.coins = 1e6;
-  h.must('world/unlockRegion', { regionId: 'vn-2' });
-  h.must('world/enterRegion', { regionId: 'vn-2', mode: 'cafe' });
-  assert.equal(h.region().mode, 'cafe');
+test('first game: pick farm or café once, Round 2 opens the other one', () => {
+  const h = playing();
+  assert.equal(h.state.firstGame, null);
+  assert.equal(h.act('play/setMode', { mode: 'farm' }).error, 'gameLocked'); // nothing picked yet
+  h.must('play/chooseGame', { game: 'cafe' });
+  assert.equal(h.state.firstGame, 'cafe');
   assert.equal(h.state.mode, 'cafe');
-  h.must('world/enterRegion', { regionId: 'vn-1', mode: 'cafe' });
-  assert.equal(h.region().mode, 'farm');
+  assert.equal(h.act('play/chooseGame', { game: 'farm' }).noop, true); // once only
+  assert.equal(h.act('play/chooseGame', { game: 'moon' }).ok, false);
+  // Round 1: the farm is locked; Round 2 opens it
+  assert.equal(h.act('play/setMode', { mode: 'farm' }).error, 'gameLocked');
+  assert.equal(D.bothGames(h.state), false);
+  h.state.player.round = 2;
+  assert.equal(D.bothGames(h.state), true);
+  h.must('play/setMode', { mode: 'farm' });
   assert.equal(h.state.mode, 'farm');
-  assert.equal(h.act('play/setMode', { mode: 'cafe' }).error, 'regionMode');
-  // Saves from before the per-region choice: regions take the last played game
-  const old = normalizeSave({ ...h.state, mode: 'cafe', world: { ...h.state.world, regions: { 'vn-1': { ...h.state.world.regions['vn-1'], mode: undefined } }, currentRegion: 'vn-1' } }, T0);
-  assert.equal(old.world.regions['vn-1'].mode, 'cafe');
-  assert.equal(old.mode, 'cafe');
+  // Saves from before the pick: the game they played becomes the first game
+  const old = normalizeSave({ ...createSave(T0), mode: 'farm', firstGame: undefined }, T0);
+  assert.equal(old.firstGame, 'farm');
+  assert.equal(normalizeSave({ ...createSave(T0), mode: 'moon' }, T0).firstGame, null);
 });
 
 test('beans trade: farm sells beans for coins, café buys within coins and storage', () => {
@@ -501,4 +498,19 @@ test('level 10 incident: pauses, then a FULL restart — only 1 empty field and 
   h.state.player.xp = xpForLevel(12); h.state.inventory.beans = 3;
   h.must('shop/spawnCustomer', { roll: 0 }); h.must('shop/takeOrder'); h.must('shop/brew'); h.tick(20_000); h.must('shop/serve');
   assert.equal(h.state.story.phase, 'play');
+});
+
+test('dev/set (QA URL params): exact coins / beans / round / level, test profile only', () => {
+  const h = playing();
+  h.must('dev/set', { coins: '9999999', beans: '40', round: '2', level: '9' });
+  assert.equal(h.state.player.coins, 9999999);
+  assert.equal(h.state.inventory.beans, 40);
+  assert.equal(h.state.player.round, 2);
+  assert.equal(D.level(h.state), 9);
+  h.must('dev/set', { level: '15' });
+  assert.equal(D.level(h.state), 9); // never jumps past the Level-10 incident
+  h.must('dev/set', { coins: 'abc' });
+  assert.equal(h.state.player.coins, 9999999); // junk ignored
+  const prod = harness({ dev: false });
+  assert.equal(prod.act('dev/set', { coins: 1 }).error, 'forbidden');
 });

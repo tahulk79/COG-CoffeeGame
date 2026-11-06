@@ -36,8 +36,6 @@ function render() {
   $('[data-quality-desc]').textContent = t(`settings.quality.${getQuality()}.desc`);
   const saved = readProgress();
   $('[data-reset]').hidden = !(canResetHandler ? canResetHandler() : (saved.introCompleted || saved.farm));
-  $('[data-reset-confirm]').hidden = true;
-  $('[data-reset-ask]').hidden = false;
 }
 
 function template() {
@@ -61,17 +59,10 @@ function template() {
           ${QUALITY.map(id => `<button type="button" class="ui-tab" data-quality="${id}">${t(`settings.quality.${id}`)}</button>`).join('')}
         </div>
         <p class="ui-modal__subtitle" data-quality-desc></p>
-        <section data-reset hidden>
+        <section class="settings-reset" data-reset hidden>
           <h3>🔄 ${t('settings.progress')}</h3>
-          <button type="button" class="ui-btn ui-btn--plain" data-reset-ask>${t('settings.reset')}</button>
-          <div class="ui-alert ui-alert--bad" data-reset-confirm hidden>
-            <p>${t('settings.reset.confirm')}</p>
-            <label><input type="checkbox" data-reset-memory> ${t('settings.reset.memory')}</label>
-            <div class="ui-modal__foot">
-              <button type="button" class="ui-btn ui-btn--plain" data-reset-cancel>${t('common.cancel')}</button>
-              <button type="button" class="ui-btn ui-btn--gold" data-reset-go>${t('settings.reset.go')}</button>
-            </div>
-          </div>
+          <!-- Founder: one tap restarts straight from the first screen (character select), no confirm step. -->
+          <button type="button" class="ui-btn ui-btn--plain" data-reset-go>${t('settings.reset')}</button>
         </section>
       </div>
     </div>`;
@@ -110,11 +101,8 @@ function bind() {
     location.reload();
   });
 
-  const ask = $('[data-reset-ask]'), confirmBox = $('[data-reset-confirm]');
-  ask.addEventListener('click', () => { ask.hidden = true; confirmBox.hidden = false; $('[data-reset-cancel]').focus(); });
-  $('[data-reset-cancel]').addEventListener('click', () => { confirmBox.hidden = true; ask.hidden = false; ask.focus(); });
   $('[data-reset-go]').addEventListener('click', () => {
-    if (!resetProgress($('[data-reset-memory]').checked)) { warn('settings.reset.failed'); return; }
+    if (!resetProgress(false)) { warn('settings.reset.failed'); return; } // the coffee notebook is kept
     // V3 save: reset through the app's store (keeps settings, which live in the v1 key).
     try { resetHandler?.(); } catch { warn('settings.reset.failed'); return; }
     location.reload();
