@@ -21,7 +21,7 @@ test('story flow: select → intro → teacher grants 3 credits once → gate �
   assert.equal(h.act('farm/plant', { plotId: 'F1-1' }).error, 'notPlaying');
   h.go('vn-1');
   assert.equal(h.state.story.phase, 'play');
-  assert.deepEqual(h.region().buildings.map(b => b.type).sort(), ['brewCounter', 'orderCounter', 'silo']);
+  assert.deepEqual(h.region().buildings.map(b => b.type).sort(), ['brewCounter', 'orderCounter', 'silo', 'terrace']);
 });
 
 test('farm loop: EMPTY → PLANT → GROW → READY → HARVEST → EMPTY, no watering', () => {
@@ -212,7 +212,7 @@ test('level 10: triggers once, pauses gameplay, resets only that region, keeps a
   const r = h.state.world.regions['vn-1'];
   assert.equal(r.status, 'expired');
   assert.deepEqual(r.plots, {});
-  assert.deepEqual(r.buildings.map(b => [b.type, b.level]).sort(), [['brewCounter', 1], ['orderCounter', 1], ['silo', 1]]);
+  assert.deepEqual(r.buildings.map(b => [b.type, b.level]).sort(), [['brewCounter', 1], ['orderCounter', 1], ['silo', 1], ['terrace', 1]]);
   assert.ok(r.parcels.includes('F2'), 'land ownership kept');
   assert.equal(h.state.player.coins, keep.coins);
   assert.equal(h.state.player.xp, keep.xp);
@@ -267,7 +267,7 @@ test('expired region reopens in round 2 with buildings to rebuild', () => {
   h.go('vn-2');
   h.must('round/unlock', { round: 2 }, 'r2');
   h.go('vn-1');
-  assert.equal(h.region().buildings.length, 3);
+  assert.equal(h.region().buildings.length, 4);
 });
 
 test('rebirth: confirmable spend of 1 credit, permanent blessing, no coin loss; independent from rounds', () => {

@@ -46,9 +46,10 @@ export const PARCELS = {
   F13: { id: 'F13', kind: 'farm', rect: [4, 2.5, 14, 8.5], cost: 7000 },
   F14: { id: 'F14', kind: 'farm', rect: [16, 2.5, 26, 8.5], cost: 9000 },
   // Café area (see CAFE_BOUNDS): S = starter café block with the two counters; C2/C3 = café expansions bought with coins.
-  S: { id: 'S', kind: 'shop', rect: [-6, 102, 6, 114], starter: true, cost: 0, area: 'cafe' },
-  C2: { id: 'C2', kind: 'shop', rect: [8, 102, 18, 112], cost: 500, area: 'cafe' },
-  C3: { id: 'C3', kind: 'shop', rect: [-20, 102, -11, 112], cost: 1400, area: 'cafe' },
+  // Wider café (16 × 14 m) so there is room to build; expansions on both sides.
+  S: { id: 'S', kind: 'shop', rect: [-6, 100, 10, 114], starter: true, cost: 0, area: 'cafe' },
+  C2: { id: 'C2', kind: 'shop', rect: [12, 100, 24, 114], cost: 500, area: 'cafe' },
+  C3: { id: 'C3', kind: 'shop', rect: [-22, 100, -11, 114], cost: 1400, area: 'cafe' },
 };
 export const PARCEL_ORDER = ['F1', 'S', 'F2', 'C2', 'F3', 'F4', 'F5', 'C3', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12', 'F13', 'F14'];
 export const areaOfParcel = id => PARCELS[id]?.area || 'farm';
@@ -75,15 +76,16 @@ export const FIXED = {
   silo: { x: 9, z: 14, rot: 0 },        // storehouse beside the farm road, south-east
   orderCounter: { x: -3, z: 105, rot: 0 },
   brewCounter: { x: 2, z: 105, rot: 0 },
+  terrace: { x: 2, z: 116.2, rot: 0 },   // outdoor seating, upgradable (more seats); walkable
 };
 // ---- Café area (separate from the farm) ----
-export const CAFE_BOUNDS = { minX: -22, maxX: 24, minZ: 94, maxZ: 128 };
+export const CAFE_BOUNDS = { minX: -26, maxX: 28, minZ: 92, maxZ: 130 };
 export const CAFE_SPAWN = { x: -1, z: 113.5 };          // where the player stands when entering the café
-// Starter café seats on the terrace in front of the café block (2 small tables × 2 stools, Vietnamese sidewalk style).
-// Customers sit here after ordering until served. Each 'tables' building adds 2 seats around it (derive.seatCount).
-export const CAFE_SEATS = [
-  { x: -1.4, z: 115 }, { x: 0.2, z: 115 }, { x: 2.8, z: 115 }, { x: 4.4, z: 115 },
-];
+// Outdoor terrace (the upgradable 'terrace' building, FIXED below): 2 rows × 9 stools in front of the café.
+// The terrace level decides how many of these seats are in use (economy BUILDINGS.terrace.effect.seats), in this order.
+// Customers sit here after ordering until served. Each 'tables' building adds 2 more seats around it.
+export const CAFE_SEATS = [0, 1].flatMap(row => Array.from({ length: 9 }, (_, i) => ({ x: -4.4 + i * 1.6, z: row ? 117.2 : 115.2 })))
+  .sort((a, b) => Math.abs(a.x - 1.6) - Math.abs(b.x - 1.6) || a.z - b.z); // fill from the middle outwards
 // Customers walk in from the street (south-west), up the street, then east to the order counter.
 export const CUSTOMER = {
   spawn: { x: -8, z: 127 },
@@ -93,8 +95,8 @@ export const CUSTOMER = {
 };
 // Café street (always open, cannot be built on).
 export const CAFE_ROADS = {
-  cafeStreet: { id: 'cafeStreet', rect: [-9.5, 96, -6.5, 128], open: true },
-  cafeFront: { id: 'cafeFront', rect: [-22, 116, 24, 119], open: true },
+  cafeStreet: { id: 'cafeStreet', rect: [-9.5, 94, -6.5, 130], open: true },
+  cafeFront: { id: 'cafeFront', rect: [-26, 118.5, 28, 121.5], open: true },
 };
 export const AREAS = {
   farm: { bounds: BOUNDS, spawn: PLAYER_SPAWN },

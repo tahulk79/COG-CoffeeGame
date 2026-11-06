@@ -171,7 +171,7 @@ test('edge: expired region can be revisited later (no Round needed) with starter
   const r = h.region();
   assert.equal(h.state.world.currentRegion, 'vn-1');
   assert.equal(r.status, 'active');
-  assert.deepEqual(r.buildings.map(b => [b.type, b.level]).sort(), [['brewCounter', 1], ['orderCounter', 1], ['silo', 1]]);
+  assert.deepEqual(r.buildings.map(b => [b.type, b.level]).sort(), [['brewCounter', 1], ['orderCounter', 1], ['silo', 1], ['terrace', 1]]);
   for (const id of ['F1', 'S', 'F2', 'C2']) assert.ok(r.parcels.includes(id), `parcel ${id} kept`);
   assert.deepEqual(r.plots, {});
   assert.equal(new Set(r.buildings.map(b => b.uid)).size, r.buildings.length, 'unique uids');

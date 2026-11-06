@@ -40,6 +40,10 @@ export const BUILDINGS = {
   brewCounter: { id: 'brewCounter', zone: 'shop', size: [2, 1], cost: 0, starter: true, fixed: true, round: 1, level: 1,
     upgrade: [100, 260, 700, 1600, 3200, 6400, 12800], model: 'cafe/pickup-counter.glb#pickup_counter', icon: '☕',
     effect: { brewSpeed: [1, 1.2, 1.4, 1.6, 1.8, 2, 2.2, 2.5], slots: [1, 1, 2, 2, 2, 3, 3, 3] } },
+  // Outdoor seating in front of the café: starter, fixed, walkable; each level adds stools (see layout CAFE_SEATS).
+  terrace: { id: 'terrace', zone: 'shop', size: [7, 2], cost: 0, starter: true, fixed: true, walkable: true, round: 1, level: 1,
+    upgrade: [80, 200, 450, 900, 1800, 3500, 7000], model: null, icon: '🪑',
+    effect: { seats: [4, 6, 8, 10, 12, 14, 16, 18] } },
   roaster: { id: 'roaster', zone: 'shop', size: [2, 2], cost: 40, round: 1, level: 1,
     upgrade: [150, 400, 900, 2000, 4000, 8000, 16000], model: 'farm/roaster-tier-1.glb', icon: '🔥',
     effect: { priceBonus: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8] } },
@@ -112,7 +116,7 @@ export const REBIRTH = {
 
 // Shop. Customers arrive while the region is active and the queue has room.
 // baseSeats: terrace seats (layout CAFE_SEATS); each Tables building adds seatsPerTable. A taken order needs a free seat.
-export const SHOP = { patienceSeconds: 45, maxPendingTips: 0, baseSeats: 4, seatsPerTable: 2 };
+export const SHOP = { patienceSeconds: 45, maxPendingTips: 0, baseSeats: 4, seatsPerTable: 2 }; // baseSeats = fallback when no terrace
 
 // Safety net: if the player cannot afford the cheapest seed and has nothing growing, no beans and no pending café income,
 // planting robusta is free (the Teacher's grace). Never grants coins.

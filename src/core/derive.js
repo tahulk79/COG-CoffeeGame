@@ -184,7 +184,7 @@ export function regionAccess(s, regionId) {
   return { ok: true, owned: true, visited: !!r, expired };
 }
 // Café seats: terrace seats + 2 per Tables building. Orders being prepared (taken/brewing) occupy a seat.
-export const seatCount = s => SHOP.baseSeats + buildingsOf(s, 'tables').length * SHOP.seatsPerTable;
+export const seatCount = s => (effect(s, 'terrace', 'seats') || SHOP.baseSeats) + buildingsOf(s, 'tables').length * SHOP.seatsPerTable;
 export const seatsUsed = s => (region(s)?.shop.orders || []).filter(o => o.stage === 'taken' || o.stage === 'brewing').length;
 export const regionsOfCountry = countryId => Array.from({ length: REGIONS_PER_COUNTRY }, (_, i) => regionIdOf(countryId, i + 1));
 export const allCountries = () => COUNTRY_ORDER;
