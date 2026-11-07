@@ -246,7 +246,7 @@ export function levelUnlocks(s, lvl) {
   for (const id of CROP_ORDER) if (CROPS[id].level === lvl && CROPS[id].round <= s.player.round) out.push(`${CROPS[id].icon} ${T(`crop.${id}`)}`);
   for (const id of DRINK_ORDER) if (DRINKS[id].level === lvl) out.push(`${DRINKS[id].icon} ${T(`drink.${id}`)}`);
   for (const id of BUILD_MENU) { const def = defOf(id); if (def && def.level === lvl && def.round <= s.player.round) out.push(`${def.icon} ${T(`building.${id}`)}`); }
-  for (const id of STAFF_ORDER) if (STAFF[id].level === lvl && STAFF[id].round <= s.player.round) out.push(`${STAFF[id].icon} ${T(`staff.${id}`)}`);
+  for (const id of STAFF_ORDER) if (STAFF[id].level === lvl && STAFF[id].round <= s.player.round) out.push(`${STAFF[id].icon} ${T(has(`hud.unlock.${id}`) ? `hud.unlock.${id}` : `staff.${id}`)}`);
   return out;
 }
 

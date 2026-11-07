@@ -87,8 +87,10 @@ body:has(#caption-box:not([hidden])) .quest-tracker{opacity:0;pointer-events:non
 /* Nội dung kéo lên viền trên để bảng tên nằm trong vùng cuộn (không bị cắt khi khung cuộn). */
 .dialogue-body{margin-top:calc(-1 * var(--pt) - 15px)}
 .dialogue-heading{position:sticky;top:0;z-index:1;align-items:flex-start;min-height:0;margin:0 0 8px;padding:0;border:0;pointer-events:none}
-#speaker{padding:4px 16px;border:2px solid var(--ui-wood-trim);border-radius:999px;background:var(--dialogue-accent);color:var(--ui-ink-light);text-shadow:0 1px var(--ui-drop-soft);box-shadow:0 3px 0 var(--ui-wood-dark);font-size:14px;letter-spacing:.3px}
+#speaker{max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:4px 16px;border:2px solid var(--ui-wood-trim);border-radius:999px;background:var(--dialogue-accent);color:var(--ui-ink-light);text-shadow:0 1px var(--ui-drop-soft);box-shadow:0 3px 0 var(--ui-wood-dark);font-size:14px;letter-spacing:.3px}
 .dialogue-auto{margin-top:4px;padding:3px 10px;border:2px solid var(--ui-paper-edge);border-radius:999px;background:var(--ui-paper);font-size:11px}
+/* Narrow phones: name tag + AUTO chip on one row ("NGƯỜI DẪN CHUYỆN" wrapped to two lines at 320 px) */
+@media(max-width:400px){#speaker{padding:3px 12px;font-size:12px;letter-spacing:.1px}.dialogue-auto{padding:2px 8px;font-size:10px}}
 #caption{font-weight:700}
 .dialogue-bottom{min-height:36px}
 /* Đang có mũi tên thì dòng "Enter/Chạm để tiếp" thừa: chỉ giữ cho trình đọc màn hình. */
