@@ -5,7 +5,7 @@ import { CROP_ORDER, DRINK_ORDER, autoPrice } from '../../core/config/economy.js
 import { cropUnlocked, drinkUnlocked, region, bothGames, regionGame, currentGames, pendingGifts, isChestLevel } from '../../core/derive.js';
 import { sfx } from '../../shared/audio/index.js';
 import { h } from './dom.js';
-import { T, errorText, clock } from './text.js';
+import { T, errorText, clock, fmt } from './text.js';
 import { createTopBar } from './top-bar.js';
 import { createToolbar, seenKey } from './toolbar.js';
 import { createActionBar } from './action-bar.js';
@@ -156,12 +156,16 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
   const devPanel = dev ? createDevPanel(ctx) : null;
 
   // ---------- auto play: "▶ Auto ×N" button (top-right, under the gear) + banner with time left and Stop ----------
+  // Phones show it as a round side button (icon + small tag, like 🚂 / 💰); tablets / desktop keep the full-text pill.
+  const autoIco = h('span', { class: 'hud-auto-ico', attrs: { 'aria-hidden': 'true' } });
+  const autoTag = h('span', { class: 'hud-auto-tag' });
+  const autoFull = h('span', { class: 'hud-auto-full' });
   const autoBtn = h('button', { type: 'button', class: 'hud-auto-btn', hidden: true, attrs: { 'aria-label': T('hud.auto.aria') },
     on: { click: () => {
       sfx('ui.open');
       if ((store.state.autoplay?.runs || 0) <= 0) { buyAuto(ctx); return; } // no runs: buy one with coins (confirm card)
       const r = ctx.act('auto/start'); if (r.ok && !r.noop) ctx.toast(T('hud.toast.autoStart'), 'good');
-    } } });
+    } } }, autoIco, autoTag, autoFull);
   // Compact one-row bar while auto plays: "🤖 AUTO · 2:31" chip (time left) + "⏹ Stop".
   const autoChip = h('strong', { class: 'hud-autobar-chip' });
   const autoStop = h('button', { type: 'button', class: 'hud-autobar-stop', on: { click: () => stopAuto('user') } }, T('hud.auto.stop'));
@@ -183,7 +187,9 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
       autoSig = sig;
       autoBar.hidden = !on;
       autoBtn.hidden = on || !ctx.isPlaying();
-      autoBtn.textContent = runs > 0 ? T('hud.auto.button', { n: runs }) : T('hud.auto.buy', { price });
+      autoFull.textContent = runs > 0 ? T('hud.auto.button', { n: runs }) : T('hud.auto.buy', { price });
+      autoIco.textContent = runs > 0 ? '▶' : '🛒';
+      autoTag.textContent = runs > 0 ? T('hud.auto.short', { n: runs }) : `🪙${fmt(price)}`;
       autoBtn.classList.toggle('is-buy', runs <= 0);
       if (on) { root.dataset.auto = '1'; sheet.close(); staffModal.close(); } else delete root.dataset.auto;
     }
@@ -227,7 +233,8 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
     const list = pendingGifts(s);
     if (!list.length) { giftWait = 0; return; }
     giftWait += dt;
-    if (giftWait < 1.6) return; // let the "Level N!" banner show first
+    // Let the "Level N!" banner play out first: the gift modal (z 40) would otherwise cover its unlock list.
+    if (giftWait < 1.6 || feedback.bannerShowing()) return;
     giftWait = 0;
     gifting = true;
     sheet.close();
@@ -292,7 +299,10 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
     notices.textContent = lines.join('. ');
   }
 
-  root.append(...[top.el, shops.el, autoBtn, autoBar, actionBar.el, switchBtn, landChip, toolbar.el, placement.el, sheet.el, staffModal.el, tutorial.el, feedback.el, modals.el, notices, devPanel?.el].filter(Boolean)); // no dev panel → nothing (not the text "undefined")
+  // ▶ Auto lives in the right column (under ⚙️ / 💰): on phones it stacks there as a round button; tablet / desktop CSS keeps
+  // it position:fixed where it always was.
+  top.el.querySelector('.hud-gear-col').append(autoBtn);
+  root.append(...[top.el, shops.el, autoBar, actionBar.el, switchBtn, landChip, toolbar.el, placement.el, sheet.el, staffModal.el, tutorial.el, feedback.el, modals.el, notices, devPanel?.el].filter(Boolean)); // no dev panel → nothing (not the text "undefined")
   document.body.append(root);
 
   function renderAll(s) {
@@ -315,7 +325,24 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
   // focus slide a target out from under the card (Hay Day rule: slide only when covered or off-screen).
   const shown = el => !!el && !el.hidden && el.getClientRects().length > 0;
   let insetSig = '', insetClock = 0;
+  // The café shop rail starts under the top-left stack (player badge + pills), whose height changes with the screen
+  // (pills stack in portrait, wrap in short landscape) — a fixed offset made the rail cover the 🫘 storehouse pill.
+  // --hud-top-band: lowest edge of the whole top HUD (both columns + ▶ Auto / AUTO bar) — the action card's ceiling.
+  let tlBottom = -1, bandBottom = -1, trBottom = -1;
+  function syncTopLeft() {
+    const tl = top.el.querySelector('.hud-top-left');
+    const b = shown(tl) ? Math.round(tl.getBoundingClientRect().bottom) : 0;
+    let band = 0;
+    for (const n of [...top.el.querySelectorAll('.hud-top-left, .hud-top-right'), autoBtn, autoBar]) if (shown(n)) band = Math.max(band, n.getBoundingClientRect().bottom);
+    band = Math.round(band);
+    if (b !== tlBottom) { tlBottom = b; root.style.setProperty('--hud-tl-bottom', `${b}px`); }
+    if (band !== bandBottom) { bandBottom = band; root.style.setProperty('--hud-top-band', `${band}px`); }
+    const tr = top.el.querySelector('.hud-top-right'), trb = shown(tr) ? Math.round(tr.getBoundingClientRect().bottom) : 0;
+    if (trb !== trBottom) { trBottom = trb; root.style.setProperty('--hud-tr-bottom', `${trb}px`); }
+  }
   function syncInsets() {
+    syncTopLeft();
+    feedback.layout();
     if (!ctx.realm?.setSafeInsets) return;
     const H = window.innerHeight || 0;
     let topBand = 0, bottomTop = H;

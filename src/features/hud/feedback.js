@@ -17,6 +17,13 @@ import { T, has, fmt, errorText } from './text.js';
 import { levelUnlocks } from './sheets.js';
 
 const TOAST_MS = 2400, MAX_TOASTS = 3;
+// What the toast / banner column must stay clear of. TOP: HUD sitting above it (its bottoms are the candidate tops);
+// SOFT: a top blocker the column may cover when nothing else fits on screen (the café shop rail is a long strip);
+// FLOOR: bottom-anchored bars / cards it should end above.
+const HARD_TOP = '#hud-root .hud-player, #hud-root .hud-pills > *, #hud-root .hud-roundmap, #hud-root .hud-gear, #hud-root .hud-loan-btn, #hud-root .hud-auto-btn, #hud-root .hud-autobar, #hud-root .hud-tip';
+const SOFT_TOP = '#hud-root .hud-shops';
+const FLOOR_BLOCKERS = '#hud-root .hud-action, #hud-root .hud-land-chip, #hud-root .hud-toolbar';
+const COL_MAX = 400, COL_GAP = 8;
 // Staff stop kind → toast; staffLeft reason → tone; care kinds with their own toast (the unstopping ones get "Back to work").
 const STOP_TOAST = { phone: 'hud.toast.staffPhone', battery: 'hud.toast.staffBattery', overheat: 'hud.toast.staffOverheat', jam: 'hud.toast.staffJam' };
 const LEFT = { unpaid: 'bad', poached: 'bad', letGo: 'info', fired: 'info', sold: 'info' };
@@ -44,10 +51,56 @@ const QUOTE = { slow: 'slow', patience: 'patience', crowd: 'crowd', fight: 'figh
 export function createFeedback(ctx) {
   const toasts = h('div', { class: 'hud-toasts', attrs: { role: 'status', 'aria-live': 'polite' } });
   const banner = h('div', { class: 'hud-banner', hidden: true, attrs: { role: 'status' } });
-  const el = h('div', { class: 'hud-feedback' }, toasts, banner);
+  // Banner first, toasts under it, in one column: a level-up banner can never hide the toasts (or the reverse).
+  const col = h('div', { class: 'hud-feedback-col' }, banner, toasts);
+  const el = h('div', { class: 'hud-feedback' }, col);
   const timers = new Set();
   ctx.venueSold = ctx.venueSold || Object.create(null); // per-shop sales this session (venue card)
   const later = (fn, ms) => { const id = setTimeout(() => { timers.delete(id); fn(); }, ms); timers.add(id); return id; };
+
+  // Place the column under whatever HUD sits above it horizontally (pills, 🚂/⚙️/💰 column, ▶ Auto, café shop rail,
+  // tutorial tip) on any screen size. Narrow phones: the column first narrows (down to minW) to slip between the
+  // left pills / shop rail and the right buttons, and only drops lower when it cannot. Passes, best first:
+  //   1. clear of everything and above the toolbar / action card;  2. may cover the shop rail, still above them;
+  //   3. clear of the top HUD, over the card;  4. may cover the rail, over the card.
+  // The top HUD always wins: a toast briefly over the card or the rail beats one over the coins or ▶ Auto.
+  let colSig = '';
+  const rectsOf = sel => [...document.querySelectorAll(sel)]
+    .filter(n => n.offsetParent !== null || getComputedStyle(n).position === 'fixed')
+    .map(n => n.getBoundingClientRect()).filter(r => r.width > 0 && r.height > 0);
+  function layout() {
+    if (!el.isConnected || (banner.hidden && !toasts.childElementCount)) return;
+    const vw = window.innerWidth || 0, vh = window.innerHeight || 0, cx = vw / 2;
+    // A level-up banner squeezed beside the shop rail turns into a tall, cramped column: it may rather cover the rail
+    // (pass 2) for its few seconds. Toasts alone are short and narrow down further.
+    const maxW = Math.min(COL_MAX, vw - 24), minW = banner.hidden ? Math.min(220, Math.round(vw * .55)) : Math.min(260, vw - 24);
+    const need = Math.max(36, col.offsetHeight);
+    const hard = rectsOf(HARD_TOP), soft = rectsOf(SOFT_TOP), floors = rectsOf(FLOOR_BLOCKERS);
+    const widthAt = (y, rects) => {
+      if (y + need > vh - COL_GAP) return 0;                           // would run off the bottom of the screen
+      let w = maxW;
+      for (const r of rects) {
+        if (r.bottom <= y || r.top >= y + need) continue;           // not beside the column at this height
+        if (r.left < cx && r.right > cx) return 0;                   // straddles the centre: no room here
+        w = Math.min(w, 2 * ((r.right <= cx ? cx - r.right : r.left - cx) - 6));
+      }
+      return w;
+    };
+    const ysOf = rects => [0, ...rects.map(r => Math.round(r.bottom + COL_GAP))].sort((a, b) => a - b);
+    const passes = [[ysOf([...hard, ...soft]), [...hard, ...soft, ...floors]], [ysOf(hard), [...hard, ...floors]],
+      [ysOf([...hard, ...soft]), [...hard, ...soft]], [ysOf(hard), hard]];
+    const firstYs = passes[1][0];
+    let y = firstYs[firstYs.length - 1], w = maxW, found = false; // nothing fits on screen: just under the top HUD
+    for (const [ys, rects] of passes) {
+      for (const cand of ys) { const cw = widthAt(cand, rects); if (cw >= minW) { y = cand; w = cw; found = true; break; } }
+      if (found) break;
+    }
+    const sig = `${y}:${Math.floor(w)}`;
+    if (sig === colSig) return;
+    colSig = sig;
+    col.style.setProperty('--fb-top', `${y}px`);
+    col.style.setProperty('--fb-w', `${Math.floor(w)}px`);
+  }
 
   function toast(text, tone = 'info') {
     if (!text) return;
@@ -56,17 +109,27 @@ export function createFeedback(ctx) {
     const node = h('div', { class: `hud-toast hud-toast--${tone}` }, text);
     toasts.append(node);
     while (toasts.children.length > MAX_TOASTS) toasts.firstElementChild.remove();
+    layout();
     later(() => { node.classList.add('is-out'); later(() => node.remove(), 300); }, TOAST_MS);
   }
 
   let bannerTimer = 0;
+  // Phones: 3 unlocks + "+N" keep the banner small (the full list is in Progress); larger screens: up to 6.
+  function bannerItems(unlocks) {
+    const max = (window.innerWidth || 0) < 760 || (window.innerHeight || 0) < 561 ? 3 : 6;
+    const shown = unlocks.length > max ? unlocks.slice(0, max - 1) : unlocks;
+    const items = shown.map(u => h('li', null, u));
+    if (unlocks.length > shown.length) items.push(h('li', { class: 'is-more' }, `+${unlocks.length - shown.length}`));
+    return items;
+  }
   function levelBanner(s, from, to) {
     const unlocks = [];
     for (let l = from + 1; l <= to; l++) unlocks.push(...levelUnlocks(s, l));
     banner.replaceChildren(h('strong', { class: 'hud-banner-title' }, T('hud.levelUp', { level: to })),
       unlocks.length ? h('div', { class: 'hud-banner-sub' }, T('hud.unlocked')) : null,
-      unlocks.length ? h('ul', { class: 'hud-banner-list' }, unlocks.slice(0, 6).map(u => h('li', null, u))) : null);
+      unlocks.length ? h('ul', { class: 'hud-banner-list' }, bannerItems(unlocks)) : null);
     banner.hidden = false;
+    layout();
     clearTimeout(bannerTimer);
     timers.delete(bannerTimer);
     bannerTimer = later(() => { banner.hidden = true; }, unlocks.length ? 4200 : 2600);
@@ -172,5 +235,5 @@ export function createFeedback(ctx) {
     }
   }
 
-  return { el, toast, onEvents, dispose() { for (const id of timers) clearTimeout(id); timers.clear(); el.remove(); } };
+  return { el, toast, onEvents, layout, bannerShowing: () => !banner.hidden, dispose() { for (const id of timers) clearTimeout(id); timers.clear(); el.remove(); } };
 }

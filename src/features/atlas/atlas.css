@@ -9,14 +9,22 @@
 @keyframes atlas-bob{50%{transform:translateY(-3px)}}
 .atlas-close{position:absolute;left:max(16px,env(safe-area-inset-left));top:max(12px,env(safe-area-inset-top));pointer-events:auto;min-width:44px;min-height:44px}
 .atlas-close[hidden]{display:none}
-.atlas-pins{position:absolute;inset:0;overflow:hidden}
+/* own stacking context: the pins' z-index (declutter priority) must never lift them over the header / sheet */
+.atlas-pins{position:absolute;inset:0;z-index:0;overflow:hidden}
 .atlas-pin{--chip:#5f9a3c;position:absolute;left:0;top:0;display:flex;align-items:center;gap:4px;min-height:34px;padding:3px 10px 3px 4px;border:2px solid var(--chip);border-radius:999px;
   background:var(--ui-hud-bg);color:var(--ui-ink);font:800 13px/1.2 var(--game-font);white-space:nowrap;pointer-events:auto;cursor:pointer;box-shadow:0 3px 8px #0003}
-.atlas-pin::after{content:'';position:absolute;left:50%;bottom:-8px;margin-left:-6px;border:6px solid transparent;border-top-color:var(--chip);border-bottom:0}
+.atlas-pin::after{content:'';position:absolute;left:calc(50% + var(--tail,0px));bottom:-8px;margin-left:-6px;border:6px solid transparent;border-top-color:var(--chip);border-bottom:0}
 .atlas-pin[hidden]{display:none}
 .atlas-pin[data-status=current]{--chip:#e0a93a;animation:atlas-pulse 1.6s ease-in-out infinite}
 .atlas-pin[data-status=locked]{--chip:#8d8d86;background:#eeeee8e6;color:#5d5d57}
-.atlas-pin.is-selected{background:var(--chip);color:#fff;z-index:1}
+.atlas-pin:not(.is-dot){z-index:1}
+.atlas-pin[data-status=current]{z-index:2}
+.atlas-pin.is-selected{background:var(--chip);color:#fff;z-index:3}
+/* declutter (index.js): a pin that would overlap a higher-priority one shows only its round icon (still tappable);
+   a dot that would still sit on a full label is tucked away (tap the country itself) */
+.atlas-pin.is-dot{gap:0;padding:3px}
+.atlas-pin.is-dot>:not(.atlas-pin-icon){display:none}
+.atlas-pin.is-tucked{visibility:hidden;pointer-events:none}
 .atlas-pin-icon{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#fff;font-size:13px}
 .atlas-pin-extra{padding:1px 6px;border-radius:999px;background:#0000000f;font:700 11px/1.3 var(--game-font)}
 @keyframes atlas-pulse{50%{box-shadow:0 0 0 5px #ffd25e66,0 3px 8px #0003}}

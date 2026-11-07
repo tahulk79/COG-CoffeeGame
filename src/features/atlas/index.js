@@ -136,6 +136,7 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
   }));
 
   let selected = null, confirming = null, toastTimer = 0; // confirming: region id whose confirm card is open
+  let sizesDirty = true; // pin labels / screen changed: re-measure the full pin sizes (declutter)
   const state = () => store.state;
   function toast(text, tone = 'info') { toastEl.textContent = text; toastEl.dataset.tone = tone; toastEl.hidden = false; toastTimer = 2.6; }
 
@@ -173,6 +174,7 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
         el('span', 'atlas-pin-games', games.map(g => GAME_ICON[g]).join('')), ...(extra ? [el('small', 'atlas-pin-extra', extra)] : []));
       pin.setAttribute('aria-label', [name, gameText, extra].filter(Boolean).join(' · '));
     }
+    sizesDirty = true;
   }
   function renderHeader() {
     title.textContent = t(`atlas.title.${mode}`);
@@ -347,12 +349,55 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
   refreshCountries(); renderHeader();
 
   const anchor = new THREE.Vector3();
+
+  // Pin declutter: on a phone the South-East Asia labels pile up (Việt Nam, the player's own country, ended up under
+  // Đài Loan / Malaysia / Indonesia). Pins are placed by priority — selected, current, owned, then locked — and one
+  // that would overlap an already placed pin shrinks to a round icon-only dot (still a button: tapping it selects the
+  // country, which then wins the full label). A dot that would still sit on a full label is tucked away (the country
+  // tile itself stays tappable on the map). Full sizes are measured once per label change / resize, not per frame.
+  const PRIORITY = { current: 1, owned: 2, locked: 3 };
+  const DOT = 34, TAIL = 8, PAD = 3;
+  const fullSize = new Map();
+  function measure(list) {
+    const todo = list.filter(p => sizesDirty || !fullSize.has(p.pin));
+    if (!todo.length) return;
+    if (sizesDirty) fullSize.clear();
+    for (const { pin } of todo) pin.classList.remove('is-dot');
+    for (const { pin } of todo) if (pin.offsetWidth) fullSize.set(pin, { w: pin.offsetWidth, h: pin.offsetHeight });
+    sizesDirty = false;
+  }
+  function declutter(list) {
+    measure(list);
+    const rank = p => (p.entry.id === selected ? 0 : PRIORITY[p.entry.status?.kind] ?? 3);
+    list.sort((a, b) => rank(a) - rank(b));
+    const placed = [], labels = [];
+    const hits = (r, set) => set.some(q => r.l < q.r + PAD && r.r > q.l - PAD && r.t < q.b + PAD && r.b > q.t - PAD);
+    // Keep a label on screen (a country near the edge showed half a label): shift it in by dx; its tail still points at
+    // the country (--tail moves the arrow back). Countries whose point is off screen are left alone.
+    const shiftFor = (x, w) => (x < 0 || x > innerWidth ? 0 : Math.min(Math.max(x, w / 2 + 4), innerWidth - w / 2 - 4) - x);
+    const box = (x, w, h, y) => ({ l: x - w / 2, r: x + w / 2, t: y - h - TAIL, b: y });
+    for (const p of list) {
+      const size = fullSize.get(p.pin) || { w: DOT, h: DOT };
+      const fx = p.x + shiftFor(p.x, size.w), sx = p.x + shiftFor(p.x, DOT);
+      const full = box(fx, size.w, size.h, p.y), small = box(sx, DOT, DOT, p.y);
+      const dot = rank(p) > 0 && hits(full, placed);
+      const tucked = dot && hits(small, labels);
+      if (!dot) labels.push(full);
+      if (!tucked) placed.push(dot ? small : full);
+      if (p.pin.classList.contains('is-dot') !== dot) p.pin.classList.toggle('is-dot', dot);
+      if (p.pin.classList.contains('is-tucked') !== tucked) p.pin.classList.toggle('is-tucked', tucked);
+      const x = dot ? sx : fx, half = (dot ? DOT : size.w) / 2;
+      p.pin.style.transform = `translate3d(${x}px, ${p.y}px, 0) translate(-50%, -100%)`;
+      p.pin.style.setProperty('--tail', `${Math.round(Math.max(12 - half, Math.min(half - 12, p.x - x)))}px`);
+    }
+  }
+
   return {
     scene, camera,
     get mode() { return mode; },
     setMode(next) { mode = next; refreshCountries(); renderSheet(); },
     resize(width, height) {
-      portrait = width < height;
+      portrait = width < height; sizesDirty = true;
       camera.aspect = width / height; camera.fov = portrait ? 56 : 40; camera.updateProjectionMatrix();
     },
     update(dt) {
@@ -380,12 +425,15 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
         if (entry.ring.visible) { const k = 1 + (Math.sin(time * 3) * .5 + .5) * .5; entry.ring.scale.setScalar(k); entry.ringMaterial.opacity = 1.1 - k * .55; }
         entry.banner.rotation.y = Math.sin(time * 3 + entry.x) * .25;
       }
+      const shown = [];
       for (const [entry, pin] of pinFor) {
         anchor.set(entry.x, entry.tile.position.y + DEPTH + .95, entry.z).project(camera);
         const visible = anchor.z < 1 && Math.abs(anchor.x) < 1.1 && Math.abs(anchor.y) < 1.1;
         if (pin.hidden === visible) pin.hidden = !visible;
-        if (visible) pin.style.transform = `translate3d(${Math.round((anchor.x + 1) / 2 * innerWidth)}px, ${Math.round((1 - anchor.y) / 2 * innerHeight)}px, 0) translate(-50%, -100%)`;
+        if (!visible) continue;
+        shown.push({ entry, pin, x: Math.round((anchor.x + 1) / 2 * innerWidth), y: Math.round((1 - anchor.y) / 2 * innerHeight) });
       }
+      declutter(shown);
     },
     handleKeyDown(event) {
       if (event.target.closest?.('input, textarea, select, dialog')) return;
