@@ -1,20 +1,29 @@
 // Placement controls (✓ confirm / ↻ rotate / ✕ cancel) shown while realm.placement != null. Polled in update().
 // They follow the building being placed (founder: "nút xây đi theo lò rang"): every frame the bar sits just under the
 // ghost's footprint on screen (realm.placementPoint), flipped above it near the bottom edge, clamped to the screen.
-import { BUILDINGS } from '../../core/config/economy.js';
+import { defOf, buildCost } from '../../core/derive.js';
 import { sfx } from '../../shared/audio/index.js';
 import { h, setText } from './dom.js';
 import { T, errorText } from './text.js';
+import { coinAmount } from './widgets.js';
+
+// Price of what is being placed: the realm's info.cost when it gives one, else the next copy's price (moves are free).
+function placeCost(p, s) {
+  if (p.uid) return 0;
+  if (Number.isFinite(p.cost)) return p.cost;
+  return s ? buildCost(s, p.type) : 0;
+}
 
 export function createPlacementBar(ctx) {
   const name = h('strong', { class: 'hud-place-name' });
   const reason = h('span', { class: 'hud-place-reason' });
+  const price = h('span', { class: 'hud-place-cost' }); // coin amount · 'Free' · 'Move'
   const round = (cls, icon, label, onClick, id) => h('button', { type: 'button', id, class: `hud-round-btn ${cls}`, dataset: id ? { hudId: id } : undefined,
     attrs: { 'aria-label': label }, on: { click: onClick } }, h('span', { attrs: { 'aria-hidden': 'true' } }, icon));
   const cancel = round('is-cancel', '✕', T('hud.place.cancel'), () => ctx.realm?.cancelPlacement?.());
   const rotate = round('is-rotate', '↻', T('hud.place.rotate'), () => ctx.realm?.rotatePlacement?.());
   const ok = round('is-ok', '✓', T('hud.place.confirm'), confirm, 'hud-place-ok');
-  const el = h('div', { class: 'hud-place', hidden: true }, h('div', { class: 'hud-place-btns' }, cancel, rotate, ok), h('div', { class: 'hud-place-info' }, name, reason));
+  const el = h('div', { class: 'hud-place', hidden: true }, h('div', { class: 'hud-place-btns' }, cancel, rotate, ok), h('div', { class: 'hud-place-info' }, h('span', { class: 'hud-place-head' }, name, price), reason));
   let sig = null;
 
   function confirm() {
@@ -43,15 +52,19 @@ export function createPlacementBar(ctx) {
   function update() {
     const p = ctx.realm?.placement || null;
     if (p && !el.hidden) follow(p);
-    const next = p ? `${p.type}|${p.valid ? 1 : 0}|${p.error || ''}` : '';
+    const cost = p ? placeCost(p, ctx.store.state) : null;
+    const next = p ? `${p.type}|${p.uid || ''}|${p.valid ? 1 : 0}|${p.error || ''}|${p.noRoom || ''}|${p.fieldsUnder || 0}|${cost}` : '';
     if (next === sig) return;
     sig = next;
     el.hidden = !p;
     if (p) ctx.root.dataset.placing = '1'; else delete ctx.root.dataset.placing;
     if (!p) return;
-    const def = BUILDINGS[p.type];
+    const def = defOf(p.type);
     setText(name, `${def?.icon || ''} ${T(`building.${p.type}`)}`);
-    setText(reason, p.valid ? T('hud.place.hint') : errorText(p.error || 'blocked'));
+    price.replaceChildren(p.uid ? T('hud.move') : coinAmount(cost || 0)); // coinAmount(0) reads 'Free'
+    price.classList.toggle('is-move', !!p.uid);
+    const why = p.error === 'onField' && p.fieldsUnder > 0 ? T('fw.place.clearFields', { n: p.fieldsUnder }) : errorText(p.error || 'blocked');
+    setText(reason, p.valid ? T('hud.place.hint') : p.noRoom ? T(p.noRoom) : why);
     reason.classList.toggle('is-bad', !p.valid);
     ok.disabled = !p.valid;
     ok.setAttribute('aria-disabled', String(!p.valid));

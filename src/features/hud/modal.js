@@ -1,4 +1,4 @@
-// Small centered confirm card (Round/Country unlock, Rebirth only) and the Teacher dialogue overlay.
+// Small centered confirm card, the farm/café choice, the level gift box / surprise chest and the Teacher dialogue overlay.
 import { h } from './dom.js';
 import { T } from './text.js';
 import { coinAmount } from './widgets.js';
@@ -100,5 +100,41 @@ export function createModals(ctx) {
     return promise;
   }
 
-  return { el: layer, confirm, choose, dialogue, get open() { return !!active; }, dispose() { active?.close(false); layer.remove(); } };
+  /**
+   * Level gift: a closed gift box (or a surprise chest on chest levels). Tap "Open" → onOpen() claims it and returns
+   * { items, prize } → the box opens and shows what was inside → "Collect" closes. Resolves true once collected.
+   */
+  const ITEM_ICON = { coins: '🪙', beans: '🫘', hireTicket: '🎟️', autoRun: '🤖' };
+  function gift({ level, chest = false, onOpen } = {}) {
+    const box = h('div', { class: `hud-gift-box${chest ? ' is-chest' : ''}`, attrs: { 'aria-hidden': 'true' } },
+      h('span', { class: 'hud-gift-glow' }), h('span', { class: 'hud-gift-lid' }), h('span', { class: 'hud-gift-base' }), h('span', { class: 'hud-gift-ribbon' }));
+    const title = h('h2', { id: 'hud-gift-title' }, T(chest ? 'hud.gift.chestTitle' : 'hud.gift.title', { level }));
+    const sub = h('p', { class: 'hud-gift-sub' }, T(chest ? 'hud.gift.chestSub' : 'hud.gift.sub'));
+    const list = h('ul', { class: 'hud-gift-items', hidden: true });
+    const btn = h('button', { type: 'button', class: 'hud-btn hud-btn--gold hud-gift-btn' }, h('span', { class: 'hud-btn-main' }, T(chest ? 'hud.gift.openChest' : 'hud.gift.open')));
+    const card = h('div', { class: `hud-confirm hud-gift${chest ? ' hud-gift--chest' : ''}`, attrs: { role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'hud-gift-title' } },
+      title, sub, box, list, btn);
+    let opened = false;
+    btn.addEventListener('click', () => {
+      if (opened) { active?.close(true); return; }
+      const got = onOpen?.();
+      if (!got) { active?.close(false); return; }
+      opened = true;
+      card.classList.add('is-open');
+      if (got.prize) sub.textContent = T(`hud.gift.prize.${got.prize}`);
+      else sub.textContent = T('hud.gift.inside');
+      list.replaceChildren(...got.items.map((it, i) => h('li', { class: 'hud-gift-item', attrs: { style: `--i:${i}` } },
+        h('span', { class: 'hud-gift-item-ico', attrs: { 'aria-hidden': 'true' } }, ITEM_ICON[it.kind] || '🎁'),
+        h('strong', null, T(`hud.gift.item.${it.kind}`, { n: it.amount })))));
+      list.hidden = false;
+      btn.firstChild.textContent = T('hud.gift.collect');
+    });
+    const promise = open(h('div', { class: 'hud-modal' }, h('div', { class: 'hud-scrim' }), card), e => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); }
+    });
+    btn.focus({ preventScroll: true });
+    return promise;
+  }
+
+  return { el: layer, confirm, choose, gift, dialogue, get open() { return !!active; }, dispose() { active?.close(false); layer.remove(); } };
 }

@@ -7,7 +7,7 @@ import { apply, ACTIONS } from '../../src/core/game.js';
 import { normalizeSave, createSave, SCHEMA } from '../../src/core/state.js';
 import { migrateLegacy } from '../../src/core/migrate.js';
 import { createStore, createMemoryStorage } from '../../src/core/store.js';
-import { BUILDINGS, ROUNDS, START, EXPIRY_LEVEL, CROPS, xpForLevel, levelForXp, SHOP } from '../../src/core/config/economy.js';
+import { BUILDINGS, START, EXPIRY_LEVEL, CROPS, xpForLevel, levelForXp, SHOP } from '../../src/core/config/economy.js';
 
 // A rich mid-game state: round 3, lots of coins, credits, Level 12 (Level-10 event already done).
 function rich(opts) {
@@ -61,6 +61,9 @@ test('edge: Object.prototype names as ids are rejected (prototype-key lookups)',
     ['land/buyParcel', { parcelId: 'toString' }], ['land/openRoad', { roadId: 'toString' }],
     ['staff/hire', { type: 'toString' }], ['staff/hire', { type: '__proto__' }],
     ['country/unlock', { countryId: 'toString' }], ['rebirth/perform', { blessing: 'toString' }],
+    ['shop/openVenue', { venue: '__proto__' }], ['shop/openVenue', { venue: 'toString' }],
+    ['shop/venueSale', { venue: 'toString', item: 'beer' }], ['shop/venueSale', { venue: 'bar', item: '__proto__' }],
+    ['shop/review', { venue: '__proto__', stars: 5 }], ['shop/review', { venue: 'constructor', stars: 5 }],
   ];
   for (const [type, payload] of cases) {
     let r;
@@ -126,12 +129,13 @@ test('edge: staff assigned in region A stays assigned there when travelling to B
   assert.deepEqual(unit.assigned, { regionId: 'vn-1', zone: 'farm' });
   const inA = D.growMs(h.state, 'robusta');
   assert.ok(inA < base);
-  h.go('vn-2');
+  h.go('br-1');
   assert.deepEqual(h.state.staff.units[0].assigned, { regionId: 'vn-1', zone: 'farm' }, 'travelling does not move staff');
   assert.equal(D.growMs(h.state, 'robusta'), base, 'no bonus in region B');
   assert.equal(D.assignedUnits(h.state).length, 0);
-  assert.equal(D.freeSlots(h.state, 'farm'), 3);
+  assert.equal(D.freeSlots(h.state, 'farm'), 12, 'no per-zone cap: everyone hired may work (Lv12 → 12)');
   // A plant in B grows at base speed.
+  h.state.tutorial.farmDone = true; // no fast tutorial seed
   h.must('farm/plant', { plotId: 'F1-1' });
   assert.equal(D.plotState(h.state, 'F1-1', h.now + inA).stage, 'growing');
   // Re-assigning in B moves it (and removes the bonus from A).
@@ -139,7 +143,7 @@ test('edge: staff assigned in region A stays assigned there when travelling to B
   assert.equal(D.growMs(h.state, 'robusta'), inA);
   h.go('vn-1');
   assert.equal(D.growMs(h.state, 'robusta'), base);
-  assert.equal(D.assignedUnits(h.state, 'vn-2').length, 1);
+  assert.equal(D.assignedUnits(h.state, 'br-1').length, 1);
 });
 
 // ---------- Level-10 expiry ----------
@@ -176,13 +180,6 @@ test('edge: tx log keeps only the last 64 ids; evicted ids are no longer dedupli
   // Failed and noop actions do not record their tx id.
   assert.equal(h.act('farm/plant', { plotId: 'F8-1' }, 'tx-fail').ok, false);
   assert.ok(!h.state.tx.includes('tx-fail'));
-  // Even with an evicted id, a Round can never be charged twice (state guard).
-  h.state.player.xp = xpForLevel(10); h.state.story.level10Done = true; h.state.player.coins = ROUNDS[2].cost * 2;
-  h.must('round/unlock', { round: 2 }, 'round-2');
-  for (let i = 0; i < 70; i++) h.must('tutorial/set', { step: 1 }, `pad-${i}`);
-  assert.ok(!h.state.tx.includes('round-2'));
-  assert.equal(h.act('round/unlock', { round: 2 }, 'round-2').noop, true);
-  assert.equal(h.state.player.coins, ROUNDS[2].cost);
 });
 
 test('edge: normalizeSave rejects schema ≠ 3 and repairs bad numbers', () => {
@@ -202,7 +199,7 @@ test('edge: normalizeSave rejects schema ≠ 3 and repairs bad numbers', () => {
   const s = normalizeSave(JSON.parse(JSON.stringify(raw)), T0); // JSON turns NaN/Infinity into null, like a real save
   assert.equal(s.player.coins, START.coins);
   assert.equal(s.player.xp, 0);
-  assert.equal(s.player.round, 3);
+  assert.equal(s.player.round, 1); // only Round 1 for now
   assert.equal(s.rebirth.credits, 0);
   assert.equal(s.inventory.beans, 0);
   assert.equal(s.nextUid, 1);
@@ -210,7 +207,7 @@ test('edge: normalizeSave rejects schema ≠ 3 and repairs bad numbers', () => {
   assert.equal(s.story.phase, 'intro');
   const r = s.world.regions['vn-1'];
   assert.equal(r.status, 'idle');
-  assert.deepEqual(r.parcels, ['F1']);
+  assert.deepEqual(r.parcels, ['F1', 'Y0']); // layout v4: every region gets the starter yard
   assert.equal(r.buildings.length, 1);
   assert.deepEqual(r.shop.orders, []);
   assert.equal(r.shop.nextOrder, 1);

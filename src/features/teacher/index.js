@@ -1,16 +1,16 @@
-// Teacher phase: scene + speech overlay + sequence (lines → claim credits → World Gate opens).
-// createTeacher({ character, name, credits, level, onCredits, onDone }) → { scene, camera, update, resize, start, clearInput, dispose }
-//  - onCredits(): called exactly once, when the credits are claimed OR when the player skips (the app dispatches story/teacherDone).
+// Teacher phase: scene + speech overlay + sequence (lines → World Gate opens).
+// createTeacher({ character, name, level, onTalked, onDone }) → { scene, camera, update, resize, start, clearInput, dispose }
+//  - onTalked(): called exactly once, after the last line OR when the player skips (the app dispatches story/teacherDone).
 //  - onDone(): called once after the gate opening; the app opens the atlas.
 import { createTeacherScene } from './scene.js';
 import { createTeacherUi } from './ui.js';
 import { t } from '../../i18n/index.js';
 import { sfx } from '../../shared/audio/index.js';
 
-export async function createTeacher({ character, name, credits = 3, level = 10, onCredits, onDone }) {
+export async function createTeacher({ character, name, level = 10, onTalked, onDone }) {
   const view = await createTeacherScene({ character });
-  let skipped = false, granted = false, finished = false, disposed = false;
-  const grant = () => { if (granted) return; granted = true; onCredits?.(); };
+  let skipped = false, talked = false, finished = false, disposed = false;
+  const doneTalking = () => { if (talked) return; talked = true; onTalked?.(); };
   const ui = createTeacherUi({
     onSkip() {
       if (skipped) return;
@@ -22,8 +22,7 @@ export async function createTeacher({ character, name, credits = 3, level = 10, 
     ['talk', t('story.teacher.line2')],
     ['claim', t('story.teacher.line3')],
     ['talk', t('story.teacher.line4', { level })],
-    ['talk', t('story.teacher.line5')],
-    ['claim', t('story.teacher.line6', { count: credits })],
+    ['claim', t('story.teacher.line5')],
   ];
 
   async function start() {
@@ -34,9 +33,8 @@ export async function createTeacher({ character, name, credits = 3, level = 10, 
       view.setShot(shot);
       await ui.line(line);
     }
-    if (!skipped && !disposed) await ui.claim(credits);
     if (disposed) return;
-    grant();
+    doneTalking();
     ui.notice(t('story.teacher.gate'));
     sfx('ui.open');
     const opened = view.openGate();

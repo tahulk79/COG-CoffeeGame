@@ -108,7 +108,8 @@ function fallbackErrorText(result) {
   return t('story.err.generic');
 }
 const errorText = result => (typeof hudModule?.errorText === 'function' ? hudModule.errorText(result) : fallbackErrorText(result));
-const QUIET_ACTIONS = new Set(['shop/spawnCustomer', 'shop/customerLeft']);
+// Timer-driven realm actions (customers, café street vendors / reviews): failures are not the player's doing.
+const QUIET_ACTIONS = new Set(['shop/spawnCustomer', 'shop/customerLeft', 'shop/venueSale', 'shop/review']);
 const expiryLines = () => [1, 2, 3, 4].map(n => t(`story.expiry.line${n}`).replace(/\*\*/g, ''));
 // Fire-and-forget realm cinematic; input stays usable afterwards.
 function cinematic(name) {
@@ -214,8 +215,8 @@ async function enterTeacher() {
   showLoading(40, t('story.loading.teacher'));
   const [{ createTeacher }, character] = await Promise.all([import('../features/teacher/index.js'), loadPlayer(playerModel(profile.gender))]);
   const teacher = await createTeacher({
-    character, name: profile.name, credits: START.rebirthCredits, level: EXPIRY_LEVEL,
-    onCredits: () => store.dispatch('story/teacherDone'),
+    character, name: profile.name, level: EXPIRY_LEVEL,
+    onTalked: () => store.dispatch('story/teacherDone'),
     onDone: () => { openAtlas('gate').catch(fail); },
   });
   disposeActive(); releaseModels('intro/'); // intro GLBs are only used by the intro
@@ -291,12 +292,15 @@ async function enterPlay() {
   renderer.toneMappingExposure = .95;
   const hooks = {
     onSelect: target => hud?.setSelection(target),
+    onStaffTap: uid => hud?.openStaff?.(uid),
     // Customer spawn / patience run on a timer: their failures are not the player's doing, so stay silent.
     onResult: (actionType, result) => {
       if (!result || result.ok || QUIET_ACTIONS.has(actionType)) return;
       hud?.toast(errorText(result), 'bad'); sfx('ui.deny');
     },
     onWalkToGate: () => { if (mode === 'play') openAtlas('play').catch(fail); },
+    // Café street: the camera framed a shop (id) or the street overview (null) → the HUD shop strip highlights it.
+    onShopFocus: id => hud?.setShopFocus?.(id),
   };
   realm = await createRealm({ renderer, store, gender: profile.gender, hooks });
   realm.resize(window.innerWidth, window.innerHeight);
@@ -330,7 +334,6 @@ async function runExpiry() {
 const unsubscribeStory = store.subscribe((state, evts) => {
   for (const e of evts || []) {
     if (e.type === 'expiryTriggered' && mode === 'play') setTimeout(() => runExpiry().catch(fail)); // after the current dispatch returns
-    else if (e.type === 'roundUnlocked') { track('round_unlocked', { round: e.round }); cinematic('round'); }
     else if (e.type === 'regionUnlocked') track('region_selected', { region: e.regionId, cost: e.cost });
     else if (e.type === 'reborn') { track('rebirth_used', { blessing: e.blessing }); cinematic('rebirth'); }
   }
@@ -503,12 +506,12 @@ if (import.meta.hot) import.meta.hot.dispose(() => {
 // Dev QA hook (?profile=test): inspect the store from the console.
 if (DEV_PROFILE) window.__godbeanStore = store;
 // QA URL params on the test profile, applied on every load (only the test save is touched):
-//   ?profile=test&coins=9999999&beans=40&round=2&level=9
-// coins / beans / round / level are set to exactly that value (round 2 opens the other game; level stays below 10
+//   ?profile=test&coins=9999999&beans=40&level=9
+// coins / beans / level are set to exactly that value (level stays below 10
 // unless the Level-10 incident already happened).
 if (DEV_PROFILE) {
   const q = new URLSearchParams(location.search);
-  const params = Object.fromEntries(['coins', 'beans', 'round', 'level'].filter(k => q.has(k)).map(k => [k, q.get(k)]));
+  const params = Object.fromEntries(['coins', 'beans', 'level'].filter(k => q.has(k)).map(k => [k, q.get(k)]));
   if (Object.keys(params).length) {
     const r = store.dispatch('dev/set', params);
     console.info('[QA] URL params', params, r.ok ? 'applied' : r.error);

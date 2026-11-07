@@ -6,8 +6,8 @@
 // The World map is in the Progress sheet (and the World Gate on the farm). Exactly 4 menus per screen (founder).
 // Red dot when something is new or affordable. Buttons of the other screen are hidden (never removed: the tutorial and
 // tests can still find them by id).
-import { BUILD_MENU_FARM, BUILD_MENU_CAFE, BUILDINGS, CROPS, CROP_ORDER, DRINK_ORDER, STAFF, STAFF_ORDER, REBIRTH, BEANS } from '../../core/config/economy.js';
-import { buildError, buildingsOf, staffError, unlockedCrops, unlockedDrinks, roundStatus, rebirthError, freeSlots, region, upgradeError, capacity, beanBuyQuote } from '../../core/derive.js';
+import { BUILD_MENU_FARM, BUILD_MENU_CAFE, BUILDINGS, CROPS, CROP_ORDER, DRINK_ORDER, STAFF, STAFF_ORDER, BEANS, ITEM_GOODS } from '../../core/config/economy.js';
+import { buildError, countOf, maxCount, useOf, defOf, staffError, unitBlocked, upgradableStats, zoneUnits, unlockedCrops, unlockedDrinks, freeSlots, region, upgradeError, capacity, stored, goodCount, beanBuyQuote } from '../../core/derive.js';
 import { h, setText } from './dom.js';
 import { T } from './text.js';
 import { drinkSeenKey } from './sheets.js';
@@ -29,21 +29,35 @@ export const seenKey = cropId => `hudCrop:${cropId}`;
 export function toolDots(s, view = 'farm') {
   const r = region(s);
   const dots = {};
-  dots.build = !!r && (view === 'cafe' ? BUILD_MENU_CAFE : BUILD_MENU_FARM).some(type => !BUILDINGS[type].decor && buildingsOf(s, type).length === 0 && !buildError(s, type));
+  // Something new to build: a type not built yet (max ≥ 1), unlocked and affordable — never decor (D.defOf: 'field' is no BUILDINGS entry).
+  dots.build = !!r && (view === 'cafe' ? BUILD_MENU_CAFE : BUILD_MENU_FARM).some(type => !!defOf(type) && useOf(type) !== 'decor' && countOf(s, type) === 0 && maxCount(s, type) >= 1 && !buildError(s, type));
   // New crop / drink unlocked and not looked at yet (the starter one never counts). Marked seen by its sheet.
   dots.seeds = unlockedCrops(s).some(id => id !== CROP_ORDER[0] && !s.story.seen?.[seenKey(id)]);
   dots.menu = unlockedDrinks(s).some(id => id !== DRINK_ORDER[0] && !s.story.seen?.[drinkSeenKey(id)]);
   const silo = r?.buildings.find(b => b.type === 'silo');
   dots.storage = !!silo && !upgradeError(s, silo);
   const zone = view === 'cafe' ? 'shop' : 'farm';
-  const idle = s.staff.units.some(u => !u.assigned && STAFF[u.type]?.zone === zone && r && freeSlots(s, zone) > 0);
-  dots.staff = s.staff.units.some(u => u.stopped) || !!r && (idle || STAFF_ORDER.some(type => STAFF[type].zone === zone && !s.staff.units.some(u => u.type === type) && !staffError(s, type)));
+  // Staff (docs/design/staff-manager.md §10): a unit of this game here is blocked, a rival is poaching, a stat upgrade is
+  // affordable; also an unassigned unit with a free slot, or (team still empty) an affordable first hire.
+  const now = Date.now();
+  const here = s.staff.units.filter(u => STAFF[u.type]?.zone === zone && u.assigned?.regionId === s.world.currentRegion);
+  const idle = !!r && freeSlots(s, zone) > 0 && s.staff.units.some(u => !u.assigned && STAFF[u.type]?.zone === zone);
+  const firstHire = !!r && !zoneUnits(s, zone).length && STAFF_ORDER.some(type => STAFF[type].zone === zone && !staffError(s, type));
+  dots.staff = !!s.staff.poach || here.some(u => unitBlocked(u, now) || upgradableStats(s, u).length > 0) || idle || firstHire;
   dots.world = false;
   // Beans link: farm → storehouse full (sell!); café → almost out of beans and a pack can be bought.
   const cap = r ? capacity(s) : 0;
-  dots.trade = !!r && (view === 'cafe' ? s.inventory.beans < 2 && !beanBuyQuote(s).error : cap > 0 && s.inventory.beans >= cap);
-  dots.progress = !!roundStatus(s).canUnlock || Object.keys(REBIRTH.blessings).some(k => !rebirthError(s, k));
+  dots.trade = !!r && (view === 'cafe' ? s.inventory.beans < 2 && !beanBuyQuote(s).error : cap > 0 && stored(s) >= cap);
   return dots;
+}
+
+/**
+ * Farm middle button: plain "Sell beans" while the farm only has beans; once a processed good is stored or a
+ * processing building stands, it becomes the Storehouse (same tap: the storehouse card with every good).
+ */
+export function farmHasGoods(s) {
+  const r = region(s);
+  return !!r && (ITEM_GOODS.some(g => goodCount(s, g) > 0) || r.buildings.some(b => !!BUILDINGS[b.type]?.recipe));
 }
 
 /** Customers waiting at the counter of the current region. */
@@ -89,11 +103,23 @@ export function createToolbar(ctx) {
   }
   layout(ctx.realm?.view || 'farm');
 
+  let tradeMode = '';
+  // The farm's middle button: 🫘 Sell beans (tutorial 'sell' step) → 📦 Storehouse once goods are processed.
+  function tradeLabel(s) {
+    const view = ctx.realm?.view || 'farm';
+    const mode = view === 'cafe' ? 'buy' : farmHasGoods(s) ? 'store' : 'sell';
+    if (mode === tradeMode) return;
+    tradeMode = mode;
+    setText(viewIco, mode === 'store' ? '📦' : '🫘');
+    setText(viewLabel, T(mode === 'buy' ? 'hud.trade.buy' : mode === 'store' ? 'fw.goods.title' : 'hud.trade.sell'));
+    viewBtn.setAttribute('aria-label', mode === 'store' ? T('fw.goods.title') : T(mode === 'buy' ? 'hud.trade.buyAria' : 'hud.trade.sellAria', { price: mode === 'buy' ? BEANS.buyPrice : BEANS.sellPrice }));
+  }
   function render(s) {
     lastState = s;
     const dots = toolDots(s, ctx.realm?.view || 'farm');
     for (const [id, b] of Object.entries(buttons)) b.btn.classList.toggle('has-dot', !!dots[id]);
     viewBadge.hidden = !dots.trade; setText(viewBadge, '!');
+    tradeLabel(s);
   }
   // The Seeds button shows the active crop icon (realm owns the active crop).
   function update() {
@@ -104,9 +130,7 @@ export function createToolbar(ctx) {
     viewSig = view;
     ctx.root.dataset.view = view;
     viewBtn.dataset.view = view;
-    const cafe = view === 'cafe';
-    setText(viewLabel, T(cafe ? 'hud.trade.buy' : 'hud.trade.sell'));
-    viewBtn.setAttribute('aria-label', T(cafe ? 'hud.trade.buyAria' : 'hud.trade.sellAria', { price: cafe ? BEANS.buyPrice : BEANS.sellPrice }));
+    tradeMode = ''; // label follows the screen (and the farm's goods): set in render
     layout(view);
     if (lastState) render(lastState); // staff / trade dots depend on the screen
   }

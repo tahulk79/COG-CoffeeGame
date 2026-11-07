@@ -10,13 +10,24 @@
  * seat → served), seats, staff, avatar, camera (CameraController), placement (ghost preview), markers (tutorial arrow,
  * selection, drag cursor), badges (object notices: ▲ upgrade, ! order, + brew, ☕ serve, sickle, + for sale),
  * cinematics, input (gesture recognizer). Every action dispatched here is reported through hooks.onResult.
+ *
+ * Café street (docs/design/cafe-street.md §3.6–3.7): the café view is a street of 4 shops (SHOP_ORDER: tea · café ·
+ * lemon · bar). venues-scene (shopfronts; its blockers join the café nav), street (venue customers + vendors), speech
+ * (talk bubbles, reviews, fight cloud) and incidents (the director: balks, switches, cuts, fights, reviews) are wired
+ * here. Camera: realm.focusShop(id | null) frames one shop (or the whole street), realm.focusedShop follows the camera
+ * (a pinch out past the shop / a pan onto another shop updates it), hooks.onShopFocus(id) tells the HUD strip.
+ * Café taps after the usual pickers: a waiting venue customer → street.serveTap; a venue lot / the café block that is
+ * not the focused shop → zoom there (consumed, no walk); a locked venue (lot or its 🔒 badge) → zoom + the venue card
+ * (hooks.onSelect({ kind: 'venue', venue })). The café tutorial is never intercepted.
  */
 import * as THREE from 'three';
-import { BUILDINGS, CROPS, CROP_ORDER, DRINKS } from '../../core/config/economy.js';
-import { PARCELS, GATE, FIXED, PLOT_SIZE, CUSTOMER, CAFE_SEATS, AREAS, BOUNDS, CAFE_BOUNDS, RESERVED, plotById, plotsOf, parcelAt, areaAt, areaOfParcel, rectCenter } from '../../core/config/layout.js';
-import { region as regionOf, footprint, upgradeError, parcelError, seatCount, seatsUsed, brewSlots, seatPatienceRatio, ownedPlots, capacity, cropUnlocked, seedCost, canPlay, cafeStaffed } from '../../core/derive.js';
+import { BUILDINGS, CROPS, CROP_ORDER, DRINKS, GOODS, VENUES, VENUE_ORDER } from '../../core/config/economy.js';
+import { PARCELS, ROADS, inRect, GATE, FIXED, CUSTOMER, CAFE_SEATS, AREAS, BOUNDS, CAFE_BOUNDS, RESERVED, VENUE_LOTS, SHOP_FRAMES, STREET_FRAME, SHOP_ORDER, shopAt, parcelAt, areaAt, areaOfParcel } from '../../core/config/layout.js';
+import { region as regionOf, footprint, upgradeError, parcelError, seatCount, seatsUsed, brewSlots, seatPatienceRatio, ownedPlots, plotOf, capacity, stored, cropUnlocked, seedCost, canPlay, cafeStaffed, regionGame, venueOpen, venueError, farmViewBounds, roadOpen, defOf, tileAt, jobState, prodError, collectError, sellAllQuote, unitOf, unitState, unitBlocked, quickFix } from '../../core/derive.js';
+import { currentStep } from '../../core/tutorial.js';
+import { t as tr } from '../../i18n/index.js';
 import { loadModel } from '../../shared/three/models.js';
-import { disposeScene } from '../../shared/three/dispose-scene.js';
+import { disposeScene, keepOnGPU } from '../../shared/three/dispose-scene.js';
 import { createVfx, flyTo, popNumber } from '../../shared/vfx/index.js';
 import { sfx } from '../../shared/audio/index.js';
 import { createCameraController } from './camera.js';
@@ -27,13 +38,17 @@ import { createCafe } from './cafe.js';
 import { createStaff } from './staff.js';
 import { createAvatar } from './avatar.js';
 import { createPlacement } from './placement.js';
-import { createMarkers } from './markers.js';
+import { createMarkers, FRAME_LAND } from './markers.js';
 import { createCinematics } from './cinematics.js';
 import { createBadges } from './badges.js';
 import { createPads } from './pads.js';
 import { setTableInfo, standSpot } from './seats.js';
 import { createNav, navObstacles, rectArea } from './nav.js';
 import { createInput } from './input.js';
+import { createSpeech } from './speech.js';
+import { createVenueScene } from './venues-scene.js';
+import { createStreet } from './street.js';
+import { createIncidents } from './incidents.js';
 import { groundPoint, unionRect, fmtTimer, clamp } from './util.js';
 
 const SKY = 0xb4e2f7; // fog uses the same color so the horizon melts into the sky
@@ -58,9 +73,18 @@ const PADS = {
   brew: { x: FIXED.brewCounter.x, z: 107.5, color: '#2f9e8f' },
 };
 const NEAR_PAD = 1.4; // generous: walking across the pad is enough
+// Café street camera (zoom = × the base distance; camera.js): the café view may pull out further (the street overview);
+// a venue is framed close enough to operate; past OVERVIEW_ZOOM the camera shows the street (focusedShop = null).
+const CAFE_ZOOM_MAX = 2.5, VENUE_ZOOM = 1.6, OVERVIEW_ZOOM = 2.15;
+const SHOP_PAD = 6; // m: the camera target may leave the focused shop's frame by this much before it counts as "left"
+const FIELD_HALF = 1.5; // m: half of a field's 3 × 3 m footprint (walk-beside distance, land card frame)
+const LAND_HALF = 1.5;  // m: half of the land-card highlight (a field-sized 3 × 3 m square around the tapped tile)
+// First output good of a production batch / recipe (its icon flies to the storage pill, shows on the collect badge).
+const firstGood = out => (out && Object.keys(out).find(g => GOODS[g])) || null;
+const sumOut = out => Object.values(out || {}).reduce((n, v) => n + (Number(v) || 0), 0);
 
 /**
- * @param {{ renderer: THREE.WebGLRenderer, store: object, gender: 'male'|'female', hooks?: { onSelect?, onResult?, onWalkToGate? } }} opts
+ * @param {{ renderer: THREE.WebGLRenderer, store: object, gender: 'male'|'female', hooks?: { onSelect?, onResult?, onWalkToGate?, onStaffTap? } }} opts
  */
 export async function createRealm({ renderer, store, gender, hooks = {} }) {
   const canvas = renderer.domElement;
@@ -84,6 +108,11 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   scene.add(hemi, sun, sun.target);
   let shadowHalf = 0;
   const SUN_OFFSET = new THREE.Vector3(-14, 28, 12);
+  // Light-space axes (perpendicular to the sun direction): the shadow box is snapped to whole shadow-map texels along
+  // them, so shadows stay still while the camera pans / follows (otherwise every edge shimmers = "flicker").
+  const SUN_RIGHT = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), SUN_OFFSET).normalize();
+  const SUN_UP = new THREE.Vector3().crossVectors(SUN_OFFSET, SUN_RIGHT).normalize();
+  const sunAt = new THREE.Vector3();
 
   // ---------- assets ----------
   const paths = [...new Set([...Object.values(BUILDINGS).map(b => b.model), ...EXTRA_MODELS, ...Object.values(TREE_PARTS), ...Object.values(GATE_PARTS)])].filter(Boolean); // procedural buildings (terrace) have no model
@@ -93,13 +122,25 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   ]);
   const templates = Object.fromEntries(paths.map((p, i) => [p, loaded[i]]));
   for (const [k, p] of Object.entries({ ...TREE_PARTS, ...GATE_PARTS })) templates[k] = templates[p];
+  keepOnGPU(templates['cafe/props.glb#cup']); // shared by staff / café / street / hand cups: disposing a worker must not free it
   const prefabs = Object.fromEntries(Object.keys(BUILDINGS).map(type => [type, makePrefab(type, templates)]));
   setTableInfo(prefabs.tables?.userData.tableInfo); // customers sit on the Tables prefab's real chairs
 
   // ---------- sub-modules ----------
   const vfx = createVfx({ scene });
   const cam = createCameraController(camera);
+  const speech = createSpeech({ scene, camera }); // street talk bubbles, reviews, fight cloud (café view)
+  // What the café / street / staff / director use: talk only while the café is on screen (a staffed café keeps running
+  // from the farm view, but its bubbles must not float over the farm). Same API as speech.js.
+  const onCafe = () => view === 'cafe' && !switching && !disposed;
+  const talk = {
+    say: (o, text, opts) => onCafe() && speech.say(o, text, opts),
+    review: (o, stars, text) => onCafe() && speech.review(o, stars, text),
+    fightCloud: (x, z, opts) => (onCafe() ? speech.fightCloud(x, z, opts) : { done: Promise.resolve(), x, z }),
+  };
   const world = createWorld({ scene, templates });
+  const venues = createVenueScene({ scene, templates }); // the 3 street shops (shopfronts, counters, stools)
+  const staticBlockers = [...world.blockers, ...venues.blockers]; // city houses + venue shops (constant)
   const plots = createPlots({ scene, templates, vfx });
   const buildings = createBuildings({ scene, prefabs, templates, vfx });
   // Grid pathfinding, one navigator per area (nav.js): shared by the player's walks, staff and customers.
@@ -117,10 +158,20 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     getQueued: () => cafe.queuedOrder(store.state),
     canStand: (zone, x, z) => canStand(zone, x, z),
     isPaused: () => inputLocked || !!cinematics.active || disposed,
+    say: (o, text, opts) => talk.say(o, text, opts),
+    getPlayerPos: () => avatar.position,
+    isWalkable: (zone, x, z) => !navs[zone === 'farm' ? 'farm' : 'cafe'].blockedAt(x, z),
   });
   const placement = createPlacement({ scene, prefabs });
-  const markers = createMarkers({ scene });
-  const cafe = createCafe({ scene, vfx, dispatch, templates, navigate });
+  const markers = createMarkers({ scene, camera });
+  const cafe = createCafe({ scene, vfx, dispatch, templates, navigate, speech: talk });
+  const street = createStreet({ scene, vfx, dispatch, navigate, speech: talk, templates });
+  // The director reacts to café / street moments (hooks are queued and handled on its own update).
+  const incidents = createIncidents({ cafe, street, speech: talk, dispatch, getState: () => store.state });
+  cafe.setHooks({ onSpawnBlocked: incidents.onCafeSpawnBlocked, onArrived: incidents.onCustomerArrived });
+  street.onWaitingLow = incidents.onVenueWaitingLow;
+  street.onLeft = incidents.onVenueLeft;
+  street.onServed = incidents.onVenueServed;
   const badges = createBadges({ scene, camera });
   const pads = createPads({ scene, points: PADS });
   const cinematics = createCinematics({
@@ -155,6 +206,9 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   let view = 'farm';        // area on screen: 'farm' | 'cafe'
   let viewApplied = false;  // visibility is applied on the first frame, so compileAsync sees both areas' materials
   let switching = null;     // { to, t, phase: 'out'|'in', promise, resolve } while the fade runs
+  let focusedShop = null;   // café street: shop the camera frames (SHOP_ORDER id) or null (street overview / farm)
+  let focusClock = 0;
+  let prevState = store.state; // the state before the current store change (served orders are gone from the new one)
   const keys = new Set();
   const raycaster = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
@@ -164,10 +218,10 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   const drag = { mode: null, visited: new Set(), stopped: false, ghostX: 0, ghostZ: 0, startX: 0, startZ: 0 };
   let canvasRect = canvas.getBoundingClientRect();
 
-  // Two games (farm / café): the player's first game, plus the other one from Round 2 (core derive.canPlay).
-  // The game on screen is state.mode; a game that is not open yet cannot be shown.
+  // Two games (farm / café): each region is played as ONE game (core derive.canPlay), picked on its first entry.
+  // The game on screen is state.mode; the other game's area cannot be shown.
   const modeView = state => (state.mode === 'cafe' ? 'cafe' : 'farm');
-  const openArea = (state, area) => !state.firstGame || canPlay(state, area);
+  const openArea = (state, area) => !regionGame(state) || canPlay(state, area);
   // The café runs while it is on screen, or while café staff / robots work there; otherwise it is paused (no customers,
   // nothing times out). The game on screen follows the view. Checked every frame, dispatches only on change.
   function syncArea(state) {
@@ -179,7 +233,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     const run = view === 'cafe' || (canPlay(state, 'cafe') && cafeStaffed(state));
     if (run && paused) store.dispatch('shop/resume');
     else if (!run && !paused) store.dispatch('shop/pause');
-    if (state.firstGame && state.mode !== view) store.dispatch('play/setMode', { mode: view });
+    if (regionGame(state) && state.mode !== view) store.dispatch('play/setMode', { mode: view });
   }
 
   function dispatch(type, payload) {
@@ -192,7 +246,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   function syncAll(state, instant = false) {
     const id = state.world.currentRegion || null;
     if (id !== regionId) {
-      if (regionId !== undefined) { setCarry(null); plots.clear(); buildings.clear(); cafe.reset(); staff.clear(); placement.cancel(); setSelection(null); needArrive = !!id; cancelSwitch(); swapView(modeView(state)); }
+      if (regionId !== undefined) { setCarry(null); plots.clear(); buildings.clear(); cafe.reset(); street.clear(); incidents.clear(); speech.clear(); staff.clear(); leaveModes(); setSelection(null); needArrive = !!id; cancelSwitch(); swapView(modeView(state)); }
       regionId = id;
       instant = true;
       avatar.teleport(avatar.position.x, avatar.position.z);
@@ -201,55 +255,123 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     plots.sync(state);
     buildings.sync(state);
     cafe.sync(state, instant);
+    venues.sync(state);
+    street.sync(state);
     staff.sync(state);
     // Building footprints block the player (slightly shrunk so doorways feel forgiving).
     // (walkable buildings — the terrace — never block the player)
     const solidBuildings = (regionOf(state)?.buildings || []).filter(b => BUILDINGS[b.type] && !BUILDINGS[b.type].walkable);
-    const blockRects = navObstacles(world.blockers, solidBuildings);
+    // The whole farm map is walkable: land not bought yet is only overgrown scenery, never a wall.
+    const ownedLots = regionOf(state)?.parcels || [];
+    const blockRects = navObstacles(staticBlockers, solidBuildings);
     avatar.setBlockers(blockRects);
-    // Navigation grids: rebuilt only when the buildings change (built / moved / region entered).
-    const key = `${id}|${solidBuildings.map(b => `${b.uid}:${b.x},${b.z},${b.rot}`).join(';')}`;
+    // The farm view (camera + player bounds) grows with the land: owned lots + open roads + the frontier.
+    if (view === 'farm') { const fb = farmViewBounds(state); avatar.setBounds(fb); cam.setBounds(fb); }
+    // Navigation grids: rebuilt only when the buildings or the owned land change (built / moved / bought / entered).
+    const key = `${id}|${ownedLots.join(',')}|${solidBuildings.map(b => `${b.uid}:${b.x},${b.z},${b.rot}`).join(';')}`;
     if (key !== navKey) {
       navKey = key;
       for (const area of ['farm', 'cafe']) navs[area].rebuild(blockRects.filter(r => rectArea(r) === area));
     }
     if (selection?.kind === 'building' && !buildings.get(selection.uid)) setSelection(null);
+    if (selection?.kind === 'plot' && !plotOf(state, selection.id)) setSelection(null); // field removed / moved away
+    if (selection?.kind === 'land' && (view !== 'farm' || tileAt(state, selection.x, selection.z)?.occupant)) setSelection(null); // built on
+    if (selection?.kind === 'venue' && view !== 'cafe') setSelection(null);
     if (placement.info) placement.refresh();
   }
 
   const unsubscribe = store.subscribe((state, events, type) => {
     if (type === 'reset' || type === 'reload') { regionId = regionId === undefined ? undefined : '__reset__'; }
-    // Before the sync: effects that need the old visuals (tree pop, customer mood).
+    // Before the sync: effects that need the old visuals (tree pop, customer mood, where a removed object stood).
+    let removedAt = null;
     for (const ev of events) {
-      if (ev.type === 'harvested') {
+      if (ev.type === 'removed') {
+        const f = ev.field ? plotOf(prevState, ev.uid) : null, e = f ? null : buildings.get(ev.uid);
+        if (f || e) (removedAt ||= new Map()).set(ev.uid, f ? { x: f.x, z: f.z } : { x: e.x, z: e.z });
+      } else if (ev.type === 'harvested') {
         plots.onHarvested(ev.plotId, clock);
-        const plot = plotById(ev.plotId);
+        const plot = plotOf(state, ev.plotId);
         sfx('farm.harvest');
-        if (plot) reward({ x: plot.x, y: 1, z: plot.z }, 'hud-beans', '🫘', ev.beans);
+        if (plot) { reward({ x: plot.x, y: 1, z: plot.z }, 'hud-beans', '🫘', ev.beans); starPop({ x: plot.x, y: 1.6, z: plot.z }, ev.stars); }
       } else if (ev.type === 'served') {
         if (auto.on) { say('auto.coins', { n: ev.coins }); auto.wait = Math.max(auto.wait, .7); }
+        // Seat patience used when served (the order is already gone from the new state): 0 = served right away.
+        const was = regionOf(prevState)?.shop.orders.find(o => o.id === ev.orderId);
+        incidents.onServed(ev.orderId, was ? seatPatienceRatio(was, Math.min(Date.now(), regionOf(prevState)?.shop.pausedAt || Infinity)) : .5);
         const at = cafe.onServed(ev.orderId);
         sfx('cafe.serve'); sfx('coin.gain');
         reward(at ? { x: at.x, y: 2, z: at.z } : { x: CUSTOMER.pickup.x, y: 2, z: CUSTOMER.pickup.z }, 'hud-coins', '🪙', ev.coins);
+        starPop(at ? { x: at.x, y: 2.6, z: at.z } : { x: CUSTOMER.pickup.x, y: 2.6, z: CUSTOMER.pickup.z }, ev.stars);
       } else if (ev.type === 'customerLeft') {
-        if (ev.angry && carry?.orderId === ev.orderId) setCarry(null); // the cup in hand is no longer wanted
-        cafe.onLeft(ev.orderId, !!ev.angry);
+        if (carry?.orderId === ev.orderId) setCarry(null); // the cup in hand is no longer wanted
+        incidents.onLeft(ev.orderId, !!ev.angry, ev.reason);
+        cafe.onLeft(ev.orderId, !!ev.angry, ev.reason);
       }
     }
     syncAll(state);
     badgeClock = 1; // refresh object notices right away
     for (const ev of events) {
+      if (ev.type === 'poachStarted' || ev.type === 'poachRefused' || ev.type === 'mvp') staff.onEvent(ev); // rival line / MVP cheer over the unit
       if (ev.type === 'planted') { plots.onPlanted(ev.plotId, clock); sfx('farm.plant'); }
       else if (ev.type === 'built') { buildings.onBuilt(ev.uid, clock); sfx('farm.build'); }
-      else if (ev.type === 'moved') { const e = buildings.get(ev.uid); if (e) vfx.burst('dust', e.root.position); sfx('farm.build'); }
+      else if (ev.type === 'moved') {
+        const e = buildings.get(ev.uid), f = e ? null : plotOf(state, ev.uid);
+        if (e) vfx.burst('dust', e.root.position); else if (f) vfx.burst('soil', v3.set(f.x, .2, f.z), { count: 12 });
+        sfx(f ? 'farm.plant' : 'farm.build');
+      }
+      else if (ev.type === 'fieldPlaced') { // a new bed is tilled: soil burst like planting
+        const f = plotOf(state, ev.plotId);
+        if (f && view === 'farm') { vfx.burst('soil', v3.set(f.x, .2, f.z), { count: 18 }); vfx.burst('dust', v3.set(f.x, .1, f.z), { count: 5 }); }
+        sfx('farm.plant');
+      }
+      else if (ev.type === 'removed') {
+        const at = removedAt?.get(ev.uid);
+        if (at && areaAt(at.x, at.z) === view) vfx.burst('dust', v3.set(at.x, .2, at.z), { count: 12 });
+        sfx('farm.build');
+      }
+      else if (ev.type === 'prodStarted') {
+        const e = buildings.get(ev.uid);
+        if (e && areaAt(e.x, e.z) === view) { vfx.burst('sparkle', v3.set(e.x, e.height + .4, e.z), { count: 8 }); vfx.burst('steam', v3.set(e.x, e.height, e.z), { count: 4 }); }
+        sfx('farm.build');
+      }
+      else if (ev.type === 'prodCollected') {
+        const e = buildings.get(ev.uid), good = firstGood(ev.out);
+        if (e && good) reward({ x: e.x, y: e.height + .5, z: e.z }, 'hud-beans', GOODS[good].icon, sumOut(ev.out));
+        if (e && areaAt(e.x, e.z) === view) vfx.burst('sparkle', v3.set(e.x, e.height + .4, e.z), { count: 10 });
+        sfx('farm.harvest');
+      }
+      else if (ev.type === 'goodsSold' && ev.coins > 0) { // coins fly from the storehouse (else the player) to the coin pill
+        const silo = regionOf(state)?.buildings.find(b => b.type === 'silo');
+        const at = silo && areaAt(silo.x, silo.z) === view ? silo : avatar.position;
+        reward({ x: at.x, y: 2, z: at.z }, 'hud-coins', '🪙', ev.coins);
+      }
       else if (ev.type === 'upgraded') { buildings.onUpgraded(ev.uid); sfx('farm.build'); }
       else if (ev.type === 'orderTaken') { sfx('cafe.order'); const w = cafe.walker(ev.orderId); if (w) vfx.burst('sparkle', v3.set(w.person.position.x, 2.4, w.person.position.z), { count: 8 }); }
       else if (ev.type === 'brewStarted') sfx('cafe.cup');
-      else if (ev.type === 'parcelBought') { const c = parcelSignPoint(ev.parcelId); vfx.burst('sparkle', v3.set(c.x, 1, c.z), { count: 20 }); vfx.burst('leaf', v3); }
+      else if (ev.type === 'parcelBought') {
+        const c = parcelSignPoint(ev.parcelId); vfx.burst('sparkle', v3.set(c.x, 1, c.z), { count: 20 }); vfx.burst('leaf', v3);
+        // Founder rule (farm-map.md): after buying land the camera glides to the new lot (zoom kept).
+        if (areaOfParcel(ev.parcelId) === 'farm' && view === 'farm') cam.glideTo(c.x, c.z);
+        if (landMode) world.setLandMode?.(landMode, { state }); // the expand overlay redraws the lots for sale
+      }
       else if (ev.type === 'hired' || ev.type === 'assigned') vfx.burst('sparkle', avatar.position, { count: 10 });
       else if (ev.type === 'regionEntered') { cancelSwitch(); swapView(modeView(state)); if (view === 'farm') avatar.teleport(GATE.x, GATE.z - 4); needArrive = true; }
+      else if (ev.type === 'venueOpened') celebrateVenue(ev.venue);
     }
+    prevState = state;
   });
+
+  // A street shop just opened: confetti over its shopfront and the camera frames it.
+  function celebrateVenue(id) {
+    const lot = Object.hasOwn(VENUE_LOTS, id) ? VENUE_LOTS[id] : null;
+    if (!lot) return;
+    if (view === 'cafe' && !switching) {
+      for (const [color, y] of [[0xff5a5a, 3.2], [0xffd23a, 3.6], [0x4fc3f7, 3.4], [0x7bd36a, 3.8]]) vfx.burst('sparkle', v3.set(lot.cx + (Math.random() - .5) * 4, y, lot.counter.z - .4), { count: 14, color });
+      vfx.burst('coin', v3.set(lot.cx, 2.4, lot.counter.z + .6), { count: 10 });
+      vfx.burst('dust', v3.set(lot.cx, .3, lot.counter.z + 1.2), { count: 8 });
+    }
+    focusShop(id);
+  }
 
   // Coins / beans fly from the world position to the HUD counter (popNumber when the HUD element is missing).
   function reward(pos, elementId, icon, amount) {
@@ -261,6 +383,13 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     else popNumber(`${icon} +${amount}`, sp, 'good');
   }
 
+  // Quality ★ over a sale / harvest (2★ and 3★ only: 1★ is the plain default).
+  function starPop(pos, stars) {
+    if (!(stars >= 2) || areaAt(pos.x, pos.z) !== view || switching) return;
+    const sp = project(v3.set(pos.x, pos.y, pos.z));
+    if (sp) popNumber('⭐'.repeat(stars), sp, 'good');
+  }
+
   function project(vec) {
     vec.project(camera);
     if (vec.z > 1 || vec.z < -1) return null;
@@ -270,14 +399,15 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   // ---------- targets ----------
   function buildingOf(t) { return t.uid ? buildings.get(t.uid) : buildings.byType(t.type); }
   function resolvePlot(t, now) {
-    if (t.id) return plotById(t.id);
+    if (t.id) return plotOf(store.state, t.id);
     return plots.first(t.want || 'empty', now);
   }
   // Which area a target lives in ('farm' | 'cafe'), null when unknown.
   function areaOf(t) {
     if (!t) return null;
-    if (t.kind === 'plot' || t.kind === 'field' || t.kind === 'gate') return 'farm';
-    if (t.kind === 'customer') return 'cafe';
+    if (t.kind === 'plot' || t.kind === 'field' || t.kind === 'gate' || t.kind === 'land') return 'farm';
+    if (t.kind === 'customer' || t.kind === 'venueCustomer') return 'cafe';
+    if (t.kind === 'venue') return Object.hasOwn(VENUE_LOTS, t.venue) ? 'cafe' : null;
     if (t.kind === 'parcel') return PARCELS[t.id] ? areaOfParcel(t.id) : null;
     if (t.kind === 'building') {
       const e = buildingOf(t);
@@ -289,24 +419,29 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   }
   // Highlight rect drawn on the ground for the selection.
   function frameRect(t) {
-    if (t.kind === 'plot') { const p = plotById(t.id); return p ? [p.x - PLOT_SIZE / 2, p.z - PLOT_SIZE / 2, p.x + PLOT_SIZE / 2, p.z + PLOT_SIZE / 2] : null; }
+    if (t.kind === 'plot') { const p = plotOf(store.state, t.id); return p ? footprint('field', p.x, p.z) : null; }
+    if (t.kind === 'land') return Number.isFinite(t.x) && Number.isFinite(t.z) ? [t.x - LAND_HALF, t.z - LAND_HALF, t.x + LAND_HALF, t.z + LAND_HALF] : null;
     if (t.kind === 'building') { const e = buildingOf(t); return e ? footprint(e.type, e.x, e.z, e.rot) : null; }
     if (t.kind === 'parcel') return PARCELS[t.id]?.rect || null;
     if (t.kind === 'gate') return [GATE.x - GATE.radius, GATE.z - 1, GATE.x + GATE.radius, GATE.z + 1];
+    if (t.kind === 'venue') { const lot = Object.hasOwn(VENUE_LOTS, t.venue) ? VENUE_LOTS[t.venue] : null; return lot ? [lot.rect[0], lot.counter.z - 1.2, lot.rect[2], lot.rect[3]] : null; }
     return null;
   }
   // World point above a target (arrow, screenPoint). Writes into `out`; returns false when it has no 3D position.
   function targetPoint(t, out, now) {
     if (!t || switching || areaOf(t) !== view) return false; // targets of the other area are not on screen
     if (t.kind === 'plot') { const p = resolvePlot(t, now); if (!p) return false; out.set(p.x, 1.3, p.z); return true; }
+    if (t.kind === 'land') { if (!Number.isFinite(t.x) || !Number.isFinite(t.z)) return false; out.set(t.x, .8, t.z); return true; }
     if (t.kind === 'building') { const e = buildingOf(t); if (!e) return false; out.set(e.x, e.height + (t.upgrade ? BADGE_Y : 1.1), e.z); return true; }
     if (t.kind === 'customer') { const w = cafe.walker(t.orderId); if (!w) return false; out.set(w.person.position.x, 2.9, w.person.position.z); return true; }
     if (t.kind === 'parcel' && PARCELS[t.id]) { const c = parcelSignPoint(t.id); out.set(c.x, 2.7, c.z); return true; }
     if (t.kind === 'gate') { out.set(GATE.x, 6.4, GATE.z); return true; }
+    if (t.kind === 'venue') { const a = venues.lockAnchor(t.venue); if (!a) return false; out.set(a.x, a.y + 1, a.z); return true; }
+    if (t.kind === 'venueCustomer') { const c = street.walker(t.venue, t.cid); if (!c) return false; out.set(c.person.position.x, 2.9, c.person.position.z); return true; }
     return false;
   }
 
-  function setSelection(t, { notify = true } = {}) {
+  function setSelection(t, { notify = true, glide = true } = {}) {
     outline?.remove(); outline = null;
     selection = t || null;
     timerSeconds = -1;
@@ -314,10 +449,11 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     if (!t) {
       markers.setFrame(null); // Hay Day rule: deselecting never moves the camera
     } else {
-      markers.setFrame(frameRect(t));
+      markers.setFrame(frameRect(t), t.kind === 'land' ? { color: FRAME_LAND } : undefined);
       if (t.kind === 'building') { const e = buildingOf(t); if (e) outline = vfx.outline(e.model); }
       // The target was tapped (so it is on screen) or picked from the HUD: glide only when it is off-screen.
-      if (targetPoint(t, v3, Date.now())) cam.ensureVisible(v3.x, v3.z, .12);
+      // Never while a finger is down (swipe planting): the ground must not slide under the finger.
+      if (glide && !cam.held && targetPoint(t, v3, Date.now())) cam.ensureVisible(v3.x, v3.z, .12);
     }
     if (notify) hooks.onSelect?.(selection);
   }
@@ -354,17 +490,38 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   }
   const locked = () => inputLocked || disposed || !!cinematics.active || !!switching;
 
+  // Tap on a plot / parcel: the player runs over and stops at its edge on their side. The camera follows only when the
+  // player is on screen (otherwise it stays on what was tapped and the player walks into view) — no separate glide,
+  // which used to fight the follow and jerk the view.
+  function walkBeside(x, z, half) {
+    const p = avatar.position, dx = p.x - x, dz = p.z - z, d = Math.hypot(dx, dz);
+    if (d < half + .6) return; // already there
+    const k = (half + .5) / d;
+    gateWalk = false;
+    if (carry) carry.walking = false;
+    if (cam.sees(p.x, p.z, .05)) cam.explore({ tap: true });
+    avatar.walkTo(x + dx * k, z + dz * k);
+  }
   function tapPlot(id) {
     const now = Date.now();
     const stage = plots.stage(id, now);
-    setSelection({ kind: 'plot', id });
+    setSelection({ kind: 'plot', id }, { glide: false });
+    const pl = plotOf(store.state, id); if (pl) walkBeside(pl.x, pl.z, FIELD_HALF);
     if (stage === 'empty') dispatch('farm/plant', { plotId: id, crop: activeCrop });
     else if (stage === 'ready') dispatch('farm/harvest', { plotId: id });
   }
   // Body taps. The two counters only ACT (no card): order counter → take the order; brewing counter → pick up a ready
   // cup and carry it to its customer, else brew the next taken order, else resume a delivery, else a hint toast.
   // Upgrades are reached only through the ▲ badge (target.upgrade). Other buildings open their info card.
+  // Farm World 2.0: a production building whose batch is READY collects it at once (one tap, like the counters) and is
+  // selected (its card shows the next batch); any other body tap just selects it.
   function tapBuilding(t) {
+    if (!t.upgrade && t.uid && defOf(t.type)?.recipe) {
+      const b = regionOf(store.state)?.buildings.find(x => x.uid === t.uid);
+      if (b && jobState(b, Date.now()).stage === 'ready') dispatch('prod/collect', { uid: b.uid }); // storage full → toast
+      setSelection(t);
+      return;
+    }
     if (t.upgrade || (t.type !== 'orderCounter' && t.type !== 'brewCounter')) { setSelection(t); return; }
     const orders = regionOf(store.state)?.shop.orders || [];
     if (selection) setSelection(null);
@@ -441,6 +598,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   // you carry. Only dispatched when it will succeed, so walking around never spams error toasts.
   const NEAR_CUSTOMER = 1.8;
   let nearTimer = 0, nearCooldown = 0;
+  const BADGE_NEAR = 9; // m: upgrade ▲ and buy-land "+" badges show only within this range of the farmer
   const distTo = (x, z) => Math.hypot(avatar.position.x - x, avatar.position.z - z);
   function autoNear(dt, state, orders, now) {
     nearCooldown = Math.max(0, nearCooldown - dt);
@@ -482,12 +640,15 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   }
 
   // Where an idle staff member may stroll: walkable, inside its zone, off the fields / queue / seats / player pads.
+  const STAND_PROBES = [[0, 0], [.5, 0], [-.5, 0], [0, .5], [0, -.5]];
   function canStand(zone, x, z) {
     const area = zone === 'farm' ? 'farm' : 'cafe';
-    const b = AREAS[area].bounds;
+    const b = area === 'farm' ? farmViewBounds(store.state) : AREAS[area].bounds; // farm: only the land opened so far
     if (x < b.minX + 1 || x > b.maxX - 1 || z < b.minZ + 1 || z > b.maxZ - 1 || navs[area].blockedAt(x, z)) return false;
     if (area === 'farm') {
-      for (const p of Object.values(PARCELS)) if (p.kind === 'farm' && x > p.rect[0] - .5 && x < p.rect[2] + .5 && z > p.rect[1] - .5 && z < p.rect[3] + .5) return false;
+      for (const rd of Object.values(ROADS)) if (inRect(x, z, rd.rect, .3) && !roadOpen(store.state, rd.id)) return false; // closed trails
+      // Never idle on a field (or a building) footprint, nor within .5 m of one (fields stay walkable for walks).
+      for (const [ox, oz] of STAND_PROBES) if (tileAt(store.state, x + ox, z + oz)?.occupant) return false;
       return Math.hypot(x - GATE.x, z - GATE.z) > GATE.radius + 2;
     }
     const r = regionOf(store.state);
@@ -534,12 +695,21 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     const orders = r.shop.orders, beans = state.inventory.beans;
     if (view === 'farm') {
       const mine = ownedPlots(state);
-      const room = beans < capacity(state);
+      const room = stored(state) < capacity(state);
       const ready = room && autoNearest(mine.filter(p => plots.stage(p.id, now) === 'ready'));
       if (ready) return autoGo(ready.x, ready.z + 1.25, 'auto.harvest', { id: ready.id }, { kind: 'plot', id: ready.id }, () => {
         const s = store.state;
-        if (plots.stage(ready.id, Date.now()) === 'ready' && s.inventory.beans < capacity(s)) dispatch('farm/harvest', { plotId: ready.id });
+        if (plots.stage(ready.id, Date.now()) === 'ready' && stored(s) < capacity(s)) dispatch('farm/harvest', { plotId: ready.id });
       });
+      // Finished production batches: collect them (never starts a batch, never builds or buys).
+      const done = room && autoNearest(r.buildings.filter(b => b.job && areaAt(b.x, b.z) === 'farm' && collectError(state, b, now) === null));
+      if (done) {
+        const fp = footprint(done.type, done.x, done.z, done.rot);
+        return autoGo(done.x, fp[3] + .8, 'auto.collect', { building: done.type }, { kind: 'building', uid: done.uid, type: done.type }, () => {
+          const s = store.state, b = regionOf(s)?.buildings.find(x => x.uid === done.uid);
+          if (b && collectError(s, b, Date.now()) === null) dispatch('prod/collect', { uid: b.uid });
+        });
+      }
       const crop = autoCrop(state);
       const empty = crop && autoNearest(mine.filter(p => plots.stage(p.id, now) === 'empty'));
       if (empty) return autoGo(empty.x, empty.z + 1.25, 'auto.plant', { crop }, { kind: 'plot', id: empty.id }, () => {
@@ -547,21 +717,22 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
         if (c && plots.stage(empty.id, Date.now()) === 'empty') dispatch('farm/plant', { plotId: empty.id, crop: c });
       });
       // Farm game: the storehouse is full → sell the beans there (never leaves for the café on its own).
-      if (!room && beans > 0) return autoGo(FIXED.silo.x, FIXED.silo.z + 2.4, 'auto.sell', { n: Math.floor(beans) }, { kind: 'building', type: 'silo' }, () => {
-        if (store.state.inventory.beans > 0) dispatch('farm/sellBeans');
+      const quote = room ? null : sellAllQuote(state); // every good counts toward the cap, not only raw beans
+      if (quote && quote.coins > 0) return autoGo(FIXED.silo.x, FIXED.silo.z + 2.4, 'auto.sell', { n: Math.floor(quote.amount) }, { kind: 'building', type: 'silo' }, () => {
+        if (sellAllQuote(store.state).coins > 0) dispatch('farm/sellAll');
       });
       return autoIdle(dt, 'auto.waitGrow', null, 'auto.goCafe');
     }
     // café
     if (carry) { say('auto.serve', null, { kind: 'customer', orderId: carry.orderId }); deliver(); auto.step = null; auto.timer = 0; auto.phase = 'walk'; auto.idleT = 0; return; }
     const ready = mostUrgent(orders, o => o.stage === 'brewing' && now - o.brewStart >= o.brewMs && !staff.isClaimed(o.id), now);
-    if (ready) return autoGo(PADS.brew.x, PADS.brew.z, 'auto.pickup', { drink: ready.drink }, { kind: 'building', type: 'brewCounter' }, () => {
+    if (ready) return autoGo(PADS.brew.x, PADS.brew.z, 'auto.pickup', { drink: ready.drink, item: ready.item }, { kind: 'building', type: 'brewCounter' }, () => {
       const o = regionOf(store.state)?.shop.orders.find(x => x.id === ready.id);
       if (!carry && o?.stage === 'brewing' && Date.now() - o.brewStart >= o.brewMs && !staff.isClaimed(o.id)) { pads.pop('brew', clock); pickUp(o.id); auto.phase = 'pause'; auto.wait = 0; }
     });
     const brewing = orders.filter(o => o.stage === 'brewing').length;
     const taken = mostUrgent(orders, o => o.stage === 'taken', now);
-    if (taken && brewing < brewSlots(state) && beans >= (DRINKS[taken.drink]?.beans || 1)) return autoGo(PADS.brew.x, PADS.brew.z, 'auto.brew', { drink: taken.drink }, { kind: 'building', type: 'brewCounter' }, () => {
+    if (taken && brewing < brewSlots(state) && beans >= (DRINKS[taken.drink]?.beans || 1)) return autoGo(PADS.brew.x, PADS.brew.z, 'auto.brew', { drink: taken.drink, item: taken.item }, { kind: 'building', type: 'brewCounter' }, () => {
       const s = store.state, o = regionOf(s)?.shop.orders.find(x => x.id === taken.id);
       if (o?.stage === 'taken' && s.inventory.beans >= (DRINKS[o.drink]?.beans || 1)) { pads.pop('brew', clock); dispatch('shop/brew', { orderId: o.id }); }
     });
@@ -571,7 +742,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     });
     // Nothing to do: stand ready at the order pad (customers walking in / cups brewing).
     if (distTo(PADS.order.x, PADS.order.z) > .6 && !avatar.moving) avatar.walkTo(PADS.order.x, PADS.order.z);
-    if (brewing) { const o = orders.find(x => x.stage === 'brewing'); say('auto.brewing', { drink: o.drink }, { kind: 'building', type: 'brewCounter' }); auto.phase = 'pause'; auto.wait = BEAT; auto.idleT = 0; return; }
+    if (brewing) { const o = orders.find(x => x.stage === 'brewing'); say('auto.brewing', { drink: o.drink, item: o.item }, { kind: 'building', type: 'brewCounter' }); auto.phase = 'pause'; auto.wait = BEAT; auto.idleT = 0; return; }
     // Café game: stays in the café (out of beans → the caption says so; buying is the player's call).
     const stuckBeans = taken && beans < (DRINKS[taken.drink]?.beans || 1);
     return autoIdle(dt, stuckBeans ? 'auto.needBeans' : 'auto.waitCustomer', null, 'auto.goFarm');
@@ -584,7 +755,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       avatar.stop();
       if (carry) carry.walking = false;
       Object.assign(auto, { phase: 'pause', wait: 0, step: null, caption: null, target: null, idleT: 0 }); // act on the very next frame
-      if (on) { placement.cancel(); setSelection(null); input.cancel(); endDrag(); keys.clear(); avatar.setKeyDir(0, 0); cam.explore(); }
+      if (on) { leaveModes(); setSelection(null); input.cancel(); endDrag(); keys.clear(); avatar.setKeyDir(0, 0); cam.explore(); }
     }
     if (!on || cinematics.active || inputLocked) return;
     if (switching) { avatar.stop(); auto.phase = 'pause'; auto.wait = .1; auto.step = null; return; } // view changed: re-decide there
@@ -610,31 +781,130 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     if (target?.kind === 'plot') return tapPlot(target.id);
     if (target?.kind === 'building') return tapBuilding(target);
     if (target?.kind === 'customer') return tapCustomer(target);
-    if (target?.kind === 'staff') { dispatch('staff/resume', { uid: target.uid }); return; } // not enough coins → toast
+    if (target?.kind === 'staff') return tapStaff(target);
+    if (target?.kind === 'staffUp') { hooks.onStaffTap?.(target.uid); return; } // ⬆️ ready to train → the HUD opens its card
     if (target?.kind === 'field') return harvestField(target.id);
-    if (target?.kind === 'parcel') return setSelection(target);
+    if (target?.kind === 'parcel') return tapParcel(target.id);
     if (target?.kind === 'gate') {
       setSelection({ kind: 'gate' });
       gateWalk = true;
-      cam.explore();
+      cam.explore({ tap: true });
       avatar.walkTo(GATE.x, GATE.z - GATE.radius, () => { if (gateWalk) { gateWalk = false; hooks.onWalkToGate?.(); } });
       return;
     }
+    if (target?.kind === 'venue') return tapVenue(target.venue); // 🔒 / ! badge over a locked shop
+    const cafeView = view === 'cafe';
+    if (cafeView && !target) {
+      // A waiting venue customer: the player serves them on the spot (or they say there is no free stool).
+      const ch = raycaster.intersectObjects([...street.pickers()], false);
+      if (ch.length && street.serveTap(ch[0].object.userData.target)) { if (selection) setSelection(null); return; }
+      if (!tutorialActive()) {
+        const vh = raycaster.intersectObjects([...venues.pickers()], false);
+        const vt = vh.length ? vh[0].object.userData.target : null;
+        if (vt?.kind === 'venue') return tapVenue(vt.venue);
+      }
+    }
     if (!groundPoint(raycaster, hit)) return;
+    // A tap on another shop of the street (venue lot / the café block) zooms there first (no walk).
+    let stayFramed = false;
+    if (cafeView && !tutorialActive()) {
+      const shop = shopAt(hit.x, hit.z);
+      if (shop && shop !== focusedShop) { setSelection(null); focusShop(shop); return; } // unconditional: the HUD may show a strip-opened venue card
+      // Walking into the framed shop from outside it: keep the frame (exploring would follow the far avatar back).
+      if (shop && shop === focusedShop) {
+        const f = SHOP_FRAMES[shop], p = avatar.position;
+        stayFramed = p.x < f[0] - SHOP_PAD || p.x > f[2] + SHOP_PAD || p.z < f[1] - SHOP_PAD || p.z > f[3] + SHOP_PAD;
+      }
+    }
     const parcel = parcelAt(hit.x, hit.z);
-    if (parcel && areaOfParcel(parcel.id) === view && world.parcelState(parcel.id) !== 'owned') return setSelection({ kind: 'parcel', id: parcel.id });
-    setSelection(null);
+    if (parcel && areaOfParcel(parcel.id) === view && world.parcelState(parcel.id) !== 'owned') return tapParcel(parcel.id);
+    // Empty OWNED farm land: the player still walks there, and the HUD gets a small land card (field / build here).
+    const tile = view === 'farm' ? tileAt(store.state, hit.x, hit.z) : null;
+    const land = tile?.owned && !tile.occupant && tile.terrain !== 'road' && tile.terrain !== 'plaza' && tile.lot;
+    if (land) setSelection({ kind: 'land', x: tile.x, z: tile.z, lot: tile.lot }, { glide: false });
+    else setSelection(null);
     gateWalk = false;
     if (carry) carry.walking = false; // the cup stays in hand; tap the customer / counter to resume
-    cam.explore(); // walking: the camera follows the player (dead zone), a pan stops it again
+    if (!stayFramed) cam.explore({ tap: true }); // walking: the camera follows the player (dead zone), a pan stops it again
     avatar.walkTo(hit.x, hit.z);
     vfx.burst('dust', hit, { count: 4 });
+  }
+
+  function tapParcel(id) {
+    setSelection({ kind: 'parcel', id }, { glide: false });
+    const c = parcelSignPoint(id);
+    walkBeside(c.x, c.z, .8); // stop in front of its price sign
+  }
+
+  // Staff tap (staff-manager.md §9): a jammed robot's body counts knocks (the 3rd → free staff/care knock); a unit that
+  // cannot work → its paid fix (D.quickFix: bonusSmall for the phone, recharge, cool, repair, coffee, food, bonus);
+  // an idle farm worker's 🪙 water bubble → staff/tend. Not enough coins → the usual error toast (hooks.onResult).
+  function tapStaff(target) {
+    const s = store.state, u = unitOf(s, target.uid), now = Date.now();
+    if (!u) return;
+    if (target.body && unitState(u, now) === 'jam') { if (staff.knock(u.uid)) dispatch('staff/care', { uid: u.uid, kind: 'knock' }); return; }
+    const fix = unitBlocked(u, now) ? quickFix(u, now) : null;
+    if (fix) { dispatch('staff/care', { uid: u.uid, kind: fix.kind }); return; }
+    if (u.stopped) { dispatch('staff/resume', { uid: u.uid }); return; } // older stop kinds
+    if (!target.body) dispatch('staff/tend', { uid: u.uid });
+  }
+
+  // ---------- café street: shops, camera focus ----------
+  // The café tutorial owns every café tap (nothing is intercepted while it runs).
+  const tutorialActive = () => !!tutorialTarget || !!currentStep(store.state, 'cafe');
+  // Venue lot / badge tap: a locked shop (or the focused open one) shows its card; another shop zooms there too.
+  function tapVenue(id) {
+    if (!Object.hasOwn(VENUE_LOTS, id) || view !== 'cafe') return;
+    if (!venueOpen(store.state, id) || focusedShop === id) setSelection({ kind: 'venue', venue: id });
+    else setSelection(null); // unconditional: a venue card opened from the shop strip lives only in the HUD
+    if (focusedShop !== id) focusShop(id); // after the selection: its ensureVisible must not win over the frame
+  }
+  function setFocused(id) {
+    if (id === focusedShop) return;
+    focusedShop = id;
+    hooks.onShopFocus?.(id);
+  }
+  // Camera frame of a shop (café = its counters + first seats, as when entering the café) or the street overview.
+  function frameShop(id) {
+    if (id === 'cafe') cam.focusRect(CAFE_LOOP_RECT, { key: 'shop:cafe', force: true, maxZoom: 1.9 });
+    else if (id) cam.focusRect(SHOP_FRAMES[id], { key: `shop:${id}`, force: true, maxZoom: VENUE_ZOOM });
+    else cam.focusRect(STREET_FRAME, { key: 'street', force: true });
+    setFocused(id || null);
+  }
+  /** Frames shop `id` (SHOP_ORDER) or the whole street (null); switches to the café view first. Resolves with the focus. */
+  function focusShop(id = null) {
+    if (disposed || (id != null && !SHOP_ORDER.includes(id))) return Promise.resolve(focusedShop);
+    if (view !== 'cafe' || switching) {
+      if (!openArea(store.state, 'cafe')) return Promise.resolve(focusedShop);
+      return setView('cafe').then(v => (v === 'cafe' && !switching ? focusShop(id) : focusedShop));
+    }
+    frameShop(id);
+    return Promise.resolve(focusedShop);
+  }
+  // focusedShop follows the camera: pinched out past OVERVIEW_ZOOM → the street (null); otherwise the shop under the
+  // look target, or null once the target left the focused shop's frame (+ SHOP_PAD). Checked 5×/s.
+  function updateFocus(dt) {
+    if (view !== 'cafe' || switching || cam.mode === 'cinematic') return;
+    if ((focusClock += dt) < .2) return;
+    focusClock = 0;
+    const g = cam.goal.target;
+    let next = focusedShop;
+    if (cam.zoom >= OVERVIEW_ZOOM) next = null;
+    else {
+      const at = shopAt(g.x, g.z);
+      if (at) next = at;
+      else if (focusedShop) {
+        const f = SHOP_FRAMES[focusedShop];
+        if (g.x < f[0] - SHOP_PAD || g.x > f[2] + SHOP_PAD || g.z < f[1] - SHOP_PAD || g.z > f[3] + SHOP_PAD) next = null;
+      }
+    }
+    setFocused(next);
   }
 
   // Sickle badge over a field: harvest every ripe plot in it (stops at the first refusal, e.g. storehouse full).
   function harvestField(parcelId) {
     const now = Date.now();
-    const ready = plotsOf(parcelId).filter(p => plots.stage(p.id, now) === 'ready');
+    const ready = ownedPlots(store.state).filter(p => p.parcel === parcelId && plots.stage(p.id, now) === 'ready');
     if (!ready.length) return;
     setSelection({ kind: 'plot', id: ready[0].id });
     for (const p of ready) if (!dispatch('farm/harvest', { plotId: p.id }).ok) break;
@@ -642,7 +912,10 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
 
   // ---------- object notices (badges) ----------
   let badgeClock = 1;
+  const isTutorialTarget = (kind, id) => tutorialTarget?.kind === kind && (tutorialTarget.uid ?? tutorialTarget.id) === id;
   const badgeItems = [];
+  // New pin kinds ('collect' / 'produce') are used only once badges.js says it can draw them (supports(kind) or kinds[]).
+  const badgeKind = kind => (typeof badges.supports === 'function' ? !!badges.supports(kind) : Array.isArray(badges.kinds) ? badges.kinds.includes(kind) : false);
   function refreshBadges(state, now) {
     badgeItems.length = 0;
     const r = regionOf(state);
@@ -664,32 +937,62 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       // ▲ whenever an upgrade exists within the Round cap: 'ok' (affordable, green) or 'muted' (needs coins, grey).
       const err = def.decor ? 'maxLevel' : upgradeError(state, b);
       const up = err === null ? 'ok' : err === 'coins' ? 'muted' : null;
-      let kind = null;
+      let kind = null, icon = null;
+      // Production (Farm World 2.0): a ready batch → collect (always shown); idle and able to start → produce (near).
+      if (def.recipe) {
+        const js = jobState(b, now);
+        if (js.stage === 'ready') { kind = 'collect'; icon = GOODS[firstGood(js.out)]?.icon || null; }
+        else if (js.stage === 'idle' && prodError(state, b) === null) kind = 'produce';
+        if (kind && !badgeKind(kind)) kind = null; // badges.js without that pin yet: keep the ▲ only
+      }
       if (b.type === 'orderCounter' && waiting && cafe.queuedOrder(state) != null) kind = seatsUsed(state) < seatCount(state) ? 'order' : 'noSeat';
       else if (b.type === 'brewCounter') {
         if (ready && !carry) kind = 'serve'; // while carrying, the counter's next job is brewing
         if (!kind && taken && brewing + ready < brewSlots(state) && state.inventory.beans >= (DRINKS[taken.drink]?.beans || 1)) kind = 'brew';
       }
       if (!kind && !up) continue;
+      // Upgrade-only ▲ (and 'produce') shows when the farmer walks up to it (or the tutorial points at it); interaction
+      // badges always. The SELECTED building shows its ▲ at any distance (upgrades are reached only through the ▲).
+      const selected = selection?.kind === 'building' && selection.uid === b.uid;
+      if ((!kind || kind === 'produce') && !selected && !isTutorialTarget('building', b.uid) && distTo(b.x, b.z) > BADGE_NEAR) continue;
       const target = { kind: 'building', uid: b.uid, type: b.type }, upTarget = { ...target, upgrade: true };
-      badgeItems.push({ key: b.uid, kind: kind || (up === 'ok' ? 'up' : 'upMuted'), up: kind ? up : null, upTarget, x: b.x, y: e.height + BADGE_Y, z: b.z, target: kind ? target : upTarget });
+      badgeItems.push({ key: b.uid, kind: kind || (up === 'ok' ? 'up' : 'upMuted'), up: kind ? up : null, upTarget, x: b.x, y: e.height + BADGE_Y, z: b.z, target: kind ? target : upTarget, icon });
     }
     // Carrying a cup: ☕ over the customer it belongs to (tap = deliver).
     if (carry && view === 'cafe') {
       const w = cafe.walker(carry.orderId);
       if (w) badgeItems.push({ key: `c${carry.orderId}`, kind: 'serve', x: w.person.position.x, y: 2.9, z: w.person.position.z, target: { kind: 'customer', orderId: carry.orderId } });
     }
+    // Sickle per lot: over the middle of that lot's ripe fields (fields stand anywhere on owned land now).
+    const ripe = new Map(); // lot id → { x, z, n }
+    if (view === 'farm') {
+      for (const pl of ownedPlots(state)) {
+        if (!pl.parcel || plots.stage(pl.id, now) !== 'ready') continue;
+        const m = ripe.get(pl.parcel) || { x: 0, z: 0, n: 0 };
+        m.x += pl.x; m.z += pl.z; m.n++;
+        ripe.set(pl.parcel, m);
+      }
+    }
     for (const p of Object.values(PARCELS)) {
       if (areaOfParcel(p.id) !== view) continue;
       if (r.parcels.includes(p.id)) {
-        if (p.kind !== 'farm') continue;
-        if (plotsOf(p.id).some(pl => plots.stage(pl.id, now) === 'ready')) {
-          const c = rectCenter(p.rect);
-          badgeItems.push({ key: p.id, kind: 'harvest', x: c.x, y: 1.7, z: c.z, target: { kind: 'field', id: p.id } });
-        }
+        const m = ripe.get(p.id);
+        if (m) badgeItems.push({ key: p.id, kind: 'harvest', x: m.x / m.n, y: 1.7, z: m.z / m.n, target: { kind: 'field', id: p.id } });
       } else if (!parcelError(state, p.id)) {
+        // "+" only on for-sale signs the farmer is standing near (not a field of + all over the map).
         const c = parcelSignPoint(p.id);
+        if (!isTutorialTarget('parcel', p.id) && distTo(c.x, c.z) > BADGE_NEAR) continue;
         badgeItems.push({ key: p.id, kind: 'buy', x: c.x, y: 2.75, z: c.z, target: { kind: 'parcel', id: p.id } });
+      }
+    }
+    // Locked street shops (café view, not during the café tutorial): 🔒 + price chip; "!" once it can be opened now.
+    if (view === 'cafe' && !tutorialActive()) {
+      for (const id of VENUE_ORDER) {
+        if (!Object.hasOwn(VENUE_LOTS, id) || venueOpen(state, id)) continue;
+        const a = venues.lockAnchor(id), err = venueError(state, id);
+        if (!a || err === 'unknown' || err === 'owned') continue;
+        const chip = err === 'level' ? tr('hud.levelN', { level: VENUES[id].level }) : `🪙 ${VENUES[id].cost}`;
+        badgeItems.push({ key: `v:${id}`, kind: err === null ? 'lockReady' : 'lock', x: a.x, y: a.y, z: a.z, chip, target: { kind: 'venue', venue: id } });
       }
     }
     badges.set(badgeItems);
@@ -723,7 +1026,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       if (target?.kind === 'plot') {
         drag.mode = plots.stage(target.id, Date.now()) === 'empty' ? 'plant' : 'harvest';
         drag.visited.clear(); drag.stopped = false;
-        setSelection({ kind: 'plot', id: target.id });
+        setSelection({ kind: 'plot', id: target.id }, { glide: false });
         dragPlot(target.id);
       } else drag.mode = 'pan';
     },
@@ -774,6 +1077,36 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     if (info) cam.ensureVisible(info.x, info.z, .2);
   }
 
+  // ---------- modes: placement ghost ('build' land overlay) + land mode ('expand' = buy-land overview) ----------
+  let landMode = null; // null | 'expand'
+  // A field / building being moved is hidden while its ghost is dragged (plots.setHidden is optional: plots.js owns it).
+  function setMovingHidden(type, uid, hidden) {
+    if (!uid) return;
+    if (type === 'field') plots.setHidden?.(uid, hidden); else buildings.setHidden(uid, hidden);
+  }
+  function endPlacement() {
+    const info = placement.info;
+    if (!info) return false;
+    setMovingHidden(info.type, info.uid, false);
+    placement.cancel();
+    return true;
+  }
+  function setLandMode(mode) {
+    const next = mode === 'expand' && view === 'farm' && !switching && !disposed ? 'expand' : null;
+    if (next) endPlacement();
+    if (next === landMode) { if (next) world.setLandMode?.(next, { state: store.state }); return landMode; }
+    landMode = next;
+    if (next) { if (selection) setSelection(null); cam.setOverview(true); } else cam.setOverview(false);
+    world.setLandMode?.(landMode, { state: store.state });
+    return landMode;
+  }
+  // Every mode off (view swap, atlas, cinematics, auto play, region change, cancelPlacement).
+  function leaveModes() {
+    const was = endPlacement();
+    if (landMode) setLandMode(null);
+    else if (was) world.setLandMode?.(null, { state: store.state });
+  }
+
   // ---------- views (farm / café) ----------
   function applyView() {
     viewApplied = true;
@@ -782,6 +1115,8 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     staff.setView(view);
     plots.group.visible = view === 'farm';
     cafe.group.visible = view === 'cafe';
+    venues.setView(view);
+    street.group.visible = view === 'cafe';
     pads.setVisible(view === 'cafe');
   }
   // Immediate switch: clears selection / placement / drags, moves the player to the area's spawn, snaps the camera.
@@ -789,31 +1124,32 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     const changed = v !== view;
     view = v;
     const area = AREAS[v];
+    leaveModes(); // placement ghost + land mode end on every view swap (restores the overview zoom first)
     if (changed) {
-      if (placement.info?.uid) buildings.setHidden(placement.info.uid, false);
-      placement.cancel();
       if (selection) setSelection(null);
       gateWalk = false;
       if (carry) carry.walking = false; // the cup stays in hand across the switch
       input.cancel(); endDrag();
       avatar.teleport(area.spawn.x, area.spawn.z, Math.PI);
     }
-    avatar.setBounds(area.bounds);
-    cam.setBounds(area.bounds);
-    if (changed) { cam.explore(); cam.snapTo(avatar.position); }
-    // Opening the café frames both counters (Area Focus) so the player sees where to work right away.
-    if (changed && v === 'cafe') cam.focusRect(CAFE_LOOP_RECT, { key: 'counters', force: true });
+    const bounds = v === 'farm' ? farmViewBounds(store.state) : area.bounds; // farm: only the land opened so far
+    avatar.setBounds(bounds);
+    cam.setBounds(bounds);
+    cam.setZoomMax(v === 'cafe' ? CAFE_ZOOM_MAX : undefined); // the café street overview may pull out further
+    if (changed) { cam.explore(); cam.snapTo(avatar.position); speech.clear(); }
+    // Opening the café frames both counters (Area Focus, = the 'cafe' shop) so the player sees where to work right away.
+    if (changed && v === 'cafe') frameShop('cafe');
+    if (v !== 'cafe') setFocused(null);
     if (viewApplied) applyView();
   }
   function setView(v, { instant = false } = {}) {
     if (!AREAS[v] || disposed) return Promise.resolve(view);
-    if (!openArea(store.state, v)) return Promise.resolve(view); // the other game opens with Round 2
+    if (!openArea(store.state, v)) return Promise.resolve(view); // not this region's game
     if (switching) return switching.to === v ? switching.promise : switching.promise.then(() => setView(v, { instant }));
     if (v === view) return Promise.resolve(view);
     if (instant) { swapView(v); return Promise.resolve(view); }
-    // Selection / placement end right away (the HUD hides the action bar), the swap happens under the fade.
-    if (placement.info?.uid) buildings.setHidden(placement.info.uid, false);
-    placement.cancel();
+    // Selection / placement / land mode end right away (the HUD hides the action bar), the swap happens under the fade.
+    leaveModes();
     if (selection) setSelection(null);
     gateWalk = false;
     realm.clearInput();
@@ -850,7 +1186,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     const yaw = cam.cur.yaw, s = Math.sin(yaw), c = Math.cos(yaw);
     // forward = away from the camera; right = screen right on the ground.
     avatar.setKeyDir(-s * f + c * r, -c * f - s * r);
-    if (f || r) { gateWalk = false; if (carry) carry.walking = false; if (selection) setSelection(null); else if (cam.mode === 'free') cam.explore(); }
+    if (f || r) { gateWalk = false; if (carry) carry.walking = false; if (selection) setSelection(null); cam.explore(); } // keys: close follow again
   }
 
   // ---------- frame ----------
@@ -876,7 +1212,11 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     updateAuto(dt, state, now);
     autoNear(dt, state, orders, now);
     buildings.update(dt, clock, orders, now, id => id === carry?.orderId || staff.isClaimed(id));
-    cafe.update(dt, clock, state, now, state.story.phase === 'play');
+    const playing = state.story.phase === 'play';
+    cafe.update(dt, clock, state, now, playing);
+    street.update(dt, clock, state, now, playing);
+    incidents.update(dt, clock, state, now, playing);
+    speech.update(dt, clock);
     staff.update(dt, clock, state, now);
     world.update(clock);
     placement.update(clock);
@@ -888,7 +1228,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       const secs = st === 'planted' || st === 'growing' ? Math.ceil(plots.remainingMs(selection.id, now) / 1000) : -1;
       if (secs !== timerSeconds) {
         timerSeconds = secs;
-        const p = plotById(selection.id);
+        const p = plotOf(state, selection.id);
         markers.setTimer(secs >= 0 && p ? fmtTimer(secs * 1000) : null, p);
       }
     }
@@ -908,17 +1248,22 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     edgeScroll(dt);
     cinematics.update(dt);
     cam.update(dt);
+    updateFocus(dt);
     // Sun + shadow frustum follow the camera target; fog scales with the camera distance.
     const target = cam.cur.target;
-    sun.position.copy(target).add(SUN_OFFSET);
-    sun.target.position.copy(target);
-    const half = clamp(Math.round(cam.cur.dist * .6), 16, 40);
+    // Box size changes in steps of 4 m only (zooming must not resize it every frame either).
+    const half = clamp(Math.round(cam.cur.dist * .6 / 4) * 4, 16, 40);
     if (half !== shadowHalf) {
       shadowHalf = half;
       const sc = sun.shadow.camera;
       sc.left = sc.bottom = -half; sc.right = sc.top = half;
       sc.updateProjectionMatrix();
     }
+    const texel = 2 * shadowHalf / sun.shadow.mapSize.x;
+    const a = target.dot(SUN_RIGHT), b = target.dot(SUN_UP);
+    sunAt.copy(target).addScaledVector(SUN_RIGHT, Math.round(a / texel) * texel - a).addScaledVector(SUN_UP, Math.round(b / texel) * texel - b);
+    sun.position.copy(sunAt).add(SUN_OFFSET);
+    sun.target.position.copy(sunAt);
     scene.fog.near = cam.cur.dist * 1.7;
     scene.fog.far = cam.cur.dist * 3.6 + 45;
     vfx.update(dt);
@@ -934,7 +1279,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     },
     handleKeyUp(e) { if (keys.delete(e.code)) updateKeyDir(); },
     clearInput() { keys.clear(); avatar.setKeyDir(0, 0); input.cancel(); endDrag(); },
-    setInputLocked(v) { inputLocked = !!v; if (inputLocked) { gateWalk = false; realm.clearInput(); } }, // a pending gate walk must not reopen the atlas later
+    setInputLocked(v) { inputLocked = !!v; if (inputLocked) { gateWalk = false; realm.clearInput(); leaveModes(); } }, // a pending gate walk must not reopen the atlas later; the atlas / expiry end every mode
     get inputLocked() { return inputLocked; },
 
     /** Current area on screen: 'farm' | 'cafe'. */
@@ -947,7 +1292,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     /** Selects a target; a target in the other area switches the view first (returns a Promise then). */
     select(t) {
       const area = areaOf(t);
-      if (t && area && !openArea(store.state, area)) return undefined; // the other game opens with Round 2
+      if (t && area && !openArea(store.state, area)) return undefined; // not this region's game
       if (t && area && (area !== view || switching)) return setView(area).then(() => setSelection(t));
       setSelection(t || null);
       return undefined;
@@ -959,49 +1304,63 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       if (area && !openArea(store.state, area)) return Promise.resolve();
       if (area && (area !== view || switching)) return setView(area).then(() => realm.focus(t, { force }));
       // Hay Day rule: keep the player's zoom, only slide the view (and only when the target is not already in view).
-      if (targetPoint(t, v3, Date.now())) { if (force) cam.glideTo(v3.x, v3.z); else cam.ensureVisible(v3.x, v3.z, .15); }
+      if (targetPoint(t, v3, Date.now())) { if (force) cam.glideTo(v3.x, v3.z, { safe: true }); else cam.ensureVisible(v3.x, v3.z, .15); } // both keep it clear of the HUD bands
       return Promise.resolve();
     },
     /** True while a finger is down or within `ms` of the last touch / zoom (automatic camera moves wait for calm). */
     busy(ms = 1500) { return cam.held || performance.now() - lastInputAt < ms; },
     resetCamera() { cam.zoomBy(1 / cam.zoom); cam.explore(); },
-    cinematic(name) { return cinematics.play(name); },
+    /** Café street: frame shop `id` ('tea' | 'cafe' | 'lemon' | 'bar') or the whole street (null). Returns a Promise. */
+    focusShop,
+    /** Shop the camera frames in the café view (null = street overview, or the farm view). */
+    get focusedShop() { return focusedShop; },
+    cinematic(name) { leaveModes(); return cinematics.play(name); },
 
     setActiveCrop(cropId) { if (CROPS[cropId]) activeCrop = cropId; },
     get activeCrop() { return activeCrop; },
 
     /**
-     * Starts the placement preview. Shop-zone buildings run in the café view, farm-zone ones in the farm view (the view
-     * switches first and a Promise of the info is returned then); 'any' decor stays in the current view.
+     * Starts the placement preview of `type` (a building, decor or 'field'). Shop-zone buildings run in the café view,
+     * farm-zone ones and fields in the farm view (the view switches first and a Promise of the info is returned then);
+     * 'any' decor stays in the current view. uid = move that building / field (startPlacement('field', { uid: fieldId })).
+     * near = { x, z } start point instead of the player (e.g. the land card's "Field here"). Leaves land mode.
      */
-    startPlacement(type, { uid = null } = {}) {
-      const zone = BUILDINGS[type]?.zone;
-      // Farm buildings (dryer) go on the farm's free grass, café buildings in the café; decorations stay in the view.
-      const area = uid ? areaOf({ kind: 'building', uid, type }) || view : zone === 'farm' ? 'farm' : zone === 'shop' ? 'cafe' : realm.view;
-      if (!openArea(store.state, area)) return null; // e.g. a café building before Round 2
-      if (area !== view || switching) return setView(area).then(() => realm.startPlacement(type, { uid }));
-      if (placement.info?.uid) buildings.setHidden(placement.info.uid, false);
-      // Start near the player (the camera follows them): the placement searches the nearest valid spot from there.
-      const info = placement.start(type, { uid, area: view, near: { x: avatar.position.x, z: avatar.position.z } }, () => store.state);
-      if (!info) return null;
-      if (uid) buildings.setHidden(uid, true);
+    startPlacement(type, { uid = null, near = null } = {}) {
+      const def = defOf(type);
+      if (!def) return null;
+      // Farm buildings go on the farm's land, café buildings in the café; decorations stay in the view.
+      const area = type === 'field' ? 'farm' : uid ? areaOf({ kind: 'building', uid, type }) || view : def.zone === 'farm' ? 'farm' : def.zone === 'shop' ? 'cafe' : realm.view;
+      if (!openArea(store.state, area)) return null; // e.g. a café building in a farm region
+      if (area !== view || switching) return setView(area).then(() => realm.startPlacement(type, { uid, near }));
+      if (landMode) setLandMode(null);
+      endPlacement();
+      // Start near the player (the camera follows them) or the given spot: the placement searches the nearest valid spot.
+      const from = near && Number.isFinite(near.x) && Number.isFinite(near.z) ? { x: near.x, z: near.z } : { x: avatar.position.x, z: avatar.position.z };
+      const info = placement.start(type, { uid, area: view, near: from }, () => store.state);
+      if (!info) { world.setLandMode?.(null, { state: store.state }); return null; }
+      setMovingHidden(type, uid, true);
       setSelection(null, { notify: false });
+      world.setLandMode?.('build', { state: store.state, type });
       focusPlacement();
       return info;
     },
     rotatePlacement() { placement.rotate(); },
     confirmPlacement() {
-      const uid = placement.info?.uid;
+      const { uid = null, type = null } = placement.info || {};
       const result = placement.confirm(dispatch);
-      if (result.ok && uid) buildings.setHidden(uid, false);
+      if (result.ok) { setMovingHidden(type, uid, false); world.setLandMode?.(null, { state: store.state }); }
       return result;
     },
-    cancelPlacement() {
-      const uid = placement.info?.uid;
-      if (uid) buildings.setHidden(uid, false);
-      placement.cancel();
-    },
+    /** Ends the placement preview AND land mode. */
+    cancelPlacement() { leaveModes(); },
     get placement() { return placement.info; },
+    /** Land mode: null | 'expand' (buy-land overview: world overlay + a far overview zoom, restored on exit). Farm only. */
+    setLandMode(mode) { return setLandMode(mode); },
+    get landMode() { return landMode; },
+    /** Highlights the beds that can be planted (plots.js). */
+    setPlantHighlight(on) { plots.setHighlight?.(!!on); },
+    /** Screen bands (CSS px) the HUD covers ({ top, bottom }): selections / focus keep their target out of them. */
+    setSafeInsets(insets) { cam.setSafeInsets(insets || {}); },
     /**
      * Screen point (CSS px) just under the placement ghost's footprint: { x, y, top, visible }. x = ghost centre, y = the
      * lowest footprint corner on screen, top = the highest point of the ghost (for when there is no room below).
@@ -1015,17 +1374,35 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       const c = toScreen(info.x, 0, info.z);
       let bottom = -Infinity;
       for (const [x, z] of [[fp[0], fp[1]], [fp[2], fp[1]], [fp[0], fp[3]], [fp[2], fp[3]]]) bottom = Math.max(bottom, toScreen(x, 0, z).y);
-      const top = toScreen(info.x, BUILDINGS[info.type]?.size?.[0] > 1 ? 3.2 : 2, info.z).y;
+      const top = toScreen(info.x, info.type === 'field' ? 1 : defOf(info.type)?.size?.[0] > 1 ? 3.2 : 2, info.z).y;
       return { x: c.x, y: bottom, top, visible: c.z > -1 && c.z < 1 };
     },
 
     setTutorialTarget(t) { tutorialTarget = t || null; },
     /** Order id of the cup the player is carrying (null when empty-handed). */
     get carrying() { return carry?.orderId ?? null; },
+    /** The avatar's live position (THREE.Vector3; read x / z, do not mutate). */
+    get avatarPosition() { return avatar.position; },
     /** Auto play: { on, caption (i18n key), target (descriptor the HUD hand points at) }. */
     get autoStatus() { return auto; },
     /** What a staff unit is doing now ('harvest' | 'plant' | 'brew' | 'order' | 'deliver' | ''). */
     staffStatus: uid => staff.statusOf(uid),
+    /** Unit details for the HUD: job, reason, task(s), post, state, pose, working / bench, paid fix, vitals (staff.infoOf). */
+    staffInfo: uid => staff.infoOf(uid),
+    /**
+     * "📍 Xem ở đâu": glides the camera to a unit of the area on screen and rings it for 3 s. False when the unit is not
+     * shown here (other area, other region, during a view switch): the view is never switched for it.
+     */
+    focusUnit(uid) {
+      const zone = staff.zoneOf(uid);
+      if (!zone || switching || disposed || (zone === 'farm') !== (view === 'farm')) return false;
+      const p = staff.highlight(uid);
+      if (!p) return false;
+      cam.glideTo(p.x, p.z, { safe: true });
+      return true;
+    },
+    /** Café post of a staff unit ('allRounder' | 'cashier' | 'barista' | 'runner' | null). */
+    staffPost: uid => staff.postOf?.(uid) ?? null,
     /** Object notices currently shown in the view: [{ key, kind, up, target }] (read only; refreshed ~4×/s). */
     get notices() { return badgeItems; },
     /** Screen point above a target (CSS px); visible:false for targets of the other area or during a view switch. */
@@ -1051,7 +1428,11 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       markers.dispose();
       badges.dispose();
       pads.dispose();
+      incidents.clear();
+      street.dispose();
       cafe.dispose();
+      venues.dispose();
+      speech.dispose();
       staff.dispose();
       buildings.dispose();
       plots.dispose();

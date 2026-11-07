@@ -3,9 +3,10 @@
 // found only the tip is shown. The farm and the café are separate games with their own tutorial track: only the track of
 // the area on screen runs (a target in the other area still falls back to pointing at the Café / Farm button).
 import { BUILDINGS, DRINKS } from '../../core/config/economy.js';
-import { region, plotState, ownedPlots, upgradeError, upgradeCost } from '../../core/derive.js';
+import { region, plotState, plotOf, ownedPlots, upgradeError, upgradeCost, seedCost, buildCost } from '../../core/derive.js';
 import { currentStep } from '../../core/tutorial.js';
 import { h } from './dom.js';
+import { drinkName } from '../../ui/local-menu.js';
 import { T, fmt, clock } from './text.js';
 
 const HAND_SVG = '<svg viewBox="0 0 64 72" width="56" height="63" aria-hidden="true"><path d="M24 6c3.6 0 6.5 2.9 6.5 6.5V31l2.2-.9c3.2-1.3 6.6.6 7.3 3.9l.2.9 1.6-.6c3.3-1.1 6.8 1 7.3 4.4l.1.7 1.5-.4c3.4-.8 6.7 1.6 6.9 5.1l.4 9.4c.4 9.4-6.4 17.5-15.7 18.6l-7 .8c-6.6.8-13-2.6-16-8.6L10.5 50c-1.6-3.2-.4-7 2.7-8.6 2.7-1.4 6-.7 7.9 1.6l-3.2-8V12.5C17.5 8.9 20.4 6 24 6z" fill="#fff" stroke="#3d2a1a" stroke-width="3.2" stroke-linejoin="round"/><path d="M30.5 31v9M41 34v8M51 39v6" stroke="#3d2a1a" stroke-width="2.6" stroke-linecap="round" opacity=".55"/></svg>';
@@ -18,7 +19,9 @@ function rich(text) {
 export function createTutorial(ctx) {
   const tipText = h('span', { class: 'hud-tip-text' });
   const skip = h('button', { type: 'button', class: 'hud-tip-skip', on: { click: () => ctx.act('tutorial/set', { done: true, track: track() }) } }, T('hud.tut.skip'));
-  const tip = h('div', { class: 'hud-tip', hidden: true, attrs: { role: 'status', 'aria-live': 'polite' } },
+  // Tapping the tip never reaches the ground (the character would walk there): it glides the camera to the guided target.
+  const tip = h('div', { class: 'hud-tip', hidden: true, attrs: { role: 'status', 'aria-live': 'polite' },
+    on: { click: e => { if (!e.target.closest('.hud-tip-skip') && world) ctx.realm?.focus?.(world, { force: true }); } } },
     h('span', { class: 'hud-tip-ico', attrs: { 'aria-hidden': 'true' } }, '💡'), tipText, skip);
   const hand = h('div', { class: 'hud-hand', hidden: true });
   hand.innerHTML = `<div class="hud-hand-inner">${HAND_SVG}</div>`; // static, trusted markup
@@ -43,11 +46,17 @@ export function createTutorial(ctx) {
   let lastView = '';        // realm view at the last resolve (a view change re-focuses the target)
 
   // Keep the tip 6 px below whatever top HUD it would overlap (pills row, Auto chip/banner), on any screen size.
+  // Toasts (feedback.js) read --hud-tip-bottom so they always sit under the tip, never on top of it.
+  const shareTipBottom = () => {
+    const css = document.documentElement.style;
+    if (tip.hidden) css.removeProperty('--hud-tip-bottom');
+    else css.setProperty('--hud-tip-bottom', `${Math.round(tip.getBoundingClientRect().bottom + 10)}px`);
+  };
   const placeTip = () => {
-    if (tip.hidden) return;
+    if (tip.hidden) { shareTipBottom(); return; }
     const tr = tip.getBoundingClientRect();
     let bottom = 0;
-    for (const node of document.querySelectorAll('#hud-root .hud-top, #hud-root .hud-auto-btn, #hud-root .hud-auto-bar')) {
+    for (const node of document.querySelectorAll('#hud-root .hud-top, #hud-root .hud-auto-btn, #hud-root .hud-autobar')) {
       if (node.hidden || !node.offsetParent && getComputedStyle(node).position !== 'fixed') continue;
       for (const r of [node.getBoundingClientRect(), ...[...node.children].map(c => c.getBoundingClientRect())]) {
         if (!r.width || r.right < tr.left || r.left > tr.right) continue; // only what sits above the tip horizontally
@@ -56,6 +65,7 @@ export function createTutorial(ctx) {
     }
     const want = bottom ? Math.round(bottom + 6) : null;
     tip.style.top = want ? `${want}px` : '';
+    shareTipBottom();
   };
   const setTip = text => {
     if (text === tipKey) { placeTip(); return; }
@@ -90,7 +100,8 @@ export function createTutorial(ctx) {
       if (ctx.modals.open) { hide(); return; }
       // Caption = what the autopilot does now ({ key, params }; drink / crop ids translated here).
       const c = auto.caption, p = c?.params ? { ...c.params } : {};
-      if (p.drink) p.drink = T(`drink.${p.drink}`);
+      if (p.drink) p.drink = drinkName(s.world.currentRegion, p.drink, p.item); // the country's local drink name
+      delete p.item;
       if (p.crop) p.crop = T(`crop.${p.crop}`);
       setTip(c ? T(c.key, p) : '');
       setUi(null);
@@ -98,14 +109,15 @@ export function createTutorial(ctx) {
       return;
     }
     const cur = ctx.isPlaying() && !ctx.realm?.switching ? currentStep(s, track()) : null;
-    if (!cur || ctx.modals.open) { hide(); return; }
+    if (!cur || ctx.modals.open || ctx.staffModal?.covering) { hide(); return; } // the staff manager covers the world
     const r = region(s);
     const now = Date.now();
     const sheetId = ctx.sheet.openId;
     let text = '', target = null, node = null;
     let area = null;          // area the step happens in when it is not the target's (build: the café for shop buildings)
+    // Duplicates exist now: point at the starter copy (the first one placed) — the selected copy when it is that type.
     const building = type => {
-      const b = r?.buildings.find(x => x.type === type);
+      const b = (ctx.selection?.uid && r?.buildings.find(x => x.uid === ctx.selection.uid && x.type === type)) || r?.buildings.find(x => x.type === type);
       return b ? { kind: 'building', uid: b.uid, type } : null;
     };
     const selected = ctx.selection;
@@ -117,13 +129,16 @@ export function createTutorial(ctx) {
         break;
       }
       case 'harvest': {
-        const ids = Object.keys(r?.plots || {});
+        const ids = Object.keys(r?.plots || {}).filter(id => plotOf(s, id)); // crops only on fields that still exist
         const ready = ids.find(id => plotState(s, id, now).stage === 'ready');
         const id = ready || ids[0];
+        // While the first seed grows: keep the hands busy, plant the next empty soil (if the seeds are affordable).
+        const empty = !ready && id && s.player.coins >= seedCost(s, 'robusta') ? ownedPlots(s).find(p => !r.plots[p.id]) : null;
         if (ready) text = T('tut.harvest');
+        else if (empty) text = T('tut.plantMore', { time: clock(plotState(s, id, now).remainingMs) });
         else if (id) text = T('tut.growing', { time: clock(plotState(s, id, now).remainingMs) });
         else text = T('tut.plant');
-        target = id ? { kind: 'plot', id } : null;
+        target = empty ? { kind: 'plot', id: empty.id } : id ? { kind: 'plot', id } : null;
         break;
       }
       case 'sell': {
@@ -168,9 +183,10 @@ export function createTutorial(ctx) {
           if (p.valid) node = ctx.placement.okButton;
         } else if (sheetId === 'build') {
           text = T('tut.pick', { name });
-          node = ctx.sheet.query(`[data-hud-id="build-${type}"]`);
-        } else if (s.player.coins < BUILDINGS[type].cost) {
-          text = T('tut.buildCoins', { name, cost: fmt(BUILDINGS[type].cost) });
+          // The card sits on its catalog tab: point at the tab first when another one is shown.
+          node = ctx.sheet.query(`[data-hud-id="build-${type}"]`) || ctx.sheet.query(`[data-hud-id="buildTab-${BUILDINGS[type]?.category}"]`);
+        } else if (s.player.coins < buildCost(s, type)) {
+          text = T('tut.buildCoins', { name, cost: fmt(buildCost(s, type)) });
         } else {
           text = T('tut.build', { name }); node = ctx.toolbar.button('build');
           area = BUILDINGS[type].zone === 'shop' ? 'cafe' : BUILDINGS[type].zone === 'farm' ? 'farm' : null;
@@ -245,7 +261,18 @@ export function createTutorial(ctx) {
     } else if (world) {
       const p = ctx.realm?.screenPoint?.(world);
       // Near an edge counts as off-screen too (a target half cut at the border must be framed by the camera).
-      const visible = p && p.visible !== false && Number.isFinite(p.x) && p.y > 110 && p.y < innerHeight - 150 && p.x > 36 && p.x < innerWidth - 36;
+      let visible = p && p.visible !== false && Number.isFinite(p.x) && p.y > 110 && p.y < innerHeight - 150 && p.x > 36 && p.x < innerWidth - 36;
+      // Under the open action card counts as hidden: a tap there hits the card, not the target.
+      const card = ctx.actionBar?.el;
+      if (visible && card && !card.hidden) {
+        const r = card.getBoundingClientRect();
+        if (r.height && p.y > r.top - 20 && p.x > r.left - 10 && p.x < r.right + 10) {
+          visible = false;
+          // Another field's card covers the next field to plant / harvest: close it (the card is not needed here).
+          if (world.kind === 'plot' && ctx.selection?.kind === 'plot' && ctx.selection.id !== world.id) ctx.clearSelection?.();
+          else if (!ctx.realm?.busy?.(600)) ctx.realm?.focus?.(world); // the camera's safe band (HUD insets) slides it clear
+        }
+      }
       if (visible) { placeHand(p.x, p.y); hideEdge(); }
       else {
         hideHand();

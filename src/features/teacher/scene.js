@@ -27,6 +27,45 @@ function skyTexture() {
   const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
 }
+// World Gate portal: arch-shaped opening (rect + half circle) filled with a warm glowing gradient — bright core, gold
+// then peach towards the rim, feathered edge — so the open gate reads as a portal, not a flat white sheet.
+const PORTAL_R = 1.75, PORTAL_SPRING = 3.15, PORTAL_H = PORTAL_SPRING + PORTAL_R; // spring = where the arch starts (GLB)
+function portalTexture() {
+  const W = 256, H = Math.round(W * PORTAL_H / (PORTAL_R * 2)), r = W / 2, spring = H - PORTAL_SPRING / PORTAL_H * H;
+  const canvas = Object.assign(document.createElement('canvas'), { width: W, height: H });
+  const g = canvas.getContext('2d');
+  const arch = inset => { g.beginPath(); g.moveTo(inset, H); g.lineTo(inset, spring); g.arc(r, spring, r - inset, Math.PI, 0); g.lineTo(W - inset, H); g.closePath(); };
+  const grad = g.createRadialGradient(r, H * .5, 4, r, H * .5, H * .62);
+  grad.addColorStop(0, '#fffdf4'); grad.addColorStop(.28, '#fff1c4'); grad.addColorStop(.6, '#ffd27e'); grad.addColorStop(.85, '#ffab6a'); grad.addColorStop(1, '#f08a5a');
+  g.filter = 'blur(5px)'; arch(8); g.fillStyle = grad; g.fill(); g.filter = 'none';
+  // Soft light rays from the core.
+  g.globalCompositeOperation = 'source-atop';
+  for (let i = 0; i < 14; i++) {
+    const a = i / 14 * Math.PI * 2, x = r + Math.cos(a) * H, y = H * .5 + Math.sin(a) * H;
+    const ray = g.createLinearGradient(r, H * .5, x, y); ray.addColorStop(0, '#ffffff66'); ray.addColorStop(.5, '#ffffff00');
+    g.fillStyle = ray; g.beginPath(); g.moveTo(r, H * .5); g.arc(r, H * .5, H, a - .07, a + .07); g.closePath(); g.fill();
+  }
+  const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+// Swirl overlay: soft spiral arms fading to the rim, spun in update().
+function swirlTexture() {
+  const S = 256, c = S / 2, canvas = Object.assign(document.createElement('canvas'), { width: S, height: S });
+  const g = canvas.getContext('2d');
+  g.lineCap = 'round';
+  for (let arm = 0; arm < 4; arm++) {
+    for (let t = 0; t < 1; t += .01) {
+      const a = arm / 4 * Math.PI * 2 + t * Math.PI * 2.2, rad = 8 + t * (c - 14);
+      g.strokeStyle = `rgba(255,255,255,${(Math.sin(t * Math.PI) * .55).toFixed(3)})`; g.lineWidth = 3 + t * 14;
+      g.beginPath(); g.arc(c, c, rad, a, a + .08); g.stroke();
+    }
+  }
+  const fade = g.createRadialGradient(c, c, 0, c, c, c); fade.addColorStop(0, '#000'); fade.addColorStop(.75, '#000'); fade.addColorStop(1, '#0000');
+  g.globalCompositeOperation = 'destination-in'; g.fillStyle = fade; g.fillRect(0, 0, S, S);
+  const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
 // Normalize a GLB to a target height and stand it on y = 0, centred on x/z.
 function normalize(model, height) {
   const inner = new THREE.Group(); inner.add(model);
@@ -118,10 +157,15 @@ export async function createTeacherScene({ character }) {
     else { const door = new THREE.Mesh(own(new THREE.BoxGeometry(1.65, 3, .12)), gold); door.position.set(-side * .825, 1.5, 0); hinge.add(door); }
     return { hinge, side };
   });
-  const lightMaterial = own(new THREE.MeshBasicMaterial({ color: '#fff4c4', transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
-  const sheet = new THREE.Mesh(own(new THREE.PlaneGeometry(3.3, 3.2)), lightMaterial); sheet.position.set(0, 1.6, .05); gate.add(sheet);
+  const lightMaterial = own(new THREE.MeshBasicMaterial({ map: own(portalTexture()), transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, toneMapped: false, fog: false }));
+  const sheet = new THREE.Mesh(own(new THREE.PlaneGeometry(PORTAL_R * 2, PORTAL_H)), lightMaterial); sheet.position.set(0, PORTAL_H / 2, .05); gate.add(sheet);
+  const swirlMaterial = own(new THREE.MeshBasicMaterial({ map: own(swirlTexture()), transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, toneMapped: false, fog: false, blending: THREE.AdditiveBlending }));
+  const swirls = [1, -.6].map((spin, i) => {
+    const m = new THREE.Mesh(own(new THREE.PlaneGeometry(3.3 - i * .8, 3.3 - i * .8)), swirlMaterial);
+    m.position.set(0, 2.55, .07 + i * .01); m.userData.spin = spin; m.renderOrder = 1; gate.add(m); return m;
+  });
   const gateLight = new THREE.PointLight('#fff0b8', 0, 14, 1.6); gateLight.position.set(0, 2, -1); gate.add(gateLight);
-  gate.traverse(o => { if (o.isMesh && o !== sheet) o.castShadow = true; });
+  gate.traverse(o => { if (o.isMesh && o !== sheet && !swirls.includes(o)) o.castShadow = true; });
 
   // Camera follows the current shot with exponential easing.
   const current = { pos: new THREE.Vector3(...SHOTS.wide[0]), look: new THREE.Vector3(...SHOTS.wide[1]) };
@@ -135,7 +179,9 @@ export async function createTeacherScene({ character }) {
 
   // Gate opening: leaves swing open, light floods out, the player walks into the light.
   let opening = null; // { t, resolve }
-  const OPEN_SECONDS = 3.2;
+  const WALK_START = .9, WALK_SPEED = 2.4, WALK_RAMP = .4; // s, m/s, s
+  // Ends right as the player is through the gate (portal plane at GATE.z, +.8 m so the back foot is inside too).
+  const OPEN_SECONDS = WALK_START + (GATE.z + .8 - PLAYER.z) / WALK_SPEED + WALK_RAMP / 2;
   function openGate() {
     setShot('gate');
     return new Promise(resolve => { opening = { t: 0, resolve }; });
@@ -160,15 +206,19 @@ export async function createTeacherScene({ character }) {
       p.setY(i, y); p.setX(i, p.getX(i) + Math.sin(time + moteSeeds[i]) * dt * .1);
     }
     p.needsUpdate = true;
+    for (const m of swirls) m.rotation.z -= dt * 1.1 * m.userData.spin;
     if (opening) {
       opening.t += dt;
       const k = THREE.MathUtils.smoothstep(opening.t, 0, 1.6);
       for (const { hinge, side } of hinges) hinge.rotation.y = side * k * 1.6;
-      lightMaterial.opacity = k * .9; gateLight.intensity = k * 30;
-      const walk = THREE.MathUtils.smoothstep(opening.t, .9, OPEN_SECONDS);
-      if (walk > 0) {
+      lightMaterial.opacity = k * .97; swirlMaterial.opacity = k * .45; gateLight.intensity = k * 30;
+      // Walk at a steady pace (short speed-up, no slow-down) straight through the portal sheet — it hides the
+      // player once past it — so the feet never shuffle on the spot at the threshold.
+      const w = opening.t - WALK_START;
+      if (w > 0) {
         character.rotation.y = 0;
-        character.position.z = THREE.MathUtils.lerp(PLAYER.z, GATE.z - .3, walk);
+        const dist = WALK_SPEED * (w < WALK_RAMP ? w * w / (2 * WALK_RAMP) : w - WALK_RAMP / 2);
+        character.position.z = Math.min(PLAYER.z + dist, GATE.z + 1.5);
         motion.update('walk', opening.t, 1);
       }
       if (opening.t >= OPEN_SECONDS) { const done = opening.resolve; opening = null; done(); }

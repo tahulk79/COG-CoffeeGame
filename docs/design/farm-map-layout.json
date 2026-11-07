@@ -1,0 +1,907 @@
+{
+ "name": "Trục Lõi Mọc Bắc (Old Core + North Spine)",
+ "concept": "All 14 old fields F1-F14 stay at exactly their current rects, so the old 60x48 m square becomes the 'old core' of the farm. Wider lanes now run flush against every field. A small cosy starter yard (Y0 + W1 + the D1 flower bed) sits around the fixed storehouse beside the gate. From the core, one central dirt spine climbs north, which is up the screen on a portrait phone. Rows of side lanes branch off it every 9-13 m. West of the spine are new fields, then a pond, an orchard and a flower garden. East of the spine, pastures and workshop lots alternate. At the top end the spine reaches a windmill-hill landmark. Buying a parcel opens the lane or spine segment beside it, so the path, and the empire, push north a row at a time. Locked land is overgrown, and a sign with the price and level appears only when the land touches an open path.",
+ "bounds": [
+  -32,
+  -76,
+  32,
+  28
+ ],
+ "startBounds": [
+  -30,
+  -22,
+  30,
+  28
+ ],
+ "roads": [
+  {
+   "id": "mainEW",
+   "rect": [
+    -16,
+    -2.5,
+    16,
+    2.5
+   ],
+   "open": true
+  },
+  {
+   "id": "gateRoad",
+   "rect": [
+    -1.5,
+    2.5,
+    1.5,
+    17.5
+   ],
+   "open": true
+  },
+  {
+   "id": "swLane",
+   "rect": [
+    -28,
+    8.5,
+    -1.5,
+    11.5
+   ],
+   "open": true
+  },
+  {
+   "id": "seLane",
+   "rect": [
+    1.5,
+    8.5,
+    28,
+    11.5
+   ],
+   "open": true
+  },
+  {
+   "id": "mainEW_W",
+   "rect": [
+    -28,
+    -2.5,
+    -16,
+    2.5
+   ],
+   "open": false
+  },
+  {
+   "id": "mainEW_E",
+   "rect": [
+    16,
+    -2.5,
+    28,
+    2.5
+   ],
+   "open": false
+  },
+  {
+   "id": "spine0",
+   "rect": [
+    -1.5,
+    -11.5,
+    1.5,
+    -2.5
+   ],
+   "open": false
+  },
+  {
+   "id": "nLane_W",
+   "rect": [
+    -28,
+    -11.5,
+    -1.5,
+    -8.5
+   ],
+   "open": false
+  },
+  {
+   "id": "nLane_E",
+   "rect": [
+    1.5,
+    -11.5,
+    28,
+    -8.5
+   ],
+   "open": false
+  },
+  {
+   "id": "spine1",
+   "rect": [
+    -1.5,
+    -20.5,
+    1.5,
+    -11.5
+   ],
+   "open": false
+  },
+  {
+   "id": "nRing_W",
+   "rect": [
+    -28,
+    -20.5,
+    -1.5,
+    -17.5
+   ],
+   "open": false
+  },
+  {
+   "id": "nRing_E",
+   "rect": [
+    1.5,
+    -20.5,
+    28,
+    -17.5
+   ],
+   "open": false
+  },
+  {
+   "id": "spine2",
+   "rect": [
+    -1.5,
+    -33.5,
+    1.5,
+    -20.5
+   ],
+   "open": false
+  },
+  {
+   "id": "wLane2",
+   "rect": [
+    -28,
+    -29.5,
+    -1.5,
+    -26.5
+   ],
+   "open": false
+  },
+  {
+   "id": "eLane2",
+   "rect": [
+    1.5,
+    -33.5,
+    28,
+    -30.5
+   ],
+   "open": false
+  },
+  {
+   "id": "spine3",
+   "rect": [
+    -1.5,
+    -46.5,
+    1.5,
+    -33.5
+   ],
+   "open": false
+  },
+  {
+   "id": "wLane3",
+   "rect": [
+    -28,
+    -38.5,
+    -1.5,
+    -35.5
+   ],
+   "open": false
+  },
+  {
+   "id": "eLane3",
+   "rect": [
+    1.5,
+    -46.5,
+    28,
+    -43.5
+   ],
+   "open": false
+  },
+  {
+   "id": "spine4",
+   "rect": [
+    -1.5,
+    -59.5,
+    1.5,
+    -46.5
+   ],
+   "open": false
+  },
+  {
+   "id": "wLane4",
+   "rect": [
+    -28,
+    -51.5,
+    -1.5,
+    -48.5
+   ],
+   "open": false
+  },
+  {
+   "id": "eLane4",
+   "rect": [
+    1.5,
+    -59.5,
+    28,
+    -56.5
+   ],
+   "open": false
+  },
+  {
+   "id": "spine5",
+   "rect": [
+    -1.5,
+    -63.5,
+    1.5,
+    -59.5
+   ],
+   "open": false
+  }
+ ],
+ "parcels": [
+  {
+   "id": "F1",
+   "kind": "farm",
+   "zone": "Ruộng quanh nhà (lõi cũ)",
+   "rect": [
+    -14,
+    2.5,
+    -4,
+    8.5
+   ],
+   "cost": 0,
+   "level": 1,
+   "starter": true,
+   "opensRoads": [],
+   "note": "Unchanged starter field. Touches mainEW and swLane."
+  },
+  {
+   "id": "Y0",
+   "kind": "build",
+   "zone": "Sân kho & cổng",
+   "rect": [
+    12,
+    11.5,
+    20,
+    19.5
+   ],
+   "cost": 0,
+   "level": 1,
+   "starter": true,
+   "opensRoads": [],
+   "note": "Starter yard, 8x8 m (4x4 cells of 2 m), east of the silo. Touches seLane and fits 4 dryers."
+  },
+  {
+   "id": "F2",
+   "kind": "farm",
+   "zone": "Ruộng quanh nhà (lõi cũ)",
+   "rect": [
+    -26,
+    2.5,
+    -16,
+    8.5
+   ],
+   "cost": 80,
+   "level": 1,
+   "starter": false,
+   "opensRoads": [
+    "mainEW_W"
+   ],
+   "note": "Unchanged rect. Reached by swLane."
+  },
+  {
+   "id": "F3",
+   "kind": "farm",
+   "zone": "Ruộng quanh nhà (lõi cũ)",
+   "rect": [
+    -14,
+    -8.5,
+    -4,
+    -2.5
+   ],
+   "cost": 180,
+   "level": 2,
+   "starter": false,
+   "opensRoads": [
+    "spine0",
+    "nLane_W"
+   ],
+   "note": "Unchanged rect. Reached by mainEW."
+  },
+  {
+   "id": "W1",
+   "kind": "build",
+   "zone": "Sân kho & cổng",
+   "rect": [
+    20,
+    11.5,
+    28,
+    19.5
+   ],
+   "cost": 300,
+   "level": 3,
+   "starter": false,
+   "opensRoads": [],
+   "note": "First paid workshop lot, 8x8 m, next to Y0 (seLane)."
+  },
+  {
+   "id": "F4",
+   "kind": "farm",
+   "zone": "Ruộng quanh nhà (lõi cũ)",
+   "rect": [
+    -26,
+    -8.5,
+    -16,
+    -2.5
+   ],
+   "cost": 350,
+   "level": 3,
+   "starter": false,
+   "opensRoads": [
+    "nLane_W",
+    "spine0"
+   ],
+   "note": "Unchanged rect (mainEW_W, nLane_W)."
+  },
+  {
+   "id": "F5",
+   "kind": "farm",
+   "zone": "Ruộng quanh nhà (lõi cũ)",
+   "rect": [
+    -14,
+    11.5,
+    -4,
+    17.5
+   ],
+   "cost": 600,
+   "level": 4,
+   "starter": false,
+   "opensRoads": [],
+   "note": "Unchanged rect (swLane)."
+  },
+  {
+   "id": "D1",
+   "kind": "decor",
+   "zone": "Sân kho & cổng",
+   "rect": [
+    2,
+    11.5,
+    6,
+    17.5
+   ],
+   "cost": 450,
+   "level": 5,
+   "starter": false,
+   "opensRoads": [],
+   "note": "Flower bed at the gate, 4x6 m (2x3 cells), decor only, between gateRoad and the silo."
+  },
+  {
+   "id": "F6",
+   "kind": "farm",
+   "zone": "Ruộng quanh nhà (lõi cũ)",
+   "rect": [
+    -26,
+    11.5,
+    -16,
+    17.5
+   ],
+   "cost": 900,
+   "level": 5,
+   "starter": false,
+   "opensRoads": [],
+   "note": "Unchanged rect (swLane)."
+  },
+  {
+   "id": "F7",
+   "kind": "farm",
+   "zone": "Ruộng quanh nhà (lõi cũ)",
+   "rect": [
+    -14,
+    -17.5,
+    -4,
+    -11.5
+   ],
+   "cost": 1300,
+   "level": 6,
+   "starter": false,
+   "opensRoads": [
+    "spine1",
+    "nRing_W"
+   ],
+   "note": "Unchanged rect (nLane_W)."
+  },
+  {
+   "id": "F8",
+   "kind": "farm",
+   "zone": "Ruộng quanh nhà (lõi cũ)",
+   "rect": [
+    -26,
+    -17.5,
+    -16,
+    -11.5
+   ],
+   "cost": 1800,
+   "level": 7,
+   "starter": false,
+   "opensRoads": [
+    "nRing_W",
+    "spine1"
+   ],
+   "note": "Unchanged rect. Last Round-1 buy."
+  },
+  {
+   "id": "F9",
+   "kind": "farm",
+   "zone": "Ruộng quanh nhà (lõi cũ)",
+   "rect": [
+    4,
+    -8.5,
+    14,
+    -2.5
+   ],
+   "cost": 2400,
+   "level": 8,
+   "starter": false,
+   "opensRoads": [
+    "spine0",
+    "nLane_E"
+   ],
+   "note": "Unchanged rect (mainEW)."
+  },
+  {
+   "id": "F10",
+   "kind": "farm",
+   "zone": "Ruộng quanh nhà (lõi cũ)",
+   "rect": [
+    16,
+    -8.5,
+    26,
+    -2.5
+   ],
+   "cost": 3200,
+   "level": 12,
+   "starter": false,
+   "opensRoads": [
+    "mainEW_E"
+   ],
+   "note": "Unchanged rect (nLane_E)."
+  },
+  {
+   "id": "F11",
+   "kind": "farm",
+   "zone": "Ruộng quanh nhà (lõi cũ)",
+   "rect": [
+    4,
+    -17.5,
+    14,
+    -11.5
+   ],
+   "cost": 4200,
+   "level": 14,
+   "starter": false,
+   "opensRoads": [
+    "spine1",
+    "nRing_E"
+   ],
+   "note": "Unchanged rect (nLane_E)."
+  },
+  {
+   "id": "P1",
+   "kind": "pasture",
+   "zone": "Đồng cỏ & xưởng (đông bắc)",
+   "rect": [
+    2,
+    -30.5,
+    14,
+    -20.5
+   ],
+   "cost": 4800,
+   "level": 16,
+   "starter": false,
+   "opensRoads": [
+    "spine2",
+    "eLane2"
+   ],
+   "note": "First pasture, 12x10 m (6x5 cells), for the chicken coop (nRing_E)."
+  },
+  {
+   "id": "F12",
+   "kind": "farm",
+   "zone": "Ruộng quanh nhà (lõi cũ)",
+   "rect": [
+    16,
+    -17.5,
+    26,
+    -11.5
+   ],
+   "cost": 5500,
+   "level": 18,
+   "starter": false,
+   "opensRoads": [
+    "nRing_E"
+   ],
+   "note": "Unchanged rect (nLane_E)."
+  },
+  {
+   "id": "F15",
+   "kind": "farm",
+   "zone": "Ruộng tây bắc",
+   "rect": [
+    -14,
+    -26.5,
+    -4,
+    -20.5
+   ],
+   "cost": 6200,
+   "level": 20,
+   "starter": false,
+   "opensRoads": [
+    "spine2",
+    "wLane2"
+   ],
+   "note": "New field (nRing_W)."
+  },
+  {
+   "id": "F13",
+   "kind": "farm",
+   "zone": "Ruộng quanh nhà (lõi cũ)",
+   "rect": [
+    4,
+    2.5,
+    14,
+    8.5
+   ],
+   "cost": 7000,
+   "level": 9,
+   "starter": false,
+   "opensRoads": [
+    "mainEW_E"
+   ],
+   "note": "Unchanged rect (mainEW, seLane)."
+  },
+  {
+   "id": "W2",
+   "kind": "build",
+   "zone": "Đồng cỏ & xưởng (đông bắc)",
+   "rect": [
+    2,
+    -43.5,
+    14,
+    -33.5
+   ],
+   "cost": 8000,
+   "level": 28,
+   "starter": false,
+   "opensRoads": [
+    "spine3",
+    "eLane3"
+   ],
+   "note": "Workshop lot, 12x10 m (eLane2)."
+  },
+  {
+   "id": "F14",
+   "kind": "farm",
+   "zone": "Ruộng quanh nhà (lõi cũ)",
+   "rect": [
+    16,
+    2.5,
+    26,
+    8.5
+   ],
+   "cost": 9000,
+   "level": 22,
+   "starter": false,
+   "opensRoads": [
+    "mainEW_E"
+   ],
+   "note": "Unchanged rect (seLane)."
+  },
+  {
+   "id": "F16",
+   "kind": "farm",
+   "zone": "Ruộng tây bắc",
+   "rect": [
+    -26,
+    -26.5,
+    -16,
+    -20.5
+   ],
+   "cost": 10500,
+   "level": 34,
+   "starter": false,
+   "opensRoads": [
+    "wLane2",
+    "spine2"
+   ],
+   "note": "New field (nRing_W)."
+  },
+  {
+   "id": "P2",
+   "kind": "pasture",
+   "zone": "Đồng cỏ & xưởng (đông bắc)",
+   "rect": [
+    16,
+    -30.5,
+    28,
+    -20.5
+   ],
+   "cost": 12000,
+   "level": 37,
+   "starter": false,
+   "opensRoads": [
+    "eLane2",
+    "spine2"
+   ],
+   "note": "Pig pasture, 12x10 m (nRing_E)."
+  },
+  {
+   "id": "F17",
+   "kind": "farm",
+   "zone": "Ruộng tây bắc",
+   "rect": [
+    -14,
+    -35.5,
+    -4,
+    -29.5
+   ],
+   "cost": 14000,
+   "level": 40,
+   "starter": false,
+   "opensRoads": [
+    "spine3",
+    "wLane3"
+   ],
+   "note": "New field (wLane2)."
+  },
+  {
+   "id": "W3",
+   "kind": "build",
+   "zone": "Đồng cỏ & xưởng (đông bắc)",
+   "rect": [
+    16,
+    -43.5,
+    28,
+    -33.5
+   ],
+   "cost": 16000,
+   "level": 44,
+   "starter": false,
+   "opensRoads": [
+    "eLane3",
+    "spine3"
+   ],
+   "note": "Workshop lot, 12x10 m (eLane2)."
+  },
+  {
+   "id": "F18",
+   "kind": "farm",
+   "zone": "Ruộng tây bắc",
+   "rect": [
+    -26,
+    -35.5,
+    -16,
+    -29.5
+   ],
+   "cost": 18500,
+   "level": 48,
+   "starter": false,
+   "opensRoads": [
+    "wLane3",
+    "spine3"
+   ],
+   "note": "New field (wLane2)."
+  },
+  {
+   "id": "PD1",
+   "kind": "pond",
+   "zone": "Vườn cây & ao (tây bắc xa)",
+   "rect": [
+    -28,
+    -48.5,
+    -16,
+    -38.5
+   ],
+   "cost": 21000,
+   "level": 52,
+   "starter": false,
+   "opensRoads": [
+    "wLane4",
+    "spine4"
+   ],
+   "note": "Pond, 12x10 m (wLane3)."
+  },
+  {
+   "id": "O1",
+   "kind": "orchard",
+   "zone": "Vườn cây & ao (tây bắc xa)",
+   "rect": [
+    -14,
+    -48.5,
+    -2,
+    -38.5
+   ],
+   "cost": 24000,
+   "level": 56,
+   "starter": false,
+   "opensRoads": [
+    "wLane4",
+    "spine4"
+   ],
+   "note": "Orchard, 12x10 m (wLane3)."
+  },
+  {
+   "id": "P3",
+   "kind": "pasture",
+   "zone": "Đồng cỏ & xưởng (đông bắc)",
+   "rect": [
+    2,
+    -56.5,
+    14,
+    -46.5
+   ],
+   "cost": 28000,
+   "level": 60,
+   "starter": false,
+   "opensRoads": [
+    "eLane4",
+    "spine4"
+   ],
+   "note": "Pasture, 12x10 m (eLane3)."
+  },
+  {
+   "id": "G1",
+   "kind": "decor",
+   "zone": "Vườn cây & ao (tây bắc xa)",
+   "rect": [
+    -28,
+    -61.5,
+    -16,
+    -51.5
+   ],
+   "cost": 32000,
+   "level": 65,
+   "starter": false,
+   "opensRoads": [],
+   "note": "Flower garden, 12x10 m, decor only (wLane4)."
+  },
+  {
+   "id": "P4",
+   "kind": "pasture",
+   "zone": "Đồng cỏ & xưởng (đông bắc)",
+   "rect": [
+    16,
+    -56.5,
+    28,
+    -46.5
+   ],
+   "cost": 37000,
+   "level": 70,
+   "starter": false,
+   "opensRoads": [
+    "eLane4",
+    "spine4"
+   ],
+   "note": "Pasture, 12x10 m (eLane3)."
+  },
+  {
+   "id": "O2",
+   "kind": "orchard",
+   "zone": "Vườn cây & ao (tây bắc xa)",
+   "rect": [
+    -14,
+    -61.5,
+    -2,
+    -51.5
+   ],
+   "cost": 42000,
+   "level": 75,
+   "starter": false,
+   "opensRoads": [
+    "spine5"
+   ],
+   "note": "Orchard 2, 12x10 m (wLane4)."
+  },
+  {
+   "id": "W4",
+   "kind": "build",
+   "zone": "Đồng cỏ & xưởng (đông bắc)",
+   "rect": [
+    10,
+    -69.5,
+    20,
+    -59.5
+   ],
+   "cost": 48000,
+   "level": 80,
+   "starter": false,
+   "opensRoads": [
+    "spine5"
+   ],
+   "note": "Large workshop lot, 10x10 m (eLane4)."
+  },
+  {
+   "id": "W5",
+   "kind": "build",
+   "zone": "Đồng cỏ & xưởng (đông bắc)",
+   "rect": [
+    20,
+    -69.5,
+    30,
+    -59.5
+   ],
+   "cost": 55000,
+   "level": 86,
+   "starter": false,
+   "opensRoads": [],
+   "note": "Large workshop lot, 10x10 m (eLane4)."
+  },
+  {
+   "id": "H1",
+   "kind": "decor",
+   "zone": "Đồi cối xay gió (đỉnh)",
+   "rect": [
+    -8,
+    -73.5,
+    8,
+    -63.5
+   ],
+   "cost": 70000,
+   "level": 93,
+   "starter": false,
+   "opensRoads": [],
+   "note": "Endgame landmark, 16x10 m, at the end of the spine (spine5)."
+  }
+ ],
+ "fixed": [
+  {
+   "id": "silo",
+   "x": 9,
+   "z": 14,
+   "w": 4,
+   "d": 4
+  },
+  {
+   "id": "gatePlaza",
+   "x": 0,
+   "z": 21.75,
+   "w": 8,
+   "d": 8.5
+  },
+  {
+   "id": "gate",
+   "x": 0,
+   "z": 23,
+   "w": 5,
+   "d": 5
+  },
+  {
+   "id": "spawn",
+   "x": 0,
+   "z": 18,
+   "w": 1,
+   "d": 1
+  }
+ ],
+ "progression": "Start (Lv1): you own F1 and Y0. Four roads are open: mainEW in the centre (x -16..16), gateRoad, swLane and seLane. The whole south half of the old core is reachable.\n\nRound 1 (Lv1-10, 9 buys):\n- F2 80 L1: opens mainEW_W.\n- F3 180 L2: opens spine0 and nLane_W.\n- W1 300 L3.\n- F4 350 L4.\n- F5 600 L5.\n- D1 450 L6.\n- F6 900 L7.\n- F7 1300 L8: opens spine1 and nRing_W.\n- F8 1800 L10.\nThe Round-1 total is about 7,000 coins. The prices of F2-F8 are unchanged.\n\nLv11-40 fills the east half of the old core and the first row north:\n- F9 2400 L12, F10 3200 L14, F11 4200 L16.\n- P1 4800 L18 (chickens), F12 5500 L20, F15 6200 L22.\n- F13 7000 L25, W2 8000 L28, F14 9000 L31.\n- F16 10500 L34, P2 12000 L37 (pigs), F17 14000 L40.\n\nLv41-100 is the far north:\n- W3 16000 L44, F18 18500 L48, PD1 21000 L52, O1 24000 L56.\n- P3 28000 L60, G1 32000 L65, P4 37000 L70, O2 42000 L75.\n- W4 48000 L80, W5 55000 L86, H1 70000 L93.\n\nBuy rule: you can buy a parcel when it is not owned, your level >= its level, and it shares an edge with an open road. A road is open when it is open:true or when an owned parcel lists it in opensRoads.\n\nThe check script simulated this order and found no problems:\n- Every parcel can be reached when it is bought.\n- Every road stays connected to the start network.\n- Every road gets opened.",
+ "migration": "Bump LAYOUT_VERSION to 4 and add the step `if (out.layout < 4)`.\n\n(1) F1-F14 keep their ids and rects, so plots, crops, timers and staff are unchanged. Nothing is moved or refunded.\n\n(2) Every save gets Y0, which is a starter. A save that has at least one farm-side building (not a starter) also gets W1 free, so it keeps room for its look.\n\n(3) Roads: add the opensRoads of every owned parcel to region.roads. Also add the chain back to the start network: F9-F12 need spine0 and spine1, and F13/F14 need mainEW_E. Drop the old ids mainNS, southWest and north. mainEW keeps its id but is now x -16..16 and 5 m wide.\n\n(4) Farm buildings:\n- Starters snap to FIXED. The silo stays at (9,14).\n- Any other building stays where it is if it now sits fully inside an owned build/decor lot and overlaps nothing.\n- Otherwise, scan Y0, then W1, then other owned lots on a 1 m grid.\n- If no spot is found, refund builtValue(b) into r.refund and show the existing refund toast.\nThe wider roads and the bigger gatePlaza cover strips of old grass, so buildings that sat there also go through this step.\n\n(5) Level gates apply only to new purchases. Café areas S, C2 and C3 are unchanged.",
+ "codeChanges": [
+  "src/core/config/layout.js:\n- BOUNDS {minX:-32,maxX:32,minZ:-76,maxZ:28}. Add START_BOUNDS [-30,-22,30,28].\n- Replace ROADS and ROAD_ORDER with the 22 segments.\n- Farm PARCELS get kind, zone, level and opensRoads. F1-F14 rects are unchanged. Add Y0, W1, D1, P1-P4, W2-W5, F15-F18, PD1, O1, O2, G1, H1.\n- Set PARCEL_ORDER to the buy order.\n- Change RESERVED.gatePlaza to [-4,17.5,4,26], drawn as a dirt apron so spawn (0,18) sits on dirt. Add RESERVED silo [7,12,11,16].\n- Rewrite the ASCII map comment at the top.",
+  "src/core/config/layout.js: add parcelRoads(id), precomputed. It lists the roads that share an edge segment of positive length with the parcel. It replaces any single p.road.",
+  "src/core/derive.js:\n- roadOpen(s,id) = open:true OR the road is in region.roads OR it is in an owned parcel's opensRoads.\n- parcelError order: 'owned', then 'level' ({level}), then 'road', then 'coins'.\n- Add buyableParcels(s) and farmViewBounds(s): the union of owned parcels, open roads and buyable parcels, padded by 6 m, clamped to BOUNDS, never smaller than START_BOUNDS.",
+  "src/core/derive.js placementError (~line 121): remove the free-grass farm branch. A farm building must sit fully inside an owned parcel whose kind is in ACCEPTS[BUILDINGS[type].lot]. lot defaults: dryer = build; coop and pigpen = pasture; decor = build|decor|pond|orchard|pasture. Keep the RESERVED and overlap checks. Reuse the existing café-parcel branch so there is a single code path.",
+  "src/core/config/economy.js: add `lot` to farm BUILDINGS.",
+  "src/core/game.js land/buyParcel: push PARCELS[id].opensRoads into region.roads and emit {type:'roadsOpened', ids} for the path-clearing animation.",
+  "src/core/state.js: LAYOUT_VERSION 4, the migration step above, Y0 as a starter, and normalizeRegion filters r.roads to known ROADS ids.",
+  "src/features/realm/world.js:\n- Draw the open roads plus the gatePlaza apron as ONE merged BufferGeometry, rebuilt when a road opens.\n- Closed roads: faint grassy ruts on the frontier only.\n- Locked parcels: overgrowth with 4 InstancedMesh (tree, bush, rock, stump), seeded per id. Far bands are flat forest.\n- Signs only on buyableParcels, showing the price, and 'Lv N' when the level is too low.\n- Owned ground per kind. Fences and props sit 0.2 m inside the parcel edge, because lanes are now flush.\n- The forest border follows farmViewBounds.",
+  "src/features/realm/camera.js: setBounds(D.farmViewBounds(s)) on load and after a purchase, with a tween. Portrait default: north is up on screen. Allow a little more zoom-out when width < height.",
+  "src/features/hud/sheets.js + modal.js: the land list is grouped by zone, with a lock showing 'Cần Lv N', the opened paths, and a focus-camera button. The build menu says which lot type each building needs.",
+  "src/i18n/locales: zone names, plus errors level / notOwned / wrongLot / 'Đã mở đường'.",
+  "scripts/economy-sim.mjs + tests/core: new prices and levels. Tests: no overlaps; every parcel shares an edge with a road; farm parcels are 10x6; the buy-order simulation keeps every road connected; v3 to v4 migration (save owns F1-F14 and has a dryer on old grass: it gets Y0+W1, correct roads, and the dryer stays or is refunded)."
+ ],
+ "risks": [
+  "Free-grass placement goes away. Players who decorate a lot may get refunds. This is softened by the free W1 lot and a one-time toast.",
+  "mainEW becomes 5 m wide and the lanes 3 m, flush against fields. They cover old grass, so buildings there must be relocated or refunded.",
+  "The map grows from 60x48 m to 64x104 m. You need instanced overgrowth, merged roads, signs on the frontier only, and the camera clamped to farmViewBounds, or older phones will lag.",
+  "H1 sits about 90 m from the gate, so late walks are long. Add tap-to-travel or a second storehouse later.",
+  "Pasture, pond, orchard and the large workshops have no gameplay content yet, so P1 at Lv18 may feel empty. Add the chicken coop before Round 2.",
+  "Prices from Lv40-100 are guesses and must go through economy-sim.",
+  "areaAt for the café uses z>=82. The farm spans z -76..28, so this is safe. Do not raise maxZ above 72."
+ ]
+}

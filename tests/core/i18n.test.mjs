@@ -116,3 +116,18 @@ test('i18n: blessing descriptions used by the HUD exist (blessing.<key>.desc)', 
   for (const key of Object.keys(REBIRTH.blessings)) for (const lang of ['en', 'vi']) if (!nonEmpty(all[lang][`blessing.${key}.desc`])) missing.push(`${lang}: blessing.${key}.desc`);
   assert.deepEqual(missing, []);
 });
+
+test('local café menus: every country has one menu entry per culture.<cc>.menu item (en + vi) and every base drink', async () => {
+  const { COUNTRY_MENUS } = await import('../../src/core/config/menus.js');
+  assert.deepEqual(Object.keys(COUNTRY_MENUS).sort(), Object.keys(COUNTRIES).sort());
+  const problems = [];
+  for (const [cc, items] of Object.entries(COUNTRY_MENUS)) {
+    for (const lang of ['en', 'vi']) {
+      const names = String(all[lang][`culture.${cc}.menu`] || '').split('|').map(x => x.trim()).filter(Boolean);
+      if (names.length !== items.length) problems.push(`${lang}: ${cc} has ${names.length} names for ${items.length} items`);
+    }
+    for (const base of Object.keys(DRINKS)) if (!items.some(i => i.base === base)) problems.push(`${cc}: no ${base} item`);
+    for (const i of items) if (!Object.hasOwn(DRINKS, i.base) || !i.icon) problems.push(`${cc}: bad item ${JSON.stringify(i)}`);
+  }
+  assert.deepEqual(problems, []);
+});

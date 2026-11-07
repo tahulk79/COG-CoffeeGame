@@ -1,39 +1,135 @@
-// Sheet contents: Build (café), Seeds (farm), Menu (café drinks), Staff (per area) and Progress (Round + Rebirth).
+// Sheet contents: Build (café), Seeds (farm), Menu (café drinks) and Progress (Round + Rebirth). Staff: staff-modal.js.
 // Pure render functions of the store state. Each screen has its own toolbar (toolbar.js), so sheets filter by view.
-import { BUILD_MENU, BUILD_MENU_FARM, BUILD_MENU_CAFE, BUILDINGS, AUTO, autoPrice, CROPS, CROP_ORDER, STAFF, STAFF_ORDER, STAFF_SLOTS, ROUNDS, ROUND_LEVEL_CAP, REBIRTH, DRINKS, DRINK_ORDER, BEANS, OTHER_GAME_ROUND } from '../../core/config/economy.js';
-import { buildError, buildingsOf, buildingLevel, MAX_INSTANCES, cropUnlocked, drinkUnlocked, drinkPrice, brewMs, seedCost, growMs, staffError, freeSlots, roundStatus, rebirthError, level, region, capacity, beanBuyQuote, upgradeError, upgradeCost } from '../../core/derive.js';
+import { BUILD_MENU, BUILD_MENU_FARM, BUILD_MENU_CAFE, BUILDINGS, CATEGORY_ORDER, AUTO, autoPrice, CROPS, CROP_ORDER, STAFF, STAFF_ORDER, LOAN, loanOwed, DRINKS, DRINK_ORDER, BEANS } from '../../core/config/economy.js';
+import { buildError, buildingLevel, defOf, useOf, countOf, maxCount, nextLimitLevel, buildCost, fieldAllowance, frontierParcels, parcelError, stored, cropUnlocked, drinkUnlocked, drinkPrice, brewMs, seedCost, growMs, level, region, capacity, beanBuyQuote, upgradeError, upgradeCost } from '../../core/derive.js';
+import { PARCELS, terrainOfLot } from '../../core/config/layout.js';
 import { newTxId } from '../../core/store.js';
 import { h } from './dom.js';
-import { T, fmt, duration } from './text.js';
-import { buildingEffect, staffEffect } from './effects.js';
+import { localItemsOf } from '../../ui/local-menu.js';
+import { T, fmt, duration, has } from './text.js';
+import { buildingEffect } from './effects.js';
 import { actionButton, coinAmount, lockTag, needMore } from './widgets.js';
 
-// ---------- Build ----------
+// ---------- Build (construction catalog) ----------
+// Category tabs (CATEGORY_ORDER[view]; the farm adds a Land tab) over a grid of compact cards: big icon, name, cost and
+// one line of benefit, with a small n/max chip. States: available · can't afford (cost in red, a tap says how many coins
+// are missing) · locked by level ("Lv N") · maxed ("More at Lv N" / "Max built"). An available card closes the sheet
+// and starts placing (data-hud-id="build-<type>" is the tutorial's target). The last tab per screen is remembered
+// (memory only). Never BUILDINGS[type] for a menu entry: 'field' lives in FIELD (D.defOf).
+export const CAT_ICON = { farming: '🌱', processing: '🏭', storage: '📦', infrastructure: '💧', decoration: '🌼', cafe: '☕', land: '🏷️' };
+export const TERRAIN_ICON = { meadow: '🌾', garden: '🌷', pasture: '🐄', orchard: '🍎', pond: '🦆', hill: '⛰️', shop: '☕', road: '🛤️', plaza: '⛩️', wild: '🌿' };
+const LAND_ROWS = 12;
+export const buildView = ctx => (ctx.realm?.view === 'cafe' ? 'cafe' : 'farm');
+export const buildTabs = view => [...(CATEGORY_ORDER[view] || []), ...(view === 'farm' ? ['land'] : [])];
+const buildMenu = view => (view === 'cafe' ? BUILD_MENU_CAFE : BUILD_MENU_FARM);
+/** The catalog tab shown for the current screen (last one picked, else the first). */
+export function buildTab(ctx) {
+  const view = buildView(ctx), tabs = buildTabs(view), t = ctx.buildTab?.[view];
+  return tabs.includes(t) ? t : tabs[0];
+}
+export function setBuildTab(ctx, tab) {
+  const view = buildView(ctx);
+  if (buildTabs(view).includes(tab)) ctx.buildTab = { ...(ctx.buildTab || {}), [view]: tab };
+}
+
+// What one card shows (also its signature part). null = not offered here (other game / starter / retired).
+function cardModel(s, type) {
+  const def = defOf(type);
+  if (!def || !region(s)) return null;
+  const err = buildError(s, type);
+  if (err === 'gameLocked' || err === 'unknown') return null;
+  const count = countOf(s, type), max = maxCount(s, type), cost = buildCost(s, type);
+  const m = { type, cat: def.category, err, count, max, cost };
+  if (err === 'limit') m.next = nextLimitLevel(s, type);
+  if (type === 'field' && cost === 0) m.freeLeft = Math.max(0, fieldAllowance(s) - count);
+  return m;
+}
+// A tab gets a dot when it holds something new to build: affordable, unlocked, none built yet (not decor).
+const isNew = m => !m.err && m.count === 0 && m.max >= 1 && useOf(m.type) !== 'decor';
+
+/** Tapping a catalog card: place it, or say why not (fresh state: the sheet may not have rebuilt since). */
+function pickCard(ctx, type) {
+  const s = ctx.store.state, def = defOf(type);
+  const err = buildError(s, type);
+  if (!err) {
+    if (ctx.blockedByAuto?.()) return;
+    const near = ctx.buildNear || null; // opened from the land card: start the ghost at the tapped spot
+    ctx.sheet.close();
+    ctx.realm?.startPlacement?.(type, near ? { near } : undefined);
+    return;
+  }
+  const text = err === 'coins' ? needMore(buildCost(s, type) - Math.floor(s.player.coins))
+    : err === 'level' ? T('err.level', { minLevel: def.level })
+    : err === 'limit' ? T('err.limit', { level: nextLimitLevel(s, type) })
+    : T(`err.${err}`);
+  ctx.toast(text, 'bad');
+}
+
+function catalogCard(ctx, m) {
+  const def = defOf(m.type), name = T(`building.${m.type}`);
+  const desc = useOf(m.type) === 'decor' ? T('fw.desc.decor') : has(`fw.desc.${m.type}`) ? T(`fw.desc.${m.type}`) : buildingEffect(m.type, 1, false);
+  let state = '', foot;
+  if (m.err === 'round') { state = 'locked'; foot = lockTag(T('hud.roundN', { round: def.round })); }
+  else if (m.err === 'level') { state = 'locked'; foot = lockTag(T('fw.catalog.unlockAt', { level: def.level })); }
+  else if (m.err === 'limit') { state = 'maxed'; foot = h('span', { class: 'hud-tag hud-tag--max' }, m.next ? T('fw.catalog.nextAt', { level: m.next }) : T('fw.catalog.maxed')); }
+  else if (m.freeLeft != null) foot = h('span', { class: 'hud-cost hud-cost--free' }, T('fw.field.free', { n: m.freeLeft }));
+  else foot = coinAmount(m.cost, m.err === 'coins' ? 'is-short' : '');
+  const price = m.freeLeft != null ? T('hud.free') : fmt(m.cost);
+  return h('button', { type: 'button', class: `hud-card hud-cat-card${state ? ` is-${state}` : ''}${m.err === 'coins' ? ' is-short' : ''}`,
+    dataset: { hudId: `build-${m.type}` }, attrs: { 'aria-disabled': state ? 'true' : null, 'aria-label': `${name} · ${state ? foot.textContent : price}` },
+    on: { click: () => pickCard(ctx, m.type) } },
+  m.max > 0 && state !== 'locked' ? h('span', { class: `hud-cat-count${m.count >= m.max ? ' is-full' : ''}` }, T('fw.catalog.count', { n: m.count, max: m.max })) : null,
+  h('span', { class: 'hud-card-ico', attrs: { 'aria-hidden': 'true' } }, def.icon),
+  h('span', { class: 'hud-card-name' }, name),
+  h('span', { class: 'hud-cat-foot' }, foot),
+  h('span', { class: 'hud-card-fx' }, desc));
+}
+
+// Land tab: lots for sale, cheapest first (terrain icon, name, price, Buy) + "Show land for sale" on the map.
+function landTab(ctx, s) {
+  const lots = landLots(s);
+  const out = h('div', { class: 'hud-land' },
+    h('div', { class: 'hud-row hud-land-top' }, actionButton({ id: 'landExpand', label: T('fw.catalog.expand'), icon: '🗺️', tone: 'plain',
+      onClick: () => { ctx.sheet.close(); ctx.setLandMode?.('expand'); } })));
+  if (!lots.length) { out.append(h('p', { class: 'hud-line hud-line--good' }, T('fw.catalog.allOwned'))); return out; }
+  out.append(h('p', { class: 'hud-hint' }, T('fw.catalog.landHint')));
+  const list = h('ul', { class: 'hud-land-list' });
+  for (const p of lots.slice(0, LAND_ROWS)) {
+    const terrain = terrainOfLot(p.id), short = parcelError(s, p.id) === 'coins';
+    // Never disabled when short: the tap goes through ctx.act, whose toast says how many coins are missing.
+    const buy = actionButton({ id: `buyLot-${p.id}`, label: T('hud.buy'), cost: p.cost, tone: 'gold', onClick: () => ctx.act('land/buyParcel', { parcelId: p.id }) });
+    if (short) buy.classList.add('is-short');
+    list.append(h('li', { class: 'hud-land-row' },
+      h('span', { class: 'hud-land-ico', attrs: { 'aria-hidden': 'true' } }, TERRAIN_ICON[terrain] || '🌾'),
+      h('span', { class: 'hud-land-text' }, h('strong', null, T(`hud.parcel.${p.kind}`, { id: p.id })), h('small', null, T(`fw.land.terrain.${terrain}`))),
+      buy));
+  }
+  out.append(list);
+  return out;
+}
+const landLots = s => frontierParcels(s).map(id => PARCELS[id]).filter(Boolean).sort((a, b) => a.cost - b.cost);
+
 export function buildSheet(ctx) {
-  return s => {
-    const grid = h('div', { class: 'hud-cards' });
-    // Each screen builds its own things: farm = dryer + decorations on free grass, café = café buildings + decorations.
-    for (const type of ctx.realm?.view === 'cafe' ? BUILD_MENU_CAFE : BUILD_MENU_FARM) {
-      const def = BUILDINGS[type];
-      const err = buildError(s, type);
-      const count = buildingsOf(s, type).length, limit = MAX_INSTANCES[type] || 1;
-      let lock = null;
-      if (err === 'round') lock = lockTag(T('hud.roundN', { round: def.round }));
-      else if (err === 'level') lock = lockTag(T('hud.levelN', { level: def.level }));
-      else if (err === 'limit') lock = h('span', { class: 'hud-tag' }, T('hud.built', { n: count, max: limit }));
-      else if (err === 'coins') lock = h('span', { class: 'hud-need' }, needMore(def.cost - s.player.coins));
-      const card = h('button', { type: 'button', class: `hud-card${err ? ' is-locked' : ''}`, disabled: !!err,
-        dataset: { hudId: `build-${type}` }, attrs: { 'aria-label': `${T(`building.${type}`)} · ${fmt(def.cost)}` },
-        on: { click: () => { if (ctx.blockedByAuto?.()) return; ctx.sheet.close(); ctx.realm?.startPlacement?.(type); } } },
-      h('span', { class: 'hud-card-ico', attrs: { 'aria-hidden': 'true' } }, def.icon),
-      h('span', { class: 'hud-card-name' }, T(`building.${type}`)),
-      h('span', { class: 'hud-card-meta' }, coinAmount(def.cost), h('span', { class: 'hud-size' }, `${def.size[0]}×${def.size[1]}`)),
-      h('span', { class: 'hud-card-fx' }, buildingEffect(type, 1, false)),
-      lock);
-      grid.append(card);
-    }
-    return grid;
+  const models = s => buildMenu(buildView(ctx)).map(type => cardModel(s, type)).filter(Boolean);
+  const render = s => {
+    const view = buildView(ctx), tab = buildTab(ctx), all = models(s);
+    const tabs = h('div', { class: 'hud-cat-tabs', attrs: { role: 'tablist', 'aria-label': T('fw.catalog.title') } },
+      ...buildTabs(view).map(id => h('button', { type: 'button', class: 'hud-cat-tab', dataset: { hudId: `buildTab-${id}` },
+        attrs: { role: 'tab', 'aria-selected': String(id === tab) }, on: { click: () => { if (buildTab(ctx) === id) return; setBuildTab(ctx, id); ctx.sheet.rerender(); } } },
+      h('span', { class: 'hud-cat-tab-ico', attrs: { 'aria-hidden': 'true' } }, CAT_ICON[id] || '🔨'),
+      h('span', { class: 'hud-cat-tab-label' }, T(`fw.cat.${id}`)),
+      all.some(m => m.cat === id && isNew(m)) ? h('span', { class: 'hud-dot', attrs: { 'aria-hidden': 'true' } }) : null)));
+    if (tab === 'land') return h('div', { class: 'hud-catalog' }, tabs, landTab(ctx, s));
+    const grid = h('div', { class: 'hud-cards hud-cat-grid' }, all.filter(m => m.cat === tab).map(m => catalogCard(ctx, m)));
+    return h('div', { class: 'hud-catalog' }, tabs, grid);
   };
+  // Signature: the tab + every card's state (+ the land list): a sale or a staff harvest does not rebuild the grid.
+  render.sig = s => {
+    const view = buildView(ctx), tab = buildTab(ctx);
+    const land = tab === 'land' ? landLots(s).slice(0, LAND_ROWS).map(p => `${p.id}:${parcelError(s, p.id) || ''}`).join(',') : '';
+    return `${view}|${tab}|${JSON.stringify(models(s))}|${land}`;
+  };
+  return render;
 }
 
 // ---------- Seeds (active crop picker) ----------
@@ -71,9 +167,12 @@ export function menuSheet() {
       if (!open && level(s) < def.level) needs.push(T('hud.levelN', { level: def.level }));
       if (!open && buildingLevel(s, 'roaster') < def.roaster) needs.push(T('hud.menu.needRoaster', { level: def.roaster }));
       const price = hasRegion ? drinkPrice(s, id) : def.price;
+      // The country's local drinks served as this base drink (config/menus.js), e.g. Vietnam latte → cà phê trứng, cà phê muối…
+      const local = hasRegion ? localItemsOf(s.world.currentRegion, id) : [];
       list.append(h('div', { class: `hud-seed hud-drink${open ? '' : ' is-locked'}`, dataset: { hudId: `drink-${id}` } },
         h('span', { class: 'hud-seed-ico', attrs: { 'aria-hidden': 'true' } }, def.icon),
         h('span', { class: 'hud-seed-name' }, T(`drink.${id}`)),
+        local.length ? h('span', { class: 'hud-drink-local' }, local.map(item => `${item.icon} ${item.name}`).join(' · ')) : null,
         open ? h('span', { class: 'hud-seed-meta' }, coinAmount(price), h('span', null, T('hud.menu.beans', { n: def.beans })),
           h('span', null, `⏱ ${duration(hasRegion ? brewMs(s, id) : def.brewSeconds * 1000)}`))
           : h('span', { class: 'hud-seed-meta' }, needs.map(text => lockTag(text)))));
@@ -90,7 +189,7 @@ export function beansSheet(ctx) {
     const label = q.free ? T('hud.beans.free', { n: q.amount }) : T('hud.beans.buy', { n: q.amount || BEANS.buyPack });
     const note = q.error === 'storageFull' ? T('hud.beans.full') : q.error === 'coins' ? needMore(q.missing) : null;
     return h('div', null,
-      h('p', { class: `hud-line${cap && s.inventory.beans >= cap ? ' hud-line--bad' : ''}` }, T('hud.storage.fill', { n: Math.floor(s.inventory.beans), max: cap })),
+      h('p', { class: `hud-line${cap && stored(s) >= cap ? ' hud-line--bad' : ''}` }, T('hud.storage.fill', { n: Math.floor(s.inventory.beans), max: cap })),
       h('p', { class: 'hud-hint' }, T('hud.beans.hint', { price: BEANS.buyPrice })),
       h('div', { class: 'hud-row' }, actionButton({ id: 'buyBeans', label, icon: '🫘', cost: q.error ? null : q.cost, disabled: !!q.error, note,
         onClick: () => ctx.act('shop/buyBeans') })),
@@ -109,76 +208,7 @@ function storageRow(ctx, s) {
 }
 
 // ---------- Staff ----------
-/** Staff zone shown on the current screen: farm staff on the farm, café staff in the café. */
-export const staffZone = ctx => (ctx.realm?.view === 'cafe' ? 'shop' : 'farm');
-
-export function staffSheet(ctx) {
-  return s => {
-    const r = region(s);
-    const zone = staffZone(ctx);
-    const used = r ? STAFF_SLOTS[zone] - freeSlots(s, zone) : 0;
-    const out = h('div', { class: 'hud-staff' },
-      h('p', { class: 'hud-slots' }, T(zone === 'farm' ? 'hud.staff.slotsFarm' : 'hud.staff.slotsCafe', { n: used, max: STAFF_SLOTS[zone] })));
-    const cards = h('div', { class: 'hud-cards hud-cards--wide' });
-    for (const type of STAFF_ORDER.filter(id => STAFF[id].zone === zone)) {
-      const def = STAFF[type];
-      const err = staffError(s, type);
-      let foot;
-      if (err === 'round') foot = lockTag(T('hud.roundN', { round: def.round }));
-      else if (err === 'level') foot = lockTag(T('hud.levelN', { level: def.level }));
-      else foot = actionButton({ label: T('hud.hire'), cost: def.cost, disabled: err === 'coins' || !r, note: err === 'coins' ? needMore(def.cost - s.player.coins) : null,
-        onClick: () => ctx.act('staff/hire', { type }) });
-      cards.append(h('div', { class: 'hud-card hud-card--static' },
-        h('span', { class: 'hud-card-ico', attrs: { 'aria-hidden': 'true' } }, def.icon),
-        h('span', { class: 'hud-card-name' }, T(`staff.${type}`)),
-        h('span', { class: 'hud-card-meta' }, T(`hud.zone.${def.zone}`), ' · ', T(`hud.kind.${def.kind}`)),
-        h('span', { class: 'hud-card-fx' }, staffEffect(type)), foot));
-    }
-    out.append(cards);
-    const units = s.staff.units.filter(u => STAFF[u.type]?.zone === zone);
-    if (units.length) {
-      const list = h('ul', { class: 'hud-units' });
-      for (const u of units) {
-        const def = STAFF[u.type];
-        const here = r && u.assigned?.regionId === s.world.currentRegion;
-        const doing = here ? ctx.realm?.staffStatus?.(u.uid) : '';
-        // On a break (phone / empty battery): say so and offer to pay the fee right here.
-        const stop = u.stopped;
-        const status = stop ? T(stop.kind === 'battery' ? 'hud.staff.stopBattery' : 'hud.staff.stopPhone', { fee: fmt(stop.fee) })
-          : here ? (doing ? T(`hud.staff.doing.${doing}`) : T('hud.staff.working', { zone: T(`hud.zone.${def.zone}`) })) : u.assigned ? T('hud.staff.elsewhere') : T('hud.staff.idle');
-        const btn = stop
-          ? actionButton({ label: T(stop.kind === 'battery' ? 'hud.staff.recharge' : 'hud.staff.backToWork'), icon: stop.kind === 'battery' ? '⚡' : '📵', tone: 'gold', cost: stop.fee,
-            disabled: s.player.coins < stop.fee, note: s.player.coins < stop.fee ? needMore(stop.fee - s.player.coins) : null, onClick: () => ctx.act('staff/resume', { uid: u.uid }) })
-          : here
-          ? actionButton({ label: T('hud.staff.unassign'), tone: 'plain', onClick: () => ctx.act('staff/unassign', { uid: u.uid }) })
-          : actionButton({ label: T('hud.staff.assign'), disabled: !r || freeSlots(s, def.zone) <= 0, note: r && freeSlots(s, def.zone) <= 0 ? T('err.slotsFull') : null,
-            onClick: () => ctx.act('staff/assign', { uid: u.uid }) });
-        list.append(h('li', { class: 'hud-unit' }, h('span', { class: 'hud-unit-ico', attrs: { 'aria-hidden': 'true' } }, def.icon),
-          h('span', { class: 'hud-unit-text' }, h('strong', null, T(`staff.${u.type}`)), h('small', null, status)), btn));
-      }
-      out.append(h('h3', { class: 'hud-h3' }, T('hud.staff.team')), list);
-    }
-    return out;
-  };
-}
-
-// ---------- Progress: Round + Rebirth ----------
-/** What Round `n` adds, derived from config. Rounds only gate crops, café buildings, robots and building level caps
- * (land and regions are bought with coins, never with Rounds). */
-export function roundUnlocks(n, s = null) {
-  const items = [];
-  // Round 2 opens the game the player did not pick first.
-  if (n === OTHER_GAME_ROUND && s?.firstGame) items.push(s.firstGame === 'cafe' ? ['🌱', T('hud.unlock.farm')] : ['☕', T('hud.unlock.cafe')]);
-  const name = (prefix, ids) => ids.map(id => T(`${prefix}.${id}`)).join(', ');
-  const crops = CROP_ORDER.filter(id => CROPS[id].round === n);
-  if (crops.length) items.push(['🌱', T('hud.unlock.crops', { list: name('crop', crops) })]);
-  const builds = BUILD_MENU.filter(id => BUILDINGS[id].round === n);
-  if (builds.length) items.push(['🔨', T('hud.unlock.buildings', { list: name('building', builds) })]);
-  const staff = STAFF_ORDER.filter(id => STAFF[id].round === n);
-  if (staff.length) items.push(['🤖', T('hud.unlock.staff', { list: name('staff', staff) })]);
-  if (ROUND_LEVEL_CAP[n] > (ROUND_LEVEL_CAP[n - 1] || 0)) items.push(['⬆️', T('hud.unlock.levelCap', { cap: ROUND_LEVEL_CAP[n] })]);
-  return items;
-}
+// The staff manager is a full modal now (staff-modal.js, docs/design/staff-manager.md §10).
 
 /** Buys one auto run after a small confirm card; one txId per confirm, so a double tap can never charge twice. */
 export async function buyAuto(ctx) {
@@ -193,64 +223,7 @@ export async function buyAuto(ctx) {
 }
 
 export function progressSheet(ctx) {
-  let roundPending = false;
-  const rebirthPending = new Set();
-
-  async function unlockRound(st) {
-    if (roundPending) return;
-    roundPending = true;
-    const txId = newTxId('round'); // one id per confirm → a repeated tap/dispatch can never charge twice
-    ctx.sheet.rerender();
-    try {
-      const yes = await ctx.confirm({ title: T('hud.round.confirmTitle', { round: st.next }), body: T('hud.round.confirmBody', { round: st.next }), cost: st.cost, confirmLabel: T('hud.round.unlock', { round: st.next }) });
-      if (yes) ctx.act('round/unlock', { round: st.next }, { txId });
-    } finally { roundPending = false; ctx.sheet.rerender(); }
-  }
-  async function bless(key) {
-    if (rebirthPending.size) return;
-    rebirthPending.add(key);
-    const txId = newTxId('rebirth');
-    ctx.sheet.rerender();
-    try {
-      const yes = await ctx.confirm({ title: T('hud.rebirth.confirmTitle', { blessing: T(`blessing.${key}`) }), body: T('hud.rebirth.confirmBody', { pct: Math.round(REBIRTH.blessings[key] * 100), blessing: T(`blessing.${key}`) }),
-        costLabel: T('hud.rebirth.costLine'), confirmLabel: T('hud.rebirth.go') });
-      if (yes) ctx.act('rebirth/perform', { blessing: key }, { txId });
-    } finally { rebirthPending.delete(key); ctx.sheet.rerender(); }
-  }
-
   return s => {
-    const st = roundStatus(s);
-    const lvl = level(s);
-    // Round panel
-    const round = h('section', { class: 'hud-panel' }, h('h3', { class: 'hud-h3' }, T('hud.round.current', { round: s.player.round })));
-    if (!st.next) round.append(h('p', { class: 'hud-line hud-line--good' }, T('hud.round.max')));
-    else {
-      round.append(h('p', { class: 'hud-sub' }, T('hud.round.next', { round: st.next })),
-        h('ul', { class: 'hud-unlocks' }, roundUnlocks(st.next, s).map(([icon, text]) => h('li', null, h('span', { attrs: { 'aria-hidden': 'true' } }, icon), text))));
-      const req = h('p', { class: `hud-req${st.levelOk ? ' is-ok' : ''}` }, st.levelOk ? '✓ ' : '🔒 ', T('hud.round.needLevel', { level: st.minLevel, now: lvl }));
-      const note = !st.levelOk ? T('hud.round.reachLevel', { level: st.minLevel }) : st.missing > 0 ? T('hud.needCoins', { n: fmt(st.missing) }) : null;
-      round.append(req, actionButton({ id: 'unlockRound', label: T('hud.round.unlock', { round: st.next }), tone: 'gold', cost: st.cost,
-        disabled: !st.canUnlock || roundPending, note, onClick: () => unlockRound(st) }));
-    }
-    // Rebirth panel
-    const credits = s.rebirth.credits;
-    const reb = h('section', { class: 'hud-panel' }, h('h3', { class: 'hud-h3' }, T('hud.rebirth.title')),
-      h('p', { class: 'hud-line' }, T('hud.rebirth.line1')), h('p', { class: 'hud-line' }, T('hud.rebirth.line2')),
-      h('p', { class: 'hud-sub' }, T('hud.rebirth.credits', { n: credits }), ' · ', lvl >= REBIRTH.minLevel ? T('hud.rebirth.ready') : T('hud.rebirth.needLevel', { level: REBIRTH.minLevel })));
-    const cards = h('div', { class: 'hud-cards' });
-    for (const key of Object.keys(REBIRTH.blessings)) {
-      const stacks = s.rebirth.blessings[key] || 0;
-      const err = rebirthError(s, key);
-      cards.append(h('div', { class: 'hud-card hud-card--static hud-bless' },
-        h('span', { class: 'hud-card-ico', attrs: { 'aria-hidden': 'true' } }, { grow: '🌿', price: '💰', xp: '⭐' }[key] || '✨'),
-        h('span', { class: 'hud-card-name' }, T(`blessing.${key}`)),
-        h('span', { class: 'hud-card-fx' }, T(`blessing.${key}.desc`, { pct: Math.round(REBIRTH.blessings[key] * 100) })),
-        h('span', { class: 'hud-stacks', attrs: { 'aria-label': T('hud.rebirth.stacks', { n: stacks, max: REBIRTH.maxStacks }) } },
-          Array.from({ length: REBIRTH.maxStacks }, (_, i) => h('i', { class: i < stacks ? 'on' : '' })), ` ${stacks}/${REBIRTH.maxStacks}`),
-        actionButton({ label: err === 'maxStacks' ? T('hud.rebirth.maxed') : T('hud.rebirth.bless'), icon: '✨', tone: 'gold', disabled: !!err || rebirthPending.size > 0,
-          note: err && err !== 'maxStacks' ? (err === 'level' ? T('hud.levelN', { level: REBIRTH.minLevel }) : T(`err.${err}`)) : null, onClick: () => bless(key) })));
-    }
-    reb.append(cards, h('p', { class: 'hud-hint' }, T('hud.rebirth.more')));
     // World map (moved here from the toolbar; the World Gate on the farm opens it too).
     const world = actionButton({ id: 'worldMap', label: T('hud.worldMapBtn'), tone: 'plain', onClick: () => ctx.onTool('world') });
     // Auto play: runs left, start, buy one more with coins.
@@ -263,7 +236,7 @@ export function progressSheet(ctx) {
         ap.runs > 0 && !ap.active ? actionButton({ label: T('hud.auto.startBtn'), icon: '▶', onClick: () => { ctx.sheet.close(); const r = ctx.act('auto/start'); if (r.ok && !r.noop) ctx.toast(T('hud.toast.autoStart'), 'good'); } }) : null,
         actionButton({ id: 'buyAuto', label: T('hud.auto.buyGo'), icon: '🛒', tone: 'gold', cost: price, disabled: s.player.coins < price || ctx.buyingAuto,
           note: s.player.coins < price ? needMore(price - s.player.coins) : null, onClick: () => buyAuto(ctx) })));
-    return h('div', { class: 'hud-progress' }, world, auto, round, reb);
+    return h('div', { class: 'hud-progress' }, world, auto);
   };
 }
 
@@ -272,9 +245,54 @@ export function levelUnlocks(s, lvl) {
   const out = [];
   for (const id of CROP_ORDER) if (CROPS[id].level === lvl && CROPS[id].round <= s.player.round) out.push(`${CROPS[id].icon} ${T(`crop.${id}`)}`);
   for (const id of DRINK_ORDER) if (DRINKS[id].level === lvl) out.push(`${DRINKS[id].icon} ${T(`drink.${id}`)}`);
-  for (const id of BUILD_MENU) if (BUILDINGS[id].level === lvl && BUILDINGS[id].round <= s.player.round) out.push(`${BUILDINGS[id].icon} ${T(`building.${id}`)}`);
+  for (const id of BUILD_MENU) { const def = defOf(id); if (def && def.level === lvl && def.round <= s.player.round) out.push(`${def.icon} ${T(`building.${id}`)}`); }
   for (const id of STAFF_ORDER) if (STAFF[id].level === lvl && STAFF[id].round <= s.player.round) out.push(`${STAFF[id].icon} ${T(`staff.${id}`)}`);
-  if (REBIRTH.minLevel === lvl) out.push(`✨ ${T('hud.rebirth.title')}`);
-  for (const r of Object.values(ROUNDS)) if (r.minLevel === lvl && r.id > s.player.round) out.push(`⭐ ${T('hud.roundN', { round: r.id })}`);
   return out;
+}
+
+// ---------- Loan (💰 under the gear) ----------
+/** Loan packs (borrow now, owe it back + fee; part of every income repays it) and the open loan with its progress. */
+export function loanSheet(ctx) {
+  let pending = false;
+  async function take(amount) {
+    if (pending) return;
+    pending = true;
+    const txId = newTxId('loan');
+    ctx.sheet.rerender();
+    try {
+      const owed = loanOwed(amount);
+      const yes = await ctx.confirm({ title: T('hud.loan.confirmTitle', { n: fmt(amount) }), body: T('hud.loan.confirmBody', { owed: fmt(owed), pct: Math.round(LOAN.autoRepay * 100) }),
+        costLabel: T('hud.loan.owedLine', { n: fmt(owed) }), confirmLabel: T('hud.loan.take') });
+      if (yes) { const r = ctx.act('loan/take', { amount }, { txId }); if (r.ok && !r.duplicate) ctx.toast(T('hud.toast.loanTaken', { n: fmt(amount) }), 'good'); }
+    } finally { pending = false; ctx.sheet.rerender(); }
+  }
+  return s => {
+    const loan = s.loan && s.loan.owed > 0 ? s.loan : null;
+    const out = h('div', { class: 'hud-loan' });
+    if (loan) {
+      const total = loanOwed(loan.amount);
+      const paid = Math.max(0, Math.min(1, 1 - loan.owed / total));
+      const pay = Math.min(loan.owed, Math.floor(s.player.coins));
+      out.append(h('section', { class: 'hud-panel hud-loan-open' },
+        h('h3', { class: 'hud-h3' }, T('hud.loan.open')),
+        h('p', { class: 'hud-loan-owed' }, T('hud.loan.owed'), ' ', coinAmount(Math.ceil(loan.owed))),
+        h('div', { class: 'hud-loan-bar', attrs: { role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(Math.round(paid * 100)) } },
+          h('span', { attrs: { style: `width:${Math.round(paid * 100)}%` } })),
+        h('p', { class: 'hud-hint' }, T('hud.loan.auto', { pct: Math.round(LOAN.autoRepay * 100) })),
+        actionButton({ id: 'loanRepay', label: pay >= loan.owed ? T('hud.loan.repayAll') : T('hud.loan.repaySome'), cost: Math.ceil(pay), tone: 'go', disabled: pay <= 0,
+          note: pay <= 0 ? T('hud.loan.noCoins') : null, onClick: () => { const r = ctx.act('loan/repay'); if (r.ok && !r.noop && !r.events?.some(e => e.type === 'loanRepaid')) ctx.toast(T('hud.toast.loanPaid'), 'good'); } }))); // paid off → the feedback toast
+    }
+    out.append(h('p', { class: 'hud-sub' }, T('hud.loan.intro', { pct: Math.round(LOAN.fee * 100) })));
+    const packs = h('div', { class: 'hud-loan-packs' });
+    LOAN.packs.forEach((amount, i) => {
+      const owed = loanOwed(amount);
+      packs.append(h('div', { class: `hud-loan-pack tier-${i + 1}` },
+        h('span', { class: 'hud-loan-pack-ico', attrs: { 'aria-hidden': 'true' } }, ['💰', '💰💰', '💰💰💰'][i] || '💰'),
+        h('strong', { class: 'hud-loan-pack-amount' }, coinAmount(amount)),
+        h('span', { class: 'hud-loan-pack-owed' }, T('hud.loan.payBack', { n: fmt(owed) })),
+        actionButton({ id: `loan-${amount}`, label: T('hud.loan.take'), tone: 'gold', disabled: pending, onClick: () => take(amount) })));
+    });
+    out.append(packs);
+    return out;
+  };
 }

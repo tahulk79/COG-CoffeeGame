@@ -1,7 +1,10 @@
-// World atlas (V3): a tilted 3D world map. No Rounds: every country can be tapped and every region opened with coins
-// (more coins → more places). Countries are raised slabs coloured by status (owned region inside = bright + flag,
-// current = pulsing ring, nothing owned = grey + 🔒 with the cheapest price). Tap a country → bottom sheet with its
-// 3 regions: owned → Go, not owned → price + Open (small confirm card for paid ones, then unlockRegion + enterRegion).
+// World atlas (V3): a tilted 3D world map, chosen by CITY (docs/design/world-cities.md: 18 countries, 3–5 cities each).
+// No Rounds: every city can be opened with coins (more coins → more places). Countries are raised slabs coloured by
+// status (owned city inside = bright + flag, current = pulsing ring, nothing owned = grey + 🔒 with the cheapest price).
+// Tap a country → it lifts and a bottom sheet lists its cities (vibe line, price / Go). Cities are picked in the sheet
+// only (no city pins on the map). The coffee-culture texts (culture.*) are kept as data, not shown here; the menus feed
+// the café's local drinks (core/config/menus.js).
+// Owned city → Go, not owned → price + Open (small confirm card for paid ones, then unlockRegion + enterRegion).
 // Reuses the terrain/outlines of the old world map (world-map/terrain.js, geo.js, content.js); logic is new.
 //
 // createAtlas({ store, mode, onEntered, onClose }) → { scene, camera, update(dt), resize(w, h), setMode(mode),
@@ -12,7 +15,7 @@ import * as THREE from 'three';
 import { REGIONS as OUTLINES } from '../world-map/content.js';
 import { project } from '../world-map/geo.js';
 import { buildTerrain, DEEP } from '../world-map/terrain.js';
-import { COUNTRIES, COUNTRY_ORDER, parseRegionId } from '../../core/config/world.js';
+import { COUNTRIES, COUNTRY_ORDER, DEFAULT_COUNTRY, parseRegionId, countryGames, cityOf } from '../../core/config/world.js';
 import { regionAccess, regionsOfCountry, ownsRegion } from '../../core/derive.js';
 import { disposeScene } from '../../shared/three/dispose-scene.js';
 import { sfx } from '../../shared/audio/index.js';
@@ -33,6 +36,7 @@ const inside = ([lon, lat], ring) => {
   return hit;
 };
 const countryOfRegion = id => parseRegionId(id)?.countryId ?? null;
+const GAME_ICON = { farm: '🌱', cafe: '☕' };
 
 /** Readable text for a failed store result (HUD err.* pack first, then this pack's fallbacks). */
 export function atlasErrorText(result) {
@@ -74,16 +78,22 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
     const [x, z] = project(outline.lon, outline.lat);
     const anchor = new THREE.Group(); anchor.position.set(x, 0, z);
     const tile = new THREE.Group();
+    // Main outline + extra parts (islands of Japan, Indonesia, Malaysia …): one slab each, all lifted together.
+    const polygons = [outline.outline, ...(outline.parts || [])];
+    const all = polygons.flat(), lons = all.map(p => p[0]), lats = all.map(p => p[1]);
     // Highest terrain point inside the outline, so the slab never gets pierced by mountains.
-    const lons = outline.outline.map(p => p[0]), lats = outline.outline.map(p => p[1]);
     let top = Math.max(WATER, terrain.heightAt(outline.lon, outline.lat));
-    for (let lo = Math.min(...lons); lo <= Math.max(...lons); lo += .5) for (let la = Math.min(...lats); la <= Math.max(...lats); la += .5) if (inside([lo, la], outline.outline)) top = Math.max(top, terrain.heightAt(lo, la));
-    const shape = new THREE.Shape(outline.outline.map(([lon, lat]) => { const [px, pz] = project(lon, lat); return new THREE.Vector2(px - x, -(pz - z)); }));
-    const slab = new THREE.ExtrudeGeometry(shape, { depth: DEPTH, bevelEnabled: true, bevelThickness: .03, bevelSize: .025, bevelSegments: 2 });
-    slab.rotateX(-Math.PI / 2);
+    for (let lo = Math.min(...lons); lo <= Math.max(...lons); lo += .5) for (let la = Math.min(...lats); la <= Math.max(...lats); la += .5) if (polygons.some(ring => inside([lo, la], ring))) top = Math.max(top, terrain.heightAt(lo, la));
+    // Camera distance that fits the country when selected (small Taiwan/Korea close, Russia/Canada far).
+    const size = Math.max((Math.max(...lons) - Math.min(...lons)) / 12, (Math.max(...lats) - Math.min(...lats)) / 9);
     const topMaterial = new THREE.MeshStandardMaterial({ color: LOCKED, roughness: .9, emissive: HIGHLIGHT, emissiveIntensity: 0 });
-    const block = new THREE.Mesh(slab, [topMaterial, sideMaterial]); block.castShadow = block.receiveShadow = true;
-    tile.add(block);
+    for (const ring of polygons) {
+      const shape = new THREE.Shape(ring.map(([lon, lat]) => { const [px, pz] = project(lon, lat); return new THREE.Vector2(px - x, -(pz - z)); }));
+      const slab = new THREE.ExtrudeGeometry(shape, { depth: DEPTH, bevelEnabled: true, bevelThickness: .03, bevelSize: .025, bevelSegments: 2 });
+      slab.rotateX(-Math.PI / 2);
+      const block = new THREE.Mesh(slab, [topMaterial, sideMaterial]); block.castShadow = block.receiveShadow = true;
+      tile.add(block);
+    }
     for (const group of outline.islands || []) for (const [lon, lat] of group.islets) {
       const [px, pz] = project(lon, lat), islet = new THREE.Mesh(isletGeometry, [sand, topMaterial, sand]);
       islet.position.set(px - x, DEPTH / 2, pz - z); islet.castShadow = true; tile.add(islet);
@@ -99,7 +109,7 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
     tile.position.y = rest;
     anchor.add(tile); scene.add(anchor);
     anchor.traverse(o => { o.userData.country = id; });
-    return { id, def, outline, x, z, top, rest, anchor, tile, topMaterial, flag, flagMaterial, ring, ringMaterial, banner, rise: 0, speed: 0, status: null };
+    return { id, def, outline, polygons, size, x, z, top, rest, anchor, tile, topMaterial, flag, flagMaterial, ring, ringMaterial, banner, rise: 0, speed: 0, status: null };
   });
 
   // ---------- DOM overlay ----------
@@ -154,10 +164,14 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
       pin.classList.toggle('is-selected', selected === entry.id);
       const name = t(`country.${entry.id}`);
       const icon = status.kind === 'locked' ? '🔒' : status.kind === 'current' ? '📍' : '🚩';
-      // Owned: "2/3" regions opened. Locked: the cheapest region's price (or Free).
-      const extra = status.kind === 'locked' ? (status.cost == null ? '' : coinText(status.cost)) : t('atlas.country.owned', { n: status.owned, total: status.total });
-      pin.replaceChildren(el('span', 'atlas-pin-icon', icon), el('span', 'atlas-pin-name', name), ...(extra ? [el('small', 'atlas-pin-extra', extra)] : []));
-      pin.setAttribute('aria-label', extra ? `${name} · ${extra}` : name);
+      // Owned: "2/4" cities opened. Locked: the cheapest city's price (or Free).
+      const extra = status.kind === 'locked' ? (status.cost == null ? '' : coinText(status.cost)) : status.total > 1 ? t('atlas.country.owned', { n: status.owned, total: status.total }) : '';
+      // Games offered here, visible on the map: 🌱 farm, ☕ café (both = 🌱☕). A country where only some cities farm shows both.
+      const games = countryGames(entry.id), gameText = games.map(g => t(`hud.mode.${g}`)).join(' + ');
+      pin.dataset.games = games.join(' ');
+      pin.replaceChildren(el('span', 'atlas-pin-icon', icon), el('span', 'atlas-pin-name', name),
+        el('span', 'atlas-pin-games', games.map(g => GAME_ICON[g]).join('')), ...(extra ? [el('small', 'atlas-pin-extra', extra)] : []));
+      pin.setAttribute('aria-label', [name, gameText, extra].filter(Boolean).join(' · '));
     }
   }
   function renderHeader() {
@@ -173,6 +187,9 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
     row.dataset.region = regionId;
     const info = el('div', 'atlas-region-info');
     info.append(el('strong', 'atlas-region-name', t(`regionName.${regionId}`)));
+    // What this city can be played as: 🌱 farm, ☕ café, or both (Kunming farms while the rest of China is café-only).
+    const games = cityOf(regionId).games;
+    info.append(el('span', 'atlas-chip is-games', games.map(g => GAME_ICON[g]).join('')));
     let chip = null, action = null, note = null;
     if (!access.ok && access.reason === 'locked') {
       // Not opened yet: price chip + Open (disabled with "need X more" when the player cannot pay).
@@ -188,6 +205,7 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
       action = button(`➜ ${t('atlas.go')}`, 'ui-btn--go atlas-enter', () => enter(regionId));
     }
     info.append(el('span', `atlas-chip is-${chip[0]}`, chip[1]));
+    if (hasKey(`city.${regionId}.vibe`)) info.append(el('small', 'atlas-region-vibe', `☕ ${t(`city.${regionId}.vibe`)}`));
     if (note) info.append(el('small', 'atlas-region-note', note));
     row.append(info);
     if (action) row.append(action);
@@ -209,18 +227,21 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
     sheet.hidden = false; sheet.replaceChildren();
     sheet.setAttribute('aria-label', t(`country.${selected}`));
     const head = el('div', 'atlas-sheet-head');
-    head.append(el('span', 'atlas-sheet-flag', status.kind === 'locked' ? '🔒' : status.kind === 'current' ? '📍' : '🚩'), el('h3', 'atlas-sheet-title', t(`country.${selected}`)));
+    head.append(el('span', 'atlas-sheet-flag', COUNTRIES[selected].flag), el('h3', 'atlas-sheet-title', t(`country.${selected}`)));
     const back = el('button', 'ui-close atlas-sheet-close', '×'); back.type = 'button'; back.setAttribute('aria-label', t('atlas.sheetClose'));
     back.addEventListener('click', event => { event.stopPropagation(); select(null); }, { signal });
     head.append(back);
     sheet.append(head);
     sheet.append(el('p', 'atlas-note', t(status.owned ? 'atlas.note.owned' : 'atlas.note.open')));
-    sheet.append(el('h4', 'atlas-sheet-sub', t('atlas.regions')));
+    // Some countries offer only one game (picked when entering a region).
+    const games = countryGames(selected).map(g => (g === 'cafe' ? `☕ ${t('hud.mode.cafe')}` : `🌱 ${t('hud.mode.farm')}`));
+    if (games.length) sheet.append(el('p', 'atlas-note atlas-games', t('atlas.games', { list: games.join(' · ') })));
+    const cities = regionsOfCountry(selected);
+    sheet.append(el('h4', 'atlas-sheet-sub', `${t('atlas.cities')} · ${t('atlas.cityCount', { n: cities.length })}`));
     const list = el('ul', 'atlas-regions');
-    for (const regionId of regionsOfCountry(selected)) list.append(regionRow(regionId));
+    for (const regionId of cities) list.append(regionRow(regionId));
     sheet.append(list);
   }
-
   function enter(regionId) {
     const result = store.dispatch('world/enterRegion', { regionId });
     if (!result.ok) { sfx('ui.deny'); toast(atlasErrorText(result), 'bad'); return; }
@@ -246,7 +267,11 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
   function select(id) {
     if (selected === id) return;
     selected = id; confirming = null;
-    if (id) { const entry = countries.find(c => c.id === id); entry.speed += 4; focusOn(entry, portrait ? 13 : 11); sfx('ui.open'); }
+    if (id) {
+      const entry = countries.find(c => c.id === id); entry.speed += 4;
+      // Fit the country on screen (small countries come closer).
+      focusOn(entry, THREE.MathUtils.clamp(5 + entry.size * 2.2, ZOOM.min + 1, portrait ? 16 : 14)); sfx('ui.open');
+    }
     refreshCountries(); renderSheet();
   }
 
@@ -298,9 +323,9 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
     if (!hit) { select(null); return; }
     if (hit.object.userData.country) { select(hit.object.userData.country); return; }
     const lonLat = [hit.point.x * 12, -hit.point.z * 9];
-    const within = countries.find(c => inside(lonLat, c.outline.outline));
+    const within = countries.find(c => c.polygons.some(ring => inside(lonLat, ring)));
     if (within) { select(within.id); return; }
-    // Small countries (Kenya, Italy): a tap close to the slab also counts.
+    // Small countries (Taiwan, Korea): a tap close to the slab also counts.
     const near = countries.map(c => ({ c, d: Math.hypot(hit.point.x - c.x, hit.point.z - c.z) })).sort((a, b) => a.d - b.d)[0];
     select(near && near.d < .9 ? near.c.id : null);
   };
@@ -315,7 +340,7 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
 
   // Start over the current (or starting) country.
   const s0 = state();
-  const startId = countryOfRegion(s0.world.currentRegion) || s0.world.startCountry || 'vn';
+  const startId = countryOfRegion(s0.world.currentRegion) || s0.world.startCountry || DEFAULT_COUNTRY;
   const startEntry = countries.find(c => c.id === startId) || countries[0];
   view.x = goal.x = startEntry.x; view.z = goal.z = startEntry.z + 1.5; clampView(view); clampView(goal);
   view.distance = goal.distance = 16;

@@ -1,8 +1,9 @@
 // Store: holds the V3 save, applies actions through the pure reducer, persists safely and notifies listeners.
 // Persistence: the previous good copy is kept under `<key>-prev` before every write; a damaged save is copied to
-// `<key>-corrupt` once and the `-prev` copy is used instead. Before a Level-10 reset a snapshot goes to `<key>-pre-expiry`.
+// `<key>-corrupt` once and the `-prev` copy is used instead. Before a Level-10 reset a snapshot goes to `<key>-pre-expiry`;
+// before a region layout migration the raw save goes to `<key>-pre-layout<N>` (once).
 import { apply } from './game.js';
-import { createSave, normalizeSave } from './state.js';
+import { createSave, normalizeSave, LAYOUT_VERSION } from './state.js';
 import { migrateLegacy } from './migrate.js';
 
 export function createMemoryStorage() {
@@ -29,6 +30,13 @@ export function createStore({ storage = globalThis.localStorage, key, legacyKeys
     if (raw) {
       let parsed = null;
       try { parsed = JSON.parse(raw); } catch { /* corrupt */ }
+      // Before a layout migration changes any region, keep the untouched save once (`<key>-pre-layout<N>`), so a
+      // rollback or a support request can always restore what the player had (docs/farm-world-2.0/SAVE-MIGRATION-PLAN.md).
+      try {
+        const old = parsed && typeof parsed.world?.regions === 'object' && Object.values(parsed.world.regions || {}).some(r => r && (r.layout | 0) < LAYOUT_VERSION);
+        const bk = `${key}-pre-layout${LAYOUT_VERSION}`;
+        if (old && storage.getItem(bk) === null) storage.setItem(bk, raw);
+      } catch { /* storage full or blocked: migrate anyway */ }
       const norm = normalizeSave(parsed, now());
       if (norm) return norm;
       try { if (storage.getItem(`${key}-corrupt`) === null) storage.setItem(`${key}-corrupt`, raw); } catch { /* full */ }

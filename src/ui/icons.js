@@ -46,6 +46,10 @@ const ICONS = {
   medic: `<circle cx="12" cy="12" r="8.5" ${f(C)}/><path d="M12 7.5v9M7.5 12h9" stroke="${R}" stroke-width="3"/>`,
   skull: `<path d="M5 11a7 7 0 0 1 14 0v3l-2 1.5V19H7v-3.5L5 14z" ${f(C)}/><circle cx="9.5" cy="11.5" r="1.6" ${f(I)}/><circle cx="14.5" cy="11.5" r="1.6" ${f(I)}/><path d="M11 19v-2M13 19v-2"/>`,
   coin: `<circle cx="12" cy="12" r="8.5" ${f(G)}/><circle cx="12" cy="12" r="5.5"/>`,
+  // Steam locomotive, side view facing right: red cab, teal boiler, chimney with a puff, three wheels.
+  train: `<circle cx="17.2" cy="3.6" r="1.5" ${f(S)}/><path d="M15.6 6.4h3v3.6h-3z" ${f(B)}/><rect x="9.6" y="9.6" width="10" height="6.4" rx="1.6" ${f(J)}/><path d="M12.6 9.6v6.4" stroke="${G}" stroke-width="1.6"/><rect x="3" y="5.6" width="7" height="10.4" rx="1" ${f(R)}/><rect x="4.7" y="7.6" width="3.6" height="3.2" rx=".6" ${f(Y)}/><path d="M2.3 5.6h8.4M19.6 16l1.9 2.6h-2.6M3 16h16.6"/><circle cx="6.4" cy="18.2" r="2.3" ${f(S)}/><circle cx="12.6" cy="18.6" r="1.7" ${f(S)}/><circle cx="16.8" cy="18.6" r="1.7" ${f(S)}/>`,
+  // Drawstring sack: tied neck, flared top, round gold body with a coin mark.
+  moneybag: `<path d="M8.6 3.6c1.1.8 2.2.8 3.4 0 1.2.8 2.3.8 3.4 0l-1.5 3.4h-3.8z" ${f(O)}/><path d="M10.1 7c-3.6 2.2-6.1 5.8-6.1 9.1 0 3 2.6 4.4 8 4.4s8-1.4 8-4.4c0-3.3-2.5-6.9-6.1-9.1z" ${f(G)}/><path d="M9.6 7h4.8"/><circle cx="12" cy="14.6" r="3.2" ${f(C)}/><path d="M12 12.9v3.4"/>`,
   crate: `<path d="M3.5 8L12 4l8.5 4v8.5L12 20.5l-8.5-4z" ${f(K)}/><path d="M3.5 8L12 12l8.5-4M12 12v8.5M7.8 6l8.5 4"/>`,
   cart: `<path d="M6.5 7.5h13l-2 7h-10z" ${f(C)}/><path d="M3 4.5h2.5l2 10h10"/><circle cx="9" cy="18.5" r="1.5"/><circle cx="16" cy="18.5" r="1.5"/>`,
   shop: `<path d="M4.5 10h15v10h-15z" ${f(C)}/><path d="M3 10l2-5.5h14L21 10z" ${f(R)}/><path d="M10 20v-5h4v5"/>`,
@@ -107,7 +111,7 @@ const NAMES = {
   hand: ['👋', '🙋‍♂️', '✋', '🖐', '✊'], eye: '👀', pause: '⏸', forward: '⏭⏩', 'dot-green': '🟢', 'dot-yellow': '🟡',
   'dot-orange': '🟠', 'dot-white': '⚪', star: '⭐🌟', trophy: '🏆🎉', gift: '🎁', lesson: '🎓🧠',
   'face-happy': '😊🙂😍', 'face-sad': '😕😖', 'face-angry': '😤😠', sleep: '💤', sick: '🤒', phone: '📱', screen: '📺🖥',
-  skull: '☠', coin: '💵💰', crate: '📦', cart: '🛒', shop: '🏪', truck: '🚚', bag: '🎒', basket: '🧺', chair: '🪑💺🛋',
+  skull: '☠', coin: '💵', moneybag: '💰', train: '🚂', crate: '📦', cart: '🛒', shop: '🏪', truck: '🚚', bag: '🎒', basket: '🧺', chair: '🪑💺🛋',
   door: '🚪', bell: '🛎', sprout: '🌱', leaf: '🌿', plant: '🪴', flower: '🌸💐', water: '💧🌊', sun: '☀', cloud: '☁',
   fire: '🔥♨', thermo: '🌡', wind: '🌀', bean: '🫘', cherry: '🍒', tool: '⛏🪓🔨', wrench: '🔧🛠🧰', scissors: '✂',
   sponge: '🧽', farmer: ['👩‍🌾', '🧑‍🌾', '👨‍🌾'], robot: '🤖', people: '👥',
