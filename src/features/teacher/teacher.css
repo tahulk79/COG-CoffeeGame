@@ -18,3 +18,9 @@
 @media(max-height:450px){.tch-bubble{bottom:max(8px,env(safe-area-inset-bottom));padding:8px 14px 6px}.tch-text{min-height:24px;font-size:14px}}
 @media(min-width:701px) and (min-height:451px){.tch-text{font-size:18px}.tch-bubble{padding:18px 22px 12px}}
 @media(prefers-reduced-motion:reduce){.tch-bubble.is-pop,.tch-hint{animation:none}}
+/* Hero line: green bubble, tail under the player's side (right). */
+.tch-bubble.is-hero{border-color:#a9d98c;background:linear-gradient(#fbfff4,#eaf7dc);box-shadow:0 0 0 2px #fff8 inset,0 4px 0 #6fa257,0 14px 34px #3d6a2e40}
+.tch-bubble.is-hero::before{left:auto;right:34px;border-bottom-color:#a9d98c}
+.tch-bubble.is-hero .tch-speaker{color:#3f7a2a}
+.tch-bubble.is-hero .tch-speaker::before{border-color:#8cc96b;box-shadow:none;border-radius:4px}
+.tch-bubble.is-hero .tch-key{background:#d4f0b8;color:#2f5d1c}

@@ -644,9 +644,9 @@ test('old saves: regions of removed countries move to a city of a kept country',
   raw.world.regions = { 'vn-1': {}, 'it-1': { mode: 'cafe' }, 'co-1': {}, 'ke-1': {}, 'in-3': {} };
   raw.world.ownedRegions = ['vn-1', 'it-1', 'co-1', 'ke-1', 'in-3'];
   const s = normalizeSave(raw, T0);
-  // it-1 → Paris, co-1 → Belo Horizonte; ke-1 → Bengaluru already has its own record, so the Kenya one is dropped.
-  assert.deepEqual(Object.keys(s.world.regions).sort(), ['br-3', 'fr-1', 'in-3', 'vn-1']);
-  assert.deepEqual([...s.world.ownedRegions].sort(), ['br-3', 'fr-1', 'in-3', 'vn-1']);
+  // it-1 → Paris, co-1 → Belo Horizonte; Kenya is back on the map, so ke-1 stays (Nairobi).
+  assert.deepEqual(Object.keys(s.world.regions).sort(), ['br-3', 'fr-1', 'in-3', 'ke-1', 'vn-1']);
+  assert.deepEqual([...s.world.ownedRegions].sort(), ['br-3', 'fr-1', 'in-3', 'ke-1', 'vn-1']);
   assert.equal(s.world.currentRegion, 'fr-1');
   assert.equal(s.world.regions['fr-1'].mode, 'cafe');
   assert.equal(s.world.startCountry, 'fr');

@@ -1,6 +1,7 @@
 // Top HUD: level badge with XP ring + name (top-left), coin pill, bean pill (= the storehouse: tap it), gear (top-right).
 // 🚂 next to the gear opens the Rounds roadmap (Round 1 now, 2–3 locked); 💰 under the gear opens the loan packs.
 import { levelProgress, capacity, stored, region } from '../../core/derive.js';
+import { EXPIRY_LEVEL } from '../../core/config/economy.js';
 import { farmHasGoods } from './toolbar.js';
 import { h, setText, bump } from './dom.js';
 import { T, fmt } from './text.js';
@@ -43,12 +44,16 @@ export function createTopBar(ctx) {
   // Loan (💰): a glowing money bag under the gear → loan packs sheet.
   const loanBtn = h('button', { id: 'hud-btn-loan', class: 'hud-loan-btn', type: 'button', attrs: { 'aria-label': T('hud.loan.openBtn') },
     on: { click: () => ctx.onTool?.('loan') } }, h('span', { class: 'hud-loan-bag', attrs: { 'aria-hidden': 'true' } }, '💰'), h('span', { class: 'hud-loan-label' }, T('hud.loan.btn')));
+  // Heads-up for the Level-10 incident (until it has happened): a small chip under the badge, louder from 3 levels
+  // before. Tap → the Rounds sheet, which says what happens at Level 10.
+  const lv10 = h('button', { id: 'hud-lv10', class: 'hud-lv10', type: 'button', attrs: { 'aria-label': T('hud.lv10.aria', { level: EXPIRY_LEVEL }) },
+    on: { click: () => ctx.onTool?.('rounds') } });
   const gear = h('button', { class: 'hud-gear', type: 'button', attrs: { 'aria-label': T('hud.settings') }, on: { click: () => ctx.onOpenSettings?.() } }, '⚙️');
 
   const el = h('div', { class: 'hud-top' },
     h('div', { class: 'hud-top-left' },
       h('div', { class: 'hud-player' }, badge, h('div', { class: 'hud-player-text' }, name, xpBar)),
-      h('div', { class: 'hud-pills' }, coins, beans)),
+      h('div', { class: 'hud-pills' }, coins, beans), lv10),
     h('div', { class: 'hud-top-right' }, roundBtn, h('div', { class: 'hud-gear-col' }, gear, loanBtn)));
 
   const coinCounter = counter(coinsVal), beanCounter = counter(beansVal);
@@ -68,6 +73,9 @@ export function createTopBar(ctx) {
       badge.setAttribute('aria-label', T('hud.levelAria', { level: lp.level, xp: fmt(lp.xp - lp.from), need: fmt(lp.to - lp.from) }));
     }
     setText(name, next.name || T('hud.farmer'));
+    const left = EXPIRY_LEVEL - lp.level, warn = !s.story.level10Done && s.story.phase === 'play' && left > 0;
+    lv10.hidden = !warn;
+    if (warn) { lv10.classList.toggle('is-soon', left <= 3); setText(lv10, left <= 3 ? T('hud.lv10.soon', { n: left, level: EXPIRY_LEVEL }) : T('hud.lv10.chip', { level: EXPIRY_LEVEL })); }
     setText(roundNum, T('hud.rounds.badge', { round: next.round }));
     loanBtn.hidden = s.story.phase !== 'play';
     loanBtn.classList.toggle('is-debt', !!(s.loan && s.loan.owed > 0));

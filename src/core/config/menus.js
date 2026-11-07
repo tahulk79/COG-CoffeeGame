@@ -50,6 +50,22 @@ export const COUNTRY_MENUS = {
   my: [M(), E(), M(), M('🧊'), E(), L('🍵'), L(), L()],
   // Raf coffee · cappuccino · latte · americano · flat white · espresso · filter coffee
   ru: [L('🍦'), M(), L(), E(), M(), E(), E('🫖')],
+  // Buna (jebena) · macchiato · spris · espresso · latte · buna with tena adam · cappuccino
+  et: [E('🫖'), M(), L('🍵'), E(), L(), E('🌿'), L()],
+  // Kahawa chungu · filter coffee · white coffee · cappuccino · latte · iced coffee · ginger coffee
+  ke: [E('🫖'), E(), M(), L(), L(), E('🧊'), M('🌿')],
+  // Espresso · African coffee · cappuccino · latte · Bugisu pour-over · iced latte · mocha
+  ug: [E(), M(), L(), L(), E('🫖'), M('🧊'), L('🍫')],
+  // Kahawa · spiced kahawa · espresso · cappuccino · latte · coffee with milk · iced coffee
+  tz: [E('🫖'), E('🌿'), E(), L(), L(), M(), M('🧊')],
+  // Espresso · pour-over · cappuccino · latte · café au lait · iced latte · mocha
+  rw: [E(), E('🫖'), L(), L(), M(), M('🧊'), L('🍫')],
+  // Espresso · filter coffee · café au lait · cappuccino · latte · sweet black coffee
+  bi: [E(), E('🫖'), M(), L(), L(), M('🍬')],
+  // Café Touba · Nescafé with condensed milk · café au lait · espresso · cappuccino · latte · iced coffee
+  ci: [E('🌿'), M('🥫'), M(), E(), L(), L(), E('🧊')],
+  // Flat white · cappuccino · americano · espresso · red cappuccino · latte · iced coffee · filter coffee
+  za: [M(), L(), E(), E(), L('🍵'), L(), M('🧊'), E('🫖')],
 };
 
 /** Indices of a country's menu items served as `base` (a DRINKS id). */

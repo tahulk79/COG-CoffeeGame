@@ -399,7 +399,11 @@ export function levelUnlocks(s, lvl) {
 // ---------- Loan (💰 under the gear) ----------
 /** Loan packs (borrow now, owe it back + fee; part of every income repays it) and the open loan with its progress. */
 export function loanSheet(ctx) {
-  let pending = false;
+  // Two clear places (founder 2026-11-07: "Trả số xu đang có" was too easy to hit by mistake):
+  //  · Borrow tab — the 3 packs (a loan stacks on the open debt).
+  //  · Repay tab (only while in debt) — the debt, its progress, then "how much?" chips, a preview of what is left
+  //    after paying, and one Pay button that asks to confirm.
+  let pending = false, tab = null, pick = null;
   async function take(amount) {
     if (pending) return;
     pending = true;
@@ -412,22 +416,58 @@ export function loanSheet(ctx) {
       if (yes) { const r = ctx.act('loan/take', { amount }, { txId }); if (r.ok && !r.duplicate) ctx.toast(T('hud.toast.loanTaken', { n: fmt(amount) }), 'good'); }
     } finally { pending = false; ctx.sheet.rerender(); }
   }
+  async function repay(amount, owed) {
+    if (pending) return;
+    pending = true;
+    ctx.sheet.rerender();
+    try {
+      const left = Math.max(0, Math.ceil(owed - amount));
+      const yes = await ctx.confirm({ title: T('hud.loan.payConfirmTitle', { n: fmt(amount) }),
+        body: left > 0 ? T('hud.loan.payConfirmLeft', { n: fmt(left) }) : T('hud.loan.payConfirmDone'), confirmLabel: T('hud.loan.payBtn', { n: fmt(amount) }) });
+      if (yes) {
+        const r = ctx.act('loan/repay', { amount });
+        if (r.ok && !r.noop && !r.events?.some(e => e.type === 'loanRepaid')) ctx.toast(T('hud.toast.loanPaid'), 'good'); // paid off → the feedback toast
+        pick = null;
+      }
+    } finally { pending = false; ctx.sheet.rerender(); }
+  }
   return s => {
     const loan = s.loan && s.loan.owed > 0 ? s.loan : null;
+    if (!loan) tab = 'borrow'; else if (!tab) tab = 'repay';
     const out = h('div', { class: 'hud-loan' });
     if (loan) {
+      const tabBtn = (id, label) => h('button', { type: 'button', class: 'hud-tab', dataset: { hudId: `loanTab-${id}` }, attrs: { 'aria-pressed': String(tab === id) },
+        on: { click: () => { if (tab !== id) { tab = id; ctx.sheet.rerender(); } } } }, label);
+      out.append(h('div', { class: 'hud-tabs hud-loan-tabs', attrs: { role: 'group', 'aria-label': T('hud.loan.tabs') } },
+        tabBtn('repay', h('span', null, `💸 ${T('hud.loan.tabRepay')} `, coinAmount(Math.ceil(loan.owed)))),
+        tabBtn('borrow', `💰 ${T('hud.loan.tabBorrow')}`)));
+    }
+    if (tab === 'repay' && loan) {
       const total = loanOwed(loan.amount);
       const paid = Math.max(0, Math.min(1, 1 - loan.owed / total));
-      const pay = Math.min(loan.owed, Math.floor(s.player.coins));
+      const owed = Math.ceil(loan.owed), max = Math.min(owed, Math.floor(s.player.coins));
       out.append(h('section', { class: 'hud-panel hud-loan-open' },
-        h('h3', { class: 'hud-h3' }, T('hud.loan.open')),
-        h('p', { class: 'hud-loan-owed' }, T('hud.loan.owed'), ' ', coinAmount(Math.ceil(loan.owed))),
+        h('p', { class: 'hud-loan-owed' }, T('hud.loan.owed'), ' ', coinAmount(owed)),
         h('div', { class: 'hud-loan-bar', attrs: { role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(Math.round(paid * 100)) } },
           h('span', { attrs: { style: `width:${Math.round(paid * 100)}%` } })),
-        h('p', { class: 'hud-hint' }, T('hud.loan.auto', { pct: Math.round(LOAN.autoRepay * 100) })),
-        actionButton({ id: 'loanRepay', label: pay >= loan.owed ? T('hud.loan.repayAll') : T('hud.loan.repaySome'), cost: Math.ceil(pay), tone: 'go', disabled: pay <= 0,
-          note: pay <= 0 ? T('hud.loan.noCoins') : null, onClick: () => { const r = ctx.act('loan/repay'); if (r.ok && !r.noop && !r.events?.some(e => e.type === 'loanRepaid')) ctx.toast(T('hud.toast.loanPaid'), 'good'); } }))); // paid off → the feedback toast
+        h('p', { class: 'hud-hint' }, T('hud.loan.auto', { pct: Math.round(LOAN.autoRepay * 100) }))));
+      if (max <= 0) { out.append(h('p', { class: 'hud-hint hud-loan-empty' }, T('hud.loan.noCoins'))); return out; }
+      // Amounts: a few round steps under what you can pay, then "everything you can" (all of the debt when you have it).
+      const steps = [1000, 2000, 5000, 10000].filter(n => n < max).slice(-3);
+      const options = [...steps.map(n => ({ n, label: fmt(n) })), { n: max, label: max >= owed ? T('hud.loan.pickAll') : T('hud.loan.pickMax'), all: true }];
+      if (!options.some(o => o.n === pick)) pick = options[0].n;
+      const chips = h('div', { class: 'hud-tabs hud-loan-amounts', attrs: { role: 'group', 'aria-label': T('hud.loan.howMuch') } },
+        ...options.map(o => h('button', { type: 'button', class: `hud-tab${o.all ? ' is-all' : ''}`, dataset: { hudId: `loanPay-${o.all ? 'all' : o.n}` }, attrs: { 'aria-pressed': String(pick === o.n) },
+          on: { click: () => { pick = o.n; ctx.sheet.rerender(); } } }, o.all ? h('span', null, o.label, h('small', null, fmt(o.n))) : o.label)));
+      const left = Math.max(0, owed - pick), coinsAfter = Math.floor(s.player.coins) - pick;
+      out.append(h('section', { class: 'hud-panel hud-loan-pay' },
+        h('h3', { class: 'hud-h3' }, T('hud.loan.howMuch')),
+        chips,
+        h('p', { class: 'hud-loan-after' }, left > 0 ? T('hud.loan.afterLeft', { owe: fmt(left), coins: fmt(coinsAfter) }) : T('hud.loan.afterDone', { coins: fmt(coinsAfter) })),
+        actionButton({ id: 'loanRepay', label: T('hud.loan.payBtn', { n: fmt(pick) }), tone: 'go', disabled: pending, onClick: () => repay(pick, loan.owed) })));
+      return out;
     }
+    if (loan) out.append(h('p', { class: 'hud-hint hud-loan-stack' }, T('hud.loan.stack', { n: fmt(Math.ceil(loan.owed)) })));
     out.append(h('p', { class: 'hud-sub' }, T('hud.loan.intro', { pct: Math.round(LOAN.fee * 100) })));
     const packs = h('div', { class: 'hud-loan-packs' });
     LOAN.packs.forEach((amount, i) => {

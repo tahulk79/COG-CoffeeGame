@@ -14,7 +14,7 @@ import { getLang, hasKey, t } from '../i18n/index.js';
 import { sfx } from '../shared/audio/index.js';
 import { detectPlatform, initAnalytics, track } from '../shared/analytics/wire.js';
 import { createStore } from '../core/store.js';
-import { START, EXPIRY_LEVEL, STAFF } from '../core/config/economy.js';
+import { START, STAFF } from '../core/config/economy.js';
 import { followerCandidate, followerWage } from '../core/derive.js';
 import { loadPlayer, playerModel } from '../characters/load-player.js';
 import { V3_KEY, PROGRESS_KEY, PLAYER_KEY, DEV_PROFILE } from '../state/storage-keys.js';
@@ -216,9 +216,9 @@ async function enterTeacher() {
   showLoading(40, t('story.loading.teacher'));
   const [{ createTeacher }, character] = await Promise.all([import('../features/teacher/index.js'), loadPlayer(playerModel(profile.gender))]);
   const teacher = await createTeacher({
-    character, name: profile.name, level: EXPIRY_LEVEL,
+    character, name: profile.name,
     onTalked: () => store.dispatch('story/teacherDone'),
-    onDone: () => { openAtlas('gate').catch(fail); },
+    onDone: ({ skipped }) => { godBeanSplash(skipped).catch(fail); },
   });
   disposeActive(); releaseModels('intro/'); // intro GLBs are only used by the intro
   active = teacher;
@@ -231,6 +231,19 @@ async function enterTeacher() {
   mode = 'teacher';
   startLoop();
   teacher.start().catch(fail);
+}
+
+// The bean has dissolved into the hero's mind: the God Bean splash covers the screen while the world map loads under it.
+// Shown once (scene 2 runs once); a skip keeps it short.
+async function godBeanSplash(skipped) {
+  const { showSplash } = await import('../ui/splash.js');
+  const splash = showSplash(), started = performance.now();
+  try {
+    await splash.shown;
+    await openAtlas('gate');
+    const rest = (skipped ? 1500 : 2800) - (performance.now() - started);
+    if (rest > 0) await new Promise(resolve => setTimeout(resolve, rest));
+  } finally { await splash.close(); }
 }
 
 // ---------- atlas (gate / chooseRegion / play) ----------

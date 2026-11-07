@@ -1,4 +1,5 @@
-// Teacher speech overlay: a short speech bubble at the bottom (tap anywhere to advance) and a small Skip button.
+// Scene 2 speech overlay: a short speech bubble at the bottom (tap anywhere to advance) and a small Skip button.
+// Two speakers: the Deity (gold) and the hero (green, tail on the right, labelled with the player's name).
 // DOM only; the scene/camera live in scene.js.
 import { t } from '../../i18n/index.js';
 import { sfx } from '../../shared/audio/index.js';
@@ -14,7 +15,7 @@ export function richText(el, text) {
   });
 }
 
-export function createTeacherUi({ onSkip }) {
+export function createTeacherUi({ onSkip, heroName }) {
   const events = new AbortController(), signal = events.signal;
   const el = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text != null) node.textContent = text; return node; };
   const root = el('section', 'tch'); root.setAttribute('aria-label', t('story.label.teacher'));
@@ -39,19 +40,20 @@ export function createTeacherUi({ onSkip }) {
     event.preventDefault(); const done = advance; advance = null; done();
   }, { signal });
 
-  function show(line) {
+  function show(line, who = 'god') {
     bubble.hidden = false; hint.hidden = false;
+    bubble.classList.toggle('is-hero', who === 'hero');
+    speaker.textContent = who === 'hero' ? (heroName || t('story.teacher.hero')) : t('story.teacher.name');
     richText(text, line);
     bubble.classList.remove('is-pop'); void bubble.offsetWidth; bubble.classList.add('is-pop'); // restart the pop animation
   }
   return {
     /** Shows one line; resolves on tap / Enter (or when cancel() is called). */
-    line(line) { show(line); return new Promise(resolve => { advance = resolve; }); },
-    /** A line with no tap hint (e.g. "The gate is opening…"). */
-    notice(line) { show(line); hint.hidden = true; skip.hidden = true; },
+    line(line, who) { show(line, who); return new Promise(resolve => { advance = resolve; }); },
     /** Resolves a pending line without a tap (skip). */
     cancel() { const done = advance; advance = null; done?.(); },
-    hide() { bubble.hidden = true; skip.hidden = true; },
+    hide() { bubble.hidden = true; },
+    hideSkip() { skip.hidden = true; },
     dispose() { advance = null; events.abort(); root.remove(); },
   };
 }

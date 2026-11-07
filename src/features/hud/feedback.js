@@ -9,7 +9,7 @@
 //     they come with nearly every quick serve), skipped right after a leave toast for the same reason; text =
 //     shop name + stars + a street quote (realm.say.<situation>.<n>);
 //   venueSale → no toast (coins fly from the vendor); counted per shop in ctx.venueSold for the venue card.
-import { STAFF, SAY_VARIANTS, GOODS, RIVAL, BOOKS } from '../../core/config/economy.js';
+import { STAFF, SAY_VARIANTS, GOODS, RIVAL, BOOKS, EXPIRY_LEVEL } from '../../core/config/economy.js';
 import { venueOpen, defOf, nextLimitLevel } from '../../core/derive.js';
 import { sfx } from '../../shared/audio/index.js';
 import { localItemsOf } from '../../ui/local-menu.js';
@@ -126,14 +126,17 @@ export function createFeedback(ctx) {
   function levelBanner(s, from, to) {
     const unlocks = [];
     for (let l = from + 1; l <= to; l++) unlocks.push(...levelUnlocks(s, l));
-    banner.replaceChildren(h('strong', { class: 'hud-banner-title' }, T('hud.levelUp', { level: to })),
+    // replaceChildren() turns null into the text "null": only real nodes go in.
+    banner.replaceChildren(...[h('strong', { class: 'hud-banner-title' }, T('hud.levelUp', { level: to })),
       unlocks.length ? h('div', { class: 'hud-banner-sub' }, T('hud.unlocked')) : null,
-      unlocks.length ? h('ul', { class: 'hud-banner-list' }, bannerItems(unlocks)) : null);
+      unlocks.length ? h('ul', { class: 'hud-banner-list' }, bannerItems(unlocks)) : null,
+      // The last 3 levels before the Level-10 incident: say it is coming.
+      !s.story.level10Done && to < EXPIRY_LEVEL && EXPIRY_LEVEL - to <= 3 ? h('div', { class: 'hud-banner-warn' }, T('hud.lv10.banner', { n: EXPIRY_LEVEL - to, level: EXPIRY_LEVEL })) : null].filter(Boolean));
     banner.hidden = false;
     layout();
     clearTimeout(bannerTimer);
     timers.delete(bannerTimer);
-    bannerTimer = later(() => { banner.hidden = true; }, unlocks.length ? 4200 : 2600);
+    bannerTimer = later(() => { banner.hidden = true; }, unlocks.length || banner.querySelector('.hud-banner-warn') ? 4200 : 2600);
     sfx('reward.levelup');
   }
 

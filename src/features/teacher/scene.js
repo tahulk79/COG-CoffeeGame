@@ -1,6 +1,8 @@
-// Teacher scene: a calm heavenly plaza at golden hour. The player stands before the Teacher ("Thầy"), who floats gently
-// with a halo; behind the player stands the World Gate. Cinematic camera only — no walking input.
-// API: createTeacherScene({ character }) → { scene, camera, update(dt, time), resize(w, h), setShot(name), openGate() → Promise, skipGate(), dispose() }
+// Scene 2: a calm heavenly plaza at golden hour. The player stands before the Deity, who floats gently with a halo.
+// The Deity gives the God Bean; the player sniffs it and it dissolves into their mind (then the app shows the splash).
+// Cinematic camera only — no walking input. The closed World Gate stays behind the player as scenery.
+// API: createTeacherScene({ character }) → { scene, camera, update(dt, time), resize(w, h), setShot(name),
+//   showBean(), giveBean() → Promise, sniff() → Promise, dissolve() → Promise, finish(), dispose() }
 import * as THREE from 'three';
 import { loadModel } from '../../shared/three/models.js';
 import { disposeScene } from '../../shared/three/dispose-scene.js';
@@ -9,14 +11,24 @@ import { createPlayerMotion } from '../../characters/motion.js';
 const TEACHER = new THREE.Vector3(0, 0, 4.4);
 const PLAYER = new THREE.Vector3(0, .05, 8);
 const GATE = new THREE.Vector3(0, 0, 13);
+// The bean's path: above the Deity's hands → in front of the player's chest → at the nose → into the forehead.
+const BEAN_GIFT = new THREE.Vector3(0, 1.45, 5.05);
+const BEAN_HELD = new THREE.Vector3(.08, 1.12, 7.62);
+const BEAN_NOSE = new THREE.Vector3(0, 1.45, 7.72);
+const BEAN_SIZE = .042; // ~12 cm long: big enough to read on a phone, small enough to sit in the fingers
+const FINGER_OFFSET = new THREE.Vector3(0, .08, -.07);
+const BEAN_MIND = new THREE.Vector3(0, 1.66, 7.9);
 const TEACHER_HEIGHT = 2;
 // Camera shots: [position, look-at]. Portrait screens get a wider lens in resize().
 const SHOTS = {
   wide: [[6.5, 5, 16], [0, 1.4, 6]],
   talk: [[2.8, 2.1, 11.4], [0, 1.6, 5]],
   claim: [[1.5, 2.1, 8.4], [0, 1.9, 4.4]],
-  gate: [[-3.4, 2.6, 6.2], [0, 2.4, 13]],
+  hero: [[1.5, 1.85, 5.7], [0, 1.45, 8]],    // over the Deity's shoulder onto the player
+  face: [[.75, 1.6, 6.75], [0, 1.48, 7.9]],  // close-up: the player sniffs the bean
 };
+const ease = k => k * k * (3 - 2 * k);
+const span = (t, a, b) => THREE.MathUtils.clamp((t - a) / (b - a), 0, 1);
 
 // Vertical sky gradient as a cheap screen-space background.
 function skyTexture() {
@@ -27,41 +39,12 @@ function skyTexture() {
   const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
 }
-// World Gate portal: arch-shaped opening (rect + half circle) filled with a warm glowing gradient — bright core, gold
-// then peach towards the rim, feathered edge — so the open gate reads as a portal, not a flat white sheet.
-const PORTAL_R = 1.75, PORTAL_SPRING = 3.15, PORTAL_H = PORTAL_SPRING + PORTAL_R; // spring = where the arch starts (GLB)
-function portalTexture() {
-  const W = 256, H = Math.round(W * PORTAL_H / (PORTAL_R * 2)), r = W / 2, spring = H - PORTAL_SPRING / PORTAL_H * H;
-  const canvas = Object.assign(document.createElement('canvas'), { width: W, height: H });
-  const g = canvas.getContext('2d');
-  const arch = inset => { g.beginPath(); g.moveTo(inset, H); g.lineTo(inset, spring); g.arc(r, spring, r - inset, Math.PI, 0); g.lineTo(W - inset, H); g.closePath(); };
-  const grad = g.createRadialGradient(r, H * .5, 4, r, H * .5, H * .62);
-  grad.addColorStop(0, '#fffdf4'); grad.addColorStop(.28, '#fff1c4'); grad.addColorStop(.6, '#ffd27e'); grad.addColorStop(.85, '#ffab6a'); grad.addColorStop(1, '#f08a5a');
-  g.filter = 'blur(5px)'; arch(8); g.fillStyle = grad; g.fill(); g.filter = 'none';
-  // Soft light rays from the core.
-  g.globalCompositeOperation = 'source-atop';
-  for (let i = 0; i < 14; i++) {
-    const a = i / 14 * Math.PI * 2, x = r + Math.cos(a) * H, y = H * .5 + Math.sin(a) * H;
-    const ray = g.createLinearGradient(r, H * .5, x, y); ray.addColorStop(0, '#ffffff66'); ray.addColorStop(.5, '#ffffff00');
-    g.fillStyle = ray; g.beginPath(); g.moveTo(r, H * .5); g.arc(r, H * .5, H, a - .07, a + .07); g.closePath(); g.fill();
-  }
-  const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
-// Swirl overlay: soft spiral arms fading to the rim, spun in update().
-function swirlTexture() {
-  const S = 256, c = S / 2, canvas = Object.assign(document.createElement('canvas'), { width: S, height: S });
-  const g = canvas.getContext('2d');
-  g.lineCap = 'round';
-  for (let arm = 0; arm < 4; arm++) {
-    for (let t = 0; t < 1; t += .01) {
-      const a = arm / 4 * Math.PI * 2 + t * Math.PI * 2.2, rad = 8 + t * (c - 14);
-      g.strokeStyle = `rgba(255,255,255,${(Math.sin(t * Math.PI) * .55).toFixed(3)})`; g.lineWidth = 3 + t * 14;
-      g.beginPath(); g.arc(c, c, rad, a, a + .08); g.stroke();
-    }
-  }
-  const fade = g.createRadialGradient(c, c, 0, c, c, c); fade.addColorStop(0, '#000'); fade.addColorStop(.75, '#000'); fade.addColorStop(1, '#0000');
-  g.globalCompositeOperation = 'destination-in'; g.fillStyle = fade; g.fillRect(0, 0, S, S);
+// Soft round glow sprite (bean aura, dust).
+function glowTexture() {
+  const S = 64, canvas = Object.assign(document.createElement('canvas'), { width: S, height: S });
+  const g = canvas.getContext('2d'), grad = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+  grad.addColorStop(0, '#ffffffff'); grad.addColorStop(.25, '#fff1b8cc'); grad.addColorStop(.6, '#ffc85a44'); grad.addColorStop(1, '#ffc85a00');
+  g.fillStyle = grad; g.fillRect(0, 0, S, S);
   const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
 }
@@ -145,27 +128,53 @@ export async function createTeacherScene({ character }) {
   character.position.copy(PLAYER); character.rotation.set(0, Math.PI, 0); scene.add(character);
   const motion = createPlayerMotion(character);
 
-  // World Gate behind the player: GLB frame + two hinged leaves (fallback: golden arch), light sheet that brightens on open.
+  // World Gate behind the player (closed, scenery only): GLB frame + two leaves (fallback: golden arch).
   const gate = new THREE.Group(); gate.position.copy(GATE); gate.rotation.y = Math.PI; scene.add(gate);
   const gold = own(new THREE.MeshStandardMaterial({ color: '#e2c27a', roughness: .5, metalness: .1 }));
   if (frame) gate.add(frame);
   else { const arch = new THREE.Mesh(own(new THREE.TorusGeometry(1.9, .2, 10, 32, Math.PI)), gold); arch.position.y = 3.2; gate.add(arch); for (const x of [-1.9, 1.9]) { const post = new THREE.Mesh(own(new THREE.BoxGeometry(.35, 3.2, .35)), gold); post.position.set(x, 1.6, 0); gate.add(post); } }
-  const hinges = [-1, 1].map(side => {
+  for (const side of [-1, 1]) {
     const hinge = new THREE.Group(); hinge.position.x = side * 1.65; gate.add(hinge);
     const leaf = side === -1 ? leftLeaf : rightLeaf;
     if (leaf) hinge.add(leaf);
     else { const door = new THREE.Mesh(own(new THREE.BoxGeometry(1.65, 3, .12)), gold); door.position.set(-side * .825, 1.5, 0); hinge.add(door); }
-    return { hinge, side };
-  });
-  const lightMaterial = own(new THREE.MeshBasicMaterial({ map: own(portalTexture()), transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, toneMapped: false, fog: false }));
-  const sheet = new THREE.Mesh(own(new THREE.PlaneGeometry(PORTAL_R * 2, PORTAL_H)), lightMaterial); sheet.position.set(0, PORTAL_H / 2, .05); gate.add(sheet);
-  const swirlMaterial = own(new THREE.MeshBasicMaterial({ map: own(swirlTexture()), transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, toneMapped: false, fog: false, blending: THREE.AdditiveBlending }));
-  const swirls = [1, -.6].map((spin, i) => {
-    const m = new THREE.Mesh(own(new THREE.PlaneGeometry(3.3 - i * .8, 3.3 - i * .8)), swirlMaterial);
-    m.position.set(0, 2.55, .07 + i * .01); m.userData.spin = spin; m.renderOrder = 1; gate.add(m); return m;
-  });
-  const gateLight = new THREE.PointLight('#fff0b8', 0, 14, 1.6); gateLight.position.set(0, 2, -1); gate.add(gateLight);
-  gate.traverse(o => { if (o.isMesh && o !== sheet && !swirls.includes(o)) o.castShadow = true; });
+  }
+  gate.traverse(o => { if (o.isMesh) o.castShadow = true; });
+
+  // The God Bean: a glossy coffee bean (two halves + the centre crease) with a warm aura. Hidden until showBean().
+  const bean = new THREE.Group(); bean.visible = false; scene.add(bean);
+  const beanCore = new THREE.Group(); beanCore.scale.setScalar(BEAN_SIZE); bean.add(beanCore);
+  const beanMaterial = own(new THREE.MeshStandardMaterial({ color: '#7a4424', roughness: .35, metalness: .05, emissive: '#ff9a3c', emissiveIntensity: .25 }));
+  const beanBody = new THREE.Mesh(own(new THREE.SphereGeometry(1, 24, 16)), beanMaterial); beanBody.scale.set(1, .7, 1.4); beanCore.add(beanBody);
+  const crease = new THREE.Mesh(own(new THREE.CapsuleGeometry(.08, 1.9, 4, 8)), own(new THREE.MeshStandardMaterial({ color: '#3a1d0e', roughness: .6 })));
+  crease.rotation.x = Math.PI / 2; crease.scale.set(1, 1, .45); crease.position.y = .64; beanCore.add(crease);
+  const glowMap = own(glowTexture());
+  const auraMaterial = own(new THREE.SpriteMaterial({ map: glowMap, color: '#ffd98a', transparent: true, opacity: .9, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+  const aura = new THREE.Sprite(auraMaterial); aura.scale.setScalar(.32); bean.add(aura);
+  const beanLight = new THREE.PointLight('#ffcf7a', 0, 3, 2); bean.add(beanLight);
+
+  // Golden dust that streams from the bean into the player's forehead when it dissolves.
+  const DUST = 90;
+  const dustGeometry = own(new THREE.BufferGeometry());
+  const dustPositions = new Float32Array(DUST * 3), dustSeeds = new Float32Array(DUST * 3);
+  for (let i = 0; i < DUST * 3; i++) dustSeeds[i] = Math.random();
+  dustGeometry.setAttribute('position', new THREE.BufferAttribute(dustPositions, 3));
+  const dustMaterial = own(new THREE.PointsMaterial({ map: glowMap, color: '#ffe39a', size: .045, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+  const dust = new THREE.Points(dustGeometry, dustMaterial); dust.frustumCulled = false; scene.add(dust);
+
+  // Player bones used for the sniff pose (added on top of the rest pose each frame).
+  const findBone = re => { let found = null; character.traverse(o => { if (!found && o.isBone && re.test(o.name)) found = o; }); return found; };
+  const bones = { head: findBone(/head$/i), neck: findBone(/neck$/i), arm: findBone(/rightarm$/i), fore: findBone(/rightforearm$/i) };
+  const hand = findBone(/righthand$/i);
+  // Where the bean sits while sniffed: just in front of the raised fingers (fallback: a fixed point under the nose).
+  const atFingers = target => { if (!hand) return target.copy(BEAN_NOSE); hand.getWorldPosition(target); return target.add(FINGER_OFFSET); };
+  const fingers = new THREE.Vector3(), dissolveFrom = new THREE.Vector3();
+  // Each bend starts from the bone's own rest rotation (captured once), so offsets never pile up frame after frame.
+  const base = new Map(Object.values(bones).filter(Boolean).map(bone => [bone, bone.quaternion.clone()]));
+  const tmpQ = new THREE.Quaternion(), tmpE = new THREE.Euler();
+  const bend = (bone, x, y, z) => { if (bone) bone.quaternion.copy(base.get(bone)).multiply(tmpQ.setFromEuler(tmpE.set(x, y, z))); };
+  const SNIFF = { arm: [-1.15, 0, .75], fore: [0, 0, 2.05], neck: [.12, 0, 0], head: [.18, 0, 0] };
+  let pose = 0; // 0 = rest, 1 = hand raised to the nose, head bowed
 
   // Camera follows the current shot with exponential easing.
   const current = { pos: new THREE.Vector3(...SHOTS.wide[0]), look: new THREE.Vector3(...SHOTS.wide[1]) };
@@ -177,22 +186,22 @@ export async function createTeacherScene({ character }) {
     if (portrait) goal.pos.sub(goal.look).multiplyScalar(1.25).add(goal.look); // step back a little on tall screens
   }
 
-  // Gate opening: leaves swing open, light floods out, the player walks into the light.
-  let opening = null; // { t, resolve }
-  const WALK_START = .9, WALK_SPEED = 2.4, WALK_RAMP = .4; // s, m/s, s
-  // Ends right as the player is through the gate (portal plane at GATE.z, +.8 m so the back foot is inside too).
-  const OPEN_SECONDS = WALK_START + (GATE.z + .8 - PLAYER.z) / WALK_SPEED + WALK_RAMP / 2;
-  function openGate() {
-    setShot('gate');
-    return new Promise(resolve => { opening = { t: 0, resolve }; });
-  }
-  function skipGate() { if (opening) opening.t = OPEN_SECONDS; }
+  // Bean cinematic: one timeline at a time ({ kind, t, length, resolve }); finish() jumps every step to its end.
+  let beat = null, beanState = 'hidden';
+  const run = (kind, length) => new Promise(resolve => { beat = { kind, t: 0, length, resolve }; });
+  const endBeat = () => { if (!beat) return; const done = beat.resolve; beat = null; done(); };
+  function showBean() { bean.visible = true; bean.position.copy(BEAN_GIFT); beanState = 'appear'; return run('appear', 1); }
+  let giving = null; // the hand-over may still be flying when the player taps on: sniff() waits for it
+  function giveBean() { beanState = 'give'; giving = run('give', 1.6); return giving; }
+  async function sniff() { if (giving) await giving; giving = null; setShot('face'); beanState = 'sniff'; return run('sniff', 2.6); }
+  function dissolve() { dissolveFrom.copy(bean.position); beanState = 'dissolve'; return run('dissolve', 1.8); }
+  function finish() { endBeat(); bean.visible = false; dustMaterial.opacity = 0; pose = 0; beanState = 'gone'; }
 
   let elapsed = 0;
   function update(dt, time = elapsed) {
     elapsed += dt;
-    const ease = 1 - Math.exp(-dt * 2.2);
-    current.pos.lerp(goal.pos, ease); current.look.lerp(goal.look, ease);
+    const follow = 1 - Math.exp(-dt * 2.2);
+    current.pos.lerp(goal.pos, follow); current.look.lerp(goal.look, follow);
     camera.position.copy(current.pos); camera.lookAt(current.look);
     // Teacher idle bob + halo shimmer.
     body.position.y = .12 + Math.sin(time * 1.6) * .06;
@@ -206,23 +215,51 @@ export async function createTeacherScene({ character }) {
       p.setY(i, y); p.setX(i, p.getX(i) + Math.sin(time + moteSeeds[i]) * dt * .1);
     }
     p.needsUpdate = true;
-    for (const m of swirls) m.rotation.z -= dt * 1.1 * m.userData.spin;
-    if (opening) {
-      opening.t += dt;
-      const k = THREE.MathUtils.smoothstep(opening.t, 0, 1.6);
-      for (const { hinge, side } of hinges) hinge.rotation.y = side * k * 1.6;
-      lightMaterial.opacity = k * .97; swirlMaterial.opacity = k * .45; gateLight.intensity = k * 30;
-      // Walk at a steady pace (short speed-up, no slow-down) straight through the portal sheet — it hides the
-      // player once past it — so the feet never shuffle on the spot at the threshold.
-      const w = opening.t - WALK_START;
-      if (w > 0) {
-        character.rotation.y = 0;
-        const dist = WALK_SPEED * (w < WALK_RAMP ? w * w / (2 * WALK_RAMP) : w - WALK_RAMP / 2);
-        character.position.z = Math.min(PLAYER.z + dist, GATE.z + 1.5);
-        motion.update('walk', opening.t, 1);
+    // Bean timelines.
+    const spin = time * 1.4;
+    beanCore.rotation.set(.35, spin, .2);
+    if (beat) beat.t += dt;
+    const k = beat ? span(beat.t, 0, beat.length) : 1;
+    if (beanState === 'appear') {
+      beanCore.scale.setScalar(BEAN_SIZE * ease(k)); aura.scale.setScalar(.32 * ease(k)); beanLight.intensity = 1.5 * k;
+      bean.position.set(BEAN_GIFT.x, BEAN_GIFT.y + Math.sin(time * 2) * .04, BEAN_GIFT.z);
+    } else if (beanState === 'give') {
+      const e = ease(k);
+      bean.position.lerpVectors(BEAN_GIFT, BEAN_HELD, e); bean.position.y += Math.sin(e * Math.PI) * .35 + Math.sin(time * 2) * .02;
+      pose = 0;
+    } else if (beanState === 'held') {
+      bean.position.set(BEAN_HELD.x, BEAN_HELD.y + Math.sin(time * 2) * .02, BEAN_HELD.z);
+    } else if (beanState === 'sniff') {
+      const lift = ease(span(beat?.t ?? 9, 0, 1));
+      pose = lift;
+      bean.position.lerpVectors(BEAN_HELD, atFingers(fingers), lift);
+      // Inhale: the bean glows brighter and the aura breathes.
+      const inhale = span(beat?.t ?? 9, 1.1, 2.6);
+      beanMaterial.emissiveIntensity = .25 + inhale * 1.2; beanLight.intensity = 1.5 + inhale * 1.5;
+      aura.scale.setScalar(.26 + inhale * .12 + Math.sin(time * 6) * .02 * inhale);
+    } else if (beanState === 'dissolve') {
+      pose = 1 - ease(span(beat?.t ?? 9, 1, 1.8));
+      const shrink = 1 - ease(span(k, 0, .7));
+      beanCore.scale.setScalar(BEAN_SIZE * shrink); aura.scale.setScalar(.38 * (.4 + shrink * .6)); beanLight.intensity = 3 * shrink + .5;
+      bean.position.lerpVectors(dissolveFrom, BEAN_MIND, ease(k));
+      dustMaterial.opacity = Math.sin(Math.min(1, k * 1.3) * Math.PI) * .95;
+      const p = dustGeometry.attributes.position;
+      for (let i = 0; i < DUST; i++) {
+        // Each mote spirals from around the bean into the forehead, staggered.
+        const s0 = dustSeeds[i * 3], s1 = dustSeeds[i * 3 + 1], s2 = dustSeeds[i * 3 + 2];
+        const m = ease(span(k, s0 * .45, s0 * .45 + .55)), r = (1 - m) * (.08 + s1 * .2), a = s2 * Math.PI * 2 + m * 5;
+        p.setXYZ(i, THREE.MathUtils.lerp(dissolveFrom.x, BEAN_MIND.x, m) + Math.cos(a) * r, THREE.MathUtils.lerp(dissolveFrom.y, BEAN_MIND.y, m) + Math.sin(a) * r, THREE.MathUtils.lerp(dissolveFrom.z, BEAN_MIND.z, m) + Math.sin(a * .7) * r * .5);
       }
-      if (opening.t >= OPEN_SECONDS) { const done = opening.resolve; opening = null; done(); }
-    } else motion.update('rest', time);
+      p.needsUpdate = true;
+      if (k >= 1) bean.visible = false;
+    }
+    if (beat && beat.t >= beat.length) {
+      if (beanState === 'give') beanState = 'held';
+      endBeat();
+    }
+    motion.update('rest', time);
+    // Raise the right hand to the nose, bow the head a little towards it (pose 0 puts every bone back at rest).
+    for (const [key, [x, y, z]] of Object.entries(SNIFF)) bend(bones[key], x * pose, y * pose, z * pose);
   }
   function resize(width, height) {
     camera.aspect = width / height;
@@ -234,9 +271,9 @@ export async function createTeacherScene({ character }) {
   setShot('wide');
   update(0, 0);
   return {
-    scene, camera, update, resize, setShot, openGate, skipGate,
+    scene, camera, update, resize, setShot, showBean, giveBean, sniff, dissolve, finish,
     dispose() {
-      opening = null;
+      beat = null;
       motion.dispose();
       disposeScene(scene);
       for (const item of owned) item.dispose?.();
