@@ -1,0 +1,371 @@
+<title>Tổng quản lý Nông trại</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: a design memo column; interactive phone screens in the game's own cream/brown HUD look sit in a scrolling row. */
+:root{
+  --bg:#eef1e8; --fg:#24301f; --muted:#5d6a55; --line:#cfd6c3; --panel:#f8faf3; --accent:#3f7c4a; --warn:#b5523a; --gold:#a8741a;
+  --g-bg:#fff7e3; --g-ink:#694427; --g-soft:#8a6a45; --g-edge:#e5c387; --g-inset:#f6e7c4; --g-good:#5f8a3c; --g-goodbg:#eef5dc;
+  --g-bad:#b5523a; --g-badbg:#fbe6dc; --g-gold:#e8b23e; --g-jade:#3f7c70; --g-sky:#5b8fb3; --g-plum:#7a5aa6;
+  --f-body:'Be Vietnam Pro',system-ui,sans-serif; --f-game:'Baloo 2',system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#161b14;--fg:#e4ead9;--muted:#9aa78f;--line:#2f382b;--panel:#1d241a;--accent:#8cc391;--warn:#e48a6f;--gold:#e2b45c;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#161b14;--fg:#e4ead9;--muted:#9aa78f;--line:#2f382b;--panel:#1d241a;--accent:#8cc391;--warn:#e48a6f;--gold:#e2b45c;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font:15px/1.6 var(--f-body)}
+.wrap{max-width:1080px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:32px 64px;display:grid;gap:40px}
+h1,h2,h3{font-family:var(--f-game);text-wrap:balance;line-height:1.15;margin:0}
+h1{font-size:clamp(30px,6vw,44px);font-weight:800}
+h2{font-size:26px;font-weight:700;margin-bottom:12px}
+h3{font-size:18px;font-weight:700;margin-bottom:6px}
+p{margin:0 0 10px;max-width:70ch}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.lead{font-size:17px;color:var(--muted)}
+section{display:grid;gap:12px;min-width:0}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0}
+.box ul,.box ol{margin:0;padding-left:18px}.box li{margin:4px 0}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:600;color:var(--muted);font-size:12px;letter-spacing:.04em;text-transform:uppercase}
+td.c{text-align:center;white-space:nowrap}
+.scroll{overflow-x:auto}
+.y{color:var(--accent);font-weight:700}.n{color:var(--muted)}.a{color:var(--gold);font-weight:700}.x{color:var(--warn);font-weight:700}
+.q{display:grid;gap:4px;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.q b{font-family:var(--f-game);font-size:17px}
+.q .rec{color:var(--accent);font-weight:600;font-size:14px}
+ol.phases{margin:0;padding-left:20px;display:grid;gap:10px}
+.note{font-size:13px;color:var(--muted)}
+.flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:14px}
+.flow span{padding:6px 10px;border-radius:10px;background:var(--panel);border:1px solid var(--line)}
+.flow i{font-style:normal;color:var(--muted)}
+/* phones */
+.phones{display:flex;gap:20px;overflow-x:auto;padding-bottom:12px;scroll-snap-type:x mandatory}
+.phone-col{flex:0 0 auto;display:grid;gap:8px;scroll-snap-align:start;margin:0}
+.phone-col figcaption{font-size:13px;color:var(--muted);max-width:330px}
+.phone{width:330px;max-width:calc(100vw - 32px);height:700px;border-radius:34px;border:8px solid #2b2620;background:var(--g-bg);color:var(--g-ink);font-family:var(--f-game);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 30px #0003;position:relative}
+.p-head{padding:12px 14px 0;background:var(--g-bg);border-bottom:2px solid var(--g-edge)}
+.p-title{display:flex;align-items:center;gap:8px;font-weight:800;font-size:17px}
+.p-title .x{margin-left:auto;width:28px;height:28px;border-radius:50%;background:#e0744f;color:#fff;display:grid;place-items:center;font-size:16px}
+.p-tabs{display:flex;gap:4px;margin-top:10px}
+.p-tabs button{flex:1;font:700 12.5px var(--f-game);color:var(--g-soft);background:transparent;border:0;border-bottom:3px solid transparent;padding:6px 0;cursor:pointer;position:relative}
+.p-tabs button[aria-selected="true"]{color:var(--g-ink);border-color:var(--g-gold)}
+.p-tabs button:focus-visible{outline:2px solid var(--g-jade);outline-offset:-2px}
+.badge{display:inline-grid;place-items:center;min-width:16px;height:16px;padding:0 4px;border-radius:99px;background:var(--g-bad);color:#fff;font-size:10px;margin-left:3px;vertical-align:1px}
+.p-body{flex:1;overflow-y:auto;padding:12px 14px 18px;display:grid;gap:10px;align-content:start}
+.card{background:#fffdf5;border:2px solid var(--g-edge);border-radius:14px;padding:10px 12px;display:grid;gap:6px}
+.card.alert{border-color:var(--g-bad);background:#fff6f2}
+.card.gold{border-color:var(--g-gold);background:#fffaeb}
+.id{display:grid;grid-template-columns:60px 1fr;gap:10px;align-items:center}
+.ava{width:60px;height:60px;border-radius:16px;background:linear-gradient(160deg,#e3d4f2,#a98ccf);display:grid;place-items:center;font-size:32px}
+.ava.chaos{background:linear-gradient(160deg,#f6d2c6,#d98a6e)}
+.nm{font-size:19px;font-weight:800;line-height:1}
+.sm{font:500 12px/1.4 var(--f-body);color:var(--g-soft)}
+.pill{display:inline-block;font:700 11px var(--f-game);padding:0 7px;border-radius:99px;background:var(--g-inset);color:var(--g-ink)}
+.pill.good{background:var(--g-goodbg);color:var(--g-good)}.pill.bad{background:var(--g-badbg);color:var(--g-bad)}.pill.gold{background:#fbeab8;color:#8a5a12}.pill.plum{background:#ece3f6;color:var(--g-plum)}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.lbl{font-size:13px;font-weight:800;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.lbl small{font:500 11px var(--f-body);color:var(--g-soft)}
+.kpis{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.kpi{background:var(--g-inset);border-radius:10px;padding:6px 8px}
+.kpi small{display:block;font:500 11px var(--f-body);color:var(--g-soft)}
+.kpi b{font-size:16px;font-variant-numeric:tabular-nums}
+.kpi em{font:600 11px var(--f-body);font-style:normal;color:var(--g-good)}
+.kpi em.dn{color:var(--g-bad)}
+.seg{display:flex;background:var(--g-inset);border-radius:10px;padding:2px}.seg span{flex:1;text-align:center;font:700 11.5px/1.2 var(--f-game);padding:5px 2px;border-radius:8px;color:var(--g-soft)}.seg span.on{background:#fff;color:var(--g-ink);box-shadow:0 1px 0 var(--g-edge)}
+.bar{height:8px;border-radius:99px;background:#ead9b5;overflow:hidden}.bar span{display:block;height:100%;border-radius:99px}
+.btn{font:800 12px var(--f-game);border:0;border-radius:10px;padding:5px 10px;background:linear-gradient(#ffd96a,#f0b43a);color:#5a3a10;box-shadow:0 2px 0 #a67c34;cursor:pointer;white-space:nowrap}
+.btn.plain{background:#fff;box-shadow:0 2px 0 var(--g-edge);color:var(--g-ink)}
+.btn.go{background:linear-gradient(#9fd07a,#6fa649);color:#fff;box-shadow:0 2px 0 #516d35}
+.btn.no{background:#fff;box-shadow:0 2px 0 #d4a58a;color:var(--g-bad)}
+.tip{display:grid;grid-template-columns:22px 1fr;gap:8px;padding:6px 0;border-bottom:1px dashed var(--g-edge);font:500 12px/1.4 var(--f-body)}
+.tip:last-child{border:0}.tip b{font-family:var(--f-game);font-size:13px;color:var(--g-ink)}
+.tip .row{margin-top:4px}
+.tl{list-style:none;margin:0;padding:0;display:grid}
+.tl li{display:grid;grid-template-columns:20px 1fr auto;gap:8px;font:500 12px/1.4 var(--f-body);padding:5px 0;border-bottom:1px dashed var(--g-edge)}
+.tl li:last-child{border:0}.tl small{color:var(--g-soft);white-space:nowrap}
+.toast{position:absolute;left:10px;right:10px;top:10px;z-index:3;background:#3b2a1a;color:#fff6e3;border-radius:14px;padding:8px 10px;font:600 12px/1.35 var(--f-body);box-shadow:0 6px 16px #0005;display:grid;grid-template-columns:24px 1fr;gap:8px}
+.toast b{font-family:var(--f-game);font-size:13px}
+.cand{display:grid;grid-template-columns:44px 1fr;gap:8px;padding:8px 0;border-bottom:1px dashed var(--g-edge)}.cand:last-child{border:0}
+.cand .ava{width:44px;height:44px;font-size:24px;border-radius:12px}
+.stars{color:var(--g-gold);letter-spacing:1px}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+
+<div class="wrap">
+<header style="display:grid;gap:10px">
+  <span class="eyebrow">Godbean · Thiết kế · 07/11/2026 · đã code theo đề xuất, chưa commit</span>
+  <h1>Tổng quản lý Nông trại</h1>
+  <p class="lead">Một người đứng trên mọi đội nhân viên và robot, thay bạn điều hành để kiếm tiền. Người này tự làm việc nhỏ trong quyền bạn giao, xin duyệt việc lớn, và có thể được trao toàn quyền với giá cao. Giỏi thì bị đối thủ dụ đi. Không giữ được thì đội bên dưới rối loạn cho tới khi bạn bỏ tiền ổn định hoặc thuê người mới.</p>
+</header>
+
+<section>
+  <h2>Đã chỉnh theo feedback</h2>
+  <div class="cols">
+    <div class="box"><h3>Quản lý chỉ giữ hiện trạng</h3><ul>
+      <li>Tự làm: chăm sóc, sạc sửa robot, đổi ca, bán và mua hạt, giữ người bị dụ.</li>
+      <li>Không làm (chỉ gợi ý, kể cả ở Toàn quyền): tuyển, đuổi, thăng chức, nâng chỉ số, máy móc, phần mềm. Sau này là công thức đồ uống, cách trồng, nguồn nguyên liệu.</li>
+      <li>Có quản lý thì đỡ tệ, cùng lắm lời chút ít. Muốn lời nhiều phải tự mình tối ưu.</li>
+    </ul></div>
+    <div class="box"><h3>Tinh thần quản lý</h3><ul>
+      <li>Rảnh việc vì bạn tự làm hết: tụt sau 3 phút.</li>
+      <li>Bạn vắng mặt khi game đang mở: tụt sau 20 phút (−1 mỗi phút), đối thủ ghé gấp đôi. Không cộng dồn với rảnh việc.</li>
+      <li>Tắt game: quản lý vẫn giữ đội chạy tối đa 120 phút (50% / 70% mức lãi của đội, trừ lương).</li>
+      <li>Tắt game quá 2 giờ: quay lại thì mất tinh thần theo giờ; dưới 70 thì đối thủ đang dụ ngay khi bạn vào.</li>
+    </ul></div>
+  </div>
+  <p class="note">Bảng quyền hạn bên dưới là bản đề xuất ban đầu. Các dòng tuyển người, nâng cấp lớn, thăng chức, phần mềm giờ chỉ còn là gợi ý.</p>
+</section>
+
+<section>
+  <h2>Vòng chơi chính</h2>
+  <div class="flow">
+    <span>Thuê qua săn đầu người</span><i>→</i><span>Chọn quyền: Cố vấn · Điều hành · Toàn quyền</span><i>→</i><span>Đặt ngân sách tự chi</span><i>→</i><span>Quản lý tự làm việc nhỏ, xin duyệt việc lớn</span><i>→</i><span>Lãi tăng, bạn trả lương + % lãi</span><i>→</i><span>Đối thủ dụ, bạn giữ hoặc mất</span><i>→</i><span>Mất người thì đội rối loạn</span>
+  </div>
+  <p>Cái khó cho người chơi nằm ở việc cân đối. Quyền càng rộng thì đỡ việc và đội chạy nhanh hơn, nhưng lương cao hơn và mất người càng đau. Quyền hẹp thì rẻ, nhưng bạn phải vào bấm duyệt thường xuyên. Không bấm thì việc bị tắc.</p>
+</section>
+
+<section>
+  <h2>Màn hình mô phỏng</h2>
+  <p class="note">Bấm các tab bên trong điện thoại. Số liệu là ví dụ.</p>
+  <div class="phones">
+
+  <!-- OFFICE -->
+  <figure class="phone-col">
+    <div class="phone" data-phone>
+      <div class="p-head">
+        <div class="p-title">🏢 Văn phòng Tổng quản lý<span class="x">×</span></div>
+        <div class="p-tabs" role="tablist" aria-label="Văn phòng">
+          <button role="tab" aria-selected="true" aria-controls="o-p1" id="o-t1">Tổng quan</button>
+          <button role="tab" aria-selected="false" aria-controls="o-p2" id="o-t2">Gợi ý</button>
+          <button role="tab" aria-selected="false" aria-controls="o-p3" id="o-t3">Chờ duyệt<span class="badge">2</span></button>
+          <button role="tab" aria-selected="false" aria-controls="o-p4" id="o-t4">Nhật ký</button>
+        </div>
+      </div>
+      <div class="p-body">
+        <div role="tabpanel" id="o-p1" aria-labelledby="o-t1" style="display:grid;gap:10px">
+          <div class="card id">
+            <div class="ava">🧑‍💼</div>
+            <div style="display:grid;gap:3px">
+              <span class="nm">Chị Hằng</span>
+              <span class="sm">Năng lực <span class="stars">★★★☆☆</span> · Cân bằng · Vào làm 3 ngày</span>
+              <div class="row"><span class="pill plum">Điều hành</span><span class="pill good">Trung thành 72</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="lbl">Quyền hạn <small>đổi bất cứ lúc nào</small></div>
+            <div class="seg"><span>Cố vấn</span><span class="on">Điều hành</span><span>Toàn quyền</span></div>
+            <div class="sm">Tự làm việc an toàn trong ngân sách. Việc lớn gửi bạn duyệt.</div>
+            <div class="lbl">Ngân sách tự chi <small>mỗi 10 phút</small></div>
+            <div class="seg"><span>🪙50</span><span class="on">🪙100</span><span>🪙200</span><span>🪙500</span></div>
+            <div class="bar"><span style="width:64%;background:var(--g-gold)"></span></div>
+            <div class="sm">Đã dùng 🪙64 / 100. Còn 4 phút nữa ngân sách đặt lại.</div>
+          </div>
+          <div class="card">
+            <div class="lbl">Có đáng tiền không <small>hôm nay</small></div>
+            <div class="kpis">
+              <div class="kpi"><small>Lãi đội</small><b>🪙 1.480</b> <em>▲32%</em></div>
+              <div class="kpi"><small>Lương quản lý</small><b>🪙 210</b></div>
+              <div class="kpi"><small>Việc đã tự làm</small><b>47</b></div>
+              <div class="kpi"><small>Hiệu quả</small><b>×4,2</b> <em>lãi thêm / lương</em></div>
+            </div>
+            <div class="sm">Lương: 🪙30 / 10 phút + 5% lãi đội. "Lãi thêm" so với 3 ngày trước khi có quản lý.</div>
+          </div>
+        </div>
+        <div role="tabpanel" id="o-p2" aria-labelledby="o-t2" hidden style="display:grid;gap:10px">
+          <div class="card">
+            <div class="lbl">Việc nên làm <small>xếp theo tiền lời</small></div>
+            <div class="tip"><span>📦</span><div><b>Kho 92%: bán hạt ngay</b><br>Đầy thì 3 người đứng chờ, mất khoảng 🪙40/phút.<div class="row"><span class="pill good">Tôi tự làm</span></div></div></div>
+            <div class="tip"><span>🔋</span><div><b>Robot SB-3213 cài Tự sạc (🪙400)</b><br>Hôm nay đứng 9 phút vì hết pin. Hoàn tiền sau khoảng 2 giờ chơi.<div class="row"><button class="btn">Giao quản lý làm</button><button class="btn plain">Để tôi</button></div></div></div>
+            <div class="tip"><span>👥</span><div><b>Tuyển thêm 1 người (còn 2 chỗ)</b><br>3 ruộng chín không ai hái. Ứng viên Lan, Siêng, 🪙195.<div class="row"><button class="btn">Giao quản lý làm</button><button class="btn plain">Để tôi</button></div></div></div>
+            <div class="tip"><span>📉</span><div><b>Nam xếp loại D 2 ngày liền</b><br>Lướt điện thoại 9 lần. Gợi ý: nâng Sức bền, hoặc cho nghỉ (hoàn 🪙58).<div class="row"><button class="btn plain">Xem hồ sơ</button></div></div></div>
+          </div>
+        </div>
+        <div role="tabpanel" id="o-p3" aria-labelledby="o-t3" hidden style="display:grid;gap:10px">
+          <div class="card alert">
+            <div class="lbl">⚠️ Nâng Khung robot lên cấp 3 <small>còn 4:12</small></div>
+            <div class="sm">🪙1.200, vượt ngưỡng việc lớn (🪙300). Robot kẹt 6 lần hôm nay, mỗi lần mất khoảng 25 giây.</div>
+            <div class="row"><button class="btn go">Duyệt</button><button class="btn no">Từ chối</button></div>
+          </div>
+          <div class="card alert">
+            <div class="lbl">⚠️ Vay gói 🪙1.000 <small>còn 8:40</small></div>
+            <div class="sm">Muốn mua 2 ruộng mới. Phí vay 10%, trả dần 20% thu nhập.</div>
+            <div class="row"><button class="btn go">Duyệt</button><button class="btn no">Từ chối</button></div>
+          </div>
+          <div class="card">
+            <div class="sm">Hết giờ mà bạn không bấm thì yêu cầu tự hủy, quản lý ghi "bị tắc" vào nhật ký. Việc dùng tiền thật (nạp, mua trong cửa hàng) không bao giờ được giao cho quản lý.</div>
+          </div>
+        </div>
+        <div role="tabpanel" id="o-p4" aria-labelledby="o-t4" hidden style="display:grid;gap:10px">
+          <div class="card">
+            <ul class="tl">
+              <li><span>📦</span><span>Bán 40 hạt (kho đầy)</span><small>vừa xong</small></li>
+              <li><span>☕</span><span>Mua cà phê cho Tí (🪙20)</span><small>2 phút</small></li>
+              <li><span>🔄</span><span>Đổi ca: Bảo nghỉ, Lan vào</span><small>5 phút</small></li>
+              <li><span>🌱</span><span>Giao Hùng chỉ việc Trồng</span><small>8 phút</small></li>
+              <li><span>⛔</span><span>Bị tắc: chờ duyệt nâng Khung</span><small>9 phút</small></li>
+              <li><span>🔋</span><span>Sạc robot (🪙8)</span><small>12 phút</small></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+    <figcaption><b>Văn phòng.</b> Chọn quyền và ngân sách. Xem quản lý có đáng tiền không, gợi ý xếp theo tiền lời, hộp chờ duyệt có đếm giờ, nhật ký việc đã tự làm.</figcaption>
+  </figure>
+
+  <!-- POACH / CHAOS -->
+  <figure class="phone-col">
+    <div class="phone" data-phone>
+      <div class="toast" id="toast"><span>💼</span><div><b>Bà Tư đang dụ Chị Hằng!</b><br>Còn 2:45 để giữ người. Bấm để mở.</div></div>
+      <div class="p-head" style="padding-top:78px">
+        <div class="p-title">🏢 Tổng quản lý<span class="x">×</span></div>
+        <div class="p-tabs" role="tablist" aria-label="Sự cố">
+          <button role="tab" aria-selected="true" aria-controls="c-p1" id="c-t1">Bị dụ</button>
+          <button role="tab" aria-selected="false" aria-controls="c-p2" id="c-t2">Đội rối loạn</button>
+        </div>
+      </div>
+      <div class="p-body">
+        <div role="tabpanel" id="c-p1" aria-labelledby="c-t1" style="display:grid;gap:10px">
+          <div class="card alert">
+            <div class="lbl">💼 Bà Tư trả gấp đôi cho Chị Hằng <small>còn 2:45</small></div>
+            <div class="sm">Chị ấy làm đội lãi thêm 32% nên bị để ý. Trung thành 48: chưa đủ cao để tự từ chối (cần 70).</div>
+            <div class="row"><button class="btn">Thưởng giữ chân 🪙600</button></div>
+            <div class="row"><button class="btn plain">Tăng lương 20% (lâu dài)</button></div>
+            <div class="row"><button class="btn no">Để chị ấy đi</button></div>
+          </div>
+          <div class="card">
+            <div class="sm">Không bấm gì thì hết giờ chị ấy đi luôn, không hoàn tiền. Đang ở Toàn quyền thì quản lý không được tự trả tiền giữ chính mình.</div>
+          </div>
+        </div>
+        <div role="tabpanel" id="c-p2" aria-labelledby="c-t2" hidden style="display:grid;gap:10px">
+          <div class="card id">
+            <div class="ava chaos">🌀</div>
+            <div style="display:grid;gap:3px">
+              <span class="nm">Đội đang rối loạn</span>
+              <span class="sm">Chị Hằng đã sang làm cho Bà Tư 6 phút trước.</span>
+              <div class="row"><span class="pill bad">Lười ×2</span><span class="pill bad">Tinh thần −1/phút</span><span class="pill bad">Việc giao bị xóa</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="lbl">Cách ổn định</div>
+            <div class="sm">1. Họp đội ổn định: 🪙300 + 🪙50 mỗi người. Hết rối loạn ngay, chưa có quản lý.</div>
+            <div class="row"><button class="btn">Họp đội 🪙550</button></div>
+            <div class="sm">2. Thuê quản lý mới (phí săn đầu người). Hết rối loạn khi người mới vào làm.</div>
+            <div class="row"><button class="btn plain">Mở săn đầu người</button></div>
+            <div class="sm">3. Có Quản đốc thì chỉ rối loạn một nửa. Quản đốc tạm quyền ở mức Cố vấn.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <figcaption><b>Bị dụ và rối loạn.</b> Cảnh báo bật lên dù bạn đang ở màn nào. Không giữ được người thì đội làm loạn tới khi bạn bỏ tiền ổn định hoặc thuê người mới.</figcaption>
+  </figure>
+
+  <!-- HEADHUNT -->
+  <figure class="phone-col">
+    <div class="phone" data-phone>
+      <div class="p-head">
+        <div class="p-title">🤝 Săn đầu người<span class="x">×</span></div>
+        <div class="sm" style="padding-bottom:8px">Mở ở cấp 6 · 1 quản lý cho cả nông trại và quán</div>
+      </div>
+      <div class="p-body">
+        <div class="card">
+          <div class="cand"><div class="ava">👩‍💼</div><div><b>Chị Hằng</b> <span class="stars">★★★☆☆</span><br><span class="sm">Cân bằng · Trung thành 60 · Phí 🪙1.200<br>Lương cứng 🪙30 / 10 phút (Điều hành)</span><div class="row" style="margin-top:4px"><button class="btn">Thuê</button></div></div></div>
+          <div class="cand"><div class="ava">👨‍💼</div><div><b>Anh Khải</b> <span class="stars">★★★★☆</span><br><span class="sm">Liều · Trung thành 40 · Phí 🪙1.600<br>Kiếm nhiều nhưng tiêu mạnh tay, dễ bị dụ</span><div class="row" style="margin-top:4px"><button class="btn">Thuê</button></div></div></div>
+          <div class="cand"><div class="ava">🧓</div><div><b>Bác Sáu</b> <span class="stars">★★☆☆☆</span><br><span class="sm">Cẩn thận · Trung thành 85 · Phí 🪙800<br>Chi ít, xin duyệt nhiều, ít khi bỏ đi</span><div class="row" style="margin-top:4px"><button class="btn">Thuê</button></div></div></div>
+        </div>
+        <div class="card"><div class="sm">Đổi danh sách mỗi 30 phút, hoặc 🪙100 để đổi ngay. Năng lực cao: phản ứng nhanh hơn (kiểm tra mỗi 20 → 5 giây) và chọn việc có lời hơn.</div></div>
+      </div>
+    </div>
+    <figcaption><b>Thuê quản lý.</b> Ba ứng viên khác nhau về năng lực, phong cách, trung thành và giá.</figcaption>
+  </figure>
+  </div>
+</section>
+
+<section>
+  <h2>Quyền hạn: ai được làm gì</h2>
+  <p class="note"><span class="y">Tự làm</span> · <span class="a">Trong ngân sách</span> = tự làm nếu còn ngân sách 10 phút, hết thì xin duyệt · <span class="x">Xin duyệt</span> = gửi vào hộp chờ duyệt, bật cảnh báo · <span class="n">Gợi ý</span> = chỉ nói, bạn tự làm.</p>
+  <div class="box scroll"><table>
+    <thead><tr><th>Việc</th><th>Cố vấn</th><th>Điều hành</th><th>Toàn quyền</th></tr></thead>
+    <tbody>
+      <tr><td>Bán hạt khi kho đầy 90%</td><td class="c n">Gợi ý</td><td class="c y">Tự làm</td><td class="c y">Tự làm</td></tr>
+      <tr><td>Gọi dậy, nhắc người lướt điện thoại (miễn phí)</td><td class="c n">Gợi ý</td><td class="c y">Tự làm</td><td class="c y">Tự làm</td></tr>
+      <tr><td>Đổi ca, giao việc, cho nghỉ trưa</td><td class="c n">Gợi ý</td><td class="c y">Tự làm</td><td class="c y">Tự làm</td></tr>
+      <tr><td>Cà phê, cơm, thưởng nhỏ, tưới trả phí</td><td class="c n">Gợi ý</td><td class="c a">Trong ngân sách</td><td class="c y">Tự làm</td></tr>
+      <tr><td>Sạc, làm mát, sửa, bảo dưỡng robot</td><td class="c n">Gợi ý</td><td class="c a">Trong ngân sách</td><td class="c y">Tự làm</td></tr>
+      <tr><td>Nâng chỉ số, bộ phận, trang bị dưới 🪙300</td><td class="c n">Gợi ý</td><td class="c a">Trong ngân sách</td><td class="c y">Tự làm</td></tr>
+      <tr><td>Nâng cấp từ 🪙300 trở lên, phần mềm robot</td><td class="c n">Gợi ý</td><td class="c x">Xin duyệt</td><td class="c y">Tự làm</td></tr>
+      <tr><td>Tuyển người, mua robot</td><td class="c n">Gợi ý</td><td class="c x">Xin duyệt</td><td class="c y">Tự làm</td></tr>
+      <tr><td>Thăng chức Tổ trưởng, Quản đốc</td><td class="c n">Gợi ý</td><td class="c x">Xin duyệt</td><td class="c y">Tự làm</td></tr>
+      <tr><td>Giữ nhân viên bị dụ</td><td class="c n">Gợi ý</td><td class="c x">Xin duyệt</td><td class="c y">Tự làm</td></tr>
+      <tr><td>Cho nghỉ việc, bán robot</td><td class="c n">Gợi ý</td><td class="c n">Gợi ý</td><td class="c n">Gợi ý</td></tr>
+      <tr><td>Mua đất, mua ruộng, xây</td><td class="c n">Không</td><td class="c n">Không</td><td class="c n">Không</td></tr>
+      <tr><td>Vay tiền</td><td class="c n">Gợi ý</td><td class="c x">Xin duyệt</td><td class="c n">Không</td></tr>
+      <tr><td>Giữ chính quản lý khi bị dụ</td><td class="c x">Bạn bấm</td><td class="c x">Bạn bấm</td><td class="c x">Bạn bấm</td></tr>
+      <tr><td>Tiền thật: nạp, mua trong cửa hàng</td><td class="c x">Không bao giờ</td><td class="c x">Không bao giờ</td><td class="c x">Không bao giờ</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>Luật đề xuất</h2>
+  <div class="cols">
+    <div class="box"><h3>Thuê và lương</h3><ul>
+      <li>Mở ở cấp 6. Một quản lý cho cả nông trại và quán (chung tiền).</li>
+      <li>Phí săn đầu người: 🪙400 × năng lực (1–5 sao).</li>
+      <li>Lương cứng mỗi 10 phút = 🪙20 × năng lực × hệ số quyền: Cố vấn ×0,5 · Điều hành ×1 · Toàn quyền ×2.</li>
+      <li>Thưởng % lãi đội: Cố vấn 0% · Điều hành 5% · Toàn quyền 15%. Lỗ thì không thưởng.</li>
+      <li>Không trả nổi lương thì trung thành giảm nhanh, gần như chắc bị dụ.</li>
+    </ul></div>
+    <div class="box"><h3>Năng lực và phong cách</h3><ul>
+      <li>Năng lực: kiểm tra đội mỗi 20 / 15 / 10 / 7 / 5 giây. Năng lực thấp đôi khi chọn việc kém lời hơn.</li>
+      <li>Cẩn thận: chỉ tiêu một nửa ngân sách, xin duyệt sớm hơn, trung thành cao.</li>
+      <li>Cân bằng: dùng đủ ngân sách.</li>
+      <li>Liều: dùng hết ngân sách, ở Toàn quyền đôi khi mua nâng cấp lời ít. Kiếm nhiều hơn nhưng trung thành thấp.</li>
+    </ul></div>
+    <div class="box"><h3>Bị dụ</h3><ul>
+      <li>Mỗi lần đối thủ ghé (8 phút), cơ hội nhắm vào quản lý tăng theo lãi thêm mà người đó mang lại và giảm theo trung thành.</li>
+      <li>Trung thành từ 70 trở lên thì tự từ chối.</li>
+      <li>Có 3 phút để giữ: thưởng một lần (= 20 lần lương cứng) hoặc tăng lương 20% lâu dài (trung thành +25).</li>
+      <li>Hết giờ thì người đó đi, đội rối loạn.</li>
+    </ul></div>
+    <div class="box"><h3>Đội rối loạn</h3><ul>
+      <li>Nhân viên lười gấp 2, tinh thần −1 mỗi phút, việc giao bị xóa về Auto, các yêu cầu chờ duyệt bị hủy.</li>
+      <li>Kéo dài tới khi họp đội ổn định (🪙300 + 🪙50 mỗi người) hoặc thuê quản lý mới.</li>
+      <li>Có Quản đốc thì tác hại chỉ một nửa, và Quản đốc làm Cố vấn tạm thời.</li>
+    </ul></div>
+  </div>
+  <p class="note">Mục tiêu cân bằng: một quản lý 3 sao ở Điều hành nên mang lại lãi thêm gấp 3–4 lần lương. Toàn quyền nên đáng tiền với đội lớn (từ 6 người trở lên), còn đội nhỏ thì lỗ. Mình sẽ chạy mô phỏng kinh tế để chỉnh các con số này trước khi bạn thử.</p>
+</section>
+
+<section>
+  <h2>Thứ tự làm</h2>
+  <ol class="phases">
+    <li><b>Thuê quản lý + Văn phòng + Gợi ý (Cố vấn).</b> Săn đầu người, hồ sơ quản lý, lương, gợi ý xếp theo tiền lời, nhật ký.</li>
+    <li><b>Điều hành.</b> Tự làm việc an toàn, ngân sách 10 phút, hộp chờ duyệt có đếm giờ, cảnh báo trên màn hình, chấm đỏ ở nút.</li>
+    <li><b>Toàn quyền + phong cách.</b> Thưởng % lãi, quản lý tự tuyển, tự nâng cấp, mua đất, vay gói nhỏ. Phong cách Cẩn thận / Cân bằng / Liều.</li>
+    <li><b>Bị dụ + rối loạn.</b> Đối thủ nhắm quản lý, giữ chân, họp đội ổn định, Quản đốc tạm quyền.</li>
+    <li><b>Đã thêm.</b> Quản lý giữ đội chạy khi bạn tắt game (tính bù lúc quay lại, tối đa 120 phút).</li>
+  </ol>
+</section>
+
+<section>
+  <h2>Cần bạn chốt</h2>
+  <div style="display:grid;gap:10px">
+    <div class="q"><b>1. Một quản lý cho cả nông trại và quán, hay mỗi game một người?</b><span class="rec">Đề xuất: một người cho cả hai, vì chung tiền. Phần quán làm sau.</span></div>
+    <div class="q"><b>2. Mở ở cấp mấy?</b><span>Cấp 10 đang có sự cố xóa hết, nên quản lý cũng sẽ mất ở cấp 10.</span><span class="rec">Đề xuất: cấp 6.</span></div>
+    <div class="q"><b>3. Quản lý có chạy khi bạn tắt game không?</b><span class="rec">Đề xuất: chưa. Hiện game chỉ chạy khi đang mở; chạy lúc tắt cần máy chủ, làm cùng phần đăng nhập Go.</span></div>
+    <div class="q"><b>4. Toàn quyền có được vay tiền không?</b><span class="rec">Đã chốt khi làm: quản lý không vay tiền, không xây, không mua đất. Việc của quản lý là điều hành đội. Tiền thật thì không bao giờ.</span></div>
+    <div class="q"><b>5. Rối loạn có tự hết theo thời gian không?</b><span class="rec">Đề xuất: không. Phải họp đội hoặc thuê người mới, đúng như bạn mô tả.</span></div>
+    <div class="q"><b>6. Ngưỡng "việc lớn" ở Điều hành</b><span class="rec">Đề xuất: 🪙300 một lần chi, và bạn chỉnh được trong Văn phòng (🪙100 / 300 / 1.000).</span></div>
+  </div>
+</section>
+</div>
+
+<script>
+document.querySelectorAll('[data-phone]').forEach(phone => {
+  const tabs = [...phone.querySelectorAll('[role=tab]')];
+  tabs.forEach(t => t.addEventListener('click', () => {
+    tabs.forEach(o => { const on = o === t; o.setAttribute('aria-selected', String(on)); const p = phone.querySelector('#' + o.getAttribute('aria-controls')); if (p) p.hidden = !on; });
+    const b = phone.querySelector('.p-body'); if (b) b.scrollTop = 0;
+  }));
+});
+</script>

@@ -823,3 +823,99 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
 @media (min-width:760px) and (min-height:561px){.hud-auto-ico,.hud-auto-tag{display:none}}
 /* Staff manager applicant / robot cards: one roomy card per row on phones (two 166 px columns wrapped every stat chip) */
 .hud-sm-host .hud-cards--wide{grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr))}
+
+/* Staff personnel file (docs/design/staff-profile.md): ID card with photo, profile tabs, KPIs, grade, 7-day chart. */
+.hud-pf-photo{background:radial-gradient(circle at 50% 38%,hsl(var(--hue,40) 70% 94%),hsl(var(--hue,40) 45% 80%))}
+.hud-pf-photo.has-photo{padding:0}
+.hud-pf-photo img{display:block;width:100%;height:100%;object-fit:cover;border-radius:inherit;pointer-events:none;user-select:none}
+.hud-pf-id{align-items:flex-start}
+.hud-pf-id .hud-sm-avatar--big{width:72px;height:72px}
+.hud-pf-who{font:600 12px/1.35 var(--h-font);color:var(--h-ink-soft)}
+.hud-pf-tags{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.hud-pf-tag{display:inline-block;padding:1px 8px;border-radius:99px;background:#f9f1de;font:800 11.5px/1.5 var(--h-font);white-space:nowrap}
+.hud-pf-tag.is-gold{background:#fbe6a8;color:#7a4e10}
+.hud-pf-tags .hud-sm-perk{margin:0}
+.hud-sm-ptabs{position:sticky;top:-1px;z-index:2;margin:8px 0 0;padding:4px 0;background:var(--ui-hud-bg,#fff7e3)}
+.hud-pf-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+.hud-pf-kpi strong{font-variant-numeric:tabular-nums}
+.hud-pf-kpi em{font:800 11px/1 var(--h-font);font-style:normal;white-space:nowrap}
+.hud-pf-kpi em.is-up{color:var(--h-good)}
+.hud-pf-kpi em.is-down{color:var(--h-bad)}
+.hud-pf-grade{display:flex;align-items:center;gap:10px;margin:0 0 8px}
+.hud-pf-grade b{flex:none;display:grid;place-items:center;width:52px;height:52px;border-radius:14px;font:800 26px/1 var(--h-font);background:#f9f1de}
+.hud-pf-grade b.is-a,.hud-pf-grade b.is-b{background:#eef5dc;color:var(--h-good)}
+.hud-pf-grade b.is-c{background:#fbeab8;color:#8a5a12}
+.hud-pf-grade b.is-d{background:#fbe6dc;color:var(--h-bad)}
+.hud-pf-grade .hud-sub{margin:0}
+.hud-pf-chart{display:block;width:100%;height:auto;overflow:visible}
+.hud-pf-axis{stroke:#e5c387;stroke-width:1}
+.hud-pf-area{fill:#e8b23e33;stroke:none}
+.hud-pf-line{fill:none;stroke:#c88a1c;stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
+.hud-pf-dot{fill:#c88a1c}
+.hud-pf-tick{font:600 9.5px var(--h-font);fill:var(--h-ink-soft)}
+.hud-pf-tick.hud-pf-val{font-weight:800;font-size:11px;fill:var(--h-ink,#694427)}
+.hud-pf-payback{grid-template-columns:1fr auto}
+.hud-sm-grid--2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.hud-pf-timeline .hud-sm-jtext{min-width:0}
+/* Team report v2 + grade pills (docs/design/staff-profile.md, step 2). */
+.hud-pf-gpill{display:inline-grid;place-items:center;min-width:26px;margin-left:6px;padding:0 5px;border-radius:7px;background:#f9f1de;font:800 12px/18px var(--h-font);color:var(--h-ink-soft);vertical-align:1px}
+.hud-pf-gpill.is-a,.hud-pf-gpill.is-b{background:#eef5dc;color:var(--h-good)}
+.hud-pf-gpill.is-c{background:#fbeab8;color:#8a5a12}
+.hud-pf-gpill.is-d{background:#fbe6dc;color:var(--h-bad)}
+.hud-rp-period{margin:4px 0 0}
+.hud-rp-bar{display:block;width:100%;height:auto}
+.hud-rp-legend{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:3px}
+.hud-rp-legend li{display:grid;grid-template-columns:12px minmax(0,1fr) auto 3em;align-items:center;gap:6px;font:700 12.5px/1.3 var(--h-font)}
+.hud-rp-legend strong{font-variant-numeric:tabular-nums}
+.hud-rp-legend small{text-align:right;color:var(--h-ink-soft);font-variant-numeric:tabular-nums}
+.hud-rp-swatch{width:12px;height:12px;border-radius:3px}
+.hud-sm-rank-row .hud-sm-avatar{width:34px;height:34px;border-radius:11px;font-size:20px}
+.hud-sm-rank-row .hud-sm-avatar-state{display:none}
+.hud-sm-rank-row .hud-sm-rank-name{display:grid;gap:1px;white-space:normal}
+.hud-sm-rank-row .hud-sm-rank-name small{font:600 11px/1.2 var(--h-font);color:var(--h-ink-soft)}
+.hud-sm-rank-row .hud-pf-gpill{flex:none;margin:0}
+/* Career ladder + craft (docs/design/staff-profile.md, step 3). */
+.hud-cr-ladder{list-style:none;margin:0 0 8px;padding:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px}
+.hud-cr-ladder li{display:grid;place-items:center;min-height:34px;padding:3px 2px;border-radius:8px;background:#f9f1de;color:var(--h-ink-soft);font:800 10.5px/1.15 var(--h-font);text-align:center;overflow-wrap:anywhere}
+.hud-cr-ladder li.is-done{background:#eef5dc;color:var(--h-good)}
+.hud-cr-ladder li.is-now{background:#fbe6a8;color:#7a4e10;box-shadow:inset 0 0 0 2px #e8b23e}
+.hud-cr-needs{list-style:none;margin:2px 0 8px;padding:0;display:grid;gap:2px;font:700 12.5px/1.3 var(--h-font)}
+.hud-cr-craft .hud-sm-stat-top .hud-pf-tag{margin-left:auto}
+.hud-pf-tag.is-good{background:#eef5dc;color:var(--h-good)}
+/* General manager tab (docs/design/general-manager.md). */
+.hud-gm-ava{background:radial-gradient(circle at 50% 40%,#f3ecfb,#c9b5e6)}
+.hud-gm-reqs{display:grid;gap:8px}
+.hud-gm-req{display:grid;gap:4px;padding:8px 10px;border-radius:12px;background:#fff6f2;box-shadow:inset 0 0 0 2px #e8b8a4}
+.hud-gm-req-top{display:flex;justify-content:space-between;gap:8px;margin:0;font:700 13px/1.3 var(--h-font)}
+.hud-gm-req-top small{flex:none;font-variant-numeric:tabular-nums;color:var(--h-bad)}
+.hud-gm-chaos{background:#fbe6dc}
+.hud-sm-seg + .hud-sub{margin-top:4px}
+/* Four staff tabs on a phone: tighter type so "Tuyển dụng" fits next to "Quản lý". */
+.hud-sm-tabs .hud-tab{padding:0 2px;font-size:13px;letter-spacing:-.01em}
+@media (max-width:400px){.hud-sm-tabs .hud-tab{font-size:12px}}
+/* Research lab: drink test bench in the Menu sheet (docs/design/research.md). */
+.hud-lab{margin:14px 0 0;padding:10px 12px 12px;border-radius:18px;background:#fff;box-shadow:inset 0 0 0 2px var(--h-line);display:grid;gap:8px}
+.hud-lab .hud-sm-h{margin:0}
+.hud-lab-ings{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.hud-lab-ing{display:grid;justify-items:center;gap:1px;min-height:58px;padding:4px 2px;border:0;border-radius:12px;background:#f9f1de;font:800 11px/1.15 var(--h-font);color:var(--h-ink);cursor:pointer}
+.hud-lab-ing b{font-size:20px;line-height:1.1}
+.hud-lab-ing small{font:700 10px/1 var(--h-font);color:var(--h-ink-soft)}
+.hud-lab-ing[aria-pressed="true"]{background:#fbe6a8;box-shadow:inset 0 0 0 2px #e8b23e}
+.hud-lab-ing:disabled{opacity:.45;cursor:default}
+.hud-lab-tests{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.hud-lab-test{display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:center;font:600 12.5px/1.3 var(--h-font)}
+.hud-lab-dots{display:flex;gap:3px}
+.hud-lab-dots i{width:10px;height:10px;border-radius:50%;background:#e5d6b5}
+.hud-lab-dots i.is-g{background:var(--h-good)}
+.hud-lab-dots i.is-y{background:#e8b23e}
+/* Supply sheet (docs/design/research.md, step 2). */
+.hud-sup-row{display:grid;gap:4px;padding:8px 10px;margin:6px 0 0;border-radius:12px;background:#f9f1de}
+.hud-sup-row.is-mine{background:#eef5dc;box-shadow:inset 0 0 0 2px #b7d39a}
+.hud-sup-row strong{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font:800 13.5px/1.25 var(--h-font)}
+.hud-sup-row small{font:600 12px/1.3 var(--h-font);color:var(--h-ink-soft)}
+.hud-sup-prices{display:flex;flex-wrap:wrap;gap:8px;font:800 12.5px/1.3 var(--h-font);font-variant-numeric:tabular-nums}
+.hud-sup-prices .is-up{color:var(--h-good)}
+.hud-sup-prices .is-down{color:var(--h-bad)}
+.hud-trial-row{display:grid;gap:3px}
+.hud-trial-row small{font:800 12px/1.2 var(--h-font);color:var(--h-ink-soft)}
+.hud-trial-results{display:grid}

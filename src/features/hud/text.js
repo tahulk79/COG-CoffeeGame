@@ -39,3 +39,15 @@ export function errorText(result) {
   const key = `err.${code}`;
   return has(key) ? T(key, params) : T('err.unknown');
 }
+
+/** A general-manager plan reason ([i18n key under hud.gm.r., params]) as text: stat / rank names translated, a robot
+ *  named by its serial. Shared by the toasts and the Quản lý tab. */
+export function gmReasonText(reason) {
+  const [key, params = {}] = Array.isArray(reason) ? reason : [reason];
+  const p = { ...params, name: params.name || params.serial || '' };
+  if (p.stat) p.stat = T(`hud.stat.${p.stat}`);
+  if (p.rank) p.rank = T(`hud.cr.rank.${p.rank}`);
+  if (p.group) p.group = T(`hud.sup.g.${p.group}`);
+  if (p.crop) p.crop = T(`crop.${p.crop}`);
+  return T(`hud.gm.r.${key}`, p);
+}

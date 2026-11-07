@@ -1,0 +1,324 @@
+<title>Nhân viên &amp; Robot Nông trại</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: a reference handbook column with a strip of real in-game screenshots up top, then numbered-free topic sections. */
+:root{
+  --bg:#eef1e8; --fg:#24301f; --muted:#5d6a55; --line:#cfd6c3; --panel:#f8faf3; --accent:#3f7c4a; --warn:#b5523a; --gold:#a8741a; --robot:#3e7192;
+  --f-body:'Be Vietnam Pro',system-ui,sans-serif; --f-game:'Baloo 2',system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#161b14;--fg:#e4ead9;--muted:#9aa78f;--line:#2f382b;--panel:#1d241a;--accent:#8cc391;--warn:#e48a6f;--gold:#e2b45c;--robot:#8bbbd8;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#161b14;--fg:#e4ead9;--muted:#9aa78f;--line:#2f382b;--panel:#1d241a;--accent:#8cc391;--warn:#e48a6f;--gold:#e2b45c;--robot:#8bbbd8;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font:15px/1.6 var(--f-body)}
+.wrap{max-width:1040px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:32px 64px;display:grid;gap:44px}
+h1,h2,h3{font-family:var(--f-game);text-wrap:balance;line-height:1.15;margin:0}
+h1{font-size:clamp(30px,6vw,46px);font-weight:800}
+h2{font-size:26px;font-weight:800}
+h3{font-size:17px;font-weight:700;margin-bottom:4px}
+p{margin:0;max-width:70ch}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.lead{font-size:17px;color:var(--muted)}
+section{display:grid;gap:14px;min-width:0}
+.status{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font-size:12.5px;font-weight:600;padding:3px 10px;border-radius:99px;border:1px solid var(--line);background:var(--panel)}
+.chip.ok{color:var(--accent);border-color:var(--accent)}
+.chip.warn{color:var(--gold);border-color:var(--gold)}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:14px}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0;display:grid;gap:8px;align-content:start}
+.box ul,.box ol{margin:0;padding-left:18px}.box li{margin:3px 0}
+.box.worker{border-top:4px solid var(--accent)}
+.box.robot{border-top:4px solid var(--robot)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:600;color:var(--muted);font-size:12px;letter-spacing:.04em;text-transform:uppercase}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.scroll{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:14px}
+.scroll table td:first-child{font-weight:600}
+.note{font-size:13px;color:var(--muted)}
+.shots{display:flex;gap:14px;overflow-x:auto;padding-bottom:10px;scroll-snap-type:x mandatory}
+.shots figure{margin:0;flex:0 0 auto;width:220px;display:grid;gap:6px;scroll-snap-align:start}
+.shots img{display:block;width:220px;height:440px;object-fit:cover;object-position:top;border-radius:18px;border:5px solid #2b2620;background:#2b2620}
+.shots figcaption{font-size:12.5px;color:var(--muted)}
+.shots figcaption b{color:var(--fg)}
+.formula{font-family:var(--f-game);font-size:16px;font-weight:700;padding:10px 14px;border-radius:12px;background:var(--panel);border:1px dashed var(--line)}
+.ladder{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.ladder div{border-radius:12px;padding:10px 8px;background:var(--panel);border:1px solid var(--line);display:grid;gap:2px;text-align:center;min-width:0}
+.ladder b{font-family:var(--f-game);font-size:15px}
+.ladder small{font-size:11.5px;color:var(--muted)}
+.ladder .top{border-color:var(--gold)}
+@media (max-width:560px){.ladder{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.review{display:grid;gap:10px;counter-reset:r}
+.review li{list-style:none;padding:12px 14px;border-radius:12px;background:var(--panel);border:1px solid var(--line)}
+.review b{font-family:var(--f-game);font-size:15.5px}
+a{color:var(--accent)}
+</style>
+
+<div class="wrap">
+<header style="display:grid;gap:12px">
+  <span class="eyebrow">Godbean · Hệ thống nhân sự · bản đang chạy ngày 07/11/2026</span>
+  <h1>Nhân viên &amp; Robot Nông trại</h1>
+  <p class="lead">Mọi thứ về nhân viên và robot đang có trong game: tuyển, chăm sóc, hồ sơ, xếp loại, báo cáo, thăng chức, tay nghề, trang bị, robot và Tổng quản lý. Nông trại và quán dùng chung khung này.</p>
+  <div class="status"><span class="chip ok">Đã code xong 4 bước + Tổng quản lý</span><span class="chip ok">Test tự động 130/130</span><span class="chip ok">Đã review code</span><span class="chip warn">Chưa commit</span><span class="chip">Đã thử trên khung điện thoại</span></div>
+</header>
+
+<section>
+  <h2>Ảnh trong game</h2>
+  <div class="shots">
+    <figure><img src="img/farm.jpg" alt="Nông trại: nhân viên đang trồng, một người lướt điện thoại có bong bóng Gọi dậy 15 xu, robot đứng cạnh"><figcaption><b>Nông trại.</b> Nhân viên tự làm việc. Người lướt điện thoại có bong bóng "Gọi dậy 🪙15".</figcaption></figure>
+    <figure><img src="img/profile.jpg" alt="Hồ sơ Bảo: ảnh 3D, 43 tuổi, quê Pleiku, Tổ trưởng cấp 12, xếp loại B+"><figcaption><b>Hồ sơ.</b> Ảnh chụp từ mô hình 3D, tuổi, quê, thâm niên, chức danh, xếp loại hôm nay.</figcaption></figure>
+    <figure><img src="img/career.jpg" alt="Phần sự nghiệp: thang 5 bậc, điều kiện lên Quản đốc, đang dẫn dắt đội"><figcaption><b>Sự nghiệp.</b> Thang 5 bậc, điều kiện còn thiếu, nút Thăng chức, Thôi chức.</figcaption></figure>
+    <figure><img src="img/stats.jpg" alt="Tab Chỉ số: 4 chỉ số tối đa và tay nghề"><figcaption><b>Chỉ số.</b> 4 chỉ số nâng bằng điểm + xu, bên dưới là tay nghề.</figcaption></figure>
+    <figure><img src="img/gear.jpg" alt="Tab Trang bị: ủng, nón lá, kéo hái, bình tưới"><figcaption><b>Trang bị.</b> Ủng, nón lá, kéo hái, bình tưới. Đi theo người.</figcaption></figure>
+    <figure><img src="img/report.jpg" alt="Báo cáo đội: doanh thu, chi phí, lãi, chi phí đi đâu, bảng đánh giá"><figcaption><b>Báo cáo.</b> Tiền của đội, chi phí theo loại, bảng xếp loại A–D có ảnh.</figcaption></figure>
+    <figure><img src="img/robot.jpg" alt="Hồ sơ robot: số máy, pin, nhiệt, độ bền, xếp loại B+"><figcaption><b>Robot.</b> Số máy, pin, nhiệt, độ bền, thời gian chạy, hoàn vốn.</figcaption></figure>
+  </div>
+</section>
+
+<section>
+  <h2>Hai loại nhân lực</h2>
+  <div class="cols">
+    <div class="box worker"><h3>👩‍🌾 Nhân viên</h3><ul>
+      <li>Học được: 4 chỉ số, tay nghề, thăng chức.</li>
+      <li>Có sức lực, no bụng, tinh thần. Biết mệt, đói, dỗi, lướt điện thoại.</li>
+      <li>Có tính cách: Siêng (đắt ×1,3, ít lười), Lười (rẻ ×0,6, lười gấp 2), Vui tính (thêm 5% sản lượng nơi làm).</li>
+      <li>10% ứng viên có tài hiếm, giá gấp đôi: Tay vàng, Lanh lẹ, Bền bỉ, Duyên dáng.</li>
+      <li>Giá thuê nông trại: 🪙150 (nhân theo tính cách).</li>
+    </ul></div>
+    <div class="box robot"><h3>🤖 Robot</h3><ul>
+      <li>Không học, chỉ làm 1 việc (Trồng hoặc Hái) hoặc Auto (30 giây chọn lại việc tồn nhiều nhất).</li>
+      <li>Không tâm trạng. Thay vào đó có pin, nhiệt, hao mòn, kẹt.</li>
+      <li>Chất lượng luôn 1 sao, không bao giờ mắc lỗi.</li>
+      <li>Mở ở cấp 4. Giá SproutBot 🪙1.200.</li>
+      <li>Nâng cấp bằng bộ phận và phần mềm mua bằng xu.</li>
+    </ul></div>
+  </div>
+</section>
+
+<section>
+  <h2>Tuyển dụng và ca làm</h2>
+  <div class="cols">
+    <div class="box"><ul>
+      <li>Mỗi game giữ tối đa số người bằng cấp người chơi. Số người đang làm trong ca cũng tối đa bằng cấp.</li>
+      <li>Bảng tuyển có 3 ứng viên với tên, tuổi (18–45), quê (12 vùng cà phê), tính cách, chỉ số khởi đầu. Đổi bảng miễn phí mỗi 10 phút hoặc 🪙20.</li>
+      <li>Người ở Dự bị không làm, được nghỉ nhanh gấp đôi, tốn 10% giá thuê mỗi 10 phút. Robot dự bị không tốn gì.</li>
+      <li>Nút <b>Đổi ca</b>: người mệt, đói, dỗi vào dự bị; người đã nghỉ khỏe vào ca.</li>
+    </ul></div>
+    <div class="box"><ul>
+      <li>Nhân viên đi khắp đất của bạn và đường đã mở để làm việc. Lúc rảnh hoặc lướt điện thoại họ đi lang thang, nhưng không ra đất chưa mua, ao hay quảng trường.</li>
+      <li>Cho nghỉ việc: hoàn 30% tiền thuê; trang bị ở lại <b>kho</b>, trao miễn phí cho người khác (người bị dụ đi hoặc bỏ vì không được trả thì mang đồ theo).</li>
+      <li>Bán robot: (50% giá mua + 50% bộ phận + 50% phần mềm) × % độ bền còn lại.</li>
+    </ul></div>
+  </div>
+</section>
+
+<section>
+  <h2>Trạng thái và chăm sóc</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>Tình trạng</th><th>Khi nào</th><th>Cách xử lý</th><th class="num">Giá</th></tr></thead>
+    <tbody>
+      <tr><td>📱 Lướt điện thoại</td><td>Ngẫu nhiên khi đang làm (Bền và Siêng giảm)</td><td>Nhắc (60% hiệu quả, −5 tinh thần) hoặc thưởng nhỏ để gọi dậy</td><td class="num">0 / 🪙15</td></tr>
+      <tr><td>😮‍💨 Mệt</td><td>Sức lực dưới 25 (hết sau khoảng 10 phút làm)</td><td>Cà phê +60 sức lực, hoặc cho nghỉ</td><td class="num">🪙20</td></tr>
+      <tr><td>🍔 Đói</td><td>No bụng dưới 20 (khoảng 8 phút làm)</td><td>Cơm (no ngay) hoặc nghỉ trưa 60 giây miễn phí</td><td class="num">🪙15 / 0</td></tr>
+      <tr><td>😤 Dỗi</td><td>Tinh thần dưới 20</td><td>Thưởng +40 tinh thần, hoặc cho nghỉ</td><td class="num">🪙50</td></tr>
+      <tr><td>🪫 Robot hết pin</td><td>Sau 3–9 phút chạy (theo Pin)</td><td>Sạc</td><td class="num">🪙8 trở xuống</td></tr>
+      <tr><td>🔥 Robot nóng máy</td><td>Nhiệt 100</td><td>Tự nguội sau 30 giây, hoặc làm mát</td><td class="num">🪙10</td></tr>
+      <tr><td>⚙️ Robot kẹt</td><td>Ngẫu nhiên sau mỗi việc (tăng gấp 2 khi độ bền dưới 30%)</td><td>Gõ 3 lần miễn phí, hoặc sửa (3 lần đầu miễn phí nhờ bảo hành)</td><td class="num">🪙20</td></tr>
+      <tr><td>🔧 Robot mòn</td><td>Độ bền giảm theo số việc</td><td>Bảo dưỡng về 100%</td><td class="num">10% giá robot</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">Nút <b>Xử lý tất cả</b> trả hết các khoản sửa có phí của đội trong một lần bấm.</p>
+</section>
+
+<section>
+  <h2>Hồ sơ cá nhân</h2>
+  <div class="cols">
+    <div class="box worker"><h3>Nhân viên: Tổng quan · Chỉ số · Trang bị · Lịch sử</h3><ul>
+      <li>Ảnh chụp từ mô hình 3D trong game (làm mới mỗi 30 giây).</li>
+      <li>Tuổi, quê, ngày vào làm, thâm niên, chức danh, cấp, tính cách, sao.</li>
+      <li>Xếp loại hôm nay, 4 chỉ số KPI có ▲▼ so với hôm qua, biểu đồ lãi 7 ngày.</li>
+      <li>Dòng thời gian 20 sự kiện gần nhất. Tổng từ ngày vào làm.</li>
+    </ul></div>
+    <div class="box robot"><h3>Robot: Tổng quan · Bộ phận · Bảo trì</h3><ul>
+      <li>Mẫu máy, số máy (ví dụ SB-3213), ngày mua, nhãn bảo hành còn bao nhiêu lần.</li>
+      <li>Thời gian chạy, năng suất, chi phí vận hành mỗi giờ, sự cố hôm nay.</li>
+      <li>Hoàn vốn: đã kiếm lại bao nhiêu trên giá mua + bộ phận + phần mềm, còn khoảng bao lâu nữa.</li>
+      <li>Sổ bảo trì: mua, lắp bộ phận, cài phần mềm, kẹt, nóng, sạc, sửa theo bảo hành.</li>
+    </ul></div>
+  </div>
+  <p class="note">Số liệu được lưu theo ngày thật trên máy, giữ 7 ngày gần nhất: số việc, tiền kiếm, tiền chi, tiền đầu tư, lỗi, giờ trong ca, giờ thật sự làm, giờ bị kẹt hay tự nghỉ.</p>
+</section>
+
+<section>
+  <h2>Xếp loại A–D</h2>
+  <p>Mỗi người được chấm 0–100 mỗi ngày, so với trung bình đội cùng game và cùng loại (người so với người, máy so với máy). Bằng trung bình đội thì được 70 điểm.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Tiêu chí</th><th class="num">Nhân viên</th><th class="num">Robot</th></tr></thead>
+    <tbody>
+      <tr><td>Năng suất (việc mỗi giờ trong ca)</td><td class="num">30%</td><td class="num">40%</td></tr>
+      <tr><td>Chất lượng (100 − tỉ lệ lỗi × 500)</td><td class="num">25%</td><td class="num">—</td></tr>
+      <tr><td>Chuyên cần / thời gian chạy (% ca không bị kẹt hay tự nghỉ, nghỉ trưa không trừ)</td><td class="num">25%</td><td class="num">40%</td></tr>
+      <tr><td>Lãi mỗi giờ (kiếm − chi phí chạy; tiền nâng cấp không trừ)</td><td class="num">20%</td><td class="num">20%</td></tr>
+    </tbody>
+  </table></div>
+  <div class="formula">A ≥ 85 · B+ ≥ 78 · B ≥ 70 · C ≥ 50 · còn lại D · cần ít nhất 1 phút trong ca</div>
+</section>
+
+<section>
+  <h2>Báo cáo đội</h2>
+  <div class="cols">
+    <div class="box"><ul>
+      <li>Ba kỳ: 10 phút · Hôm nay · 7 ngày.</li>
+      <li>Doanh thu, chi phí, lãi, hiệu quả chi (doanh thu ÷ chi phí). ▲▼ so với 10 phút trước / hôm qua.</li>
+      <li>Chi phí chia 6 loại: chăm sóc và phí · nâng cấp · chạy robot · nuôi dự bị · phụ cấp · tuyển dụng.</li>
+    </ul></div>
+    <div class="box"><ul>
+      <li>Bảng đánh giá: ảnh, chức danh, số việc, % ca thật sự làm, xếp loại, lãi. Bấm tên mở hồ sơ.</li>
+      <li>Gợi ý của quản lý: người xếp loại C/D thấp nhất và cách sửa, người đủ điều kiện thăng chức, robot hay nóng / kẹt.</li>
+      <li>Nhân viên xuất sắc mỗi 10 phút (cả đội +10 tinh thần) và nhật ký đội.</li>
+    </ul></div>
+  </div>
+  <p class="note">Tiền được ghi riêng cho nông trại và quán. Thẻ trong tab Đội cũng hiện xếp loại hôm nay.</p>
+</section>
+
+<section>
+  <h2>Sự nghiệp</h2>
+  <div class="ladder">
+    <div><b>🌱 Học việc</b><small>Cấp 1–3</small></div>
+    <div><b>👕 Nhân viên</b><small>Cấp 4 · tự lên</small></div>
+    <div><b>🛠️ Lành nghề</b><small>Cấp 8 + 5 ngày</small></div>
+    <div class="top"><b>🎖️ Tổ trưởng</b><small>Cấp 12 + 10 ngày · 1 người/game · 🪙20/10 phút</small></div>
+    <div class="top"><b>👑 Quản đốc</b><small>Cấp 16 + 20 ngày · 1 người/game · 🪙40/10 phút</small></div>
+  </div>
+  <div class="cols">
+    <div class="box"><ul>
+      <li>Từ Lành nghề trở lên phải bấm <b>Thăng chức</b>. Tinh thần +30.</li>
+      <li>Đủ điều kiện mà bạn để chờ quá 10 phút chơi: −0,5 tinh thần mỗi phút.</li>
+      <li><b>Thôi chức</b>: xuống một bậc, −20 tinh thần, ghế trống cho người khác.</li>
+      <li>Phụ cấp chỉ tính khi đang trong ca.</li>
+    </ul></div>
+    <div class="box"><ul>
+      <li><b>Tổ trưởng</b> đang làm: người khác +1 tinh thần mỗi phút; ai lướt điện thoại quá 20 giây được nhắc quay lại, miễn phí.</li>
+      <li><b>Quản đốc</b>: như Tổ trưởng, và tự mua cà phê cho người mệt, cơm cho người đói (trả bằng tiền của bạn).</li>
+    </ul></div>
+  </div>
+</section>
+
+<section>
+  <h2>Chỉ số, tay nghề, trang bị</h2>
+  <div class="cols">
+    <div class="box"><h3>4 chỉ số (1–5)</h3><ul>
+      <li>Cứ 20 việc được 1 điểm kỹ năng.</li>
+      <li>Nâng n → n+1: n điểm + 🪙100 × n.</li>
+      <li>Nhanh: +8% mỗi bậc. Thông minh: mẹo làm việc, 2 việc từ bậc 3. Chuẩn: ít lỗi, 2 sao từ bậc 3. Bền: sức lực +20 mỗi bậc, ít lười.</li>
+    </ul></div>
+    <div class="box"><h3>Tay nghề (tự lên)</h3><ul>
+      <li>Nông trại: Hái, Trồng, Tưới. Quán: Nhận order, Pha, Phục vụ.</li>
+      <li>Mới → Quen (50 lần) → Thạo (200) → Chuyên gia (600).</li>
+      <li>Mỗi bậc: việc đó nhanh hơn 5%, lỗi của việc đó −25%.</li>
+      <li>Giao việc cố định thì lên nhanh hơn.</li>
+    </ul></div>
+    <div class="box"><h3>Trang bị (mua, đi theo người)</h3><ul>
+      <li>👢 Ủng: đi nhanh +5 / 10 / 15%.</li>
+      <li>👒 Nón lá: mất sức chậm hơn 15 / 28 / 40%.</li>
+      <li>✂️ Kéo hái: hái non −20 / 35 / 50%.</li>
+      <li>🪣 Bình tưới: chăm 5 / 6 / 7 ô mỗi lần.</li>
+      <li>Quán: 👟 Giày (đi nhanh), 🎽 Tạp dề (đỡ mệt), 🍽️ Khay (làm đổ −20 / 35 / 50%), 🫖 Ấm pha (pha nhanh +8 / 16 / 25%).</li>
+      <li>Giá mỗi bậc 🪙80 → 160 → 320.</li>
+    </ul></div>
+  </div>
+</section>
+
+<section>
+  <h2>Robot: bộ phận, phần mềm, bảo hành</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>Bộ phận</th><th>Cấp 0 → 1 → 2 → 3</th></tr></thead>
+    <tbody>
+      <tr><td>🔋 Pin</td><td>chạy 3 → 4 → 6 → 9 phút mỗi lần sạc, sạc rẻ dần</td></tr>
+      <tr><td>⚙️ Động cơ</td><td>nhanh +0 → 10 → 20 → 35%, nhưng nóng hơn</td></tr>
+      <tr><td>❄️ Tản nhiệt</td><td>nóng chậm hơn 0 → 33 → 50 → 100% (cấp 3 không bao giờ nóng máy)</td></tr>
+      <tr><td>🛡️ Khung</td><td>kẹt và mòn ít hơn 0 → 33 → 56 → 70%</td></tr>
+    </tbody>
+  </table></div>
+  <div class="cols">
+    <div class="box robot"><ul>
+      <li>Giá bộ phận: 30% / 60% / 100% giá robot. Cấp 3 cần người chơi cấp 8.</li>
+      <li><b>Bảo hành</b>: 3 lần sửa kẹt đầu tiên miễn phí.</li>
+    </ul></div>
+    <div class="box robot"><ul>
+      <li>🔌 <b>Tự sạc</b> (⅓ giá robot, 🪙400): hết pin tự trả tiền sạc.</li>
+      <li>🧩 <b>Tự gỡ kẹt</b> (¼ giá robot, 🪙300): kẹt thì tự gỡ sau 10 giây.</li>
+      <li>Mua một lần, robot vẫn chỉ làm 1 việc.</li>
+    </ul></div>
+  </div>
+</section>
+
+<section>
+  <h2>Đối thủ dụ người</h2>
+  <div class="box"><ul>
+    <li>Mỗi 8 phút, 50% khả năng đối thủ (Bà Tư ở nông trại) ghé. Họ nhắm người cấp cao có tinh thần dưới 50, rồi người bạn để chờ thăng chức quá 10 phút, rồi người có tài hiếm.</li>
+    <li>Tinh thần từ 70 trở lên thì tự từ chối.</li>
+    <li>Còn lại bạn có 60 giây: trả 🪙50 × cấp để giữ (+20 tinh thần), hoặc để đi (hoàn 30% tiền thuê). Hết giờ không bấm thì mất người, không hoàn tiền.</li>
+  </ul></div>
+</section>
+
+<section>
+  <h2>Điểm cần cân nhắc</h2>
+  <ul class="review">
+    <li><b>Xếp loại tính theo giờ.</b> Người làm ít giờ nhưng hiệu quả có thể được A, trong khi người mang về nhiều tiền hơn chỉ được B.</li>
+    <li><b>Thâm niên tính theo ngày thật.</b> Lên Tổ trưởng cần ít nhất 10 ngày, Quản đốc 20 ngày.</li>
+    <li><b>Quản đốc tự tiêu tiền</b> mua cà phê, cơm mà không hỏi. Chưa có nút tắt.</li>
+    <li><b>Chờ thăng chức bị trừ tinh thần</b> có thể gây khó chịu nếu bạn chưa muốn trả phụ cấp.</li>
+    <li><b>Lương Tổng quản lý</b>: 🪙20 × số sao mỗi 10 phút ở mức Điều hành, gấp đôi ở Toàn quyền, cộng 5% / 15% lãi đội.</li>
+    <li><b>Bảo hành không có hạn ngày</b>, chỉ giới hạn 3 lần sửa.</li>
+    <li><b>Robot có thể hiện lãi âm</b> khi tiền sạc và bảo dưỡng nhiều hơn tiền nó kiếm.</li>
+    <li><b>Kho 40 hạt đầy nhanh</b>: nhân viên đứng chờ nếu không bán hạt thường xuyên.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Tổng quản lý</h2>
+  <div class="cols">
+    <div class="box"><h3>Thuê và trả lương</h3><ul>
+      <li>Mở ở cấp 6, tab <b>Quản lý</b> trong Nhân viên. Một người cho cả nông trại và quán.</li>
+      <li>Săn đầu người: 3 ứng viên khác sao (1–5), phong cách (Cẩn thận / Cân bằng / Liều), trung thành. Phí 🪙400 × sao.</li>
+      <li>Lương mỗi 10 phút: 🪙20 × sao × (Cố vấn ×0,5 · Điều hành ×1 · Toàn quyền ×2), cộng 0 / 5 / 15% lãi đội. Trừ mỗi phút.</li>
+    </ul></div>
+    <div class="box"><h3>Quyền hạn</h3><ul>
+      <li>Quản lý chỉ <b>giữ hiện trạng</b>: chăm sóc, sạc sửa robot, đổi ca, bán và mua hạt, giữ người bị dụ. Cùng lắm lời chút ít.</li>
+      <li><b>Phát triển là việc của bạn</b>: tuyển, đuổi, thăng chức, nâng chỉ số, máy móc, phần mềm. Quản lý chỉ gợi ý, có nút đưa bạn tới đúng chỗ.</li>
+      <li><b>Cố vấn</b>: chỉ gợi ý. <b>Điều hành</b>: tự làm trong ngân sách 10 phút, việc từ ngưỡng (100 / 300 / 1.000) trở lên chờ bạn duyệt, quá 5 phút thì bị tắc. <b>Toàn quyền</b>: tự làm mọi việc giữ đội, không cần hỏi.</li>
+      <li>Không bao giờ: tiền thật, vay tiền, xây dựng, mua đất.</li>
+    </ul></div>
+    <div class="box"><h3>Bị dụ và rối loạn</h3><ul>
+      <li><b>Tinh thần</b> tụt khi quản lý rảnh việc (bạn tự làm hết, sau 3 phút: −1 mỗi phút), khi bạn vắng mặt (sau 20 phút: −1 mỗi phút, đối thủ ghé gấp đôi; không cộng dồn với rảnh việc), và khi bạn tắt game lâu (quá 2 giờ: −10 mỗi giờ, tối đa −40). Quay lại mà tinh thần dưới 70 thì đối thủ đang dụ ngay.</li>
+      <li>Tinh thần tăng khi có việc làm, khi bạn duyệt yêu cầu, khi được trả lương đủ.</li>
+      <li>Đối thủ ghé mỗi 8 phút (40%). Tinh thần từ 70 trở lên thì tự từ chối.</li>
+      <li>Có 3 phút để giữ: thưởng (20 lần lương cứng) hoặc tăng lương 20% lâu dài.</li>
+      <li><b>Khi bạn tắt game</b>: quản lý vẫn giữ đội chạy tối đa 120 phút, được 50% (Điều hành) hoặc 70% (Toàn quyền) mức lãi của đội, trừ lương. Quay lại có thông báo.</li>
+      <li>Mất quản lý: đội lười ×2, tinh thần −1 mỗi phút, việc giao bị xóa. Hết khi họp đội (🪙300 + 🪙50 mỗi người) hoặc thuê người mới. Có Quản đốc thì chỉ một nửa và Quản đốc tạm làm cố vấn.</li>
+    </ul></div>
+  </div>
+</section>
+
+<section>
+  <h2>Sự cố cấp 10: người đi theo</h2>
+  <div class="box"><ul>
+    <li>Tới cấp 10 là <b>xong phần tập sự</b>, làm lại từ đầu là cuộc chơi thật. Game giải thích rõ điều này.</li>
+    <li>Trước khi làm lại, một nhân viên xin đi theo: người có tinh thần cao nhất, hoặc (25% nếu có robot) một robot "sống với người lâu quá nên có ý thức". Bạn chọn <b>Cho đi theo</b> hoặc <b>Thôi</b>.</li>
+    <li>Người đi theo giữ nguyên tay nghề, cấp, trang bị, và vào làm ở vùng mới. Tiền nuôi mỗi 10 phút (nhân viên 10% giá thuê, tối thiểu 🪙10; robot 🪙20), làm hay nghỉ đều tính. Hết tiền thì ghi nợ.</li>
+  </ul></div>
+</section>
+
+<section>
+  <h2>Chưa làm</h2>
+  <div class="cols">
+    <div class="box"><ul>
+      <li>Phòng nghiên cứu: đã làm đủ (Bàn thử món, Nguồn hàng, Ruộng thử); quản lý chỉ gợi ý. <a href="https://claude.ai/artifact/V2X8wmgeoQHYiGRPSDoJBJ">Xem thiết kế</a>.</li>
+    </ul></div>
+    <div class="box"><ul>
+      <li>Thiết kế Tổng quản lý: <a href="https://claude.ai/artifact/3kV4dDFk8WYR5x6o9AmzuZ">xem trang đề xuất</a>.</li>
+      <li>Các con số đều nằm trong <code>src/core/config/economy.js</code>, đổi nhanh.</li>
+    </ul></div>
+  </div>
+</section>
+</div>

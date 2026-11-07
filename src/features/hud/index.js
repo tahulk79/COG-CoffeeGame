@@ -1,7 +1,7 @@
 // V3 HUD (DOM only): minimal top HUD, bottom toolbar, contextual action bar, sheets, placement controls,
 // confirm modal, Teacher dialogue, toasts and the tutorial overlay. API per docs/design/v3-architecture.md §HUD API.
 import '../../ui/styles/v3.css';
-import { CROP_ORDER, DRINK_ORDER, autoPrice } from '../../core/config/economy.js';
+import { GM, CROP_ORDER, DRINK_ORDER, autoPrice } from '../../core/config/economy.js';
 import { cropUnlocked, drinkUnlocked, region, bothGames, regionGame, currentGames, pendingGifts, isChestLevel } from '../../core/derive.js';
 import { sfx } from '../../shared/audio/index.js';
 import { h } from './dom.js';
@@ -11,7 +11,7 @@ import { createToolbar, seenKey } from './toolbar.js';
 import { createActionBar } from './action-bar.js';
 import { createShopStrip } from './shop-strip.js';
 import { createSheetHost } from './sheet.js';
-import { buildSheet, seedsSheet, menuSheet, progressSheet, drinkSeenKey, buyAuto, beansSheet, loanSheet, setBuildTab } from './sheets.js';
+import { buildSheet, seedsSheet, menuSheet, progressSheet, drinkSeenKey, buyAuto, beansSheet, loanSheet, setBuildTab, supplySheet } from './sheets.js';
 import { roundsSheet } from './rounds.js';
 import { createStaffModal } from './staff-modal.js';
 import { createPlacementBar } from './placement.js';
@@ -49,6 +49,7 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
   ctx.confirm = opts => modals.confirm(opts);
   ctx.clearSelection = () => { ctx.realm?.select?.(null); setSelection(null); };
   ctx.onSheetClosed = () => { if (!staffModal.isOpen) delete root.dataset.sheet; ctx.buildNear = null; syncPlantHighlight(); tutorial.refresh(); };
+  ctx.rerenderSheet = () => { if (sheet.openId) sheet.rerender(); }; // a sheet's own controls (e.g. the test bench) repaint it
   ctx.onStaffClosed = () => { if (!sheet.openId) delete root.dataset.sheet; tutorial.refresh(); };
   // Seeds sheet open → the realm highlights the empty fields (a planting hint); off again when it closes.
   let plantHighlight = false;
@@ -125,7 +126,7 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
     if (id === 'menu') { // same for new drinks
       for (const drink of DRINK_ORDER) if (drinkUnlocked(s, drink) && !s.story.seen?.[drinkSeenKey(drink)]) store.dispatch('story/seen', { key: drinkSeenKey(drink) });
     }
-    const render = { beans: () => beansSheet(ctx), build: () => buildSheet(ctx), seeds: () => seedsSheet(ctx), menu: () => menuSheet(ctx), progress: () => progressRender, rounds: () => roundsRender, loan: () => loanRender }[id];
+    const render = { beans: () => beansSheet(ctx), build: () => buildSheet(ctx), seeds: () => seedsSheet(ctx), menu: () => menuSheet(ctx), supply: () => supplySheet(ctx), progress: () => progressRender, rounds: () => roundsRender, loan: () => loanRender }[id];
     if (!render) return;
     if (ctx.selection) ctx.clearSelection();
     if (landWanted) ctx.setLandMode(null);
@@ -321,6 +322,19 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
   });
   renderAll(store.state);
 
+  // General manager mood (docs/design/general-manager.md): any touch tells the manager the boss is around — at most
+  // once per GM.mood.seenEverySeconds, and once right away (a return after hours away is judged here).
+  let seenClock = 0;
+  const seen = () => {
+    const now = Date.now();
+    if (!store.state.gm?.unit || now - seenClock < GM.mood.seenEverySeconds * 1000) return;
+    seenClock = now;
+    store.dispatch('gm/seen', {});
+  };
+  document.addEventListener('pointerdown', seen, { passive: true, capture: true });
+  document.addEventListener('keydown', seen, { capture: true });
+  const seenBoot = setTimeout(seen, 1500);
+
   // Screen bands the HUD covers (top bar / toolbar + action card), told to the realm camera so selections and tutorial
   // focus slide a target out from under the card (Hay Day rule: slide only when covered or off-screen).
   const shown = el => !!el && !el.hidden && el.getClientRects().length > 0;
@@ -398,6 +412,9 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
     },
     dispose() {
       unsubscribe();
+      clearTimeout(seenBoot);
+      document.removeEventListener('pointerdown', seen, { capture: true });
+      document.removeEventListener('keydown', seen, { capture: true });
       document.removeEventListener('keydown', onKeyDown);
       ctx.realm?.setTutorialTarget?.(null);
       if (plantHighlight) ctx.realm?.setPlantHighlight?.(false);

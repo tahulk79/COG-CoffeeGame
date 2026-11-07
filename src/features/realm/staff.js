@@ -45,9 +45,9 @@
 // paid fix (D.quickFix) carry the 🪙 bubble; the realm's tap maps it to the right staff/care kind. Worker tasks (u.tasks)
 // restrict the job types a worker takes on both areas.
 import * as THREE from 'three';
-import { STAFF, CROP_ORDER, DRINKS, STAFF_BREAKS, ROBOT_TASKS, ROBOT_AUTO, unitSpeed, batteryMinutes, slackMul, hasRule, robotTask, mistakeChance, partTier, isHardDrink, BEANS, TEND, jamChance, energyMax, RIVAL, BOOKS } from '../../core/config/economy.js';
+import { STAFF, CROP_ORDER, DRINKS, STAFF_BREAKS, ROBOT_TASKS, ROBOT_AUTO, unitSpeed, batteryMinutes, slackMul, hasRule, robotTask, mistakeChance, partTier, isHardDrink, BEANS, TEND, jamChance, energyMax, RIVAL, BOOKS, CAREER, GM, craftSpeed, rankOf, gearWalk, gearJob, hasSoftware, SOFTWARE } from '../../core/config/economy.js';
 import { PARCELS, FIXED } from '../../core/config/layout.js';
-import { assignedUnits, ownedPlots, plotState, cropUnlocked, seedCost, capacity, stored, plotOf, tileAt, seatCount, seatsUsed, brewSlots, seatPatienceRatio, beanBuyQuote, plotGrowMs, canBrew, region as regionOf, unitState, unitBlocked, unitWorking, stateSpeedMul, quickFix, upgradableStats, buildingsOf, footprint } from '../../core/derive.js';
+import { assignedUnits, ownedPlots, plotState, cropUnlocked, seedCost, capacity, stored, plotOf, tileAt, seatCount, seatsUsed, brewSlots, seatPatienceRatio, beanBuyQuote, plotGrowMs, canBrew, region as regionOf, unitState, unitBlocked, unitWorking, stateSpeedMul, quickFix, upgradableStats, buildingsOf, footprint, zoneLeaders, nudgeDue, needs, careError, chaosSlackMul, gmOf, gmThinkSeconds } from '../../core/derive.js';
 import { assignPosts, pickShopJob, orderBlock, waitsForBrew, secondCup, nearestFirst, urgencyK, facing, yieldsTo, isReady, POST_JOBS, autoTask, ROBOT_POST, allows, ctxTakes, TICKS, vitalsInterval, vitalsNoop, timerDue, poseOf, stateIconKey, showsFix, knockStep, KNOCK } from './staff-brain.js';
 import { createPerson } from '../../characters/player.js';
 import { dressPerson } from '../../characters/npc.js';
@@ -350,8 +350,8 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
   // tile grid (no field or building footprint under it); else the nearest free standable spot on rings around it.
   const farmFree = (state, x, z) => !tileAt(state, x, z)?.occupant;
   function freeFarmSpot(state, spot) {
-    if (farmFree(state, spot.x, spot.z)) return spot;
-    for (let r = .75; r <= 6; r += .75) {
+    if (farmFree(state, spot.x, spot.z) && canStand('farm', spot.x, spot.z)) return spot;
+    for (let r = .75; r <= 8; r += .75) {
       for (let k = 0; k < 12; k++) {
         const a = k * Math.PI / 6, x = spot.x + Math.cos(a) * r, z = spot.z + Math.sin(a) * r;
         if (farmFree(state, x, z) && canStand('farm', x, z)) return { x, z };
@@ -450,14 +450,19 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     if ((e.vT += dt) >= interval) flushVitals(e, false);
   }
   const vitalsView = { robot: false, energy: 100, max: 100, morale: 100, funny: false, heat: 0 };
+  // A batch that would change no vital is held back (no store churn) but its seconds are kept: the profile counts time
+  // on shift, so held seconds go out with the next real batch, or on their own once SKIP_FLUSH seconds pile up.
+  const SKIP_FLUSH = 30;
   function flushVitals(e, force) {
-    const w = e.vWork, r = e.vRest, n = e.vJobs;
+    let w = e.vWork, r = e.vRest;
+    const n = e.vJobs;
     e.vT = 0; e.vWork = 0; e.vRest = 0; e.vJobs = 0;
     const u = e.u;
     if (!u) return;
     vitalsView.robot = e.kind === 'robot'; vitalsView.energy = u.energy ?? 100; vitalsView.max = energyMax(u);
     vitalsView.morale = u.morale ?? 0; vitalsView.funny = u.trait === 'funny'; vitalsView.heat = u.heat || 0;
-    if (!force && vitalsNoop(vitalsView, w, n)) return;
+    if (!force && vitalsNoop(vitalsView, w, n) && (e.heldS || 0) + w + r < SKIP_FLUSH) { e.heldS = (e.heldS || 0) + w + r; return; }
+    r += e.heldS || 0; e.heldS = 0;
     act('staff/vitals', { uid: e.uid, work: Math.round(w * 10) / 10, rest: Math.round(r * 10) / 10, jobs: n });
   }
 
@@ -474,7 +479,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     if (!wp) { e.moving = false; return true; }
     const dx = wp.x - p.x, dz = wp.z - p.z, dist = Math.hypot(dx, dz);
     if (dist < (e.path.length > 1 ? .2 : .1)) { e.path.shift(); e.moving = e.path.length > 0; return !e.path.length; }
-    const step = Math.min(dist, SPEED[e.kind] * (e.type === 'brewBot' ? 1.15 : 1) * unitSpeed(e.u) * (e.speedK || 1) * (e.stateK || 1) * dt); // stateK: tired ×0.6, hungry ×0.7
+    const step = Math.min(dist, SPEED[e.kind] * (e.type === 'brewBot' ? 1.15 : 1) * unitSpeed(e.u) * gearWalk(e.u) * (e.speedK || 1) * (e.stateK || 1) * dt); // gearWalk: boots // stateK: tired ×0.6, hungry ×0.7
     p.x += dx / dist * step; p.z += dz / dist * step;
     e.moving = true;
     e.yaw = Math.atan2(dx, dz);
@@ -734,7 +739,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     const q = beanBuyQuote(state, BEANS.buyPack);
     if (q.error || q.free) return;
     restockAt = performance.now();
-    if (act('shop/buyBeans', {}).ok && say) say(e.root, 'realm.staff.restock', { tone: 'happy', priority: 1 });
+    if (act('shop/buyBeans', { roll: Math.random() }).ok && say) say(e.root, 'realm.staff.restock', { tone: 'happy', priority: 1 });
   }
   // A hard drink waits and this unit may not brew it: say so (robots report, workers in their voice), every 20 s.
   function hardLine(e, state, ctx) {
@@ -803,7 +808,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
       e.think = 0;
     } else if (j.type === 'order') {
       const queued = getQueued();
-      if (queued != null && seatsUsed(state) < seatCount(state) && act('shop/takeOrder', { orderId: queued }).ok) workDone(e);
+      if (queued != null && seatsUsed(state) < seatCount(state) && act('shop/takeOrder', { orderId: queued, uid: e.uid }).ok) workDone(e);
       e.think = 0; // chain: the all-rounder's next pick is brewing what it just took
     } else if (j.type === 'brew') {
       const orders = r?.shop.orders || [];
@@ -1099,10 +1104,11 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
   }
 
   // Team timers (seconds of play): bench upkeep, rival visits per zone, MVP; rival/resolve once the poach time is up.
-  const timers = { upkeep: 0, rival: { farm: 0, shop: 0 }, mvp: 0, resolved: null, started: false };
+  const timers = { upkeep: 0, rival: { farm: 0, shop: 0 }, mvp: 0, resolved: null, started: false, boss: 0, gmThink: 0, gmPay: 0, gmRival: 0 };
   const workersIn = { farm: 0, shop: 0 };
   const ZONES = ['farm', 'shop'];
   function teamTimers(dt, state, now) {
+    gmTimers(dt, state);
     if (!units.size) return;
     // The first call only starts the reducer's clock (once per session, so a failed call cannot repeat every frame).
     if ((timers.upkeep += dt) >= TICKS.upkeepSeconds || (!state.staff.upkeepAt && !timers.started)) { timers.upkeep = 0; timers.started = true; act('staff/upkeep', {}); }
@@ -1115,6 +1121,57 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     const p = state.staff.poach;
     if (p && now > p.until && timers.resolved !== p.until) { timers.resolved = p.until; act('rival/resolve', {}); }
     if ((timers.mvp += dt) >= BOOKS.mvpMinutes * 60) { timers.mvp = 0; act('staff/mvp', {}); }
+    if ((timers.boss += dt) >= CAREER.manager.careEverySeconds) { timers.boss = 0; leaderRound(now); softwareRound(now); }
+  }
+  // General manager (docs/design/general-manager.md): thinks every gmThinkSeconds (by skill), paid about every minute,
+  // a rival may come for it every GM.poach.everyMinutes. Runs whether or not any staff is drawn.
+  function gmTimers(dt, state) {
+    const gm = gmOf(state);
+    if (!gm) { timers.gmThink = timers.gmPay = timers.gmRival = 0; return; }
+    if ((timers.gmThink += dt) >= gmThinkSeconds(gm)) { timers.gmThink = 0; act('gm/tick', { roll: Math.random() }); }
+    if ((timers.gmPay += dt) >= 60 || !state.gm.payAt) { timers.gmPay = 0; act('gm/payroll', {}); }
+    if ((timers.gmRival += dt) >= GM.poach.everyMinutes * 60) { timers.gmRival = 0; act('gm/rivalVisit', { roll: Math.random() }); }
+    // a poach that ran out resolves on the next think (gm/tick)
+  }
+  // Robot software packs (step 4): autoCharge pays the recharge itself when the battery is empty (your coins);
+  // autoUnjam knocks itself free once jammed for SOFTWARE.packs.autoUnjam.seconds.
+  function softwareRound(now) {
+    for (const e of units.values()) {
+      const u = e.u;
+      if (!u || e.kind !== 'robot' || !u.stopped) continue;
+      if (u.stopped.kind === 'battery' && hasSoftware(u, 'autoCharge') && !careError(store.state, u, 'recharge', now)) act('staff/care', { uid: u.uid, kind: 'recharge', by: u.uid });
+      else if (u.stopped.kind === 'jam' && hasSoftware(u, 'autoUnjam') && now - (u.stopped.at || now) >= SOFTWARE.packs.autoUnjam.seconds * 1000) act('staff/care', { uid: u.uid, kind: 'knock', by: u.uid });
+    }
+  }
+  // Career effects (docs/design/staff-profile.md step 3): a working lead / manager sends phone slackers back (free) after
+  // CAREER.lead.nudgeSeconds; a manager buys coffee / food for tired / hungry workers of its zone (your coins).
+  function leaderRound(now) {
+    for (const zone of ZONES) {
+      const bosses = zoneLeaders(store.state, zone, now);
+      if (!bosses.length) continue;
+      const manager = bosses.find(b => rankOf(b) === 'manager');
+      for (const e of units.values()) {
+        const u = e.u;
+        if (!u || e.zone !== zone || e.kind !== 'worker' || bosses.some(b => b.uid === u.uid)) continue;
+        if (nudgeDue(store.state, u, now)) { act('staff/nudge', { uid: u.uid }); continue; }
+        if (!manager || !u.active || u.stopped) continue;
+        const need = needs(u);
+        const kind = need.hungry ? 'food' : need.tired ? 'coffee' : null;
+        if (kind && !careError(store.state, u, kind, now)) act('staff/care', { uid: u.uid, kind, by: manager.uid });
+      }
+    }
+  }
+
+  // Worker leg swing while moving (dressPerson reads the stride for the walk animation; a stride that stops changing = idle).
+  function swingLegs(e, dt) {
+    const legs = e.root.userData.legs;
+    if (legs && e.moving && !e.sitting) { e.walk += dt * 9 * (e.speedK || 1); legs[0].rotation.x = Math.sin(e.walk) * .6; legs[1].rotation.x = -Math.sin(e.walk) * .6; }
+  }
+  // Smoothly turns the body towards e.yaw (the heading set by moveTo / looking around).
+  function turnToYaw(e, dt) {
+    let d = e.yaw - e.root.rotation.y;
+    d = Math.atan2(Math.sin(d), Math.cos(d));
+    e.root.rotation.y += d * dampK(10, dt);
   }
 
   // Per frame. state = store.state, now = Date.now(); time = realm clock.
@@ -1130,7 +1187,9 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
       if (e.kind === 'worker') workersIn[e.zone]++;
       if (!paused) tickUnit(e, dt, now, interval);
       sitPose(e, dt);
-      if (e.stopped) { onBreak(e, time, paused ? 0 : dt); trackPad(e); continue; }
+      // A phone slacker on the farm still wanders: it must walk (legs) and face where it goes like everyone else,
+      // or it slides sideways in its idle pose.
+      if (e.stopped) { onBreak(e, time, paused ? 0 : dt); if (e.kind === 'worker') swingLegs(e, dt); turnToYaw(e, dt); trackPad(e); continue; }
       if (e.label.sprite.material.opacity !== 1) e.label.sprite.material.opacity = 1;
       if (e.flash > 0 && (e.flash -= dt) <= 0) setStatus(e, '');
       // Visuals: robot bob, worker leg swing while moving (dressPerson reads it for the walk anim).
@@ -1138,22 +1197,17 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
         e.body.rotation.x *= 1 - dampK(6, dt);
         e.body.position.y = .25 + Math.sin(time * 2.4 + e.phase) * .08;
         if (!e.moving) e.body.rotation.y = Math.sin(time * .8 + e.phase) * .35; else e.body.rotation.y *= 1 - dampK(8, dt);
-      } else {
-        const legs = e.root.userData.legs;
-        if (legs && e.moving) { e.walk += dt * 9; legs[0].rotation.x = Math.sin(e.walk) * .6; legs[1].rotation.x = -Math.sin(e.walk) * .6; }
-      }
+      } else swingLegs(e, dt);
       if (e.up) { e.up.sprite.visible = !!e.canTrain && !e.stopped; if (e.up.sprite.visible) e.up.sprite.position.y = 2.95 + Math.abs(Math.sin(time * 3.4 + e.phase)) * .12; }
       if (e.label.sprite.visible) e.label.sprite.position.y = (e.kind === 'robot' ? 2.25 : 2.35) + Math.abs(Math.sin(time * 3 + e.phase)) * .08;
-      let d = e.yaw - e.root.rotation.y;
-      d = Math.atan2(Math.sin(d), Math.cos(d));
-      e.root.rotation.y += d * dampK(10, dt);
+      turnToYaw(e, dt);
       if (paused) { e.moving = false; continue; }
       if (!e.working) { offShift(e, dt, time); trackPad(e); continue; }
       // Breaks happen only while really working (a job in progress).
       if (e.job) {
         const brk = STAFF_BREAKS[e.kind];
         if (e.kind === 'robot') { if ((e.workT += dt) >= batteryMinutes(e.u) * 60) { e.workT = 0; act('staff/stop', { uid: e.uid }); continue; } }
-        else if (Math.random() < brk.slackChancePerMinute * slackMul(e.u) * dt / 60) { act('staff/stop', { uid: e.uid }); continue; }
+        else if (Math.random() < brk.slackChancePerMinute * slackMul(e.u) * chaosSlackMul(state, e.zone) * dt / 60) { act('staff/stop', { uid: e.uid }); continue; } // chaos: slack ×2
       }
       if (e.sideCool > 0) e.sideCool -= dt;
       // Lane step-aside (set by separate): a short sidestep, the job / path resumes after it.
@@ -1206,7 +1260,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
       }
       if (j.work === 0 && j.type !== 'deliver') vfx?.burst(j.type === 'harvest' || j.type === 'plant' ? 'leaf' : 'steam', e.root.position, { count: 4 });
       j.work += dt;
-      if (j.work >= (j.type === 'deliver' ? .25 : WORK[e.type] || 1) / (unitSpeed(e.u) * (e.stateK || 1))) finish(e, store.state, Date.now());
+      if (j.work >= (j.type === 'deliver' ? .25 : WORK[e.type] || 1) / (unitSpeed(e.u) * craftSpeed(e.u, j.type) * gearJob(e.u, j.type) * (e.stateK || 1))) finish(e, store.state, Date.now()); // craft: practiced jobs go faster
     }
     if (!paused && units.size > 1) { sepList.length = 0; for (const e of units.values()) if (e.root.visible) sepList.push(e); separate(sepList); }
     if (!paused) teamTimers(dt, state, now);
@@ -1257,6 +1311,13 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     },
     /** Zone ('farm' | 'shop') of a unit shown by the realm, or null. */
     zoneOf: uid => units.get(uid)?.zone || null,
+    /** What the profile photo frames: a unit drawn in the area on screen (dressed worker or robot) + its face height. */
+    portraitOf(uid) {
+      const e = units.get(uid);
+      if (!e || !e.root.visible || !zones[e.zone]?.visible) return null;
+      if (e.kind === 'worker' && !e.body.userData.dressed) return null;
+      return { root: e.root, head: e.kind === 'robot' ? 1.12 : 1.5, kind: e.kind };
+    },
     /** Puts the highlight ring under a unit for RING_SECONDS; returns its position (live vector) or null. */
     highlight(uid) {
       const e = units.get(uid);

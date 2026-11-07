@@ -1,6 +1,7 @@
 // Save schema v3 (Farm & Café V3). Stored under its own localStorage key, so the old v1 save is never overwritten.
-import { START, BUILDINGS, STAFF, TRAITS, RECRUIT, ROBOT_TASKS, PLAYTEST, SKILL, STAT_ORDER, VITALS, RARE, WORKER_TASKS, BOOKS, energyMax, levelForXp, startCoins, VENUES, RATING, CELL } from './config/economy.js';
+import { CROPS, GM, GEAR, SOFTWARE, WARRANTY, PROFILE, CAREER, CRAFT, autoRank, profileOfUid, robotSerial, START, BUILDINGS, STAFF, TRAITS, RECRUIT, ROBOT_TASKS, PLAYTEST, SKILL, STAT_ORDER, VITALS, RARE, WORKER_TASKS, BOOKS, energyMax, levelForXp, startCoins, VENUES, RATING, CELL } from './config/economy.js';
 import { COUNTRIES, LEGACY_REGIONS, isRegionId, regionGames } from './config/world.js';
+import { countryRecipes, SUPPLY } from './config/research.js';
 import { FIXED, PARCELS, LOT_KINDS, areaOfParcel, inRect, rectsOverlap, plotsOf } from './config/layout.js';
 import { RECIPES, GOODS, ITEM_GOODS } from './config/economy.js';
 
@@ -28,7 +29,15 @@ export function createSave(now = Date.now(), character = null) {
     // pool: each game's applicant board (RECRUIT): seed draws the 3 applicants (applicantsFor), at = when it was drawn.
     // upkeepAt: last bench upkeep charge; ledger: team earned / spent per game minute; journal: newest first;
     // poach: a rival's offer in progress { uid, zone, until, fee }; mvp: the last MVP (docs/design/staff-manager.md).
-    staff: { units: [], pool: { farm: { seed: 1, at: 0 }, shop: { seed: 2, at: 0 } }, upkeepAt: 0, ledger: [], journal: [], poach: null, mvp: null },
+    staff: { units: [], pool: { farm: { seed: 1, at: 0 }, shop: { seed: 2, at: 0 } }, upkeepAt: 0, ledger: [], daily: [], gearStock: [], journal: [], poach: null, mvp: null },
+    // gm: the general manager (docs/design/general-manager.md) — hired unit, powers, budget window, requests, chaos.
+    gm: newGmState(),
+    // research: recipes found per country (menu item indices), the last tests per country, the bench's busy time.
+    research: { known: {}, tests: {}, busyUntil: 0 },
+    // supply: suppliers / buyers found per region and group, contracts, the chosen / locked buyer, the scout, late beans.
+    supply: { found: {}, contracts: {}, buyer: {}, scout: null, pending: [] },
+    // farmLab: adopted crop methods, trial fields running and their results — per region (research step 3).
+    farmLab: { methods: {}, trials: {}, results: {} },
     rewards: { claimed: [], tickets: 0 }, // level gifts opened (levels) + free-hire tickets
     loan: null,                           // { amount, owed, takenAt } while a loan is open
     // mode: the current region's game (region.mode: 'farm' | 'cafe'; null → the HUD asks, offering only the games the
@@ -123,19 +132,31 @@ export function normalizeSave(raw, now = Date.now()) {
     u.paid = num(u.paid, 0, 0, 1e9);
     if (u.perk != null && !RARE.perks.includes(u.perk)) delete u.perk;
     u.book = normalizeBook(u.book, now);
+    normalizeProfile(u, now);
     if (u.stopped != null && !(obj(u.stopped) && typeof u.stopped.kind === 'string')) delete u.stopped;
     if (!obj(u.assigned) || typeof u.assigned.regionId !== 'string') u.assigned = null;
   }
   normalizeActive(out.staff.units, levelForXp(out.player.xp));
   const st = obj(s.staff) || {};
   out.staff.upkeepAt = num(st.upkeepAt, 0, 0);
+  // Ledger rows (per minute) and team day rows (per local day): earned, spent and the spending categories.
+  const nums = row => Object.fromEntries(['earned', 'spent', 'robot', 'upgrade', 'upkeep', 'wage', 'hire', 'gm', 'research'].filter(k => num(row?.[k], 0, 0) > 0).map(k => [k, num(row[k], 0, 0)]));
+  const cats = row => ({ ...nums(row), ...Object.fromEntries(['farm', 'shop'].filter(z => obj(row[z])).map(z => [z, nums(row[z])])) });
   out.staff.ledger = (Array.isArray(st.ledger) ? st.ledger : []).filter(e => obj(e) && Number.isFinite(e.min))
-    .map(e => ({ min: e.min, earned: num(e.earned, 0, 0), spent: num(e.spent, 0, 0) })).slice(-BOOKS.ledgerKeep);
+    .map(e => ({ min: e.min, earned: num(e.earned, 0, 0), spent: num(e.spent, 0, 0), ...cats(e) })).slice(-BOOKS.ledgerKeep);
+  out.staff.daily = (Array.isArray(st.daily) ? st.daily : backfillDaily(out.staff.units)).filter(e => obj(e) && Number.isInteger(e.d))
+    .map(e => ({ d: e.d, earned: num(e.earned, 0, 0), spent: num(e.spent, 0, 0), ...cats(e) })).sort((a, b) => a.d - b.d).slice(-PROFILE.teamDaysKeep);
   out.staff.journal = (Array.isArray(st.journal) ? st.journal : []).filter(e => obj(e) && typeof e.type === 'string' && Number.isFinite(e.at)).slice(0, BOOKS.journalKeep);
   const po = obj(st.poach);
   out.staff.poach = po && out.staff.units.some(u => u.uid === po.uid) && Number.isFinite(po.until)
     ? { uid: po.uid, zone: po.zone === 'shop' ? 'shop' : 'farm', until: po.until, fee: num(po.fee, 0, 0, 1e6) } : null;
   out.staff.mvp = obj(st.mvp) ? st.mvp : null;
+  out.gm = normalizeGm(s.gm);
+  out.research = normalizeResearch(s.research);
+  out.supply = normalizeSupply(s.supply);
+  out.farmLab = normalizeFarmLab(s.farmLab);
+  out.staff.gearStock = (Array.isArray(st.gearStock) ? st.gearStock : []).filter(g => obj(g) && (g.zone === 'farm' || g.zone === 'shop') && GEAR.items[g.item] && (GEAR.zone[g.zone] || []).includes(g.item))
+    .map(g => ({ zone: g.zone, item: g.item, tier: num(g.tier, 1, 1, GEAR.maxTier) | 0 })).slice(-GEAR.stockKeep);
   const pool = obj(s.staff?.pool) || {};
   out.staff.pool = {};
   for (const [zone, d] of Object.entries(base.staff.pool)) {
@@ -185,6 +206,138 @@ function normalizeWorker(u) {
   u.tasks = Array.isArray(u.tasks) ? [...new Set(u.tasks.filter(t => allowed.includes(t)))].slice(0, 2) : [];
   if (u.breakUntil != null && !Number.isFinite(u.breakUntil)) delete u.breakUntil;
   delete u.task; delete u.parts; delete u.heat; delete u.wear;
+}
+// Crop methods block: [s, d, f] each 0..2, trials with a plot id, results keyed by method.
+function normalizeFarmLab(raw) {
+  const r = obj(raw) || {}, out = { methods: {}, trials: {}, results: {} };
+  const ok = m => Array.isArray(m) && m.length === 3 && m.every(v => Number.isInteger(v) && v >= 0 && v <= 2);
+  for (const [rid, c] of Object.entries(obj(r.methods) || {})) { const o = {}; for (const [crop, m] of Object.entries(obj(c) || {})) if (CROPS[crop] && ok(m)) o[crop] = [...m]; if (Object.keys(o).length) out.methods[rid] = o; }
+  for (const [rid, list] of Object.entries(obj(r.trials) || {})) { const l = (Array.isArray(list) ? list : []).filter(t => obj(t) && typeof t.plotId === 'string' && CROPS[t.crop] && ok(t.method)); if (l.length) out.trials[rid] = l.map(t => ({ plotId: t.plotId, crop: t.crop, method: [...t.method], at: num(t.at, 0, 0) })); }
+  for (const [rid, c] of Object.entries(obj(r.results) || {})) {
+    const o = {};
+    for (const [crop, byKey] of Object.entries(obj(c) || {})) { if (!CROPS[crop]) continue; const k = {}; for (const [key, x] of Object.entries(obj(byKey) || {})) if (obj(x) && ok(x.method)) k[key] = { method: [...x.method], beans: num(x.beans, 0, 0), ms: num(x.ms, 0, 0), up: !!x.up, at: num(x.at, 0, 0) }; if (Object.keys(k).length) o[crop] = k; }
+    if (Object.keys(o).length) out.results[rid] = o;
+  }
+  return out;
+}
+// Supply block: counts, contracts and buyers keyed by region id; unknown shapes dropped.
+function normalizeSupply(raw) {
+  const r = obj(raw) || {}, out = { found: {}, contracts: {}, buyer: {}, scout: null, pending: [] };
+  const groups = [...SUPPLY.groupOrder, 'buyers'];
+  for (const [rid, f] of Object.entries(obj(r.found) || {})) {
+    const o = {}; for (const g of groups) { const n = num(obj(f)?.[g], 0, 0, g === 'buyers' ? SUPPLY.buyers.count : SUPPLY.perGroup) | 0; if (n) o[g] = n; }
+    if (Object.keys(o).length) out.found[rid] = o;
+  }
+  for (const [rid, c] of Object.entries(obj(r.contracts) || {})) {
+    const o = {}; for (const g of SUPPLY.groupOrder) { const x = obj(obj(c)?.[g]); if (x && Number.isInteger(x.i) && Number.isFinite(x.until)) o[g] = { i: x.i, until: x.until, days: num(x.days, 1, 1, 7) | 0 }; }
+    if (Object.keys(o).length) out.contracts[rid] = o;
+  }
+  for (const [rid, b] of Object.entries(obj(r.buyer) || {})) {
+    const x = obj(b); if (!x || !Number.isInteger(x.i)) continue;
+    out.buyer[rid] = x.lockedUntil > 0 && obj(x.mul) ? { i: x.i, lockedUntil: x.lockedUntil, mul: { ...x.mul } } : { i: x.i };
+  }
+  const sc = obj(r.scout);
+  if (sc && typeof sc.regionId === 'string' && Number.isFinite(sc.until) && typeof sc.group === 'string') out.scout = { regionId: sc.regionId, group: sc.group, until: sc.until };
+  out.pending = (Array.isArray(r.pending) ? r.pending : []).filter(p => obj(p) && Number.isFinite(p.at) && p.amount > 0).map(p => ({ amount: p.amount | 0, at: p.at }));
+  return out;
+}
+// Research block: known recipe indices per country (valid indices only), last tests, bench time.
+function normalizeResearch(raw) {
+  const r = obj(raw) || {}, out = { known: {}, tests: {}, busyUntil: num(r.busyUntil, 0, 0) };
+  for (const [cc, list] of Object.entries(obj(r.known) || {})) {
+    const max = countryRecipes(cc).length;
+    const ok = (Array.isArray(list) ? list : []).filter(i => Number.isInteger(i) && i >= 0 && i < max);
+    if (ok.length) out.known[cc] = [...new Set(ok)].sort((a, b) => a - b);
+  }
+  for (const [cc, list] of Object.entries(obj(r.tests) || {})) {
+    const ok = (Array.isArray(list) ? list : []).filter(t => obj(t) && Number.isFinite(t.at) && typeof t.result === 'string').slice(0, 8);
+    if (ok.length) out.tests[cc] = ok;
+  }
+  return out;
+}
+/** A fresh general-manager block (no GM hired). */
+export function newGmState() {
+  return { unit: null, mode: GM.defaults.mode, budget: GM.defaults.budget, bigLimit: GM.defaults.bigLimit, window: null, requests: [], log: [], days: [],
+    board: { seed: 7, at: 0 }, payAt: 0, lastJobAt: 0, seenAt: 0, poach: null, chaos: null };
+}
+// General manager block of a save: known values only; a broken one starts fresh (nothing else depends on it).
+function normalizeGm(raw) {
+  const g = obj(raw), out = newGmState();
+  if (!g) return out;
+  const u = obj(g.unit);
+  if (u && typeof u.name === 'string') out.unit = { name: u.name.slice(0, 20), gender: u.gender === 'male' ? 'male' : 'female', skill: num(u.skill, 1, 1, 5) | 0,
+    style: GM.styles[u.style] ? u.style : 'balanced', loyalty: num(u.loyalty, GM.loyalty.start, 0, 100), raises: num(u.raises, 0, 0, 20) | 0, hiredAt: num(u.hiredAt, 0, 0), paid: num(u.paid, 0, 0, 1e9) };
+  if (GM.modes[g.mode]) out.mode = g.mode;
+  if (GM.budgets.includes(g.budget)) out.budget = g.budget;
+  if (GM.bigLimits.includes(g.bigLimit)) out.bigLimit = g.bigLimit;
+  const w = obj(g.window);
+  if (w && Number.isFinite(w.start)) out.window = { start: w.start, spent: num(w.spent, 0, 0) };
+  out.requests = out.unit ? (Array.isArray(g.requests) ? g.requests : []).filter(q => obj(q) && typeof q.id === 'string' && obj(q.act) && typeof q.act.type === 'string' && Number.isFinite(q.until)).slice(0, GM.requestsKeep) : [];
+  out.log = (Array.isArray(g.log) ? g.log : []).filter(e => obj(e) && typeof e.type === 'string' && Number.isFinite(e.at)).slice(0, GM.logKeep);
+  out.days = (Array.isArray(g.days) ? g.days : []).filter(e => obj(e) && Number.isInteger(e.d)).map(e => ({ d: e.d, actions: num(e.actions, 0, 0) | 0, salary: num(e.salary, 0, 0), spent: num(e.spent, 0, 0) })).slice(-GM.daysKeep);
+  const b = obj(g.board);
+  if (b) out.board = { seed: Number.isInteger(b.seed) ? b.seed : out.board.seed, at: num(b.at, 0, 0) };
+  out.payAt = num(g.payAt, 0, 0);
+  out.lastJobAt = num(g.lastJobAt, 0, 0);
+  out.seenAt = num(g.seenAt, 0, 0);
+  if (g.moodNote === 'idle' || g.moodNote === 'absent') out.moodNote = g.moodNote;
+  const p = obj(g.poach);
+  out.poach = out.unit && p && Number.isFinite(p.until) ? { until: p.until, fee: num(p.fee, 0, 0, 1e9) } : null;
+  const c = obj(g.chaos);
+  out.chaos = !out.unit && c && Number.isFinite(c.since) ? { since: c.since } : null;
+  return out;
+}
+// Saves from before the team day rows: rebuild them from the units' own day rows (units that already left are lost).
+function backfillDaily(units) {
+  const days = new Map();
+  for (const u of units) {
+    const zone = STAFF[u.type].zone, robot = STAFF[u.type].kind === 'robot';
+    for (const r of u.days || []) {
+      const day = days.get(r.d) || { d: r.d, earned: 0, spent: 0 };
+      const z = (day[zone] ||= { earned: 0, spent: 0 });
+      const runCost = Math.max(0, (r.spent || 0) - (r.capex || 0) - (r.upkeep || 0));
+      for (const o of [day, z]) {
+        o.earned += r.earned || 0; o.spent += r.spent || 0;
+        if (r.capex) o.upgrade = (o.upgrade || 0) + r.capex;
+        if (r.upkeep) o.upkeep = (o.upkeep || 0) + r.upkeep;
+        if (robot && runCost) o.robot = (o.robot || 0) + runCost;
+      }
+      days.set(r.d, day);
+    }
+  }
+  return [...days.values()];
+}
+// Personnel file (docs/design/staff-profile.md): units hired before it get a stable age / hometown / serial from their
+// uid and their hire date from their book; day rows and the timeline are validated and trimmed.
+function normalizeProfile(u, now) {
+  u.hiredAt = num(u.hiredAt, u.book.since, 0);
+  if (STAFF[u.type].kind === 'robot') {
+    if (typeof u.serial !== 'string' || !u.serial) u.serial = robotSerial(u.type, u.uid);
+    delete u.age; delete u.home; delete u.rank; delete u.craft; delete u.eligibleAt;
+    u.software = Array.isArray(u.software) ? [...new Set(u.software.filter(p => SOFTWARE.packs[p]))] : [];
+    u.softwareSpent = num(u.softwareSpent, 0, 0, 1e9);
+    u.warrantyUsed = num(u.warrantyUsed, 0, 0, WARRANTY.repairs) | 0;
+    delete u.gear; delete u.gearSpent;
+  } else {
+    const p = profileOfUid(u.uid);
+    u.age = num(u.age, p.age, PROFILE.age[0], 99) | 0;
+    u.home = typeof u.home === 'string' && u.home ? u.home.slice(0, 32) : p.home;
+    // Career: a known rank (never below what the level gives); craft: counts of the zone's job types.
+    const auto = autoRank(u), i = CAREER.ranks.indexOf(u.rank);
+    u.rank = i >= CAREER.ranks.indexOf(auto) ? u.rank : auto;
+    const c = obj(u.craft) || {};
+    u.craft = Object.fromEntries((CRAFT.tasks[STAFF[u.type].zone] || []).filter(t => num(c[t], 0, 0) > 0).map(t => [t, num(c[t], 0, 0, 1e7) | 0]));
+    if (!Number.isFinite(u.eligibleAt)) delete u.eligibleAt;
+    // Gear: tiers 0..maxTier of the zone's items.
+    const g = obj(u.gear) || {};
+    u.gear = Object.fromEntries((GEAR.zone[STAFF[u.type].zone] || []).filter(k => num(g[k], 0, 0) > 0).map(k => [k, num(g[k], 0, 0, GEAR.maxTier) | 0]));
+    u.gearSpent = num(u.gearSpent, 0, 0, 1e9);
+    delete u.software; delete u.softwareSpent; delete u.warrantyUsed;
+  }
+  const keys = ['jobs', 'earned', 'spent', 'capex', 'upkeep', 'mistakes', 'shift', 'work', 'down'];
+  u.days = (Array.isArray(u.days) ? u.days : []).filter(r => obj(r) && Number.isInteger(r.d))
+    .map(r => ({ d: r.d, ...Object.fromEntries(keys.map(k => [k, num(r[k], 0, 0)])) })).sort((a, b) => a.d - b.d).slice(-PROFILE.daysKeep);
+  u.log = (Array.isArray(u.log) ? u.log : []).filter(e => obj(e) && typeof e.type === 'string' && Number.isFinite(e.at)).slice(0, PROFILE.logKeep);
 }
 function normalizeBook(b, now) {
   const o = obj(b) || {};

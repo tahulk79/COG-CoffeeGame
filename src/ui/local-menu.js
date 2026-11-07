@@ -22,5 +22,5 @@ export const drinkIcon = (regionId, drink, item) => localDrink(regionId, drink, 
 /** Local items of a region's country served as `base`: [{ name, full, icon }]. */
 export function localItemsOf(regionId, base) {
   const countryId = countryOf(regionId), names = namesOf(countryId);
-  return (COUNTRY_MENUS[countryId] || []).flatMap((def, i) => (def.base === base && names[i] ? [{ name: short(names[i]), full: names[i], icon: def.icon }] : []));
+  return (COUNTRY_MENUS[countryId] || []).flatMap((def, i) => (def.base === base && names[i] ? [{ index: i, name: short(names[i]), full: names[i], icon: def.icon }] : []));
 }

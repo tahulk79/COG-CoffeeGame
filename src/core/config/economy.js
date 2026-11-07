@@ -181,8 +181,160 @@ export function applicantsFor(zone, seed) {
     if (r() < RARE.chance) { a.perk = RARE.perks[Math.floor(r() * RARE.perks.length)]; a.cost = Math.round(a.cost * RARE.costMul / 5) * 5; }
     a.stats = startStats(a.trait, a.perk);
   }
+  // Profile (age, hometown) is drawn last, so a seed keeps the board it always had.
+  for (const a of out) Object.assign(a, profileFrom(r));
   return out;
 }
+// Personnel file (docs/design/staff-profile.md): who a worker is, per-day numbers, a personal timeline and a grade.
+//  daysKeep: per-unit day rows kept (u.days); logKeep: per-unit timeline rows (u.log);
+//  grade: score 0..100 against the zone's team average of the same day (par = the team average's score per part);
+//  mistakeScale: quality score = 100 − mistakes / jobs × mistakeScale; minShiftSeconds: less time on shift = no grade.
+export const PROFILE = {
+  daysKeep: 7, logKeep: 20, teamDaysKeep: 30, age: [18, 45],
+  homes: ['Buôn Ma Thuột', 'Đà Lạt', 'Bảo Lộc', 'Di Linh', 'Pleiku', 'Kon Tum', 'Gia Nghĩa', 'Đắk Mil', 'Cầu Đất', 'Khe Sanh', 'Sơn La', 'Điện Biên'],
+  serial: { sproutBot: 'SB', brewBot: 'BB' },
+  model: { sproutBot: 'SproutBot S-1', brewBot: 'BrewBot B-1' }, // model line on a robot's ID card (robots stay "Robot" by name)
+  grade: {
+    weights: { worker: { prod: 0.3, qual: 0.25, att: 0.25, profit: 0.2 }, robot: { prod: 0.4, att: 0.4, profit: 0.2 } },
+    par: 70, mistakeScale: 500, minShiftSeconds: 60,
+    cuts: [['A', 85], ['B+', 78], ['B', 70], ['C', 50], ['D', 0]],
+  },
+};
+// Career (docs/design/staff-profile.md step 3): a worker's rank. "staff" comes by level alone; the others need level +
+// real days on the team + the player's "Thăng chức" tap. lead / manager: one each per game zone, paid an allowance
+// (coins per UPKEEP.perMinutes while on shift, charged by staff/upkeep as category 'wage'). A worker who could be
+// promoted but waits more than waitMinutes of play loses morale. While a lead or manager works, the zone's other
+// workers regain morale and a phone slacker goes back after nudgeSeconds; a manager also buys coffee / food
+// (from your coins) for tired / hungry workers.
+export const CAREER = {
+  ranks: ['apprentice', 'staff', 'skilled', 'lead', 'manager'],
+  need: { staff: { level: 4, days: 0 }, skilled: { level: 8, days: 5 }, lead: { level: 12, days: 10 }, manager: { level: 16, days: 20 } },
+  auto: ['staff'], onePerZone: ['lead', 'manager'],
+  promoteMorale: 30, stepDownMorale: 20,
+  allowance: { lead: 20, manager: 40 },
+  waitMinutes: 10, waitMoralePerMin: 0.5,
+  lead: { moraleRegenPerMin: 1, nudgeSeconds: 20 },
+  manager: { careEverySeconds: 5 },
+};
+/** Rank a worker gets from its level alone (apprentice / staff); higher ranks are never automatic. */
+export const autoRank = u => (unitLevel(u) >= CAREER.need.staff.level ? 'staff' : 'apprentice');
+/** A worker's rank (robots: null). Old units without one: from their level. */
+export const rankOf = u => {
+  if (STAFF[u?.type]?.kind !== 'worker') return null;
+  const auto = autoRank(u);
+  return CAREER.ranks.indexOf(u.rank) > CAREER.ranks.indexOf(auto) ? u.rank : auto; // never below what the level gives
+};
+// Craft skills (step 3): each job type a worker does grows its own skill by practice (count of that job). Steps at
+// `steps` jobs: Mới → Quen → Thạo → Chuyên gia. Each step: that job speedPerStep faster, its mistakes × (1 − mistakeCutPerStep).
+export const CRAFT = {
+  tasks: { farm: ['harvest', 'plant', 'water'], shop: ['order', 'brew', 'deliver'] },
+  steps: [50, 200, 600], speedPerStep: 0.05, mistakeCutPerStep: 0.25,
+  mistakeTask: { unripe: 'harvest', crooked: 'plant', spill: 'deliver', wrongTable: 'deliver' },
+};
+/** Craft step 0..3 of a worker for a job type. */
+export const craftLevel = (u, task) => { const n = u?.craft?.[task] || 0; return CRAFT.steps.filter(x => n >= x).length; };
+/** Speed factor of a job from its craft step (robots / unknown jobs: 1). */
+export const craftSpeed = (u, task) => (STAFF[u?.type]?.kind === 'worker' ? 1 + CRAFT.speedPerStep * craftLevel(u, task) : 1);
+// Worker gear (step 4): bought with coins, goes with the person (half back when they leave). Tier 0..3; buying tier n+1
+// costs cost[n]. Farm: boots (walk faster), hat (energy drains slower), shears (fewer unripe picks), watering can
+// (tending waters more plots). Café: shoes (walk), apron (energy), tray (fewer spills), kettle (brews faster).
+// Prices sit next to stat upgrades (100–400 + points): a tier is a smaller, surer step.
+export const GEAR = {
+  zone: { farm: ['boots', 'hat', 'shears', 'can'], shop: ['shoes', 'apron', 'tray', 'kettle'] },
+  cost: [80, 160, 320], maxTier: 3, refund: 0.5, stockKeep: 24, // stockKeep: gear left behind by fired workers, kept in the store
+  items: {
+    boots: { icon: '👢', walk: [1, 1.05, 1.1, 1.15] },
+    hat: { icon: '👒', drain: [1, 0.85, 0.72, 0.6] },
+    shears: { icon: '✂️', unripe: [1, 0.8, 0.65, 0.5] },
+    can: { icon: '🪣', plots: [0, 1, 2, 3] },
+    shoes: { icon: '👟', walk: [1, 1.05, 1.1, 1.15] },
+    apron: { icon: '🎽', drain: [1, 0.85, 0.72, 0.6] },
+    tray: { icon: '🍽️', spill: [1, 0.8, 0.65, 0.5] },
+    kettle: { icon: '🫖', brew: [1, 1.08, 1.16, 1.25] },
+  },
+};
+export const gearTier = (u, item) => Math.max(0, Math.min(GEAR.maxTier, u?.gear?.[item] | 0));
+/** Walk speed factor from boots / shoes (robots / none: 1). */
+export const gearWalk = u => GEAR.items.boots.walk[gearTier(u, 'boots')] * GEAR.items.shoes.walk[gearTier(u, 'shoes')];
+/** Energy drain factor from the straw hat / apron. */
+export const gearDrain = u => GEAR.items.hat.drain[gearTier(u, 'hat')] * GEAR.items.apron.drain[gearTier(u, 'apron')];
+/** Speed factor of one job type from gear (kettle: brewing). */
+export const gearJob = (u, task) => (task === 'brew' ? GEAR.items.kettle.brew[gearTier(u, 'kettle')] : 1);
+// Robots (step 4): warranty = the first `repairs` jam repairs are free; resale = (resale × price + parts + software) ×
+// wear / 100; software packs are bought (a robot still never learns and keeps its one task): autoCharge pays the
+// recharge by itself when the battery is empty, autoUnjam knocks itself free after `seconds`.
+export const WARRANTY = { repairs: 3 };
+export const SOFTWARE = {
+  order: ['autoCharge', 'autoUnjam'], refund: 0.5,
+  packs: { autoCharge: { icon: '🔌', ratio: 1 / 3 }, autoUnjam: { icon: '🧩', ratio: 1 / 4, seconds: 10 } },
+};
+export const softwarePrice = (u, pack) => Math.round((STAFF[u?.type]?.cost || 0) * (SOFTWARE.packs[pack]?.ratio || 0) / 10) * 10;
+export const hasSoftware = (u, pack) => Array.isArray(u?.software) && u.software.includes(pack);
+// General manager (docs/design/general-manager.md): ONE person above every team (farm and café share the coins). Hired
+// from a headhunter board; runs the team of the game on screen. Powers: advisor (suggests only), operator (does safe
+// jobs, small costs within a 10-minute budget, asks you for big ones), full (does almost everything, costs double +
+// a bigger profit share). Real-money purchases are never delegated. Poached GM → the team falls into chaos until you
+// pay a calming meeting or hire a new GM (a Manager-rank worker halves the chaos).
+export const GM = {
+  unlockLevel: 6,
+  board: { size: 3, refreshMinutes: 30, refreshCost: 100 },
+  hireFeePerSkill: 400,
+  salaryPerSkill: 20, payMinutes: 10, // base salary per payMinutes = salaryPerSkill × skill × mode.mul × (1 + raiseStep × raises)
+  modes: { advisor: { mul: 0.5, share: 0 }, operator: { mul: 1, share: 0.05 }, full: { mul: 2, share: 0.15 } },
+  modeOrder: ['advisor', 'operator', 'full'],
+  budgets: [50, 100, 200, 500], bigLimits: [100, 300, 1000],
+  defaults: { mode: 'operator', budget: 100, bigLimit: 300 },
+  windowMinutes: 10,
+  thinkSeconds: [20, 15, 10, 7, 5], actionsPerThink: [1, 1, 2, 2, 3], // by skill 1..5
+  requestMinutes: 5, requestsKeep: 6, logKeep: 30, daysKeep: 7,
+  styles: {
+    careful: { budgetMul: 0.5, loyalty: [75, 95] },
+    balanced: { budgetMul: 1, loyalty: [55, 75] },
+    bold: { budgetMul: 1, loyalty: [30, 50] },
+  },
+  styleOrder: ['careful', 'balanced', 'bold'],
+  loyalty: { refuse: 70, paidPer10: 1, unpaidPerMin: 10, start: 60 },
+  raiseStep: 0.2, raiseLoyalty: 25, keepBonusSalaries: 20, keepLoyalty: 15,
+  poach: { everyMinutes: 8, chance: 0.4, keepSeconds: 180, rival: 'Bà Tư' },
+  // Mood (founder feedback 2026-11-07): a manager wants to be used, and wants the boss around.
+  //  idle: no job for idleGraceMin (you do everything yourself) → −idlePerMin loyalty / min;
+  //  absent: no touch for absentGraceMin while the game runs → −absentPerMin / min and the rival comes twice as often
+  //  (idle and absent never stack: the bigger one counts — an AFK player is the manager's whole point, so ~1 h AFK ≈ −40);
+  //  away: the game closed longer than awayGraceHours → −awayPerHour per hour (≤ awayMax) when you return, and if that
+  //  leaves it below the refuse line the rival is already there (poach starts at once).
+  //  Jobs (+jobLoyalty each), your approvals (+approveLoyalty) and denials (denyLoyalty) move it too.
+  mood: { idleGraceMin: 3, idlePerMin: 1, absentGraceMin: 20, absentPerMin: 1, absentPoachMul: 2, awayGraceHours: 2, awayPerHour: 10, awayMax: 40,
+    jobLoyalty: 0.3, approveLoyalty: 2, denyLoyalty: -1, seenEverySeconds: 60 },
+  // While the game is closed (idle / AFK play): a manager in operator / full keeps the team going. On return it pays
+  // out `share` of the team's running profit rate (staff ledger, the last rateWindowMin minutes played) for the time
+  // away beyond minMinutes, at most capMinutes, minus its base pay for that time. No manager or advisor: nothing.
+  away: { minMinutes: 5, capMinutes: 120, rateWindowMin: 30, share: { advisor: 0, operator: 0.5, full: 0.7 } },
+  chaos: { slackMul: 2, moralePerMin: 1, managerHalves: 0.5, calmBase: 300, calmPerUnit: 50 },
+  names: [['Hằng', 'female'], ['Khải', 'male'], ['Sáu', 'male'], ['Ngọc', 'female'], ['Tuấn', 'male'], ['Thu', 'female'], ['Bảy', 'male'], ['Quân', 'male'], ['Mai', 'female']],
+};
+/** The headhunter board for a seed (pure): GM.board.size candidates — skill 1..5, style, loyalty, fee. */
+export function gmCandidatesFor(seed) {
+  const r = rng(seed | 0);
+  const names = [...GM.names];
+  return Array.from({ length: GM.board.size }, () => {
+    const [name, gender] = names.splice(Math.floor(r() * names.length), 1)[0];
+    const skill = 1 + Math.min(4, Math.floor(r() * r() * 5 + r() * 2)); // mostly 1–3, sometimes 4–5
+    const style = GM.styleOrder[Math.floor(r() * GM.styleOrder.length)];
+    const [lo, hi] = GM.styles[style].loyalty;
+    return { name, gender, skill, style, loyalty: Math.round(lo + r() * (hi - lo)), fee: GM.hireFeePerSkill * skill };
+  });
+}
+/** Base salary of a GM per GM.payMinutes in a power mode. */
+export const gmSalary = (gm, mode) => Math.round(GM.salaryPerSkill * (gm?.skill || 1) * (GM.modes[mode]?.mul ?? 1) * (1 + GM.raiseStep * (gm?.raises || 0)));
+/** Age + hometown drawn from an rng (applicants) — or from a uid hash (old saves, see profileOfUid). */
+function profileFrom(r) {
+  const [lo, hi] = PROFILE.age;
+  return { age: lo + Math.floor(r() * (hi - lo + 1)), home: PROFILE.homes[Math.floor(r() * PROFILE.homes.length)] };
+}
+/** A stable profile for a unit hired before profiles existed (same uid → same age / hometown). */
+export const profileOfUid = uid => profileFrom(rng((parseInt(String(uid).replace(/\D+/g, ''), 10) || 0) * 7919 + 17));
+/** Robot serial number "SB-0427" from its type and uid (stable). */
+export const robotSerial = (type, uid) => `${PROFILE.serial[type] || 'RB'}-${String(((parseInt(String(uid).replace(/\D+/g, ''), 10) || 0) * 389 + 101) % 10000).padStart(4, '0')}`;
 // Per-stat upgrades (§5): every finished job gives the worker XP (× trait xpMul); every xpPerPoint XP = 1 skill point.
 // Stat n → n+1 costs n points + coinPerLevel × n coins. Stats 1..maxStat. Unit level (display) = sum of stats − 3.
 export const SKILL = { xpPerPoint: 20, coinPerLevel: 100, maxStat: 5 };
@@ -235,7 +387,8 @@ export const MISTAKES = {
 const isWorker = u => STAFF[u?.type]?.kind === 'worker';
 /** One stat of a worker (1..maxStat). Units without `stats` (old saves, hand-made objects) read their old `level`. */
 export const statOf = (u, stat) => (isWorker(u) ? Math.min(SKILL.maxStat, Math.max(1, (u.stats?.[stat] ?? u.level) | 0 || 1)) : 1);
-export const mistakeChance = (u, kind) => (isWorker(u) ? (MISTAKES.rates[kind]?.[statOf(u, 'accuracy') - 1] || 0) * (MISTAKES.traitMul[u.trait] ?? 1) : 0);
+export const mistakeChance = (u, kind) => (isWorker(u) ? (MISTAKES.rates[kind]?.[statOf(u, 'accuracy') - 1] || 0) * (MISTAKES.traitMul[u.trait] ?? 1)
+  * (1 - CRAFT.mistakeCutPerStep * craftLevel(u, CRAFT.mistakeTask[kind])) * (kind === 'unripe' ? GEAR.items.shears.unripe[gearTier(u, 'shears')] : kind === 'spill' ? GEAR.items.tray.spill[gearTier(u, 'tray')] : 1) : 0); // practice (craft step) and shears / tray cut mistakes
 /** Display level: speed + smart + accuracy + stamina − 3 (1..17); robots 1. */
 export const unitLevel = u => (isWorker(u) ? STAT_ORDER.reduce((n, k) => n + statOf(u, k), 0) - (STAT_ORDER.length - 1) : 1);
 export const hasRule = (u, rule) => statOf(u, 'smart') >= (SMART_RULES[rule] ?? 99);
@@ -282,6 +435,11 @@ export const RIVAL = { everyMinutes: 8, chance: 0.5, keepSeconds: 60, keepFeePer
   letGoRefund: 0.3, names: { farm: 'Bà Tư', shop: 'Anh Ba' } };
 // Fire / sell (§8): refund ratio of what was paid at hire (robots also get back part of their hardware).
 export const FIRE = { worker: 0.3, robot: 0.5, robotParts: 0.5 };
+// Level-10 restart (founder 2026-11-07): one of your staff asks to follow you into the new life — the most attached
+// worker (highest morale), or, robotChance of the time when you own robots, a robot that "evolved a mind" from living
+// with people. You confirm or decline. A follower costs wage coins per UPKEEP.perMinutes for as long as it stays
+// (workers: wageRatio × hire price, min minWage; the evolved robot asks robotWage); with no coins it goes on your debt.
+export const FOLLOW = { robotChance: 0.25, wageRatio: 0.1, minWage: 10, robotWage: 20 };
 // Books (§8): team ledger per game minute (last ledgerKeep kept), journal (newest first, journalKeep), MVP every
 // mvpMinutes (+mvpMorale to every worker).
 export const BOOKS = { ledgerKeep: 30, journalKeep: 30, mvpMinutes: 10, mvpMorale: 10 };

@@ -6,6 +6,10 @@ import { PARCELS, terrainOfLot } from '../../core/config/layout.js';
 import { newTxId } from '../../core/store.js';
 import { h } from './dom.js';
 import { localItemsOf } from '../../ui/local-menu.js';
+import { INGREDIENTS, INGREDIENT_ORDER, RESEARCH } from '../../core/config/research.js';
+import { countryNow, recipeKnown, recipeFound, ingredientUnlocked, testCost, testError, benchBusyIn, suppliersFound, scoutOf, contractOf, supplyOf, contractFee, buyerNow, regionGame, dayKey, methodOf, trialsHere, trialSlots, trialResults, trialError, trialField, plotState } from '../../core/derive.js';
+import { SUPPLY, supplierOf, buyerOf, FARMLAB, methodEffect, methodKey } from '../../core/config/research.js';
+import { GOODS, GOOD_ORDER } from '../../core/config/economy.js';
 import { T, fmt, duration, has } from './text.js';
 import { buildingEffect } from './effects.js';
 import { actionButton, coinAmount, lockTag, needMore } from './widgets.js';
@@ -150,13 +154,47 @@ export function seedsSheet(ctx) {
         : lockTag(s.player.round < def.round ? T('hud.roundN', { round: def.round }) : T('hud.levelN', { level: def.level })));
       list.append(chip);
     }
-    return h('div', null, h('p', { class: 'hud-hint' }, T('hud.seeds.hint')), list);
+    return h('div', null, h('p', { class: 'hud-hint' }, T('hud.seeds.hint')), list, region(s) && regionGame(s) === 'farm' ? trialLab(ctx, s) : null);
   };
+}
+
+// ---------- Research step 3: 🌱 trial fields (docs/design/research.md) ----------
+const lab = { crop: null, method: [0, 2, 1] };
+const wayText = m => FARMLAB.factors.map((f, i) => T(`hud.trial.${f}.${m[i]}`)).join(' · ');
+const effText = e => T('hud.trial.eff', { y: Math.round(e.yieldMul * 100), t: Math.round(e.timeMul * 100), q: Math.round(e.quality * 100) });
+function trialLab(ctx, s) {
+  const crops = CROP_ORDER.filter(c => cropUnlocked(s, c));
+  if (!crops.length) return null;
+  if (!crops.includes(lab.crop)) lab.crop = crops[0];
+  const rid = s.world.currentRegion, now = Date.now(), crop = lab.crop;
+  const rerender = () => ctx.rerenderSheet?.();
+  const cur = methodOf(s, crop), curKey = methodKey(cur), defKey = methodKey(FARMLAB.defaultMethod);
+  const cropChips = h('div', { class: 'hud-sm-chips' }, ...crops.map(c => h('button', { type: 'button', class: 'hud-sm-chip', attrs: { 'aria-pressed': String(lab.crop === c) }, on: { click: () => { lab.crop = c; rerender(); } } }, `${CROPS[c].icon} ${T(`crop.${c}`)}`)));
+  const pickers = FARMLAB.factors.map((f, i) => h('div', { class: 'hud-trial-row' }, h('small', null, T(`hud.trial.${f}`)),
+    h('div', { class: 'hud-sm-chips' }, ...[0, 1, 2].map(v => h('button', { type: 'button', class: 'hud-sm-chip', attrs: { 'aria-pressed': String(lab.method[i] === v) },
+      on: { click: () => { lab.method = lab.method.map((x, k) => (k === i ? v : x)); rerender(); } } }, T(`hud.trial.${f}.${v}`))))));
+  const err = trialError(s, crop, lab.method), field = trialField(s);
+  const cost = FARMLAB.trialFee + seedCost(s, crop);
+  const note = err === 'method' ? T('hud.trial.isDefault') : err === 'slots' ? T('hud.trial.slots', { n: trialSlots(s) }) : err === 'noField' ? T('hud.trial.noField') : err === 'coins' ? needMore(cost - s.player.coins)
+    : field ? T('hud.trial.field', { id: field.id }) : null;
+  const go = actionButton({ id: 'trialGo', label: T('hud.trial.go'), icon: '🌱', cost, tone: 'go', disabled: !!err, note, onClick: () => { const r = ctx.act('farmlab/trial', { crop, method: lab.method }); if (r?.ok) rerender(); } });
+  const running = trialsHere(s).map(t => { const st = plotState(s, t.plotId, now); return h('li', null, `🧪 ${CROPS[t.crop].icon} ${T(`crop.${t.crop}`)} · ${wayText(t.method)} · `, st.stage === 'ready' ? T('hud.trial.ready') : T('hud.trial.left', { s: Math.ceil((st.remainingMs || 0) / 1000) })); });
+  const results = trialResults(s, crop);
+  const rows = [{ key: defKey, method: FARMLAB.defaultMethod, eff: { yieldMul: 1, timeMul: 1, quality: 0 }, beans: null }, ...Object.entries(results).map(([key, x]) => ({ key, method: x.method, eff: methodEffect(rid, crop, x.method), beans: x.beans }))];
+  const table = h('div', { class: 'hud-trial-results' }, ...rows.map(r => h('div', { class: `hud-sup-row${r.key === curKey ? ' is-mine' : ''}` },
+    h('strong', null, r.key === defKey ? T('hud.trial.default') : wayText(r.method), r.key === curKey ? h('span', { class: 'hud-tag' }, T('hud.trial.using')) : null),
+    h('small', null, effText(r.eff), r.beans != null ? ` · ${T('hud.trial.got', { n: r.beans })}` : ''),
+    r.key === curKey ? null : h('div', { class: 'hud-row' }, actionButton({ label: T('hud.trial.adopt'), tone: 'plain', onClick: () => { ctx.act('farmlab/adopt', { crop, method: r.method }); rerender(); } })))));
+  return h('section', { class: 'hud-lab' }, h('h3', { class: 'hud-sm-h' }, `🌱 ${T('hud.trial.title')}`),
+    h('p', { class: 'hud-hint' }, T('hud.trial.hint', { fee: FARMLAB.trialFee })),
+    cropChips, ...pickers, h('div', { class: 'hud-row' }, go),
+    running.length ? h('ul', { class: 'hud-lab-tests' }, ...running) : null,
+    h('p', { class: 'hud-sm-h' }, T('hud.trial.compare', { crop: T(`crop.${crop}`) })), table);
 }
 
 // ---------- Menu (café drinks) ----------
 export const drinkSeenKey = drinkId => `hudDrink:${drinkId}`;
-export function menuSheet() {
+export function menuSheet(ctx = {}) {
   return s => {
     const list = h('div', { class: 'hud-chips-list' });
     const hasRegion = !!region(s);
@@ -172,12 +210,118 @@ export function menuSheet() {
       list.append(h('div', { class: `hud-seed hud-drink${open ? '' : ' is-locked'}`, dataset: { hudId: `drink-${id}` } },
         h('span', { class: 'hud-seed-ico', attrs: { 'aria-hidden': 'true' } }, def.icon),
         h('span', { class: 'hud-seed-name' }, T(`drink.${id}`)),
-        local.length ? h('span', { class: 'hud-drink-local' }, local.map(item => `${item.icon} ${item.name}`).join(' · ')) : null,
+        // Recipe book: ✨ found (own price), ❔ not found yet (sold as the base drink), plain items known from the start.
+        local.length ? h('span', { class: 'hud-drink-local' }, local.map(item => {
+          const cc = countryNow(s), known = recipeKnown(s, cc, item.index), found = recipeFound(s, cc, item.index);
+          return `${known ? item.icon : '❔'} ${item.name}${found ? ` ✨${fmt(Math.round(price * RESEARCH.priceMul))}` : ''}`;
+        }).join(' · ')) : null,
         open ? h('span', { class: 'hud-seed-meta' }, coinAmount(price), h('span', null, T('hud.menu.beans', { n: def.beans })),
           h('span', null, `⏱ ${duration(hasRegion ? brewMs(s, id) : def.brewSeconds * 1000)}`))
           : h('span', { class: 'hud-seed-meta' }, needs.map(text => lockTag(text)))));
     }
-    return h('div', null, h('p', { class: 'hud-hint' }, T('hud.menu.hint')), list);
+    return h('div', null, h('p', { class: 'hud-hint' }, T('hud.menu.hint')), list, hasRegion ? testBench(ctx, s) : null);
+  };
+}
+
+// ---------- Research lab, step 1: the drink test bench (docs/design/research.md) ----------
+// Base drink + up to RESEARCH.maxIngredients ingredients; each test shows hints against the closest unknown recipe.
+const bench = { base: null, ings: [] };
+function testBench(ctx, s) {
+  const cc = countryNow(s), now = Date.now();
+  const bases = DRINK_ORDER.filter(id => drinkUnlocked(s, id));
+  if (!cc || !bases.length) return null;
+  if (!bases.includes(bench.base)) bench.base = bases[0];
+  bench.ings = bench.ings.filter(id => ingredientUnlocked(s, id));
+  const err = testError(s, bench.base, bench.ings, now), busy = benchBusyIn(s, now);
+  const rerender = () => ctx.rerenderSheet?.();
+  const baseChips = h('div', { class: 'hud-sm-chips', attrs: { role: 'group', 'aria-label': T('hud.lab.base') } }, ...bases.map(id => h('button', { type: 'button', class: 'hud-sm-chip', attrs: { 'aria-pressed': String(bench.base === id) },
+    on: { click: () => { bench.base = id; rerender(); } } }, `${DRINKS[id].icon} ${T(`drink.${id}`)}`)));
+  const ingChips = h('div', { class: 'hud-lab-ings', attrs: { role: 'group', 'aria-label': T('hud.lab.ings', { n: RESEARCH.maxIngredients }) } }, ...INGREDIENT_ORDER.map(id => {
+    const open = ingredientUnlocked(s, id), on = bench.ings.includes(id);
+    return h('button', { type: 'button', class: 'hud-lab-ing', disabled: !open, attrs: { 'aria-pressed': String(on) },
+      on: { click: () => { bench.ings = on ? bench.ings.filter(x => x !== id) : [...bench.ings, id].slice(-RESEARCH.maxIngredients); rerender(); } } },
+      h('b', { attrs: { 'aria-hidden': 'true' } }, INGREDIENTS[id].icon), T(`hud.lab.ing.${id}`), open ? h('small', null, `🪙${INGREDIENTS[id].cost}`) : h('small', null, T('hud.levelN', { level: INGREDIENTS[id].level })));
+  }));
+  const note = err === 'busy' ? T('hud.lab.busy', { s: Math.ceil(busy / 1000) }) : err === 'empty' ? T('hud.lab.pick') : err === 'beans' ? T('hud.lab.beans', { n: DRINKS[bench.base].beans }) : err === 'coins' ? needMore(testCost(bench.ings, s) - s.player.coins) : null;
+  const go = actionButton({ id: 'labTest', label: T('hud.lab.test'), icon: '🧪', cost: bench.ings.length ? testCost(bench.ings, s) : undefined, tone: 'go', disabled: !!err, note,
+    onClick: () => { const r = ctx.act('research/test', { base: bench.base, ings: bench.ings }); if (r?.ok) { bench.ings = []; rerender(); setTimeout(rerender, RESEARCH.testSeconds * 1000 + 100); } } }); // clear the picks, then wake the button when the bench is free
+  const tests = (s.research?.tests?.[cc] || []).slice(0, 5).map(t => h('li', { class: 'hud-lab-test' },
+    h('span', { class: 'hud-lab-dots', attrs: { 'aria-hidden': 'true' } }, ...labDots(t)),
+    h('span', null, `${DRINKS[t.base]?.icon || ''} + ${t.ings.map(id => INGREDIENTS[id]?.icon || '').join(' ')}: `, h('b', null, labVerdict(t, cc)))));
+  const local = localItemsOf(s.world.currentRegion, bench.base);
+  const left = local.filter(it => !recipeKnown(s, cc, it.index)).length;
+  return h('section', { class: 'hud-lab' },
+    h('h3', { class: 'hud-sm-h' }, `🧪 ${T('hud.lab.title')}`),
+    h('p', { class: 'hud-hint' }, T('hud.lab.hint', { pct: Math.round((RESEARCH.priceMul - 1) * 100), n: left, s: RESEARCH.testSeconds })),
+    baseChips, ingChips, h('div', { class: 'hud-row' }, go),
+    tests.length ? h('ul', { class: 'hud-lab-tests' }, ...tests) : null);
+}
+// Hint dots of one test: 🟢 right ingredient, 🟡 belongs to another unknown recipe, ⚪ not used anywhere.
+function labDots(t) {
+  if (t.result === 'found' || t.result === 'known') return [h('i', { class: 'is-g' }), h('i', { class: 'is-g' }), h('i', { class: 'is-g' })];
+  return [...Array(t.right || 0).fill('is-g'), ...Array(t.other || 0).fill('is-y'), ...Array(t.wrong || 0).fill('')].map(c => h('i', { class: c }));
+}
+function labVerdict(t, cc) {
+  if (t.result === 'found') return T('hud.lab.found', { name: localName(cc, t.index) });
+  if (t.result === 'known') return T('hud.lab.known', { name: localName(cc, t.index) });
+  if (t.result === 'allKnown') return T('hud.lab.allKnown');
+  const parts = [];
+  if (t.missing) parts.push(T('hud.lab.missing', { n: t.missing, tag: T(`hud.lab.tag.${t.tag}`) }));
+  if (t.extra) parts.push(T('hud.lab.extra'));
+  if (!parts.length) parts.push(T('hud.lab.swap'));
+  return `${T('hud.lab.close', { n: t.right })} ${parts.join(' ')}`;
+}
+const localName = (cc, index) => { for (const base of DRINK_ORDER) { const it = localItemsOf(`${cc}-1`, base).find(x => x.index === index); if (it) return it.name; } return '?'; };
+
+// ---------- Research step 2: 🚚 Nguồn hàng — café suppliers, farm buyers (docs/design/research.md) ----------
+const pct = v => `${Math.round(v * 100)}%`;
+const leftText = ms => { const m = Math.max(0, Math.ceil(ms / 60000)); return m >= 2880 ? T('hud.sup.daysLeft', { n: Math.round(m / 1440) }) : m >= 120 ? T('hud.sup.hoursLeft', { n: Math.round(m / 60) }) : T('hud.sup.minLeft', { n: m }); };
+function scoutRow(ctx, s, group, now) {
+  const sc = scoutOf(s), max = group === 'buyers' ? SUPPLY.buyers.count : SUPPLY.perGroup, found = suppliersFound(s, group, now);
+  if (found >= max) return h('p', { class: 'hud-sub' }, T('hud.sup.allFound'));
+  if (sc && sc.group === group && sc.regionId === s.world.currentRegion && now < sc.until) return h('p', { class: 'hud-sub' }, T('hud.sup.scouting', { t: leftText(sc.until - now) }));
+  return h('div', { class: 'hud-row' }, actionButton({ label: T(group === 'buyers' ? 'hud.sup.scoutBuyer' : 'hud.sup.scout'), icon: '🔎', cost: SUPPLY.scout.cost, tone: 'plain', disabled: !!sc || s.player.coins < SUPPLY.scout.cost,
+    note: sc ? T('hud.sup.oneScout') : null, onClick: () => ctx.act('supply/scout', { group }) }));
+}
+function supplierLine(sup) {
+  return `${'★'.repeat(sup.quality)}${'☆'.repeat(3 - sup.quality)} · ${T('hud.sup.price', { pct: pct(sup.priceMul) })} · ${T('hud.sup.late', { pct: pct(sup.late) })}`;
+}
+export function supplySheet(ctx) {
+  return s => {
+    const now = Date.now(), rid = s.world.currentRegion;
+    if (!region(s)) return h('p', { class: 'hud-line' }, T('hud.sup.noRegion'));
+    const out = [];
+    if (regionGame(s) === 'farm') {
+      // Buyers: today's price per good, the chosen one, lock today's prices.
+      const cur = buyerNow(s, now), found = suppliersFound(s, 'buyers', now);
+      const rows = [0, ...Array.from({ length: found }, (_, k) => k + 1)].map(i => {
+        const b = buyerOf(rid, i, dayKey(now)), mine = cur.i === i, mul = mine && cur.locked ? cur.mul : b.mul;
+        return h('div', { class: `hud-sup-row${mine ? ' is-mine' : ''}` },
+          h('strong', null, i ? b.name : T('hud.sup.store'), mine ? h('span', { class: 'hud-tag' }, cur.locked ? T('hud.sup.lockedTag', { t: leftText(cur.locked - now) }) : T('hud.sup.chosen')) : null),
+          h('span', { class: 'hud-sup-prices' }, ...GOOD_ORDER.map(g => h('span', { class: mul[g] > 1.001 ? 'is-up' : mul[g] < .999 ? 'is-down' : '' }, `${GOODS[g].icon} ${fmt(Math.round(GOODS[g].price * mul[g] * 10) / 10)}`))),
+          mine ? null : h('div', { class: 'hud-row' },
+            actionButton({ label: T('hud.sup.sellHere'), tone: 'plain', disabled: !!cur.locked, onClick: () => ctx.act('supply/setBuyer', { i }) }),
+            i ? actionButton({ label: T('hud.sup.lock', { n: 3 }), icon: '📝', cost: SUPPLY.buyers.lockFee * 3, tone: 'gold', disabled: !!cur.locked || s.player.coins < SUPPLY.buyers.lockFee * 3, onClick: () => ctx.act('supply/lockBuyer', { i, days: 3 }) }) : null));
+      });
+      out.push(h('section', { class: 'hud-panel' }, h('h3', { class: 'hud-h3' }, `🤝 ${T('hud.sup.buyers')}`), h('p', { class: 'hud-hint' }, T('hud.sup.buyersHint')), ...rows, scoutRow(ctx, s, 'buyers', now)));
+    } else {
+      for (const group of SUPPLY.groupOrder) {
+        const cur = supplyOf(s, group, now), c = contractOf(s, group, now), found = suppliersFound(s, group, now);
+        const list = Array.from({ length: found }, (_, i) => {
+          const sup = supplierOf(rid, group, i), mine = c?.i === i;
+          return h('div', { class: `hud-sup-row${mine ? ' is-mine' : ''}` }, h('strong', null, sup.name, mine ? h('span', { class: 'hud-tag' }, T('hud.sup.until', { t: leftText(c.until - now) })) : null),
+            h('small', null, supplierLine(sup)),
+            h('div', { class: 'hud-row' }, ...[1, 7].map(days => actionButton({ label: T('hud.sup.sign', { n: days }), cost: contractFee(days), tone: days === 7 ? 'gold' : 'plain', disabled: s.player.coins < contractFee(days),
+              onClick: () => ctx.act('supply/sign', { group, i, days }) }))));
+        });
+        out.push(h('section', { class: 'hud-panel' }, h('h3', { class: 'hud-h3' }, `${SUPPLY.groups[group].icon} ${T(`hud.sup.g.${group}`)}`),
+          h('p', { class: 'hud-line' }, c ? T('hud.sup.using', { name: cur.name }) : T('hud.sup.market'), ' · ', supplierLine(cur)),
+          ...list, scoutRow(ctx, s, group, now)));
+      }
+      out.unshift(h('p', { class: 'hud-hint' }, T('hud.sup.cafeHint', { pct: pct(SUPPLY.qualityBonus[3]) })));
+    }
+    out.push(h('p', { class: 'hud-sub' }, T('hud.sup.gmNote')));
+    return h('div', null, ...out);
   };
 }
 
@@ -190,9 +334,10 @@ export function beansSheet(ctx) {
     const note = q.error === 'storageFull' ? T('hud.beans.full') : q.error === 'coins' ? needMore(q.missing) : null;
     return h('div', null,
       h('p', { class: `hud-line${cap && stored(s) >= cap ? ' hud-line--bad' : ''}` }, T('hud.storage.fill', { n: Math.floor(s.inventory.beans), max: cap })),
-      h('p', { class: 'hud-hint' }, T('hud.beans.hint', { price: BEANS.buyPrice })),
+      h('p', { class: 'hud-hint' }, T('hud.beans.hint', { price: fmt(q.unit || BEANS.buyPrice) })),
       h('div', { class: 'hud-row' }, actionButton({ id: 'buyBeans', label, icon: '🫘', cost: q.error ? null : q.cost, disabled: !!q.error, note,
-        onClick: () => ctx.act('shop/buyBeans') })),
+        onClick: () => ctx.act('shop/buyBeans', { roll: Math.random() }) }),
+        actionButton({ id: 'openSupply', label: T('hud.sup.open'), icon: '🚚', tone: 'plain', onClick: () => ctx.onTool('supply') })),
       storageRow(ctx, s));
   };
 }
@@ -236,7 +381,8 @@ export function progressSheet(ctx) {
         ap.runs > 0 && !ap.active ? actionButton({ label: T('hud.auto.startBtn'), icon: '▶', onClick: () => { ctx.sheet.close(); const r = ctx.act('auto/start'); if (r.ok && !r.noop) ctx.toast(T('hud.toast.autoStart'), 'good'); } }) : null,
         actionButton({ id: 'buyAuto', label: T('hud.auto.buyGo'), icon: '🛒', tone: 'gold', cost: price, disabled: s.player.coins < price || ctx.buyingAuto,
           note: s.player.coins < price ? needMore(price - s.player.coins) : null, onClick: () => buyAuto(ctx) })));
-    return h('div', { class: 'hud-progress' }, world, auto);
+    const supply = region(s) ? actionButton({ id: 'openSupplyP', label: T('hud.sup.open'), icon: '🚚', tone: 'plain', onClick: () => ctx.onTool('supply') }) : null;
+    return h('div', { class: 'hud-progress' }, h('div', { class: 'hud-row' }, world, supply), auto);
   };
 }
 
