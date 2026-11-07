@@ -23,6 +23,7 @@
 import * as THREE from 'three';
 import { BUILDINGS, CROPS, CROP_ORDER, DRINKS, GOODS, VENUES, VENUE_ORDER } from '../../core/config/economy.js';
 import { PARCELS, ROADS, inRect, GATE, FIXED, CUSTOMER, CAFE_SEATS, AREAS, BOUNDS, CAFE_BOUNDS, RESERVED, VENUE_LOTS, SHOP_FRAMES, STREET_FRAME, SHOP_ORDER, shopAt, parcelAt, areaAt, areaOfParcel } from '../../core/config/layout.js';
+import { readSettings } from '../../state/progress.js';
 import { region as regionOf, footprint, upgradeError, parcelError, seatCount, seatsUsed, brewSlots, seatPatienceRatio, ownedPlots, plotOf, capacity, stored, cropUnlocked, seedCost, canPlay, cafeStaffed, regionGame, venueOpen, venueError, farmViewBounds, roadOpen, defOf, tileAt, jobState, prodError, collectError, sellAllQuote, unitOf, unitState, unitBlocked, quickFix } from '../../core/derive.js';
 import { currentStep } from '../../core/tutorial.js';
 import { t as tr } from '../../i18n/index.js';
@@ -89,6 +90,11 @@ const sumOut = out => Object.values(out || {}).reduce((n, v) => n + (Number(v) |
 export async function createRealm({ renderer, store, gender, hooks = {} }) {
   const canvas = renderer.domElement;
   const scene = new THREE.Scene();
+  // Staff profile photos (api.portrait): a small camera, one cached JPEG per unit.
+  const SHOT_CSS = 160, SHOT_PX = 160;
+  const shotCam = new THREE.PerspectiveCamera(30, 1, .1, 80);
+  const shotAt = new THREE.Vector3(), shotDir = new THREE.Vector3(), shotQ = new THREE.Quaternion(), shotVp = new THREE.Vector4(), shotSc = new THREE.Vector4();
+  const portraits = new Map();
   scene.name = 'realm';
   const camera = new THREE.PerspectiveCamera(38, 1, .5, 400);
   scene.add(camera); // the cinematic flash plane is parented to the camera
@@ -203,6 +209,16 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   let disposed = false;
   let timerSeconds = -1;
   let lastInputAt = 0;      // performance.now() of the last touch / zoom (the tutorial waits for a calm moment)
+  // Spotlight (founder 2026-11-07): when something goes wrong — a worker stops, a robot jams / overheats / runs flat,
+  // the rival lures a worker, the farm storehouse fills — and the player is not touching anything, the camera glides
+  // and zooms in on it, rings it, then goes back. Polite: only after SPOT.idle s without input, never over an open
+  // sheet / modal, a placement, auto play or a cinematic, at most one per SPOT.cooldown s, the same thing at most once
+  // per SPOT.repeat s, and only if the problem is still there after SPOT.delay s (a manager may fix it first).
+  // A touch during the spotlight keeps the camera where it is. Setting: settings.autoFocus (default on).
+  const SPOT = { idle: 5, delay: 2, hold: 3, cooldown: 20, repeat: 60, zoomIn: .6 };
+  const spot = { on: readSettings().autoFocus !== false, queue: [], active: null, lastAt: performance.now(), /* no spotlight in the first SPOT.cooldown s after opening */ seen: new Map() };
+  const onAutoFocus = e => { spot.on = !!e.detail; if (!spot.on) spot.queue.length = 0; };
+  window.addEventListener('godbean:autofocus', onAutoFocus);
   let view = 'farm';        // area on screen: 'farm' | 'cafe'
   let viewApplied = false;  // visibility is applied on the first frame, so compileAsync sees both areas' materials
   let switching = null;     // { to, t, phase: 'out'|'in', promise, resolve } while the fade runs
@@ -280,6 +296,55 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     if (placement.info) placement.refresh();
   }
 
+  // ---------- spotlight: glide + zoom to a problem (see SPOT) ----------
+  function spotQueue(item) {
+    if (!spot.on) return;
+    spot.queue = spot.queue.filter(q => q.key !== item.key);
+    spot.queue.push({ ...item, at: performance.now() });
+  }
+  function spotStill(item, state) { // is the problem still there, and in the area on screen?
+    if (item.kind === 'silo') return view === 'farm' && capacity(state) > 0 && stored(state) >= capacity(state);
+    const u = unitOf(state, item.uid);
+    if (!u || u.assigned?.regionId !== state.world.currentRegion) return false;
+    if ((staff.zoneOf(item.uid) === 'farm') !== (view === 'farm')) return false;
+    return item.key.endsWith(':poach') ? state.staff.poach?.uid === item.uid : unitBlocked(u, Date.now());
+  }
+  function spotWhere(item, state) {
+    if (item.kind === 'silo') { const b = regionOf(state)?.buildings.find(x => x.type === 'silo'); return b ? { x: b.x, z: b.z } : null; }
+    return staff.highlight(item.uid);
+  }
+  const hudBusy = () => { const r = document.getElementById('hud-root'); return !!(r?.dataset.sheet || r?.querySelector('.hud-modal, .hud-talk')); };
+  let siloFull = false;
+  function updateSpot(dt, state) {
+    const t = performance.now();
+    // Farm storehouse full: one spotlight each time it fills.
+    const full = view === 'farm' && capacity(state) > 0 && stored(state) >= capacity(state);
+    if (full && !siloFull) spotQueue({ kind: 'silo', key: 'silo' });
+    siloFull = full;
+    const a = spot.active;
+    if (a) {
+      if (t - a.at > SPOT.hold * 1000 || !spot.on) {
+        if (lastInputAt < a.at && !cam.held) cam.restore(a.saved); // the player touched nothing: back to where they were
+        spot.active = null;
+      }
+      return;
+    }
+    if (!spot.on || !spot.queue.length || state.story.phase !== 'play' || inputLocked || switching || placement.info || cinematics.active || auto.on) return;
+    if (cam.held || t - lastInputAt < SPOT.idle * 1000 || t - spot.lastAt < SPOT.cooldown * 1000 || hudBusy()) return;
+    const ready = spot.queue.filter(q => t - q.at >= SPOT.delay * 1000);
+    for (const item of ready) {
+      spot.queue = spot.queue.filter(q => q !== item);
+      if (t - (spot.seen.get(item.key) ?? -Infinity) < SPOT.repeat * 1000 || !spotStill(item, state)) continue;
+      const p = spotWhere(item, state);
+      if (!p) continue;
+      spot.seen.set(item.key, t);
+      spot.lastAt = t;
+      spot.active = { at: t, saved: cam.peek(p.x, p.z, { zoomIn: SPOT.zoomIn }) };
+      return;
+    }
+    spot.queue = spot.queue.filter(q => t - q.at < 30000); // stale ones drop
+  }
+
   const unsubscribe = store.subscribe((state, events, type) => {
     if (type === 'reset' || type === 'reload') { regionId = regionId === undefined ? undefined : '__reset__'; }
     // Before the sync: effects that need the old visuals (tree pop, customer mood, where a removed object stood).
@@ -312,6 +377,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     badgeClock = 1; // refresh object notices right away
     for (const ev of events) {
       if (ev.type === 'poachStarted' || ev.type === 'poachRefused' || ev.type === 'mvp') staff.onEvent(ev); // rival line / MVP cheer over the unit
+      if (ev.type === 'staffStopped' || ev.type === 'poachStarted') spotQueue({ kind: 'unit', uid: ev.uid, key: `unit:${ev.uid}:${ev.kind || 'poach'}` });
       if (ev.type === 'planted') { plots.onPlanted(ev.plotId, clock); sfx('farm.plant'); }
       else if (ev.type === 'built') { buildings.onBuilt(ev.uid, clock); sfx('farm.build'); }
       else if (ev.type === 'moved') {
@@ -647,6 +713,12 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     if (x < b.minX + 1 || x > b.maxX - 1 || z < b.minZ + 1 || z > b.maxZ - 1 || navs[area].blockedAt(x, z)) return false;
     if (area === 'farm') {
       for (const rd of Object.values(ROADS)) if (inRect(x, z, rd.rect, .3) && !roadOpen(store.state, rd.id)) return false; // closed trails
+      // Only your own land or an open road: land not bought yet is overgrown (thickets are scenery, not obstacles), so a
+      // unit idling there looks like it walks into the bushes. Ponds are water, the plaza is not farm ground.
+      for (const [ox, oz] of STAND_PROBES) {
+        const tile = tileAt(store.state, x + ox, z + oz);
+        if (!tile || tile.terrain === 'pond' || tile.terrain === 'plaza' || (!tile.owned && tile.terrain !== 'road')) return false;
+      }
       // Never idle on a field (or a building) footprint, nor within .5 m of one (fields stay walkable for walks).
       for (const [ox, oz] of STAND_PROBES) if (tileAt(store.state, x + ox, z + oz)?.occupant) return false;
       return Math.hypot(x - GATE.x, z - GATE.z) > GATE.radius + 2;
@@ -1211,6 +1283,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     updateCarry(orders);
     updateAuto(dt, state, now);
     autoNear(dt, state, orders, now);
+    updateSpot(dt, state);
     buildings.update(dt, clock, orders, now, id => id === carry?.orderId || staff.isClaimed(id));
     const playing = state.story.phase === 'play';
     cafe.update(dt, clock, state, now, playing);
@@ -1401,6 +1474,45 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       cam.glideTo(p.x, p.z, { safe: true });
       return true;
     },
+    /**
+     * Profile photo of a staff unit: the unit as it stands now, shot from the front by a small camera, as a JPEG data URL
+     * (cached per unit for `maxAgeMs`). Null when the unit is not drawn in the area on screen (bench, other area).
+     * Rendered into the corner of the main canvas and copied out at once (same task, so no preserveDrawingBuffer); the
+     * next frame repaints that corner.
+     */
+    portrait(uid, maxAgeMs = 30000) {
+      const hit = portraits.get(uid), t = performance.now();
+      if (hit && t - hit.at < maxAgeMs) return hit.url;
+      const p = staff.portraitOf(uid);
+      if (!p || switching || disposed) return hit?.url || null;
+      p.root.updateMatrixWorld(true);
+      p.root.getWorldPosition(shotAt);
+      shotAt.y += p.head;
+      shotDir.set(0, 0, 1).applyQuaternion(p.root.getWorldQuaternion(shotQ)).setY(0).normalize();
+      shotCam.position.copy(shotAt).addScaledVector(shotDir, p.kind === 'robot' ? 1.9 : 1.55);
+      shotCam.position.y += .12;
+      shotCam.lookAt(shotAt.x, shotAt.y - .08, shotAt.z);
+      shotCam.updateMatrixWorld(true);
+      const canvas = renderer.domElement, pr = renderer.getPixelRatio(), S = SHOT_CSS;
+      if (canvas.width < S * pr || canvas.height < S * pr) return hit?.url || null;
+      renderer.getViewport(shotVp); renderer.getScissor(shotSc);
+      const test = renderer.getScissorTest(), target = renderer.getRenderTarget();
+      let url = null;
+      try {
+        renderer.setRenderTarget(null);
+        renderer.setViewport(0, 0, S, S); renderer.setScissor(0, 0, S, S); renderer.setScissorTest(true);
+        renderer.render(scene, shotCam);
+        const out = document.createElement('canvas');
+        out.width = out.height = SHOT_PX;
+        out.getContext('2d').drawImage(canvas, 0, canvas.height - S * pr, S * pr, S * pr, 0, 0, SHOT_PX, SHOT_PX);
+        url = out.toDataURL('image/jpeg', .85);
+      } catch (err) { console.warn('[staff] portrait failed', err); }
+      finally {
+        renderer.setScissorTest(test); renderer.setScissor(shotSc); renderer.setViewport(shotVp); renderer.setRenderTarget(target);
+      }
+      if (url) portraits.set(uid, { url, at: t });
+      return url || hit?.url || null;
+    },
     /** Café post of a staff unit ('allRounder' | 'cashier' | 'barista' | 'runner' | null). */
     staffPost: uid => staff.postOf?.(uid) ?? null,
     /** Object notices currently shown in the view: [{ key, kind, up, target }] (read only; refreshed ~4×/s). */
@@ -1418,6 +1530,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     dispose() {
       if (disposed) return;
       disposed = true;
+      window.removeEventListener('godbean:autofocus', onAutoFocus);
       unsubscribe();
       input.dispose();
       outline?.remove();

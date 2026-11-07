@@ -1,0 +1,323 @@
+<title>Phòng nghiên cứu</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: a design memo column; interactive phone screens in the game's own cream/brown HUD look sit in a scrolling row. Research lab adds slot chips and hint dots. */
+:root{
+  --bg:#eef1e8; --fg:#24301f; --muted:#5d6a55; --line:#cfd6c3; --panel:#f8faf3; --accent:#3f7c4a; --warn:#b5523a; --gold:#a8741a;
+  --g-bg:#fff7e3; --g-ink:#694427; --g-soft:#8a6a45; --g-edge:#e5c387; --g-inset:#f6e7c4; --g-good:#5f8a3c; --g-goodbg:#eef5dc;
+  --g-bad:#b5523a; --g-badbg:#fbe6dc; --g-gold:#e8b23e; --g-jade:#3f7c70; --g-sky:#5b8fb3; --g-plum:#7a5aa6;
+  --f-body:'Be Vietnam Pro',system-ui,sans-serif; --f-game:'Baloo 2',system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#161b14;--fg:#e4ead9;--muted:#9aa78f;--line:#2f382b;--panel:#1d241a;--accent:#8cc391;--warn:#e48a6f;--gold:#e2b45c;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#161b14;--fg:#e4ead9;--muted:#9aa78f;--line:#2f382b;--panel:#1d241a;--accent:#8cc391;--warn:#e48a6f;--gold:#e2b45c;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font:15px/1.6 var(--f-body)}
+.wrap{max-width:1080px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:32px 64px;display:grid;gap:40px}
+h1,h2,h3{font-family:var(--f-game);text-wrap:balance;line-height:1.15;margin:0}
+h1{font-size:clamp(30px,6vw,44px);font-weight:800}
+h2{font-size:26px;font-weight:700;margin-bottom:12px}
+h3{font-size:18px;font-weight:700;margin-bottom:6px}
+p{margin:0 0 10px;max-width:70ch}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.lead{font-size:17px;color:var(--muted)}
+section{display:grid;gap:12px;min-width:0}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0}
+.box ul,.box ol{margin:0;padding-left:18px}.box li{margin:4px 0}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:600;color:var(--muted);font-size:12px;letter-spacing:.04em;text-transform:uppercase}
+td.c{text-align:center;white-space:nowrap}
+.scroll{overflow-x:auto}
+.y{color:var(--accent);font-weight:700}.n{color:var(--muted)}.a{color:var(--gold);font-weight:700}.x{color:var(--warn);font-weight:700}
+.q{display:grid;gap:4px;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.q b{font-family:var(--f-game);font-size:17px}
+.q .rec{color:var(--accent);font-weight:600;font-size:14px}
+ol.phases{margin:0;padding-left:20px;display:grid;gap:10px}
+.note{font-size:13px;color:var(--muted)}
+.flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:14px}
+.flow span{padding:6px 10px;border-radius:10px;background:var(--panel);border:1px solid var(--line)}
+.flow i{font-style:normal;color:var(--muted)}
+/* phones */
+.phones{display:flex;gap:20px;overflow-x:auto;padding-bottom:12px;scroll-snap-type:x mandatory}
+.phone-col{flex:0 0 auto;display:grid;gap:8px;scroll-snap-align:start;margin:0}
+.phone-col figcaption{font-size:13px;color:var(--muted);max-width:330px}
+.phone{width:330px;max-width:calc(100vw - 32px);height:700px;border-radius:34px;border:8px solid #2b2620;background:var(--g-bg);color:var(--g-ink);font-family:var(--f-game);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 30px #0003;position:relative}
+.p-head{padding:12px 14px 0;background:var(--g-bg);border-bottom:2px solid var(--g-edge)}
+.p-title{display:flex;align-items:center;gap:8px;font-weight:800;font-size:17px}
+.p-title .x{margin-left:auto;width:28px;height:28px;border-radius:50%;background:#e0744f;color:#fff;display:grid;place-items:center;font-size:16px}
+.p-tabs{display:flex;gap:4px;margin-top:10px}
+.p-tabs button{flex:1;font:700 12.5px var(--f-game);color:var(--g-soft);background:transparent;border:0;border-bottom:3px solid transparent;padding:6px 0;cursor:pointer;position:relative}
+.p-tabs button[aria-selected="true"]{color:var(--g-ink);border-color:var(--g-gold)}
+.p-tabs button:focus-visible{outline:2px solid var(--g-jade);outline-offset:-2px}
+.badge{display:inline-grid;place-items:center;min-width:16px;height:16px;padding:0 4px;border-radius:99px;background:var(--g-bad);color:#fff;font-size:10px;margin-left:3px;vertical-align:1px}
+.p-body{flex:1;overflow-y:auto;padding:12px 14px 18px;display:grid;gap:10px;align-content:start}
+.card{background:#fffdf5;border:2px solid var(--g-edge);border-radius:14px;padding:10px 12px;display:grid;gap:6px}
+.card.alert{border-color:var(--g-bad);background:#fff6f2}
+.card.gold{border-color:var(--g-gold);background:#fffaeb}
+.id{display:grid;grid-template-columns:60px 1fr;gap:10px;align-items:center}
+.ava{width:60px;height:60px;border-radius:16px;background:linear-gradient(160deg,#e3d4f2,#a98ccf);display:grid;place-items:center;font-size:32px}
+.ava.chaos{background:linear-gradient(160deg,#f6d2c6,#d98a6e)}
+.nm{font-size:19px;font-weight:800;line-height:1}
+.sm{font:500 12px/1.4 var(--f-body);color:var(--g-soft)}
+.pill{display:inline-block;font:700 11px var(--f-game);padding:0 7px;border-radius:99px;background:var(--g-inset);color:var(--g-ink)}
+.pill.good{background:var(--g-goodbg);color:var(--g-good)}.pill.bad{background:var(--g-badbg);color:var(--g-bad)}.pill.gold{background:#fbeab8;color:#8a5a12}.pill.plum{background:#ece3f6;color:var(--g-plum)}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.lbl{font-size:13px;font-weight:800;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.lbl small{font:500 11px var(--f-body);color:var(--g-soft)}
+.kpis{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.kpi{background:var(--g-inset);border-radius:10px;padding:6px 8px}
+.kpi small{display:block;font:500 11px var(--f-body);color:var(--g-soft)}
+.kpi b{font-size:16px;font-variant-numeric:tabular-nums}
+.kpi em{font:600 11px var(--f-body);font-style:normal;color:var(--g-good)}
+.kpi em.dn{color:var(--g-bad)}
+.seg{display:flex;background:var(--g-inset);border-radius:10px;padding:2px}.seg span{flex:1;text-align:center;font:700 11.5px/1.2 var(--f-game);padding:5px 2px;border-radius:8px;color:var(--g-soft)}.seg span.on{background:#fff;color:var(--g-ink);box-shadow:0 1px 0 var(--g-edge)}
+.bar{height:8px;border-radius:99px;background:#ead9b5;overflow:hidden}.bar span{display:block;height:100%;border-radius:99px}
+.btn{font:800 12px var(--f-game);border:0;border-radius:10px;padding:5px 10px;background:linear-gradient(#ffd96a,#f0b43a);color:#5a3a10;box-shadow:0 2px 0 #a67c34;cursor:pointer;white-space:nowrap}
+.btn.plain{background:#fff;box-shadow:0 2px 0 var(--g-edge);color:var(--g-ink)}
+.btn.go{background:linear-gradient(#9fd07a,#6fa649);color:#fff;box-shadow:0 2px 0 #516d35}
+.btn.no{background:#fff;box-shadow:0 2px 0 #d4a58a;color:var(--g-bad)}
+.tip{display:grid;grid-template-columns:22px 1fr;gap:8px;padding:6px 0;border-bottom:1px dashed var(--g-edge);font:500 12px/1.4 var(--f-body)}
+.tip:last-child{border:0}.tip b{font-family:var(--f-game);font-size:13px;color:var(--g-ink)}
+.tip .row{margin-top:4px}
+.tl{list-style:none;margin:0;padding:0;display:grid}
+.tl li{display:grid;grid-template-columns:20px 1fr auto;gap:8px;font:500 12px/1.4 var(--f-body);padding:5px 0;border-bottom:1px dashed var(--g-edge)}
+.tl li:last-child{border:0}.tl small{color:var(--g-soft);white-space:nowrap}
+.toast{position:absolute;left:10px;right:10px;top:10px;z-index:3;background:#3b2a1a;color:#fff6e3;border-radius:14px;padding:8px 10px;font:600 12px/1.35 var(--f-body);box-shadow:0 6px 16px #0005;display:grid;grid-template-columns:24px 1fr;gap:8px}
+.toast b{font-family:var(--f-game);font-size:13px}
+.cand{display:grid;grid-template-columns:44px 1fr;gap:8px;padding:8px 0;border-bottom:1px dashed var(--g-edge)}.cand:last-child{border:0}
+.cand .ava{width:44px;height:44px;font-size:24px;border-radius:12px}
+.stars{color:var(--g-gold);letter-spacing:1px}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+<style>
+.slots{display:flex;gap:6px}
+.slot{flex:1;min-height:54px;border-radius:12px;border:2px dashed var(--g-edge);display:grid;place-items:center;font:700 11px/1.2 var(--f-game);color:var(--g-soft);text-align:center;padding:4px}
+.slot.on{border-style:solid;background:#fffaeb;color:var(--g-ink);font-size:20px}
+.ings{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.ing{border-radius:10px;background:var(--g-inset);padding:6px 2px;text-align:center;font:700 10.5px/1.2 var(--f-game)}
+.ing b{display:block;font-size:20px}
+.ing.lock{opacity:.45}
+.hint{display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:center;font:500 12px/1.35 var(--f-body);padding:5px 0;border-bottom:1px dashed var(--g-edge)}
+.hint:last-child{border:0}
+.dots{display:flex;gap:3px}.dots i{width:10px;height:10px;border-radius:50%;background:#ead9b5;display:block}.dots i.g{background:var(--g-good)}.dots i.y{background:var(--g-gold)}
+.field{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.field div{border-radius:10px;background:var(--g-inset);padding:6px;font:600 11px/1.3 var(--f-body)}
+.field div b{display:block;font:800 13px var(--f-game)}
+.cmp{width:100%;border-collapse:collapse;font:600 12px var(--f-body)}
+.cmp td,.cmp th{padding:4px 6px;border-bottom:1px dashed var(--g-edge);text-align:left}
+.cmp th{font:700 11px var(--f-body);color:var(--g-soft);text-transform:none;letter-spacing:0}
+.cmp .up{color:var(--g-good);font-weight:800}.cmp .dn{color:var(--g-bad);font-weight:800}
+</style>
+
+<div class="wrap">
+<header style="display:grid;gap:10px">
+  <span class="eyebrow">Godbean · Thiết kế · 07/11/2026 · đã chốt theo đề xuất · cả 4 bước đã code, chưa commit</span>
+  <h1>Phòng nghiên cứu</h1>
+  <p class="lead">Ba việc phát triển chỉ người chơi tự làm được: tìm công thức đồ uống mới, tìm cách gieo trồng tốt hơn, tìm nguồn nguyên liệu và người mua tốt hơn. Tổng quản lý chỉ duy trì cái bạn đã tìm ra. Muốn lời nhiều thì phải tự nghiên cứu.</p>
+</header>
+
+<section>
+  <h2>Vì sao cần</h2>
+  <div class="cols">
+    <div class="box"><h3>Hiện tại</h3><ul>
+      <li>Chỉ 2 cây (robusta, arabica) và 3 món gốc (espresso, cà phê sữa, latte), mở theo cấp.</li>
+      <li>Món địa phương mỗi nước (nâu đá, cà phê trứng, cà phê muối, filter kaapi…) chỉ là tên, giá vẫn theo món gốc.</li>
+      <li>Hạt mua từ một nguồn giá cố định (🪙4 / hạt), bán ra giá cố định.</li>
+    </ul></div>
+    <div class="box"><h3>Sau khi có Phòng nghiên cứu</h3><ul>
+      <li>Người chơi chủ động có việc để làm, việc mà quản lý không làm thay được (đúng feedback).</li>
+      <li>Mỗi thành phố, mỗi quốc gia có điều riêng để khám phá: món riêng, cách trồng hợp đất, nhà cung cấp riêng.</li>
+      <li>Có lý do quay lại: hợp đồng hết hạn, giá thương lái đổi mỗi ngày, ruộng thử ra kết quả.</li>
+    </ul></div>
+  </div>
+</section>
+
+<section>
+  <h2>Màn hình mô phỏng</h2>
+  <p class="note">Bấm các tab bên trong điện thoại. Số liệu là ví dụ.</p>
+  <div class="phones">
+
+  <figure class="phone-col">
+    <div class="phone" data-phone>
+      <div class="p-head">
+        <div class="p-title">🧪 Bàn thử món · Huế<span class="x">×</span></div>
+        <div class="p-tabs" role="tablist" aria-label="Bàn thử món">
+          <button role="tab" aria-selected="true" aria-controls="r-p1" id="r-t1">Thử món</button>
+          <button role="tab" aria-selected="false" aria-controls="r-p2" id="r-t2">Sổ công thức</button>
+        </div>
+      </div>
+      <div class="p-body">
+        <div role="tabpanel" id="r-p1" aria-labelledby="r-t1" style="display:grid;gap:10px">
+          <div class="card">
+            <div class="lbl">Món gốc + tối đa 3 nguyên liệu <small>lần thử 🪙12 · 20 giây</small></div>
+            <div class="slots"><div class="slot on">☕</div><div class="slot on">🥛</div><div class="slot on">🧂</div><div class="slot">trống</div></div>
+            <div class="ings">
+              <div class="ing"><b>🥛</b>Sữa đặc</div><div class="ing"><b>🧂</b>Muối</div><div class="ing"><b>🥚</b>Trứng</div><div class="ing"><b>🧊</b>Đá</div>
+              <div class="ing"><b>🍯</b>Đường</div><div class="ing"><b>🥥</b>Dừa</div><div class="ing lock"><b>🍫</b>Cacao</div><div class="ing lock"><b>🌿</b>Lá dứa</div>
+            </div>
+            <div class="row"><button class="btn go">🧪 Thử pha</button></div>
+          </div>
+          <div class="card">
+            <div class="lbl">Kết quả các lần thử <small>xanh = đúng chỗ · vàng = có trong món khác</small></div>
+            <div class="hint"><div class="dots"><i class="g"></i><i class="g"></i><i class="y"></i></div><span>☕ + 🥛 + 🧂: <b>gần đúng</b>, khách Huế khen "mặn mà", thiếu một vị béo.</span></div>
+            <div class="hint"><div class="dots"><i class="g"></i><i></i><i></i></div><span>☕ + 🍯 + 🧊: vị lạ, không ai gọi món này.</span></div>
+          </div>
+          <div class="card gold"><div class="lbl">✨ Khám phá: Cà phê muối</div><div class="sm">Giá 🪙48 (latte gốc 🪙36). Khách Huế gọi món này gấp đôi. Nhân viên pha được khi Chuẩn ≥ 3.</div></div>
+        </div>
+        <div role="tabpanel" id="r-p2" aria-labelledby="r-t2" hidden style="display:grid;gap:10px">
+          <div class="card">
+            <div class="lbl">Việt Nam <small>3 / 8 món</small></div>
+            <div class="hint"><span>🧊</span><span><b>Cà phê đá</b> · 🪙12 · đã khám phá</span></div>
+            <div class="hint"><span>🥚</span><span><b>Cà phê trứng</b> · 🪙50 · đã khám phá · bán chạy ở Hà Nội</span></div>
+            <div class="hint"><span>🧂</span><span><b>Cà phê muối</b> · 🪙48 · đã khám phá · bán chạy ở Huế</span></div>
+            <div class="hint"><span>❔</span><span>5 món chưa biết. Gợi ý: "khách Sài Gòn hay gọi một món nhiều sữa, ít cà phê"</span></div>
+          </div>
+          <div class="card"><div class="sm">Công thức tìm được dùng ở mọi quán trong nước đó. Quản lý và nhân viên chỉ pha theo công thức đã có, không tự tìm món mới.</div></div>
+        </div>
+      </div>
+    </div>
+    <figcaption><b>Công thức đồ uống.</b> Ghép món gốc với nguyên liệu, mỗi lần thử có gợi ý như trò đoán màu. Tìm ra món địa phương thì món đó có giá riêng và được khách vùng đó gọi nhiều.</figcaption>
+  </figure>
+
+  <figure class="phone-col">
+    <div class="phone" data-phone>
+      <div class="p-head">
+        <div class="p-title">🌱 Ruộng thử<span class="x">×</span></div>
+        <div class="p-tabs" role="tablist" aria-label="Ruộng thử">
+          <button role="tab" aria-selected="true" aria-controls="f-p1" id="f-t1">Thử nghiệm</button>
+          <button role="tab" aria-selected="false" aria-controls="f-p2" id="f-t2">Kết quả</button>
+        </div>
+      </div>
+      <div class="p-body">
+        <div role="tabpanel" id="f-p1" aria-labelledby="f-t1" style="display:grid;gap:10px">
+          <div class="card">
+            <div class="lbl">Ruộng F1-3 · Arabica <small>1 vụ · 🪙30</small></div>
+            <div class="field">
+              <div><b>☂️ Che bóng</b>Không · <u>Vừa</u> · Dày</div>
+              <div><b>📏 Mật độ</b>Thưa · <u>Vừa</u> · Dày</div>
+              <div><b>🧪 Phân</b>Không · <u>Hữu cơ</u> · Hóa học</div>
+            </div>
+            <div class="row"><button class="btn go">🌱 Gieo thử</button></div>
+            <div class="sm">Mỗi vùng đất hợp một cách khác nhau (đồi Đà Lạt khác đồng bằng). Kết quả có sau 1 vụ.</div>
+          </div>
+        </div>
+        <div role="tabpanel" id="f-p2" aria-labelledby="f-t2" hidden style="display:grid;gap:10px">
+          <div class="card">
+            <div class="lbl">Arabica · so với cách đang dùng</div>
+            <table class="cmp">
+              <tr><th>Cách</th><th>Hạt</th><th>Thời gian</th><th>2 sao</th></tr>
+              <tr><td>Đang dùng</td><td>4</td><td>40 giây</td><td>0%</td></tr>
+              <tr><td>Bóng vừa · Hữu cơ</td><td class="up">5</td><td class="dn">46 giây</td><td class="up">30%</td></tr>
+              <tr><td>Dày · Hóa học</td><td class="up">6</td><td class="up">36 giây</td><td class="dn">0%</td></tr>
+            </table>
+            <div class="row"><button class="btn">✅ Áp dụng cách 2 cho mọi ruộng Arabica</button></div>
+          </div>
+          <div class="card"><div class="sm">Nhân viên và robot gieo theo cách bạn đã áp dụng. Quản lý không tự đổi cách trồng.</div></div>
+        </div>
+      </div>
+    </div>
+    <figcaption><b>Cách gieo trồng.</b> Một ruộng thử mỗi lần. Kết hợp che bóng, mật độ, phân bón; so sánh với cách đang dùng rồi áp dụng cho cả nông trại.</figcaption>
+  </figure>
+
+  <figure class="phone-col">
+    <div class="phone" data-phone>
+      <div class="p-head">
+        <div class="p-title">🚚 Nguồn hàng<span class="x">×</span></div>
+        <div class="p-tabs" role="tablist" aria-label="Nguồn hàng">
+          <button role="tab" aria-selected="true" aria-controls="s-p1" id="s-t1">Nhà cung cấp</button>
+          <button role="tab" aria-selected="false" aria-controls="s-p2" id="s-t2">Thương lái</button>
+        </div>
+      </div>
+      <div class="p-body">
+        <div role="tabpanel" id="s-p1" aria-labelledby="s-t1" style="display:grid;gap:10px">
+          <div class="card">
+            <div class="lbl">🥛 Sữa · đang dùng: Chợ Đông Ba <small>hết hạn sau 1 ngày</small></div>
+            <div class="sm">🪙3 / phần · chất lượng ★★ · giao trễ 10%</div>
+          </div>
+          <div class="card">
+            <div class="lbl">Tìm thêm nhà cung cấp <small>🪙40 · 5 phút</small></div>
+            <div class="hint"><span>🐄</span><span><b>Trang trại Mộc Châu</b> · 🪙4 · ★★★ · trễ 2% · hợp đồng 7 ngày <button class="btn">Ký 🪙120</button></span></div>
+            <div class="hint"><span>🏪</span><span><b>Đại lý Sài Gòn</b> · 🪙2,5 · ★ · trễ 25% <button class="btn plain">Ký 🪙60</button></span></div>
+          </div>
+          <div class="card"><div class="sm">Nguyên liệu tốt hơn thì món lên sao. Giao trễ thì có lúc hết hàng. Quản lý chỉ đặt lại hàng trong hợp đồng sẵn có; tìm và ký hợp đồng mới là việc của bạn.</div></div>
+        </div>
+        <div role="tabpanel" id="s-p2" aria-labelledby="s-t2" hidden style="display:grid;gap:10px">
+          <div class="card">
+            <div class="lbl">Giá hôm nay <small>đổi mỗi ngày</small></div>
+            <table class="cmp">
+              <tr><th>Người mua</th><th>Hạt</th><th>Rang</th><th>Túi</th></tr>
+              <tr><td>Kho chung</td><td>2</td><td>9</td><td>33</td></tr>
+              <tr><td>Bà Năm (Buôn Ma Thuột)</td><td class="up">2,6</td><td>8</td><td>—</td></tr>
+              <tr><td>Quán chuỗi Hà Nội</td><td>—</td><td class="up">11</td><td class="up">38</td></tr>
+            </table>
+            <div class="row"><button class="btn">📝 Chốt giá 3 ngày với Quán chuỗi</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <figcaption><b>Nguồn nguyên liệu.</b> Nhà cung cấp có giá, chất lượng, độ đúng hẹn và hạn hợp đồng. Thương lái trả giá khác nhau và đổi mỗi ngày.</figcaption>
+  </figure>
+  </div>
+</section>
+
+<section>
+  <h2>Luật đề xuất</h2>
+  <div class="cols">
+    <div class="box"><h3>🧪 Công thức đồ uống</h3><ul>
+      <li>Món cần tìm = món địa phương đã có tên trong game (menus.js, 7–8 món mỗi nước). Mỗi món có công thức ẩn: món gốc + 1–3 nguyên liệu.</li>
+      <li>8 nguyên liệu: sữa đặc, sữa tươi, đường, đá, muối, trứng, dừa, cacao (2 món sau mở dần theo cấp). Mua theo phần.</li>
+      <li>Mỗi lần thử tốn hạt + nguyên liệu + 20 giây. Gợi ý kiểu đoán màu: đúng chỗ (xanh), có nhưng sai (vàng).</li>
+      <li>Tìm ra: giá riêng +30–40% so với món gốc, khách của nước đó gọi món này nhiều hơn.</li>
+    </ul></div>
+    <div class="box"><h3>🌱 Cách gieo trồng</h3><ul>
+      <li>Ba yếu tố: che bóng, mật độ, phân bón (3 mức mỗi yếu tố = 27 cách cho mỗi cây).</li>
+      <li>Mỗi vùng có một cách tốt nhất (ẩn, theo địa hình). Cách đang dùng mặc định là "vừa · vừa · không".</li>
+      <li>Ruộng thử: 1 ruộng (2 từ cấp 8), 1 vụ, phí nhỏ. Kết quả so với cách đang dùng: hạt, thời gian, tỉ lệ 2 sao.</li>
+      <li>Áp dụng thì mọi ruộng cây đó trồng theo cách mới, kể cả nhân viên và robot.</li>
+    </ul></div>
+    <div class="box"><h3>🚚 Nguồn nguyên liệu</h3><ul>
+      <li>Mỗi nguyên liệu (và hạt cho quán) có 3–4 nhà cung cấp mỗi vùng: giá, chất lượng (★ → sao của món), tỉ lệ giao trễ.</li>
+      <li>Tìm nhà cung cấp tốn tiền và thời gian. Hợp đồng 1 ngày hoặc 7 ngày (ngày thật), hết hạn phải ký lại.</li>
+      <li>Thương lái (nông trại): 2–3 người mua, giá đổi mỗi ngày, có thể chốt giá vài ngày.</li>
+    </ul></div>
+    <div class="box"><h3>🧑‍💼 Tổng quản lý</h3><ul>
+      <li>Được: pha món đã có công thức, trồng theo cách đã áp dụng, đặt lại hàng trong hợp đồng còn hạn, bán cho người mua bạn đã chốt.</li>
+      <li>Không được: thử món, mở ruộng thử, tìm hay ký nhà cung cấp, chốt giá với thương lái.</li>
+      <li>Gợi ý thêm: "Hợp đồng sữa hết hạn trong 2 giờ", "Khách Huế hỏi một món chưa có".</li>
+    </ul></div>
+  </div>
+</section>
+
+<section>
+  <h2>Thứ tự làm</h2>
+  <ol class="phases">
+    <li><b>✅ Công thức đồ uống (đã làm).</b> Nguyên liệu mua theo phần (giá cố định), bàn thử món, sổ công thức, món địa phương có giá riêng.</li>
+    <li><b>✅ Nguồn nguyên liệu (đã làm).</b> Nhà cung cấp, hợp đồng, chất lượng và giao trễ; thương lái cho nông trại.</li>
+    <li><b>✅ Cách gieo trồng (đã làm).</b> Ruộng thử, bảng so sánh, áp dụng cho cả nông trại.</li>
+    <li><b>✅ Nối với Tổng quản lý và báo cáo (đã làm).</b> Gợi ý, giới hạn quyền, chi phí nguyên liệu trong báo cáo.</li>
+  </ol>
+</section>
+
+<section>
+  <h2>Cần bạn chốt</h2>
+  <div style="display:grid;gap:10px">
+    <div class="q"><b>1. Tìm công thức bằng trò đoán có gợi ý, hay chỉ trả tiền rồi chờ?</b><span class="rec">Đề xuất: trò đoán có gợi ý. Người chơi phải tự nghĩ, quản lý không làm thay được.</span></div>
+    <div class="q"><b>2. Danh sách món cần tìm lấy từ menu địa phương đang có?</b><span class="rec">Đề xuất: có. Mỗi nước 7–8 món, đã có tên và icon.</span></div>
+    <div class="q"><b>3. Hợp đồng nhà cung cấp tính theo ngày thật?</b><span class="rec">Đề xuất: có (giống thâm niên). Hết hạn là lý do quay lại game.</span></div>
+    <div class="q"><b>4. Giá thương lái đổi mỗi ngày thật?</b><span class="rec">Đề xuất: có, chốt giá được 1–3 ngày.</span></div>
+    <div class="q"><b>5. Bao nhiêu ruộng thử cùng lúc?</b><span class="rec">Đề xuất: 1, thành 2 từ cấp 8.</span></div>
+    <div class="q"><b>6. Làm phần nào trước?</b><span class="rec">Đề xuất: công thức đồ uống trước (dùng ngay dữ liệu menu có sẵn, dễ thấy nhất).</span></div>
+  </div>
+</section>
+</div>
+
+<script>
+document.querySelectorAll('[data-phone]').forEach(phone => {
+  const tabs = [...phone.querySelectorAll('[role=tab]')];
+  tabs.forEach(t => t.addEventListener('click', () => {
+    tabs.forEach(o => { const on = o === t; o.setAttribute('aria-selected', String(on)); const p = phone.querySelector('#' + o.getAttribute('aria-controls')); if (p) p.hidden = !on; });
+    const b = phone.querySelector('.p-body'); if (b) b.scrollTop = 0;
+  }));
+});
+</script>

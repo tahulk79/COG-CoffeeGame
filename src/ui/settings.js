@@ -30,7 +30,8 @@ function persist() {
 }
 
 function render() {
-  $('[role=switch]').setAttribute('aria-checked', String(settings.muted));
+  $('[data-mute]').setAttribute('aria-checked', String(settings.muted));
+  $('[data-autofocus]').setAttribute('aria-checked', String(settings.autoFocus !== false));
   $('[data-lang-select]').value = getLang();
   for (const tab of dialog.querySelectorAll('[data-quality]')) tab.setAttribute('aria-pressed', String(tab.dataset.quality === getQuality()));
   $('[data-quality-desc]').textContent = t(`settings.quality.${getQuality()}.desc`);
@@ -53,7 +54,10 @@ function template() {
         </label>
         <p class="ui-modal__subtitle">${t('settings.language.note')}</p>
         <h3>🔊 ${t('settings.audio')}</h3>
-        <div class="ui-row"><span id="game-settings-muted">${t('settings.mute')}</span><button type="button" class="ui-switch" role="switch" aria-labelledby="game-settings-muted"></button></div>
+        <div class="ui-row"><span id="game-settings-muted">${t('settings.mute')}</span><button type="button" class="ui-switch" role="switch" data-mute aria-labelledby="game-settings-muted"></button></div>
+        <h3>🎥 ${t('settings.camera')}</h3>
+        <div class="ui-row"><span id="game-settings-autofocus">${t('settings.autoFocus')}</span><button type="button" class="ui-switch" role="switch" data-autofocus aria-labelledby="game-settings-autofocus"></button></div>
+        <p class="ui-modal__subtitle">${t('settings.autoFocus.note')}</p>
         <h3>🖼️ ${t('settings.graphics')}</h3>
         <div class="ui-tabs ui-tabs--segmented" role="group" aria-label="${t('settings.graphicsQuality')}">
           ${QUALITY.map(id => `<button type="button" class="ui-tab" data-quality="${id}">${t(`settings.quality.${id}`)}</button>`).join('')}
@@ -73,7 +77,13 @@ function bind() {
   for (const type of ['keydown', 'keyup']) dialog.addEventListener(type, event => event.stopPropagation());
   $('.ui-close').addEventListener('click', closeSettings);
 
-  $('[role=switch]').addEventListener('click', () => {
+  $('[data-autofocus]').addEventListener('click', () => {
+    settings.autoFocus = settings.autoFocus === false;
+    render();
+    persist();
+    window.dispatchEvent(new CustomEvent('godbean:autofocus', { detail: settings.autoFocus })); // the realm listens
+  });
+  $('[data-mute]').addEventListener('click', () => {
     settings.muted = !settings.muted;
     setMuted(settings.muted);
     render();

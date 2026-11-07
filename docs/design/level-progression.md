@@ -125,3 +125,14 @@ người hỗ trợ). Robot mở muộn hơn nhân viên để có thêm mốc �
    đông khách, thương lái đặt hàng gấp… Biến cố chỉ làm khó trong một lúc, không xoá save. Sự cố lớn (mất hết) chỉ
    hết khi mở được Round 2. Cần một bản thiết kế riêng.
 4. Lên Lv100: `LEVEL_XP` hiện tự tính tiếp sau Lv10 tới `MAX_LEVEL = 30`. Muốn tới 100 thì cần định lại đường XP.
+
+
+## Level-10 restart: explanation and a follower (founder 2026-11-07)
+- The restart stays. The dialogue now says it plainly: reaching level 10 ends the apprenticeship; the real game starts
+  over with no coins, level or land; you keep what you learned (found recipes) and maybe someone who follows you.
+- Before the reset the game picks one of your staff who wants to follow (`D.followerCandidate`): the worker with the
+  highest morale, or — `FOLLOW.robotChance` 25% when you own robots — a robot that "evolved a mind" from living with
+  people (two funny lines first). You confirm («Cho đi theo» / «Thôi»); `expiry/execute { follower }` keeps that unit
+  (skills, rank, gear) unassigned; it joins the next region you enter.
+- A follower is paid `followerWage` per 10 min, working or not (workers 10% of the hire price, min 10; the evolved robot
+  20). With no coins the wage goes on your debt (`s.loan.owed`), repaid by the usual 20% of income.

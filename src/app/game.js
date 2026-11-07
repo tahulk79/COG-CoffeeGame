@@ -14,7 +14,8 @@ import { getLang, hasKey, t } from '../i18n/index.js';
 import { sfx } from '../shared/audio/index.js';
 import { detectPlatform, initAnalytics, track } from '../shared/analytics/wire.js';
 import { createStore } from '../core/store.js';
-import { START, EXPIRY_LEVEL } from '../core/config/economy.js';
+import { START, EXPIRY_LEVEL, STAFF } from '../core/config/economy.js';
+import { followerCandidate, followerWage } from '../core/derive.js';
 import { loadPlayer, playerModel } from '../characters/load-player.js';
 import { V3_KEY, PROGRESS_KEY, PLAYER_KEY, DEV_PROFILE } from '../state/storage-keys.js';
 import pkg from '../../package.json';
@@ -110,7 +111,7 @@ function fallbackErrorText(result) {
 const errorText = result => (typeof hudModule?.errorText === 'function' ? hudModule.errorText(result) : fallbackErrorText(result));
 // Timer-driven realm actions (customers, café street vendors / reviews): failures are not the player's doing.
 const QUIET_ACTIONS = new Set(['shop/spawnCustomer', 'shop/customerLeft', 'shop/venueSale', 'shop/review']);
-const expiryLines = () => [1, 2, 3, 4].map(n => t(`story.expiry.line${n}`).replace(/\*\*/g, ''));
+const expiryLines = () => [1, 2, 3, 4, 5].map(n => t(`story.expiry.line${n}`).replace(/\*\*/g, ''));
 // Fire-and-forget realm cinematic; input stays usable afterwards.
 function cinematic(name) {
   if (!realm || mode !== 'play') return;
@@ -324,7 +325,20 @@ async function runExpiry() {
     realm.setInputLocked(true); realm.cancelPlacement(); realm.select(null); // select(null) also clears the HUD via onSelect
     try { await realm.cinematic('expiry'); } catch (error) { console.warn('expiry cinematic', error); }
     try { await hud?.dialogue(expiryLines()); } catch (error) { console.warn('expiry dialogue', error); }
-    const result = store.dispatch('expiry/execute');
+    // One of your staff asks to follow you (founder 2026-11-07): the most attached worker, or now and then a robot that
+    // "evolved a mind" living with people. You confirm; a follower costs a wage, unpaid wages go on your debt.
+    let follower = null;
+    const c = followerCandidate(store.state, Math.random());
+    if (c && hud?.confirm) {
+      const robot = STAFF[c.type]?.kind === 'robot', name = c.name || c.serial || t(`staff.${c.type}`);
+      try {
+        if (robot) await hud.dialogue([1, 2].map(n => ({ text: t(`story.follow.robot${n}`, { name }).replace(/\*\*/g, '').replace(/^🤖\s*[^:]*:\s*/, ''), speaker: name, avatar: '🤖' })));
+        const yes = await hud.confirm({ title: t(robot ? 'story.follow.titleRobot' : 'story.follow.title', { name }),
+          body: t('story.follow.body', { name, coins: followerWage(c), min: 10 }), confirmLabel: t('story.follow.yes'), cancelLabel: t('story.follow.no') });
+        if (yes) follower = c.uid;
+      } catch (error) { console.warn('follower ask', error); }
+    }
+    const result = store.dispatch('expiry/execute', { follower });
     if (result.ok && !result.noop) track('region_expired', { region: regionId || 'none' });
   } finally { expiryRunning = false; }
   if (store.state.story.phase === 'chooseRegion') await openAtlas('chooseRegion');

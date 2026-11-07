@@ -1,6 +1,7 @@
 // Pure selectors over the v3 save. No mutation. Used by the reducer, the scene and the HUD.
-import { TUTORIAL, BUILDINGS, CROPS, CROP_ORDER, DRINKS, DRINK_ORDER, STAFF, hireLimit, STAFF_CAP, RECRUIT, applicantsFor, traitEffect, MISTAKES, QUALITY, isHardDrink, unitLevel, levelSpeed, statOf, statCap, statCost, STAT_ORDER, SKILL, ROBOT_TASKS, PART_COST, PART_ORDER, partTier, partCost, UPKEEP, VITALS, CARE, ROBOT_WEAR, WORKER_TASKS, taskLimit, energyMax, unitFee, FIRE, BOOKS, CHEST_LEVELS, LOAN, loanOwed, ROUND_LEVEL_CAP, REBIRTH, CELL, levelForXp, xpForLevel, GRACE, SHOP, BEANS, VENUES, VENUE_ORDER, VENUE_ITEMS, RATING, FIELD, fieldExtraCost, fieldExtraCap, GOODS, GOOD_ORDER, ITEM_GOODS, RECIPES } from './config/economy.js';
+import { FOLLOW, GM, gmCandidatesFor, gmSalary, SHIFT, TEND, PROFILE, CAREER, rankOf, GEAR, gearTier, WARRANTY, SOFTWARE, softwarePrice, hasSoftware, TUTORIAL, BUILDINGS, CROPS, CROP_ORDER, DRINKS, DRINK_ORDER, STAFF, hireLimit, STAFF_CAP, RECRUIT, applicantsFor, traitEffect, MISTAKES, QUALITY, isHardDrink, unitLevel, levelSpeed, statOf, statCap, statCost, STAT_ORDER, SKILL, ROBOT_TASKS, PART_COST, PART_ORDER, partTier, partCost, UPKEEP, VITALS, CARE, ROBOT_WEAR, WORKER_TASKS, taskLimit, energyMax, unitFee, FIRE, BOOKS, CHEST_LEVELS, LOAN, loanOwed, ROUND_LEVEL_CAP, REBIRTH, CELL, levelForXp, xpForLevel, GRACE, SHOP, BEANS, VENUES, VENUE_ORDER, VENUE_ITEMS, RATING, FIELD, fieldExtraCost, fieldExtraCap, GOODS, GOOD_ORDER, ITEM_GOODS, RECIPES } from './config/economy.js';
 import { PARCELS, ROADS, RESERVED, BOUNDS, GATE, areaOfParcel, areaAt, rectsOverlap, rectsTouch, inRect, terrainOfLot, lotAllows, TERRAIN_USES, PRE_TILLED, SNAP, lotContaining } from './config/layout.js';
+import { countryRecipes, INGREDIENTS, INGREDIENT_ORDER, RESEARCH, SUPPLY, supplierOf, buyerOf, FARMLAB, methodEffect, methodKey } from './config/research.js';
 import { parseRegionId, citiesOf, COUNTRY_ORDER, regionCost, regionGames } from './config/world.js';
 
 // Own-property lookup: ids come from payloads, so 'toString' / '__proto__' must not resolve to Object.prototype.
@@ -46,7 +47,8 @@ export const growMs = (s, cropId, extra = 0) => Math.round(CROPS[cropId].growSec
 // reach of a well grows faster (wellBonus). `plotId` is optional: it is looked up from the plot object when missing.
 export const plotGrowMs = (s, p, plotId = plotIdOf(s, p)) => {
   const base = growMs(s, p.crop, plotId ? wellBonus(s, plotId) : 0);
-  return p.fast ? Math.min(TUTORIAL.firstGrowSeconds * 1000, base) : Math.round(base * (p.slow ? MISTAKES.crookedSlow : 1));
+  const way = Array.isArray(p.method) && s.world?.currentRegion ? methodEffect(s.world.currentRegion, p.crop, p.method).timeMul : 1; // research step 3
+  return p.fast ? Math.min(TUTORIAL.firstGrowSeconds * 1000, base) : Math.round(base * way * (p.slow ? MISTAKES.crookedSlow : 1));
 };
 // Farm World 2.0: the drying yard no longer multiplies beans (it processes them), so the yield is crop + staff only.
 export const yieldOf = (s, cropId) => Math.max(1, Math.round(CROPS[cropId].beans * (1 + staffBonus(s, 'yieldBonus'))));
@@ -163,7 +165,7 @@ export function graceActive(s) {
 export function sellQuote(s, good = 'beans', amount = Infinity) {
   if (!own(GOODS, good)) return { good, amount: 0, coins: 0 };
   const n = Math.max(0, Math.min(Math.floor(goodCount(s, good)), Math.floor(Number.isFinite(amount) ? amount : Infinity)));
-  return { good, amount: n, coins: n * GOODS[good].price };
+  return { good, amount: n, coins: Math.round(n * GOODS[good].price * (buyerNow(s).mul[good] ?? 1) * 100) / 100 }; // the chosen buyer's price
 }
 /** Selling everything stored: per good + total coins. */
 export function sellAllQuote(s) {
@@ -181,11 +183,12 @@ export function beanBuyQuote(s, amount = BEANS.buyPack) {
   const room = storageRoom(s);
   if (room <= 0) return { amount: 0, cost: 0, free: false, error: 'storageFull' };
   const want = Math.max(1, Math.min(room, Math.floor(amount) || BEANS.buyPack));
-  const n = Math.min(want, Math.floor(s.player.coins / BEANS.buyPrice));
-  if (n > 0) return { amount: n, cost: n * BEANS.buyPrice, free: false, error: null };
+  const unit = Math.round(BEANS.buyPrice * supplyOf(s, 'beans').priceMul * 100) / 100; // the beans supplier's price
+  const n = Math.min(want, Math.floor(s.player.coins / unit));
+  if (n > 0) return { amount: n, cost: Math.round(n * unit * 100) / 100, free: false, error: null, unit };
   const brewing = (r?.shop.orders || []).some(o => o.stage === 'brewing');
   if (s.inventory.beans < 1 && !brewing) return { amount: Math.min(room, BEANS.grace), cost: 0, free: true, error: null };
-  return { amount: 0, cost: want * BEANS.buyPrice, free: false, error: 'coins', missing: BEANS.buyPrice - s.player.coins };
+  return { amount: 0, cost: want * unit, free: false, error: 'coins', missing: unit - s.player.coins };
 }
 export const shopPaused = s => !!region(s)?.shop.pausedAt;
 /** The game the current region is played as ('farm' | 'cafe'), null until picked. */
@@ -652,7 +655,7 @@ export function careCost(u, kind) {
     case 'food': return CARE.food;
     case 'bonus': return CARE.bonus;
     case 'cool': return CARE.cool;
-    case 'repair': return CARE.repair;
+    case 'repair': return warrantyLeft(u) > 0 ? 0 : CARE.repair; // free while under warranty
     case 'service': return Math.round((STAFF[u?.type]?.cost || 0) * CARE.serviceRatio);
     default: return 0;
   }
@@ -681,11 +684,24 @@ export function quickFix(u, now = null) {
 
 // ---------- upkeep, fire, books (§2, §8) ----------
 /** Coins a benched worker costs per UPKEEP.perMinutes (robots and working staff: 0). */
-export const upkeepOf = u => (isWorkerUnit(u) && !u.active ? UPKEEP.benchRatio * STAFF[u.type].cost : 0);
+// Bench worker: upkeep; a lead / manager on shift: its allowance (CAREER.allowance), both per UPKEEP.perMinutes.
+export const upkeepOf = u => (u?.follower ? followerWage(u) : !isWorkerUnit(u) ? 0 : !u.active ? UPKEEP.benchRatio * STAFF[u.type].cost : CAREER.allowance[rankOf(u)] || 0);
+/** Wage of a unit that followed you through the Level-10 restart (FOLLOW), per UPKEEP.perMinutes, on or off shift. */
+export const followerWage = u => (isRobot(u) ? FOLLOW.robotWage : Math.max(FOLLOW.minWage, Math.round(FOLLOW.wageRatio * (STAFF[u.type]?.cost || 0))));
+/** Who asks to follow you at the Level-10 restart (roll < FOLLOW.robotChance and robots owned → the busiest robot,
+ *  else the worker with the highest morale, then level); null with no staff. */
+export function followerCandidate(s, roll = 1) {
+  const units = s.staff.units, robots = units.filter(isRobot), workers = units.filter(isWorkerUnit);
+  if (robots.length && (roll < FOLLOW.robotChance || !workers.length)) return [...robots].sort((a, b) => (b.book?.jobs || 0) - (a.book?.jobs || 0))[0];
+  return [...workers].sort((a, b) => (b.morale ?? 0) - (a.morale ?? 0) || unitLevel(b) - unitLevel(a))[0] || null;
+}
 /** Upkeep of a zone's bench here per UPKEEP.perMinutes (no zone = the whole team). */
 export const upkeepPer = (s, zone) => (zone ? assignedUnits(s, s.world.currentRegion, zone) : s.staff.units).reduce((n, u) => n + upkeepOf(u), 0);
 /** Coins back when firing a worker / selling a robot. */
-export const fireRefund = u => Math.round(isRobot(u) ? FIRE.robot * (u.paid || 0) + FIRE.robotParts * (u.partsSpent || 0) : FIRE.worker * (u?.paid || 0));
+// Robots: (price + parts + software shares) × wear / 100 (a worn robot sells for less). Workers: hire share + half the gear.
+export const fireRefund = u => Math.round(isRobot(u)
+  ? (FIRE.robot * (u.paid || 0) + FIRE.robotParts * (u.partsSpent || 0) + SOFTWARE.refund * (u.softwareSpent || 0)) * Math.max(0, Math.min(100, u.wear ?? 100)) / 100
+  : FIRE.worker * (u?.paid || 0)); // a fired worker's gear stays in the store (gearStock) for the next hire
 /** Team earned / spent over the last `minutes` game minutes (ledger). */
 export const ledgerWindow = (s, now, minutes = BOOKS.mvpMinutes) => {
   const from = Math.floor(now / 60000) - minutes + 1;
@@ -693,6 +709,347 @@ export const ledgerWindow = (s, now, minutes = BOOKS.mvpMinutes) => {
 };
 /** A unit's profit so far (book). */
 export const unitProfit = u => (u?.book?.earned || 0) - (u?.book?.spent || 0);
+// ---------- personnel file (docs/design/staff-profile.md) ----------
+/** Local calendar day of a timestamp as a number 20261107 (the key of a unit's day rows). */
+export const dayKey = now => { const d = new Date(now); return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate(); };
+/** The `n` calendar days ending today, oldest first (day keys). */
+export const lastDays = (now, n = PROFILE.daysKeep) => Array.from({ length: n }, (_, i) => {
+  const d = new Date(now); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - (n - 1 - i));
+  return dayKey(d.getTime());
+});
+/** A unit's numbers of one day (null when it has none). */
+export const dayRow = (u, key) => (u?.days || []).find(r => r.d === key) || null;
+const ROW_KEYS = ['jobs', 'earned', 'spent', 'capex', 'upkeep', 'mistakes', 'shift', 'work', 'down'];
+/** A unit's numbers summed over several days (a day key or a list of them); null when it has none of them. */
+export const rowsOf = (u, keys) => {
+  const list = (Array.isArray(keys) ? keys : [keys]).map(k => dayRow(u, k)).filter(Boolean);
+  if (!list.length) return null;
+  return Object.fromEntries(ROW_KEYS.map(k => [k, list.reduce((a, r) => a + (r[k] || 0), 0)]));
+};
+/** Whole calendar days since `from` (0 = the same day). */
+export const daysSince = (from, now) => {
+  const a = new Date(from), b = new Date(now);
+  a.setHours(12, 0, 0, 0); b.setHours(12, 0, 0, 0);
+  return Math.max(0, Math.round((b - a) / 86400000));
+};
+/** Running costs of a day row (what it spent minus upgrades / parts, which are investments). */
+export const runCost = r => Math.max(0, (r?.spent || 0) - (r?.capex || 0));
+/** KPIs of a day row: jobs per shift hour, error-free share, attendance (time on shift not lost to a blocking state),
+ *  running profit (earned − running costs), running cost per hour. Null without a row. */
+export function dayKpis(row) {
+  if (!row) return null;
+  const h = (row.shift || 0) / 3600;
+  return {
+    jobs: row.jobs || 0, mistakes: row.mistakes || 0, earned: row.earned || 0, spent: row.spent || 0, shift: row.shift || 0,
+    perHour: h > 0 ? (row.jobs || 0) / h : 0,
+    quality: row.jobs ? Math.max(0, 1 - (row.mistakes || 0) / row.jobs) : 1,
+    att: row.shift > 0 ? Math.max(0, Math.min(1, 1 - (row.down || 0) / row.shift)) : 0,
+    profit: (row.earned || 0) - runCost(row),
+    costPerHour: h > 0 ? runCost(row) / h : 0,
+  };
+}
+/**
+ * Grade of a unit for one day: score 0..100 against the average of its zone's units that worked that day (PROFILE.grade).
+ * Workers: productivity, quality, attendance, profit; robots: productivity, uptime, profit. Null below minShiftSeconds.
+ * → { letter, score, parts: { prod, qual?, att, profit } }
+ */
+export function unitGrade(s, u, key) {
+  const G = PROFILE.grade, row = rowsOf(u, key);
+  if (!u || !row || (row.shift || 0) < G.minShiftSeconds) return null;
+  const zone = STAFF[u.type]?.zone, robot = isRobot(u);
+  const team = s.staff.units.filter(x => STAFF[x.type]?.zone === zone && isRobot(x) === robot).map(x => dayKpis(rowsOf(x, key))).filter(k => k && k.shift >= G.minShiftSeconds);
+  const me = dayKpis(row);
+  const avg = f => team.reduce((a, k) => a + f(k), 0) / Math.max(1, team.length);
+  const clamp = v => Math.max(0, Math.min(100, v));
+  const rel = (v, a) => (a > 0 ? clamp(G.par * v / a) : v > 0 ? 100 : v < 0 ? G.par / 2 : G.par);
+  const profitRate = k => k.profit / (k.shift / 3600);
+  const parts = { prod: rel(me.perHour, avg(k => k.perHour)), att: clamp(100 * me.att), profit: rel(profitRate(me), avg(profitRate)) };
+  if (!robot) parts.qual = clamp(100 - (me.jobs ? me.mistakes / me.jobs : 0) * G.mistakeScale);
+  const w = G.weights[robot ? 'robot' : 'worker'];
+  const score = Math.round(Object.entries(w).reduce((a, [k, x]) => a + x * parts[k], 0));
+  const letter = G.cuts.find(([, min]) => score >= min)[0];
+  return { letter, score, parts: Object.fromEntries(Object.entries(parts).map(([k, v]) => [k, Math.round(v)])) };
+}
+/** The team average of a KPI for one day (zone, same kind), for the "vs team" arrows. */
+export function teamKpi(s, u, key, field) {
+  const zone = STAFF[u?.type]?.zone, robot = isRobot(u);
+  const list = s.staff.units.filter(x => STAFF[x.type]?.zone === zone && isRobot(x) === robot).map(x => dayKpis(rowsOf(x, key))).filter(k => k && k.shift >= PROFILE.grade.minShiftSeconds);
+  return list.length ? list.reduce((a, k) => a + k[field], 0) / list.length : null;
+}
+/**
+ * Robot payback: cost = price paid + parts; net = everything it earned − its running costs (recharges, cooling, repairs,
+ * service). pct = net / cost (null when it cost nothing); etaMinutes = play minutes left at today's running profit rate.
+ */
+export function robotPayback(u, now) {
+  const cost = (u?.paid || 0) + (u?.partsSpent || 0) + (u?.softwareSpent || 0);
+  const net = (u?.book?.earned || 0) - Math.max(0, (u?.book?.spent || 0) - (u?.partsSpent || 0) - (u?.softwareSpent || 0));
+  const k = dayKpis(dayRow(u, dayKey(now)));
+  const rate = k && k.shift >= PROFILE.grade.minShiftSeconds ? k.profit / (k.shift / 3600) : 0; // coins per hour
+  return { cost, net, pct: cost > 0 ? net / cost : null, etaMinutes: cost > 0 && net < cost && rate > 0 ? Math.ceil((cost - net) / rate * 60) : null };
+}
+// ---------- gear + robot extras (docs/design/staff-profile.md, step 4) ----------
+/** Free jam repairs left under warranty (robots; 0 otherwise). */
+export const warrantyLeft = u => (isRobot(u) ? Math.max(0, WARRANTY.repairs - (u.warrantyUsed | 0)) : 0);
+/** Price of the next gear tier, or null at the top. */
+export const gearPrice = (u, item) => { const t = gearTier(u, item); return t >= GEAR.maxTier ? null : GEAR.cost[t]; };
+/** Why a worker cannot get the next tier of `item`: 'unknown' | 'maxLevel' | 'coins' | null. */
+export function gearError(s, u, item) {
+  if (!u || !isWorkerUnit(u) || !(GEAR.zone[STAFF[u.type].zone] || []).includes(item)) return 'unknown';
+  const price = gearPrice(u, item);
+  if (price == null) return 'maxLevel';
+  return s.player.coins < price ? 'coins' : null;
+}
+/** Why a robot cannot get a software pack: 'unknown' | 'owned' | 'coins' | null. */
+export function softwareError(s, u, pack) {
+  if (!u || !isRobot(u) || !SOFTWARE.packs[pack]) return 'unknown';
+  if (hasSoftware(u, pack)) return 'owned';
+  return s.player.coins < softwarePrice(u, pack) ? 'coins' : null;
+}
+/** Gear in the store for a zone: [{ i (index in s.staff.gearStock), item, tier }]. */
+export const gearStockOf = (s, zone) => (s.staff.gearStock || []).map((g, i) => ({ ...g, i })).filter(g => g.zone === zone);
+/** Plots a tending worker waters (TEND.plots + its watering can). */
+export const tendPlots = u => TEND.plots + GEAR.items.can.plots[gearTier(u, 'can')];
+// ---------- general manager (docs/design/general-manager.md) ----------
+export const gmUnlocked = s => level(s) >= GM.unlockLevel;
+/** The hired GM (or null). */
+export const gmOf = s => s.gm?.unit || null;
+export const gmBoard = s => gmCandidatesFor(s.gm?.board?.seed ?? 1);
+export const gmBoardRefreshIn = (s, now) => Math.max(0, (s.gm?.board?.at || 0) + GM.board.refreshMinutes * 60000 - now);
+export const gmThinkSeconds = gm => GM.thinkSeconds[Math.max(0, Math.min(4, (gm?.skill || 1) - 1))];
+/** Base salary per GM.payMinutes in the current mode. */
+export const gmPay = s => (gmOf(s) ? gmSalary(gmOf(s), s.gm.mode) : 0);
+/** Coins the GM may still spend on its own in the current 10-minute window (style: careful uses half). */
+export function gmBudgetLeft(s, now) {
+  const g = s.gm;
+  if (!g?.unit) return 0;
+  const cap = Math.round(g.budget * (GM.styles[g.unit.style]?.budgetMul ?? 1));
+  const open = g.window && now - g.window.start < GM.windowMinutes * 60000;
+  return Math.max(0, cap - (open ? g.window.spent : 0));
+}
+/** The game zone the GM works in now: the game on screen. */
+export const gmZone = s => (regionGame(s) === 'cafe' ? 'shop' : regionGame(s) === 'farm' ? 'farm' : null);
+/** Team chaos after a GM left (null when calm). */
+export const chaosOf = s => s.gm?.chaos || null;
+/** Slack chance factor for a zone: ×2 in chaos, ×1.5 when a Manager-rank worker holds the team together. */
+export function chaosSlackMul(s, zone) {
+  if (!chaosOf(s)) return 1;
+  const manager = s.staff.units.some(u => STAFF[u.type]?.zone === zone && rankOf(u) === 'manager');
+  return manager ? 1 + (GM.chaos.slackMul - 1) * GM.chaos.managerHalves : GM.chaos.slackMul;
+}
+/** Cost of the team meeting that ends the chaos. */
+export const calmCost = s => GM.chaos.calmBase + GM.chaos.calmPerUnit * s.staff.units.length;
+/** Someone can give advice now: a GM, or (during chaos) a Manager-rank worker standing in as advisor. */
+export const gmAdvisorOf = s => gmOf(s) || (chaosOf(s) ? s.staff.units.find(u => rankOf(u) === 'manager') || null : null);
+
+/**
+ * What a manager would do now in the game on screen, best first. A manager only KEEPS things running (founder
+ * feedback 2026-11-07): care, robot upkeep, shifts, selling / buying beans, keeping a lured worker. Growth — hiring,
+ * firing, promoting, stats, machines, software (and later recipes, crops, suppliers) — is the player's own job: those
+ * items come back as 'advice' (shown with "you do it", never run by the manager). Each item:
+ *   { key, act: { type, payload }, cost, tier: 'safe' | 'budget' | 'big' | 'advice', score, reason: [i18n key, params] }
+ * tier: safe = free and harmless; budget = small spending (big when cost ≥ the big-job limit); big = always big;
+ * advice = only ever suggested (firing). `score` ≈ how much it matters (coins / minute saved or earned, rough).
+ */
+export function gmPlan(s, now) {
+  const zone = gmZone(s);
+  const r = region(s);
+  if (!zone || !r || s.story.phase !== 'play') return [];
+  const out = [];
+  const bigLimit = s.gm?.bigLimit ?? GM.defaults.bigLimit;
+  const add = (key, type, payload, cost, tier, score, reason, params = {}) => {
+    const t = tier === 'budget' && cost >= bigLimit ? 'big' : tier;
+    out.push({ key, act: { type, payload }, cost: Math.max(0, Math.round(cost || 0)), tier: t, score, reason: [reason, params] });
+  };
+  const name = u => u.name || null;
+  // goods
+  if (zone === 'farm') {
+    const cap = capacity(s), st = stored(s);
+    if (cap > 0 && st / cap >= 0.9) add('sell', 'farm/sellAll', {}, 0, 'safe', 60, 'storageFull', { pct: Math.round(st / cap * 100) });
+  } else {
+    const waiting = (r.shop.orders || []).filter(o => o.stage === 'taken' || o.stage === 'waiting');
+    const need = waiting.reduce((n, o) => n + (DRINKS[o.drink]?.beans || 1), 0);
+    const q = beanBuyQuote(s);
+    if (need > 0 && s.inventory.beans < need && !q.error && q.amount > 0) add('beans', 'shop/buyBeans', {}, q.cost, 'budget', 55, 'beansLow', { n: q.amount });
+  }
+  // units of this game here
+  const here = assignedUnits(s, s.world.currentRegion, zone);
+  for (const u of here) {
+    const st = unitState(u, now), robot = !isWorkerUnit(u), id = u.uid, nm = name(u);
+    if (robot) {
+      if (st === 'battery') add(`care:${id}:recharge`, 'staff/care', { uid: id, kind: 'recharge' }, careCost(u, 'recharge'), 'budget', 35, 'robotBattery', { serial: u.serial });
+      else if (st === 'jam') add(`care:${id}:knock`, 'staff/care', { uid: id, kind: 'knock' }, 0, 'safe', 30, 'robotJam', { serial: u.serial });
+      else if (st === 'overheat') add(`care:${id}:cool`, 'staff/care', { uid: id, kind: 'cool' }, careCost(u, 'cool'), 'budget', 8, 'robotHot', { serial: u.serial });
+      if ((u.wear ?? 100) < ROBOT_WEAR.lowWear) add(`care:${id}:service`, 'staff/care', { uid: id, kind: 'service' }, careCost(u, 'service'), 'budget', 15, 'robotWorn', { serial: u.serial, wear: Math.round(u.wear) });
+      // repeated trouble today → hardware / software
+      const today = dayKey(now), log = (u.log || []).filter(e => dayKey(e.at) === today);
+      const recharges = log.filter(e => (e.type === 'cared' || e.type === 'autoCare') && e.extra === 'recharge').length;
+      const jams = log.filter(e => e.type === 'jam').length, hot = log.filter(e => e.type === 'overheat').length;
+      if (recharges >= 2 && !softwareError(s, u, 'autoCharge')) add(`sw:${id}:autoCharge`, 'staff/buySoftware', { uid: id, pack: 'autoCharge' }, softwarePrice(u, 'autoCharge'), 'advice', 6, 'robotSoftCharge', { serial: u.serial, n: recharges });
+      if (jams >= 2 && !softwareError(s, u, 'autoUnjam')) add(`sw:${id}:autoUnjam`, 'staff/buySoftware', { uid: id, pack: 'autoUnjam' }, softwarePrice(u, 'autoUnjam'), 'advice', 5, 'robotSoftJam', { serial: u.serial, n: jams });
+      if (hot >= 1 && !partError(s, u, 'cooler')) add(`part:${id}:cooler`, 'staff/upgradePart', { uid: id, part: 'cooler' }, partPrice(u, 'cooler'), 'advice', 5, 'robotCooler', { serial: u.serial, n: hot });
+      if (jams >= 2 && !partError(s, u, 'frame')) add(`part:${id}:frame`, 'staff/upgradePart', { uid: id, part: 'frame' }, partPrice(u, 'frame'), 'advice', 5, 'robotFrame', { serial: u.serial, n: jams });
+      continue;
+    }
+    if (st === 'phone') {
+      // Nagging always costs morale: at most once a minute per worker, then a small bonus instead.
+      const naggedLately = (u.log || []).some(e => e.type === 'nagged' && now - e.at < 60000);
+      if ((u.morale ?? VITALS.start.morale) < 40 || naggedLately) add(`care:${id}:bonusSmall`, 'staff/care', { uid: id, kind: 'bonusSmall' }, careCost(u, 'bonusSmall'), 'budget', 30, 'phoneLowMorale', { name: nm });
+      else add(`care:${id}:nag`, 'staff/care', { uid: id, kind: 'nag' }, 0, 'safe', 30, 'phone', { name: nm });
+    }
+    const need = needs(u);
+    if (u.active && !u.stopped && !Number.isFinite(u.breakUntil)) {
+      if (need.hungry || (u.fullness ?? 100) <= 0) {
+        if (s.gm?.unit?.style === 'careful') add(`care:${id}:lunch`, 'staff/care', { uid: id, kind: 'lunch' }, 0, 'safe', 20, 'hungryLunch', { name: nm });
+        else add(`care:${id}:food`, 'staff/care', { uid: id, kind: 'food' }, careCost(u, 'food'), 'budget', 20, 'hungry', { name: nm });
+      }
+      if (need.tired || (u.energy ?? 100) <= 0) add(`care:${id}:coffee`, 'staff/care', { uid: id, kind: 'coffee' }, careCost(u, 'coffee'), 'budget', 20, 'tired', { name: nm });
+      if (need.sulking) add(`care:${id}:bonus`, 'staff/care', { uid: id, kind: 'bonus' }, careCost(u, 'bonus'), 'budget', 15, 'sulking', { name: nm });
+    }
+    // growth
+    const stat = STAT_ORDER.filter(k => !statError(s, u, k)).sort((a, b) => statOf(u, a) - statOf(u, b))[0];
+    if (stat) add(`stat:${id}:${stat}`, 'staff/upgradeStat', { uid: id, stat }, statPrice(u, stat).coins, 'advice', 8, 'statReady', { name: nm, stat });
+    const next = nextRank(u);
+    if (canPromote(s, u, now)) add(`promote:${id}`, 'staff/promote', { uid: id }, 0, 'advice', 12, 'promote', { name: nm, rank: next });
+    const g = unitGrade(s, u, dayKey(now)), y = unitGrade(s, u, lastDays(now, 2)[0]);
+    if (g?.letter === 'D' && y?.letter === 'D') add(`fire:${id}`, 'staff/fire', { uid: id }, 0, 'advice', 2, 'fireD', { name: nm });
+  }
+  // supply is yours too (research step 2): contracts running out / missing, a buyer paying more today
+  if (zone === 'shop') for (const g of SUPPLY.groupOrder) {
+    const c = contractOf(s, g, now), found = suppliersFound(s, g, now);
+    if (c && c.until - now < 2 * 3600000) add(`contract:${g}`, 'supply/open', {}, 0, 'advice', 4, 'contractEnd', { group: g, h: Math.max(1, Math.round((c.until - now) / 3600000)) });
+    else if (!c && found) add(`contract:${g}`, 'supply/open', {}, 0, 'advice', 3, 'contractNone', { group: g });
+  }
+  if (zone === 'farm') for (const crop of CROP_ORDER.filter(c => cropUnlocked(s, c))) {
+    // crop methods are yours too (research step 3): nothing tried yet / a tried way beats the one in use
+    const res = Object.values(trialResults(s, crop)), rid = regionKey(s);
+    if (!res.length && !trialsHere(s).some(t => t.crop === crop)) { add(`trial:${crop}`, 'farmlab/open', {}, 0, 'advice', 2, 'trialNone', { crop }); continue; }
+    const curY = methodKey(methodOf(s, crop)) === methodKey(FARMLAB.defaultMethod) ? 1 : methodEffect(rid, crop, methodOf(s, crop)).yieldMul;
+    const best = res.map(x => methodEffect(rid, crop, x.method).yieldMul).sort((a, b) => b - a)[0] || 0;
+    if (best >= curY * 1.1) add(`trial:${crop}`, 'farmlab/open', {}, 0, 'advice', 3, 'trialBetter', { crop, pct: Math.round((best / curY - 1) * 100) });
+  }
+  if (zone === 'farm') {
+    const cur = buyerNow(s, now), found = suppliersFound(s, 'buyers', now);
+    if (!cur.locked) for (let i = 1; i <= found; i++) {
+      const b = buyerOf(regionKey(s), i, dayKey(now));
+      if (i !== cur.i && b.mul.beans >= (cur.mul.beans || 1) * 1.1) { add('buyer', 'supply/open', {}, 0, 'advice', 4, 'betterBuyer', { name: b.name, pct: Math.round((b.mul.beans / (cur.mul.beans || 1) - 1) * 100) }); break; }
+    }
+  }
+  // research is yours: unknown local recipes in this country (café only)
+  if (zone === 'shop') {
+    const cc = countryNow(s);
+    const open = countryRecipes(cc).filter(rc => rc.ings.length && drinkUnlocked(s, rc.base) && !recipeKnown(s, cc, rc.index)).length;
+    if (open) add('research', 'research/open', {}, 0, 'advice', 3, 'research', { n: open });
+  }
+  // shifts
+  const tiredOn = here.some(u => isWorkerUnit(u) && u.active && (u.energy ?? 100) < SHIFT.tiredBelow);
+  const restedOff = here.some(u => isWorkerUnit(u) && !u.active && (u.energy ?? 100) >= SHIFT.restedFrom && !unitBlocked(u, now));
+  if (tiredOn && restedOff) add('shift', 'staff/swapShift', { zone }, 0, 'safe', 25, 'swapShift');
+  else if (restedOff && freeSlots(s, zone) > 0) {
+    const u = here.find(x => isWorkerUnit(x) && !x.active && (x.energy ?? 100) >= SHIFT.restedFrom);
+    if (u) add(`active:${u.uid}`, 'staff/setActive', { uid: u.uid, active: true }, 0, 'safe', 25, 'toShift', { name: name(u) });
+  }
+  // the rival is poaching a worker
+  const p = s.staff.poach, pu = p && unitOf(s, p.uid);
+  if (pu && STAFF[pu.type].zone === zone) add(`keep:${pu.uid}`, 'staff/keep', { uid: pu.uid }, p.fee, 'big', 40, 'keepWorker', { name: name(pu) });
+  // hire: a free place and work piling up (farm: ripe plots waiting, café: customers waiting)
+  if (zoneUnits(s, zone).length < hireCap(s, zone)) {
+    const piling = zone === 'farm' ? ownedPlots(s).filter(pl => plotState(s, pl.id, now).stage === 'ready').length
+      : (r.shop.orders || []).filter(o => o.stage === 'waiting').length;
+    if (piling >= 3) {
+      const board = applicants(s, zone);
+      const i = board.map((a, k) => ({ k, v: STAT_ORDER.reduce((n, st) => n + (a.stats?.[st] || 1), 0) + (a.trait === 'diligent' ? 1 : a.trait === 'lazy' ? -1 : 0) }))
+        .filter(x => !recruitError(s, zone, x.k)).sort((a, b) => b.v - a.v)[0]?.k;
+      if (i != null) add(`hire:${zone}:${board[i].name}`, 'staff/recruit', { zone, index: i, name: board[i].name }, freeHire(s) ? 0 : board[i].cost, 'advice', 10, 'hire', { name: board[i].name, n: piling });
+    }
+  }
+  return out.sort((a, b) => b.score - a.score);
+}
+/**
+ * The manager's mood drivers now (founder feedback): idleMin = minutes without a job (you play everything yourself),
+ * absentMin = minutes since you last touched the game; each beyond its grace drains loyalty in gm/payroll.
+ */
+export function gmMood(s, now) {
+  const g = s.gm;
+  if (!g?.unit) return null;
+  const M = GM.mood;
+  const idleMin = Math.max(0, (now - (g.lastJobAt || g.unit.hiredAt || now)) / 60000);
+  const absentMin = Math.max(0, (now - (g.seenAt || now)) / 60000);
+  return { idleMin, absentMin, idle: idleMin > M.idleGraceMin, absent: absentMin > M.absentGraceMin };
+}
+/** What the GM may do with a plan item now: 'do' | 'request' | 'suggest'. */
+export function gmPermission(s, item, now) {
+  const g = s.gm, mode = g?.unit ? g.mode : 'advisor';
+  if (item.tier === 'advice' || mode === 'advisor') return 'suggest';
+  if (s.player.coins < item.cost) return 'suggest';
+  if (mode === 'full') return 'do';
+  if (item.tier === 'safe') return 'do';
+  if (item.tier === 'budget') return item.cost <= gmBudgetLeft(s, now) ? 'do' : 'request';
+  return 'request';
+}
+// ---------- career (docs/design/staff-profile.md, step 3) ----------
+/** The rank above a worker's (null at the top or for robots). */
+export const nextRank = u => { const r = rankOf(u); const i = CAREER.ranks.indexOf(r); return r && i < CAREER.ranks.length - 1 ? CAREER.ranks[i + 1] : null; };
+/** Whole days on the team. */
+export const tenureDays = (u, now) => daysSince(Number.isFinite(u?.hiredAt) ? u.hiredAt : u?.book?.since ?? now, now);
+/** The unit holding a one-per-zone rank in a zone (any region), or null. */
+export const rankHolder = (s, zone, rank) => s.staff.units.find(x => STAFF[x.type]?.zone === zone && rankOf(x) === rank) || null;
+/**
+ * Why a worker cannot be promoted now: 'unknown' | 'maxRank' | 'level' | 'days' | 'taken' (lead / manager seat filled) |
+ * null (can). The automatic step (staff) is never offered as a promotion.
+ */
+export function promoteError(s, u, now) {
+  if (!u || !isWorkerUnit(u)) return 'unknown';
+  const next = nextRank(u);
+  if (!next) return 'maxRank';
+  const need = CAREER.need[next];
+  if (unitLevel(u) < need.level) return 'level';
+  if (tenureDays(u, now) < need.days) return 'days';
+  if (CAREER.onePerZone.includes(next) && rankHolder(s, STAFF[u.type].zone, next)) return 'taken';
+  return null;
+}
+/** Promotable now by the player (not the automatic staff step). */
+export const canPromote = (s, u, now) => !promoteError(s, u, now) && !CAREER.auto.includes(nextRank(u));
+/** Lead / manager of a zone working here now (on shift, not blocked): they give the team their effects. */
+export const zoneLeaders = (s, zone, now) => assignedUnits(s, s.world.currentRegion, zone)
+  .filter(u => isWorkerUnit(u) && u.active && ['lead', 'manager'].includes(rankOf(u)) && !unitBlocked(u, now));
+/** A phone slacker a working lead / manager sends back to work (free) once it slacked CAREER.lead.nudgeSeconds. */
+export const nudgeDue = (s, u, now) => !!u && u.stopped?.kind === 'phone' && u.assigned?.regionId === s.world.currentRegion
+  && now - (u.stopped.at || now) >= CAREER.lead.nudgeSeconds * 1000 && zoneLeaders(s, STAFF[u.type].zone, now).some(x => x.uid !== u.uid);
+// ---------- team report (docs/design/staff-profile.md, step 2) ----------
+export const REPORT_PERIODS = ['10m', 'today', '7d'];
+export const SPEND_CATS = ['care', 'upgrade', 'robot', 'upkeep', 'wage', 'hire', 'research'];
+/** Day keys of a report period (null for '10m', which reads the minute ledger). */
+export const periodKeys = (now, period) => (period === 'today' ? [dayKey(now)] : period === '7d' ? lastDays(now, 7) : null);
+const moneyOf = rows => {
+  const t = { earned: 0, spent: 0, robot: 0, upgrade: 0, upkeep: 0, wage: 0, hire: 0, research: 0 };
+  for (const r of rows) for (const k of Object.keys(t)) t[k] += r?.[k] || 0;
+  const cats = { care: Math.max(0, t.spent - t.robot - t.upgrade - t.upkeep - t.wage - t.hire - t.research), upgrade: t.upgrade, robot: t.robot, upkeep: t.upkeep, wage: t.wage, hire: t.hire, research: t.research };
+  return { earned: t.earned, spent: t.spent, profit: t.earned - t.spent, cats, rows: rows.length };
+};
+/**
+ * The team's money in a game zone over a report period: earned, spent, profit and spending by category, plus `prev`
+ * (the 10 minutes before / yesterday; none for 7 days). '10m' = the minute ledger, 'today' / '7d' = the team day rows.
+ */
+export function teamMoney(s, now, period, zone) {
+  const pick = r => r?.[zone] || null;
+  if (period === '10m') {
+    const n = BOOKS.mvpMinutes, cur = Math.floor(now / 60000);
+    const win = (from, to) => (s.staff.ledger || []).filter(e => e.min > from && e.min <= to).map(pick);
+    return { ...moneyOf(win(cur - n, cur)), prev: moneyOf(win(cur - 2 * n, cur - n)) };
+  }
+  const days = s.staff.daily || [], keys = periodKeys(now, period);
+  const cur = moneyOf(days.filter(e => keys.includes(e.d)).map(pick));
+  if (period !== 'today') return { ...cur, prev: null };
+  const y = lastDays(now, 2)[0];
+  return { ...cur, prev: moneyOf(days.filter(e => e.d === y).map(pick)) };
+}
+/** Units of a zone ranked for a report period (day keys): grade, running profit, KPIs; best profit first. */
+export function teamRanking(s, keys, zone) {
+  return zoneUnits(s, zone).map(u => {
+    const k = dayKpis(rowsOf(u, keys));
+    return { u, k, grade: unitGrade(s, u, keys), profit: k ? k.profit : 0 };
+  }).sort((a, b) => b.profit - a.profit || (b.grade?.score ?? -1) - (a.grade?.score ?? -1));
+}
 /** The rival's poach in progress (null when none). */
 export const poachOf = s => s.staff.poach || null;
 
@@ -790,3 +1147,106 @@ export const venueArrivalMs = (s, id) => {
 };
 /** Open shops in unlock order, café first. */
 export const openVenues = s => ['cafe', ...VENUE_ORDER.filter(id => venueOpen(s, id))];
+
+
+// ---------- research lab, step 1: drink recipes (docs/design/research.md) ----------
+/** Country id of the region on screen (null off the map). */
+export const countryNow = s => parseRegionId(s.world?.currentRegion)?.countryId || null;
+/** Is menu item `index` of country `cc` known (a plain item, or found at the test bench)? */
+export const recipeKnown = (s, cc, index) => { const r = countryRecipes(cc)[index]; return !!r && (!r.ings.length || (s.research?.known?.[cc] || []).includes(index)); };
+/** A found (not plain) recipe: sells for RESEARCH.priceMul × the base price. */
+export const recipeFound = (s, cc, index) => { const r = countryRecipes(cc)[index]; return !!r && r.ings.length > 0 && (s.research?.known?.[cc] || []).includes(index); };
+export const ingredientUnlocked = (s, id) => !!INGREDIENTS[id] && level(s) >= INGREDIENTS[id].level;
+/** Coins one test costs (its ingredients; the base drink's beans are used too). */
+export const testCost = (ings, s = null) => Math.round((ings || []).reduce((n, id) => n + (INGREDIENTS[id]?.cost || 0) * (s ? supplyOf(s, ingGroup(id)).priceMul : 1), 0) * 100) / 100;
+/** The supply group of an ingredient (milk / pantry). */
+export const ingGroup = id => (SUPPLY.groups.milk.ings.includes(id) ? 'milk' : 'pantry');
+/** Seconds left before the bench is free again. */
+export const benchBusyIn = (s, now) => Math.max(0, (s.research?.busyUntil || 0) - now);
+/** Why a test cannot run: 'noRegion' | 'notCafe' | 'locked' (base drink) | 'ingredient' | 'tooMany' | 'empty' | 'busy' | 'beans' | 'coins' | null. */
+export function testError(s, base, ings, now) {
+  const r = region(s);
+  if (!r || !countryNow(s)) return 'noRegion';
+  if (regionGame(s) !== 'cafe') return 'notCafe';
+  if (!DRINKS[base] || !drinkUnlocked(s, base)) return 'locked';
+  if (!Array.isArray(ings) || new Set(ings).size !== ings.length || ings.some(id => !ingredientUnlocked(s, id))) return 'ingredient';
+  if (benchBusyIn(s, now) > 0) return 'busy'; // first: the countdown is what the bench shows while it brews
+  if (ings.length > RESEARCH.maxIngredients) return 'tooMany';
+  if (!ings.length) return 'empty';
+  if (s.inventory.beans < DRINKS[base].beans) return 'beans';
+  if (s.player.coins < testCost(ings, s)) return 'coins';
+  return null;
+}
+/**
+ * The bench's verdict on base + ingredients for country cc (pure): found (index) / known (already in the book) / or
+ * hints against the closest unknown recipe of that base: right (ingredients in it), other (in another unknown recipe of
+ * this country), wrong, missing count and the taste tag of one missing ingredient.
+ */
+export function judgeTest(s, cc, base, ings) {
+  const set = [...ings].sort(), key = set.join(',');
+  const all = countryRecipes(cc).filter(r => r.base === base);
+  const hit = all.find(r => r.ings.join(',') === key);
+  if (hit) return recipeKnown(s, cc, hit.index) ? { result: 'known', index: hit.index } : { result: 'found', index: hit.index };
+  const open = all.filter(r => r.ings.length && !recipeKnown(s, cc, r.index));
+  if (!open.length) return { result: 'allKnown' };
+  const score = r => r.ings.filter(x => set.includes(x)).length * 10 - Math.abs(r.ings.length - set.length);
+  const best = [...open].sort((a, b) => score(b) - score(a) || a.index - b.index)[0];
+  const right = set.filter(x => best.ings.includes(x));
+  const others = new Set(countryRecipes(cc).filter(r => r.ings.length && !recipeKnown(s, cc, r.index) && r !== best).flatMap(r => r.ings));
+  const other = set.filter(x => !best.ings.includes(x) && others.has(x));
+  const missingIds = best.ings.filter(x => !set.includes(x));
+  return { result: 'miss', right: right.length, other: other.length, wrong: set.length - right.length - other.length, missing: missingIds.length,
+    tag: missingIds.length ? INGREDIENTS[missingIds[0]].tag : null, extra: set.length > best.ings.length };
+}
+
+
+// ---------- research step 2: suppliers and buyers (docs/design/research.md) ----------
+const regionKey = s => s.world?.currentRegion || null;
+/** Suppliers found in a group here (a finished scout counts at once). */
+export function suppliersFound(s, group, now = Date.now()) {
+  const rid = regionKey(s), sc = s.supply?.scout;
+  const base = s.supply?.found?.[rid]?.[group] || 0;
+  return Math.min(group === 'buyers' ? SUPPLY.buyers.count : SUPPLY.perGroup, base + (sc && sc.regionId === rid && sc.group === group && now >= sc.until ? 1 : 0));
+}
+/** The scout in progress (any region) or null. */
+export const scoutOf = s => s.supply?.scout || null;
+/** The active contract of a group here: { i, until, sup } or null (expired = null). */
+export function contractOf(s, group, now = Date.now()) {
+  const c = s.supply?.contracts?.[regionKey(s)]?.[group];
+  return c && now < c.until ? { ...c, sup: supplierOf(regionKey(s), group, c.i) } : null;
+}
+/** What a group costs and how good it is here now: the contract's supplier, else the market. */
+export function supplyOf(s, group, now = Date.now()) {
+  const c = contractOf(s, group, now);
+  return c ? { ...c.sup, contract: c } : { ...SUPPLY.market, name: null, contract: null };
+}
+export const contractFee = days => SUPPLY.contractFee * (SUPPLY.contractDays[days] || 0);
+/** Farm buyer here: { i, name, mul, locked } — a locked price while the lock lasts, else today's price of the chosen one. */
+export function buyerNow(s, now = Date.now()) {
+  const rid = regionKey(s), b = s.supply?.buyer?.[rid];
+  if (b?.lockedUntil > now && b.mul) return { i: b.i, name: buyerOf(rid, b.i, dayKey(now)).name, mul: b.mul, locked: b.lockedUntil };
+  const i = b?.i && b.i <= suppliersFound(s, 'buyers', now) ? b.i : 0;
+  return { i, ...buyerOf(rid, i, dayKey(now)), locked: 0 };
+}
+
+
+// ---------- research step 3: crop methods (docs/design/research.md) ----------
+/** The way `crop` is grown here (adopted, else FARMLAB.defaultMethod). */
+export const methodOf = (s, crop) => s.farmLab?.methods?.[s.world?.currentRegion]?.[crop] || FARMLAB.defaultMethod;
+/** Trial fields allowed at once (1, 2 from level 8). */
+export const trialSlots = s => FARMLAB.trialSlots.filter(([lv]) => level(s) >= lv).at(-1)?.[1] || 1;
+export const trialsHere = s => s.farmLab?.trials?.[s.world?.currentRegion] || [];
+/** Results of trials here for a crop: { methodKey: { method, beans, ms, up, at } }. */
+export const trialResults = (s, crop) => s.farmLab?.results?.[s.world?.currentRegion]?.[crop] || {};
+/** Why a trial cannot start: 'notFarm' | 'locked' (crop) | 'method' | 'slots' | 'noField' | 'coins' | null. */
+export function trialError(s, crop, method) {
+  if (!region(s) || regionGame(s) !== 'farm') return 'notFarm';
+  if (!CROPS[crop] || !cropUnlocked(s, crop)) return 'locked';
+  if (!Array.isArray(method) || method.length !== 3 || method.some(v => !(v >= 0 && v <= 2 && Number.isInteger(v))) || methodKey(method) === methodKey(FARMLAB.defaultMethod)) return 'method'; // the default way is what you already grow
+  if (trialsHere(s).length >= trialSlots(s)) return 'slots';
+  if (!trialField(s)) return 'noField';
+  if (s.player.coins < FARMLAB.trialFee + seedCost(s, crop)) return 'coins';
+  return null;
+}
+/** The empty field a trial goes to (the first one), or null. */
+export const trialField = s => ownedPlots(s).find(p => !region(s).plots[p.id]) || null;

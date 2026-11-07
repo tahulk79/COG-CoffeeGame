@@ -88,7 +88,7 @@ export function resetProgress(withMemory = false) {
   } catch { return false; }
 }
 
-const DEFAULT_SETTINGS = { version: 1, master: 0.8, music: 0.6, ambience: 0.7, sfx: 0.8, ui: 0.6, muted: false, quality: 'high', lang: DEFAULT_LANG, analytics: true };
+const DEFAULT_SETTINGS = { version: 1, master: 0.8, music: 0.6, ambience: 0.7, sfx: 0.8, ui: 0.6, muted: false, quality: 'high', lang: DEFAULT_LANG, analytics: true, autoFocus: true };
 const QUALITIES = ['low', 'medium', 'high'];
 
 export function normalizeSettings(raw) {
@@ -101,6 +101,7 @@ export function normalizeSettings(raw) {
   if (QUALITIES.includes(value.quality)) settings.quality = value.quality;
   if (LANGS.includes(value.lang)) settings.lang = value.lang;
   if (typeof value.analytics === 'boolean') settings.analytics = value.analytics; // F-38: gửi thống kê ẩn danh
+  if (typeof value.autoFocus === 'boolean') settings.autoFocus = value.autoFocus; // camera tự tới chỗ có vấn đề
   return settings;
 }
 

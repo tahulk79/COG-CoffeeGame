@@ -12,8 +12,9 @@
 import { STAFF, SAY_VARIANTS, GOODS, RIVAL, BOOKS } from '../../core/config/economy.js';
 import { venueOpen, defOf, nextLimitLevel } from '../../core/derive.js';
 import { sfx } from '../../shared/audio/index.js';
+import { localItemsOf } from '../../ui/local-menu.js';
 import { h } from './dom.js';
-import { T, has, fmt, errorText } from './text.js';
+import { T, has, fmt, errorText, gmReasonText } from './text.js';
 import { levelUnlocks } from './sheets.js';
 
 const TOAST_MS = 2400, MAX_TOASTS = 3;
@@ -187,8 +188,34 @@ export function createFeedback(ctx) {
     const now = Date.now();
     const mixedSale = events.some(e => e.type === 'goodsSold' && !(e.parts || []).every(q => q.good === 'beans'));
     for (const ev of events) {
+      // The general manager's own jobs stay quiet (its log in the Quản lý tab tells them); it speaks for requests,
+      // poaching, leaving and money trouble below.
+      if (ev.byGm) continue;
       switch (ev.type) {
         case 'levelUp': levelBanner(s, ev.from, ev.to); break;
+        case 'gmHired': toast(T(ev.calmed ? 'hud.gm.toast.hiredCalm' : 'hud.gm.toast.hired', { name: ev.name }), 'good'); sfx('reward.quest'); break;
+        case 'gmRequest': toast(T('hud.gm.toast.request', { name: ev.name, what: gmReasonText(ev.reason), coins: fmt(ev.cost) }), 'warn'); sfx('ui.deny'); break;
+        case 'gmPoach': toast(T('hud.gm.toast.poach', { name: ev.name, rival: ev.rival, s: Math.round((ev.until - Date.now()) / 1000) }), 'bad'); sfx('ui.deny'); break;
+        case 'gmRefused': toast(T('hud.gm.toast.refused', { name: ev.name, rival: ev.rival }), 'good'); break;
+        case 'gmKept': toast(T('hud.gm.toast.kept', { name: ev.name }), 'good'); break;
+        case 'gmLeft': toast(T(ev.chaos ? 'hud.gm.toast.leftChaos' : 'hud.gm.toast.left', { name: ev.name || '' }), ev.chaos ? 'bad' : 'info'); break;
+        case 'followerKept': toast(T(ev.robot ? 'hud.follow.toastRobot' : 'hud.follow.toast', { name: ev.name || '' }), 'good'); break;
+        case 'followerDebt': if (now - (lastAt.fDebt || 0) > 120000) { lastAt.fDebt = now; toast(T('hud.follow.debt', { coins: fmt(ev.coins), owed: fmt(ev.owed) }), 'warn'); } break;
+        case 'trialDone': toast(T('hud.toast.trialDone', { n: ev.beans }), 'good'); break;
+        case 'methodAdopted': toast(T('hud.toast.methodAdopted', { crop: T(`crop.${ev.crop}`) }), 'good'); break;
+        case 'scoutDone': toast(T('hud.sup.toast.scoutDone', { what: T(ev.group === 'buyers' ? 'hud.sup.buyers' : `hud.sup.g.${ev.group}`) }), 'good'); break;
+        case 'beansLate': toast(T('hud.sup.toast.late', { n: ev.amount, s: ev.seconds }), 'warn'); break;
+        case 'beansArrived': toast(T('hud.sup.toast.arrived', { n: ev.amount }), 'good'); break;
+        case 'contractSigned': toast(T('hud.sup.toast.signed', { name: ev.name, n: ev.days }), 'good'); break;
+        case 'buyerLocked': toast(T('hud.sup.toast.locked', { n: ev.days }), 'good'); break;
+        case 'ingredientOut': if (now - (lastAt.ingOut || 0) > 30000) { lastAt.ingOut = now; toast(T('hud.sup.toast.out'), 'warn'); } break;
+        case 'recipeFound': { const it = localItemsOf(`${ev.cc}-1`, ev.base).find(x => x.index === ev.index); toast(T('hud.toast.recipeFound', { name: it?.name || '' }), 'good'); sfx('reward.quest'); break; }
+        case 'gmCalmed': toast(T('hud.gm.toast.calmed'), 'good'); break;
+        case 'gmMood': toast(T(`hud.gm.toast.mood.${ev.why}`, { name: ev.name }), 'warn'); break;
+        case 'gmAway': toast(T(ev.net >= 0 ? 'hud.gm.toast.away' : 'hud.gm.toast.awayLoss', { name: ev.name, min: ev.minutes, earned: fmt(ev.earned), salary: fmt(ev.salary), net: fmt(Math.abs(ev.net)) }), ev.net >= 0 ? 'good' : 'warn'); if (ev.net > 0) sfx('coin.gain'); break;
+        case 'gmMissedYou': toast(T('hud.gm.toast.missedYou', { name: ev.name, hours: ev.hours, drop: ev.drop }), 'warn'); break;
+        case 'gmUnpaid': toast(T('hud.gm.toast.unpaid', { name: ev.name, coins: fmt(ev.coins) }), 'warn'); break;
+        case 'gmFailed': toast(T('hud.gm.toast.failed', { what: gmReasonText(ev.reason) }), 'warn'); break;
         // served / harvested: the realm flies the coins/beans from the world spot to #hud-coins / #hud-beans.
         case 'built': toast(T('hud.toast.built', { name: T(`building.${ev.building}`), icon: defOf(ev.building)?.icon || '' }), 'good'); break;
         case 'fieldPlaced': toast(`🟫 ${T('fw.toast.fieldPlaced')}`, 'good'); break;

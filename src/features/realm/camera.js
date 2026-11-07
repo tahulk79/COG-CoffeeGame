@@ -183,6 +183,25 @@ export function createCameraController(camera) {
       if (mode === 'cinematic') modeBeforeCinematic = 'free'; else mode = 'free';
     },
     /**
+     * Spotlight (auto focus on a problem): remember the view, slide to (x, z) and zoom in by `zoomIn` (smoothly, the
+     * update loop eases the distance). Returns the remembered view for restore().
+     */
+    peek(x, z, { zoomIn = .6 } = {}) {
+      const saved = { target: goal.target.clone(), zoom, mode: mode === 'cinematic' ? modeBeforeCinematic : mode };
+      zoom = clamp(Math.min(zoom, 1) * zoomIn, ZOOM_MIN, zoomMax);
+      api.glideTo(x, z, { safe: true });
+      return saved;
+    },
+    /** Back to a view remembered by peek() (smooth). */
+    restore(saved) {
+      if (!saved || mode === 'cinematic') return;
+      zoom = clamp(saved.zoom, ZOOM_MIN, zoomMax);
+      goal.target.copy(saved.target);
+      clampTarget(goal.target);
+      stopMomentum();
+      mode = saved.mode === 'exploration' ? 'exploration' : 'free';
+    },
+    /**
      * Is the ground point (x, z) inside the view, with `margin` (0…1 of the half-screen) kept clear at the edges?
      * Uses the camera's current pose.
      */

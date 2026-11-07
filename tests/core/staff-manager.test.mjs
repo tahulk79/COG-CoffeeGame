@@ -7,7 +7,7 @@ import * as D from '../../src/core/derive.js';
 import * as E from '../../src/core/config/economy.js';
 import { normalizeSave, createSave } from '../../src/core/state.js';
 
-const { xpForLevel, STAFF, UPKEEP, VITALS, CARE, ROBOT_WEAR, RIVAL, RARE, SKILL, FIRE, BEANS, applicantsFor } = E;
+const { xpForLevel, STAFF, UPKEEP, VITALS, CARE, ROBOT_WEAR, RIVAL, RARE, SKILL, FIRE, BEANS, applicantsFor, WARRANTY } = E;
 
 // A playing harness at `level` with plenty of coins (Lv10 incident disabled).
 function team(level = 5, coins = 1e6) {
@@ -242,6 +242,13 @@ test('robots: heat → overheat (auto-clears / cool), jam (knock / repair), wear
   assert.equal(h.act('staff/jam', { uid: id }).noop, true);
   h.must('staff/care', { uid: id, kind: 'knock' });
   assert.ok(!u().stopped);
+  // repairs: the first WARRANTY.repairs are free (staff-profile step 4), then CARE.repair each
+  for (let i = 0; i < WARRANTY.repairs; i++) {
+    h.must('staff/jam', { uid: id });
+    c = h.state.player.coins;
+    h.must('staff/care', { uid: id, kind: 'repair' });
+    assert.equal(h.state.player.coins, c, 'under warranty');
+  }
   h.must('staff/jam', { uid: id });
   c = h.state.player.coins;
   h.must('staff/care', { uid: id, kind: 'repair' });

@@ -31,8 +31,8 @@ export function createModals(ctx) {
   }
 
   /** @returns {Promise<boolean>} */
-  function confirm({ title = '', body = '', cost, costLabel, confirmLabel } = {}) {
-    const cancel = h('button', { type: 'button', class: 'hud-btn hud-btn--plain', on: { click: () => active?.close(false) } }, h('span', { class: 'hud-btn-main' }, T('hud.cancel')));
+  function confirm({ title = '', body = '', cost, costLabel, confirmLabel, cancelLabel } = {}) {
+    const cancel = h('button', { type: 'button', class: 'hud-btn hud-btn--plain', on: { click: () => active?.close(false) } }, h('span', { class: 'hud-btn-main' }, cancelLabel || T('hud.cancel')));
     const ok = h('button', { type: 'button', class: 'hud-btn hud-btn--go', on: { click: () => active?.close(true) } }, h('span', { class: 'hud-btn-main' }, confirmLabel || T('hud.confirm')));
     const costLine = cost != null ? h('p', { class: 'hud-confirm-cost' }, T('hud.costLine'), ' ', coinAmount(cost)) : costLabel ? h('p', { class: 'hud-confirm-cost' }, costLabel) : null;
     const card = h('div', { class: 'hud-confirm', attrs: { role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': 'hud-confirm-title', 'aria-describedby': 'hud-confirm-body' } },
@@ -80,11 +80,12 @@ export function createModals(ctx) {
     const text = h('p', { class: 'hud-talk-text', attrs: { 'aria-live': 'polite' } });
     const more = h('span', { class: 'hud-talk-more', attrs: { 'aria-hidden': 'true' } }, '▼');
     const bubble = h('button', { type: 'button', class: 'hud-talk-bubble', on: { click: () => next() } }, speaker, text, more);
-    const node = h('div', { class: 'hud-talk', on: { click: e => { if (e.target === node) next(); } } },
-      h('div', { class: 'hud-talk-avatar', attrs: { 'aria-hidden': 'true' } }, '🧙‍♂️'), bubble);
+    const avatar = h('div', { class: 'hud-talk-avatar', attrs: { 'aria-hidden': 'true' } }, '🧙‍♂️');
+    const node = h('div', { class: 'hud-talk', on: { click: e => { if (e.target === node) next(); } } }, avatar, bubble);
     let done;
     const show = () => {
       speaker.textContent = list[i].speaker || T('hud.teacher');
+      avatar.textContent = list[i].avatar || '🧙‍♂️'; // a line may come from someone else (e.g. the evolved robot)
       text.textContent = list[i].text;
       bubble.setAttribute('aria-label', `${speaker.textContent}: ${list[i].text}. ${T('hud.tapContinue')}`);
     };
