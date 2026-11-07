@@ -46,26 +46,20 @@ export function createTutorial(ctx) {
   let lastView = '';        // realm view at the last resolve (a view change re-focuses the target)
 
   // Keep the tip 6 px below whatever top HUD it would overlap (pills row, Auto chip/banner), on any screen size.
-  // Toasts (feedback.js) read --hud-tip-bottom so they always sit under the tip, never on top of it.
-  const shareTipBottom = () => {
-    const css = document.documentElement.style;
-    if (tip.hidden) css.removeProperty('--hud-tip-bottom');
-    else css.setProperty('--hud-tip-bottom', `${Math.round(tip.getBoundingClientRect().bottom + 10)}px`);
-  };
+  // Toasts (feedback.js layout()) treat the tip as HUD above them, so they always sit under it, never on top of it.
   const placeTip = () => {
-    if (tip.hidden) { shareTipBottom(); return; }
+    if (tip.hidden) return;
     const tr = tip.getBoundingClientRect();
     let bottom = 0;
-    for (const node of document.querySelectorAll('#hud-root .hud-top, #hud-root .hud-auto-btn, #hud-root .hud-autobar')) {
+    for (const node of document.querySelectorAll('#hud-root :is(.hud-player, .hud-pills > *, .hud-roundmap, .hud-gear, .hud-loan-btn, .hud-auto-btn, .hud-autobar)')) {
       if (node.hidden || !node.offsetParent && getComputedStyle(node).position !== 'fixed') continue;
-      for (const r of [node.getBoundingClientRect(), ...[...node.children].map(c => c.getBoundingClientRect())]) {
+      for (const r of [node.getBoundingClientRect()]) {
         if (!r.width || r.right < tr.left || r.left > tr.right) continue; // only what sits above the tip horizontally
         bottom = Math.max(bottom, r.bottom);
       }
     }
     const want = bottom ? Math.round(bottom + 6) : null;
     tip.style.top = want ? `${want}px` : '';
-    shareTipBottom();
   };
   const setTip = text => {
     if (text === tipKey) { placeTip(); return; }

@@ -44,7 +44,8 @@ export function createPlacementBar(ctx) {
     const x = Math.min(vw - w / 2 - MARGIN, Math.max(w / 2 + MARGIN, pt.x));
     let y = pt.y + 10;                                                   // under the footprint
     if (y + hgt > vh - MARGIN - 16) y = pt.top - hgt - 10;              // no room below: above the building
-    y = Math.min(vh - hgt - MARGIN, Math.max(TOP_SAFE, y));
+    const hudBottom = parseFloat(getComputedStyle(ctx.root).getPropertyValue('--hud-tl-bottom')) || 0; // index.js
+    y = Math.min(vh - hgt - MARGIN, Math.max(TOP_SAFE, hudBottom + MARGIN, y));
     el.style.left = `${Math.round(x)}px`;
     el.style.top = `${Math.round(y)}px`;
   }

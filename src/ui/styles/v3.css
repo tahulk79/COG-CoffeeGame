@@ -190,10 +190,10 @@ button.hud-pill:active{transform:translateY(1px)}
 
 /* ---------- Bottom toolbar ---------- */
 .hud-toolbar{position:fixed;z-index:var(--z-hud,5);left:50%;bottom:calc(var(--h-sb) + 8px);transform:translateX(-50%);display:flex;gap:4px;padding:6px 8px;border-radius:30px;background:#fff8e6ee;box-shadow:var(--h-shadow)}
-.hud-tool{position:relative;display:flex;flex-direction:column;align-items:center;gap:1px;width:min(64px,calc((100vw - 120px) / 5));min-height:62px;padding:2px 0;border:0;background:none}
+.hud-tool{position:relative;display:flex;flex-direction:column;align-items:center;gap:1px;width:min(64px,calc((100vw - 124px) / 4));min-height:62px;padding:2px 0;border:0;background:none}
 .hud-tool-ico{display:grid;place-items:center;width:46px;height:46px;border-radius:50%;background:linear-gradient(#fffdf6,#ffe9b8);box-shadow:inset 0 -3px 0 #e7c27e,0 2px 0 #a2763a55;font-size:23px;line-height:1;transition:transform .12s}
 .hud-tool:active .hud-tool-ico{transform:scale(.92)}
-.hud-tool-label{font:700 11px/1.1 var(--h-font);color:var(--h-ink)}
+.hud-tool-label{max-width:calc(100% + 6px);font:700 11px/1.1 var(--h-font);color:var(--h-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hud-dot{display:none;position:absolute;top:0;right:calc(50% - 25px);width:13px;height:13px;border-radius:50%;background:var(--h-red);border:2px solid #fff;box-shadow:0 1px 2px #0003}
 .hud-tool.has-dot .hud-dot{display:block}
 /* Café ⇄ Farm view switch: the big raised middle button (the way into the café). */
@@ -336,14 +336,17 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
 
 /* ---------- Toasts & level-up banner ---------- */
 .hud-feedback{position:fixed;z-index:var(--z-toast,30);left:0;right:0;top:0;height:0;pointer-events:none}
-.hud-toasts{position:absolute;left:50%;top:max(calc(var(--h-st) + 160px), var(--hud-tip-bottom, 0px));transform:translateX(-50%);display:grid;justify-items:center;gap:6px;width:min(400px,calc(100vw - 24px))}
+/* One centred column, banner first then toasts (feedback.js layout() sets --fb-top / --fb-w clear of the HUD above).
+   The fallbacks only cover the frame before the first layout. */
+.hud-feedback-col{position:absolute;left:50%;top:max(var(--fb-top,calc(var(--h-st) + 196px)),calc(var(--h-st) + 8px));transform:translateX(-50%);width:var(--fb-w,min(400px,calc(100vw - 24px)));display:flex;flex-direction:column;align-items:center;gap:8px}
+.hud-toasts{display:grid;justify-items:center;gap:6px;width:100%}
 .hud-toast{max-width:100%;padding:8px 16px;border-radius:16px;background:#3c2716e6;color:#fff;font:700 14px/1.3 var(--h-font);text-align:center;box-shadow:0 4px 12px #0003;animation:hud-toast-in .2s ease-out;transition:opacity .3s,transform .3s}
 .hud-toast--good{background:#2f7a22eb}
 .hud-toast--bad{background:#b13c27eb}
 .hud-toast--warn{background:#d9731feb;color:#fff;animation:hud-shake .45s ease-in-out}
 @keyframes hud-shake{20%,60%{transform:translateX(-5px)}40%,80%{transform:translateX(5px)}}
 .hud-toast.is-out{opacity:0;transform:translateY(-6px)}
-.hud-banner{position:absolute;left:50%;top:calc(var(--h-st) + 22vh);transform:translateX(-50%);display:grid;justify-items:center;gap:4px;min-width:min(300px,calc(100vw - 32px));max-width:calc(100vw - 32px);padding:14px 22px;border-radius:24px;background:linear-gradient(#fff3c4,#ffd76a);box-shadow:0 6px 0 #c99027,0 14px 30px #0003;text-align:center;animation:hud-banner-in .45s cubic-bezier(.2,1.6,.4,1)}
+.hud-banner{display:grid;justify-items:center;gap:4px;min-width:min(300px,100%);max-width:100%;padding:14px 22px;border-radius:24px;background:linear-gradient(#fff3c4,#ffd76a);box-shadow:0 6px 0 #c99027,0 14px 30px #0003;text-align:center;animation:hud-banner-in .45s cubic-bezier(.2,1.6,.4,1)}
 .hud-banner-title{font:800 32px/1 var(--h-font);color:#7a3f0e;text-shadow:0 2px 0 #fff8}
 .hud-banner-sub{font:800 12px/1 var(--h-font);color:#9a6416;text-transform:uppercase;letter-spacing:.06em}
 .hud-banner-list{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;justify-content:center;gap:6px;font:700 14px/1.2 var(--h-font);color:#5a3510}
@@ -387,7 +390,7 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
 @keyframes hud-pop-plain{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
 @keyframes hud-sheet-in{from{transform:translate(-50%,40px);opacity:.4}to{transform:translate(-50%,0);opacity:1}}
 @keyframes hud-toast-in{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
-@keyframes hud-banner-in{from{opacity:0;transform:translateX(-50%) scale(.6)}to{opacity:1;transform:translateX(-50%) scale(1)}}
+@keyframes hud-banner-in{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}
 .hud-confirm{animation-name:hud-pop-plain}
 @keyframes hud-tap{0%,100%{transform:translateY(10px) scale(1)}45%{transform:translateY(0) scale(.92)}55%{transform:translateY(0) scale(.92)}}
 @keyframes hud-ripple{0%{transform:scale(.4);opacity:0}45%{opacity:.95}100%{transform:scale(1.4);opacity:0}}
@@ -408,8 +411,8 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
   .hud-action{bottom:calc(var(--h-sb) + 10px);width:min(420px,calc(100vw - 180px))}
   .hud-sheet{width:min(560px,calc(100vw - 160px));max-height:82vh;max-height:82dvh}
   .hud-tip{top:calc(var(--h-st) + 66px)}
-  .hud-toasts{top:max(calc(var(--h-st) + 110px), var(--hud-tip-bottom, 0px))}
-  .hud-banner{top:calc(var(--h-st) + 14vh)}
+  .hud-banner{padding:8px 18px;gap:2px}
+  .hud-banner-title{font-size:24px}
   .hud-dev{bottom:calc(var(--h-sb) + 70px)}
   .hud-talk-avatar{width:60px;height:60px;font-size:32px}
 }
@@ -417,7 +420,6 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
 @media (min-width:760px) and (min-height:561px){
   .hud-top-left{flex-direction:row;align-items:center;gap:10px}
   .hud-tip{top:calc(var(--h-st) + 76px)}
-  .hud-toasts{top:max(calc(var(--h-st) + 128px), var(--hud-tip-bottom, 0px))}
   .hud-sheet{max-height:60vh;border-radius:24px;bottom:calc(var(--h-sb) + 12px)}
   .hud-action{width:440px}
   .hud-tool{width:70px}
@@ -444,11 +446,18 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
 .hud-autobar-chip{font:800 14px/1 var(--h-font);font-variant-numeric:tabular-nums;white-space:nowrap}
 .hud-autobar-stop{min-height:36px;padding:4px 12px;border:0;border-radius:18px;background:linear-gradient(#ffe58a,#f2b53a);color:#5a3a0a;font:800 14px/1 var(--h-font);box-shadow:0 2px 0 #b8861d}
 #hud-root[data-auto] .hud-tip-skip{display:none}
+/* Landscape phone: the toolbar owns the right edge (its big centre button pokes out to ~80 px) — keep ▶ Auto / AUTO
+   clear of it. Declared after the base rules above so it wins. */
+@media (orientation:landscape) and (max-height:560px){
+  .hud-auto-btn,.hud-autobar{right:calc(var(--h-sr) + 88px)}
+  /* too short to share: an open card / sheet takes that spot (the AUTO bar would cover the card's ✕) — back when closed */
+  #hud-root:is([data-selection],[data-sheet]) :is(.hud-auto-btn,.hud-autobar){display:none}
+}
 
 /* ---------- café street: shop strip (docs/design/cafe-street.md §3.8) ----------
    A slim vertical rail on the left edge under the top-left HUD (player badge + pills): clear of 🚂 / ⚙️ / 💰 / ▶ Auto
    on the right and of the centred tip / toasts (except narrow portrait, see below). Focused = gold ring; locked = dim + 🔒. */
-.hud-shops{position:fixed;z-index:var(--z-hud,5);top:calc(var(--h-st) + 112px);left:calc(var(--h-sl) + 10px);display:flex;flex-direction:column;gap:5px;padding:4px;border-radius:26px;background:#fff8e6cc;box-shadow:var(--h-shadow)}
+.hud-shops{position:fixed;z-index:var(--z-hud,5);top:max(calc(var(--h-st) + 112px),calc(var(--hud-tl-bottom,0px) + 8px));left:calc(var(--h-sl) + 10px);display:flex;flex-direction:column;gap:5px;padding:4px;border-radius:26px;background:#fff8e6cc;box-shadow:var(--h-shadow)}
 .hud-shop{position:relative;display:grid;justify-items:center;align-content:center;gap:1px;width:46px;height:46px;padding:0;border:0;border-radius:50%;background:linear-gradient(#fffdf6,#ffe9b8);box-shadow:inset 0 -3px 0 #e7c27e,0 2px 0 #a2763a55;transition:transform .12s}
 .hud-shop:active{transform:scale(.92)}
 .hud-shop-ico{font-size:21px;line-height:1}
@@ -472,12 +481,12 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
 .hud-venue-rating{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px}
 .hud-venue-sold{margin-left:auto;font:700 12px/1.2 var(--h-font);color:var(--h-ink-soft)}
 @media (orientation:landscape) and (max-height:560px){
-  .hud-shops{top:calc(var(--h-st) + 66px);gap:4px}
+  .hud-shops{top:max(calc(var(--h-st) + 66px),calc(var(--hud-tl-bottom,0px) + 8px));gap:4px}
   .hud-shop{width:42px;height:42px}
   .hud-shop-ico{font-size:19px}
 }
 @media (min-width:760px) and (min-height:561px){
-  .hud-shops{top:calc(var(--h-st) + 76px)}
+  .hud-shops{top:max(calc(var(--h-st) + 76px),calc(var(--hud-tl-bottom,0px) + 8px))}
 }
 @media (prefers-reduced-motion:reduce){.hud-shop{transition:none}}
 
@@ -690,3 +699,127 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
   .hud-sm{top:calc(var(--h-st) + 24px);bottom:calc(var(--h-sb) + 24px);border-radius:24px}
   .hud-sm-body{padding-bottom:20px}
 }
+
+/* ---------- Mobile-first polish (docs: fix/ui mobile pass) ---------- */
+/* Storehouse pill: short "Đầy" on portrait phones (the long "Đầy · Nâng cấp" CTA made the pill ~190 px wide). */
+.hud-pill-tag-short{display:none}
+@media (max-width:480px){.hud-pill-tag-long{display:none}.hud-pill-tag-short{display:inline}}
+/* Action card never climbs into the top HUD (pills, 💰, ▶ Auto): it scrolls inside instead. --hud-top-band: index.js. */
+.hud-action{max-height:calc(100dvh - var(--hud-top-band,0px) - var(--h-toolbar) - var(--h-sb) - 30px);overflow-y:auto;overscroll-behavior:contain}
+/* Toolbar labels: a touch smaller on the narrowest phones so they stay on one line. */
+@media (max-width:360px){.hud-tool-label{font-size:10.5px;letter-spacing:-.1px}.hud-view .hud-tool-label{font-size:11.5px}}
+@media (max-width:759px) and (orientation:portrait){
+  /* Level-up moment: the banner takes the stage — the café shop rail steps aside (as it does for the tutorial tip) */
+  #hud-root:has(.hud-banner:not([hidden])) .hud-shops{display:none}
+  .hud-banner{padding:10px 16px 12px}
+  .hud-banner-title{font-size:28px}
+  .hud-banner-list{gap:5px;font-size:13px}
+  .hud-banner-list li{padding:3px 9px}
+  /* QA 🧪 panel (test profile only): right edge, clear of the café shop rail on the left */
+  .hud-dev{left:auto;right:calc(var(--h-sr) + 10px);align-items:flex-end}
+}
+/* Narrow portrait: slimmer shop rail */
+@media (max-width:400px) and (orientation:portrait){
+  .hud-shops{gap:4px;padding:3px}
+  .hud-shop{width:42px;height:42px}
+  .hud-shop-ico{font-size:19px}
+  .hud-shop-star,.hud-shop-label{max-width:40px;font-size:9px}
+}
+/* Staff manager title: two lines instead of "Quản lý nhân viên · Nông t…" */
+@media (max-width:400px){.hud-sm-title{font-size:17px;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}}
+/* Short landscape: a sheet ends under the top HUD row and the 💰 under the gear steps aside while it is open */
+@media (orientation:landscape) and (max-height:560px){
+  .hud-sheet{max-height:calc(100dvh - var(--hud-tl-bottom,80px) - 10px)}
+  /* the card's ceiling is the left HUD row here (the right column only grazes its corner, and steps aside) */
+  .hud-action{max-height:calc(100dvh - var(--hud-tl-bottom,80px) - var(--h-sb) - 22px)}
+  #hud-root:is([data-sheet],[data-selection]) :is(.hud-loan-btn,.hud-roundmap){visibility:hidden}
+}
+/* QA 🧪 panel never sits on an open card (its ✕ is on the same edge) */
+#hud-root[data-selection] .hud-dev{display:none}
+/* Narrow phones: tab labels on one line ("Tuyển dụng" wrapped at 320 px) */
+@media (max-width:400px){.hud-tab{font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px}}
+
+/* ---------- Compact phone HUD (portrait + short landscape) ----------
+   Game-style: one slim top row (level badge with its XP bar · coins · beans), a right column of small round side
+   buttons (⚙️ · 🚂 Round · 💰 Loan · ▶ Auto — new features add a button here), a lower toolbar, smaller notices.
+   Tablet / desktop keep the roomier layout above. */
+@media (max-width:759px),(max-height:560px){
+  #hud-root{--h-toolbar:66px}
+  .hud-top{top:calc(var(--h-st) + 6px);left:calc(var(--h-sl) + 8px);right:calc(var(--h-sr) + 8px)}
+  .hud-top-left{flex-direction:row;align-items:center;gap:5px}
+  /* level badge: hexagon only, the XP bar tucked under it (the name lives in the profile / settings) */
+  .hud-player{position:relative;gap:0;padding:0;background:none;box-shadow:none;max-width:none}
+  .hud-level,.hud-level-hex{width:36px;height:40px}
+  .hud-level-hex{filter:drop-shadow(0 2px 0 #1b4f8f66)}
+  .hud-level-num{font-size:17px}
+  .hud-player-text{position:absolute;left:3px;right:3px;bottom:-4px}
+  .hud-name{display:none}
+  .hud-xp{width:100%;height:5px;box-shadow:0 0 0 1.5px #fff}
+  .hud-pills{flex-wrap:nowrap;gap:5px}
+  .hud-pill,button.hud-pill{height:30px;min-width:0;gap:3px;padding:0 9px 0 3px;font-size:14px}
+  .hud-pill-ico,.hud-pill .hud-coin-ico{width:24px;height:24px;font-size:13px}
+  .hud-pill-cap{font-size:11px}
+  .hud-pill-tag{margin-left:2px;padding:2px 5px;font-size:9px}
+  .hud-pill--bean:not(.is-full) .hud-pill-tag{display:none}
+  /* right column of round side buttons */
+  .hud-top-right{flex-direction:column;align-items:center;gap:6px}
+  .hud-gear-col{display:contents}
+  .hud-gear{order:1;width:38px;height:38px;font-size:19px}
+  .hud-roundmap{order:2;width:40px;height:40px;padding:0 0 2px;border-width:2px}
+  .hud-roundmap .ui-icon{width:22px;height:22px}
+  .hud-roundmap-num,.hud-loan-label,.hud-auto-tag{bottom:-8px;padding:1px 6px;border-width:1.5px;font-size:9.5px}
+  .hud-loan-btn{order:3;width:46px;margin-top:4px}
+  .hud-loan-bag{width:40px;height:40px;border-width:2px;font-size:20px}
+  .hud-loan-bag .ui-icon{width:24px;height:24px}
+  .hud-loan-label{margin-top:-7px}
+  /* ▶ Auto: same round side button (was a wide floating pill) */
+  .hud-top-right .hud-auto-btn{order:4;position:relative;top:auto;right:auto;display:grid;place-items:center;width:40px;height:40px;min-height:0;margin-top:4px;padding:0;border-width:2px;border-radius:50%;font-size:16px;animation:none}
+  .hud-auto-full{display:none}
+  .hud-auto-tag{position:absolute;left:50%;transform:translateX(-50%);border-style:solid;border-color:#fff;border-radius:99px;background:#1f5d96;color:#fff;font-weight:800;line-height:1.1;white-space:nowrap}
+  .hud-auto-btn.is-buy .hud-auto-tag{background:#8a5a0c}
+  .hud-autobar{top:calc(var(--hud-tr-bottom,150px) + 8px);right:calc(var(--h-sr) + 8px);padding:3px 3px 3px 10px}
+  .hud-autobar-chip{font-size:12.5px}
+  .hud-autobar-stop{min-height:32px;padding:3px 10px;font-size:12.5px}
+  /* toolbar: smaller icons, one-line labels */
+  .hud-toolbar{bottom:calc(var(--h-sb) + 6px);gap:2px;padding:4px 6px;border-radius:26px}
+  .hud-tool{min-height:52px;gap:0}
+  .hud-tool-ico{width:40px;height:40px;font-size:20px}
+  .hud-tool-label{font-size:10px}
+  .hud-view{width:64px;margin-top:-16px}
+  .hud-view .hud-tool-ico{width:52px;height:52px;font-size:26px}
+  .hud-view .hud-tool-label{font-size:11px}
+  .hud-dot{right:calc(50% - 22px);width:11px;height:11px}
+  /* café shop rail */
+  .hud-shops{top:max(calc(var(--h-st) + 52px),calc(var(--hud-tl-bottom,0px) + 10px));left:calc(var(--h-sl) + 8px);gap:4px;padding:3px}
+  .hud-shop{width:40px;height:40px}
+  .hud-shop-ico{font-size:18px}
+  .hud-shop-star,.hud-shop-label{max-width:38px;font-size:8.5px}
+  /* notices: smaller toasts, compact level banner */
+  .hud-toast{padding:6px 12px;border-radius:14px;font-size:12.5px}
+  .hud-banner{gap:2px;min-width:min(240px,100%);padding:8px 14px 10px;border-radius:20px}
+  .hud-banner-title{font-size:22px}
+  .hud-banner-sub{font-size:10px}
+  .hud-banner-list{gap:4px;font-size:12px}
+  .hud-banner-list li{padding:2px 8px}
+  .hud-banner-list .is-more{background:#fff6;font-weight:800}
+  .hud-tip{padding:6px 4px 6px 12px;font-size:13.5px}
+  .hud-tip-skip{min-height:40px;font-size:10.5px}
+  /* action card */
+  .hud-action{padding:8px 12px 10px;border-radius:18px}
+  .hud-card-title{font-size:15px}
+}
+/* short landscape: the toolbar is a column on the right edge — keep its compact icons, drop the portrait sizes above */
+@media (orientation:landscape) and (max-height:560px){
+  /* the compact block above sets a bottom offset for the portrait toolbar: here the toolbar is centred with top:50%,
+     and top + bottom together squeezed it (tools spilled out of its background) */
+  .hud-toolbar{top:50%;bottom:auto;padding:5px 4px;gap:2px}
+  .hud-tool{width:52px;min-height:50px}
+  .hud-view{width:56px;margin:0 0 2px}
+  .hud-view .hud-tool-ico{width:46px;height:46px;font-size:23px}
+  .hud-top{right:calc(var(--h-sr) + 72px)}
+  .hud-autobar{right:calc(var(--h-sr) + 76px)}
+}
+/* tablet / desktop: ▶ Auto stays the full-text pill (the round-button icon + tag are phone-only) */
+@media (min-width:760px) and (min-height:561px){.hud-auto-ico,.hud-auto-tag{display:none}}
+/* Staff manager applicant / robot cards: one roomy card per row on phones (two 166 px columns wrapped every stat chip) */
+.hud-sm-host .hud-cards--wide{grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr))}

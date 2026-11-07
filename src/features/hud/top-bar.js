@@ -72,7 +72,12 @@ export function createTopBar(ctx) {
     loanBtn.hidden = s.story.phase !== 'play';
     loanBtn.classList.toggle('is-debt', !!(s.loan && s.loan.owed > 0));
     setText(beansCap, cap ? `/${fmt(cap)}` : '');
-    if (next.full !== last.full) { beans.classList.toggle('is-full', next.full); setText(beansTag, T(next.full ? 'hud.storage.tagFull' : 'hud.storage.tag')); }
+    if (next.full !== last.full) {
+      beans.classList.toggle('is-full', next.full);
+      // Full: long CTA "Đầy · Nâng cấp" + short "Đầy" — CSS shows the short one on narrow phones so the pill stays compact.
+      if (next.full) beansTag.replaceChildren(h('span', { class: 'hud-pill-tag-long' }, T('hud.storage.tagFull')), h('span', { class: 'hud-pill-tag-short' }, T('hud.storage.tagFullShort')));
+      else setText(beansTag, T('hud.storage.tag'));
+    }
     coinCounter.set(s.player.coins);
     if (next.goods !== last.goods) setText(beansIco, next.goods ? '📦' : '🫘');
     beanCounter.set(used);
