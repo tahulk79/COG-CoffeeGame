@@ -17,6 +17,7 @@ import { project } from '../world-map/geo.js';
 import { buildTerrain, DEEP } from '../world-map/terrain.js';
 import { COUNTRIES, COUNTRY_ORDER, DEFAULT_COUNTRY, parseRegionId, countryGames, cityOf } from '../../core/config/world.js';
 import { regionAccess, regionsOfCountry, ownsRegion } from '../../core/derive.js';
+import { EXPIRY_LEVEL } from '../../core/config/economy.js';
 import { disposeScene } from '../../shared/three/dispose-scene.js';
 import { sfx } from '../../shared/audio/index.js';
 import { hasKey, t } from '../../i18n/index.js';
@@ -135,7 +136,7 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
     pins.append(pin); return [entry, pin];
   }));
 
-  let selected = null, confirming = null, toastTimer = 0; // confirming: region id whose confirm card is open
+  let selected = null, confirming = null, confirmingGame = null, toastTimer = 0; // confirming: region id whose confirm card is open (opened as confirmingGame)
   let sizesDirty = true; // pin labels / screen changed: re-measure the full pin sizes (declutter)
   const state = () => store.state;
   function toast(text, tone = 'info') { toastEl.textContent = text; toastEl.dataset.tone = tone; toastEl.hidden = false; toastTimer = 2.6; }
@@ -191,20 +192,39 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
     info.append(el('strong', 'atlas-region-name', t(`regionName.${regionId}`)));
     // What this city can be played as: 🌱 farm, ☕ café, or both (Kunming farms while the rest of China is café-only).
     const games = cityOf(regionId).games;
-    info.append(el('span', 'atlas-chip is-games', games.map(g => GAME_ICON[g]).join('')));
+    // Played already: show the game it was opened as (it stays that game); otherwise the games it offers.
+    if (saved?.mode) info.append(el('span', `atlas-chip is-games is-chosen is-${saved.mode}`, `${GAME_ICON[saved.mode]} ${t(`atlas.play.${saved.mode}`)}`));
+    else if (saved) info.append(el('span', 'atlas-chip is-games', games.map(g => GAME_ICON[g]).join(''))); // new cities: the buttons say it
     let chip = null, action = null, note = null;
+    // A city with no game yet gets one button per game it offers (🌱 Farm / ☕ Café): the tap opens it as that game,
+    // so there is no "what do you want to play?" question after entering.
+    const pickGame = !saved?.mode;
+    // A brand-new player (no city yet): the first city's buttons pulse so the choice is obvious.
+    const hint = !s.world.ownedRegions.length && regionId === regionsOfCountry(countryOfRegion(regionId))[0];
+    const gameButtons = (cls, onPick) => {
+      const wrap = el('div', 'atlas-actions');
+      for (const g of games) {
+        // Two lines: "🌱 Farm" + what you do there ("Grow & sell beans").
+        const b = button('', `${cls} atlas-enter atlas-game is-${g}${hint ? ' is-hint' : ''}`, () => onPick(g));
+        b.append(el('span', 'atlas-game-ico', GAME_ICON[g]), el('span', 'atlas-game-title', t(`atlas.play.${g}`)));
+        b.setAttribute('aria-label', `${t(`atlas.play.${g}`)} · ${t(`atlas.play.${g}Sub`)} · ${t(`regionName.${regionId}`)}`);
+        wrap.append(b);
+      }
+      return wrap;
+    };
     if (!access.ok && access.reason === 'locked') {
       // Not opened yet: price chip + Open (disabled with "need X more" when the player cannot pay).
       chip = ['price', access.free ? `🎁 ${t('atlas.free')}` : coinText(access.cost)];
-      action = button(`🔓 ${t('atlas.open')}`, `${access.free ? 'ui-btn--go' : 'ui-btn--gold'} atlas-enter atlas-open`, () => ask(regionId));
-      if (!access.affordable) { action.disabled = true; note = t('atlas.needMore', { n: access.missing }); }
+      const cls = access.free ? 'ui-btn--go' : 'ui-btn--gold';
+      action = gameButtons(`${cls} atlas-open`, g => ask(regionId, g));
+      if (!access.affordable) { action.querySelectorAll('button').forEach(b => { b.disabled = true; }); note = t('atlas.needMore', { n: access.missing }); }
     } else if (!access.ok) {
       chip = ['expired', t('atlas.chip.expired')]; note = t('atlas.expiredNote');
     } else if (access.current) {
       chip = ['current', t('atlas.here')];
     } else {
       chip = access.expired ? ['expired', t('atlas.chip.expired')] : saved ? ['visited', t('atlas.chip.visited')] : ['new', t('atlas.chip.new')];
-      action = button(`➜ ${t('atlas.go')}`, 'ui-btn--go atlas-enter', () => enter(regionId));
+      action = pickGame ? gameButtons('ui-btn--go', g => enter(regionId, g)) : button(`➜ ${t('atlas.go')}`, 'ui-btn--go atlas-enter', () => enter(regionId));
     }
     info.append(el('span', `atlas-chip is-${chip[0]}`, chip[1]));
     if (hasKey(`city.${regionId}.vibe`)) info.append(el('small', 'atlas-region-vibe', `☕ ${t(`city.${regionId}.vibe`)}`));
@@ -216,7 +236,7 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
       const cost = regionAccess(s, regionId).cost;
       const card = el('div', 'atlas-confirm');
       card.append(el('p', 'atlas-confirm-title', t('atlas.unlock.title', { name: t(`regionName.${regionId}`) })), el('p', 'atlas-confirm-cost', coinText(cost)), el('div', 'atlas-confirm-actions'));
-      card.lastChild.append(button(t('atlas.unlock.cancel'), 'ui-btn--plain', () => { confirming = null; renderSheet(); }), button(t('atlas.unlock.go'), 'ui-btn--gold atlas-confirm-go', () => unlock(regionId)));
+      card.lastChild.append(button(t('atlas.unlock.cancel'), 'ui-btn--plain', () => { confirming = null; renderSheet(); }), button(t('atlas.unlock.go'), 'ui-btn--gold atlas-confirm-go', () => unlock(regionId, confirmingGame)));
       const wrap = el('li', 'atlas-region-confirm'); wrap.append(card);
       const frag = document.createDocumentFragment(); frag.append(row, wrap); return frag;
     }
@@ -234,36 +254,43 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
     back.addEventListener('click', event => { event.stopPropagation(); select(null); }, { signal });
     head.append(back);
     sheet.append(head);
-    sheet.append(el('p', 'atlas-note', t(status.owned ? 'atlas.note.owned' : 'atlas.note.open')));
-    // Some countries offer only one game (picked when entering a region).
-    const games = countryGames(selected).map(g => (g === 'cafe' ? `☕ ${t('hud.mode.cafe')}` : `🌱 ${t('hud.mode.farm')}`));
-    if (games.length) sheet.append(el('p', 'atlas-note atlas-games', t('atlas.games', { list: games.join(' · ') })));
+    // Short and in one box (less scrolling): each city is ONE game picked on its buttons and kept; what each game is;
+    // and, until it has happened, the Level-10 incident. The coin note only for countries you already own.
+    if (status.owned) sheet.append(el('p', 'atlas-note', t('atlas.note.owned')));
+    const offered = countryGames(selected), st = state();
+    const how = el('div', 'atlas-howto');
+    if (offered.length) {
+      how.append(el('p', 'atlas-howto-title', t(offered.length > 1 ? 'atlas.howto.pick' : 'atlas.howto.only')));
+      how.append(el('p', 'atlas-howto-line', offered.map(g => `${GAME_ICON[g]} ${t(`atlas.play.${g}`)}: ${t(`atlas.play.${g}Sub`)}`).join(' · ')));
+    }
+    if (!st.story.level10Done) how.append(el('p', 'atlas-howto-warn', t('atlas.howto.lv10', { level: EXPIRY_LEVEL })));
+    if (how.childElementCount) sheet.append(how);
     const cities = regionsOfCountry(selected);
     sheet.append(el('h4', 'atlas-sheet-sub', `${t('atlas.cities')} · ${t('atlas.cityCount', { n: cities.length })}`));
     const list = el('ul', 'atlas-regions');
     for (const regionId of cities) list.append(regionRow(regionId));
     sheet.append(list);
   }
-  function enter(regionId) {
-    const result = store.dispatch('world/enterRegion', { regionId });
+  function enter(regionId, game = null) {
+    const result = store.dispatch('world/enterRegion', { regionId, game });
     if (!result.ok) { sfx('ui.deny'); toast(atlasErrorText(result), 'bad'); return; }
     sfx('ui.buy');
     onEntered?.(regionId, result);
   }
   // Free openings go straight in; paid ones ask a small confirm card (title + price) first.
-  function ask(regionId) {
+  function ask(regionId, game = null) {
     const access = regionAccess(state(), regionId);
-    if (access.reason !== 'locked') { enter(regionId); return; }
+    if (access.reason !== 'locked') { enter(regionId, game); return; }
     if (!access.affordable) { sfx('ui.deny'); toast(atlasErrorText({ error: 'coins', data: { missing: access.missing } }), 'bad'); return; }
-    if (access.free) { unlock(regionId); return; }
-    confirming = regionId; sfx('ui.open'); renderSheet();
+    if (access.free) { unlock(regionId, game); return; }
+    confirming = regionId; confirmingGame = game; sfx('ui.open'); renderSheet();
   }
-  function unlock(regionId) {
+  function unlock(regionId, game = null) {
     confirming = null;
     const result = store.dispatch('world/unlockRegion', { regionId });
     if (!result.ok) { sfx('ui.deny'); toast(atlasErrorText(result), 'bad'); renderSheet(); return; }
     const entry = countries.find(c => c.id === countryOfRegion(regionId)); if (entry) entry.speed += 8;
-    enter(regionId);
+    enter(regionId, game);
   }
   function focusOn(entry, distance) { goal.x = entry.x; goal.z = entry.z + (portrait ? 2.4 : 1.4); goal.distance = Math.min(goal.distance, distance); clampView(goal); velocity.x = velocity.z = 0; }
   function select(id) {

@@ -6,13 +6,13 @@
 
 ## Luật
 
-- Bản đồ chọn theo **thành phố**. Một quốc gia có 3–5 thành phố; mỗi thành phố là một "vùng" chơi riêng (save riêng, mở riêng bằng xu).
+- Bản đồ chọn theo **thành phố**. Một quốc gia có 3–6 thành phố; mỗi thành phố là một "vùng" chơi riêng (save riêng, mở riêng bằng xu).
 - Id vùng vẫn là `<mã quốc gia>-<số thứ tự thành phố>` (vd. `jp-1` = Tokyo, `vn-2` = TP.HCM), theo đúng thứ tự trong tài liệu.
   Giữ dạng id này để save cũ `vn-1`, `jp-1`, `us-1`, `br-1`, `id-1` vẫn hợp lệ.
-- Giá mở thành phố thứ n = giá gốc quốc gia × hệ số (1 · 1.4 · 1.8 · 2.3 · 2.8). Vùng đầu tiên của game miễn phí; sau sự kiện Level 10 được mở miễn phí thêm 1 vùng.
+- Giá mở thành phố thứ n = giá gốc quốc gia × hệ số (1 · 1.4 · 1.8 · 2.3 · 2.8 · 3.3). Vùng đầu tiên của game miễn phí; sau sự kiện Level 10 được mở miễn phí thêm 1 vùng.
 - Game (nông trại / quán): mặc định theo quốc gia, có thể ghi đè theo thành phố (vd. Côn Minh có nông trại vì là vùng trồng Vân Nam).
   Nước trồng cà phê (VN, Brazil, Indonesia, Ấn Độ) có cả nông trại + quán; các nước còn lại chỉ có quán.
-- Bỏ khỏi bản đồ: Colombia, Kenya, Ý (không có trong tài liệu). Save cũ ở các nước này được chuyển sang: `co-1 → br-3` (Belo Horizonte), `ke-1 → in-3` (Bengaluru), `it-1 → fr-1` (Paris).
+- Bỏ khỏi bản đồ: Colombia, Ý (không có trong tài liệu). Save cũ ở các nước này được chuyển sang: `co-1 → br-3` (Belo Horizonte), `it-1 → fr-1` (Paris). Kenya đã quay lại (châu Phi) nên `ke-1` giữ nguyên.
 - Menu, nhịp uống, lưu ý là thông tin **cấp quốc gia** (tài liệu ghi: "Menu minh họa ở cấp quốc gia, chưa xác minh theo từng thành phố").
 - **Bản đồ chỉ hiện**: tên quốc gia, danh sách thành phố (khung ở góc) với dòng nét riêng dưới tên thành phố.
   Không vẽ pin thành phố trên bản đồ. Giới thiệu, nhịp uống, lưu ý, menu **không hiện trên bản đồ** — lưu ngầm trong
@@ -44,8 +44,21 @@
 | id | 🇮🇩 Indonesia | Jakarta · Bandung · Yogyakarta · Surabaya · Medan |
 | my | 🇲🇾 Malaysia | Kuala Lumpur · Penang · Ipoh · Johor Bahru |
 | ru | 🇷🇺 Nga | Moscow · Saint Petersburg · Kazan · Novosibirsk |
+| et | 🇪🇹 Ethiopia | ☕ Addis Ababa · Dire Dawa · 🌱 Sidama · Yirgacheffe · Jimma · Guji |
+| ke | 🇰🇪 Kenya | ☕ Nairobi · Mombasa · Nakuru · 🌱 Nyeri · Kirinyaga · Kiambu |
+| ug | 🇺🇬 Uganda | ☕ Kampala · Entebbe · Jinja · 🌱 Bugisu (Mt. Elgon) · Kasese · Masaka |
+| tz | 🇹🇿 Tanzania | ☕ Dar es Salaam · Arusha · Dodoma · 🌱 Kilimanjaro · Mbeya · Kagera |
+| rw | 🇷🇼 Rwanda | ☕ Kigali · Musanze · Rubavu · 🌱 Huye · Nyamasheke · Rutsiro |
+| bi | 🇧🇮 Burundi | ☕ Bujumbura · Gitega · 🌱 Kayanza · Ngozi · Muyinga |
+| ci | 🇨🇮 Bờ Biển Ngà | ☕ Abidjan · Yamoussoukro · 🌱 Daloa · Gagnoa |
+| za | 🇿🇦 Nam Phi | ☕ Johannesburg · Cape Town · Durban (chỉ có quán) |
 
-18 quốc gia, 75 thành phố.
+26 quốc gia, 117 thành phố.
+
+**Châu Phi** (anh gửi thêm ngày 2026-11-07): cột đầu là thành phố có quán (☕ chỉ quán), cột sau là vùng trồng cà phê
+(🌱 chỉ nông trại). Nam Phi chủ yếu café nên chỉ có quán. Thành phố thứ 6 có hệ số giá ×3.3. Kenya quay lại bản đồ nên
+save cũ `ke-1` không còn bị chuyển sang Bengaluru nữa (giờ là Nairobi). Đường biên các nước Đông Phi dùng chung điểm biên.
+Nhịp uống, lưu ý và menu châu Phi là bản mẫu do Claude viết (anh chưa gửi), xem/sửa trong `world-cities.js` và `menus.js`.
 
 ## Nội dung từng quốc gia
 

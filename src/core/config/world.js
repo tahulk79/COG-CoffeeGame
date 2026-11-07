@@ -6,10 +6,12 @@
 // the next new region is free once (no softlock). Price = country base × CITY_TIER[n].
 //
 // games: what a city of this country can be played as ('farm' | 'cafe'); a city may override it (Kunming grows Yunnan coffee).
-// Coffee-growing countries (VN, Brazil, Indonesia, India) offer both; the others are café-only.
+// Coffee-growing countries (VN, Brazil, Indonesia, India) offer both; the others are café-only. In Africa the café
+// cities are café-only and the growing regions (Yirgacheffe, Nyeri, Bugisu…) are farm-only.
 // cities[].lon/lat: real coordinates (degrees) for the city pins on the atlas.
 
 const city = (slug, lon, lat, extra = {}) => ({ slug, lon, lat, ...extra });
+const FARM = { games: ['farm'] };
 
 export const COUNTRIES = {
   jp: { id: 'jp', flag: '🇯🇵', baseCost: 900, games: ['cafe'], palette: { ground: 0x7aa868, accent: 0xd0485a },
@@ -49,14 +51,39 @@ export const COUNTRIES = {
     cities: [city('kualaLumpur', 101.69, 3.14), city('penang', 100.33, 5.41), city('ipoh', 101.08, 4.6), city('johorBahru', 103.76, 1.49)] },
   ru: { id: 'ru', flag: '🇷🇺', baseCost: 800, games: ['cafe'], palette: { ground: 0x8fa878, accent: 0x3a5fb5 },
     cities: [city('moscow', 37.62, 55.76), city('saintPetersburg', 30.32, 59.93), city('kazan', 49.11, 55.8), city('novosibirsk', 82.92, 55.03)] },
-};
-// Order of the document (country list). The starter country (no save yet) is vn.
-export const COUNTRY_ORDER = ['jp', 'fr', 'gb', 'us', 'au', 'de', 'tr', 'sa', 'vn', 'cn', 'br', 'in', 'ca', 'kr', 'tw', 'id', 'my', 'ru'];
+  // Africa (added 2026-11-07): café cities first, then the coffee-growing regions (farm only).
+  et: { id: 'et', flag: '🇪🇹', baseCost: 350, games: ['cafe'], palette: { ground: 0x8fa85a, accent: 0x2f8a3a },
+    cities: [city('addisAbaba', 38.74, 9.03), city('direDawa', 41.86, 9.6),
+      city('sidama', 38.48, 6.73, FARM), city('yirgacheffe', 38.2, 6.16, FARM), city('jimma', 36.83, 7.67, FARM), city('guji', 38.95, 5.75, FARM)] },
+  ke: { id: 'ke', flag: '🇰🇪', baseCost: 400, games: ['cafe'], palette: { ground: 0x93a85c, accent: 0xb8322f },
+    cities: [city('nairobi', 36.82, -1.29), city('mombasa', 39.67, -4.04), city('nakuru', 36.07, -0.3),
+      city('nyeri', 36.95, -0.42, FARM), city('kirinyaga', 37.3, -0.5, FARM), city('kiambu', 36.83, -1.03, FARM)] },
+  ug: { id: 'ug', flag: '🇺🇬', baseCost: 350, games: ['cafe'], palette: { ground: 0x6fa452, accent: 0xd8b02f },
+    cities: [city('kampala', 32.58, 0.35), city('entebbe', 32.46, 0.05), city('jinja', 33.2, 0.42),
+      city('bugisu', 34.2, 1.08, FARM), city('kasese', 30.08, 0.18, FARM), city('masaka', 31.73, -0.33, FARM)] },
+  tz: { id: 'tz', flag: '🇹🇿', baseCost: 400, games: ['cafe'], palette: { ground: 0x9aa860, accent: 0x2f7fb5 },
+    cities: [city('darEsSalaam', 39.28, -6.79), city('arusha', 36.68, -3.37), city('dodoma', 35.75, -6.17),
+      city('kilimanjaro', 37.34, -3.35, FARM), city('mbeya', 33.46, -8.9, FARM), city('kagera', 31.8, -1.33, FARM)] },
+  rw: { id: 'rw', flag: '🇷🇼', baseCost: 400, games: ['cafe'], palette: { ground: 0x5e9d4e, accent: 0x2f9fd0 },
+    cities: [city('kigali', 30.06, -1.95), city('musanze', 29.63, -1.5), city('rubavu', 29.27, -1.68),
+      city('huye', 29.74, -2.6, FARM), city('nyamasheke', 29.1, -2.35, FARM), city('rutsiro', 29.33, -1.94, FARM)] },
+  bi: { id: 'bi', flag: '🇧🇮', baseCost: 300, games: ['cafe'], palette: { ground: 0x66a058, accent: 0xc8323a },
+    cities: [city('bujumbura', 29.36, -3.38), city('gitega', 29.93, -3.43),
+      city('kayanza', 29.63, -2.92, FARM), city('ngozi', 29.83, -2.91, FARM), city('muyinga', 30.34, -2.85, FARM)] },
+  ci: { id: 'ci', flag: '🇨🇮', baseCost: 350, games: ['cafe'], palette: { ground: 0x7aa858, accent: 0xe08a2f },
+    cities: [city('abidjan', -4.02, 5.36), city('yamoussoukro', -5.28, 6.82),
+      city('daloa', -6.45, 6.88, FARM), city('gagnoa', -5.95, 6.13, FARM)] },
+  za: { id: 'za', flag: '🇿🇦', baseCost: 700, games: ['cafe'], palette: { ground: 0xa8a862, accent: 0x2f7a4a },
+    cities: [city('johannesburg', 28.05, -26.2), city('capeTown', 18.42, -33.93), city('durban', 31.02, -29.86)] },
+};// Order of the document (country list). The starter country (no save yet) is vn.
+export const COUNTRY_ORDER = ['jp', 'fr', 'gb', 'us', 'au', 'de', 'tr', 'sa', 'vn', 'cn', 'br', 'in', 'ca', 'kr', 'tw', 'id', 'my', 'ru',
+  'et', 'ke', 'ug', 'tz', 'rw', 'bi', 'ci', 'za'];
 export const DEFAULT_COUNTRY = 'vn';
 // City #n of a country costs baseCost × CITY_TIER[n] (sample numbers, see world-cities.md).
-export const CITY_TIER = { 1: 1, 2: 1.4, 3: 1.8, 4: 2.3, 5: 2.8 };
+export const CITY_TIER = { 1: 1, 2: 1.4, 3: 1.8, 4: 2.3, 5: 2.8, 6: 3.3 };
 // Countries removed with the city map (Colombia, Kenya, Italy): their old regions move to a city of a kept country.
-export const LEGACY_REGIONS = { 'co-1': 'br-3', 'ke-1': 'in-3', 'it-1': 'fr-1' };
+// Kenya was removed once (ke-1 → in-3) and is back as its own country (Nairobi), so ke-1 is no longer remapped.
+export const LEGACY_REGIONS = { 'co-1': 'br-3', 'it-1': 'fr-1' };
 
 export const regionIdOf = (countryId, n) => `${countryId}-${n}`;
 export function parseRegionId(regionId) {

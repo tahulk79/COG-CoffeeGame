@@ -359,7 +359,9 @@ const handlers = {
     s.world.ownedRegions.push(regionId);
     ev.push({ type: 'regionUnlocked', regionId, cost });
   },
-  'world/enterRegion'(s, { regionId }, ev, ctx) {
+  // game ('farm' | 'cafe', optional): picked on the map's city row — a region with no game yet starts as that game
+  // (no "what do you want to play?" question once inside). Ignored when the city does not offer it or the region has one.
+  'world/enterRegion'(s, { regionId, game = null }, ev, ctx) {
     if (!['gate', 'chooseRegion', 'play'].includes(s.story.phase)) return fail('phase');
     const access = D.regionAccess(s, regionId);
     if (!access.ok) return fail(access.reason, access);
@@ -370,6 +372,7 @@ const handlers = {
     if (!r) { r = freshRegion(s, ctx.now); s.world.regions[regionId] = r; ev.push({ type: 'regionFirstVisit', regionId }); }
     else { ensureStarters(s, r); r.status = 'active'; r.enteredAt = ctx.now; }
     s.world.currentRegion = regionId;
+    if (!r.mode && (game === 'farm' || game === 'cafe') && D.currentGames(s).includes(game)) r.mode = game;
     s.mode = r.mode || null; // the region's game; null → the HUD asks (only the games this country offers)
     // Anyone with no place yet (the Level-10 follower) comes along to the new region.
     for (const u of s.staff.units) if (!u.assigned) { u.assigned = { regionId, zone: STAFF[u.type].zone }; u.active = D.freeSlots(s, STAFF[u.type].zone) > 0; }
@@ -1585,11 +1588,13 @@ const handlers = {
     s.player.coins = Math.round((s.player.coins + amount) * 100) / 100;
     ev.push({ type: 'loanTaken', amount, owed: s.loan.owed });
   },
-  // Pays the debt with the coins at hand (all of it when possible).
-  'loan/repay'(s, _p, ev) {
+  // Pays the debt with the coins at hand: `amount` coins when given (the Repay tab's chosen amount), else as much as
+  // possible. Never more than the debt or the coins you have.
+  'loan/repay'(s, { amount = null } = {}, ev) {
     const loan = D.loanOf(s);
     if (!loan) return { noop: true };
-    const pay = Math.min(loan.owed, Math.floor(s.player.coins));
+    if (amount != null && !(Number.isFinite(Number(amount)) && Number(amount) > 0)) return fail('invalid');
+    const pay = Math.min(loan.owed, Math.floor(s.player.coins), amount == null ? Infinity : Math.floor(Number(amount)));
     if (pay <= 0) return fail('coins', { missing: Math.ceil(loan.owed) });
     spend(s, pay);
     loan.owed = Math.round((loan.owed - pay) * 100) / 100;

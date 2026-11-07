@@ -136,3 +136,11 @@ người hỗ trợ). Robot mở muộn hơn nhân viên để có thêm mốc �
   (skills, rank, gear) unassigned; it joins the next region you enter.
 - A follower is paid `followerWage` per 10 min, working or not (workers 10% of the hire price, min 10; the evolved robot
   20). With no coins the wage goes on your debt (`s.loan.owed`), repaid by the usual 20% of income.
+
+## Level-10 heads-up (founder 2026-11-07)
+Players are told before Level 10 that the incident is coming:
+- A chip under the level badge: «⚡ Cấp 10: có biến cố»; from 3 levels before, it turns orange and pulses: «⚡ Còn N cấp tới
+  biến cố». Tap → the 🚂 Rounds sheet. Hidden once the incident has happened (`story.level10Done`).
+- Rounds sheet, Round 1: says what happens at Level 10 (start over in a new place without coins, level or land; keep found
+  recipes; maybe a follower; the loan stays).
+- Level-up banner at Lv7–9: «⚡ Còn N cấp nữa là tới biến cố Cấp 10 — bấm 🚂 để xem.»

@@ -10,11 +10,16 @@ A casual 3D world you walk around: grow coffee (Hay Day), build and upgrade (Tow
 |---|---|---|
 | `select` | Pick male/female character | Enter game |
 | `intro` | Street accident, the hero faints (skippable cinematic) | End / Skip |
-| `teacher` | Meets the Teacher (Thầy): rebirth explained, receives **3 free rebirth credits**, World Gate opens | Claim / Skip (credits still granted) |
+| `teacher` | Scene 2 (heaven): the **Deity** (Vị thần) asks the hero's greatest dream; the hero answers (strong and wealthy to do good for the world, and to discover the greater things of the universe); the Deity gives the **God Bean** (“hạt của Chúa”) and warns “nothing lasts forever”; the hero sniffs the bean, it dissolves into their mind → **God Bean splash** → world map. One free Auto run is granted | Last line / Skip (skip still shows a short splash) |
 | `gate` | World Map: open a starting region (the first one is **free**) | Open → enter |
 | `play` | Farm + café loop in the region | Level 10 the first time |
 | `expiry` | Gameplay paused; cinematic; Teacher: "this land has expired"; region reset | Reset done |
 | `chooseRegion` | World Map, must pick another region (the next new one is **free once**; the expired one cannot be entered now) | Go / Open → `play` |
+
+Scene 2 script (founder note 2026-11-07, from the novel *Vị thứ 6*): the Deity speaks “ta – ngươi” (also in the Level 10 expiry
+lines); the hero's line is fixed (no choice yet). The World Gate behind the hero stays closed: the map opens “in the mind”,
+not through the gate. The splash (`src/ui/splash.js`) shows once, at the end of scene 2 only (reload at `gate` goes straight
+to the map). Brand name shown to players: **God Bean** (save keys keep `godbean-*`). Code: `src/features/teacher/`.
 
 Every phase resumes after reload. Round 2/3 unlocks happen inside `play` (confirmation + cinematic).
 
