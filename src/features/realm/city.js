@@ -5,23 +5,33 @@
 //  · the café's own house (Godbean) behind the starter block S, lantern string + brand awning
 //  · asphalt street (CAFE_ROADS.cafeFront) + alley (cafeStreet) with lane dashes, a zebra crossing and curbs
 //  · sidewalks with street trees, lamp posts, power poles + wires, parked scooters
+//  · the street is 4 shops long (docs/design/cafe-street.md): tea house · café block (C3 · alley · S · C2) · lemon
+//    tea · bar. The 3 venue lots (VENUE_LOTS) are left EMPTY here (venues-scene.js draws their houses, shutters,
+//    counters and stools, and their nav blockers); the north row skips their x span. The other gaps between the shop
+//    lots get a deep street-front tube house (front on the sidewalk, z ≈ 113.6), and past the outer lots the street
+//    wall continues with street-front houses into the fog (STREET_X)
 //  (the terrace seating in front of the café is the upgradable 'terrace' building, drawn by buildings.js)
 //  · shop sign texts: one canvas atlas, all boards in one mesh
 // Returns { blockers (house rects the player cannot enter), dispose() }.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { CAFE_ROADS, PARCELS, FIXED } from '../../core/config/layout.js';
+import { CAFE_ROADS, CAFE_BOUNDS, PARCELS, FIXED, VENUE_LOTS } from '../../core/config/layout.js';
 import { BUILDINGS, CELL } from '../../core/config/economy.js';
 import { mulberry32, paint, FONT } from './util.js';
 
-const STREET = CAFE_ROADS.cafeFront.rect;   // [-26, 118.5, 28, 121.5]
+const STREET = CAFE_ROADS.cafeFront.rect;   // [-46, 118.5, 62, 121.5]
 const ALLEY = CAFE_ROADS.cafeStreet.rect;   // [-9.5, 94, -6.5, 130]
-const STREET_X = [-50, 54];                  // the street runs on past the playable area into the fog
+const STREET_X = [-70, 80];                  // the street runs on past the playable area (CAFE_BOUNDS) into the fog
+const LITE_X = [CAFE_BOUNDS.minX, CAFE_BOUNDS.maxX]; // houses centred outside: fewer small parts (fog, edge of view)
 const ALLEY_Z = [80, 144];
 // Street rows sit just outside the café lots (S / C2 / C3 share z 100–114) and the terrace (FIXED.terrace).
 const LOTS = ['S', 'C2', 'C3'].map(id => PARCELS[id].rect);
 const LOT_Z0 = Math.min(...LOTS.map(r => r[1])), LOT_Z1 = Math.max(...LOTS.map(r => r[3]));
-const LOT_X0 = Math.min(...LOTS.map(r => r[0])), LOT_X1 = Math.max(...LOTS.map(r => r[2]));
+// Venue lots (tea / lemon / bar): their whole x span, from the back row to the lot front, belongs to venues-scene.js.
+const VENUE_RECTS = Object.values(VENUE_LOTS).map(v => v.rect);
+// All 6 shop lots west → east (C3 · S · C2 + the venues): the gaps between them get street-front houses.
+const SHOP_LOTS = [...LOTS, ...VENUE_RECTS].sort((a, b) => a[0] - b[0]);
+const SHOPS_X0 = SHOP_LOTS[0][0], SHOPS_X1 = SHOP_LOTS[SHOP_LOTS.length - 1][2];
 const TERRACE_HALF_W = BUILDINGS.terrace.size[0] * CELL / 2;
 const TERRACE_X = [FIXED.terrace.x - TERRACE_HALF_W, FIXED.terrace.x + TERRACE_HALF_W];
 const FLOOR_H = 2.8;
@@ -100,7 +110,8 @@ export function buildCity(target, keep, mats) {
 
   /**
    * Tube house ("nhà ống"). rect = world footprint [x0, z0, x1, z1]; face: side of the front ('s' | 'n' | 'e' | 'w').
-   * opts: floors, wall, shop (sign on the ground floor), lanterns, tank.
+   * opts: floors, wall, shop (sign on the ground floor), lanterns, tank, lite (no shelf goods / lanterns / laundry,
+   * solid balcony railing, ≤ 1 pot: default for houses outside the playable x range, keeps the merged mesh small).
    */
   function tubeHouse(rect, face, opts = {}) {
     const [x0, z0, x1, z1] = rect;
@@ -111,13 +122,14 @@ export function buildCity(target, keep, mats) {
     const floors = opts.floors ?? 2 + Math.floor(rnd() * 3);
     const wall = opts.wall || pick(WALLS), trim = pick(TRIM);
     const H = floors * FLOOR_H + .25, f = d / 2;
+    const lite = opts.lite ?? ((x0 + x1) / 2 < LITE_X[0] || (x0 + x1) / 2 > LITE_X[1]);
     blockers.push([x0, z0, x1, z1]);
     add(box(w - .04, H, d), wall, 0, H / 2, 0);
     // ground floor: open shopfront (dark interior + goods shelves), half-raised shutter, awning, shop sign
     add(box(w - .5, 2.25, .06), '#4a3426', 0, 1.13, f + .005);
     add(box(w - .5, .5, .08), '#b9c0c6', 0, 2.05, f + .02);
     for (let k = 0; k < 2; k++) add(box(w - .9, .06, .3), '#8a6a4a', 0, .55 + k * .55, f - .1);
-    for (let k = 0; k < Math.floor(w / .55); k++) add(box(.22, .28, .18), pick(['#e8673c', '#f2c230', '#5aab35', '#2f6fd6', '#ffffff', '#c2416f']), -w / 2 + .6 + k * .55, .78 + (k % 2) * .55, f - .08);
+    if (!lite) for (let k = 0; k < Math.floor(w / .55); k++) add(box(.22, .28, .18), pick(['#e8673c', '#f2c230', '#5aab35', '#2f6fd6', '#ffffff', '#c2416f']), -w / 2 + .6 + k * .55, .78 + (k % 2) * .55, f - .08);
     const [a1, a2] = pick(AWNINGS);
     const n = Math.max(4, Math.round(w / .5)), sw = (w + .1) / n;
     for (let i = 0; i < n; i++) add(box(sw, .05, 1.15).translate(0, 0, .575).rotateX(.36), i % 2 ? a2 : a1, -w / 2 - .05 + sw * (i + .5), 2.62, f);
@@ -132,15 +144,16 @@ export function buildCity(target, keep, mats) {
       add(box(w * .56 + .16, .1, .1), trim, 0, y + 2.08, f + .02);
       add(box(w - .1, .12, .75), '#d9d2c5', 0, y + .06, f + .37);
       add(box(w - .1, .05, .05), trim, 0, y + .62, f + .72);
-      for (let k = 0; k <= Math.floor((w - .2) / .3); k++) add(box(.035, .5, .035), trim, -w / 2 + .1 + k * .3, y + .37, f + .72);
-      if (rnd() < .8) pots(add, w, y + .12, f + .45, 1 + Math.floor(rnd() * 3));
+      if (lite) add(box(w - .1, .45, .03), trim, 0, y + .35, f + .72);
+      else for (let k = 0; k <= Math.floor((w - .2) / .3); k++) add(box(.035, .5, .035), trim, -w / 2 + .1 + k * .3, y + .37, f + .72);
+      if (rnd() < .8) pots(add, w, y + .12, f + .45, lite ? 1 : 1 + Math.floor(rnd() * 3));
       if (rnd() < .5) add(box(.7, .45, .28), '#eef1f3', w / 2 - .6, y + 2.3, f + .15);
-      if (rnd() < .35) { // laundry line
+      if (!lite && rnd() < .35) { // laundry line
         add(box(w - .5, .02, .02), '#ffffff', 0, y + 1.9, f + .65);
         for (let k = 0; k < 3; k++) add(box(.35, .45, .02), pick(['#ff8fb8', '#ffffff', '#6aa3c8', '#ffe066']), -w / 4 + k * w / 4, y + 1.62, f + .65);
       }
     }
-    if (opts.lanterns ?? rnd() < .45) for (const x of [-w / 3, w / 3]) lantern(add, x, 1.95, f + 1.2);
+    if (opts.lanterns ?? (!lite && rnd() < .45)) for (const x of [-w / 3, w / 3]) lantern(add, x, 1.95, f + 1.2);
     // roof: parapet, sometimes a tiled front slope, stainless water tank
     add(box(w, .35, .12), trim, 0, H + .17, f - .06);
     if (rnd() < .3) add(box(w + .1, .1, 1.4).translate(0, 0, -.7).rotateX(.45), '#b5523a', 0, H + .2, f);
@@ -175,21 +188,46 @@ export function buildCity(target, keep, mats) {
     }
   }
 
+  // Like row(), but narrow spans (≥ 2.4 m) still get one slim house ("nhà siêu mỏng"); smaller ones stay empty.
+  const fill = (a, b, place) => { if (b - a >= 2.4) row(a, b, place, Math.min(3.4, b - a)); };
+  // Free sub-spans of [a, b] after cutting out the [x0, x1] intervals of `cuts`.
+  function spans(a, b, cuts) {
+    const out = [];
+    let p = a;
+    for (const [c0, c1] of [...cuts].sort((u, v) => u[0] - v[0])) {
+      if (c0 > p) out.push([p, Math.min(c0, b)]);
+      p = Math.max(p, c1);
+      if (p >= b) break;
+    }
+    if (p < b) out.push([p, b]);
+    return out;
+  }
+
   // ---------- street rows ----------
-  const NORTH_FRONT = LOT_Z0 - .4, SOUTH_FRONT = STREET[3] + 2.6, DEPTH = 7.2;
+  const NORTH_FRONT = LOT_Z0 - .4, SOUTH_FRONT = STREET[3] + 2.6, DEPTH = 7.2, STREET_FRONT = LOT_Z1 - .4;
   const S = PARCELS.S.rect;
   const CAFE_HOUSE = [S[0] - .2, NORTH_FRONT - DEPTH, S[2] + .2, NORTH_FRONT];
-  row(-36, ALLEY[0] - .3, (a, b) => tubeHouse([a, NORTH_FRONT - DEPTH, b, NORTH_FRONT], 's'));
-  row(CAFE_HOUSE[2], 38, (a, b) => tubeHouse([a, NORTH_FRONT - DEPTH, b, NORTH_FRONT], 's'));
-  row(LOT_Z0, LOT_Z1 - .4, (a, b) => tubeHouse([LOT_X0 - 9.4, a, LOT_X0 - 1.6, b], 'e', { floors: 2 + Math.floor(rnd() * 2) }));
-  row(LOT_Z0, LOT_Z1 - .4, (a, b) => tubeHouse([LOT_X1 + 1.6, a, LOT_X1 + 9.4, b], 'w', { floors: 2 + Math.floor(rnd() * 2) }));
-  row(-36, ALLEY[0] - 1, (a, b) => tubeHouse([a, SOUTH_FRONT, b, SOUTH_FRONT + DEPTH], 'n', { floors: 1 + Math.floor(rnd() * 2) }));
-  row(ALLEY[2] + 1, 38, (a, b) => tubeHouse([a, SOUTH_FRONT, b, SOUTH_FRONT + DEPTH], 'n', { floors: 1 + Math.floor(rnd() * 2) }));
+  // north row behind the lots: everything but the alley + café house and the venue lots (venues-scene.js)
+  const northCuts = [[ALLEY[0] - .3, CAFE_HOUSE[2]], ...VENUE_RECTS.map(r => [r[0], r[2]])];
+  for (const [a, b] of spans(STREET_X[0], STREET_X[1], northCuts)) fill(a, b, (p, q) => tubeHouse([p, NORTH_FRONT - DEPTH, q, NORTH_FRONT], 's'));
+  // gaps between neighbouring shop lots (never the alley): one deep house fronting the sidewalk
+  // (inset .8 m next to a café parcel so its player-built edge stays reachable; venue walls may touch it)
+  for (let i = 0; i + 1 < SHOP_LOTS.length; i++) {
+    const inset = VENUE_RECTS.includes(SHOP_LOTS[i]) && VENUE_RECTS.includes(SHOP_LOTS[i + 1]) ? .15 : .8;
+    const a = SHOP_LOTS[i][2] + inset, b = SHOP_LOTS[i + 1][0] - inset;
+    if (b - a < 2.2 || (a < ALLEY[2] && b > ALLEY[0])) continue;
+    tubeHouse([a, NORTH_FRONT, b, STREET_FRONT], 's', { floors: 2 + Math.floor(rnd() * 2) });
+  }
+  // past the outer shops the street wall comes forward to the sidewalk and runs on into the fog
+  fill(STREET_X[0], SHOPS_X0 - .4, (a, b) => tubeHouse([a, STREET_FRONT - DEPTH, b, STREET_FRONT], 's'));
+  fill(SHOPS_X1 + .4, STREET_X[1], (a, b) => tubeHouse([a, STREET_FRONT - DEPTH, b, STREET_FRONT], 's'));
+  row(STREET_X[0], ALLEY[0] - 1, (a, b) => tubeHouse([a, SOUTH_FRONT, b, SOUTH_FRONT + DEPTH], 'n', { floors: 1 + Math.floor(rnd() * 2) }));
+  row(ALLEY[2] + 1, STREET_X[1], (a, b) => tubeHouse([a, SOUTH_FRONT, b, SOUTH_FRONT + DEPTH], 'n', { floors: 1 + Math.floor(rnd() * 2) }));
   const NB = NORTH_FRONT - DEPTH - 1.2, SB = SOUTH_FRONT + DEPTH + 1.2;
-  row(-44, ALLEY[0] - 1.5, (a, b) => skyline([a, NB - 9.6, b, NB], 's'), 5, 8);
-  row(ALLEY[2] + 1.5, 46, (a, b) => skyline([a, NB - 9.6, b, NB], 's'), 5, 8);
-  row(-44, ALLEY[0] - 3, (a, b) => skyline([a, SB, b, SB + 8.4], 'n'), 5, 8);
-  row(ALLEY[2] + 3, 46, (a, b) => skyline([a, SB, b, SB + 8.4], 'n'), 5, 8);
+  row(STREET_X[0] - 8, ALLEY[0] - 1.5, (a, b) => skyline([a, NB - 9.6, b, NB], 's'), 5, 8);
+  row(ALLEY[2] + 1.5, STREET_X[1] + 8, (a, b) => skyline([a, NB - 9.6, b, NB], 's'), 5, 8);
+  row(STREET_X[0] - 8, ALLEY[0] - 3, (a, b) => skyline([a, SB, b, SB + 8.4], 'n'), 5, 8);
+  row(ALLEY[2] + 3, STREET_X[1] + 8, (a, b) => skyline([a, SB, b, SB + 8.4], 'n'), 5, 8);
 
   // ---------- the café's own house (Godbean): 2 floors, brand awning, lantern string, open front ----------
   {
@@ -247,8 +285,8 @@ export function buildCity(target, keep, mats) {
       add(new THREE.CylinderGeometry(.13 * s, .18 * s, 2.4 * s, 6), '#7a5a3c', x, 1.2 * s, z);
       for (let k = 0; k < 3; k++) add(new THREE.IcosahedronGeometry((.9 + rnd() * .3) * s, 0), pick(['#4f9e3a', '#5fae46', '#3f8a35', '#6cbf4a']), x + (rnd() - .5) * .9 * s, (2.6 + rnd() * .6) * s, z + (rnd() - .5) * .9 * s);
     };
-    for (const x of [-27, -20, -13.5, -2.5, 4.5, 11.5, 17.5, 25]) tree(x, SOUTH_WALK - .2, .95 + rnd() * .2);
-    for (const x of [-16.5, 19.5]) tree(x, NORTH_WALK - .6, .9); // north sidewalk, clear of the terrace
+    for (const x of [-64, -57, -50, -41, -34, -27, -20, -13.5, -2.5, 4.5, 11.5, 17.5, 25, 32, 38, 49, 55, 65, 71]) tree(x, SOUTH_WALK - .2, .95 + rnd() * .2);
+    for (const x of [-16.5, 19.5, -55, 68]) tree(x, NORTH_WALK - .6, .9); // north sidewalk, clear of the terrace + venue stools
     const lamp = (x, z, dir) => {
       solid(x, z, .15);
       add(new THREE.CylinderGeometry(.07, .1, 4.6, 6), '#5d6168', x, 2.3, z);
@@ -256,10 +294,11 @@ export function buildCity(target, keep, mats) {
       add(box(.34, .14, .5), '#5d6168', x, 4.5, z + dir * 1.05);
       add(box(.28, .05, .42), '#fff2b8', x, 4.42, z + dir * 1.05);
     };
-    for (const x of [-21.8, -4.8, 8, 20.2]) lamp(x, STREET[3] + .45, -1);
-    for (const x of [-12.5, TERRACE_X[1] + 2.2, 23.5]) lamp(x, STREET[1] - .35, 1);
+    for (const x of [-62, -48, -37, -21.8, -4.8, 8, 20.2, 35, 52, 68]) lamp(x, STREET[3] + .45, -1);
+    // north side: between the shops only (never over a venue's stools, VENUE_LOTS[*].seats)
+    for (const x of [-43, -23.4, -12.5, TERRACE_X[1] + 2.2, 23.5, 42.5, 59.5]) lamp(x, STREET[1] - .35, 1);
     // Power poles along the south sidewalk with three wires and a sagging cable bundle.
-    const poles = [-30, -16, -1, 14, 29];
+    const poles = [-60, -45, -30, -16, -1, 14, 29, 44, 59, 74];
     for (const x of poles) {
       solid(x, SOUTH_WALK + .55, .2);
       add(new THREE.CylinderGeometry(.12, .18, 7, 4), '#a9a59c', x, 3.5, SOUTH_WALK + .55);
@@ -287,9 +326,9 @@ export function buildCity(target, keep, mats) {
       s.add(box(.26, .16, .3), '#d9d2c5', 0, .42, -.62);
       s.flush();
     };
-    const parked = [[-25.6, -.45], [-24.4, -.45], [-23.2, -.45], [-18.5, -.4], [-17.3, -.4], [1.2, -.45], [2.4, -.45], [12.7, -.4], [22.6, -.4], [23.8, -.4]];
+    const parked = [[-39, -.45], [-37.8, -.45], [-32.2, -.4], [-25.6, -.45], [-24.4, -.45], [-23.2, -.45], [-18.5, -.4], [-17.3, -.4], [1.2, -.45], [2.4, -.45], [12.7, -.4], [22.6, -.4], [23.8, -.4], [33.5, -.4], [34.7, -.4], [47, -.45], [61.5, -.4], [62.7, -.4]];
     for (const [x, rot] of parked) scooter(x, SOUTH_WALK + .2, Math.PI + rot, pick(SCOOTERS));
-    for (const x of [-19.6, -18.4, -14.4, 13.4, 14.6, 16.6]) scooter(x, NORTH_WALK - .4, .4, pick(SCOOTERS));
+    for (const x of [-19.6, -18.4, -14.4, 13.4, 14.6, 16.6, -25.2, 26.4, 27.6, 64]) scooter(x, NORTH_WALK - .4, .4, pick(SCOOTERS));
     flush();
   }
 

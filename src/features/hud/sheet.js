@@ -9,18 +9,37 @@ export function createSheetHost(ctx) {
   const panel = h('section', { class: 'hud-sheet', attrs: { role: 'dialog', 'aria-modal': 'false' } }, h('header', { class: 'hud-sheet-head' }, title, close), body);
   const scrim = h('div', { class: 'hud-sheet-scrim', on: { click: () => api.close() } });
   const el = h('div', { class: 'hud-sheet-host', hidden: true }, scrim, panel);
-  let current = null; // { id, render(state) → Node }
+  let current = null; // { id, render(state) → Node, sig: string | null }
+
+  // A store dispatch (background staff, customers…) must not rebuild the open sheet when nothing it shows changed:
+  // a rebuild replaces the buttons under the player's finger. A render may carry `render.sig(state) → string` (cheap
+  // signature of what it shows); without one the fresh tree is compared to the shown one (isEqualNode) and only
+  // swapped in when it differs.
+  function paint(force) {
+    const s = ctx.store.state;
+    const sigFn = typeof current.render.sig === 'function' ? current.render.sig : null;
+    if (sigFn && !force) {
+      const next = sigFn(s);
+      if (next === current.sig) return;
+      current.sig = next;
+    } else if (sigFn) current.sig = sigFn(s);
+    const node = current.render(s);
+    if (!force && !sigFn && body.childNodes.length === 1 && node && body.firstChild.isEqualNode(node)) return;
+    const top = body.scrollTop;
+    body.replaceChildren(node);
+    body.scrollTop = top;
+  }
 
   const api = {
     el,
     get openId() { return current?.id || null; },
     open(id, heading, render) {
-      current = { id, render };
+      current = { id, render, sig: null };
       setText(title, heading);
       panel.setAttribute('aria-label', heading);
       el.hidden = false;
       el.dataset.sheet = id;
-      api.rerender();
+      paint(true);
       body.scrollTop = 0;
       close.focus({ preventScroll: true });
     },
@@ -31,12 +50,12 @@ export function createSheetHost(ctx) {
       body.replaceChildren();
       ctx.onSheetClosed?.();
     },
-    rerender() {
-      if (!current) return;
-      const top = body.scrollTop;
-      body.replaceChildren(current.render(ctx.store.state));
-      body.scrollTop = top;
-    },
+    /** Rebuilds now (a tab tap, a local flag changed): always repaints. */
+    rerender() { if (current) paint(true); },
+    /** Store changed: repaints only when what the sheet shows changed (signature / DOM compare). */
+    refresh() { if (current) paint(false); },
+    /** Sets the title of the open sheet (e.g. the catalog tab). */
+    setTitle(heading) { if (current) { setText(title, heading); panel.setAttribute('aria-label', heading); } },
     /** Finds an element inside the open sheet (tutorial pointer). */
     query: sel => (current ? body.querySelector(sel) : null),
     dispose() { el.remove(); },

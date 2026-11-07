@@ -61,3 +61,6 @@
 .atlas-toast[data-tone=good]{color:var(--ui-good)}
 @media(min-width:701px){.atlas-sheet{left:auto;right:24px;width:min(420px,calc(100% - 48px));bottom:24px;border-bottom:2px solid var(--ui-paper-edge);border-radius:22px;max-height:70dvh}}
 @media(prefers-reduced-motion:reduce){.atlas,.atlas-hint,.atlas-pin,.atlas-sheet{animation:none!important}}
+.atlas-region-vibe{flex-basis:100%;color:var(--ui-ink-soft);font:600 12px/1.35 var(--game-font)}
+.atlas-chip.is-games{background:#d9f0b8;color:#3e6a1e}
+.atlas-pin-games{padding:1px 5px;border-radius:999px;background:#ffffffc0;font-size:12px;letter-spacing:1px}

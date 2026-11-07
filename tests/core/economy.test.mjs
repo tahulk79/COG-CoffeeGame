@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { runSim } from '../../scripts/economy-sim.mjs';
-import { ROUNDS, EXPIRY_LEVEL } from '../../src/core/config/economy.js';
+import { EXPIRY_LEVEL } from '../../src/core/config/economy.js';
 import { apply } from '../../src/core/game.js';
 
 const MINUTES = 70;
@@ -48,23 +48,39 @@ test('economy sim: income after the reset never stalls at 0 for more than 2 cons
   assert.ok(sim.perMinute.length >= MINUTES - 1);
 });
 
-test(`economy sim: Round 2 is unlocked within ${MINUTES} min and its cost is charged exactly once`, () => {
-  const unlocks = events('roundUnlocked').filter(([, e]) => e.round === 2);
-  assert.equal(unlocks.length, 1, 'Round 2 not unlocked exactly once');
-  assert.ok(at(unlocks[0][0]) <= MINUTES);
-  assert.equal(unlocks[0][1].cost, ROUNDS[2].cost);
-  assert.ok(sim.state.player.round >= 2);
-  // Coins moved by round/unlock equal the Round costs actually unlocked (never charged twice).
-  const charged = events('roundUnlocked').reduce((sum, [, e]) => sum + e.cost, 0);
-  assert.equal(sim.coinDelta['round/unlock'], -charged);
-  // Replaying the same transaction later is a no-op.
-  const replay = apply(sim.state, { type: 'round/unlock', payload: { round: 2 }, txId: 'r2' }, { now: sim.end });
-  assert.ok(replay.ok && (replay.duplicate || replay.noop));
-  assert.equal(replay.state.player.coins, sim.state.player.coins);
-});
 
 test('economy sim: coins never go negative', () => {
   assert.ok(sim.minCoins >= 0, `min coins ${sim.minCoins}`);
   assert.ok(sim.perMinute.every(r => r.coins >= 0));
   assert.ok(Number.isFinite(sim.state.player.coins) && sim.state.player.coins >= 0);
+});
+
+// ---- Farm World 2.0: the approved one-game-per-region play, farm only (FARM-ECONOMY-BALANCE.md §5) ----
+const FARM_MIN = 45;
+const farm = runSim(FARM_MIN, { game: 'farm' });
+const raw = runSim(FARM_MIN, { game: 'farm', process: false });
+const lvl10At = r => { const e = r.log.find(([, ev]) => ev.type === 'levelUp' && ev.to >= EXPIRY_LEVEL); return e ? (e[0] - r.start) / 60000 : Infinity; };
+const perMin = (r, from, to) => { const a = r.perMinute.find(x => x.minute === from), b = r.perMinute.find(x => x.minute === to); return (b.earned - a.earned) / (to - from); };
+
+test('economy sim (farm only): Level 10 between 10 and 35 minutes, with and without processing', () => {
+  for (const r of [farm, raw]) { const m = lvl10At(r); assert.ok(m >= 10 && m <= 35, `Level 10 at ${m.toFixed(1)} min (process=${r.process})`); }
+});
+
+test('economy sim (farm only): the production chain is built and pays more per minute once it runs', () => {
+  for (const t of ['dryer', 'roastery']) assert.ok(farm.log.some(([, e]) => e.type === 'built' && e.building === t), `${t} never built`);
+  assert.ok((farm.state.stats.produced || 0) > 50, `only ${farm.state.stats.produced} batches`);
+  assert.ok(farm.income.dried > 0 && farm.income.roasted > 0, JSON.stringify(farm.income));
+  // Second region, chain rebuilt: income per minute beats selling every bean raw.
+  const a = perMin(farm, 35, FARM_MIN), b = perMin(raw, 35, FARM_MIN);
+  assert.ok(a > b * 1.05, `with processing ${a.toFixed(0)}/min vs raw ${b.toFixed(0)}/min`);
+});
+
+test('economy sim (farm only): coins never negative, no café actions, no stall after the reset', () => {
+  for (const r of [farm, raw]) {
+    assert.ok(r.minCoins >= 0);
+    assert.ok(!Object.keys(r.counts).some(t => t.startsWith('shop/')), 'a farm region ran café actions');
+    let streak = 0, worst = 0;
+    for (const row of r.perMinute) { streak = row.earnedThisMinute > 0 ? 0 : streak + 1; worst = Math.max(worst, streak); }
+    assert.ok(worst <= 2, `income 0 for ${worst} minutes`);
+  }
 });

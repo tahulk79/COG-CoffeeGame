@@ -1,6 +1,10 @@
 // Pointer gesture recognizer on the canvas only (DOM UI above it never reaches here): tap vs drag (8 px threshold),
 // two-finger pinch and wheel zoom. Semantics (plant, pan, place…) are decided by the realm through the handlers.
-const TAP_SLOP = 8;
+// Tap vs drag: a click / tap that wobbles a little must stay a tap (walk there), not become a tiny map drag — a drag
+// switches the camera off its follow and swallows the tap, which felt like a stutter when tapping fast. Fingers wobble
+// more than a mouse. A quick press (< QUICK ms) gets an even wider slop: fast repeated taps are taps.
+const TAP_SLOP = { mouse: 10, pen: 12, touch: 18 };
+const QUICK = 180, QUICK_SLOP = 28;
 
 /**
  * handlers: { down(p), up(), tap(p), dragStart(start, p), dragMove(p, dx, dy), dragEnd(p), zoom(factor, at), cancel() }
@@ -12,7 +16,7 @@ export function createInput(canvas, handlers, isLocked) {
   const opts = { signal: ac.signal };
   const pointers = new Map();
   const start = { x: 0, y: 0 }, last = { x: 0, y: 0 }, p = { x: 0, y: 0 }, mid = { x: 0, y: 0 };
-  let dragging = false, pinching = false, spoiled = false, pinchDist = 0;
+  let dragging = false, pinching = false, spoiled = false, pinchDist = 0, slop = 10, downAt = 0;
   const prevTouchAction = canvas.style.touchAction;
   canvas.style.touchAction = 'none';
 
@@ -29,6 +33,7 @@ export function createInput(canvas, handlers, isLocked) {
     try { canvas.setPointerCapture(e.pointerId); } catch { /* synthetic events */ }
     if (pointers.size === 1) {
       start.x = last.x = e.clientX; start.y = last.y = e.clientY;
+      slop = TAP_SLOP[e.pointerType] ?? 12; downAt = performance.now();
       dragging = false; pinching = false; spoiled = false;
       p.x = e.clientX; p.y = e.clientY;
       handlers.down?.(p);
@@ -54,9 +59,11 @@ export function createInput(canvas, handlers, isLocked) {
     }
     if (spoiled) return;
     p.x = e.clientX; p.y = e.clientY;
-    if (!dragging && Math.hypot(p.x - start.x, p.y - start.y) > TAP_SLOP) {
+    const moved = Math.hypot(p.x - start.x, p.y - start.y);
+    if (!dragging && moved > slop && (moved > QUICK_SLOP || performance.now() - downAt > QUICK)) {
       dragging = true;
       handlers.dragStart?.(start, p);
+      last.x = start.x; last.y = start.y; // the first drag step catches up the slop (the map stays under the finger)
     }
     if (dragging) handlers.dragMove?.(p, p.x - last.x, p.y - last.y);
     last.x = p.x; last.y = p.y;

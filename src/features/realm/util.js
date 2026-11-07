@@ -31,6 +31,44 @@ function roundRect(g, x, y, w, h, r) {
 }
 
 /**
+ * Painted gold coin (the 🪙 emoji renders as a grey silver coin on Apple, so canvas text never draws it).
+ * `ok=false` gives the muted grey "can't afford" coin.
+ */
+export function drawGoldCoin(g, x, y, r, ok = true) {
+  g.save();
+  g.fillStyle = 'rgba(80,45,10,.25)'; g.beginPath(); g.arc(x, y + r * .14, r, 0, Math.PI * 2); g.fill();
+  const grad = g.createRadialGradient(x - r * .35, y - r * .4, r * .1, x, y, r);
+  if (ok) { grad.addColorStop(0, '#fff6b8'); grad.addColorStop(.35, '#ffd34d'); grad.addColorStop(1, '#e9a521'); }
+  else { grad.addColorStop(0, '#f2f0ea'); grad.addColorStop(.4, '#cfc8b8'); grad.addColorStop(1, '#a9a092'); }
+  g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fillStyle = grad; g.fill();
+  g.lineWidth = Math.max(2, r * .16); g.strokeStyle = ok ? '#c98a17' : '#8f8678'; g.stroke();
+  g.beginPath(); g.arc(x, y, r * .62, 0, Math.PI * 2); g.lineWidth = Math.max(1.5, r * .1); g.strokeStyle = ok ? 'rgba(201,138,23,.75)' : 'rgba(143,134,120,.7)'; g.stroke();
+  g.beginPath(); g.ellipse(x - r * .32, y - r * .38, r * .28, r * .14, -.6, 0, Math.PI * 2); g.fillStyle = 'rgba(255,255,255,.7)'; g.fill();
+  g.restore();
+}
+
+// Text with every 🪙 drawn as a painted gold coin. measure → total width; draw → centred at (cx, cy) with the
+// current font/fillStyle (textBaseline middle). Coin diameter follows the font size `px`.
+const COIN = '🪙';
+function coinParts(g, text, px) {
+  return String(text).split(/(🪙)/u).filter(Boolean).map(part => part === COIN
+    ? { coin: true, width: px * .9 + px * .18 }
+    : { text: part, width: g.measureText(part).width });
+}
+export const measureCoinText = (g, text, px) => coinParts(g, text, px).reduce((s, p) => s + p.width, 0);
+export function fillCoinText(g, text, cx, cy, px) {
+  const parts = coinParts(g, text, px), total = parts.reduce((s, p) => s + p.width, 0);
+  const align = g.textAlign; g.textAlign = 'left';
+  let left = cx - total / 2;
+  for (const p of parts) {
+    if (p.coin) drawGoldCoin(g, left + px * .45, cy - px * .04, px * .45);
+    else g.fillText(p.text, left, cy);
+    left += p.width;
+  }
+  g.textAlign = align;
+}
+
+/**
  * World-space text pill drawn on a canvas sprite. `set(text)` redraws only when the text changes.
  * height: world height of the pill in meters.
  */
@@ -55,7 +93,7 @@ export function makeLabel(text = '', { bg = '#fff8ea', fg = '#4a2f1c', border = 
     // Width rounded up to 32 px so small text changes ("Lv 1" → "Lv 2") keep the same canvas. When the size does change,
     // the texture must be recreated: three.js keeps the GPU storage of an uploaded texture, so a resized canvas would
     // fail to upload (GL_INVALID_VALUE) and the label would silently keep its old text (the "level not shown" bug).
-    const w = Math.max(96, Math.ceil((g.measureText(next).width + 56) / 32) * 32);
+    const w = Math.max(96, Math.ceil((measureCoinText(g, next, 54) + 56) / 32) * 32);
     if (canvas.width !== w) {
       canvas.width = w;
       texture.dispose();
@@ -68,7 +106,7 @@ export function makeLabel(text = '', { bg = '#fff8ea', fg = '#4a2f1c', border = 
     g.fillStyle = bg; roundRect(g, 4, 4, w - 8, 82, 38); g.fill();
     g.lineWidth = 5; g.strokeStyle = border; g.stroke();
     g.fillStyle = fg; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText(next, w / 2, 47);
+    fillCoinText(g, next, w / 2, 47, 54);
     texture.needsUpdate = true;
     sprite.scale.set(height * w / canvas.height, height, 1);
   }

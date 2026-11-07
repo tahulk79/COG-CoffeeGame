@@ -28,7 +28,11 @@ function drawSeedBag(g, size) {
   for (const [x, y] of [[-.08, .06], [.06, .12], [-.02, .2], [.1, -.01]]) { g.beginPath(); g.ellipse(c + x * size, c + y * size, size * .035, size * .05, .5, 0, Math.PI * 2); g.fill(); }
 }
 
-export function createMarkers({ scene }) {
+const FRAME_COLOR = 0xffe066, LAND_COLOR = 0x9be36a; // selection frame / land card frame
+export const FRAME_LAND = LAND_COLOR;
+const ARROW_PX = 56, ARROW_H = 1.6; // arrow on-screen height (CSS px) / model height (m)
+
+export function createMarkers({ scene, camera }) {
   const group = new THREE.Group();
   group.name = 'realm-markers';
   scene.add(group);
@@ -53,8 +57,10 @@ export function createMarkers({ scene }) {
   const frame = new THREE.Mesh(new THREE.BufferGeometry(), frameMat);
   frame.visible = false; frame.renderOrder = 4; frame.raycast = () => {};
   group.add(frame);
-  function setFrame(rect) {
+  // color: the selection yellow by default; the land card frame uses a soft green (empty owned land).
+  function setFrame(rect, { color = FRAME_COLOR } = {}) {
     if (!rect) { frame.visible = false; return; }
+    frameMat.color.set(color);
     const pad = .25, w = .22;
     const [x0, z0, x1, z1] = [rect[0] - pad, rect[1] - pad, rect[2] + pad, rect[3] + pad];
     const shape = new THREE.Shape([new THREE.Vector2(x0, z0), new THREE.Vector2(x1, z0), new THREE.Vector2(x1, z1), new THREE.Vector2(x0, z1)]);
@@ -99,7 +105,14 @@ export function createMarkers({ scene }) {
     },
     update(time) {
       if (arrow.visible) {
-        arrow.position.set(arrowBase.x, arrowBase.y + .25 + Math.abs(Math.sin(time * 4)) * .55, arrowBase.z);
+        // Constant on-screen size (~ARROW_PX tall) whatever the zoom: a fixed 1.6 m arrow filled the screen up close.
+        let k = 1;
+        if (camera) {
+          const d = camera.position.distanceTo(arrowBase), h = Math.max(1, window.innerHeight || 1);
+          k = Math.min(1, ARROW_PX * 2 * d * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) / h / ARROW_H);
+        }
+        arrow.scale.setScalar(k);
+        arrow.position.set(arrowBase.x, arrowBase.y + (.25 + Math.abs(Math.sin(time * 4)) * .55) * k, arrowBase.z);
         arrow.rotation.y = time * 1.5;
       }
       if (frame.visible) frameMat.opacity = .6 + .3 * Math.sin(time * 4);

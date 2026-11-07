@@ -25,10 +25,9 @@ export function migrateLegacy(progress, player, now = Date.now()) {
   if (!p) return s;
   if (p.introCompleted) s.story.phase = 'teacher';
   if (p.heaven?.completed || p.farm) {
-    // Old players already met the mentor: give the 3 credits and send them through the World Gate.
+    // Old players already met the mentor: send them through the World Gate.
     s.story.phase = 'gate';
     s.story.teacherMet = true;
-    s.rebirth.credits = 3; s.rebirth.granted = true;
   }
   const farm = p.farm && typeof p.farm === 'object' ? p.farm : null;
   if (farm) {

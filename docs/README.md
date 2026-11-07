@@ -9,6 +9,8 @@ Code là nguồn sự thật; tài liệu mô tả code hiện tại. Mọi con 
 | [design/v3-gdd.md](design/v3-gdd.md) | GDD V3: luồng truyện, vòng chơi, nội dung, tiến trình, kinh tế, camera, UI, save, test |
 | [design/v3-architecture.md](design/v3-architecture.md) | Kiến trúc và hợp đồng module: lớp, store/action/event/error, pha truyện, API realm và HUD, gói ngôn ngữ |
 | [AUTONOMOUS_DECISIONS.md](AUTONOMOUS_DECISIONS.md) | Các quyết định đã tự đưa ra khi dựng lại V3 (an toàn dữ liệu, gameplay, UI) |
+| [design/farm-world-2.0.md](design/farm-world-2.0.md) | Farm World 2.0: nông trại liền mạch, ô trồng di chuyển được, nhiều công trình cùng loại, chuỗi chế biến — tóm tắt + **cần bạn chốt** |
+| [farm-world-2.0/](farm-world-2.0/) | Farm World 2.0 chi tiết (EN): Audit, GDD, Architecture, Building System, Economy Balance, UX/UI, Save Migration, QA, Progress |
 
 ## Từng màn
 
