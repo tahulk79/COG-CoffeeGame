@@ -9,7 +9,7 @@
 //     they come with nearly every quick serve), skipped right after a leave toast for the same reason; text =
 //     shop name + stars + a street quote (realm.say.<situation>.<n>);
 //   venueSale → no toast (coins fly from the vendor); counted per shop in ctx.venueSold for the venue card.
-import { STAFF, SAY_VARIANTS, GOODS, RIVAL, BOOKS, EXPIRY_LEVEL } from '../../core/config/economy.js';
+import { STAFF, SAY_VARIANTS, GOODS, RIVAL, BOOKS, EXPIRY_LEVEL, GM, LOAN, TASKS } from '../../core/config/economy.js';
 import { venueOpen, defOf, nextLimitLevel } from '../../core/derive.js';
 import { sfx } from '../../shared/audio/index.js';
 import { localItemsOf } from '../../ui/local-menu.js';
@@ -198,10 +198,26 @@ export function createFeedback(ctx) {
         case 'levelUp': levelBanner(s, ev.from, ev.to); break;
         case 'gmHired': toast(T(ev.calmed ? 'hud.gm.toast.hiredCalm' : 'hud.gm.toast.hired', { name: ev.name }), 'good'); sfx('reward.quest'); break;
         case 'gmRequest': toast(T('hud.gm.toast.request', { name: ev.name, what: gmReasonText(ev.reason), coins: fmt(ev.cost) }), 'warn'); sfx('ui.deny'); break;
-        case 'gmPoach': toast(T('hud.gm.toast.poach', { name: ev.name, rival: ev.rival, s: Math.round((ev.until - Date.now()) / 1000) }), 'bad'); sfx('ui.deny'); break;
+        case 'gmPoach': toast(T('hud.gm.toast.poach', { name: ev.name, rival: ev.rival, s: ev.seconds ?? TASKS.life.gmPoach * 60 }), 'bad'); sfx('ui.deny'); break;
+        // The inbox (management-rules §4): reminders, expiries with their penalty, the return summary, the manager's states.
+        case 'taskRemind': if (ev.by === 'g1') toast(T(ev.last ? 'hud.inbox.toast.remindLast' : 'hud.inbox.toast.remind', { what: gmReasonText(ev.reason), min: Math.max(1, Math.ceil(ev.leftMs / 60000)) }), ev.last ? 'bad' : 'warn'); break;
+        case 'taskExpired': if (!TASKS.noPenaltyKinds.includes(ev.kind)) toast(ev.fine > 0 ? T('hud.inbox.toast.expiredFine', { what: gmReasonText(ev.reason), coins: fmt(ev.fine) }) : T('hud.inbox.toast.expired', { what: gmReasonText(ev.reason) }), 'bad'); break;
+        case 'tasksWaiting': toast(ev.name ? T('hud.inbox.toast.waiting', { name: ev.name, n: ev.n }) : T('hud.inbox.toast.waitingTeam', { n: ev.n }), 'warn'); break;
+        case 'gmWaiting': toast(T('hud.inbox.toast.gmWaiting', { name: ev.name || '' }), 'warn'); break;
+        case 'gmStrike': toast(T('hud.inbox.toast.strike', { name: ev.name || '' }), 'bad'); sfx('ui.deny'); break;
+        case 'gmStrikeOver': toast(T('hud.inbox.toast.strikeOver', { name: ev.name || '' }), 'good'); break;
+        case 'gmLater': if (now - (lastAt.gmLater || 0) > 60000) { lastAt.gmLater = now; toast(T('hud.inbox.toast.later', { name: ev.name || '' }), 'info'); } break;
+        // planner v2 (management-rules §3.4–§3.7)
+        case 'gmDayPlan': toast(T('hud.gm.toast.dayPlan', { name: ev.name || '', mix: (ev.mix || []).map(m => `${T(`crop.${m.crop}`)} ${m.pct}%`).join(' · ') || '—', coins: fmt(ev.target) }), 'info'); break;
+        case 'licenceBought': toast(T('hud.gm.toast.licence', { lic: T(`hud.gm.lic.${ev.group}`) }), 'good'); break;
+        case 'gmTraining': toast(T('hud.gm.toast.training', { name: ev.name || '', skill: ev.to, min: ev.minutes }), 'info'); break;
+        case 'gmTrained': toast(T('hud.gm.toast.trained', { name: ev.name || '', skill: ev.skill }), 'good'); sfx('reward.quest'); break;
+        case 'parcelSold': toast(T('hud.gm.toast.landSold', { lot: ev.parcelId, coins: fmt(ev.refund) }), 'info'); break;
+        case 'topUpSeen': toast(T('hud.gm.toast.topUpSeen'), 'info'); break;
+        case 'gmApologised': toast(T('hud.inbox.toast.apologised', { name: ev.name || '' }), 'good'); break;
         case 'gmRefused': toast(T('hud.gm.toast.refused', { name: ev.name, rival: ev.rival }), 'good'); break;
         case 'gmKept': toast(T('hud.gm.toast.kept', { name: ev.name }), 'good'); break;
-        case 'gmLeft': toast(T(ev.chaos ? 'hud.gm.toast.leftChaos' : 'hud.gm.toast.left', { name: ev.name || '' }), ev.chaos ? 'bad' : 'info'); break;
+        case 'gmLeft': toast(T(ev.chaos ? 'hud.gm.toast.leftChaos' : ev.why === 'quit' ? 'hud.gm.toast.quit' : 'hud.gm.toast.left', { name: ev.name || '', n: GM.quitArrearsSalaries }), ev.chaos || ev.why === 'quit' ? 'bad' : 'info'); break;
         case 'followerKept': toast(T(ev.robot ? 'hud.follow.toastRobot' : 'hud.follow.toast', { name: ev.name || '' }), 'good'); break;
         case 'followerDebt': if (now - (lastAt.fDebt || 0) > 120000) { lastAt.fDebt = now; toast(T('hud.follow.debt', { coins: fmt(ev.coins), owed: fmt(ev.owed) }), 'warn'); } break;
         case 'trialDone': toast(T('hud.toast.trialDone', { n: ev.beans }), 'good'); break;
@@ -217,7 +233,8 @@ export function createFeedback(ctx) {
         case 'gmMood': toast(T(`hud.gm.toast.mood.${ev.why}`, { name: ev.name }), 'warn'); break;
         case 'gmAway': toast(T(ev.net >= 0 ? 'hud.gm.toast.away' : 'hud.gm.toast.awayLoss', { name: ev.name, min: ev.minutes, earned: fmt(ev.earned), salary: fmt(ev.salary), net: fmt(Math.abs(ev.net)) }), ev.net >= 0 ? 'good' : 'warn'); if (ev.net > 0) sfx('coin.gain'); break;
         case 'gmMissedYou': toast(T('hud.gm.toast.missedYou', { name: ev.name, hours: ev.hours, drop: ev.drop }), 'warn'); break;
-        case 'gmUnpaid': toast(T('hud.gm.toast.unpaid', { name: ev.name, coins: fmt(ev.coins) }), 'warn'); break;
+        case 'gmUnpaid': toast(T('hud.gm.toast.unpaid', { name: ev.name, coins: fmt(ev.coins), owed: fmt(Math.ceil(ev.owed || ev.coins)) }), 'warn'); break;
+        case 'loanLate': toast(T('hud.toast.loanLate', { owed: fmt(Math.ceil(ev.owed)), pct: Math.round(LOAN.lateFee * 100) }), 'bad'); break;
         case 'gmFailed': toast(T('hud.gm.toast.failed', { what: gmReasonText(ev.reason) }), 'warn'); break;
         // served / harvested: the realm flies the coins/beans from the world spot to #hud-coins / #hud-beans.
         case 'built': toast(T('hud.toast.built', { name: T(`building.${ev.building}`), icon: defOf(ev.building)?.icon || '' }), 'good'); break;
@@ -244,7 +261,7 @@ export function createFeedback(ctx) {
         case 'statUpgraded': toast(T('hud.toast.statUp', { name: ev.name || T(`staff.${ev.staff}`), stat: T(`hud.stat.${ev.stat}`), to: ev.to }), 'good'); break;
         // Staff manager (docs/design/staff-manager.md §7–8): rivals, leaving, MVP, care, shifts, unpaid bench upkeep.
         case 'staffLeft': toast(T(`hud.toast.left.${LEFT[ev.reason] ? ev.reason : 'fired'}`, { name: ev.name || T(`staff.${ev.staff}`), coins: fmt(ev.refund || 0) }), LEFT[ev.reason] || 'info'); if (ev.refund > 0) sfx('coin.gain'); break;
-        case 'poachStarted': toast(T('hud.toast.poach', { rival: ev.rival || '', name: ev.name || unitName(s, ev.uid), s: RIVAL.keepSeconds }), 'warn'); sfx('ui.deny'); break;
+        case 'poachStarted': toast(T('hud.toast.poach', { rival: ev.rival || '', name: ev.name || unitName(s, ev.uid), s: ev.seconds ?? TASKS.life.poach * 60 }), 'warn'); sfx('ui.deny'); break;
         case 'poachRefused': toast(T('hud.toast.poachRefused', { rival: ev.rival || '', name: ev.name || unitName(s, ev.uid) }), 'good'); break;
         case 'poachKept': toast(T('hud.toast.kept', { name: unitName(s, ev.uid) }), 'good'); break;
         case 'mvp': toast(T('hud.toast.mvp', { name: ev.name || unitName(s, ev.uid), coins: fmt(ev.earned), min: BOOKS.mvpMinutes }), 'good'); sfx('reward.quest'); break;

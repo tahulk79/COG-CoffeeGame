@@ -124,6 +124,7 @@ button.hud-pill:active{transform:translateY(1px)}
 .hud-loan-btn:active .hud-loan-bag{transform:translateY(3px);box-shadow:0 1px 0 #b97a17}
 .hud-loan-label{position:relative;z-index:1;margin-top:-8px;padding:2px 8px;border-radius:99px;background:#4a2f1b;border:2px solid #fff;color:#fff;font:800 11px/1.1 var(--h-font);white-space:nowrap}
 .hud-loan-btn.is-debt .hud-loan-label{background:var(--h-red)}
+.hud-loan-btn.is-late .hud-loan-bag{animation:hud-pulse 1.2s ease-in-out infinite}
 @keyframes hud-loan-glow{0%,100%{box-shadow:0 4px 0 #b97a17,0 0 0 0 #ffd24d00;transform:rotate(0)}40%{box-shadow:0 4px 0 #b97a17,0 0 0 8px #ffd24d66}50%{transform:rotate(-6deg)}60%{transform:rotate(6deg)}70%{transform:rotate(0)}}
 /* Loan sheet */
 .hud-loan{display:grid;gap:10px}
@@ -138,6 +139,8 @@ button.hud-pill:active{transform:translateY(1px)}
 .hud-loan-after{margin:0 0 6px;font:700 13px/1.35 var(--h-font);color:var(--h-ink-soft)}
 .hud-loan-pay .hud-btn{width:100%}
 .hud-loan-stack{margin:0}
+.hud-loan-row{margin:.15rem 0}
+.hud-loan-row.is-late{color:var(--h-red);font-weight:700}
 .hud-loan-packs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .hud-loan-pack{display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px 8px;border-radius:18px;background:linear-gradient(#fffaf0,#fff1cf);box-shadow:inset 0 0 0 2px var(--h-edge),0 4px 0 #e6cf9c;text-align:center;min-width:0}
 .hud-loan-pack.tier-2{background:linear-gradient(#fff6d8,#ffe2a0)}
@@ -609,6 +612,7 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
 .hud-sm-back:active{background:#0000000d}
 .hud-sm-line{margin:0;font:700 12px/1.4 var(--h-font);color:var(--h-ink-soft)}
 .hud-sm-line>span{white-space:nowrap}
+.hud-sm-line>span.hud-sm-ticket{white-space:normal;overflow-wrap:anywhere} /* long "free hire ticket" sentence: wrap, never overflow the phone width */
 .hud-sm-tabs{margin:8px 0 2px}
 .hud-sm-badge{display:inline-grid;place-items:center;min-width:18px;height:18px;margin-left:4px;padding:0 5px;border-radius:99px;background:var(--h-red);color:#fff;font:800 11px/1 var(--h-font);vertical-align:middle}
 .hud-sm-body{flex:1;min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:10px calc(16px + var(--h-sr)) calc(var(--h-sb) + 20px) calc(16px + var(--h-sl))}
@@ -939,3 +943,77 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
 .hud-trial-row{display:grid;gap:3px}
 .hud-trial-row small{font:800 12px/1.2 var(--h-font);color:var(--h-ink-soft)}
 .hud-trial-results{display:grid}
+/* Inbox «Duyệt (n)» and 📒 Nhật ký (management-rules §4 / §5; P4 polishes). The manager's colour --c-manager is his
+   only (badge, history bar); lead / manager-rank workers wear the gold armband --c-armband. */
+#hud-root{--c-manager:#7c4dbd;--c-armband:#f0b429}
+.hud-inbox-btn{align-self:flex-start;padding:4px 11px;border:2px solid #fff;border-radius:999px;background:var(--c-manager);color:#fff;font:800 12px/1.2 var(--h-font);white-space:nowrap;cursor:pointer;pointer-events:auto;box-shadow:0 3px 0 #4e2c80,var(--h-shadow);animation:hud-pulse 1.6s ease-in-out infinite}
+.hud-inbox-btn[hidden]{display:none}
+/* 44px touch target around the small pill (the visual size stays): an invisible hit area */
+.hud-inbox-btn{position:relative}
+.hud-inbox-btn::before,.hud-hist-tid::before{content:'';position:absolute;left:-4px;right:-4px;top:50%;height:44px;transform:translateY(-50%)}
+.hud-inbox-btn.is-urgent{background:var(--h-red);box-shadow:0 3px 0 var(--h-red-drop),var(--h-shadow)}
+@media (prefers-reduced-motion:reduce){.hud-inbox-btn{animation:none}}
+.hud-journal-btn{font-size:24px}
+.hud-inbox{display:grid;gap:8px}
+.hud-inbox-card.is-manager,.hud-inbox-done.is-manager,.hud-hist-row.is-manager{box-shadow:inset 4px 0 0 var(--c-manager)}
+.hud-inbox-card.is-manager,.hud-inbox-done.is-manager{padding-left:10px}
+.hud-inbox-card.is-urgent .hud-gm-req-top small{color:var(--h-red);font-weight:800}
+.hud-hist{display:grid;gap:8px}
+.hud-hist .hud-sm-chips{flex-wrap:wrap}
+.hud-hist-row.is-manager{padding-left:8px}
+.hud-hist-day{list-style:none;margin:6px 0 0;font:800 12px/1.2 var(--h-font);color:var(--h-ink-soft)}
+/* P4 polish (management-rules §5 / §6): the manager's avatar ring + name tag, the inbox header + backlog meter, task
+   life bars, status chips, Nhật ký actor bars / day sums / tappable task ids, the gold armband on lead / manager avatars. */
+.hud-gm-ava{box-shadow:inset 0 0 0 3px var(--c-manager)}
+.hud-gm-name{color:var(--c-manager)}
+.hud-sm-avatar.has-armband::after{content:'';position:absolute;left:-3px;top:46%;width:9px;height:30%;border-radius:4px;background:var(--c-armband);box-shadow:0 0 0 2px #fff;pointer-events:none}
+.hud-inbox-head{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:14px;background:#f6f0fd;box-shadow:inset 0 0 0 2px #d9c8f0}
+.hud-inbox-head.is-strike,.hud-inbox-head.is-poachable{background:#fdeee9;box-shadow:inset 0 0 0 2px #efb3a3}
+.hud-inbox-head-text{display:grid;gap:3px;min-width:0;flex:1}
+.hud-inbox-head-text strong{font:800 15px/1.2 var(--h-font)}
+.hud-inbox-head-text small{font:700 12px/1.3 var(--h-font);color:var(--h-ink-soft)}
+.hud-inbox-meter{display:flex;gap:3px}
+.hud-inbox-meter i{flex:1;max-width:26px;height:8px;border-radius:4px;background:#e4dbef}
+.hud-inbox-meter i.is-mark{box-shadow:inset 0 -2px 0 rgba(0,0,0,.18)}
+.hud-inbox-meter i.is-on{background:var(--c-manager)}
+.hud-inbox-head.is-waiting .hud-inbox-meter i.is-on{background:var(--h-amber)}
+.hud-inbox-head.is-poachable .hud-inbox-meter i.is-on,.hud-inbox-head.is-strike .hud-inbox-meter i.is-on{background:var(--h-red)}
+.hud-inbox-state{font-weight:800!important;color:var(--h-ink)!important}
+.hud-inbox-sub{margin:6px 0 4px;font:800 12px/1.2 var(--h-font);color:var(--h-ink-soft);text-transform:uppercase;letter-spacing:.02em}
+.hud-inbox-card .hud-gm-req-top{align-items:flex-start}
+.hud-inbox-card .hud-gm-req-top strong{flex:1;min-width:0;overflow-wrap:anywhere}
+.hud-inbox-ico{flex:none;display:grid;place-items:center;width:28px;height:28px;border-radius:9px;background:#fff;font-size:16px;line-height:1;box-shadow:0 1px 0 var(--h-line)}
+.hud-inbox-card.is-manager .hud-inbox-ico{box-shadow:inset 0 0 0 2px var(--c-manager)}
+.hud-inbox-left{flex:none;padding:2px 7px;border-radius:999px;background:#fff;font:800 12px/1.3 var(--h-font)!important;font-variant-numeric:tabular-nums;color:var(--c-manager)!important}
+.hud-inbox-card.is-urgent .hud-inbox-left{color:#a86a00!important;background:#fff4d6}
+.hud-inbox-card.is-critical .hud-inbox-left{color:#fff!important;background:var(--h-red)}
+.hud-inbox-life{height:6px;border-radius:3px;background:#efe4d2;overflow:hidden}
+.hud-inbox-life i{display:block;height:100%;border-radius:3px;background:var(--c-manager);transition:width .4s linear}
+.hud-inbox-card:not(.is-manager) .hud-inbox-life i{background:#8a5a3a}
+.hud-inbox-card.is-urgent .hud-inbox-life i{background:var(--h-amber)}
+.hud-inbox-card.is-critical .hud-inbox-life i{background:var(--h-red)}
+.hud-inbox-card.is-critical{box-shadow:inset 4px 0 0 var(--h-red),inset 0 0 0 2px #efb3a3}
+.hud-inbox-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0;font:700 12px/1.3 var(--h-font);color:var(--h-ink-soft)}
+.hud-inbox-chip{padding:1px 7px;border-radius:999px;background:#f0e7f9;color:var(--c-manager);font-weight:800}
+.hud-inbox-card:not(.is-manager) .hud-inbox-chip{background:#f6e6d6;color:#8a5a3a}
+.hud-inbox-cost{margin-left:auto;font-weight:800;color:var(--h-ink)}
+.hud-inbox-status{display:inline-block;margin-right:4px;padding:0 6px;border-radius:999px;background:#eee4d0;font-weight:800;color:var(--h-ink)}
+.hud-inbox-status.is-approved,.hud-inbox-status.is-late{background:#dcefcf;color:var(--h-good)}
+.hud-inbox-status.is-expired,.hud-inbox-status.is-failed{background:#fbe0d8;color:var(--h-bad)}
+@media (prefers-reduced-motion:reduce){.hud-inbox-life i{transition:none}}
+.hud-hist-row.is-player{box-shadow:inset 4px 0 0 #6aa84f;padding-left:8px}
+.hud-hist-row.is-worker{box-shadow:inset 4px 0 0 #b98a4e;padding-left:8px}
+.hud-hist-row.is-robot{box-shadow:inset 4px 0 0 #6fc9b0;padding-left:8px}
+.hud-hist-row.is-system{box-shadow:inset 4px 0 0 #c9bfae;padding-left:8px}
+.hud-hist-day{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 10px}
+.hud-hist-day small{font:700 11px/1.2 var(--h-font);color:var(--h-ink-soft);font-variant-numeric:tabular-nums}
+.hud-hist-tid{display:inline-flex;align-items:center;min-height:28px;margin:2px 0 0 4px;padding:0 8px;border:0;border-radius:999px;background:#f0e7f9;color:var(--c-manager);font:800 11px/1 var(--h-font);cursor:pointer;vertical-align:middle}
+.hud-hist-tid[aria-expanded="true"]{background:var(--c-manager);color:#fff}
+.hud-hist-tid{position:relative}
+.hud-hist-task{display:grid;gap:2px;margin-top:4px;padding:6px 8px;border-radius:10px;background:#fff;box-shadow:inset 0 0 0 2px var(--h-line);font:700 12px/1.3 var(--h-font)}
+.hud-hist-task.is-manager{box-shadow:inset 0 0 0 2px #d9c8f0}
+.hud-hist-task small{color:var(--h-ink-soft)}
+@media (max-width:759px),(max-height:560px){
+  .hud-inbox-btn{position:absolute;left:0;top:calc(100% + 34px);font-size:11px;padding:3px 9px}
+  .hud-journal-btn{order:2;width:40px;height:40px;font-size:20px}
+}

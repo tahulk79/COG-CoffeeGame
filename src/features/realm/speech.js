@@ -18,7 +18,7 @@
 //    frees the shared textures.
 import * as THREE from 'three';
 import { FONT, drawEmoji, easeOutBack, clamp } from './util.js';
-import { INCIDENTS, SAY_VARIANTS } from '../../core/config/economy.js';
+import { INCIDENTS, SAY_VARIANTS, GM } from '../../core/config/economy.js';
 import { t, hasKey } from '../../i18n/index.js';
 
 const MAX = 8;                 // live bubbles
@@ -36,6 +36,7 @@ const TONES = {
   angry: { bg: '#e5482f', fg: '#ffffff', edge: '#ffffff' },
   happy: { bg: '#dff5c8', fg: '#2c4a17', edge: '#6fb84a' },
   review: { bg: '#fff8ea', fg: '#4a2f1c', edge: '#e6a817' },
+  manager: { bg: '#fbf7ff', fg: '#3f2466', edge: GM?.look?.color || '#7c4dbd' }, // the manager's lines: violet rim (management-rules §6)
 };
 const ANGRY = new Set(['crowd', 'closed', 'cut', 'fight', 'slow', 'patience', 'noSeat', 'toBar']);
 const HAPPY = new Set(['happy', 'tea', 'lemon', 'drunk', 'bar', 'cutSorry']);
@@ -116,7 +117,7 @@ function drawBubble(g, text, tone, stars) {
   g.lineTo(cx + 18, y + h); g.lineTo(cx + 2, CH - 4); g.lineTo(cx - 14, y + h);
   g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
   g.fillStyle = c.bg; g.fill();
-  g.lineWidth = review ? 7 : 5; g.strokeStyle = c.edge; g.lineJoin = 'round'; g.stroke();
+  g.lineWidth = review || tone === 'manager' ? 7 : 5; g.strokeStyle = c.edge; g.lineJoin = 'round'; g.stroke();
   if (review) drawStars(g, cx, y + 15 + starH / 2 - 4, stars, 40);
   g.font = FONT.replace('{size}', px);
   g.fillStyle = c.fg; g.textAlign = 'center'; g.textBaseline = 'middle';

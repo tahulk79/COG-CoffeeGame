@@ -307,6 +307,7 @@ async function enterPlay() {
   const hooks = {
     onSelect: target => hud?.setSelection(target),
     onStaffTap: uid => hud?.openStaff?.(uid),
+    onManagerTap: () => hud?.openManager?.(), // the manager in the world → his inbox (or his tab)
     // Customer spawn / patience run on a timer: their failures are not the player's doing, so stay silent.
     onResult: (actionType, result) => {
       if (!result || result.ok || QUIET_ACTIONS.has(actionType)) return;

@@ -2,7 +2,7 @@
 // confirm modal, Teacher dialogue, toasts and the tutorial overlay. API per docs/design/v3-architecture.md §HUD API.
 import '../../ui/styles/v3.css';
 import { GM, CROP_ORDER, DRINK_ORDER, autoPrice } from '../../core/config/economy.js';
-import { cropUnlocked, drinkUnlocked, region, bothGames, regionGame, currentGames, pendingGifts, isChestLevel } from '../../core/derive.js';
+import { cropUnlocked, drinkUnlocked, region, bothGames, regionGame, currentGames, pendingGifts, isChestLevel, tasksOpen } from '../../core/derive.js';
 import { sfx } from '../../shared/audio/index.js';
 import { h } from './dom.js';
 import { T, errorText, clock, fmt } from './text.js';
@@ -12,6 +12,7 @@ import { createActionBar } from './action-bar.js';
 import { createShopStrip } from './shop-strip.js';
 import { createSheetHost } from './sheet.js';
 import { buildSheet, seedsSheet, menuSheet, progressSheet, drinkSeenKey, buyAuto, beansSheet, loanSheet, setBuildTab, supplySheet } from './sheets.js';
+import { inboxSheet, journalSheet } from './inbox.js';
 import { roundsSheet } from './rounds.js';
 import { createStaffModal } from './staff-modal.js';
 import { createPlacementBar } from './placement.js';
@@ -36,7 +37,8 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
   ctx.isPlaying = () => store.state.story.phase === 'play' && !!store.state.world.currentRegion;
   // Auto play: the game plays itself; the player may look around (camera, info sheets) but every action is blocked.
   ctx.isAuto = () => { const a = store.state.autoplay?.active; return !!a && Date.now() < a.endsAt; };
-  const AUTO_OK = new Set(['auto/stop', 'auto/start', 'auto/buy', 'story/seen']);
+  // The inbox's answers stay open during a run: its deadlines run on played time, which auto play does not stop.
+  const AUTO_OK = new Set(['auto/stop', 'auto/start', 'auto/buy', 'story/seen', 'task/approve', 'task/deny', 'task/late', 'task/extend', 'gm/apologise', 'gm/topUpSeen', 'gm/keep', 'gm/letGo']);
   ctx.blockedByAuto = () => { if (!ctx.isAuto()) return false; feedback.toast(T('hud.auto.blocked'), 'info'); sfx('ui.deny'); return true; };
   ctx.act = (type, payload = {}, opts = {}) => {
     if (!AUTO_OK.has(type) && ctx.blockedByAuto()) return { ok: false, error: 'auto' };
@@ -90,6 +92,7 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
   const progressRender = progressSheet(ctx);
   const roundsRender = roundsSheet(ctx);
   const loanRender = loanSheet(ctx); // keeps its "pending" flag across re-renders
+  const inboxRender = inboxSheet(ctx), journalRender = journalSheet(ctx); // Duyệt (n) / 📒 Nhật ký (journal keeps its filters)
   ctx.onTool = id => {
     // Staff: the full staff manager modal (staff-modal.js), not a bottom sheet. A second tap closes it.
     if (id === 'staff') {
@@ -126,7 +129,7 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
     if (id === 'menu') { // same for new drinks
       for (const drink of DRINK_ORDER) if (drinkUnlocked(s, drink) && !s.story.seen?.[drinkSeenKey(drink)]) store.dispatch('story/seen', { key: drinkSeenKey(drink) });
     }
-    const render = { beans: () => beansSheet(ctx), build: () => buildSheet(ctx), seeds: () => seedsSheet(ctx), menu: () => menuSheet(ctx), supply: () => supplySheet(ctx), progress: () => progressRender, rounds: () => roundsRender, loan: () => loanRender }[id];
+    const render = { beans: () => beansSheet(ctx), build: () => buildSheet(ctx), seeds: () => seedsSheet(ctx), menu: () => menuSheet(ctx), supply: () => supplySheet(ctx), progress: () => progressRender, rounds: () => roundsRender, loan: () => loanRender, inbox: () => inboxRender, journal: () => journalRender }[id];
     if (!render) return;
     if (ctx.selection) ctx.clearSelection();
     if (landWanted) ctx.setLandMode(null);
@@ -325,15 +328,19 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
   // General manager mood (docs/design/general-manager.md): any touch tells the manager the boss is around — at most
   // once per GM.mood.seenEverySeconds, and once right away (a return after hours away is judged here).
   let seenClock = 0;
-  const seen = () => {
+  const seen = (force = false) => {
     const now = Date.now();
-    if (!store.state.gm?.unit || now - seenClock < GM.mood.seenEverySeconds * 1000) return;
+    if (!store.state.gm?.unit || (force !== true && now - seenClock < GM.mood.seenEverySeconds * 1000)) return;
     seenClock = now;
     store.dispatch('gm/seen', {});
   };
   document.addEventListener('pointerdown', seen, { passive: true, capture: true });
   document.addEventListener('keydown', seen, { capture: true });
   const seenBoot = setTimeout(seen, 1500);
+  // Back on the tab (phone app switch / hidden tab): the return is judged at once, before a tap — the reducer's own
+  // clock/tick and gm/payroll also catch it if this comes late (management-rules §4.1).
+  const onVisible = () => { if (document.visibilityState === 'visible') seen(true); };
+  document.addEventListener('visibilitychange', onVisible);
 
   // Screen bands the HUD covers (top bar / toolbar + action card), told to the realm camera so selections and tutorial
   // focus slide a target out from under the card (Hay Day rule: slide only when covered or off-screen).
@@ -392,6 +399,11 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
     setShopFocus: id => shops.setFocus(id),
     /** ⬆️ over a worker tapped in the world → the staff manager on that unit's Detail. */
     openStaff: uid => { sheet.close(); if (ctx.selection) ctx.clearSelection(); sfx('ui.open'); staffModal.open({ uid }); tutorial.refresh(); },
+    /** The manager tapped in the world → «Duyệt (n)» when something waits, else his tab in the staff manager. */
+    openManager: () => {
+      if (tasksOpen(store.state).length) { if (sheet.openId !== 'inbox') ctx.onTool('inbox'); return; }
+      sheet.close(); if (ctx.selection) ctx.clearSelection(); sfx('ui.open'); staffModal.open({ tab: 'gm' }); tutorial.refresh();
+    },
     toast: (text, tone = 'info') => feedback.toast(text, tone),
     confirm: opts => modals.confirm(opts),
     dialogue: lines => modals.dialogue(lines),
@@ -414,6 +426,7 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
       unsubscribe();
       clearTimeout(seenBoot);
       document.removeEventListener('pointerdown', seen, { capture: true });
+      document.removeEventListener('visibilitychange', onVisible);
       document.removeEventListener('keydown', seen, { capture: true });
       document.removeEventListener('keydown', onKeyDown);
       ctx.realm?.setTutorialTarget?.(null);

@@ -26,14 +26,17 @@
 //     beans, canBuyBeans, need(drink) → beans per cup, patience(order) → seat patience ratio 0..1 (higher = angrier),
 //     only (a robot's one task), onlyAny (a worker's tasks) }
 
+import { STAFF_SIM } from '../../core/config/economy.js';
+
 export const POSTS = ['allRounder', 'cashier', 'barista', 'runner'];
 export const POST_JOBS = { allRounder: ['deliver', 'brew', 'order'], cashier: ['order'], barista: ['brew', 'deliver'], runner: ['deliver'] };
 export const JOB_TYPES = ['deliver', 'brew', 'order'];
-export const CHAIN_WAIT_MS = 2500;
-export const TWO_CUP_M = 4;
-export const URGENT_RATIO = .7;
-export const URGENT_SPEED = 1.25;
-export const LANE_M = 1.4;
+// Numbers live in core config (STAFF_SIM); kept here under their old names for the brain and its callers.
+export const CHAIN_WAIT_MS = STAFF_SIM.chainWaitMs;
+export const TWO_CUP_M = STAFF_SIM.twoCupM;
+export const URGENT_RATIO = STAFF_SIM.urgentRatio;
+export const URGENT_SPEED = STAFF_SIM.urgentSpeed;
+export const LANE_M = STAFF_SIM.laneM;
 
 // Natural uid order: 's2' < 's10' (uids are prefix + counter); numbers and odd values still compare stably.
 export function uidCompare(a, b) {

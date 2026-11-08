@@ -1,5 +1,7 @@
-// Staff manager core (docs/design/staff-manager.md §1–8): slots + bench, upkeep, vitals + states, care, robot heat /
-// jam / wear / parts, per-stat upgrades, tasks, rivals, rare applicants, fire / sell, books, ledger, journal, MVP.
+// Staff manager core (docs/design/staff-manager.md §1–8, superseded where they conflict by management-rules.md v1.1):
+// slots + bench, robot share, upkeep (+ robot standby), vitals + states, care, robot heat / jam / wear / parts, per-stat
+// upgrades, tasks, rivals (an inbox task, s.tasks), rare applicants, fire / sell, books, ledger, history (s.history +
+// u.recent; the old team journal is the derived D.teamJournal view), MVP.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { playing } from './helpers.mjs';
@@ -7,7 +9,7 @@ import * as D from '../../src/core/derive.js';
 import * as E from '../../src/core/config/economy.js';
 import { normalizeSave, createSave } from '../../src/core/state.js';
 
-const { xpForLevel, STAFF, UPKEEP, VITALS, CARE, ROBOT_WEAR, RIVAL, RARE, SKILL, FIRE, BEANS, applicantsFor, WARRANTY } = E;
+const { xpForLevel, STAFF, UPKEEP, VITALS, CARE, ROBOT_WEAR, RIVAL, RARE, SKILL, FIRE, BEANS, applicantsFor, WARRANTY, TASKS, HISTORY, BOOKS, CAREER } = E;
 
 // A playing harness at `level` with plenty of coins (Lv10 incident disabled).
 function team(level = 5, coins = 1e6) {
@@ -19,6 +21,8 @@ function team(level = 5, coins = 1e6) {
 }
 const hire = (h, type) => h.must('staff/hire', { type }).events.find(e => e.type === 'hired').uid;
 const unit = (h, uid) => D.unitOf(h.state, uid);
+// The team journal, newest first (management-rules §5: s.staff.journal became a derived view over s.history).
+const journal = h => D.teamJournal(h.state);
 
 test('slots: per zone = level; setActive needs a free slot; unassigned units are never active', () => {
   const h = team(3);
@@ -36,7 +40,7 @@ test('slots: per zone = level; setActive needs a free slot; unassigned units are
   assert.equal(h.act('staff/setActive', { uid: a, active: false }).noop, true);
   h.must('staff/setActive', { uid: c, active: true });
   assert.equal(D.activeCount(h.state, 'farm'), 2);
-  assert.ok(h.state.staff.journal.some(e => e.type === 'benched' && e.uid === a) && h.state.staff.journal[0].type === 'activated');
+  assert.ok(journal(h).some(e => e.type === 'benched' && e.uid === a) && journal(h)[0].type === 'activated');
   h.must('staff/unassign', { uid: c });
   assert.equal(unit(h, c).active, false);
   assert.equal(h.act('staff/setActive', { uid: c, active: true }).error, 'unknown', 'not assigned here');
@@ -51,6 +55,19 @@ test('slots: per zone = level; setActive needs a free slot; unassigned units are
   h.state.player.xp = xpForLevel(E.MAX_LEVEL);
   assert.equal(h.act('staff/hire', { type: 'farmhand' }).error, D.hireCapReached(h.state, 'farm') ? 'hireLimit' : 'teamFull');
   h.must('staff/hire', { type: 'barista' });
+});
+
+test('robot share (management-rules §2.1): robots ≤ ceil(slots / 2) per zone, so a robot never takes the last worker slot', () => {
+  const h = team(4); // 4 farm slots → at most ceil(4 / 2) = 2 robots
+  assert.equal(E.robotCap(4), 2); assert.equal(E.robotCap(5), 3); assert.equal(E.robotCap(1), 1);
+  hire(h, 'sproutBot'); hire(h, 'sproutBot');
+  assert.equal(D.robotRoom(h.state, 'farm'), 0);
+  assert.equal(h.act('staff/hire', { type: 'sproutBot' }).error, 'robotShare');
+  hire(h, 'farmhand'); hire(h, 'farmhand'); // the other half are workers
+  assert.equal(h.act('staff/hire', { type: 'farmhand' }).error, 'hireLimit', 'team per zone = level (no bench +2, §8 Q7)');
+  h.state.player.xp = xpForLevel(5);
+  hire(h, 'sproutBot'); // Lv5: ceil(5 / 2) = 3
+  assert.equal(h.act('staff/hire', { type: 'sproutBot' }).error, 'hireLimit');
 });
 
 test('swapShift: tired / hungry / sulking workers go to the bench, the best rested bench workers come in; robots stay', () => {
@@ -77,7 +94,7 @@ test('upkeep: only bench workers cost coins, prorated, capped catch-up; unpaid �
   hire(h, 'farmhand'); const bench = hire(h, 'farmhand');
   h.must('staff/setActive', { uid: bench, active: false }); // resting on the bench
   const bot = hire(h, 'sproutBot');
-  h.must('staff/setActive', { uid: bot, active: false }); // a bench robot is free
+  h.must('staff/setActive', { uid: bot, active: false }); // benched but assigned: free (standby only while unassigned, management-rules §2.2)
   h.must('staff/upkeep');
   assert.equal(h.state.staff.upkeepAt, h.now, 'the first call only starts the clock');
   assert.equal(h.act('staff/upkeep').noop, true);
@@ -104,7 +121,31 @@ test('upkeep: only bench workers cost coins, prorated, capped catch-up; unpaid �
   const r = h.must('staff/upkeep');
   assert.equal(unit(h, bench), null, 'morale 0 on the unpaid bench: leaves');
   assert.equal(r.events.find(e => e.type === 'staffLeft').reason, 'unpaid');
-  assert.equal(h.state.staff.journal[0].type, 'left');
+  assert.equal(journal(h)[0].type, 'left');
+  assert.equal(h.state.history.tombstones.at(-1).uid, bench, 'the name stays readable in the history (§5)');
+});
+
+test('upkeep: an unassigned robot pays standby, management-rules §2.2 (3 % of its price per 10 wall-clock minutes while playing: 36 / 45)', () => {
+  const h = team(5);
+  const sb = hire(h, 'sproutBot'), bb = hire(h, 'brewBot');
+  h.must('staff/unassign', { uid: sb }); h.must('staff/unassign', { uid: bb });
+  assert.deepEqual([D.upkeepOf(unit(h, sb)), D.upkeepOf(unit(h, bb))], [36, 45]);
+  assert.equal(Math.round(UPKEEP.robotStandbyRatio * STAFF.sproutBot.cost), 36);
+  h.must('staff/upkeep');
+  const coins = h.state.player.coins;
+  h.tick(10 * 60000);
+  h.must('staff/upkeep');
+  assert.equal(h.state.player.coins, coins - 36 - 45);
+  assert.equal(unit(h, sb).book.spent, 36);
+  // Broke: a robot has no morale to lose, nothing is owed, it stays
+  h.state.player.coins = 0;
+  h.tick(10 * 60000);
+  const r = h.must('staff/upkeep');
+  assert.deepEqual(r.events.find(e => e.type === 'upkeepPaid').unpaidRobots, [sb, bb]);
+  assert.ok(unit(h, sb) && unit(h, bb)); assert.equal(h.state.player.coins, 0);
+  // Back on shift: free again
+  h.must('staff/assign', { uid: sb });
+  assert.equal(unit(h, sb).active, true); assert.equal(D.upkeepOf(unit(h, sb)), 0);
 });
 
 test('vitals: energy / hunger / morale per minute, bench rests ×2, stamina + perks, states and their priority', () => {
@@ -163,14 +204,15 @@ test('care: nag / bonusSmall / coffee / food / lunch / bonus / rest for workers'
   assert.equal(h.act('staff/care', { uid: id, kind: 'teleport' }).error, 'unknown');
   // nag: works with roll < 0.6, always −5 morale, free
   h.must('staff/stop', { uid: id });
-  assert.equal(h.state.staff.journal[0].type, 'slacked');
+  assert.equal(journal(h)[0].type, 'slacked');
   let c = h.state.player.coins;
   const fail = h.must('staff/care', { uid: id, kind: 'nag', roll: 0.9 });
   assert.equal(fail.events.find(e => e.type === 'staffCared').ok, false);
   assert.ok(u().stopped); assert.equal(u().morale, 75);
   h.must('staff/care', { uid: id, kind: 'nag', roll: 0.1 });
   assert.ok(!u().stopped); assert.equal(u().morale, 70); assert.equal(h.state.player.coins, c);
-  assert.equal(h.state.staff.journal[0].type, 'nagged');
+  assert.equal(journal(h)[0].type, 'nagged');
+  assert.equal(unit(h, id).recent.at(-1).type, 'nagged', 'the unit keeps its own ring (u.recent)');
   // bonusSmall = the old resume fee
   h.must('staff/stop', { uid: id });
   c = h.state.player.coins;
@@ -221,7 +263,7 @@ test('robots: heat → overheat (auto-clears / cool), jam (knock / repair), wear
   assert.equal(u().stopped.kind, 'overheat');
   assert.equal(D.unitState(u(), h.now), 'overheat');
   assert.ok(r.events.some(e => e.type === 'staffStopped' && e.kind === 'overheat'));
-  assert.equal(h.state.staff.journal[0].type, 'overheat');
+  assert.equal(journal(h)[0].type, 'overheat');
   h.tick(ROBOT_WEAR.overheatSeconds * 1000);
   assert.equal(D.unitState(u(), h.now), 'ok', 'cool-down over');
   h.must('staff/vitals', { uid: id, rest: 30 });
@@ -264,11 +306,18 @@ test('robots: heat → overheat (auto-clears / cool), jam (knock / repair), wear
   assert.equal(u().wear, 100); assert.equal(h.state.player.coins, c - Math.round(STAFF.sproutBot.cost * CARE.serviceRatio));
   u().parts.frame = 3;
   assert.equal(E.jamChance(u()), ROBOT_WEAR.jamChance * 0.3);
-  // battery: recharge (= resume)
+  // battery: recharge (= resume). management-rules §2.3: battery [6, 9, 13, 18] minutes, fee max(15, 3 % price) ×
+  // [1, .8, .6, .4] → 36 for a sproutBot at tier 0 (was 72), 45 for a brewBot
+  assert.equal(E.batteryMinutes(u()), 6);
+  assert.equal(E.unitFee(u()), 36); assert.equal(E.unitFee({ type: 'brewBot', parts: {} }), 45);
   h.must('staff/stop', { uid: id });
   assert.equal(D.unitState(u(), h.now), 'battery');
+  assert.equal(u().stopped.fee, 36);
+  c = h.state.player.coins;
   h.must('staff/care', { uid: id, kind: 'recharge' });
-  assert.ok(!u().stopped);
+  assert.ok(!u().stopped); assert.equal(h.state.player.coins, c - 36);
+  u().parts.battery = 2;
+  assert.equal(E.batteryMinutes(u()), 13); assert.equal(E.unitFee(u()), Math.round(36 * 0.6));
   // workers cannot be jammed, robots cannot get coffee
   assert.equal(h.act('staff/jam', { uid: hire(h, 'farmhand') }).error, 'unknown');
   assert.equal(h.act('staff/care', { uid: id, kind: 'coffee' }).error, 'notNeeded');
@@ -277,6 +326,10 @@ test('robots: heat → overheat (auto-clears / cool), jam (knock / repair), wear
 test('migration: old level → 4 stats, charger → battery, active by slot, vitals filled; normalizeSave round-trip', () => {
   const raw = createSave(1, { gender: 'male', name: 'x' });
   raw.story.phase = 'play';
+  // A save from before the inbox / unified history (management-rules §7.3): no s.tasks / s.history yet
+  delete raw.tasks; delete raw.history;
+  raw.staff.journal = [{ at: 1, type: 'hired', uid: 'u1', name: 'An' }];
+  raw.staff.poach = { uid: 'u1', zone: 'farm', until: 1 + 30000, fee: 100 };
   raw.player.xp = xpForLevel(2);
   raw.staff.units = [
     { uid: 'u3', type: 'farmhand', level: 3, xp: 47, trait: 'lazy', assigned: { regionId: 'vn-1', zone: 'farm' } },
@@ -297,7 +350,25 @@ test('migration: old level → 4 stats, charger → battery, active by slot, vit
   assert.deepEqual([by('u1').energy, by('u1').fullness, by('u1').morale], [100, 100, 80]);
   assert.deepEqual(by('u1').tasks, []);
   assert.deepEqual(by('u1').book, { jobs: 0, earned: 0, spent: 0, mistakes: 0, since: 1 });
-  assert.deepEqual(n.staff.ledger, []); assert.deepEqual(n.staff.journal, []); assert.equal(n.staff.poach, null);
+  assert.deepEqual(n.staff.ledger, []);
+  // §7.3: s.staff.journal → s.history rows (+ the unit's u.recent), s.staff.poach → an open s.tasks entry (kind poach,
+  // the real-time left kept as played time, capped at TASKS.life.poach); the old fields are dropped
+  assert.equal(n.staff.journal, undefined); assert.equal(n.staff.poach, undefined);
+  assert.deepEqual(n.history.rows.map(r => [r.type, r.actor, r.subject]), [['hired', 'u1', 'u1']]);
+  assert.deepEqual(by('u1').recent.map(r => r.type), ['hired']); assert.deepEqual(by('u3').recent, []);
+  assert.deepEqual(D.teamJournal(n).map(e => [e.type, e.uid, e.name]), [['hired', 'u1', 'An']]);
+  assert.equal(n.tasks.open.length, 1);
+  assert.deepEqual(D.workerPoach(n), { id: n.tasks.open[0].id, uid: 'u1', zone: 'farm', fee: 100, leftMs: 30000 });
+  assert.equal(n.tasks.open[0].by, 'system');
+  // §7.3, the same save migrated 10 real days after the hires (hiredAt 1): tenure ← real time on the team, capped at
+  // one shift-day (nobody jumps a rank on the migration); a poach with 10 min of real time left (more than its life)
+  // keeps exactly TASKS.life.poach of played time
+  const later = 1 + 10 * 24 * 3600e3, raw2 = JSON.parse(JSON.stringify(raw));
+  for (const u of raw2.staff.units) u.hiredAt = 1;
+  raw2.staff.poach = { uid: 'u1', zone: 'farm', until: later + 10 * 60000, fee: 100 };
+  const n2 = normalizeSave(raw2, later);
+  assert.deepEqual(n2.staff.units.map(u => u.tenurePlayedMin), n2.staff.units.map(() => CAREER.shiftDayMin));
+  assert.equal(D.workerPoach(n2).leftMs, TASKS.life.poach * 60000);
   // Round trip: a normalized save normalizes to itself
   const again = normalizeSave(JSON.parse(JSON.stringify(n)), 1);
   assert.deepEqual(again.staff, n.staff);
@@ -305,9 +376,14 @@ test('migration: old level → 4 stats, charger → battery, active by slot, vit
   const h = team(3);
   const w = hire(h, 'farmhand');
   h.must('staff/stop', { uid: w });
-  h.state.staff.poach = { uid: w, zone: 'farm', until: h.now + 1000, fee: 50 };
+  unit(h, w).morale = 10;
+  h.must('rival/visit', { zone: 'farm', roll: 0 }); // an open poach task in s.tasks
+  assert.ok(D.workerPoach(h.state));
+  // compared with the saved (JSON) form: hist() leaves `extra: undefined` keys in u.recent rows, which no save keeps
+  const saved = JSON.parse(JSON.stringify(h.state));
   const live = normalizeSave(JSON.parse(JSON.stringify(h.state)), h.now);
-  assert.deepEqual(live.staff, h.state.staff);
+  assert.deepEqual(live.staff, saved.staff);
+  assert.deepEqual(live.tasks, saved.tasks); assert.deepEqual(live.history, saved.history);
 });
 
 test('tasks: workers get 1 task (2 from smart 3), [] = auto; robots keep setTask', () => {
@@ -339,36 +415,44 @@ test('rivals: visit picks the low-morale best worker, refuses when happy, keep /
   const ev = r.events.find(e => e.type === 'poachStarted');
   assert.equal(ev.uid, b, 'the highest-level unhappy worker');
   assert.equal(ev.rival, RIVAL.names.farm);
-  assert.deepEqual(h.state.staff.poach, { uid: b, zone: 'farm', until: h.now + RIVAL.keepSeconds * 1000, fee: RIVAL.keepFeePerLevel * 3 });
+  // management-rules §2.4 / §4.2: the offer is an inbox task of kind poach (by 'system'), TASKS.life.poach = 1 played min
+  assert.equal(ev.seconds, TASKS.life.poach * 60); assert.equal(TASKS.life.poach * 60, RIVAL.keepSeconds);
+  assert.deepEqual(D.workerPoach(h.state), { id: ev.id, uid: b, zone: 'farm', fee: RIVAL.keepFeePerLevel * 3, leftMs: TASKS.life.poach * 60000 });
+  assert.deepEqual([h.state.tasks.open[0].kind, h.state.tasks.open[0].by], ['poach', 'system']);
   assert.equal(h.act('rival/visit', { zone: 'farm', roll: 0 }).noop, true, 'one poach at a time');
   // keep: pay the fee, +20 morale
   const coins = h.state.player.coins;
   assert.equal(h.act('staff/keep', { uid: a }).error, 'unknown');
   h.must('staff/keep', { uid: b });
   assert.equal(h.state.player.coins, coins - RIVAL.keepFeePerLevel * 3);
-  assert.equal(unit(h, b).morale, 50); assert.equal(h.state.staff.poach, null);
-  assert.equal(h.state.staff.journal[0].type, 'kept');
+  assert.equal(unit(h, b).morale, 50); assert.equal(D.workerPoach(h.state), null);
+  assert.equal(D.taskById(h.state, ev.id).status, 'approved');
+  assert.equal(journal(h)[0].type, 'kept');
   // let go: unit removed, 30 % of its price back
   h.must('rival/visit', { zone: 'farm', roll: 0 });
-  assert.equal(h.state.staff.poach.uid, a);
+  assert.equal(D.workerPoach(h.state).uid, a);
   const c2 = h.state.player.coins;
   h.must('staff/letGo', { uid: a });
   assert.equal(unit(h, a), null);
   assert.equal(h.state.player.coins, c2 + Math.round(RIVAL.letGoRefund * STAFF.farmhand.cost));
-  // resolve: time up → the worker leaves, nothing back
+  assert.equal(h.state.tasks.done[0].status, 'denied');
+  // resolve: time up (played time, §4.1) → the worker leaves, nothing back
   unit(h, c).morale = 10;
   h.must('rival/visit', { zone: 'farm', roll: 0 });
   assert.equal(h.act('rival/resolve').noop, true, 'not yet');
   h.tick(RIVAL.keepSeconds * 1000 + 1);
+  assert.equal(h.act('rival/resolve').noop, true, 'the app was closed: the played clock did not move, the task froze');
+  h.state.clock = { played: D.playedMs(h.state) + TASKS.life.poach * 60000, at: h.now };
   const res = h.must('rival/resolve');
   assert.equal(res.events.find(e => e.type === 'staffLeft').reason, 'poached');
   assert.equal(unit(h, c), null);
+  assert.equal(h.state.tasks.done[0].status, 'expired'); assert.equal(D.workerPoach(h.state), null);
   // refuse: a happy rare worker says no
   unit(h, b).perk = 'swift'; unit(h, b).morale = 90;
   const ref = h.must('rival/visit', { zone: 'farm', roll: 0 });
   assert.ok(ref.events.some(e => e.type === 'poachRefused' && e.uid === b));
-  assert.equal(h.state.staff.poach, null);
-  assert.equal(h.state.staff.journal[0].type, 'poachRefused');
+  assert.equal(D.workerPoach(h.state), null);
+  assert.equal(journal(h)[0].type, 'poachRefused');
 });
 
 test('rare applicants: drawn from the seed with a perk and a dearer price; goldHands / swift / charming effects', () => {
@@ -422,7 +506,7 @@ test('fire / sell: workers refund 30 % of the hire price, robots 50 % + 50 % of 
   assert.equal(h.act('staff/fire', { uid: free }).error, 'unknown');
 });
 
-test('books, ledger, journal: harvest / serve with uid earn, mistakes counted; ledger per minute, last 30; journal max 30', () => {
+test('books, ledger, history: harvest / serve with uid earn, mistakes counted; ledger per minute, last 30; u.recent 30, journal view 30', () => {
   const h = team(5);
   const fw = hire(h, 'farmhand'), bw = hire(h, 'barista');
   const plot = D.ownedPlots(h.state)[0].id;
@@ -447,8 +531,14 @@ test('books, ledger, journal: harvest / serve with uid earn, mistakes counted; l
   assert.equal(h.state.staff.ledger.length, E.BOOKS.ledgerKeep);
   assert.equal(h.state.staff.ledger.at(-1).min, Math.floor(h.now / 60000));
   assert.equal(D.ledgerWindow(h.state, h.now, 10).spent, 10 * E.unitFee(unit(h, fw)));
-  assert.equal(h.state.staff.journal.length, E.BOOKS.journalKeep);
-  assert.equal(h.state.staff.journal[0].type, 'slacked', 'newest first');
+  // management-rules §5: one shared ring (HISTORY.rows) + each unit's own last HISTORY.perUnit rows (u.recent, oldest
+  // first); the team journal is a view of the shared rows, newest first, BOOKS.journalKeep long. resume = bonusSmall,
+  // so it now writes a care row ('cared') like every other care
+  assert.equal(unit(h, fw).recent.length, HISTORY.perUnit);
+  assert.deepEqual(unit(h, fw).recent.slice(-2).map(r => r.type), ['slacked', 'cared']);
+  assert.ok(h.state.history.rows.length <= HISTORY.rows);
+  assert.equal(journal(h).length, BOOKS.journalKeep);
+  assert.deepEqual(journal(h).slice(0, 2).map(e => [e.type, e.uid, e.extra]), [['cared', fw, 'bonusSmall'], ['slacked', fw, undefined]], 'newest first');
 });
 
 test('mvp: the worker who earned most since the last call; everyone +10 morale', () => {

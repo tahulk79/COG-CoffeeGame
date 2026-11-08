@@ -1,5 +1,9 @@
 # Research lab (Phòng nghiên cứu): engineering spec
 
+> **Superseded in part by `management-rules.md` (v1.1, 2026-11-08)** for the manager wiring: what he may suggest or
+> file goes through the licences and the inbox there (§2.5 / §3 / §4); he still never runs research himself. Where this
+> file disagrees, `management-rules.md` wins.
+
 Founder approved the proposal "theo đề xuất" on 2026-11-07 (`docs/design/research-proposal.html`,
 https://claude.ai/artifact/V2X8wmgeoQHYiGRPSDoJBJ). Answers: guessing game with hints; the recipes are the local menu
 items already in the game; supplier contracts and buyer prices run on real days; 1 trial field (2 from Lv8); drink

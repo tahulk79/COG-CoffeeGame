@@ -14,6 +14,94 @@ export const START = {
 // Farm tutorial: seeds planted before the first harvest ripen in a few seconds, so a new player is never left waiting.
 export const TUTORIAL = { firstGrowSeconds: 4 };
 
+// Reference income I(L) per game (docs/design/management-rules.md §2.0): coins per PLAYED minute a region of that game
+// earns at player level L (whole farm / café: your own taps + staff), interpolated between the keys (flat past the
+// last key). Every management price is k minutes of I, every running cost a % of I, every penalty a % of I30. A region
+// plays ONE game, so each game has its own curve; another game ships its own row. INCOME_FLOOR: the measured 10 / 30
+// minute income (s.income) never counts below this share of the reference (a new save starts at the floor).
+export const INCOME_REF = {
+  farm: { 1: 80, 3: 150, 6: 250, 10: 310, 15: 440, 20: 550, 30: 750 },
+  cafe: { 1: 80, 3: 200, 6: 440, 10: 620, 15: 1050, 20: 1300, 30: 1800 },
+};
+export const INCOME_FLOOR = 0.3;
+/** I(L): reference coins per played minute for `game` ('farm' | 'cafe'; anything else → farm) at `level`. */
+export function incomeRef(game, level) {
+  const row = INCOME_REF[game] || INCOME_REF.farm;
+  const keys = Object.keys(row).map(Number).sort((a, b) => a - b);
+  const L = Math.max(keys[0], Number(level) || keys[0]);
+  if (L >= keys[keys.length - 1]) return row[keys[keys.length - 1]];
+  let i = 0;
+  while (keys[i + 1] < L) i++;
+  const a = keys[i], b = keys[i + 1];
+  return row[a] + (row[b] - row[a]) * (L - a) / (b - a);
+}
+// Income series (s.income, management-rules §2.0): one row per PLAYED minute { m, earned, spent, by: { player, g1,
+// staff } (net coins per actor) }, the last keepMinutes kept. Written by every coin income and every coin spend.
+// I10 / I30 = the sums over the last shortMin / longMin played minutes (floored, see INCOME_FLOOR).
+// 'penalty': coin fines of expired tasks (management-rules §4.3), booked as spending of their own; 'system': timers
+// (the played clock, rivals, loan checks).
+export const INCOME = { keepMinutes: 60, shortMin: 10, longMin: 30, actors: ['player', 'g1', 'staff', 'penalty', 'system'] };
+// Played clock (s.clock.played, ms): advanced only by clock/tick from the realm while the game runs in front (it stops
+// when the app is closed or the game is paused). Career tenure, loan terms and the income series run on it. One tick
+// carries at most maxTickMs (a stalled tab never jumps the clock).
+// loanTickSeconds: how often (seconds of play) the realm sends loan/tick (late check, §4.5).
+export const CLOCK = { tickSeconds: 5, maxTickMs: 30000, loanTickSeconds: 60 };
+
+// Inbox — Việc cần duyệt (management-rules §1.2 / §4): ONE list (s.tasks.open ≤ cap, s.tasks.done ≤ doneKeep) of
+// everything the player must answer: the manager's requests and the rivals' visits. Every time is in PLAYED minutes.
+//  life: minutes a task of that kind stays open; remindHalf: a reminder at that share of its life; remindLastMin: one
+//  more that many minutes before it ends (kinds without one: none); graceMin: back after ≥ returnAwayMin minutes
+//  away → every open task gets at least graceMin more; lateMin: an expired manager task may still be approved late
+//  within lateMin; maxFiledPerThink: requests the manager files in one think; systemKinds: never penalised;
+//  laterEveryMin: a full inbox («Để sau») is logged / announced at most once per that many played minutes.
+//  kindOf: action type → task kind (anything else the manager files = staffGrowth); groupOf: kind → licence group.
+export const TASKS = {
+  cap: 8, doneKeep: 50,
+  life: { care: 5, trade: 10, staffGrowth: 30, land: 60, loan: 30, poach: 1, gmPoach: 3, topUp: 60 },
+  remindHalf: 0.5, remindLastMin: { care: 1, trade: 1, staffGrowth: 2, land: 5, loan: 2 },
+  graceMin: 2, returnAwayMin: 5, lateMin: 5, maxFiledPerThink: 2, laterEveryMin: 10,
+  systemKinds: ['poach', 'gmPoach'], noPenaltyKinds: ['topUp', 'poach', 'gmPoach'],
+  kindOf: { 'staff/care': 'care', 'staff/keep': 'care', 'staff/swapShift': 'care', 'staff/setActive': 'care', 'farm/sellAll': 'trade', 'farm/sell': 'trade',
+    'shop/buyBeans': 'trade', 'loan/take': 'loan', 'loan/repay': 'loan', 'land/buyParcel': 'land', 'land/sell': 'land', 'build/place': 'land', 'build/upgrade': 'land', 'gm/topUpSeen': 'topUp' },
+  groupOf: { care: 'hr', staffGrowth: 'hr', poach: 'hr', gmPoach: 'hr', trade: 'beans', land: 'land', loan: 'credit', topUp: 'topUp' },
+};
+// Penalties of an ignored manager task (management-rules §2.8 / §4.3), in this order: loyalty → throttle → coins, and
+// the zone's morale. perTask × I30 per task, the fines of the last windowMin played minutes ≤ cap30OfI10 × I10, never
+// below 0 coins. loyalty per task (≤ loyaltyDay a day), morale per unit of the task's zone (≤ moraleZoneDay per zone a
+// day, the strike's moralePerMin drain counted in it). backlog: +1 per expired task; waitAt → Chờ lệnh for waitMin
+// (safe + care only, 1 action per think, no filing), poachAt → the next rival visit always lures him, strikeAt →
+// Đình công (he stops; ends on gm/apologise or an empty inbox); −decay per decayEveryMin played minutes (emptyDecay
+// while the inbox has none of his tasks). apologise: apologiseSalaries × salary → backlog 0, +apologiseLoyalty, strike
+// over. lateLoyalty: a late approval's loyalty (+approveLoyalty for one in time). returnLoyaltyCap: the loyalty lost
+// on one return (the away drop + the expiries of the grace minutes) is at most this. cooldownMin: a key denied /
+// expired / done / failed waits that long before the manager files or does it again.
+export const PENALTY = {
+  perTask: 0.03, cap30OfI10: 0.25, windowMin: 30,
+  loyalty: 3, loyaltyDay: 15, morale: 3, moraleZoneDay: 30, strikeMoralePerMin: 1,
+  backlog: { waitAt: 3, poachAt: 6, strikeAt: 8, waitMin: 10, decayEveryMin: 10, decay: 1, emptyDecay: 2 },
+  apologiseSalaries: 2, apologiseLoyalty: 10, lateLoyalty: 1, returnLoyaltyCap: 40,
+  cooldownMin: { denied: 15, expired: 10, done: 1, failed: 1 },
+};
+// Nhật ký — the unified history (management-rules §1.3 / §5). rows: shared ring; perUnit: each unit's own ring
+// (u.recent, the manager's s.gm.unit.recent); days: per-day rows per actor (distinct days kept); tombstones: units
+// that left (names stay readable); workBatchSec: job completions of a unit fold into one row per that many played
+// seconds; keepGroupsOnWipe: rows the Level-10 incident never drops, keepOthersOnWipe: newest other rows it keeps;
+// page: rows per page on the screen; profileRows: shared rows on a unit's Lịch sử. groups: row type → group (anything else: 'event').
+export const HISTORY = {
+  rows: 400, perUnit: 30, days: 30, tombstones: 50, workBatchSec: 60, keepGroupsOnWipe: ['plan', 'approval'], keepOthersOnWipe: 50, page: 50, profileRows: 20,
+  groupOrder: ['work', 'care', 'hr', 'money', 'plan', 'approval', 'event'],
+  groups: {
+    work: 'work', craft: 'work', mvp: 'work', did: 'work', away: 'work', idle: 'work', absent: 'work',
+    overheat: 'care', jam: 'care', managerCare: 'care', autoCare: 'care', nagged: 'care', cared: 'care', nudged: 'care', slacked: 'care', warranty: 'care', calmed: 'care',
+    hired: 'hr', left: 'hr', activated: 'hr', benched: 'hr', promoted: 'hr', steppedDown: 'hr', poachRefused: 'hr', poachStarted: 'hr', kept: 'hr',
+    followed: 'hr', refused: 'hr', poached: 'hr', upgraded: 'hr', part: 'hr', gear: 'hr', software: 'hr',
+    unpaid: 'money', licence: 'money', landSold: 'money', trainStart: 'hr', trained: 'hr', topUpSeen: 'approval', loanLate: 'money', loanTaken: 'money', loanRepaid: 'money', loanPaid: 'money', fine: 'money',
+    setTasks: 'plan', robotTask: 'plan', dayPlan: 'plan',
+    asked: 'approval', approved: 'approval', denied: 'approval', expired: 'approval', failed: 'approval', taskFiled: 'approval', taskApproved: 'approval',
+    taskDenied: 'approval', taskExpired: 'approval', taskLate: 'approval', taskFailed: 'approval', later: 'approval', apologised: 'approval',
+  },
+};
+
 // Crops: EMPTY → PLANT → GROW → READY → HARVEST → EMPTY. No water, no fertilizer, plant disappears after harvest.
 export const CROPS = {
   robusta: { id: 'robusta', seedCost: 2, growSeconds: 15, beans: 2, xp: 1, level: 1, round: 1, icon: '🌱', color: 0x9a5b34 },
@@ -124,7 +212,11 @@ export const BUILD_MENU = [...new Set([...BUILD_MENU_CAFE, ...BUILD_MENU_FARM])]
 // counted per game zone (farm / shop), so every hire works. The bench is for resting units (and costs upkeep).
 // Workers open at Lv1; robots at Lv4 (dearer, no phone breaks: a later milestone to wait for).
 export const hireLimit = level => Math.max(0, level | 0); // = working slots per zone (name kept for older imports)
-export const STAFF_CAP = { perZone: 30 };
+// robotShare (docs/design/management-rules.md §2.1): robots in a zone ≤ ceil(slots × robotShare), so a robot never
+// displaces the last worker. There is no bench overflow (team per zone = level, founder rule 2026-11-07, §8 Q7).
+export const STAFF_CAP = { perZone: 30, robotShare: 0.5 };
+/** Most robots a zone may hold at this hire cap (management-rules §2.1: ceil(slots / 2)). */
+export const robotCap = slots => Math.ceil(Math.max(0, slots | 0) * STAFF_CAP.robotShare);
 export const STAFF = {
   farmhand: { id: 'farmhand', kind: 'worker', zone: 'farm', cost: 150, level: 1, round: 1, icon: '👩‍🌾', effect: { growSpeed: 0.15 }, model: 'farm/worker.glb' },
   barista: { id: 'barista', kind: 'worker', zone: 'shop', cost: 200, level: 1, round: 1, icon: '🧑‍🍳', effect: { brewSpeed: 0.25 }, model: 'cafe/staff.glb' },
@@ -134,14 +226,17 @@ export const STAFF = {
 export const STAFF_ORDER = ['farmhand', 'barista', 'sproutBot', 'brewBot'];
 // Bench upkeep (§2): only benched WORKERS cost coins (working staff and robots are free). Charged by staff/upkeep for
 // the time since the last charge (at most maxCatchUpMinutes: no offline bill). Unpaid → the worker's morale drops.
-export const UPKEEP = { benchRatio: 0.1, perMinutes: 10, unpaidMorale: 10, maxCatchUpMinutes: 10 };
+// robotStandbyRatio (management-rules §2.2): a robot NOT on shift (benched / unassigned) costs that share of its price
+// per perMinutes, so a robot parked forever is no longer free. A robot on shift costs nothing here.
+export const UPKEEP = { benchRatio: 0.1, robotStandbyRatio: 0.03, perMinutes: 10, unpaidMorale: 10, maxCatchUpMinutes: 10 };
 // "Đổi ca" (staff/swapShift): who goes to the bench and who is rested enough to come back.
 export const SHIFT = { tiredBelow: 40, restedFrom: 70 };
 // Worker vitals (§3): ≈ 10 min of work from full energy to empty, ≈ 8 min of work to hungry. Values 0..100 (energy
 // max grows with stamina). `start` = a new hire. hungryMul / tiredMul = the realm's speed while hungry / tired.
 export const VITALS = { energyDrainPerMin: 10, energyRestPerMin: 20, benchRestMul: 2, hungerPerMin: 12.5, moraleOverworkPerMin: 3,
   funnyMoraleRegenPerMin: 2, tiredBelow: 25, hungryBelow: 20, sulkBelow: 20, staminaEnergyStep: 20, staminaHungerFrom: 4,
-  staminaHungerMul: 0.5, maxBatchSeconds: 120, hungryMul: 0.7, tiredMul: 0.6, start: { energy: 100, fullness: 100, morale: 80 } };
+  staminaHungerMul: 0.5, maxBatchSeconds: 120, hungryMul: 0.7, tiredMul: 0.6, start: { energy: 100, fullness: 100, morale: 80 },
+  warnBelow: 50 }; // warnBelow: the HUD bars (energy, fullness) turn amber under it
 // Care actions (§3, staff/care): coin prices and effects. serviceRatio × the robot's price restores its wear.
 export const CARE = { nagChance: 0.6, nagMorale: 5, coffee: 20, coffeeEnergy: 60, food: 15, lunchSeconds: 60, bonus: 50, bonusMorale: 40,
   cool: 10, repair: 20, serviceRatio: 0.1 };
@@ -201,14 +296,16 @@ export const PROFILE = {
   },
 };
 // Career (docs/design/staff-profile.md step 3): a worker's rank. "staff" comes by level alone; the others need level +
-// real days on the team + the player's "Thăng chức" tap. lead / manager: one each per game zone, paid an allowance
+// tenure + the player's "Thăng chức" tap. Tenure is counted in SHIFT-DAYS of played time (management-rules §2.5, §8 Q5):
+// 1 shift-day (sd) = shiftDayMin played minutes on the team (u.tenurePlayedMin, advanced by clock/tick). lead / manager: one each per game zone, paid an allowance
 // (coins per UPKEEP.perMinutes while on shift, charged by staff/upkeep as category 'wage'). A worker who could be
 // promoted but waits more than waitMinutes of play loses morale. While a lead or manager works, the zone's other
 // workers regain morale and a phone slacker goes back after nudgeSeconds; a manager also buys coffee / food
 // (from your coins) for tired / hungry workers.
 export const CAREER = {
   ranks: ['apprentice', 'staff', 'skilled', 'lead', 'manager'],
-  need: { staff: { level: 4, days: 0 }, skilled: { level: 8, days: 5 }, lead: { level: 12, days: 10 }, manager: { level: 16, days: 20 } },
+  need: { staff: { level: 4, sd: 0 }, skilled: { level: 7, sd: 2 }, lead: { level: 9, sd: 4 }, manager: { level: 13, sd: 12 } },
+  shiftDayMin: 5,
   auto: ['staff'], onePerZone: ['lead', 'manager'],
   promoteMorale: 30, stepDownMorale: 20,
   allowance: { lead: 20, manager: 40 },
@@ -264,9 +361,11 @@ export const gearJob = (u, task) => (task === 'brew' ? GEAR.items.kettle.brew[ge
 // wear / 100; software packs are bought (a robot still never learns and keeps its one task): autoCharge pays the
 // recharge by itself when the battery is empty, autoUnjam knocks itself free after `seconds`.
 export const WARRANTY = { repairs: 3 };
+// precision (management-rules §2.5): from player level `level`, the robot's work is 2★ (QUALITY) — robots are no
+// longer strictly worse late in the game.
 export const SOFTWARE = {
-  order: ['autoCharge', 'autoUnjam'], refund: 0.5,
-  packs: { autoCharge: { icon: '🔌', ratio: 1 / 3 }, autoUnjam: { icon: '🧩', ratio: 1 / 4, seconds: 10 } },
+  order: ['autoCharge', 'autoUnjam', 'precision'], refund: 0.5,
+  packs: { autoCharge: { icon: '🔌', ratio: 1 / 3 }, autoUnjam: { icon: '🧩', ratio: 1 / 4, seconds: 10 }, precision: { icon: '🎯', ratio: 1 / 3, level: 10, stars: 2 } },
 };
 export const softwarePrice = (u, pack) => Math.round((STAFF[u?.type]?.cost || 0) * (SOFTWARE.packs[pack]?.ratio || 0) / 10) * 10;
 export const hasSoftware = (u, pack) => Array.isArray(u?.software) && u.software.includes(pack);
@@ -278,23 +377,34 @@ export const hasSoftware = (u, pack) => Array.isArray(u?.software) && u.software
 export const GM = {
   unlockLevel: 6,
   board: { size: 3, refreshMinutes: 30, refreshCost: 100 },
-  hireFeePerSkill: 400,
+  hireFeePerSkill: 250, // 400 → 250 (2026-11-08, sim: skill 2 at 800 ≈ 6 min of a delegate's Lv6 income, so the GM came at Lv8–9)
   salaryPerSkill: 20, payMinutes: 10, // base salary per payMinutes = salaryPerSkill × skill × mode.mul × (1 + raiseStep × raises)
-  modes: { advisor: { mul: 0.5, share: 0 }, operator: { mul: 1, share: 0.05 }, full: { mul: 2, share: 0.15 } },
+  // share = part of the profit of the jobs the GM ITSELF ran (s.income rows by 'g1', management-rules §2.6); full mode
+  // is paid through mul, not a bigger cut (§8 Q3).
+  modes: { advisor: { mul: 0.5, share: 0, budgetMul: 1 }, operator: { mul: 1, share: 0.05, budgetMul: 1 }, full: { mul: 1.6, share: 0.05, budgetMul: 3 } }, // budgetMul: full = budget ×3 (§3.1)
   modeOrder: ['advisor', 'operator', 'full'],
-  budgets: [50, 100, 200, 500], bigLimits: [100, 300, 1000],
+  budgets: [50, 100, 200, 500, 1000], bigLimits: [100, 300, 600, 1000, 3000],
+  // Fallbacks; a new GM starts from limits computed from the reference income I(L) (limitDefaults, D.gmDefaultLimits):
+  //  autoLimit = round(autoMul × I(L) / autoStep) × autoStep, bigLimit = round(bigMul × I(L) / bigStep) × bigStep,
+  //  each snapped to the nearest listed option (ties snap down). highValueMul × I(L) = a sale that needs approval (P3).
   defaults: { mode: 'operator', budget: 100, bigLimit: 300 },
+  limitDefaults: { autoMul: 0.3, autoStep: 50, bigMul: 1, bigStep: 100, highValueMul: 20 },
   windowMinutes: 10,
   thinkSeconds: [20, 15, 10, 7, 5], actionsPerThink: [1, 1, 2, 2, 3], // by skill 1..5
+  // requestMinutes / requestsKeep / poach.keepSeconds: superseded by TASKS.life / TASKS.cap (requests and rival offers are
+  // inbox tasks now; kept for older callers). logKeep: rows of the manager's log view (D.gmLog).
   requestMinutes: 5, requestsKeep: 6, logKeep: 30, daysKeep: 7,
   styles: {
     careful: { budgetMul: 0.5, loyalty: [75, 95] },
     balanced: { budgetMul: 1, loyalty: [55, 75] },
-    bold: { budgetMul: 1, loyalty: [30, 50] },
+    bold: { budgetMul: 1, loyalty: [45, 60] },
   },
   styleOrder: ['careful', 'balanced', 'bold'],
-  loyalty: { refuse: 70, paidPer10: 1, unpaidPerMin: 10, start: 60 },
-  raiseStep: 0.2, raiseLoyalty: 25, keepBonusSalaries: 20, keepLoyalty: 15,
+  // unpaidPerMin: loyalty lost per minute of salary left unpaid (the shortfall becomes wage arrears, s.debt.wages.gm);
+  // quitArrearsSalaries: arrears ≥ that many salaries → the GM quits (no chaos, re-hire at the board), §2.6 / §8 Q12.
+  loyalty: { refuse: 70, paidPer10: 1, unpaidPerMin: 1, start: 60 },
+  quitArrearsSalaries: 10,
+  raiseStep: 0.2, raiseLoyalty: 25, keepBonusSalaries: 6, keepLoyalty: 15,
   poach: { everyMinutes: 8, chance: 0.4, keepSeconds: 180, rival: 'Bà Tư' },
   // Mood (founder feedback 2026-11-07): a manager wants to be used, and wants the boss around.
   //  idle: no job for idleGraceMin (you do everything yourself) → −idlePerMin loyalty / min;
@@ -309,7 +419,72 @@ export const GM = {
   // out `share` of the team's running profit rate (staff ledger, the last rateWindowMin minutes played) for the time
   // away beyond minMinutes, at most capMinutes, minus its base pay for that time. No manager or advisor: nothing.
   away: { minMinutes: 5, capMinutes: 120, rateWindowMin: 30, share: { advisor: 0, operator: 0.5, full: 0.7 } },
-  chaos: { slackMul: 2, moralePerMin: 1, managerHalves: 0.5, calmBase: 300, calmPerUnit: 50 },
+  chaos: { slackMul: 2, moralePerMin: 1, managerHalves: 0.5, calmBase: 300, calmPerUnit: 50, calmMorale: 10 },
+  // Thresholds of today's planner (D.gmPlan), moved out of the code (management-rules §7.1; the P3 planner turns them
+  // into GM_RULES rows): storage share that means "sell", morale under which a nag becomes a small bonus, seconds
+  // between two nags of a worker, ripe plots / waiting customers that ask for a hire, repeats today that ask for
+  // software / a part, hours before a contract ends, and how much better a buyer / crop method must be (×).
+  // Care wallet (management-rules §2.3): per careWallet.windowMin played minutes the manager may spend on care / ops
+  // (coffee, food, bonuses, recharges, cooling, repairs) max(min, rosterMul × Σ per unit) — workerPer10 per worker, a
+  // robot's recharge fee + robotExtra — never from the growth budget, never as a request.
+  careWallet: { min: 50, rosterMul: 1.5, workerPer10: 35, robotExtra: 20, windowMin: 10 },
+  // Licences (Giấy phép, §2.5): the player's, kept by the Level-10 incident. Used by the P3 planner.
+  licences: { groups: ['hr', 'assign', 'beans', 'land', 'credit'], prices: { hr: 0, assign: 0, beans: 300, land: 1000, credit: 1500 }, unlockLevel: 6 },
+  planRules: { storageFull: 0.9, phoneMoraleBelow: 40, nagEverySeconds: 60, hirePiling: 3, softRepeats: 2, hotRepeats: 1, contractWarnHours: 2, betterMul: 1.1 },
+  // ---- Planner v2 (management-rules §3.3–§3.7); the rules themselves are the GM_RULES rows below ----
+  // plan: the day plan (Kế hoạch ngày) every everyMin played minutes and on hire; target = round10(I10 × 2 × targetMul);
+  //  offscreenEvery: the zone not on screen is thought about every n-th think (care + trade + plan rows only);
+  //  statOf: the worker stat that fits a job (fit = fitBase + fitPerStat × stat); thinkSlowMul: backlog ≥
+  //  PENALTY.backlog.waitAt → cadence × this and one action per think.
+  plan: { lockWorkers: { farm: true, shop: false }, everyMin: 20, targetMul: 1.1, targetRound: 10, offscreenEvery: 2, fitBase: 0.5, fitPerStat: 0.1, thinkSlowMul: 2,
+    statOf: { harvest: 'accuracy', deliver: 'speed', plant: 'stamina', water: 'stamina', order: 'smart', brew: 'smart' } },
+  // score = urgency band × (value + 1) / (cost / I10 + costFloor) × styleMul[style][styleGroup]
+  urgency: { blocking: 5, storage: 5, orders: 4, idlePlots: 3, morale: 3, growth: 2, cosmetic: 1 },
+  costFloor: 0.05,
+  styleMul: { careful: { capital: 0.5, care: 1.2, trade: 1 }, balanced: { capital: 1, care: 1, trade: 1 }, bold: { capital: 1.5, care: 0.8, trade: 1.2 } },
+  styleGroupOf: { capital: 'capital', care: 'care', ops: 'care', trade: 'trade' },
+  // Always filed as an inbox task, whatever the mode or the cost (§3.1): no mode bypasses these.
+  alwaysApprove: ['loan/take', 'gm/topUpSeen', 'land/buyParcel', 'land/sell', 'staff/fire', 'gm/train'],
+  // Training (Đào tạo, §2.5): skill + 1 for basePerSkill × (skill + 1) coins, done after shiftDays shift-days of play.
+  training: { basePerSkill: 400, shiftDays: 1 },
+  // How the planner values things (coins per played minute; management-rules §2.5 / §3.5). jobsPerMin: reference jobs
+  // a unit of that type finishes per played minute at speed ×1 (walking included); jobsPerDrink: café jobs per cup
+  // (order, brew, deliver); reactionMin: R, the player's own reaction to a blocked unit; staminaDowntime: share of a
+  // worker's time lost to low energy per stamina step; gearThroughput: value of a walk / brew gear tier × contrib.
+  // load (balance pass 2026-11-08): the manager samples each zone's jobs a free worker could start now
+  // (D.actionableJobs) every think into an EMA (s.gm.load[zone]); a throughput upgrade is worth
+  // clamp((load / working units − free) / span, 0, 1) of its value. Sim: a café team of 4 sees ≈ 3 such jobs (no
+  // shortage), a team of 2 ≈ 4.6; the old arrival-based demand model bought speed and gear nobody needed (the café
+  // earned 110–140 coins/min LESS with the manager than without).
+  load: { ema: 0.2, free: 1, span: 1 },
+  value: { jobsPerMin: { farmhand: 8, barista: 8, sproutBot: 11, brewBot: 10 }, jobsPerDrink: 3, reactionMin: 1, speedStep: 0.08, slackStep: 0.15,
+    staminaDowntime: 0.025, motorStep: 0.1, gearThroughput: 0.05, precision: 0.25, qualityMistakes: 3 },
+  // Land (§3.6): buy when payback ≤ buyPaybackMin, the zone ≥ busyPct busy and coins ≥ coinsMul × price (or a loan
+  // fits); sell when a parcel is < sellUtil used for windowMin and its refund beats LAND.sellPaybackMin of its income;
+  // at most one land proposal (coolActs: buying / selling a lot, not building upgrades) per everyMin, counted from its
+  // filing and again from its approval; a lot needs windowMin samples of its own before it can be sold. Utilisation is
+  // sampled once per played minute (windowMin kept).
+  land: { buyPaybackMin: 45, busyPct: 0.85, coinsMul: 1.2, sellUtil: 0.2, windowMin: 30, everyMin: 30, coolActs: ['land/buyParcel', 'land/sell'] },
+  // Buildings (§3.7): upgrade one when its production queue was full ≥ fullMin played minutes and it pays back ≤ paybackMin.
+  building: { fullMin: 10, paybackMin: 45 },
+  // Loans (§3.7): a capital job the coins cannot pay may file a loan task when its payback < term × paybackTermShare;
+  // one loan task per everyMin. Repay alone when coins ≥ owed + care wallet + autoLimit (up to autoLimit).
+  loanRule: { everyMin: 30, paybackTermShare: 0.5 },
+  // Real-money top-up (§3.7, §8 Q2): only a proposal, after afterDenied denied loan tasks today and I10 <
+  // incomeShare × plan.target, at most perDay a day, never penalised. No real-money store exists yet: approving it only
+  // logs the answer.
+  topUp: { afterDenied: 2, incomeShare: 0.5, perDay: 1 },
+  // Self-upgrade (§3.7): suggest a licence after a rule of its group fired licenceFires times today (counted at most
+  // once per played minute); propose training after trainThinks thinks in a row with more candidates than actions,
+  // when the extra actions pay the fee back in ≤ trainPaybackMin (each extra action worth actionValueMin × its value).
+  selfUpgrade: { licenceFires: 3, trainThinks: 3, trainPaybackMin: 40, actionValueMin: 0.25 },
+  // The manager in the world (management-rules §6, P4; realm/manager.js): colour (his only), body height ×heightMul,
+  // walk speed (m/s) to the unit / field he acts on, point time (s) there, then back to his desk; red ring under his
+  // feet while any task has < ringLifeShare of its life left (the HUD card turns amber under urgentShare, red under it); 😒 while loyalty < sadLoyalty; a yawn every yawnEverySec
+  // in Chờ lệnh; facepalm / thumbs-up / point emote seconds; at most one spoken line per lineGapSec (actionable lines
+  // — a request, an expiry — always speak); walks only to targets ≤ maxWalkM from the desk (else he points from there).
+  look: { color: '#7c4dbd', armband: '#f0b429', armbandRanks: ['lead', 'manager'], heightMul: 1.05, walkSpeed: 2.8, pointSec: 0.8, ringLifeShare: 0.1, urgentShare: 0.2, sadLoyalty: 70,
+    yawnEverySec: 6, emoteSec: { facepalm: 1.6, thumbsUp: 1.4, yawn: 1.8 }, lineGapSec: 8, lineMs: 3600, requestMs: 4800, maxWalkM: 40 },
   names: [['Hằng', 'female'], ['Khải', 'male'], ['Sáu', 'male'], ['Ngọc', 'female'], ['Tuấn', 'male'], ['Thu', 'female'], ['Bảy', 'male'], ['Quân', 'male'], ['Mai', 'female']],
 };
 /** The headhunter board for a seed (pure): GM.board.size candidates — skill 1..5, style, loyalty, fee. */
@@ -406,17 +581,28 @@ export const energyMax = u => 100 + VITALS.staminaEnergyStep * (statOf(u, 'stami
 export const ROBOT_TASKS = { sproutBot: ['plant', 'harvest'], brewBot: ['order', 'brew', 'deliver'] };
 export const ROBOT_AUTO = { autoSeconds: 30 };
 export const ROBOT_PARTS = {
-  battery: { icon: '🔋', minutes: [3, 4, 6, 9], feeMul: [1, 0.8, 0.6, 0.4] }, // work minutes per charge, recharge fee
+  battery: { icon: '🔋', minutes: [6, 9, 13, 18], feeMul: [1, 0.8, 0.6, 0.4] }, // work minutes per charge, recharge fee (management-rules §2.3)
   motor: { icon: '⚙️', speed: [1, 1.1, 1.2, 1.35], heatMul: [1, 1.15, 1.3, 1.5] }, // faster, but hotter
   cooler: { icon: '❄️', heatMul: [1, 0.67, 0.5, 0] },                               // tier 3 never overheats
   frame: { icon: '🛡️', jamMul: [1, 0.67, 0.44, 0.3], wearMul: [1, 0.67, 0.44, 0.3] }, // fewer jams, slower wear
 };
 export const PART_ORDER = ['battery', 'motor', 'cooler', 'frame'];
-export const PART_COST = { costRatio: [0.3, 0.6, 1], maxTier: 3, tier3Level: 8 };
+// partMul: per-part price factor. cooler ×0.6 (changed 2026-11-08 after the sim: a café brewBot overheats rarely, so a
+// full-price cooler t1 paid back in 106 min; at ×0.6 it is ≈ 63 min, inside its ≤ 90 reliability gate — §2.5).
+export const PART_COST = { costRatio: [0.15, 0.3, 0.5], partMul: { cooler: 0.6 }, maxTier: 3, tier3Level: 8 }; // management-rules §2.5: battery / motor / cooler t1 pay back ≤ 40 min
 // Robot heat / jam / wear (§4). heat 0..100 (100 = overheat for overheatSeconds); wear 100 = new → 0. Jam chance per job.
-export const ROBOT_WEAR = { heatPerMin: 25, coolPerMin: 40, overheatSeconds: 30, jamChance: 0.02, wearPerJob: 0.2, lowWear: 30, lowWearJamMul: 2 };
+export const ROBOT_WEAR = { heatPerMin: 25, coolPerMin: 40, overheatSeconds: 30, jamChance: 0.02, wearPerJob: 0.2, lowWear: 30, lowWearJamMul: 2,
+  heatWarnAt: 50, heatBadAt: 80 }; // heatWarnAt / heatBadAt: the HUD heat bar turns amber / red
+// Realm job loop of the staff (was hard-coded in realm/staff.js / staff-brain.js, management-rules §7.1): walk speed
+// (m/s) per kind (brewBot × brewBotWalkMul), seconds per job by unit type (deliverSeconds: the hand-over of a cup),
+// café chaining / urgency / lane numbers of the pure brain.
+export const STAFF_SIM = {
+  speed: { worker: 2.6, robot: 3.2 }, brewBotWalkMul: 1.15,
+  work: { farmhand: 1.2, sproutBot: .8, barista: .7, brewBot: .4 }, deliverSeconds: .25,
+  chainWaitMs: 2500, twoCupM: 4, urgentRatio: .7, urgentSpeed: 1.25, laneM: 1.4,
+};
 export const partTier = (u, part) => Math.min(PART_COST.maxTier, Math.max(0, (u?.parts?.[part] | 0)));
-export const partCost = (type, tier) => Math.round((STAFF[type]?.cost || 0) * (PART_COST.costRatio[tier] ?? 0) / 5) * 5;
+export const partCost = (type, tier, part) => Math.round((STAFF[type]?.cost || 0) * (PART_COST.costRatio[tier] ?? 0) * (PART_COST.partMul[part] ?? 1) / 5) * 5;
 export const robotTask = u => (ROBOT_TASKS[u?.type]?.includes(u.task) ? u.task : 'auto');
 /** Work / walk speed factor of a unit: worker speed stat or robot motor. */
 export const unitSpeed = u => (STAFF[u?.type]?.kind === 'robot' ? ROBOT_PARTS.motor.speed[partTier(u, 'motor')] : levelSpeed(u));
@@ -430,7 +616,7 @@ export const jamChance = u => (STAFF[u?.type]?.kind === 'robot'
 export const slackMul = u => (TRAITS[u?.trait]?.slackMul ?? 1) * Math.max(0.2, 1 - LEVEL_STEP.slack * (statOf(u, 'stamina') - 1));
 
 // Rivals (§7): every everyMinutes a rival owner may try to poach a low-morale (or rare) worker; the player has
-// keepSeconds to pay keepFeePerLevel × unit level (+keepMorale morale) or let them go (letGoRefund × hire price back).
+// TASKS.life.poach played minutes (the inbox; keepSeconds is the old real-time figure) to pay keepFeePerLevel × unit level (+keepMorale morale) or let them go (letGoRefund × hire price back).
 export const RIVAL = { everyMinutes: 8, chance: 0.5, keepSeconds: 60, keepFeePerLevel: 50, keepMorale: 20, refuseMorale: 70, targetMorale: 50,
   letGoRefund: 0.3, names: { farm: 'Bà Tư', shop: 'Anh Ba' } };
 // Fire / sell (§8): refund ratio of what was paid at hire (robots also get back part of their hardware).
@@ -457,7 +643,7 @@ export const autoPrice = bought => Math.min(AUTO.maxPrice, AUTO.price + AUTO.pri
 // slackChancePerMinute: chance per minute of work that a worker slacks; batteryMinutes: work time per full charge.
 export const STAFF_BREAKS = {
   worker: { kind: 'phone', slackChancePerMinute: 0.3, feeRatio: 0.1, minFee: 10 },
-  robot: { kind: 'battery', batteryMinutes: 3, feeRatio: 0.06, minFee: 25 },
+  robot: { kind: 'battery', batteryMinutes: 6, feeRatio: 0.03, minFee: 15 }, // recharge 36 / 45 at tier 0 (management-rules §2.3)
 };
 export const staffFee = type => { const def = STAFF[type]; const r = def && STAFF_BREAKS[def.kind]; return r ? Math.max(r.minFee, Math.round(def.cost * r.feeRatio)) : 0; };
 // A unit's break fee: a robot's battery upgrade makes the recharge cheaper (the old charger part is merged into it).
@@ -507,12 +693,29 @@ export function chestPrize(roll) {
   return CHEST_PRIZES[0];
 }
 
-// Loans (HUD 💰 under the gear): borrow a pack of coins now, owe it back plus a fee. Playtest: loans stack (borrow
-// again any time; the amount and the debt add up).
-// While a loan is open, autoRepay of every coin income goes to the debt; the rest can be paid any time.
-// The Level-10 incident wipes everything, the debt too.
-export const LOAN = { packs: [1000, 2000, 5000], fee: 0.1, autoRepay: 0.2 };
+// Loans (HUD 💰 under the gear, management-rules §2.7 / §4.5): borrow a pack of coins now, owe it back plus a fee.
+// At most maxOpen loans at once (s.loans[]); a pack opens at packLevel[pack]; the total owed may not pass the credit
+// limit creditMul × I10ref × (1 + creditLevelStep × level), I10ref = 10 × I(L) (the reference 10-minute income).
+// Each loan's term (played minutes) is fixed when taken: clamp(ceil to term.round of term.mul × owed / (autoRepay ×
+// I(L))), term.minMin, term.maxMin). Late → owed × (1 + lateFee) once and no new loan until every late loan is paid.
+// While a loan is open, autoRepay of every coin income goes to the oldest debt first; the rest can be paid any time.
+// The Level-10 incident does NOT wipe the debt (a debt is a debt).
+export const LOAN = { packs: [1000, 2000, 5000], fee: 0.1, autoRepay: 0.2, maxOpen: 2,
+  packLevel: { 1000: 4, 2000: 6, 5000: 8 },
+  creditMul: 1.5, creditLevelStep: 0.1,
+  term: { mul: 2, minMin: 30, maxMin: 150, round: 10 }, // mul 1.5 → 2 (2026-11-08, sim: the delegate earns ≈ 50 % of I(L); 1.5 only covered ≥ 67 %)
+  lateFee: 0.05 };
+// Wage arrears (management-rules §2.7): unpaid salary / follower wage is owed in s.debt.wages { gm, follower } (never on
+// a loan). Arrears are paid first out of the next income; a follower whose arrears reach wageCapMul × its wage leaves.
+export const DEBT = { wageCapMul: 10 };
 export const loanOwed = amount => Math.round(amount * (1 + LOAN.fee));
+/** Term of a loan in played minutes (management-rules §2.7): LOAN.term.mul × the time autoRepay alone needs to clear
+ *  `owed` at the reference income `perMin` (I(L)), rounded up to LOAN.term.round, clamped to [minMin, maxMin]. */
+export function loanTermMin(owed, perMin) {
+  const T = LOAN.term, rate = LOAN.autoRepay * Math.max(1, Number(perMin) || 0);
+  const raw = Math.ceil(T.mul * Math.max(0, Number(owed) || 0) / rate / T.round - 1e-9) * T.round;
+  return Math.min(T.maxMin, Math.max(T.minMin, raw));
+}
 
 // Rounds: three, shown as a roadmap (HUD 🚂). Only Round 1 is playable for now: pick farm OR café, earn, upgrade;
 // Level 10 = the incident (lose everything, choose a new place). Rounds 2 (farm + café) and 3 are shown locked;
@@ -620,3 +823,108 @@ export const SAY_VARIANTS = {
   crowd: 3, toLemon: 3, toTea: 2, toBar: 3, closed: 3, cut: 3, cutSorry: 2, fight: 3, happy: 3,
   slow: 2, patience: 3, noSeat: 2, drunk: 3, tea: 2, lemon: 3, bar: 2, vendorIdle: 3,
 };
+
+// ---------- Planner v2 data (management-rules §3.3–§3.7, §7.1) ----------
+// Land sale (land/sell, only through an approved inbox task): sellRefund × the lot's price back; the planner proposes a
+// sale only when the refund beats sellPaybackMin played minutes of what the lot earns. Never the last lot of a zone,
+// never a starter lot, never a lot with a building on it.
+export const LAND = { sellRefund: 0.6, sellPaybackMin: 40 };
+// Upgrade gate (§2.5): a throughput upgrade the manager does / proposes must pay back ≤ paybackMin played minutes
+// (≤ latePaybackMin for a robot part tier ≥ 2 or a stat step ≥ 3); quality upgrades are outside the gate and only
+// come up when the unit made ≥ GM.value.qualityMistakes mistakes today.
+export const UPGRADE_GATE = { paybackMin: 40, latePaybackMin: 90, quality: ['accuracy', 'smart', 'shears', 'hat', 'tray', 'frame'] };
+// The fixed metric vocabulary of the manager's snapshot (D.gmSnapshot). GM_RULES rows may only name these; another
+// game supplies its own rows and a snapshot with the same names.
+export const GM_SNAPSHOT_METRICS = {
+  zone: ['units', 'workers', 'robots', 'blockedUnits', 'idleUnits', 'moraleMin', 'storagePct', 'storageValue', 'saleBlocked', 'ripeWaiting', 'emptyPlots',
+    'busyPct', 'waitingOrders', 'takenOrders', 'readyCups', 'beans', 'beanNeed', 'beansLow', 'coins', 'owed', 'I10', 'I30', 'careNeed', 'careShort',
+    'tiredOn', 'restedOff', 'freeSlots', 'hireRoom', 'robotRoom', 'piling', 'robotWorth', 'poachHere', 'landBuyOk', 'landSellOk', 'buildUpOk',
+    'repayRoom', 'topUpDue', 'trainDue', 'offscreen'],
+  unit: ['kind', 'state', 'onShift', 'hungry', 'tired', 'sulking', 'morale', 'phoneSoft', 'wear', 'recharges', 'jams', 'overheats', 'mistakes',
+    'gradeD2', 'canPromote', 'upgradeBest', 'qualityBest', 'canCharge', 'canUnjam', 'contrib'],
+  building: ['prodReady', 'prodIdle'],
+};
+// The manager's rules as DATA rows (one generic evaluator: D.gmCandidates). A row fires for a zone (or for each unit /
+// building of it, `each`) when `metric op value` and every `and` triple hold.
+//  group: care | ops (paid from the care wallet) | trade | capital (growth) — also picks styleMul; licence: the licence
+//  group it needs (hr / assign free; beans / land / credit bought; topUp always); urgency: a GM.urgency band; act: the
+//  action it runs (an `args` builder may name the action, e.g. the best upgrade); args / cost / valueOf / sale: names
+//  of the planner's fixed builder vocabulary (derive.js RULE_ARGS / RULE_COST / RULE_VALUE); ticks: the condition
+//  must hold that many thinks in a row; offscreen: also runs for the zone not on screen (care + trade only); style:
+//  only for these manager styles; kind: the inbox task kind when it is filed; noFile: never filed (the inbox already
+//  has a task for it); reason: hud.gm.r.<reason>.
+export const GM_RULES = [
+  // trade (Hạt)
+  { key: 'sellFull', group: 'trade', licence: 'beans', zone: 'farm', metric: 'storagePct', op: '>=', value: GM.planRules.storageFull, and: [['saleBlocked', '==', false]], urgency: 'storage',
+    act: 'farm/sellAll', args: 'storage', cost: 'none', valueOf: 'sale', sale: 'storageValue', offscreen: true, reason: 'storageFull' },
+  { key: 'sellSome', group: 'trade', licence: 'beans', zone: 'farm', metric: 'storagePct', op: '>=', value: GM.planRules.storageFull, and: [['saleBlocked', '==', true]], urgency: 'storage',
+    act: 'farm/sell', args: 'sellUnderHigh', cost: 'none', valueOf: 'sale', sale: 'arg', offscreen: true, reason: 'sellSome' },
+  { key: 'sellCare', group: 'trade', licence: 'beans', zone: 'farm', metric: 'careShort', op: '==', value: true, and: [['storageValue', '>', 0], ['saleBlocked', '==', false]], urgency: 'blocking',
+    act: 'farm/sellAll', args: 'storage', cost: 'none', valueOf: 'sale', sale: 'storageValue', offscreen: true, reason: 'sellForCare' },
+  { key: 'beans', group: 'trade', licence: 'beans', zone: 'shop', metric: 'beansLow', op: '==', value: true, urgency: 'orders',
+    act: 'shop/buyBeans', args: 'beanPack', cost: 'arg', valueOf: 'orders', offscreen: true, reason: 'beansLow' },
+  // robots (Nhân sự, care wallet)
+  { key: 'recharge', group: 'care', licence: 'hr', zone: 'any', each: 'robot', metric: 'state', op: '==', value: 'battery', urgency: 'blocking',
+    act: 'staff/care', care: 'recharge', args: 'care', cost: 'care', valueOf: 'contrib', offscreen: true, reason: 'robotBattery' },
+  { key: 'knock', group: 'ops', licence: 'hr', zone: 'any', each: 'robot', metric: 'state', op: '==', value: 'jam', urgency: 'blocking',
+    act: 'staff/care', care: 'knock', args: 'care', cost: 'care', valueOf: 'contrib', offscreen: true, reason: 'robotJam' },
+  { key: 'cool', group: 'care', licence: 'hr', zone: 'any', each: 'robot', metric: 'state', op: '==', value: 'overheat', urgency: 'blocking',
+    act: 'staff/care', care: 'cool', args: 'care', cost: 'care', valueOf: 'contrib', offscreen: true, reason: 'robotHot' },
+  { key: 'service', group: 'care', licence: 'hr', zone: 'any', each: 'robot', metric: 'wear', op: '<', value: ROBOT_WEAR.lowWear, urgency: 'morale',
+    act: 'staff/care', care: 'service', args: 'care', cost: 'care', valueOf: 'contrib', offscreen: true, reason: 'robotWorn' },
+  // workers (Nhân sự, care wallet)
+  { key: 'nag', group: 'ops', licence: 'hr', zone: 'any', each: 'worker', metric: 'state', op: '==', value: 'phone', and: [['phoneSoft', '==', false]], urgency: 'blocking',
+    act: 'staff/care', care: 'nag', args: 'care', cost: 'care', valueOf: 'contrib', offscreen: true, reason: 'phone' },
+  { key: 'bonusSmall', group: 'care', licence: 'hr', zone: 'any', each: 'worker', metric: 'state', op: '==', value: 'phone', and: [['phoneSoft', '==', true]], urgency: 'blocking',
+    act: 'staff/care', care: 'bonusSmall', args: 'care', cost: 'care', valueOf: 'contrib', offscreen: true, reason: 'phoneLowMorale' },
+  { key: 'lunch', group: 'ops', licence: 'hr', zone: 'any', each: 'worker', metric: 'hungry', op: '==', value: true, and: [['onShift', '==', true]], style: ['careful'], urgency: 'morale',
+    act: 'staff/care', care: 'lunch', args: 'care', cost: 'care', valueOf: 'contrib', offscreen: true, reason: 'hungryLunch' },
+  { key: 'food', group: 'care', licence: 'hr', zone: 'any', each: 'worker', metric: 'hungry', op: '==', value: true, and: [['onShift', '==', true]], style: ['balanced', 'bold'], urgency: 'morale',
+    act: 'staff/care', care: 'food', args: 'care', cost: 'care', valueOf: 'contrib', offscreen: true, reason: 'hungry' },
+  { key: 'coffee', group: 'care', licence: 'hr', zone: 'any', each: 'worker', metric: 'tired', op: '==', value: true, and: [['onShift', '==', true]], urgency: 'morale',
+    act: 'staff/care', care: 'coffee', args: 'care', cost: 'care', valueOf: 'contrib', offscreen: true, reason: 'tired' },
+  { key: 'bonus', group: 'care', licence: 'hr', zone: 'any', each: 'worker', metric: 'sulking', op: '==', value: true, and: [['onShift', '==', true]], urgency: 'blocking',
+    act: 'staff/care', care: 'bonus', args: 'care', cost: 'care', valueOf: 'contrib', offscreen: true, reason: 'sulking' },
+  // shifts and production (Giao việc)
+  { key: 'shift', group: 'ops', licence: 'assign', zone: 'any', metric: 'tiredOn', op: '==', value: true, and: [['restedOff', '==', true]], urgency: 'morale',
+    act: 'staff/swapShift', args: 'zone', cost: 'none', valueOf: 'none', reason: 'swapShift' },
+  { key: 'active', group: 'ops', licence: 'assign', zone: 'any', metric: 'restedOff', op: '==', value: true, and: [['freeSlots', '>', 0], ['tiredOn', '==', false]], urgency: 'idlePlots',
+    act: 'staff/setActive', args: 'restedBench', cost: 'none', valueOf: 'arg', reason: 'toShift' },
+  { key: 'collect', group: 'ops', licence: 'assign', zone: 'farm', each: 'building', metric: 'prodReady', op: '==', value: true, urgency: 'orders',
+    act: 'prod/collect', args: 'building', cost: 'none', valueOf: 'prod', reason: 'prodReady' },
+  { key: 'produce', group: 'ops', licence: 'assign', zone: 'farm', each: 'building', metric: 'prodIdle', op: '==', value: true, urgency: 'idlePlots',
+    act: 'prod/start', args: 'building', cost: 'prodFee', valueOf: 'prod', reason: 'prodIdle' },
+  // people (Nhân sự, growth budget)
+  { key: 'keep', group: 'capital', licence: 'hr', zone: 'any', metric: 'poachHere', op: '==', value: true, urgency: 'blocking', noFile: true, kind: 'care',
+    act: 'staff/keep', args: 'poached', cost: 'arg', valueOf: 'arg', reason: 'keepWorker' },
+  { key: 'hire', group: 'capital', licence: 'hr', zone: 'any', metric: 'piling', op: '>=', value: GM.planRules.hirePiling, and: [['hireRoom', '>', 0]], ticks: 2, urgency: 'growth',
+    act: 'staff/recruit', args: 'bestApplicant', cost: 'arg', valueOf: 'arg', reason: 'hire' },
+  { key: 'hireRobot', group: 'capital', licence: 'hr', zone: 'any', metric: 'piling', op: '>=', value: GM.planRules.hirePiling, and: [['hireRoom', '>', 0], ['robotRoom', '>', 0], ['robotWorth', '>=', 0]], ticks: 2, urgency: 'growth',
+    act: 'staff/hire', args: 'robotType', cost: 'arg', valueOf: 'arg', reason: 'hireRobot' },
+  { key: 'upgrade', group: 'capital', licence: 'hr', zone: 'any', each: 'unit', metric: 'upgradeBest', op: '>', value: 0, urgency: 'growth',
+    act: 'staff/upgradeStat', args: 'bestUpgrade', cost: 'arg', valueOf: 'arg', reason: 'upgrade' },
+  { key: 'quality', group: 'capital', licence: 'hr', zone: 'any', each: 'unit', metric: 'mistakes', op: '>=', value: GM.value.qualityMistakes, and: [['qualityBest', '>', 0]], urgency: 'cosmetic',
+    act: 'staff/upgradeStat', args: 'bestQuality', cost: 'arg', valueOf: 'arg', reason: 'quality' },
+  { key: 'autoCharge', group: 'capital', licence: 'hr', zone: 'any', each: 'robot', metric: 'recharges', op: '>=', value: GM.planRules.softRepeats, and: [['canCharge', '==', true]], urgency: 'growth',
+    act: 'staff/buySoftware', pack: 'autoCharge', args: 'software', cost: 'arg', valueOf: 'arg', reason: 'robotSoftCharge' },
+  { key: 'autoUnjam', group: 'capital', licence: 'hr', zone: 'any', each: 'robot', metric: 'jams', op: '>=', value: GM.planRules.softRepeats, and: [['canUnjam', '==', true]], urgency: 'growth',
+    act: 'staff/buySoftware', pack: 'autoUnjam', args: 'software', cost: 'arg', valueOf: 'arg', reason: 'robotSoftJam' },
+  { key: 'promote', group: 'capital', licence: 'hr', zone: 'any', each: 'worker', metric: 'canPromote', op: '==', value: true, urgency: 'growth',
+    act: 'staff/promote', args: 'promote', cost: 'none', valueOf: 'contrib', reason: 'promote' },
+  { key: 'fire', group: 'capital', licence: 'hr', zone: 'any', each: 'worker', metric: 'gradeD2', op: '==', value: true, urgency: 'cosmetic', kind: 'staffGrowth',
+    act: 'staff/fire', args: 'unit', cost: 'none', valueOf: 'none', reason: 'fireD' },
+  { key: 'train', group: 'capital', licence: 'hr', zone: 'any', metric: 'trainDue', op: '==', value: true, urgency: 'growth', kind: 'staffGrowth',
+    act: 'gm/train', args: 'train', cost: 'arg', valueOf: 'arg', reason: 'train' },
+  // land and buildings (Đất & xây)
+  { key: 'landBuy', group: 'capital', licence: 'land', zone: 'farm', metric: 'landBuyOk', op: '==', value: true, urgency: 'growth', kind: 'land',
+    act: 'land/buyParcel', args: 'landBuy', cost: 'arg', valueOf: 'arg', reason: 'landBuy' },
+  { key: 'landSell', group: 'capital', licence: 'land', zone: 'farm', metric: 'landSellOk', op: '==', value: true, urgency: 'cosmetic', kind: 'land',
+    act: 'land/sell', args: 'landSell', cost: 'none', valueOf: 'arg', reason: 'landSell' },
+  { key: 'buildUp', group: 'capital', licence: 'land', zone: 'farm', metric: 'buildUpOk', op: '==', value: true, urgency: 'growth', kind: 'land',
+    act: 'build/upgrade', args: 'buildUp', cost: 'arg', valueOf: 'arg', reason: 'buildUp' },
+  // credit (Tín dụng) and the real-money proposal (always a task, the player pays)
+  { key: 'repay', group: 'capital', licence: 'credit', zone: 'any', metric: 'repayRoom', op: '>', value: 0, urgency: 'cosmetic', kind: 'loan',
+    act: 'loan/repay', args: 'repay', cost: 'arg', valueOf: 'none', reason: 'repay' },
+  { key: 'topUp', group: 'capital', licence: 'topUp', zone: 'any', metric: 'topUpDue', op: '==', value: true, urgency: 'cosmetic', kind: 'topUp',
+    act: 'gm/topUpSeen', args: 'none', cost: 'none', valueOf: 'none', reason: 'topUp' },
+];
