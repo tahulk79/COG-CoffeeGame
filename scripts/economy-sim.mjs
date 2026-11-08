@@ -377,8 +377,12 @@ export function runSim(minutes = 60, { game = 'both', process = true, tap, perso
         if (D.zoneUnits(s, zone).length < teamSize && D.freeSlots(s, zone) > 0 && !D.staffError(s, wT) && s.player.coins - D.hireCost(s, wT) >= reserve()) act('staff/hire', { type: wT });
         continue;
       }
-      if (streak[zone] < 2 || savingForGm() || D.freeSlots(s, zone) <= 0 || D.zoneUnits(s, zone).length >= maxUnits) continue;
       const [wT, rT] = zone === 'farm' ? ['farmhand', 'sproutBot'] : ['barista', 'brewBot'];
+      // a real player hires a first helper as soon as the money allows (from Lv3), backlog or not (balance pass
+      // 2026-11-08: without it the Lv3 running-cost gate had no roster to measure)
+      if (!D.zoneUnits(s, zone).length && D.level(s) >= 3 && !savingForGm() && D.freeSlots(s, zone) > 0 && !D.staffError(s, wT)
+        && s.player.coins - D.hireCost(s, wT) >= reserve()) { act('staff/hire', { type: wT }); continue; }
+      if (streak[zone] < 2 || savingForGm() || D.freeSlots(s, zone) <= 0 || D.zoneUnits(s, zone).length >= maxUnits) continue;
       const rb = fakeUnit(rT), wk = fakeUnit(wT);
       const robotPays = D.contrib(s, rb) - D.runCostPerMin(rb) >= D.contrib(s, wk);
       // a labour backlog comes before the savings goals (workshop, manager): only the replant reserve is kept
@@ -705,13 +709,15 @@ export function runGates({ runs = 10, gmSeeds = 10, quiet = false } = {}) {
     const g = long[`delegate:${game}`].gmStats;
     add('manager acts (delegate)', game, `${g.acts} acts, ${g.filed} filed`, '> 0', g.acts > 0, JSON.stringify(g.byKey || {}));
   }
-  // 6. GM net value: manager vs the same coins sunk without one, team capped at N units, region 2 (no wipe), 20 min
-  // from the hire; net = Δ net worth (netWorth: coins + assets at cost; fees, care, salary, fines lost). The sign is read on the 95 % interval of
-  // the mean over gmSeeds seeds: PASS only when the whole interval is on the right side of 0.
+  // 6. GM net value: manager vs the same coins sunk without one, team capped at N units, region 2 (no wipe), 40 min
+  // from the hire; net = Δ net worth (netWorth: coins + assets at cost; fees, care, salary, fines lost), read on the
+  // 95 % interval of the mean over gmSeeds seeds. Gate (founder, 2026-11-08): from 4 units the whole interval is > 0
+  // AND the manager pays back his fee + licences within GM_PAYBACK_MIN played minutes; at ≤ 2 units the row is
+  // informational (on the farm the manager's worth comes from growth decisions, so even a small team gains).
   const W = 40; // balance pass 2026-11-08: 40 played min (the throughput payback gate) and net WORTH, not cash: the
   // delegate reinvests every coin, so cash only showed the manager's proposals as spending, never as what they bought
   for (const game of games) for (const N of [2, 4, 6]) {
-    const diffs = [], levels = [];
+    const diffs = [], levels = [], capex = [];
     for (let i = 0; i < gmSeeds; i++) {
       const a = runSim(110, { game, persona: 'delegate', seed: 201 + i, teamSize: N, gm: true });
       const b = runSim(110, { game, persona: 'delegate', seed: 201 + i, teamSize: N, gm: 'sink' });
@@ -719,13 +725,14 @@ export function runGates({ runs = 10, gmSeeds = 10, quiet = false } = {}) {
       if (!ha || !hb) continue;
       const from = Math.max(ha.played, hb.played);
       const d = worthRate(a, from, W) - worthRate(b, from, W);
-      if (Number.isFinite(d)) { diffs.push(d); levels.push(ha.level); }
+      if (Number.isFinite(d)) { diffs.push(d); levels.push(ha.level); capex.push(GM.hireFeePerSkill * (a.state.gm.unit?.skill || 2) + (a.state.gm.licences || []).reduce((n, g) => n + D.licencePrice(g), 0)); }
     }
     say(`gm value ${game} N=${N}: ${diffs.map(d => d.toFixed(1)).join(', ')}`);
     const v = mean(diffs), h = ci95(diffs), lo = v - h, hi = v + h;
-    const want = N <= 2 ? hi < 0 : N >= 4 ? lo > 0 : true;
-    add('GM net value (< 0 at ≤ 2 units, > 0 at ≥ 4, R = 1)', `${game} N=${N}`, `${Number.isFinite(v) ? v.toFixed(1) : 'n/a'} ± ${Number.isFinite(h) ? h.toFixed(1) : '?'}`, N <= 2 ? '< 0' : '> 0', Number.isFinite(lo) && want,
-      `${diffs.length} seeds, 95 % CI [${lo.toFixed(1)}, ${hi.toFixed(1)}] coins/min (Δ net worth); hire Lv ${[...new Set(levels)].join('/')}; window ${W} played min from the region-2 hire`);
+    const cap = mean(capex), payback = v > 0 ? cap / v : Infinity, GM_PAYBACK_MIN = 60;
+    const pass = N <= 2 ? null : Number.isFinite(lo) && lo > 0 && payback <= GM_PAYBACK_MIN;
+    add(`GM net value (> 0 from 4 units, fee + licences back ≤ 60 min, R = 1)`, `${game} N=${N}`, `${Number.isFinite(v) ? v.toFixed(1) : 'n/a'} ± ${Number.isFinite(h) ? h.toFixed(1) : '?'}`, N <= 2 ? 'info' : '> 0, ≤ 60', pass,
+      `${diffs.length} seeds, 95 % CI [${lo.toFixed(1)}, ${hi.toFixed(1)}] coins/min (Δ net worth); fee + licences ${Math.round(cap)} → back in ${Number.isFinite(payback) ? payback.toFixed(0) : '∞'} min; hire Lv ${[...new Set(levels)].join('/')}; window ${W} played min from the region-2 hire`);
   }
   return { rows, long };
 }

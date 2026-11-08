@@ -30,6 +30,9 @@ export const GATE = { x: 0, z: 23, radius: 2.5 };
 // The manager's desk (bàn điều hành, management-rules §6) by each zone's gate: farm = east side of the gate plaza,
 // café = east edge of the café block. He stands on the north side (stand.dz) facing the camera (south, +z).
 export const GM_DESK = { farm: { x: 3.8, z: 21.6, dz: -.75 }, shop: { x: 9.2, z: 110.8, dz: -.75 } };
+// The farm well (giếng nước): south-west edge of the gate plaza (the manager's desk is on the east side). Tending workers fill their
+// bucket here (draw = where they stand, on the plaza side facing the well) before watering (realm/staff.js).
+export const FARM_WELL = { x: -3.5, z: 25.3, draw: { x: -2.4, z: 24.8 } }; // south-west edge of the plaza, clear of the gate lantern (x −4.4, z 20.8)
 
 // Roads: rectangles, flush against the lots. `open: true` roads exist from the start; the others open when a lot that
 // lists them in `opensRoads` (or touches them) is bought (derive.roadOpen).

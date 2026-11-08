@@ -10,8 +10,8 @@
 // swaps the DOM when what it shows changed (never while a finger is down) and keeps each screen's scroll position.
 import { CROP_ORDER } from '../../core/config/economy.js';
 import { countryRecipes, SUPPLY, FARMLAB, methodKey } from '../../core/config/research.js';
-import { TASKS, PENALTY, HISTORY, GM, gmCandidatesFor, gmSalary, GEAR, gearTier, SOFTWARE, softwarePrice, hasSoftware, WARRANTY, PROFILE, CAREER, CRAFT, rankOf, craftLevel, STAFF, STAFF_ORDER, TRAITS, RECRUIT, ROBOT_TASKS, ROBOT_PARTS, PART_ORDER, PART_COST, WORKER_TASKS, TASK_LIMIT, SMART_RULES, QUALITY, TEND, MISTAKES, STAFF_BREAKS, SKILL, RARE, STAT_ORDER, LEVEL_STEP, VITALS, UPKEEP, RIVAL, BOOKS, ROBOT_WEAR, CARE, statOf, statCap, taskLimit, energyMax, unitLevel, mistakeChance, hasRule, batteryMinutes, slackMul, partTier, robotTask, heatPerMin, jamChance, isHardDrink } from '../../core/config/economy.js';
-import { region, regionGame, level, hireCap, hireCapReached, slots, activeCount, freeSlots, zoneUnits, staffError, freeHire, applicants, recruitError, poolRefreshIn, unitStars, unitOf, statError, statPrice, partError, partPrice, unitState, careCost, careError, quickFix, upkeepOf, upkeepPer, fireRefund, ledgerWindow, unitProfit, poachOf, canBrew, dayKey, lastDays, dayRow, dayKpis, daysSince, unitGrade, teamKpi, robotPayback, REPORT_PERIODS, SPEND_CATS, periodKeys, teamMoney, teamRanking, nextRank, promoteError, canPromote, rankHolder, tenureDays, tenureShiftDays, tenureMinLeft, robotRoom, wageArrears, gmQuitArrears, zoneLeaders, warrantyLeft, gearPrice, gearError, softwareError, tendPlots, gearStockOf, gmUnlocked, gmOf, gmBoard, gmBoardRefreshIn, gmPay, gmBudgetLeft, gmPlan, gmPermission, gmAdvisorOf, chaosOf, calmCost, chaosSlackMul, gmMood, followerWage, countryNow, recipeFound, contractOf, cropUnlocked, methodOf, trialsHere, buyerNow, gmPoachOf, gmRequests, gmLog, unitLog, teamJournal, gmCareWallet, gmCareWalletLeft, gmBacklog, gmWaiting, gmStrike, apologiseCost, gmBudgetCap, gmLicensed, licenceError, licencePrice, gmTrainCost, gmTrainError, gmHighValue, histRows } from '../../core/derive.js';
+import { TASKS, PENALTY, HISTORY, GM, gmCandidatesFor, gmSalary, GEAR, gearTier, SOFTWARE, softwarePrice, hasSoftware, WARRANTY, PROFILE, CAREER, CRAFT, rankOf, craftLevel, STAFF, STAFF_ORDER, TRAITS, RECRUIT, ROBOT_TASKS, ROBOT_PARTS, PART_ORDER, PART_COST, WORKER_TASKS, TASK_LIMIT, SMART_RULES, QUALITY, TEND, MISTAKES, STAFF_BREAKS, SKILL, RARE, STAT_ORDER, LEVEL_STEP, VITALS, UPKEEP, RIVAL, BOOKS, ROBOT_WEAR, CARE, statOf, statCap, taskLimit, energyMax, unitLevel, mistakeChance, hasRule, batteryMinutes, slackMul, partTier, robotTask, heatPerMin, jamChance, isHardDrink, UPGRADE_GATE } from '../../core/config/economy.js';
+import { region, regionGame, level, hireCap, hireCapReached, slots, activeCount, freeSlots, zoneUnits, staffError, freeHire, applicants, recruitError, poolRefreshIn, unitStars, unitOf, statError, statPrice, partError, partPrice, unitState, careCost, careError, quickFix, upkeepOf, upkeepPer, fireRefund, ledgerWindow, unitProfit, poachOf, canBrew, dayKey, lastDays, dayRow, dayKpis, daysSince, unitGrade, teamKpi, robotPayback, REPORT_PERIODS, SPEND_CATS, periodKeys, teamMoney, teamRanking, nextRank, promoteError, canPromote, rankHolder, tenureDays, tenureShiftDays, tenureMinLeft, robotRoom, wageArrears, gmQuitArrears, zoneLeaders, warrantyLeft, gearPrice, gearError, softwareError, tendPlots, gearStockOf, gmUnlocked, gmOf, gmBoard, gmBoardRefreshIn, gmPay, gmBudgetLeft, gmPlan, gmPermission, gmAdvisorOf, chaosOf, calmCost, chaosSlackMul, gmMood, followerWage, countryNow, recipeFound, contractOf, cropUnlocked, methodOf, trialsHere, buyerNow, gmPoachOf, gmRequests, gmLog, unitLog, teamJournal, gmCareWallet, gmCareWalletLeft, gmBacklog, gmWaiting, gmStrike, apologiseCost, gmBudgetCap, gmLicensed, licenceError, licencePrice, gmTrainCost, gmTrainError, gmHighValue, histRows, upgradeOptions, throughputShare } from '../../core/derive.js';
 import { sfx } from '../../shared/audio/index.js';
 import { h } from './dom.js';
 import { T, fmt, gmReasonText } from './text.js';
@@ -588,6 +588,19 @@ export function createStaffModal(ctx) {
     if (I.brew) return T('hud.g4.fx.kettle', { pct: Math.round((I.brew[t] - 1) * 100) });
     return T('hud.g4.fx.can', { n: TEND.plots + I.plots[t] });
   };
+  // Payback hint under an upgrade button (balance pass 2026-11-08): the planner's own value model (upgradeOptions:
+  // value per played minute, × the measured load share), so the player sees what the manager sees before paying.
+  // what = { stat } | { item } | { part }; null = no hint (a quality step: its worth is fewer mistakes, not coins).
+  function paybackHint(s, u, what, err = null) {
+    if (err && err !== 'coins') return null; // locked for another reason (points, level, cap): no verdict on its worth
+    const k = Object.keys(what)[0], o = upgradeOptions(s, u).find(x => x.what && x.what[k] === what[k]);
+    if (o?.quality) return null;
+    if (!o) return h('small', { class: 'hud-sm-payback is-low' }, T('hud.sm.notWorth'));
+    const min = Math.round(o.payback);
+    return h('small', { class: `hud-sm-payback${min > UPGRADE_GATE.latePaybackMin ? ' is-low' : ''}` }, T('hud.sm.payback', { min: fmt(min) }));
+  }
+  // Café with more hands than walk-ins: say so once, above the stat / gear rows.
+  const notStaffBound = (s, u) => (STAFF[u.type]?.zone === 'shop' && throughputShare(s, u) === 0 ? h('p', { class: 'hud-sm-warn' }, T('hud.sm.notStaffBound')) : null);
   function gearBlock(s, u) {
     const rows = (GEAR.zone[STAFF[u.type].zone] || []).map(item => {
       const t = gearTier(u, item), err = gearError(s, u, item), price = gearPrice(u, item);
@@ -596,7 +609,7 @@ export function createStaffModal(ctx) {
         : actionButton({ label: T('hud.g4.buy'), icon: '🛒', cost: price, tone: 'plain', disabled: err === 'coins', note: err === 'coins' ? needMore(price - s.player.coins) : null,
           onClick: () => { const r = act('staff/buyGear', { uid: u.uid, item }); if (r.ok) sfx('coin.spend'); } });
       return h('div', { class: 'hud-sm-part' },
-        h('span', { class: 'hud-sm-part-text' }, h('strong', null, `${GEAR.items[item].icon} ${T(`hud.g4.item.${item}`)} · ${t}/${GEAR.maxTier}`), h('small', null, fx)), btn);
+        h('span', { class: 'hud-sm-part-text' }, h('strong', null, `${GEAR.items[item].icon} ${T(`hud.g4.item.${item}`)} · ${t}/${GEAR.maxTier}`), h('small', null, fx), t < GEAR.maxTier ? paybackHint(s, u, { item }, err) : null), btn);
     });
     // The store: gear left by workers you let go, free to hand to this one (only pieces better than what it wears).
     const stock = gearStockOf(s, STAFF[u.type].zone);
@@ -994,6 +1007,7 @@ export function createStaffModal(ctx) {
       h('p', { class: 'hud-sm-points' }, T('hud.sm.points', { n: points }), ' · ', T('hud.sm.xp', { n: xp, need: SKILL.xpPerPoint })),
       h('div', { class: 'hud-xpbar', attrs: { role: 'progressbar', 'aria-label': T('hud.sm.xpAria'), 'aria-valuemin': '0', 'aria-valuemax': String(SKILL.xpPerPoint), 'aria-valuenow': String(xp) } },
         h('span', { style: { width: `${Math.round(xp / SKILL.xpPerPoint * 100)}%` } })),
+      notStaffBound(s, u),
       h('div', { class: 'hud-sm-stats' }, rows));
   }
   function statRow(s, u, stat, zone) {
@@ -1009,6 +1023,7 @@ export function createStaffModal(ctx) {
     return h('div', { class: 'hud-sm-stat' },
       h('div', { class: 'hud-sm-stat-top' }, h('strong', null, `${STAT_ICON[stat]} ${T(`hud.stat.${stat}`)}`), pips, h('span', { class: 'hud-sm-stat-n' }, `${n}/${SKILL.maxStat}`)),
       h('small', { class: 'hud-sm-stat-next' }, n >= SKILL.maxStat ? T(`hud.sm.statTop.${stat}`) : T('hud.sm.next', { text: statGain(u, stat, n + 1, zone) })),
+      n < SKILL.maxStat ? paybackHint(s, u, { stat }, err) : null,
       foot);
   }
   /** What raising `stat` to `to` gives (from config). */
@@ -1041,7 +1056,7 @@ export function createStaffModal(ctx) {
         : actionButton({ label: T('hud.staff.upgrade'), icon: '⬆️', cost, tone: 'plain', disabled: err === 'coins', note: err === 'coins' ? needMore(cost - s.player.coins) : null,
           onClick: () => { const r = act('staff/upgradePart', { uid: u.uid, part }); if (r.ok) sfx('reward.levelup'); } });
       return h('div', { class: 'hud-sm-part' },
-        h('span', { class: 'hud-sm-part-text' }, h('strong', null, `${ROBOT_PARTS[part].icon} ${T(`hud.staff.part.${part}`)} · ${tier}/${PART_COST.maxTier}`), h('small', null, fx)), btn);
+        h('span', { class: 'hud-sm-part-text' }, h('strong', null, `${ROBOT_PARTS[part].icon} ${T(`hud.staff.part.${part}`)} · ${tier}/${PART_COST.maxTier}`), h('small', null, fx), max ? null : paybackHint(s, u, { part }, err)), btn);
     });
     return section('hud.staff.parts', h('p', { class: 'hud-sub' }, T('hud.pf.partsNote')), h('p', { class: 'hud-sub' }, T('hud.staff.quality', { stars: '⭐' }), ' · ', T('hud.staff.noHard')), ...parts);
   }
