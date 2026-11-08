@@ -266,7 +266,7 @@ export function runSim(minutes = 60, { game = 'both', process = true, tap, perso
       .sort((a, b) => (!!BUILDINGS[b.type].recipe - !!BUILDINGS[a.type].recipe) || (D.upgradeCost(a.type, a.level) ?? 1e12) - (D.upgradeCost(b.type, b.level) ?? 1e12));
     for (const b of list) { const c = D.upgradeCost(b.type, b.level); if (c != null && canSpend(c) && act('build/upgrade', { uid: b.uid })) return true; }
     if (managed) return false; // the delegate hires by the §3.7 rule (hireCheck), not "whenever coins allow"
-    for (const t of ['farmhand', 'barista', 'sproutBot', 'brewBot']) {
+    for (const t of ['picker', 'barista', 'harvestBot', 'brewBot']) {
       const zone = STAFF[t].zone;
       if ((zone === 'farm' && !playsFarm) || (zone === 'shop' && !playsCafe)) continue;
       if (D.freeSlots(s, zone) > 0 && canSpend(STAFF[t].cost) && act('staff/hire', { type: t })) return true;
@@ -380,11 +380,11 @@ export function runSim(minutes = 60, { game = 'both', process = true, tap, perso
       streak[zone] = backlog >= 3 ? streak[zone] + 1 : 0;
       // teamSize: the GM-value experiment keeps the team at exactly N workers (hired first, before any saving)
       if (teamSize > 0) {
-        const wT = teamRobots && !D.staffError(s, zone === 'farm' ? 'sproutBot' : 'brewBot') ? (zone === 'farm' ? 'sproutBot' : 'brewBot') : zone === 'farm' ? 'farmhand' : 'barista';
+        const wT = teamRobots && !D.staffError(s, zone === 'farm' ? 'harvestBot' : 'brewBot') ? (zone === 'farm' ? 'harvestBot' : 'brewBot') : zone === 'farm' ? 'picker' : 'barista';
         if (D.zoneUnits(s, zone).length < teamSize && D.freeSlots(s, zone) > 0 && !D.staffError(s, wT) && s.player.coins - D.hireCost(s, wT) >= reserve()) act('staff/hire', { type: wT });
         continue;
       }
-      const [wT, rT] = zone === 'farm' ? ['farmhand', 'sproutBot'] : ['barista', 'brewBot'];
+      const [wT, rT] = zone === 'farm' ? ['picker', 'harvestBot'] : ['barista', 'brewBot'];
       // a real player hires a first helper as soon as the money allows (from Lv3), backlog or not (balance pass
       // 2026-11-08: without it the Lv3 running-cost gate had no roster to measure)
       if (!D.zoneUnits(s, zone).length && D.level(s) >= 3 && !savingForGm() && D.freeSlots(s, zone) > 0 && !D.staffError(s, wT)

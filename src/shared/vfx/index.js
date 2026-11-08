@@ -39,8 +39,15 @@ const KINDS = {
   leaf: { color: 0x8fae6b, shape: 'leaf', count: 8, life: 1, speed: 1.4, up: 1.8, gravity: -2.2, size: .2, drag: 2 },
   granule: { color: 0x6b4428, shape: 'dot', count: 14, life: .6, speed: 1.4, up: 2.2, gravity: -8, size: .1 },
   cherry: { color: 0xc4473a, shape: 'dot', count: 10, life: .7, speed: 1.5, up: 2.6, gravity: -8, size: .16 },
-  dust: { color: 0xcdb48c, shape: 'soft', count: 8, life: 1.1, speed: .7, up: .3, gravity: .25, size: .34, grow: 1, drag: 1.5 },
-  steam: { color: 0xf3ead8, shape: 'soft', count: 6, life: 1.2, speed: .2, up: .7, gravity: .5, size: .26, grow: 1.4, drag: 1 },
+  dust: { color: 0xb89b74, shape: 'smoke', count: 8, life: 1.5, speed: .8, up: .35, gravity: .2, size: .55, grow: 1.7, drag: 1.5, alpha: .5, spin: 1, wind: .3 },
+  steam: { color: 0xf0ece4, shape: 'smoke', count: 6, life: 1.8, speed: .2, up: .8, gravity: .45, size: .34, grow: 2, drag: 1, alpha: .42, spin: 1, wind: .45 },
+  smoke: { color: 0x7a746b, shape: 'smoke', count: 6, life: 3.6, speed: .16, up: 1.05, gravity: .1, size: .6, grow: 2.8, drag: .5, alpha: .46, spin: .7, wind: .6 },
+  spark: { color: 0xffb25e, shape: 'dot', count: 4, life: .35, speed: 3, up: 3.2, gravity: -14, size: .07, additive: true },
+  chip: { color: 0x9a7548, shape: 'leaf', count: 4, life: .65, speed: 2, up: 3, gravity: -11, size: .13, spin: 9 },
+  splash: { color: 0xc3e2ec, shape: 'drop', count: 10, life: .45, speed: 1.4, up: 2.5, gravity: -11, size: .09 },
+  mist: { color: 0xe3eff3, shape: 'smoke', count: 5, life: .9, speed: .5, up: .25, gravity: .05, size: .36, grow: 2, drag: 2, alpha: .36, spin: 1 },
+  mote: { color: 0xfff2c4, shape: 'soft', count: 1, life: 6, speed: .14, up: .05, gravity: .015, size: .07, additive: true, alpha: .75, wind: .25, sway: .25 },
+  fallLeaf: { color: 0x83994a, shape: 'leaf', count: 1, life: 8, speed: .35, up: -1, gravity: 0, size: .17, alpha: .95, spin: 2.4, wind: .55, sway: 1.1 },
   sparkle: { color: 0xffe39a, shape: 'star', count: 10, life: .7, speed: 1.3, up: 1.1, gravity: 0, size: .22, drag: 2.5, additive: true },
   coin: { color: 0xf2c14e, shape: 'coin', count: 8, life: .8, speed: 1.6, up: 3, gravity: -7, size: .2 },
   puff: { color: 0xc4473a, shape: 'soft', count: 8, life: .5, speed: 1.1, up: .4, gravity: .3, size: .28, grow: 1.2, drag: 3 },
@@ -55,6 +62,15 @@ function drawTexture(shape) {
     const grad = g.createRadialGradient(0, 0, 0, 0, 0, 30);
     grad.addColorStop(0, 'rgba(255,255,255,1)'); grad.addColorStop(1, 'rgba(255,255,255,0)');
     g.fillStyle = grad; g.fillRect(-32, -32, 64, 64);
+  } else if (shape === 'smoke') {
+    // A puff built from overlapping blobs: lighter on top, darker underneath, so it reads as a volume in sunlight.
+    canvas.width = canvas.height = 128; const c2 = canvas.getContext('2d'); c2.translate(64, 64);
+    for (let i = 0; i < 46; i++) {
+      const a = Math.random() * Math.PI * 2, d = Math.pow(Math.random(), .7) * 36, x = Math.cos(a) * d, y = Math.sin(a) * d, r = 12 + Math.random() * 16;
+      const v = Math.round(182 - y * 1.7), blob = c2.createRadialGradient(x, y, 0, x, y, r);
+      blob.addColorStop(0, `rgba(${v},${v},${v},.3)`); blob.addColorStop(1, `rgba(${v},${v},${v},0)`);
+      c2.fillStyle = blob; c2.fillRect(-64, -64, 128, 128);
+    }
   } else if (shape === 'drop') {
     g.beginPath(); g.moveTo(0, -26); g.bezierCurveTo(16, -4, 18, 20, 0, 24); g.bezierCurveTo(-18, 20, -16, -4, 0, -26); g.fill();
   } else if (shape === 'leaf') {
@@ -76,19 +92,20 @@ function drawTexture(shape) {
 }
 
 const VERTEX = `
-attribute float size; attribute float alpha; attribute vec3 tint;
-uniform float halfHeight; varying float vAlpha; varying vec3 vTint;
+attribute float size; attribute float alpha; attribute vec3 tint; attribute float spin;
+uniform float halfHeight; varying float vAlpha; varying vec3 vTint; varying float vSpin;
 void main() {
   vec4 mv = modelViewMatrix * vec4(position, 1.0);
   gl_Position = projectionMatrix * mv;
   float depth = projectionMatrix[2][3] == -1.0 ? -mv.z : 1.0; // phối cảnh chia theo độ sâu, trực giao thì không
   gl_PointSize = size * projectionMatrix[1][1] * halfHeight / depth;
-  vAlpha = alpha; vTint = tint;
+  vAlpha = alpha; vTint = tint; vSpin = spin;
 }`;
 const FRAGMENT = `
-uniform sampler2D map; varying float vAlpha; varying vec3 vTint;
+uniform sampler2D map; varying float vAlpha; varying vec3 vTint; varying float vSpin;
 void main() {
-  vec4 t = texture2D(map, gl_PointCoord);
+  vec2 c = gl_PointCoord - .5; float cs = cos(vSpin), sn = sin(vSpin);
+  vec4 t = texture2D(map, vec2(c.x * cs - c.y * sn, c.x * sn + c.y * cs) + .5);
   float a = t.a * vAlpha; if (a < .02) discard;
   gl_FragColor = vec4(vTint * t.rgb, a);
 }`;
@@ -101,7 +118,7 @@ export function createVfx({ scene }) { // camera trong spec chưa cần: kích t
   for (const [kind, def] of Object.entries(KINDS)) {
     const geometry = new THREE.BufferGeometry();
     const attr = (name, n) => { const a = new THREE.BufferAttribute(new Float32Array(POOL * n), n); a.setUsage(THREE.DynamicDrawUsage); geometry.setAttribute(name, a); return a; };
-    const position = attr('position', 3), tint = attr('tint', 3), size = attr('size', 1), alpha = attr('alpha', 1);
+    const position = attr('position', 3), tint = attr('tint', 3), size = attr('size', 1), alpha = attr('alpha', 1), spin = attr('spin', 1);
     geometry.setDrawRange(0, 0);
     const material = new THREE.ShaderMaterial({
       uniforms: { map: { value: drawTexture(def.shape) }, halfHeight: { value: 400 } },
@@ -112,18 +129,18 @@ export function createVfx({ scene }) { // camera trong spec chưa cần: kích t
     points.frustumCulled = false; points.visible = false; points.renderOrder = 10;
     points.onBeforeRender = renderer => { material.uniforms.halfHeight.value = renderer.getDrawingBufferSize(bufferSize).y / 2; };
     scene.add(points);
-    pools[kind] = { def, points, geometry, material, position, tint, size, alpha, n: 0,
+    pools[kind] = { def, points, geometry, material, position, tint, size, alpha, spin, n: 0, spinRate: new Float32Array(POOL),
       velocity: new Float32Array(POOL * 3), age: new Float32Array(POOL), life: new Float32Array(POOL), base: new Float32Array(POOL) };
   }
 
-  function spawn(kind, pos, color, burstMode) {
+  function spawn(kind, pos, color, burstMode, spread = .15) {
     const p = pools[kind], d = p.def;
     if (p.n >= POOL || live >= QUALITY[quality].particles) return false;
     const i = p.n++, i3 = i * 3; live++;
     const angle = Math.random() * Math.PI * 2, speed = d.speed * (burstMode ? .4 + Math.random() * .6 : .3 + Math.random() * .4);
-    p.position.array[i3] = pos.x + (Math.random() - .5) * .15;
+    p.position.array[i3] = pos.x + (Math.random() - .5) * spread;
     p.position.array[i3 + 1] = pos.y + Math.random() * .08;
-    p.position.array[i3 + 2] = pos.z + (Math.random() - .5) * .15;
+    p.position.array[i3 + 2] = pos.z + (Math.random() - .5) * spread;
     p.velocity[i3] = Math.cos(angle) * speed;
     p.velocity[i3 + 1] = d.up * (.6 + Math.random() * .4);
     p.velocity[i3 + 2] = Math.sin(angle) * speed;
@@ -131,6 +148,7 @@ export function createVfx({ scene }) { // camera trong spec chưa cần: kích t
     tmpColor.set(color ?? d.color).multiplyScalar(.9 + Math.random() * .2);
     p.tint.array[i3] = tmpColor.r; p.tint.array[i3 + 1] = tmpColor.g; p.tint.array[i3 + 2] = tmpColor.b;
     p.size.array[i] = p.base[i]; p.alpha.array[i] = 0;
+    p.spin.array[i] = Math.random() * Math.PI * 2; p.spinRate[i] = (d.spin || 0) * (Math.random() - .5) * 2;
     return true;
   }
 
@@ -140,8 +158,8 @@ export function createVfx({ scene }) { // camera trong spec chưa cần: kích t
     for (let i = 0; i < n && spawn(kind, pos, color, true); i++);
   }
 
-  function emitter(kind, pos, { rate = 8, duration = Infinity } = {}) {
-    const state = { kind, pos: { x: pos.x, y: pos.y, z: pos.z }, rate, remaining: duration, carry: 0 };
+  function emitter(kind, pos, { rate = 8, duration = Infinity, spread = .15 } = {}) {
+    const state = { kind, pos: { x: pos.x, y: pos.y, z: pos.z }, rate, remaining: duration, carry: 0, spread };
     if (pools[kind]) emitters.add(state);
     return {
       move(next) { state.pos.x = next.x; state.pos.y = next.y; state.pos.z = next.z; },
@@ -195,7 +213,7 @@ export function createVfx({ scene }) { // camera trong spec chưa cần: kích t
     if (!(dt > 0)) return;
     const emitScale = QUALITY[quality].emitter * (reducedMotion() ? .5 : 1);
     for (const e of emitters) {
-      if (emitScale) { e.carry += e.rate * emitScale * dt; while (e.carry >= 1) { e.carry--; spawn(e.kind, e.pos, null, false); } }
+      if (emitScale) { e.carry += e.rate * emitScale * dt; while (e.carry >= 1) { e.carry--; spawn(e.kind, e.pos, null, false, e.spread); } }
       e.remaining -= dt; if (e.remaining <= 0) emitters.delete(e);
     }
     for (const kind in pools) {
@@ -209,17 +227,20 @@ export function createVfx({ scene }) { // camera trong spec chưa cần: kích t
           // Đổi chỗ với hạt cuối để vùng sống luôn liền mạch [0, n).
           const last = --p.n, i3 = i * 3, l3 = last * 3; live--;
           for (let k = 0; k < 3; k++) { pos[i3 + k] = pos[l3 + k]; v[i3 + k] = v[l3 + k]; tint[i3 + k] = tint[l3 + k]; }
-          p.age[i] = p.age[last]; p.life[i] = p.life[last]; p.base[i] = p.base[last];
+          p.age[i] = p.age[last]; p.life[i] = p.life[last]; p.base[i] = p.base[last]; p.spin.array[i] = p.spin.array[last]; p.spinRate[i] = p.spinRate[last];
           i--; continue;
         }
         const i3 = i * 3, t = p.age[i] / p.life[i];
         v[i3] *= drag; v[i3 + 2] *= drag; v[i3 + 1] = v[i3 + 1] * drag + d.gravity * dt;
+        if (d.wind) v[i3] += d.wind * dt;
+        if (d.sway) pos[i3 + 2] += Math.sin(p.age[i] * 2.3 + i) * d.sway * dt;
+        p.spin.array[i] += p.spinRate[i] * dt;
         pos[i3] += v[i3] * dt; pos[i3 + 1] += v[i3 + 1] * dt; pos[i3 + 2] += v[i3 + 2] * dt;
         size[i] = p.base[i] * (1 + (d.grow || 0) * t);
-        alpha[i] = Math.min(1, t * 10, (1 - t) * 2.5);
+        alpha[i] = Math.min(1, t * 10, d.shape === 'smoke' ? Math.pow(1 - t, 1.4) * 1.6 : (1 - t) * 2.5) * (d.alpha ?? 1);
       }
       p.geometry.setDrawRange(0, p.n); p.points.visible = p.n > 0;
-      if (p.n) for (const a of [p.position, p.tint, p.size, p.alpha]) { a.clearUpdateRanges?.(); a.addUpdateRange?.(0, p.n * a.itemSize); a.needsUpdate = true; }
+      if (p.n) for (const a of [p.position, p.tint, p.size, p.alpha, p.spin]) { a.clearUpdateRanges?.(); a.addUpdateRange?.(0, p.n * a.itemSize); a.needsUpdate = true; }
     }
     for (const [object, p] of pulses) {
       p.t += dt * 1000;

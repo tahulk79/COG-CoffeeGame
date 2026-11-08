@@ -230,7 +230,7 @@ export const timerDue = (u, now) => (Number.isFinite(u?.breakUntil) && now >= u.
  * spot, idles), 'sit' (lunch, or exhausted at 0 energy), 'sulk' (stands still, turned away), 'stand' (another blocking
  * need, e.g. starving), 'work' (ok / hungry / tired: works, slower).
  */
-export const STOP_STATES = ['phone', 'battery', 'overheat', 'jam'];
+export const STOP_STATES = ['funny', 'phone', 'battery', 'overheat', 'jam'];
 export function poseOf(state, bench, blocked, energy = 100) {
   if (STOP_STATES.includes(state)) return 'stop';
   if (bench) return 'bench';

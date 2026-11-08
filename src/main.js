@@ -5,7 +5,8 @@ import { applyI18n, t } from './i18n/index.js';
 
 // Dịch HTML tĩnh trước khi hiện màn tải (docs/design/godbean-gdd.md §13.6).
 applyI18n();
-document.title = `God Bean: ${t('html.tagline')}`;
+document.documentElement.classList.add('i18n-ready');
+document.title = `GodBean: ${t('html.tagline')}`;
 
 // Input modality for focus rings: keyboard navigation shows them, taps / clicks never do (index.html CSS).
 const root = document.documentElement;

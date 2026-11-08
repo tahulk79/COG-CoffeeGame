@@ -15,7 +15,7 @@ import * as THREE from 'three';
 import { REGIONS as OUTLINES } from '../world-map/content.js';
 import { project } from '../world-map/geo.js';
 import { buildTerrain, DEEP } from '../world-map/terrain.js';
-import { COUNTRIES, COUNTRY_ORDER, DEFAULT_COUNTRY, parseRegionId, countryGames, cityOf } from '../../core/config/world.js';
+import { COUNTRIES, COUNTRY_ORDER, DEFAULT_COUNTRY, parseRegionId, countryGames, cityOf, CAFE_ENABLED } from '../../core/config/world.js';
 import { regionAccess, regionsOfCountry, ownsRegion } from '../../core/derive.js';
 import { EXPIRY_LEVEL } from '../../core/config/economy.js';
 import { disposeScene } from '../../shared/three/dispose-scene.js';
@@ -191,7 +191,7 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
     const info = el('div', 'atlas-region-info');
     info.append(el('strong', 'atlas-region-name', t(`regionName.${regionId}`)));
     // What this city can be played as: 🌱 farm, ☕ café, or both (Kunming farms while the rest of China is café-only).
-    const games = cityOf(regionId).games;
+    const games = cityOf(regionId).games; // all the city is meant to offer: the café stays visible, marked as updating
     // Played already: show the game it was opened as (it stays that game); otherwise the games it offers.
     if (saved?.mode) info.append(el('span', `atlas-chip is-games is-chosen is-${saved.mode}`, `${GAME_ICON[saved.mode]} ${t(`atlas.play.${saved.mode}`)}`));
     else if (saved) info.append(el('span', 'atlas-chip is-games', games.map(g => GAME_ICON[g]).join(''))); // new cities: the buttons say it
@@ -205,8 +205,9 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
       const wrap = el('div', 'atlas-actions');
       for (const g of games) {
         // Two lines: "🌱 Farm" + what you do there ("Grow & sell beans").
-        const b = button('', `${cls} atlas-enter atlas-game is-${g}${hint ? ' is-hint' : ''}`, () => onPick(g));
-        b.append(el('span', 'atlas-game-ico', GAME_ICON[g]), el('span', 'atlas-game-title', t(`atlas.play.${g}`)));
+        const off = g === 'cafe' && !CAFE_ENABLED;
+        const b = button('', `${cls} atlas-enter atlas-game is-${g}${hint ? ' is-hint' : ''}${off ? ' is-updating' : ''}`, () => onPick(g));
+        b.append(el('span', 'atlas-game-ico', GAME_ICON[g]), el('span', 'atlas-game-title', off ? t('atlas.updating') : t(`atlas.play.${g}`)));
         b.setAttribute('aria-label', `${t(`atlas.play.${g}`)} · ${t(`atlas.play.${g}Sub`)} · ${t(`regionName.${regionId}`)}`);
         wrap.append(b);
       }
@@ -271,7 +272,11 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
     for (const regionId of cities) list.append(regionRow(regionId));
     sheet.append(list);
   }
+  // The café game is switched off for now: say so instead of opening it.
+  const cafeOff = (regionId, game) => !CAFE_ENABLED && (game === 'cafe' || (!game && state().world.regions[regionId]?.mode === 'cafe'));
+  function updating() { sfx('ui.deny'); toast(`☕ ${t('atlas.cafeUpdating')}`, 'info'); }
   function enter(regionId, game = null) {
+    if (cafeOff(regionId, game)) { updating(); return; }
     const result = store.dispatch('world/enterRegion', { regionId, game });
     if (!result.ok) { sfx('ui.deny'); toast(atlasErrorText(result), 'bad'); return; }
     sfx('ui.buy');
@@ -279,6 +284,7 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
   }
   // Free openings go straight in; paid ones ask a small confirm card (title + price) first.
   function ask(regionId, game = null) {
+    if (cafeOff(regionId, game)) { updating(); return; }
     const access = regionAccess(state(), regionId);
     if (access.reason !== 'locked') { enter(regionId, game); return; }
     if (!access.affordable) { sfx('ui.deny'); toast(atlasErrorText({ error: 'coins', data: { missing: access.missing } }), 'bad'); return; }

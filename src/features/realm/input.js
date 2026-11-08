@@ -47,6 +47,9 @@ export function createInput(canvas, handlers, isLocked) {
   canvas.addEventListener('pointermove', e => {
     const pt = pointers.get(e.pointerId);
     if (!pt) return;
+    // A mouse that moves with no button held has let go without us hearing (a context menu, a window switch swallowed the
+    // pointerup): end the gesture now, or whatever was being dragged (the placement ghost, the map) keeps following the cursor.
+    if (e.pointerType === 'mouse' && e.buttons === 0) { up({ pointerId: e.pointerId, clientX: e.clientX, clientY: e.clientY, type: 'pointercancel' }); return; }
     if (isLocked()) { cancel(); return; }
     pt.x = e.clientX; pt.y = e.clientY;
     if (pinching) {

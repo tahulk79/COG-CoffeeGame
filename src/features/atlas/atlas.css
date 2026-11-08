@@ -89,3 +89,5 @@
 .atlas-region-vibe{flex-basis:100%;color:var(--ui-ink-soft);font:600 12px/1.35 var(--game-font)}
 .atlas-chip.is-games{background:#d9f0b8;color:#3e6a1e}
 .atlas-pin-games{padding:1px 5px;border-radius:999px;background:#ffffffc0;font-size:12px;letter-spacing:1px}
+.atlas-game.is-updating{opacity:.62;filter:grayscale(.45)}
+

@@ -2,12 +2,13 @@
 // Venue card ({ kind: 'venue', venue }, docs/design/cafe-street.md §3.8): a street shop — icon, name, pitch, menu with
 // prices; locked → level gate or "Open X 🪙cost" (shop/openVenue; a 2nd tap after paying is a core noop); open →
 // ⭐ rating (+ review count), sold this session (ctx.venueSold, counted in feedback.js) and "Go to X" (realm.focusShop).
-import { BUILDINGS, CROPS, GOODS, GOOD_ORDER, VENUES, VENUE_ITEMS, PERENNIAL } from '../../core/config/economy.js';
-import { PARCELS, lotAllows, terrainOfLot, climateOfLot } from '../../core/config/layout.js';
-import { climateOfPlot, climateFit, beanMix, sellQuote, plotGrowMs as plotGrowMsOf, treeAge, treeOld, pruneCost, region, plotOf, plotState, upgradeCost, upgradeError, levelCap, parcelError, seedCost, capacity, stored, goodCount, seatCount, seatsUsed, venueError, venueOpen, venueRating, venueReviews, venueItems,
-  removeError, removeRefund, wellBonus, recipeIO, jobState, prodError, missingInput, collectError, countOf, maxCount, buildCost, buildError, nextLimitLevel, tileAt } from '../../core/derive.js';
+import { BUILDINGS, BARN_ANIMALS, CROPS, GOODS, GOOD_ORDER, VENUES, VENUE_ITEMS, PERENNIAL , GARDEN } from '../../core/config/economy.js';
+import { PARCELS, lotAllows, terrainOfLot, climateOfLot, estateOfLot, ESTATE_FIELDS } from '../../core/config/layout.js';
+import { beanPrice, buyerNow, treeHealth, unlockedCrops, nextEstate, parcelCost, climateOfPlot, climateFit, beanMix, sellQuote, plotGrowMs as plotGrowMsOf, treeAge, treeOld, pruneCost, region, plotOf, plotState, upgradeCost, upgradeError, levelCap, parcelError, seedCost, capacity, stored, goodCount, seatCount, seatsUsed, venueError, venueOpen, venueRating, venueReviews, venueItems,
+  removeError, removeRefund, wellBonus, recipeIOFor, jobState, prodError, missingInput, collectError, countOf, maxCount, buildCost, buildError, housingOf, nextLimitLevel, tileAt , gardenOf } from '../../core/derive.js';
 import { newTxId } from '../../core/store.js';
 import { h, setText } from './dom.js';
+import { modelIcon } from './model-icons.js';
 import { T, clock, fmt, has, duration, errorText } from './text.js';
 import { buildingEffect } from './effects.js';
 import { actionButton, coinAmount, lockTag, needMore } from './widgets.js';
@@ -75,9 +76,9 @@ export function createActionBar(ctx) {
         const rmErr = removeError(s, target.id);
         const zone = climateOfPlot(s, target.id), pl = region(s).plots[target.id];
         const drop = st.crop && CROPS[st.crop].drop, ripeFor = st.stage === 'ready' && pl ? Math.floor((now - pl.plantedAt) / 1000) - Math.round(plotGrowMsOf(s, pl, target.id) / 1000) : 0;
-        return { kind: 'plot', id: target.id, stage: st.stage, crop: st.crop || null, active: crop, seed: seedCost(s, crop), zone, fit: climateFit(st.crop || crop, zone),
+        return { kind: 'plot', id: target.id, stage: st.stage, crop: st.crop || null, active: crop, seed: seedCost(s, crop), zone, fit: climateFit(st.crop || crop, zone), garden: gardenOf(s).style,
           dropping: !!drop && ripeFor > drop.after, dropSoon: !!drop && ripeFor >= 0 && ripeFor <= drop.after, wave: pl?.wave ? 2 : st.crop && CROPS[st.crop].waves ? 1 : 0,
-          age: pl ? treeAge(pl) : 0, old: treeOld(pl), pruned: !!pl?.pruned, prune: pl ? pruneCost(pl.crop) : 0, coinsOk: pl ? coins >= pruneCost(pl.crop) : false,
+          health: pl ? treeHealth(s, target.id) : null, age: pl ? treeAge(pl) : 0, old: treeOld(pl), pruned: !!pl?.pruned, prune: pl ? pruneCost(pl.crop) : 0, coinsOk: pl ? coins >= pruneCost(pl.crop) : false,
           rmErr, refund: rmErr ? 0 : removeRefund(s, target.id), armed: isArmed(target.id), well: Math.round(wellBonus(s, target.id) * 100) };
       }
       case 'land': {
@@ -89,6 +90,9 @@ export function createActionBar(ctx) {
         const terrain = tile?.lot === lot && !['road', 'plaza', 'wild'].includes(tile.terrain) ? tile.terrain : terrainOfLot(lot);
         const fErr = buildError(s, 'field');
         return { kind: 'land', x, z, lot, terrain, field: lotAllows(lot, 'field'), building: lotAllows(lot, 'building'), decor: lotAllows(lot, 'decor'),
+          near: (region(s).fields || []).map(f => ({ id: f.id, d: Math.hypot(f.x - x, f.z - z) })).filter(f => f.d < 4.5).sort((p, q) => p.d - q.d).slice(0, 8)
+            .map(f => ({ id: f.id, crop: region(s).plots[f.id]?.crop || null, stage: region(s).plots[f.id] ? plotState(s, f.id, now).stage : 'empty' })),
+          estate: estateOfLot(lot)?.id || null, zone: climateOfLot(lot), crops: unlockedCrops(s).map(id => [id, climateFit(id, climateOfLot(lot))]),
           fieldCost: buildCost(s, 'field'), fErr: fErr === 'coins' ? null : fErr, next: fErr === 'limit' ? nextLimitLevel(s, 'field') : null };
       }
       case 'building': {
@@ -101,7 +105,7 @@ export function createActionBar(ctx) {
           missing: err === 'coins' ? upgradeCost(b.type, b.level) - coins : 0, count: countOf(s, b.type), max: maxCount(s, b.type),
           rmErr, refund: rmErr ? 0 : removeRefund(s, b.uid), armed: isArmed(b.uid) };
         // Production: the stage is in the signature; the progress / countdown of a running batch update in place.
-        const io = recipeIO(b);
+        const io = recipeIOFor(s, b);
         if (io) {
           const js = jobState(b, now);
           const perr = js.stage === 'idle' ? prodError(s, b) : null;
@@ -119,7 +123,7 @@ export function createActionBar(ctx) {
         const p = PARCELS[target.id];
         if (!p) return null;
         const err = parcelError(s, p.id);
-        return { kind: 'parcel', id: p.id, err, missing: err === 'coins' ? p.cost - Math.floor(coins) : 0 }; // no raw coins: a rebuild per sale eats taps
+        return { kind: 'parcel', id: p.id, err, next: err === 'order' ? nextEstate(s)?.id || null : null, missing: err === 'coins' ? parcelCost(p.id) - Math.floor(coins) : 0 }; // no raw coins: a rebuild per sale eats taps
       }
       case 'gate': return { kind: 'gate' };
       case 'venue': {
@@ -149,8 +153,10 @@ export function createActionBar(ctx) {
     const landKey = m?.kind === 'land' ? `${m.x},${m.z}` : null;
     if (!landKey) land = null; else if (land?.key !== landKey) land = { key: landKey, touched: Date.now(), best: Infinity };
     if (!m) return;
+    el.classList.remove('is-wide');
     const fill = { plot: plotCard, land: landCard, building: buildingCard, parcel: parcelCard, gate: gateCard, venue: venueCard }[m.kind];
     fill(m, s);
+    { const t0 = title.firstChild; if (t0 && t0.nodeType === 3) t0.textContent = t0.textContent.replace(/^[^\p{L}\p{N}]+/u, ''); } // card titles carry no leading icon
     updateVenueLive(s);
     updateProd(s);
   }
@@ -192,12 +198,15 @@ export function createActionBar(ctx) {
     const forCrop = m.crop || m.active;
     body.append(h('p', { class: `hud-line${m.fit === 'bad' ? ' hud-line--bad' : m.fit === 'good' ? ' hud-line--good' : ' hud-line--muted'}` },
       `${T(`zone.${m.zone}.icon`)} ${T(`zone.${m.zone}`)} · `, T(`hud.plot.fit.${m.fit}`, { crop: T(`crop.${forCrop}`) })));
+    if (m.garden) { const g = GARDEN[m.garden]; body.append(h('p', { class: 'hud-line hud-line--muted' }, T(`hud.garden.${m.garden}`, { slow: Math.round(Math.abs(g.timeMul - 1) * 100), q: Math.round(g.quality * 100), y: Math.round(Math.abs(g.yieldMul - 1) * 100) }))); }
     if (m.stage === 'empty') {
       const active = CROPS[m.active];
       body.append(h('p', { class: 'hud-line' }, T('hud.plot.empty', { crop: T(`crop.${m.active}`), icon: active.icon })),
         h('div', { class: 'hud-row' }, actionButton({ label: T('hud.plot.changeSeed'), icon: '🌱', tone: 'plain', onClick: () => ctx.onTool('seeds') })));
     } else if (m.stage === 'ready') {
-      body.append(h('p', { class: 'hud-line hud-line--good' }, T('hud.plot.ready')), h('p', { class: 'hud-hint' }, T('hud.plot.harvestHint')));
+      body.append(h('p', { class: 'hud-line hud-line--good' }, T('hud.plot.ready')),
+        h('div', { class: 'hud-row' }, actionButton({ id: 'plotHarvest', label: T('hud.plot.harvestNow'), icon: '🧺', tone: 'gold', onClick: () => { if (ctx.blockedByAuto?.()) return; ctx.act('farm/harvest', { plotId: m.id }); } })),
+        h('p', { class: 'hud-hint' }, T('hud.plot.harvestHint')));
       if (m.dropping) body.append(h('p', { class: 'hud-line hud-line--bad' }, T('hud.plot.dropping')));
       else if (m.dropSoon) body.append(h('p', { class: 'hud-line hud-line--muted' }, T('hud.plot.dropSoon')));
       if (m.wave) body.append(h('p', { class: 'hud-line hud-line--muted' }, T(`hud.plot.wave${m.wave}`)));
@@ -214,6 +223,12 @@ export function createActionBar(ctx) {
       body.append(h('p', { class: `hud-line${m.old ? ' hud-line--bad' : ' hud-line--muted'}` },
         m.old ? T('hud.tree.old', { n: m.age, pct: Math.round(PERENNIAL.oldYield * 100) })
           : m.age === 0 ? T(m.pruned ? 'hud.tree.regrow' : 'hud.tree.young') : T('hud.tree.age', { n: m.age, left: Math.max(0, life - m.age) })));
+      if (m.health) { // how the tree is really doing: survival share and what one harvest gives
+        body.append(h('div', { class: 'hud-treehealth' },
+          h('p', { class: 'hud-line' }, `🌿 ${T('hud.tree.survival', { pct: m.health.survival })}`),
+          h('div', { class: 'hud-xpbar hud-health-bar', attrs: { role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(m.health.survival) } }, h('span', { style: { width: `${m.health.survival}%` } })),
+          h('p', { class: 'hud-line' }, `🫘 ${T('hud.tree.yield', { n: m.health.beans })}`)));
+      }
       const tools = [];
       if (m.old) tools.push(actionButton({ id: 'treePrune', label: T('hud.tree.prune'), icon: '🪚', cost: m.prune, tone: 'gold', disabled: !m.coinsOk || m.stage === 'ready',
         note: m.stage === 'ready' ? T('hud.tree.pickFirst') : !m.coinsOk ? needMore(m.prune - Math.floor(s.player.coins)) : null,
@@ -234,8 +249,9 @@ export function createActionBar(ctx) {
   }
 
   // Empty owned land: Field / Build / Decor (what the terrain does not allow is greyed out).
+  const ESTATE_ICON = { home: '🌴', upland: '⛰️', slope: '🪜', highland: '🏔️' };
   function landCard(m) {
-    setText(title, `${TERRAIN_ICON[m.terrain] || '🌾'} ${T(`fw.land.terrain.${m.terrain}`)}`);
+    setText(title, m.estate ? `${ESTATE_ICON[m.estate] || '🌾'} ${T(`estate.${m.estate}`)}` : `${TERRAIN_ICON[m.terrain] || '🌾'} ${T(`fw.land.terrain.${m.terrain}`)}`);
     const fieldNote = m.field && m.fErr ? (m.fErr === 'limit' ? T('err.limit', { level: m.next }) : errorText(m.fErr)) : null;
     const field = actionButton({ id: 'landField', label: T('fw.land.field'), icon: '🟫', cost: m.field && !m.fErr ? m.fieldCost : null, disabled: !m.field || !!m.fErr, note: fieldNote,
       onClick: () => {
@@ -247,15 +263,35 @@ export function createActionBar(ctx) {
       } });
     const build = actionButton({ id: 'landBuild', label: T('fw.land.build'), icon: '🏠', tone: 'plain', disabled: !m.building, onClick: () => { ctx.buildNear = { x: m.x, z: m.z }; ctx.openBuild?.('processing'); } }); // the ghost starts at the tapped spot
     const decor = actionButton({ id: 'landDecor', label: T('fw.land.decor'), icon: '🌼', tone: 'plain', disabled: !m.decor, onClick: () => { ctx.buildNear = { x: m.x, z: m.z }; ctx.openBuild?.('decoration'); } });
-    body.append(h('div', { class: 'hud-land-btns' }, field, build, decor));
+    const crop = ctx.realm?.activeCrop || 'robusta', def = CROPS[crop];
+    const plantErr = !m.field ? 'terrain' : m.fErr || (def ? null : 'unknown');
+    const plant = actionButton({ id: 'landPlant', label: T('fw.land.plant', { crop: def ? T(`crop.${def.id}`) : '' }), icon: def?.icon || '🌱', cost: !plantErr ? m.fieldCost + seedCost(ctx.store.state, crop) : null, disabled: !!plantErr, note: fieldNote,
+      onClick: () => {
+        if (ctx.blockedByAuto?.()) return;
+        const r = ctx.act('farm/plantAt', { x: m.x, z: m.z, crop });
+        if (r.ok) ctx.clearSelection();
+      } });
+    // Tier info board: what suits this tier (climate), so the player chooses freely but with the facts.
+    const tag = f => (f === 'good' ? '✅' : f === 'bad' ? '⚠️' : '➖');
+    body.append(h('p', { class: 'hud-line hud-tier-info' }, T('fw.tier.info', { zone: T(`fw.tier.zone.${m.zone}`) }), ' ',
+      ...m.crops.map(([id, f]) => h('span', { class: `hud-tier-crop is-${f}` }, `${CROPS[id].icon}${T(`crop.${id}`)} ${tag(f)} `))),
+      h('p', { class: 'hud-line' }, T('fw.tier.tip')));
+    if (m.near.length) body.append(h('div', { class: 'hud-row hud-near' }, h('span', { class: 'hud-line' }, T('fw.near')), ...m.near.map(p => h('button', { type: 'button', class: `hud-near-tree is-${p.stage}`, attrs: { 'aria-label': p.crop ? T(`crop.${p.crop}`) : T('hud.plot.soil') },
+      on: { click: () => ctx.realm?.select?.({ kind: 'plot', id: p.id }) } }, p.crop ? CROPS[p.crop].icon : '🟫', p.stage === 'ready' ? '🧺' : ''))));
+    body.append(h('div', { class: 'hud-land-btns' }, plant, build, decor));
   }
 
   function prodBlock(m) {
     const p = m.prod;
+    // What one batch does, in words: "12 Coffee beans → 12 Dried beans", how long, what it costs, and what it is worth
+    const named = io => Object.entries(io || {}).map(([g, n]) => `${GOODS[g]?.icon || ''} ${fmt(n)} ${T(`good.${g}`)}`).join(' + ');
+    const unit = io => { const [g] = Object.keys(io || {}); return g ? (GOODS[g]?.price ?? 0) : 0; };
     const wrap = h('div', { class: `hud-prod is-${p.stage}` },
-      h('p', { class: 'hud-prod-io' }, h('span', { class: 'hud-prod-goods' }, goodsText(p.in)), h('span', { class: 'hud-prod-arrow', attrs: { 'aria-hidden': 'true' } }, '➜'),
-        h('span', { class: 'hud-prod-goods is-out' }, goodsText(p.out)),
-        h('span', { class: 'hud-prod-meta' }, `⏱ ${duration(p.ms)}`, p.fee > 0 ? h('span', { class: 'hud-prod-fee' }, ' · ⛽', coinAmount(p.fee)) : null)));
+      h('div', { class: 'hud-prod-flow' },
+        h('span', { class: 'hud-prod-goods' }, named(p.in)), h('span', { class: 'hud-prod-arrow', attrs: { 'aria-hidden': 'true' } }, '➜'),
+        h('span', { class: 'hud-prod-goods is-out' }, named(p.out))),
+      h('p', { class: 'hud-line hud-line--muted' }, T('fw.prodx.facts', { time: duration(p.ms), fee: p.fee > 0 ? T('fw.prodx.fee', { n: fmt(p.fee) }) : T('fw.prodx.noFee') })),
+      h('p', { class: 'hud-line hud-prod-value' }, T('fw.prodx.value', { from: fmt(unit(p.in)), to: fmt(unit(p.out)) })));
     if (p.stage === 'working') {
       const time = h('strong', { class: 'hud-countdown' });
       const fill = h('span');
@@ -275,55 +311,123 @@ export function createActionBar(ctx) {
     return wrap;
   }
 
-  function storeBlock(m) {
+  function storeBlock(m, { bare = false } = {}) {
     const st = m.store, full = st.cap > 0 && st.stored >= st.cap, pct = st.cap > 0 ? Math.min(100, Math.round(st.stored / st.cap * 100)) : 0;
-    const wrap = h('div', { class: 'hud-store' },
+    const wrap = bare ? h('div', { class: 'hud-store' }) : h('div', { class: 'hud-store' },
       h('p', { class: `hud-line hud-store-fill${full ? ' hud-line--bad' : ''}` }, T('fw.goods.fill', { n: fmt(st.stored), max: fmt(st.cap) })),
       h('div', { class: `hud-xpbar hud-capbar${full ? ' is-full' : ''}`, attrs: { role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': String(st.cap), 'aria-valuenow': String(st.stored) } },
         h('span', { style: { width: `${pct}%` } })));
     const list = h('ul', { class: 'hud-goods' });
     let kinds = 0, total = 0;
+    const mul = buyerNow(ctx.store.state).mul?.beans ?? 1;
+    // One row = one sellable thing, with a quantity box: pick how many to sell (✔ all by default), then the price updates
+    const sellRow = ({ icon, name, have, unit, sell, id }) => {
+      let qty = have;
+      const input = h('input', { class: 'hud-qty', type: 'number', min: '1', max: String(have), value: String(have), inputMode: 'numeric', attrs: { 'aria-label': T('hud.sell.qty') } });
+      const price = h('span', { class: 'hud-qty-price' });
+      const refresh = () => { qty = Math.max(1, Math.min(have, Math.floor(Number(input.value) || 1))); price.textContent = `${fmt(Math.round(qty * unit * 100) / 100)} 🪙`; };
+      input.addEventListener('input', refresh);
+      const step = d => h('button', { type: 'button', class: 'hud-qty-step', on: { click: () => { input.value = String(Math.max(1, Math.min(have, (Number(input.value) || 1) + d))); refresh(); } } }, d > 0 ? '+' : '−');
+      const all = h('button', { type: 'button', class: 'hud-qty-all', on: { click: () => { input.value = String(have); refresh(); } } }, T('hud.sell.allShort'));
+      refresh();
+      return h('li', { class: 'hud-good hud-good--sell' },
+        h('span', { class: 'hud-good-ico', attrs: { 'aria-hidden': 'true' } }, icon),
+        h('span', { class: 'hud-good-text' }, h('strong', null, `${name} ×${fmt(have)}`), h('small', null, T('fw.goods.each', { price: fmt(Math.round(unit * 100) / 100) }))),
+        h('div', { class: 'hud-qty-box' }, step(-1), input, step(1), all),
+        h('div', { class: 'hud-qty-act' }, price, actionButton({ id, label: T('hud.sell.do'), tone: 'gold', onClick: () => sell(qty) })));
+    };
     for (const [g, n] of st.goods) {
-      if (g !== 'beans' && n <= 0) continue; // beans always listed: the tutorial's Sell button lives on that row
-      const beans = g === 'beans', value = beans ? st.beanCoins : n * GOODS[g].price;
-      if (n > 0) { kinds++; total += value; }
-      // Beans per variety, each at its own price (Arabica is never processed: sold raw to specialty roasters).
-      const mixLine = beans && n > 0 ? Object.entries(st.mix).filter(([, k]) => k > 0).map(([c, k]) => `${CROPS[c].icon} ${T(`crop.${c}`)} ×${fmt(k)} · ${fmt(CROPS[c].price)}`).join('  ') : null;
-      list.append(h('li', { class: 'hud-good' },
-        h('span', { class: 'hud-good-ico', attrs: { 'aria-hidden': 'true' } }, GOODS[g].icon),
-        h('span', { class: 'hud-good-text' }, h('strong', null, `${T(`good.${g}`)} ×${fmt(n)}`), h('small', null, mixLine || T('fw.goods.each', { price: fmt(GOODS[g].price) }))),
-        actionButton({ id: beans ? 'sellBeans' : `sell-${g}`, label: T('fw.goods.sell', { n: fmt(n) }), cost: n > 0 ? value : null, tone: 'gold', disabled: n < 1,
-          note: beans && n < 1 ? T('hud.beans.none') : null, onClick: () => (beans ? ctx.act('farm/sellBeans') : ctx.act('farm/sell', { good: g })) })));
+      if (n <= 0) continue;
+      if (g === 'beans') { // beans: one row per variety, each at its own price
+        for (const [c, k] of Object.entries(st.mix).filter(([, v]) => v > 0)) {
+          kinds++; total += k * beanPrice(c) * mul;
+          list.append(sellRow({ icon: CROPS[c].icon, name: T(`crop.${c}`), have: k, unit: beanPrice(c) * mul, id: `sell-beans-${c}`, sell: q => ctx.act('farm/sellVariety', { crop: c, amount: q }) }));
+        }
+      } else {
+        kinds++; total += n * GOODS[g].price;
+        list.append(sellRow({ icon: GOODS[g].icon, name: T(`good.${g}`), have: n, unit: GOODS[g].price, id: `sell-${g}`, sell: q => ctx.act('farm/sell', { good: g, amount: q }) }));
+      }
     }
+    if (!kinds) list.append(h('li', { class: 'hud-good hud-line--muted' }, T('hud.beans.none')));
     wrap.append(list);
     if (kinds > 1) wrap.append(h('div', { class: 'hud-row' }, actionButton({ id: 'sellAll', label: T('fw.goods.sellAll'), icon: '💰', cost: total, tone: 'gold', onClick: () => ctx.act('farm/sellAll') })));
     if (kinds <= 1 && m.type === 'silo') wrap.append(h('p', { class: 'hud-line hud-line--muted' }, T(full ? 'hud.storage.explainFull' : 'hud.storage.explain')));
     return wrap;
   }
 
-  function buildingCard(m) {
-    const def = BUILDINGS[m.type];
-    const max = def.decor ? 1 : def.upgrade.length + 1;
-    title.replaceChildren(`${def.icon} ${T(`building.${m.type}`)}`,
-      def.decor ? '' : h('span', { class: 'hud-title-lv' }, T('fw.building.lv', { level: m.level, max: Math.min(m.cap, max) })));
-    if (m.prod) body.append(prodBlock(m));
-    if (m.store) body.append(storeBlock(m));
-    if (m.seats) body.append(h('p', { class: 'hud-line' }, T('hud.seats.line', { n: m.seats.used, max: m.seats.seats })));
-    body.append(h('p', { class: 'hud-line hud-line--fx' }, buildingEffect(m.type, m.level, m.err !== 'maxLevel' && m.err !== 'roundCap')));
-    if (m.max > 1) body.append(h('p', { class: 'hud-sub' }, T('fw.building.countLine', { n: m.count, max: m.max })));
+  function buildUpgradeRow(m, def) {
     const row = h('div', { class: 'hud-row' });
-    // Upgrades are reached only through the ▲ badge above the building (target.upgrade); a body tap shows the info card.
-    if (!def.decor && !m.upgrade) {
-      if (m.err === null || m.err === 'coins') body.append(h('p', { class: 'hud-hint' }, T('hud.upgradeHint')));
-    } else if (!def.decor) {
+    // land-ui-simplify §4: the upgrade sits in the card itself (no ▲ badge to find): "Lv 2 → 3", price, the effect line above.
+    if (!def.decor) {
       if (m.err === 'maxLevel') row.append(h('span', { class: 'hud-tag' }, T('hud.maxLevel')));
       else if (m.err === 'roundCap') row.append(h('span', { class: 'hud-tag' }, T('hud.maxForRound')));
-      else row.append(actionButton({ id: 'upgrade', label: T('hud.upgrade'), icon: '⬆️', cost: m.cost, disabled: m.err === 'coins', note: m.err === 'coins' ? needMore(m.missing) : null,
+      else row.append(actionButton({ id: 'upgrade', label: T('fw.building.upTo', { level: m.level + 1 }), icon: '⬆️', cost: m.cost, disabled: m.err === 'coins', note: m.err === 'coins' ? needMore(m.missing) : null,
         onClick: () => ctx.act('build/upgrade', { uid: m.uid }) }));
     }
     if (row.childNodes.length) body.append(row);
+  }
+
+  // ONE layout for every building (founder 2026-11-08), the barn screen: picture + what it does on the left, the upgrade box on the
+  // right, then what it holds / makes (stock rows, production), then Move / Remove. Wide, no scrollbar.
+  function livestockIcon(def) {
+    const ico = h('span', { class: 'hud-livestock-ico', attrs: { 'aria-hidden': 'true' } }, def.icon);
+    modelIcon(def).then(url => { if (!url) return; const img = Object.assign(document.createElement('img'), { src: url, alt: '', draggable: false }); img.className = 'hud-livestock-img'; ico.replaceChildren(img); });
+    return ico;
+  }
+  // Barn: the animals you can buy here (they roam around the barn)
+  function livestockBlock(m) {
+    const s = ctx.store.state, list = region(s)?.buildings || [];
+    const have = list.filter(b => BUILDINGS[b.type]?.animal).length;
+    const grid = h('div', { class: 'hud-livestock-grid' });
+    const wrap = h('div', { class: 'hud-livestock' }, h('p', { class: 'hud-line' }, T('hud.barn.cap', { n: have, max: housingOf(s) }), have >= housingOf(s) ? ` · ${T('err.barnFull')}` : ''), grid);
+    for (const type of BARN_ANIMALS) {
+      const err = buildError(s, type), cost = buildCost(s, type), n = list.filter(b => b.type === type).length, def = BUILDINGS[type];
+      grid.append(h('div', { class: 'hud-livestock-tile' },
+        n ? h('b', { class: 'hud-livestock-n' }, `×${n}`) : null,
+        livestockIcon(def),
+        h('strong', null, T(`building.${type}`)),
+        actionButton({ id: `buy-${type}`, label: T('hud.buy'), cost, tone: 'go', disabled: !!err,
+          onClick: () => { const r = ctx.realm?.buyAnimal?.(type, m.uid); if (r && !r.ok) ctx.toast(errorText(r), 'warn'); } })));
+    }
+    return wrap;
+  }
+
+  function buildingCard(m) {
+    const def = BUILDINGS[m.type], st = m.store, max = def.decor ? 1 : def.upgrade.length + 1, level = m.level;
+    el.classList.add('is-wide');
+    title.replaceChildren(`${def.icon} ${T(`building.${m.type}`)}`, def.decor ? '' : h('span', { class: 'hud-title-lv' }, T('fw.building.lv', { level, max: Math.min(m.cap, max) })));
+    const icon = h('span', { class: 'hud-silo-ico', attrs: { 'aria-hidden': 'true' } }, def.icon);
+    modelIcon(def).then(url => { if (!url) return; const img = Object.assign(document.createElement('img'), { src: url, alt: '', draggable: false }); img.className = 'hud-card-model'; icon.classList.add('has-model'); icon.replaceChildren(img); });
+    let info;
+    if (st) { // storage: how full it is
+      const full = st.cap > 0 && st.stored >= st.cap, pct = st.cap > 0 ? Math.min(100, Math.round(st.stored / st.cap * 100)) : 0;
+      info = h('div', { class: 'hud-silo-fill' },
+        h('strong', { class: full ? 'is-bad' : '' }, T('hud.silo.items', { n: fmt(st.stored), max: fmt(st.cap) })),
+        h('div', { class: `hud-xpbar hud-capbar${full ? ' is-full' : ''}`, attrs: { role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': String(st.cap), 'aria-valuenow': String(st.stored) } }, h('span', { style: { width: `${pct}%` } })),
+        h('small', null, full ? T('hud.storage.explainFull') : T('hud.silo.room')));
+    } else {
+      info = h('div', { class: 'hud-silo-fill' }, h('strong', null, T(`building.${m.type}`)),
+        h('small', null, def.decor ? (has(`fw.desc.${m.type}`) ? T(`fw.desc.${m.type}`) : T('fw.desc.decor')) : buildingEffect(m.type, level, false)));
+    }
+    const top = h('div', { class: 'hud-silo-top' }, h('div', { class: 'hud-silo-left' }, icon, info));
+    if (!def.decor) {
+      const cap = lv => (Array.isArray(def.effect?.capacity) ? def.effect.capacity[Math.min(def.effect.capacity.length, lv) - 1] : 0) || 0;
+      const upBox = h('div', { class: 'hud-silo-up' });
+      if (m.err === 'maxLevel') upBox.append(h('strong', null, T('hud.maxLevel')));
+      else {
+        const gain = st ? T('hud.silo.upTitle', { n: level + 1, add: cap(level + 1) - cap(level) }) : T('hud.bld.upTitle', { n: level + 1 });
+        upBox.append(...[h('strong', null, gain), st ? null : h('small', null, buildingEffect(m.type, level, true))].filter(Boolean),
+          actionButton({ id: 'upgrade', label: T('fw.building.upTo', { level: level + 1 }), icon: '⬆️', cost: m.cost, tone: 'go', disabled: m.err === 'coins', note: m.err === 'coins' ? needMore(m.cost - Math.floor(ctx.store.state.player.coins)) : null, onClick: () => ctx.act('build/upgrade', { uid: m.uid }) }));
+      }
+      top.append(upBox);
+    } else top.classList.add('is-solo');
+    body.append(top);
+    if (m.prod) body.append(prodBlock(m));
+    if (m.type === 'barn') body.append(livestockBlock(m));
+    if (st) body.append(storeBlock(m, { bare: true }));
+    if (m.seats) body.append(h('p', { class: 'hud-line' }, T('hud.seats.line', { n: m.seats.used, max: m.seats.seats })));
     const tools = h('div', { class: 'hud-row hud-row--tools' });
-    if (!def.fixed) tools.append(actionButton({ id: 'move', label: T('hud.move'), icon: '✥', tone: 'plain', onClick: () => { if (ctx.blockedByAuto?.()) return; ctx.clearSelection(); ctx.realm?.startPlacement?.(m.type, { uid: m.uid }); } }));
+    if (!def.fixed && !def.animal) tools.append(actionButton({ id: 'move', label: T('hud.move'), icon: '✥', tone: 'plain', onClick: () => { if (ctx.blockedByAuto?.()) return; ctx.clearSelection(); ctx.realm?.startPlacement?.(m.type, { uid: m.uid }); } }));
     const rm = removeButton(m.uid, m, { label: T('fw.building.remove'), icon: '🗑️', confirm: true, busyNote: T('fw.building.busy') });
     if (rm) tools.append(rm);
     if (tools.childNodes.length) body.append(tools);
@@ -333,6 +437,8 @@ export function createActionBar(ctx) {
     const p = PARCELS[m.id];
     // Lot kinds: farm (fields), build (workshops), decor, pasture, pond, orchard, shop (café lots).
     const ICONS = { farm: '🌾', build: '🏗️', decor: '🌼', pasture: '🐔', pond: '🦆', orchard: '🍎', shop: '☕' };
+    const est = estateOfLot(p.id);
+    if (est) return estateCard(m, est);
     setText(title, `${ICONS[p.kind] || '🌾'} ${T(`hud.parcel.${p.kind}`, { id: p.id })}`);
     if (m.err === 'owned') { body.append(h('p', { class: 'hud-line hud-line--good' }, T('hud.parcel.owned'))); return; }
     body.append(h('p', { class: 'hud-line' }, T(`hud.parcel.${p.kind}Info`)));
@@ -348,6 +454,22 @@ export function createActionBar(ctx) {
     if (m.err === 'road') { body.append(h('p', { class: 'hud-line hud-line--muted' }, '🔒 ', T('hud.parcel.noRoad'))); return; }
     body.append(h('div', { class: 'hud-row' }, actionButton({ id: 'buy', label: T(farmArea ? 'hud.parcel.clear' : 'hud.buy'), icon: farmArea ? '🪓' : '🏷️', cost: p.cost, disabled: m.err === 'coins',
       note: m.err === 'coins' ? needMore(m.missing) : null, onClick: () => ctx.act('land/buyParcel', { parcelId: p.id }) })));
+  }
+
+  // Estates (land-ui-simplify §2A): a farm lot's card is its estate's card — one price, one level, one button.
+  function estateCard(m, est) {
+    setText(title, `${est.icon} ${T(`estate.${est.id}`)}`);
+    const owned = m.err === 'owned';
+    const zone = est.zone, fits = ['robusta', 'arabica', 'liberica'].map(c => ({ c, f: climateFit(c, zone) }));
+    body.append(
+      h('p', { class: 'hud-line hud-line--muted' }, `${T(`zone.${zone}.icon`)} ${T(`zone.${zone}`)} · `, T(`hud.zone.soil.${zone}`)),
+      h('p', { class: 'hud-line' }, ...fits.map(({ c, f }) => h('span', { class: `hud-fit is-${f}` }, `${CROPS[c].icon} ${T(`crop.${c}`)} ${f === 'good' ? '★' : f === 'bad' ? '−' : '✓'} `))),
+      h('p', { class: 'hud-line' }, T('estate.info', { fields: ESTATE_FIELDS })));
+    if (owned) { body.append(h('p', { class: 'hud-line hud-line--good' }, T('estate.owned'))); return; }
+    if (m.err === 'order') { body.append(h('p', { class: 'hud-line hud-line--muted' }, '🔒 ', T('estate.order', { name: T(`estate.${m.next}`) }))); return; }
+    if (m.err === 'level') { body.append(h('p', { class: 'hud-line hud-line--muted' }, '🔒 ', T('estate.level', { level: est.level }))); return; }
+    body.append(h('div', { class: 'hud-row' }, actionButton({ id: 'buy', label: T('estate.buy'), icon: '🪓', cost: est.cost, disabled: m.err === 'coins',
+      note: m.err === 'coins' ? needMore(m.missing) : null, onClick: () => ctx.act('land/buyParcel', { parcelId: est.seed }) })));
   }
 
   function venueCard(m) {

@@ -7,19 +7,20 @@
 // Red dot when something is new or affordable. Buttons of the other screen are hidden (never removed: the tutorial and
 // tests can still find them by id).
 import { BUILD_MENU_FARM, BUILD_MENU_CAFE, BUILDINGS, CROPS, CROP_ORDER, DRINK_ORDER, STAFF, STAFF_ORDER, BEANS, ITEM_GOODS } from '../../core/config/economy.js';
-import { buildError, countOf, maxCount, useOf, defOf, staffError, unitBlocked, upgradableStats, zoneUnits, unlockedCrops, unlockedDrinks, freeSlots, region, upgradeError, canPromote, capacity, stored, goodCount, beanBuyQuote, tasksOpen } from '../../core/derive.js';
+import { buildError, countOf, maxCount, useOf, defOf, staffError, unitBlocked, upgradableStats, zoneUnits, unlockedCrops, unlockedDrinks, freeSlots, region, upgradeError, capacity, stored, goodCount, beanBuyQuote, tasksOpen } from '../../core/derive.js';
 import { h, setText } from './dom.js';
 import { T } from './text.js';
 import { drinkSeenKey } from './sheets.js';
+import { useFarmArt } from './farm-assets.js';
 
 export const TOOLS = [
-  { id: 'seeds', icon: '🌱', views: ['farm'] },
+  { id: 'seeds', icon: '🌱', views: [] },          // merged into the Develop menu (🌱 Plant tab); id kept for the seed sheet
   { id: 'storage', icon: '📦', views: [] },          // opened from the bean pill (kept for ids/tutorial)
   { id: 'build', icon: '🔨', views: ['farm', 'cafe'] },
   { id: 'menu', icon: '📋', views: ['cafe'] },
   { id: 'staff', icon: '👥', views: ['farm', 'cafe'] },
   { id: 'world', icon: '🌍', views: [] },             // World map: button in the Progress sheet
-  { id: 'progress', icon: '⭐', views: ['farm', 'cafe'] },
+  { id: 'progress', icon: '⭐', views: [] }, // the Progress menu is gone (founder 2026-11-08)
 ];
 const VIEW_SLOT = 2; // the view switch sits in the middle (after the first two tools of the screen)
 
@@ -43,7 +44,7 @@ export function toolDots(s, view = 'farm') {
   const here = s.staff.units.filter(u => STAFF[u.type]?.zone === zone && u.assigned?.regionId === s.world.currentRegion);
   const idle = !!r && freeSlots(s, zone) > 0 && s.staff.units.some(u => !u.assigned && STAFF[u.type]?.zone === zone);
   const firstHire = !!r && !zoneUnits(s, zone).length && STAFF_ORDER.some(type => STAFF[type].zone === zone && !staffError(s, type));
-  dots.staff = tasksOpen(s).length > 0 || !!s.gm?.chaos || !!s.gm?.unit?.strike || here.some(u => unitBlocked(u, now) || upgradableStats(s, u).length > 0 || canPromote(s, u, now)) || idle || firstHire;
+  dots.staff = tasksOpen(s).length > 0 || !!s.gm?.chaos || !!s.gm?.unit?.strike || here.some(u => unitBlocked(u, now) || upgradableStats(s, u).length > 0) || idle || firstHire;
   dots.world = false;
   // Beans link: farm → storehouse full (sell!); café → almost out of beans and a pack can be bought.
   const cap = r ? capacity(s) : 0;
@@ -76,12 +77,14 @@ export function createToolbar(ctx) {
   const viewBadge = h('span', { class: 'hud-view-badge', hidden: true, attrs: { 'aria-hidden': 'true' } });
   const viewBtn = h('button', { id: 'hud-btn-trade', class: 'hud-tool hud-view', type: 'button', dataset: { hudId: 'trade', view: 'farm' },
     on: { click: () => ctx.onTool(ctx.realm?.view === 'cafe' ? 'beans' : 'storage') } }, viewIco, viewLabel, viewBadge);
+  useFarmArt(viewIco, 'ui/nav-sell.png');
   for (const tool of TOOLS) {
     const icon = h('span', { class: 'hud-tool-ico', attrs: { 'aria-hidden': 'true' } }, tool.icon);
     const dot = h('span', { class: 'hud-dot', attrs: { 'aria-hidden': 'true' } });
     const btn = h('button', { id: `hud-btn-${tool.id}`, class: 'hud-tool', type: 'button', dataset: { hudId: tool.id },
       on: { click: () => ctx.onTool(tool.id) } },
     icon, h('span', { class: 'hud-tool-label' }, T(`hud.tool.${tool.id}`)), dot);
+    useFarmArt(icon, `ui/nav-${tool.id}.png`);
     buttons[tool.id] = { btn, icon, dot, tool };
   }
   const el = h('nav', { class: 'hud-toolbar', attrs: { 'aria-label': T('hud.toolbar') } });
@@ -96,7 +99,8 @@ export function createToolbar(ctx) {
     layoutView = view;
     const shown = TOOLS.filter(t => t.views.includes(view)).map(t => buttons[t.id].btn);
     for (const t of TOOLS) buttons[t.id].btn.hidden = !t.views.includes(view);
-    shown.splice(VIEW_SLOT, 0, viewBtn);
+    // the farm has no Sell button any more (the storage pill opens the sell list); the café keeps its bean-buying button
+    if (view !== 'farm') shown.splice(VIEW_SLOT, 0, viewBtn);
     const hidden = TOOLS.filter(t => !t.views.includes(view)).map(t => buttons[t.id].btn);
     el.replaceChildren(...shown, ...hidden);
     el.dataset.view = view;
@@ -110,7 +114,7 @@ export function createToolbar(ctx) {
     const mode = view === 'cafe' ? 'buy' : farmHasGoods(s) ? 'store' : 'sell';
     if (mode === tradeMode) return;
     tradeMode = mode;
-    setText(viewIco, mode === 'store' ? '📦' : '🫘');
+    if (!viewIco.classList.contains('has-art')) setText(viewIco, mode === 'store' ? '📦' : '🫘');
     setText(viewLabel, T(mode === 'buy' ? 'hud.trade.buy' : mode === 'store' ? 'fw.goods.title' : 'hud.trade.sell'));
     viewBtn.setAttribute('aria-label', mode === 'store' ? T('fw.goods.title') : T(mode === 'buy' ? 'hud.trade.buyAria' : 'hud.trade.sellAria', { price: mode === 'buy' ? BEANS.buyPrice : BEANS.sellPrice }));
   }
@@ -124,7 +128,7 @@ export function createToolbar(ctx) {
   // The Seeds button shows the active crop icon (realm owns the active crop).
   function update() {
     const crop = ctx.realm?.activeCrop;
-    if (crop !== lastCrop) { lastCrop = crop; setText(buttons.seeds.icon, CROPS[crop]?.icon || '🌱'); }
+    if (crop !== lastCrop) { lastCrop = crop; if (!buttons.seeds.icon.classList.contains('has-art')) setText(buttons.seeds.icon, CROPS[crop]?.icon || '🌱'); }
     const view = ctx.realm?.view || 'farm';
     if (view === viewSig) return;
     viewSig = view;

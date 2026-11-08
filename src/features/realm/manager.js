@@ -20,7 +20,9 @@
 // are re-read 4× a second; the two canvas sprites are redrawn only when their text / emoji changes.
 import * as THREE from 'three';
 import { GM, CLOCK, TASKS } from '../../core/config/economy.js';
-import { GM_DESK, areaAt } from '../../core/config/layout.js';
+import { GM_DESK, areaAt, farmGroundY } from '../../core/config/layout.js';
+import { ownedPlots } from '../../core/derive.js';
+import { dressGedeoWorker } from '../../characters/gedeo-worker.js';
 import { gmOf, gmZone, gmRequests, gmWaiting, gmStrike, chaosOf, playedMs } from '../../core/derive.js';
 import { createPerson } from '../../characters/player.js';
 import { makeCanvasSprite, drawEmoji, dampK, FONT } from './util.js';
@@ -83,7 +85,7 @@ function drawEmote(g, size, emoji = '') {
   drawEmoji(g, emoji, c, c + 3, size * .48);
 }
 
-export function createManager({ scene, say = null, navigate = null, isPaused = () => false }) {
+export function createManager({ scene, say = null, navigate = null, isPaused = () => false, getPlayerPos = () => null, getCrew = () => [], isWalkable = null }) {
   const group = new THREE.Group();
   group.name = 'realm-manager';
   scene.add(group);
@@ -151,6 +153,8 @@ export function createManager({ scene, say = null, navigate = null, isPaused = (
     part(clip, mat.paper, 0, -.01, .015, .22, .28, .01);
     part(clip, mat.metal, 0, .15, .02, .1, .04, .02);
     const phone = part(arm[0], mat.phone, 0, -.72, .08, .09, .16, .02); phone.visible = false;
+    person.userData.legs = leg; // the rig's walk clip reads the swing of these
+    dressGedeoWorker(person, 'worker-supervisor-m', () => 'inspect');
     const root = new THREE.Group(); root.add(person); person.scale.setScalar(L.heightMul);
     const shadow = new THREE.Mesh(shadowGeo, shadowMat); shadow.position.y = .03; shadow.raycast = () => {}; root.add(shadow);
     const ring = new THREE.Mesh(ringGeo, ringMat); ring.position.y = .05; ring.renderOrder = 5; ring.visible = false; ring.raycast = () => {}; root.add(ring);
@@ -158,7 +162,7 @@ export function createManager({ scene, say = null, navigate = null, isPaused = (
     const pill = makePill(); pill.sprite.position.y = 2.45; pill.sprite.visible = false; root.add(pill.sprite);
     const emote = makeCanvasSprite(128, drawEmote, { scale: .72 }); emote.sprite.position.y = 2.6; emote.sprite.visible = false; emote.sprite.renderOrder = 31; root.add(emote.sprite);
     return { root, person, own, arm, leg, phone, ring, pick, pill, emote, emoji: '', pillSig: -1, walk: 0, yaw: 0, sitK: 0,
-      a0x: 0, a0z: 0, a1x: ARM.hold[0], a1z: -ARM.hold[1], mode: 'desk', path: null, back: false, pointT: 0, pointYaw: 0, emoteT: 0, emoteKind: '', yawnT: 0 };
+      patrolT: 1, a0x: 0, a0z: 0, a1x: ARM.hold[0], a1z: -ARM.hold[1], mode: 'desk', path: null, back: false, pointT: 0, pointYaw: 0, emoteT: 0, emoteKind: '', yawnT: 0 };
   }
   function freeFigure() {
     if (!fig) return;
@@ -193,7 +197,7 @@ export function createManager({ scene, say = null, navigate = null, isPaused = (
   function sync(state) {
     const gm = gmOf(state), z = state.world?.currentRegion ? gmZone(state) : null;
     zone = z;
-    for (const k of ['farm', 'shop']) desks[k].root.visible = k === z && (!!gm || !!chaosOf(state));
+    for (const k of ['farm', 'shop']) desks[k].root.visible = k === 'shop' && k === z && (!!gm || !!chaosOf(state)); // on the farm he has no desk: he walks the fields
     const want = gm && z ? `${gm.uid}:${gm.name}:${gm.gender}` : '';
     if (want !== key) {
       key = want;
@@ -229,9 +233,9 @@ export function createManager({ scene, say = null, navigate = null, isPaused = (
   // Walk to a world point near the target (stop short of it), point, walk back. Out of reach → point from the desk.
   function goTo(x, z) {
     if (!fig || !zone || fig.mode === 'strike' || info.strike) return;
-    const s = desks[zone].stand, far = Math.hypot(x - s.x, z - s.z);
+    const p0 = fig.root.position, onFarm = zone === 'farm', s = onFarm ? { x: p0.x, z: p0.z } : desks[zone].stand, far = Math.hypot(x - s.x, z - s.z);
     fig.pointYaw = Math.atan2(x - fig.root.position.x, z - fig.root.position.z);
-    if (areaAt(x, z) !== AREA[zone] || far > L.maxWalkM || isPaused()) { fig.mode = 'point'; fig.pointT = L.pointSec; fig.back = false; return; }
+    if (areaAt(x, z) !== AREA[zone] || (!onFarm && far > L.maxWalkM) || isPaused()) { fig.mode = 'point'; fig.pointT = L.pointSec; fig.back = false; return; }
     const dx = x - s.x, dz = z - s.z, k = far > 1.2 ? (far - 1.1) / far : 0;
     const tx = s.x + dx * k, tz = s.z + dz * k;
     const p = fig.root.position;
@@ -240,22 +244,49 @@ export function createManager({ scene, say = null, navigate = null, isPaused = (
     fig.mode = 'walk'; fig.back = false; fig.tx = x; fig.tz = z;
   }
   function walkBack() {
+    if (zone === 'farm') { fig.mode = 'desk'; fig.yaw = 0; return; } // no desk to go back to: the next round starts from here
     const s = desks[zone].stand, p = fig.root.position;
     fig.path = navigate ? navigate(p.x, p.z, s.x, s.z) : [{ x: s.x, z: s.z }];
     if (!fig.path?.length) fig.path = [{ x: s.x, z: s.z }];
     fig.mode = 'walk'; fig.back = true;
+  }
+  // Rounds: every few seconds he walks over to another field, on any tier.
+  function patrol(state) {
+    const list = ownedPlots(state), p = fig.root.position;
+    fig.patrolT = 2 + Math.random() * 3;
+    // a bare farm has no fields yet: he walks the land he is about to work
+    const q = list.length ? list[Math.floor(Math.random() * list.length)] : { x: (Math.random() - .5) * 40, z: 2 + Math.random() * 14 }, tx = q.x, tz = q.z + 1.6;
+    fig.path = navigate ? navigate(p.x, p.z, tx, tz) : [{ x: tx, z: tz }];
+    if (fig.path?.length) { fig.mode = 'walk'; fig.back = true; }
+  }
+  // Same dodge as the crew (staff.js steer): anyone within 1.5 m ahead bends his heading away.
+  const dodgeOut = { x: 0, z: 0 };
+  function dodge(p, ax, az) {
+    let side = 0;
+    const feel = o => {
+      const dx = o.x - p.x, dz = o.z - p.z, d = Math.hypot(dx, dz);
+      if (d < .01 || d > 1.5) return;
+      const ahead = (dx * ax + dz * az) / d;
+      if (ahead < .3) return;
+      side += ((ax * dz - az * dx) < -.05 ? -1 : 1) * (1 - d / 1.5) * ahead;
+    };
+    if (zone === 'farm') { for (const o of getCrew()) feel(o); const me = getPlayerPos(); if (me) feel(me); }
+    dodgeOut.x = ax; dodgeOut.z = az;
+    if (!side) return dodgeOut;
+    const k = Math.max(-1.6, Math.min(1.6, side * 2.2)), nx = ax + az * k, nz = az - ax * k, len = Math.hypot(nx, nz);
+    if (!isWalkable || isWalkable(p.x + nx / len * .45, p.z + nz / len * .45)) { dodgeOut.x = nx / len; dodgeOut.z = nz / len; }
+    return dodgeOut;
   }
   function step(dt) { // follow fig.path; true when there
     const p = fig.root.position, wp = fig.path?.[0];
     if (!wp) return true;
     const dx = wp.x - p.x, dz = wp.z - p.z, dist = Math.hypot(dx, dz);
     if (dist < .12) { fig.path.shift(); return !fig.path.length; }
-    const k = Math.min(dist, L.walkSpeed * dt) / dist;
-    p.x += dx * k; p.z += dz * k; fig.yaw = Math.atan2(dx, dz);
+    const way = dodge(p, dx / dist, dz / dist), len = Math.min(dist, L.walkSpeed * dt);
+    p.x += way.x * len; p.z += way.z * len; fig.yaw = Math.atan2(way.x, way.z);
     return false;
   }
 
-  const crop = c => (c && t(`crop.${c}`) !== `crop.${c}` ? t(`crop.${c}`) : c || '');
   const mins = ms => Math.max(1, Math.ceil(ms / 60000));
   /** Store events (after the sync). locate(ev) → { x, z } of what a job was for, or null. reasonText(reason) → words. */
   function onEvent(ev, { locate = () => null, reasonText = () => '' } = {}) {
@@ -267,6 +298,7 @@ export function createManager({ scene, say = null, navigate = null, isPaused = (
         if (!ev.approved) line(t('realm.gm.did', { what: reasonText(ev.reason) }));
         break;
       }
+      case 'gmHands': if (fig.mode === 'desk') { const at = locate(ev); if (at) goTo(at.x, at.z); } break; // he goes where his hands are
       case 'gmRequest': line(t('realm.gm.ask', { what: reasonText(ev.reason), min: mins((TASKS.life[ev.kind] ?? TASKS.life.staffGrowth) * 60000) }), { priority: 2, ms: L.requestMs }); break;
       case 'taskRemind': if (ev.by === 'g1') line(t(ev.last ? 'realm.gm.remindLast' : 'realm.gm.remind', { min: mins(ev.leftMs), what: reasonText(ev.reason) }), { priority: ev.last ? 2 : 1, ms: L.requestMs }); break;
       case 'taskAnswered':
@@ -276,11 +308,6 @@ export function createManager({ scene, say = null, navigate = null, isPaused = (
         break;
       case 'taskExpired': if (ev.name) { emote('facepalm'); line(t('realm.gm.expired', { what: reasonText(ev.reason) }), { priority: 2 }); } break;
       case 'gmLater': line(t('realm.gm.later'), { priority: 1 }); break;
-      case 'gmDayPlan': {
-        const top = ev.mix?.[0];
-        line(top ? t('realm.gm.plan', { crop: crop(top.crop), pct: top.pct }) : t('realm.gm.planShop', { coins: Math.round(ev.target || 0) }), { priority: 1 });
-        break;
-      }
       case 'gmWaiting': fig.yawnT = 0; line(t('realm.gm.waiting'), { priority: 2 }); break;
       case 'gmStrike': line(t('realm.gm.strike'), { priority: 3, ms: L.requestMs }); break;
       case 'gmStrikeOver': case 'gmApologised': emote('thumbsUp'); line(t('realm.gm.back'), { priority: 2 }); break;
@@ -316,6 +343,7 @@ export function createManager({ scene, say = null, navigate = null, isPaused = (
         fig.yaw = fig.pointYaw;
         if ((fig.pointT -= dt) <= 0) { if (fig.back) walkBack(); else { fig.mode = 'desk'; fig.yaw = 0; } }
       }
+      if (zone === 'farm' && fig.mode === 'desk' && !info.strike && (fig.patrolT -= dt) <= 0) patrol(state);
       if (fig.mode === 'desk' && info.waiting && (fig.yawnT -= dt) <= 0) { fig.yawnT = L.yawnEverySec; emote('yawn'); }
     }
     // pose goals
@@ -340,6 +368,7 @@ export function createManager({ scene, say = null, navigate = null, isPaused = (
     const swing = moving ? Math.sin(fig.walk) * .6 : 0;
     fig.leg[0].rotation.x = swing * (1 - fig.sitK) - 1.45 * fig.sitK; fig.leg[1].rotation.x = -swing * (1 - fig.sitK) - 1.45 * fig.sitK;
     fig.person.position.y = SIT_Y * fig.sitK + (moving ? Math.abs(Math.sin(fig.walk)) * .04 : 0);
+    if (zone === 'farm') { const p = fig.root.position; p.y += (farmGroundY(p.x, p.z) - p.y) * Math.min(1, dt * 10); } // up and down the tiers
     let d = fig.yaw - fig.root.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d));
     fig.root.rotation.y += d * dampK(10, dt);
     // red ring (urgent), countdown pill, emote

@@ -2,7 +2,7 @@
 import { BUILDINGS, STAFF } from '../../core/config/economy.js';
 import { T, fmt } from './text.js';
 
-const PERCENT = new Set(['priceBonus', 'yieldBonus', 'tip', 'arrivalBonus', 'growSpeed', 'grow']);
+const PERCENT = new Set(['timeCut', 'priceBonus', 'yieldBonus', 'tip', 'arrivalBonus', 'growSpeed', 'grow']);
 const MULT = new Set(['brewSpeed', 'speed', 'batch']); // "×1.25" (batch: ×2 = twice the goods per batch)
 function value(key, v) {
   if (PERCENT.has(key)) return fmt(v * 100);
@@ -19,7 +19,7 @@ const at = (list, lvl) => (Array.isArray(list) && lvl > 0 ? list[Math.min(list.l
 export function buildingEffect(type, level = 1, withNext = true) {
   const def = BUILDINGS[type];
   if (!def) return '';
-  if (def.decor) return T('hud.fx.decor', { xp: def.xp || 0 });
+  if (def.decor && !def.effect) return T('hud.fx.decor', { xp: def.xp || 0 });
   const keys = Object.keys(def.effect || {});
   if (!keys.length) return '';
   const nextLevel = level + 1;

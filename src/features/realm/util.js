@@ -1,5 +1,7 @@
 // Small shared helpers for the realm: canvas labels, damping, model normalization, ground picking.
 import * as THREE from 'three';
+import { farmGroundY, FARM_TIERS } from '../../core/config/layout.js';
+const TOP_Y = Math.max(...Object.values(FARM_TIERS)) + .5;
 
 export const DEG = Math.PI / 180;
 export const FONT = '800 {size}px "Baloo 2", "Nunito", system-ui, sans-serif';
@@ -163,10 +165,27 @@ export function normalizeModel(model, w, d, { fill = .9, maxScale = 1.4, minScal
   return wrapper;
 }
 
-const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-/** Intersects a raycaster with the ground plane y=0. Returns `out` or null. */
+const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), top = new THREE.Plane(new THREE.Vector3(0, 1, 0), -TOP_Y), _a = new THREE.Vector3(), _b = new THREE.Vector3(), _m = new THREE.Vector3();
+/**
+ * Where a ray meets the farm land (the 4 mountain tiers, layout farmGroundY). Marches the ray between the highest tier and
+ * y = 0 in 0.25 m steps, then bisects the crossing — exact on the tier walls too. Returns `out` or null.
+ */
 export function groundPoint(raycaster, out) {
-  return raycaster.ray.intersectPlane(plane, out);
+  const ray = raycaster.ray;
+  if (!ray.intersectPlane(plane, _b)) return null;          // y = 0 hit (always below every tier)
+  if (!ray.intersectPlane(top, _a)) _a.copy(ray.origin);    // y = TOP_Y hit, or the eye when it is below that
+  const len = _a.distanceTo(_b), n = Math.max(1, Math.ceil(len / .25));
+  let prev = _a.clone();
+  for (let i = 1; i <= n; i++) {
+    const p = _m.lerpVectors(_a, _b, i / n);
+    if (p.y <= farmGroundY(p.x, p.z)) {
+      let lo = prev, hi = p.clone();
+      for (let k = 0; k < 10; k++) { const mid = lo.clone().lerp(hi, .5); if (mid.y <= farmGroundY(mid.x, mid.z)) hi = mid; else lo = mid; }
+      return out.set(hi.x, farmGroundY(hi.x, hi.z), hi.z);
+    }
+    prev = p.clone();
+  }
+  return out.copy(_b);
 }
 
 /** Fallback block when a GLB fails to load: keeps the game playable. */

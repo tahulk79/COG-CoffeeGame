@@ -8,10 +8,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet" />
-    <title>God Bean: Build your own Coffee Empire!</title>
-    <meta name="description" content="God Bean: Build your own Coffee Empire! Grow, roast and brew coffee, then run your own café." />
-    <meta name="application-name" content="God Bean" />
-    <meta name="apple-mobile-web-app-title" content="God Bean" />
+    <title>GodBean: Build your own Coffee Empire!</title>
+    <meta name="description" content="GodBean: Build your own Coffee Empire! Grow, roast and brew coffee, then run your own café." />
+    <meta name="application-name" content="GodBean" />
+    <meta name="apple-mobile-web-app-title" content="GodBean" />
     <style>
       html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#edf5e7;color:#355342;font-family:'Baloo 2',system-ui,sans-serif}
       *,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}
@@ -25,17 +25,19 @@
          leave a ring on a button or on the game view. */
       html:not([data-input="key"]) :focus{outline:none!important}
       body.booting > :not(#loading):not(#error){visibility:hidden}
+      /* the static texts are written in one language in the HTML: hide them until src/main.js has translated them (no English flash) */
+      html:not(.i18n-ready) #loading :is(small,#load-status,.loading-tip){visibility:hidden}
       /* Loading screen, in the play HUD's own look (src/ui/styles/v3.css): grass ground like the realm, one cream card
          (same as the HUD confirm card), a green "go" progress bar with the player's own character running on it
          (the player's own character model, see .ld-runner), 🫘 beans picked up on the way, dark-brown
          percent pill (like the coin / bean pills) and the white tip bubble. src/ui/loading.js drives --p and the beans. */
       .loading-screen{--ld-ink:#694427;--ld-cream:#fff8e6;position:fixed;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:16px;color:var(--ld-ink);font-family:'Baloo 2',system-ui,sans-serif;
-        background:radial-gradient(ellipse at 50% 45%,#0000 40%,#2e4a1a55 100%),repeating-conic-gradient(from 45deg,#9fd16b 0 25%,#94c95f 0 50%) 0 0/56px 56px,#9acd65;transition:opacity .35s ease}
+        background:#f6ecd3;transition:opacity .25s ease}
       .loading-screen.is-leaving{opacity:0;pointer-events:none}
-      .loading-logo{display:grid;justify-items:center;margin:0;color:#fff;font:800 clamp(40px,12vw,54px)/1 'Baloo 2',system-ui,sans-serif;letter-spacing:1px;-webkit-text-stroke:6px #694427;paint-order:stroke fill;filter:drop-shadow(0 4px 0 #4a2f1b80)}
+      .loading-logo{display:grid;justify-items:center;margin:0 0 6px;color:#694427;font:800 clamp(34px,10vw,46px)/1 'Baloo 2',system-ui,sans-serif;letter-spacing:.5px}
       .loading-logo small{margin-top:6px;padding:2px 12px;border-radius:999px;background:#4a2f1bd9;color:#fff;font:800 13px/1.5 'Baloo 2',system-ui,sans-serif;letter-spacing:.3px;-webkit-text-stroke:0}
-      .ld-card{width:min(340px,100%);padding:18px 18px 16px;border-radius:24px;background:var(--ld-cream);box-shadow:0 6px 0 #d8bf8d,0 18px 40px #0004}
-      .ld-road{position:relative;padding-top:92px}
+      .ld-card{width:min(340px,100%);padding:16px 18px 14px;border-radius:24px;background:var(--ld-cream);box-shadow:0 3px 0 #d8bf8d,0 8px 20px #4a2f1b22}
+      .ld-road{position:relative;padding-top:0}
       #load-track{position:relative;height:22px;border-radius:999px;background:#e8dcc2;box-shadow:inset 0 2px 2px #0002}
       #load-fill{position:absolute;left:0;top:0;bottom:0;width:calc(var(--p,0) * 1%);min-width:22px;border-radius:inherit;background:linear-gradient(#8cd45a,#5aab35);box-shadow:inset 0 -3px 0 #3e7f2266,inset 0 3px 0 #ffffff55}
       .ld-bean{position:absolute;top:50%;width:18px;margin:-10px 0 0 -9px;font-size:15px;line-height:20px;text-align:center;filter:drop-shadow(0 1px 0 #0003);transition:transform .35s cubic-bezier(.3,1.8,.5,1),opacity .35s ease}
@@ -53,6 +55,10 @@
       .loading-tip{position:relative;display:flex;gap:8px;align-items:flex-start;width:min(340px,100%);margin:0;padding:10px 14px;border-radius:20px;background:#fff;box-shadow:0 4px 0 #a2763a40,0 8px 18px #4a32101f;color:var(--ld-ink);font:700 14px/1.35 'Baloo 2',system-ui,sans-serif}
       .loading-tip::before{content:'💡';flex:none;font-size:17px;line-height:19px}
       .loading-tip:empty{display:none}
+      /* temporary logo: the letters db in a rounded brown tile */
+      .ld-mark{display:grid;place-items:center;width:72px;height:72px;margin:0 0 -4px;border-radius:22px;background:#694427;color:#fff8e6;font:800 40px/1 'Baloo 2',system-ui,sans-serif;letter-spacing:-1px;box-shadow:0 3px 0 #4a2f1b,0 8px 18px #4a2f1b33}
+      /* simple loading: no runner, no beans, no tip, no patterned ground — just the logo, the bar and the percent */
+      .ld-runner,#load-beans,.loading-tip{display:none!important}
       @media(prefers-reduced-motion:reduce){.ld-sprite{animation:none}}
     </style>
     <link rel="stylesheet" href="/src/ui/styles/game.css">
@@ -61,7 +67,8 @@
     <div id="game" tabindex="-1" aria-label="Màn 1: Tai nạn tại phố cổ Hà Nội" data-i18n-attr="aria-label:html.game.label"></div>
     <div class="vignette"></div>
     <section id="loading" class="loading-screen" aria-label="Đang tải trò chơi" data-i18n-attr="aria-label:html.loading.label">
-      <h1 class="loading-logo">God Bean<small data-i18n="html.tagline">Build your own Coffee Empire!</small></h1>
+      <div class="ld-mark" aria-hidden="true">db</div>
+      <h1 class="loading-logo">GodBean<small data-i18n="html.tagline">Build your own Coffee Empire!</small></h1>
       <div class="ld-card">
         <div class="ld-road">
           <div id="load-track" role="progressbar" aria-label="Tiến trình tải" data-i18n-attr="aria-label:html.loading.progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">

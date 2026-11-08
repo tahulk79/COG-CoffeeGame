@@ -18,7 +18,7 @@ function readJson(storage, key) {
 /**
  * @param {{storage?: Storage, key: string, legacyKeys?: {progress:string, player:string}, dev?: boolean, now?: () => number}} opts
  */
-export function createStore({ storage = globalThis.localStorage, key, legacyKeys = null, dev = false, now = () => Date.now() } = {}) {
+export function createStore({ storage = globalThis.localStorage, key, legacyKeys = null, dev = false, now = () => Date.now(), saveEveryMs = 0 } = {}) {
   const listeners = new Set();
   let readOnly = false;
   let saveFailed = false;
@@ -61,6 +61,18 @@ export function createStore({ storage = globalThis.localStorage, key, legacyKeys
     } catch { saveFailed = true; return false; }
   }
 
+  // saveEveryMs > 0: writes are grouped. Stringifying the whole save on every small action is what stutters with a big team.
+  let saveTimer = null, dirty = false;
+  function flush() {
+    if (saveTimer !== null) { clearTimeout(saveTimer); saveTimer = null; }
+    if (dirty) { dirty = false; persist(state); }
+  }
+  function requestSave() {
+    if (!saveEveryMs) { persist(state); return; }
+    dirty = true;
+    if (saveTimer === null) saveTimer = setTimeout(flush, saveEveryMs);
+  }
+
   function dispatch(type, payload = {}, opts = {}) {
     const ctx = { now: opts.now ?? now(), dev };
     if (type === 'expiry/execute' && state.story.expiry?.status === 'pending') {
@@ -69,7 +81,7 @@ export function createStore({ storage = globalThis.localStorage, key, legacyKeys
     const result = apply(state, { type, payload, txId: opts.txId }, ctx);
     if (result.ok && result.state !== state) {
       state = result.state;
-      persist(state);
+      requestSave();
       for (const fn of listeners) fn(state, result.events, type);
     }
     return result;
@@ -83,12 +95,15 @@ export function createStore({ storage = globalThis.localStorage, key, legacyKeys
     setReadOnly(v) { readOnly = !!v; },
     get readOnly() { return readOnly; },
     // Wipe the V3 save only (keeps the old v1 keys and a backup copy of this one).
+    /** Writes a pending save now (page closing or hidden). */
+    flush,
     reset() {
+      dirty = false;
       try { const raw = storage.getItem(key); if (raw) storage.setItem(`${key}-backup`, raw); storage.removeItem(key); storage.removeItem(`${key}-prev`); } catch { /* ignore */ }
       state = createSave(now());
       for (const fn of listeners) fn(state, [{ type: 'reset' }], 'reset');
     },
-    reload() { state = load(); for (const fn of listeners) fn(state, [{ type: 'reload' }], 'reload'); },
+    reload() { flush(); state = load(); for (const fn of listeners) fn(state, [{ type: 'reload' }], 'reload'); },
   };
 }
 

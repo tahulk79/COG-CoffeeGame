@@ -11,16 +11,17 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { BUILDINGS, CELL } from '../../core/config/economy.js';
 import { region as regionOf } from '../../core/derive.js';
-import { areaAt, CAFE_SEATS, FIXED, PLOT_SIZE } from '../../core/config/layout.js';
+import { areaAt, CAFE_SEATS, FIXED, PLOT_SIZE, farmGroundY } from '../../core/config/layout.js';
 import { terraceSeats, TERRACE_TABLE_TOP, TERRACE_TABLE_Z } from './seats.js';
 import { t, hasKey } from '../../i18n/index.js';
 import { makeLabel, normalizeModel, placeholderBox, easeOutBack, paint, mulberry32 } from './util.js';
+import { farmTex } from '../../shared/three/farm-textures.js';
 
 const COUNTER_TOP = 1.02; // raw GLB height of the pickup counter's work surface (machine and cups sit on it)
 const FIT = { fill: .9, maxScale: 2, maxHeight: 3.6 }; // buildings fill ~90% of the footprint (larger side), aspect kept
 const DECOR_FIT = { fill: .92, maxScale: 1.4 };
 const DECK_H = .14;
-const DECK_COVERAGE = .55; // models covering less of their footprint than this stand on a deck
+const DECK_COVERAGE = 0; // no wooden deck under any building any more (founder 2026-11-08): the model stands on the ground
 const RISE = .7;
 const BAR_W = 1.5, BAR_H = .26, BAR_FILL_W = BAR_W * .92, BAR_FILL_H = BAR_H * .62; // production bar (world m)
 // Café counter signs. Label text: realm.sign.* when the locale has it, else the building name.
@@ -39,7 +40,7 @@ function deckGeometry(w, d, type, front) {
   add(new THREE.BoxGeometry(w * .97, DECK_H * .6, d * .97), '#8a5f3a', 0, DECK_H * .3, 0);
   const n = Math.max(4, Math.round(d / .5)), pw = d * .95 / n;
   for (let i = 0; i < n; i++) add(new THREE.BoxGeometry(w * .95, DECK_H * .45, pw - .04), i % 2 ? '#c99b66' : '#b98b58', 0, DECK_H * .78, -d * .475 + pw * (i + .5));
-  if (type === 'silo' && d / 2 - front > .6) {
+  if ((type === 'silo' || type === 'warehouse') && d / 2 - front > .6) {
     const rnd = mulberry32(9);
     const z = (front + d / 2) / 2;
     for (const x of [-w * .32, -w * .12, w * .3]) {
@@ -212,6 +213,14 @@ export function makePrefab(type, templates = {}) {
     prefab.userData.scale = 1;
     return prefab;
   }
+  // Real-size models (shade trees, enset): keep the authored metres instead of fitting the footprint.
+  if (def.trueScale && templates[def.model]) {
+    const prefab = new THREE.Group(), inner = new THREE.Group();
+    inner.add(templates[def.model].clone()); inner.scale.setScalar(typeof def.trueScale === 'number' ? def.trueScale : 1); prefab.add(inner);
+    prefab.userData.height = Math.min(4, new THREE.Box3().setFromObject(inner).max.y); // badge anchor stays low
+    prefab.userData.scale = 1;
+    return prefab;
+  }
   const w = def.size[0] * CELL, d = def.size[1] * CELL;
   const raw = new THREE.Group();
   const base = templates[def.model];
@@ -235,7 +244,7 @@ export function makePrefab(type, templates = {}) {
     const box = new THREE.Box3().setFromObject(inner);
     const mw = box.max.x - box.min.x, md = box.max.z - box.min.z;
     if (mw * md < w * d * DECK_COVERAGE) {
-      const back = type === 'silo' ? Math.max(0, (d * .95 - md) / 2 - .05) : 0;
+      const back = (type === 'silo' || type === 'warehouse') ? Math.max(0, (d * .95 - md) / 2 - .05) : 0;
       inner.position.y += DECK_H;
       inner.position.z -= back;
       const deck = new THREE.Mesh(deckGeometry(w, d, type, box.max.z - back), propMaterial());
@@ -351,11 +360,7 @@ export function createBuildings({ scene, prefabs, templates, vfx }) {
     root.add(pick);
     const e = { uid: b.uid, type: b.type, area: null, level: 0, x: NaN, z: NaN, rot: -1, root, model, pick, height, badge: null, sign, rise: -1, emitter: null, steam: null, cups: [] };
     pick.userData.target = { kind: 'building', uid: b.uid, type: b.type };
-    if (!def.decor) {
-      e.badge = makeLabel('', { bg: '#ffe9a8', border: '#d39a2a', height: .62 });
-      e.badge.sprite.position.y = height + .55;
-      root.add(e.badge.sprite);
-    }
+    // No floating "Lv N" label (land-ui-simplify §4): the level lives in the building card's title.
     if (def.recipe) {
       // Producer: animate children[0] (the model wrapper's inner group) so the rise (model.position) and the upgrade
       // pulse (model.scale) keep working. Phase from the uid so duplicates do not move in lockstep.
@@ -391,13 +396,13 @@ export function createBuildings({ scene, prefabs, templates, vfx }) {
     e.x = b.x; e.z = b.z; e.rot = b.rot;
     const area = areaAt(b.x, b.z);
     if (area !== e.area) { e.area = area; areas[area].add(e.root); }
-    e.root.position.set(b.x, 0, b.z);
+    e.root.position.set(b.x, farmGroundY(b.x, b.z), b.z); // on its mountain tier
     e.root.rotation.y = -(b.rot % 4) * Math.PI / 2;
     e.root.updateMatrixWorld(true);
     const c = e.model.userData.chimney;
     if (c) {
       e.root.localToWorld(tmp.set(c.x, c.y, c.z));
-      if (e.emitter) e.emitter.move(tmp); else e.emitter = vfx.emitter('dust', tmp, { rate: 2.5 });
+      if (e.emitter) e.emitter.move(tmp); else e.emitter = vfx.emitter('smoke', tmp, { rate: 2.5 });
     }
     if (e.steam) { e.steam.stop(); e.steam = null; }
     const p = e.prod;
@@ -416,6 +421,7 @@ export function createBuildings({ scene, prefabs, templates, vfx }) {
       if (e.prod) e.prod.job = b.job || null; // saved batch: update() reads its stage every frame
       if (e.level !== b.level) {
         e.level = b.level;
+        const sz = BUILDINGS[b.type].effect?.size?.[Math.min(b.level || 1, 5) - 1]; if (sz && !BUILDINGS[b.type].animal) e.model.scale.setScalar(sz); // upgrades make it bigger
         e.badge?.set(t('realm.level', { level: b.level }));
         if (b.type === 'terrace') setTerraceLevel(e, b.level);
       }
@@ -432,6 +438,7 @@ export function createBuildings({ scene, prefabs, templates, vfx }) {
   }
   function remove(uid, e) {
     e.seats?.geometry.dispose();
+    endBuild(e, false);
     e.emitter?.stop(); e.steam?.stop(); e.prod?.smoke?.stop();
     e.badge?.dispose();
     e.sign?.dispose();
@@ -440,9 +447,76 @@ export function createBuildings({ scene, prefabs, templates, vfx }) {
     entities.delete(uid);
   }
 
+  // ---------- construction (looks only: the building already works; docs/design/ground-pass.md) ----------
+  // Stake out and clear the ground → scaffold goes up → the house appears from the foundation upward, sparks and dust
+  // where the crew works → scaffold comes down. The cut is a clipping plane, so it fits any model.
+  const poleGeo = new THREE.CylinderGeometry(1, 1, 1, 6), poleMat = new THREE.MeshStandardMaterial({ color: 0xa98258, roughness: .9 });
+  const smooth = k => { const t = Math.max(0, Math.min(1, k)); return t * t * (3 - 2 * t); };
+  function scaffold(fw, fd, h) {
+    const ox = fw / 2 + .4, oz = fd / 2 + .4, H = h + .6, nx = Math.max(2, Math.ceil(fw / 1.7)), nz = Math.max(2, Math.ceil(fd / 1.7)), levels = Math.max(2, Math.ceil(h / 1.25));
+    const up = new THREE.Vector3(0, 1, 0), parts = [];
+    const add = (a, b, r) => { const d = new THREE.Vector3().subVectors(b, a), m = new THREE.Matrix4(); m.compose(a.clone().addScaledVector(d, .5), new THREE.Quaternion().setFromUnitVectors(up, d.clone().normalize()), new THREE.Vector3(r, d.length(), r)); parts.push(m); };
+    const P = (x, y, z) => new THREE.Vector3(x, y, z);
+    for (let i = 0; i <= nx; i++) { const x = -ox + 2 * ox * i / nx; for (const z of [-oz, oz]) add(P(x, 0, z), P(x, H, z), .055); }
+    for (let i = 1; i < nz; i++) { const z = -oz + 2 * oz * i / nz; for (const x of [-ox, ox]) add(P(x, 0, z), P(x, H, z), .055); }
+    for (let k = 1; k <= levels; k++) {
+      const y = H * k / levels - .05;
+      for (const z of [-oz, oz]) add(P(-ox - .25, y, z), P(ox + .25, y, z), .04);
+      for (const x of [-ox, ox]) add(P(x, y, -oz - .25), P(x, y, oz + .25), .04);
+    }
+    add(P(-ox, 0, oz), P(ox, H, oz), .03); add(P(ox, 0, -oz), P(-ox, H, -oz), .03);   // cross braces
+    const mesh = new THREE.InstancedMesh(poleGeo, poleMat, parts.length);
+    parts.forEach((m, i) => mesh.setMatrixAt(i, m));
+    mesh.castShadow = true; mesh.raycast = () => {}; mesh.frustumCulled = false;
+    return mesh;
+  }
+  function startBuild(e, time) {
+    const def = BUILDINGS[e.type], fw = def.size[0] * CELL, fd = def.size[1] * CELL, plane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0), saved = [];
+    e.model.traverse(o => {
+      if (!o.isMesh) return;
+      const orig = o.material, list = Array.isArray(orig) ? orig : [orig], clones = list.map(m => { const c = m.clone(); c.clippingPlanes = [plane]; c.clipShadows = true; return c; });
+      o.material = Array.isArray(orig) ? clones : clones[0]; saved.push([o, orig, clones]);
+    });
+    const padMat = new THREE.MeshStandardMaterial({ map: farmTex('soil'), normalMap: farmTex('soil', 'normal'), roughness: 1, polygonOffset: true, polygonOffsetFactor: -2 });
+    const padGeo = new THREE.PlaneGeometry(fw + 1.4, fd + 1.4).rotateX(-Math.PI / 2);
+    const uv = padGeo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * (fw + 1.4) / 3, uv.getY(i) * (fd + 1.4) / 3);
+    const pad = new THREE.Mesh(padGeo, padMat); pad.position.y = .05; pad.receiveShadow = true; pad.raycast = () => {};
+    const rig = scaffold(fw, fd, e.height);
+    e.root.add(pad, rig);
+    if (e.sign) e.sign.sprite.visible = false;
+    e.build = { t0: time, dur: Math.max(8, Math.min(24, 6 + fw * fd * .22 + e.height * 1.2)), plane, saved, pad, padMat, padGeo, rig, next: time + .4, fw, fd };
+    vfx.burst('dust', e.root.position, { count: 10 });
+  }
+  function endBuild(e, finished) {
+    const c = e.build; if (!c) return;
+    for (const [o, orig, clones] of c.saved) { o.material = orig; clones.forEach(m => m.dispose()); }
+    c.pad.removeFromParent(); c.padGeo.dispose(); c.padMat.dispose();
+    c.rig.removeFromParent(); c.rig.dispose();
+    if (e.sign) e.sign.sprite.visible = true;
+    e.build = null;
+    if (finished) { vfx.burst('dust', e.root.position, { count: 16 }); vfx.burst('sparkle', tmp.copy(e.root.position).setY(e.root.position.y + e.height + .3), { count: 12 }); }
+  }
+  function updateBuild(e, time) {
+    const c = e.build, k = (time - c.t0) / c.dur;
+    if (k >= 1) { endBuild(e, true); return; }
+    const y0 = e.root.position.y, reveal = smooth((k - .18) / .64), top = y0 - .05 + (e.height + .4) * reveal;
+    c.plane.constant = top;
+    c.rig.scale.y = Math.max(.001, k < .86 ? smooth(k / .16) : 1 - smooth((k - .86) / .13));
+    c.pad.scale.setScalar(Math.max(.001, k < .92 ? smooth(k / .08) : 1 - smooth((k - .92) / .08)));
+    if (time >= c.next && k > .12 && k < .84) {
+      c.next = time + .24 + Math.random() * .4;
+      const a = Math.random() * 4, side = Math.floor(a), f = (a - side) * 2 - 1, hx = c.fw / 2, hz = c.fd / 2;
+      tmp.set(side === 0 ? -hx : side === 1 ? hx : f * hx, Math.max(.2, top - y0), side === 2 ? -hz : side === 3 ? hz : f * hz);
+      e.root.localToWorld(tmp);
+      vfx.burst('spark', tmp); if (Math.random() < .55) vfx.burst('chip', tmp, { count: 2 }); if (Math.random() < .45) vfx.burst('dust', tmp, { count: 2 });
+    }
+  }
+
   function onBuilt(uid, time) {
     const e = entities.get(uid);
     if (!e) return;
+    const d = BUILDINGS[e.type];
+    if (!d.decor && !d.animal && d.use !== 'decor' && e.height >= 1) { startBuild(e, time); return; }
     e.rise = time;
     e.model.position.y = -e.height;
     vfx.burst('dust', e.root.position, { count: 14 });
@@ -475,7 +549,7 @@ export function createBuildings({ scene, prefabs, templates, vfx }) {
     }
     const shown = !view || e.area === view;
     const wantSmoke = stage === 'working' && shown && !!p.smokeAt && e.root.visible;
-    if (wantSmoke && !p.smoke) p.smoke = vfx.emitter('dust', p.smokePos, { rate: 1.2 });
+    if (wantSmoke && !p.smoke) p.smoke = vfx.emitter('smoke', p.smokePos, { rate: 1.6 });
     else if (!wantSmoke && p.smoke) { p.smoke.stop(); p.smoke = null; }
     if (stage !== 'working' || !shown) return;
     const ratio = Math.min(1, Math.max(.03, j.ms > 0 ? (now - j.at) / j.ms : 1));
@@ -497,6 +571,7 @@ export function createBuildings({ scene, prefabs, templates, vfx }) {
 
   function update(dt, time, orders, now, isCarried = () => false) {
     for (const e of entities.values()) {
+      if (e.build) updateBuild(e, time);
       if (e.rise >= 0) {
         const k = (time - e.rise) / RISE;
         if (k >= 1) { e.rise = -1; e.model.position.y = 0; }

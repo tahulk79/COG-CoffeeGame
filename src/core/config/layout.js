@@ -104,6 +104,24 @@ export const PARCELS = {
   C2: { id: 'C2', kind: 'shop', rect: [12, 100, 24, 114], cost: 500, area: 'cafe' },
   C3: { id: 'C3', kind: 'shop', rect: [-22, 100, -11, 114], cost: 1400, area: 'cafe' },
 };
+// ---- Estates (docs/design/land-ui-simplify.md §2A, founder 2026-11-08): the farm grows in 4 climate estates, each bought
+// once with coins + a level gate, instead of 32 separate lots. An estate owns all its lots (the lot logic underneath —
+// roads, terrain uses, growing zone — is unchanged); buying one pre-tills `seed`'s 6 fields, the rest are placed freely.
+export const ESTATES = {
+  // 4 altitude tiers (founder 2026-11-08): the farm climbs north, each tier a plateau above the last (FARM_TIERS).
+  home: { id: 'home', icon: '🌴', zone: 'lowland', cost: 0, level: 1, seed: 'F1', lots: ['F1', 'Y0', 'F2', 'F5', 'F6', 'W1', 'D1', 'F13', 'F14'] },
+  upland: { id: 'upland', icon: '⛰️', zone: 'upland', cost: 1500, level: 3, seed: 'F3', lots: ['F3', 'F4', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12'] },
+  slope: { id: 'slope', icon: '🪜', zone: 'slope', cost: 6000, level: 5, seed: 'F15', lots: ['F15', 'F16', 'P1', 'P2', 'F17', 'F18', 'W2', 'W3', 'PD1', 'O1'] },
+  highland: { id: 'highland', icon: '🏔️', zone: 'highland', cost: 18000, level: 8, seed: 'P3', lots: ['P3', 'P4', 'G1', 'O2', 'W4', 'W5', 'H1'] },
+};
+export const ESTATE_ORDER = ['home', 'upland', 'slope', 'highland'];
+export const ESTATE_OF = Object.fromEntries(Object.values(ESTATES).flatMap(e => e.lots.map(id => [id, e.id])));
+/** The estate a farm lot belongs to (null for café lots). */
+export const estateOfLot = id => (Object.hasOwn(ESTATE_OF, id) ? ESTATES[ESTATE_OF[id]] : null);
+/** Fields in one planting row (a field lot's classic 6 spots). Rows are tilled for free: one when an estate is bought,
+ *  one more at every level-up (game.js autoTill), so the farm keeps growing without buying land lot by lot. */
+export const ESTATE_FIELDS = 6;
+export const farmLotsOf = e => e.lots.filter(id => PARCELS[id]?.kind === 'farm');
 export const PARCEL_ORDER = ['F1', 'Y0', 'S', 'F2', 'C2', 'F3', 'W1', 'F4', 'D1', 'F5', 'C3', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'P1', 'F12', 'F15', 'F13', 'W2', 'F14', 'F16', 'P2', 'F17', 'W3', 'F18', 'PD1', 'O1', 'P3', 'G1', 'P4', 'O2', 'W4', 'W5', 'H1'];
 export const areaOfParcel = id => PARCELS[id]?.area || 'farm';
 /** Lot kinds a building zone may stand on (BUILDINGS[].zone → PARCELS[].kind). */
@@ -115,24 +133,79 @@ export const LOT_KINDS = { farm: ['build'], shop: ['shop'], any: ['build', 'deco
 export const LOT_TERRAIN = { farm: 'meadow', build: 'meadow', decor: 'garden', pasture: 'pasture', orchard: 'orchard', pond: 'pond', shop: 'shop' };
 export const TERRAIN_OVERRIDE = { H1: 'hill' };
 export const TERRAIN_USES = {
+  // Owned land takes anything (founder 2026-11-08): plant, build or decorate wherever you like.
   meadow: ['field', 'building', 'decor'],
   garden: ['field', 'building', 'decor'],
-  pasture: ['building', 'decor'], // kept for animals (docs/design/produce-system.md)
-  orchard: ['field', 'decor'],     // orchard trees stay
-  pond: ['decor'],
-  hill: ['decor'],
+  pasture: ['field', 'building', 'decor'],
+  orchard: ['field', 'building', 'decor'],
+  pond: ['field', 'building', 'decor'],
+  hill: ['field', 'building', 'decor'],
   shop: ['building', 'decor'],     // café lots (café rules unchanged)
 };
 export const terrainOfLot = id => (Object.hasOwn(TERRAIN_OVERRIDE, id) ? TERRAIN_OVERRIDE[id] : (Object.hasOwn(PARCELS, id) && LOT_TERRAIN[PARCELS[id].kind]) || 'wild');
-// Growing zone of a lot (docs/design/coffee-varieties.md): south of the main road = lowland, the first two rows north =
-// upland (trung du), the far north = highland (cao nguyên), the pond and its orchard = wetland. Café lots have none.
-const ZONE_LOTS = {
-  lowland: ['F1', 'F2', 'F5', 'F6', 'F13', 'F14', 'Y0', 'W1', 'D1'],
-  upland: ['F3', 'F4', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12', 'F15', 'F16', 'P1', 'P2'],
-  highland: ['F17', 'F18', 'W2', 'W3', 'P3', 'P4', 'G1', 'O2', 'W4', 'W5', 'H1'],
-  wetland: ['PD1', 'O1'],
-};
-export const CLIMATE_OF = Object.fromEntries(Object.entries(ZONE_LOTS).flatMap(([z, ids]) => ids.map(id => [id, z])));
+// Growing zone of a lot = its estate's tier: lowland (1, hot humid plain), upland (2, low hills), slope (3, terraced
+// hillside), highland (4, cool plateau with shade trees). Café lots have none.
+export const CLIMATE_OF = Object.fromEntries(Object.values(ESTATES).flatMap(e => e.lots.map(id => [id, e.zone])));
+// Ground height of each tier (m) and where the land steps up: the farm climbs north (−z). West of the spine the pond
+// tier reaches further north, so tier 3 → 4 is at z −51.5 there and −46.5 east (lot edges, with the lanes on the lower side).
+export const FARM_TIERS = { lowland: 0, upland: 2.2, slope: 4.4, highland: 6.6 }; // mobile-game look: low tidy terraces
+export const TIER_EDGES = [
+  { z: -2.5, h: 2.2 },                 // lowland → upland (wall north of the main road)
+  { z: -20.5, h: 4.4 },                // upland → slope (wall north of the ring road)
+  { z: -51.5, zE: -46.5, h: 6.6 },     // slope → highland (west / east of the spine)
+];
+// The tier walls are dry-stone retaining walls WALL_T m thick (just inside the upper tier, so the lanes below stay flat); the spine road climbs each
+// wall on a ramp RAMP m long, north of the edge, inside the spine corridor |x| < SPINE_HALF (a sunken cutting through the bank).
+// WALL_FRONT: the land step starts 0.3 m south of the lot edge; the stone wall stands in front of it on the lane below.
+export const WALL_T = .5, WALL_FRONT = .3, RAMP = 8.5, SPINE_HALF = 1.5;
+// Cuttings through each tier wall: the spine road ramp (8.5 m) and two footpath stair flights between the field columns
+// (x ±15, 6 m runs, gedeo stone-steps.glb). Inside a cutting the land rises along z instead of at the wall.
+export const TIER_CUTS = [{ x: 0, half: SPINE_HALF, len: RAMP, kind: 'ramp' }, { x: -15, half: 1.05, len: 6, kind: 'steps' }, { x: 15, half: 1.05, len: 6, kind: 'steps' }];
+const smooth = t => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
+/** Edge z of a tier edge at x (the slope → highland edge jogs at the spine). */
+export const tierEdgeZ = (e, x) => (e.zE != null && x > 0 ? e.zE : e.z);
+/**
+ * Ground height (m) of the farm world at (x, z): the 4 tier plateaus, a near-vertical retaining wall at each tier edge and
+ * the ramp / stair cuttings. Pure and cheap: the realm calls it for every object it stands on the ground (plots, buildings,
+ * staff, player, roads, scenery) and the picking ray (realm/util groundPoint) solves against it. Outside the farm the tiers
+ * run on east / west (the Blender hill country adds its hills on top beyond the farm, gedeo_landscape.py).
+ */
+export function farmGroundY(x, z) {
+  let y = 0, prev = 0;
+  const ax = Math.abs(x);
+  let cut = null, w = 0;
+  for (const c of TIER_CUTS) { const d = Math.abs(x - c.x); if (d < c.half + .5) { const k = 1 - smooth((d - c.half) / .5); if (k > w) { w = k; cut = c; } } }
+  for (const e of TIER_EDGES) {
+    const step = e.h - prev; prev = e.h;
+    // inside the farm (|x| ≤ 30) a stone wall WALL_T thick; past it the step widens into a grassy bank (hillside)
+    const t = WALL_T + Math.min(14, Math.max(0, ax - 30) * 1.5);
+    const ez = cut ? (cut.x === 0 ? Math.max(e.z, e.zE ?? e.z) : tierEdgeZ(e, cut.x)) : tierEdgeZ(e, x);
+    const wall = smooth((ez + WALL_FRONT - z) / t); // 0 just south of the edge … 1 a wall's depth north (behind the stones)
+    if (cut) {
+      const r = cut.kind === 'steps' ? Math.max(0, Math.min(1, (ez - z) / cut.len)) : smooth((ez - z) / cut.len);
+      y += step * (r * w + wall * (1 - w));
+    } else y += step * wall;
+  }
+  return y;
+}
+/** Tier number at a farm point: 0 lowland … 3 highland. */
+export const tierIndexAt = (x, z) => (z >= TIER_EDGES[0].z ? 0 : z >= TIER_EDGES[1].z ? 1 : z >= tierEdgeZ(TIER_EDGES[2], x) ? 2 : 3);
+/** Walking distance between two farm points: tier by tier through the best ramp or stairs, never straight through a wall. */
+export function farmRouteDist(ax, az, bx, bz) {
+  let tier = tierIndexAt(ax, az), d = 0, x = ax, z = az;
+  const end = tierIndexAt(bx, bz), step = tier < end ? 1 : -1;
+  while (tier !== end) {
+    const edge = TIER_EDGES[step > 0 ? tier : tier - 1];
+    let cut = TIER_CUTS[0], bc = Infinity;
+    for (const c of TIER_CUTS) { const v = Math.abs(c.x - x) + Math.abs(c.x - bx); if (v < bc) { bc = v; cut = c; } }
+    const ez = tierEdgeZ(edge, cut.x);
+    d += Math.hypot(cut.x - x, ez - z);
+    x = cut.x; z = ez; tier += step;
+  }
+  return d + Math.hypot(bx - x, bz - z);
+}
+/** Growing zone at a farm point, whatever lot or road it is on: the tier (altitude band) it stands in. */
+export const tierZoneAt = (x, z) => (z >= TIER_EDGES[0].z ? 'lowland' : z >= TIER_EDGES[1].z ? 'upland' : z >= tierEdgeZ(TIER_EDGES[2], x) ? 'slope' : 'highland');
 export const climateOfLot = id => (Object.hasOwn(CLIMATE_OF, id) ? CLIMATE_OF[id] : 'lowland');
 export const lotAllows = (id, use) => (TERRAIN_USES[terrainOfLot(id)] || []).includes(use);
 // Fields a lot comes with when bought ("pre-tilled"): the 6 classic plot spots of every field lot (plotsOf below).

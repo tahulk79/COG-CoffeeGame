@@ -125,7 +125,7 @@ export function createModals(ctx) {
       if (got.prize) sub.textContent = T(`hud.gift.prize.${got.prize}`);
       else sub.textContent = T('hud.gift.inside');
       list.replaceChildren(...got.items.map((it, i) => h('li', { class: 'hud-gift-item', attrs: { style: `--i:${i}` } },
-        h('span', { class: 'hud-gift-item-ico', attrs: { 'aria-hidden': 'true' } }, ITEM_ICON[it.kind] || '🎁'),
+        it.kind === 'coins' ? null : h('span', { class: 'hud-gift-item-ico', attrs: { 'aria-hidden': 'true' } }, ITEM_ICON[it.kind] || '🎁'), // coins: the money formatter already draws the coin beside the number
         h('strong', null, T(`hud.gift.item.${it.kind}`, { n: it.amount })))));
       list.hidden = false;
       btn.firstChild.textContent = T('hud.gift.collect');

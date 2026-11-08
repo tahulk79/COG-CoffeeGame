@@ -1,3 +1,5 @@
+> **Đã thay thế một phần (2026-11-08):** Tổng quản lý chỉ còn một luật: toàn quyền mọi việc, chỉ nạp tiền và bán hạt cần chủ ký. Không còn chế độ quyền, ngân sách, hạn mức, giấy phép. Không còn tinh thần, bị đối thủ dụ đi và đội loạn. Nhân viên không còn chức vụ, chỉ dựa vào chỉ số nâng cấp.
+
 # Management Rules — Nhân viên · Robot · Tổng quản lý (Standard v1.1)
 
 **Status:** proposal, 2026-11-07 (rev 2 after the balance audit). Nothing here is coded. Supersedes the balance parts of `staff-manager.md`, `general-manager.md` §4 ("GM never borrows / builds / buys land") and `research.md:6` where they conflict. Code facts cite `economy.js` / `derive.js` / `game.js` / `state.js` / `realm/staff.js` at `61e0cb1`.

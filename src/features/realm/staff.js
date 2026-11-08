@@ -8,13 +8,12 @@
 // Mistakes (MISTAKES, workers only, rolled per job by level × trait): spill (cup drops → shop/spill, rebrew), wrong
 // table (a detour to another table first), unripe (farm/harvest unripe: 1 bean less), crooked (farm/plant crooked:
 // grows slower) — each with a line in the worker's voice (realm.staff.oops.<kind>.<trait>).
-// Lead / manager-rank workers wear a gold armband (GM.look.armband) on the left upper arm (management-rules §6).
 // Over the head: ⬆️ (tappable → hooks.onStaffTap) when a worker can be trained; an idle robot shows its task icon
 // (🔄 ring in auto mode). Robot hardware shows on the body: battery pack on the back, motor ring, charger antenna tip.
 // Passive bonuses (derive) still apply; on top of that every unit runs a small job loop:
-//  · farm  (farmhand, sproutBot): harvest a READY owned plot (nearest, unclaimed) → replant it with the player's
-//    selected crop (or the best affordable unlocked crop) if seeds are affordable; else plant an EMPTY owned plot;
-//    else wander near the fields. Never harvests when the storehouse is full.
+//  · farm (docs/design/farm-crew.md): one trade per unit (STAFF.jobs / ROBOT_TASKS): harvest a ready plot, plant an empty
+//    one, water (from the well; robots carry a tank), prune / trim, spray (drone), run a processing station, haul goods
+//    to sell. Nothing for its trade → wanders near the fields and shows why.
 //  · café  (barista, brewBot) — the decisions are pure, in staff-brain.js (see its header; unit-tested):
 //      posts each sync (1 → all-rounder, 2 → cashier + barista, 3+ → + runners; brewBot prefers barista); a unit does
 //      its post's jobs first, then any job whose owner is busy. deliver = carry a READY cup (workers take a second
@@ -46,12 +45,16 @@
 // paid fix (D.quickFix) carry the 🪙 bubble; the realm's tap maps it to the right staff/care kind. Worker tasks (u.tasks)
 // restrict the job types a worker takes on both areas.
 import * as THREE from 'three';
-import { STAFF, CROPS, CROP_ORDER, DRINKS, STAFF_BREAKS, ROBOT_TASKS, ROBOT_AUTO, unitSpeed, batteryMinutes, slackMul, hasRule, robotTask, mistakeChance, partTier, isHardDrink, BEANS, TEND, jamChance, energyMax, RIVAL, BOOKS, CAREER, GM, craftSpeed, rankOf, gearWalk, gearJob, hasSoftware, SOFTWARE, STAFF_SIM, CLOCK } from '../../core/config/economy.js';
-import { PARCELS, FIXED, FARM_WELL } from '../../core/config/layout.js';
-import { pickCropFor, harvestUrgency, assignedUnits, ownedPlots, plotState, cropUnlocked, seedCost, capacity, stored, plotOf, tileAt, seatCount, seatsUsed, brewSlots, seatPatienceRatio, beanBuyQuote, plotGrowMs, canBrew, region as regionOf, unitState, unitBlocked, unitWorking, stateSpeedMul, quickFix, upgradableStats, buildingsOf, footprint, zoneLeaders, nudgeDue, needs, careError, chaosSlackMul, gmOf, gmThinkSeconds, workerPoach, planCropFor } from '../../core/derive.js';
+import { STAFF, CROPS, CROP_ORDER, DRINKS, STAFF_BREAKS, ROBOT_TASKS, ROBOT_AUTO, unitSpeed, batteryMinutes, slackMul, hasRule, robotTask, mistakeChance, partTier, isHardDrink, BEANS, BUILDINGS, CREW, FUNNY, goofFee, funnyRoll, gmCalmMul, goofRoll, goofHold, knows, isHardCrop, jamChance, energyMax, RIVAL, BOOKS, GM, craftSpeed, gearWalk, gearJob, hasSoftware, SOFTWARE, STAFF_SIM, CLOCK } from '../../core/config/economy.js';
+import { PARCELS, FIXED, FARM_WELL, farmGroundY, farmRouteDist, tierIndexAt } from '../../core/config/layout.js';
+import { FARM_MANAGER } from '../../core/config/economy.js';
+import { managerCropFor } from '../../core/farm-manager.js';
+import { fmOf, easyCropFor, pickCropFor, harvestUrgency, assignedUnits, ownedPlots, plotState as readPlotState, cropUnlocked, seedCost, capacity, stored, plotOf, tileAt, seatCount, seatsUsed, brewSlots, seatPatienceRatio, beanBuyQuote, plotGrowMs, canBrew, region as regionOf, unitState, unitBlocked, unitWorking, stateSpeedMul, quickFix, upgradableStats, buildingsOf, footprint, needs, careError, chaosSlackMul, gmOf, gmThinkSeconds, workerPoach, planCropFor, recipeOf, orderSpot, prodError, collectError, treeOld, pruneCost, dripCovers, haulCapacity, pileCount, cargoCount, storeBuildings, bucketPlots } from '../../core/derive.js';
 import { assignPosts, pickShopJob, orderBlock, waitsForBrew, secondCup, nearestFirst, urgencyK, facing, yieldsTo, isReady, POST_JOBS, autoTask, ROBOT_POST, allows, ctxTakes, TICKS, vitalsInterval, vitalsNoop, timerDue, poseOf, stateIconKey, showsFix, knockStep, KNOCK } from './staff-brain.js';
 import { createPerson } from '../../characters/player.js';
 import { dressPerson } from '../../characters/npc.js';
+import { dressGedeoWorker, dressGedeoRobot, gedeoProp } from '../../characters/gedeo-worker.js';
+import { createPlant } from '../../shared/three/gedeo-vegetation.js';
 import { makeCanvasSprite, drawEmoji, dampK, FONT } from './util.js';
 import { t, hasKey } from '../../i18n/index.js';
 import { FOV } from './camera.js';
@@ -66,8 +69,10 @@ const IDLE = {
 };
 const SPEED = STAFF_SIM.speed; // m/s per kind (core config)
 const WORK = STAFF_SIM.work;   // seconds per job by unit type (core config)
-const ICON = { harvest: '🌾', plant: '🌱', brew: '☕', order: '🧾', deliver: '🚶', phone: '📱', giggle: '😂', zzz: '💤', battery: '🔋', charged: '⚡', noBeans: '☕❌', water: '💧', growing: '⏳', storageFull: '📦', noSeeds: '💸', noPlots: '🏞️',
+const ICON = { harvest: '🌾', plant: '🌱', brew: '☕', order: '🧾', deliver: '🚶', phone: '📱', giggle: '😂', zzz: '💤', battery: '🔋', charged: '⚡', noBeans: '☕❌', water: '💧', prune: '✂️', spray: '🛸', process: '🫘', haul: '📦', noBatch: '🫘', cantDo: '❓', goofPlay: '🎮', goofLost: '🤷', botLost: '📡', botDock: '🔌', noPile: '🧺', noStore: '🏚️', noWell: '🚱', growing: '⏳', storageFull: '📦', noSeeds: '💸', noPlots: '🏞️',
   tired: '😮‍💨', hungry: '🍔', sulking: '😤', lunch: '🍽️', overheat: '🔥', jam: '⚙️', bench: '🪑' };
+for (const [id] of [...FUNNY.worker, ...FUNNY.robot]) ICON[`f_${id}`] = '❗';
+for (const job of ['openField', 'expand', 'build', 'livestock']) ICON[`x_${job}`] = '🛠️';
 // Staff manager poses (§9).
 const SIT_Y = -.32;            // m: body lowered when sitting (lunch, exhausted)
 const FACE_AWAY = Math.PI;     // sulking: back to the camera (the view looks north)
@@ -83,82 +88,36 @@ const PAD_SIDE = .85;          // m, spot beside a pad another unit (or the play
 const PAD_HOLD = .55;          // m, a still unit this close to a pad holds it
 const SIDE_STEP = .6, SIDE_T = .35; // lane step-aside: distance (m) over time (s)
 const NO_BEANS_LINE = 'realm.staff.noBeans';
-const FEE_PX = 58; // break bubble height on screen (CSS px) — same family as the ▲ / ! world badges
-const FEE_W = 256, FEE_H = 176; // canvas of the break bubble
 
-// Break bubble in the HUD card style: cream paper panel, warm brown border, small tail to the head, soft shadow.
-// Left: status icon in a circle (📱 + 😴 for a slacking worker, red 🔋 for a robot). Right: gold coin chip + fee.
-// Under: "Wake up" / "Recharge". Not enough coins → muted chip with a small 🔒.
-function rr(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
-// One look per fix: status icon (+ a small badge), circle colours and the label key under the coin chip.
-const BUBBLE = {
-  phone: { icon: '📱', badge: '😴', fill: '#e6f1ff', ring: '#6aa3c8', label: 'realm.staff.wake' },
-  battery: { icon: '🔋', fill: '#ffe1dc', ring: '#e5533f', label: 'realm.staff.recharge', cell: true },
-  tend: { icon: '💧', fill: '#dff3ff', ring: '#6aa3c8', label: 'realm.staff.tend' },
-  overheat: { icon: '🔥', fill: '#ffe1dc', ring: '#e5533f', label: 'realm.staff.cool' },
-  jam: { icon: '⚙️', badge: '❗', fill: '#ece6da', ring: '#8f8678', label: 'realm.staff.repair' },
-  tired: { icon: '😮‍💨', badge: '☕', fill: '#fff1dc', ring: '#c99a5e', label: 'realm.staff.coffee' },
-  hungry: { icon: '🍔', fill: '#fff1dc', ring: '#c99a5e', label: 'realm.staff.food' },
-  sulking: { icon: '😤', badge: '🎁', fill: '#ffe9e6', ring: '#d9785f', label: 'realm.staff.bonus' },
-};
-function drawBreak(g, W, H, kind = 'phone', fee = 0, ok = true, label = '') {
-  const b = BUBBLE[kind] || BUBBLE.phone;
-  g.clearRect(0, 0, W, H);
-  const px = 10, py = 8, pw = W - 20, ph = H - 44, tail = 18;
-  // shadow, panel, tail
-  g.fillStyle = 'rgba(74,47,24,.25)'; rr(g, px, py + 5, pw, ph, 26); g.fill();
-  g.beginPath(); g.moveTo(W / 2 - tail, py + ph - 2); g.lineTo(W / 2, py + ph + tail + 4); g.lineTo(W / 2 + tail, py + ph - 2); g.closePath();
-  g.fillStyle = '#fff8e8'; g.fill(); g.lineWidth = 5; g.strokeStyle = '#c99a5e'; g.stroke();
-  rr(g, px, py, pw, ph, 26); g.fillStyle = '#fff8e8'; g.fill(); g.lineWidth = 5; g.strokeStyle = '#c99a5e'; g.stroke();
-  g.fillStyle = '#fff8e8'; g.fillRect(W / 2 - tail + 4, py + ph - 6, tail * 2 - 8, 6); // join tail and panel
-  // status icon circle
-  const cx = px + 52, cy = py + ph * .42, r = 34;
-  g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2);
-  g.fillStyle = b.fill; g.fill();
-  g.lineWidth = 4; g.strokeStyle = b.ring; g.stroke();
-  drawEmoji(g, b.icon, cx, cy + 2, 40);
-  if (b.cell) { g.fillStyle = '#e5533f'; g.fillRect(cx - 14, cy - 3, 9, 9); } // empty-cell red accent
-  else if (b.badge) drawEmoji(g, b.badge, cx + 24, cy - 24, 22);
-  // gold coin chip + fee
-  const chipX = px + 100, chipY = cy - 26, chipW = pw - 108, chipH = 52;
-  rr(g, chipX, chipY, chipW, chipH, 26);
-  g.fillStyle = ok ? '#fff1c4' : '#ece6da'; g.fill(); g.lineWidth = 4; g.strokeStyle = ok ? '#e0a83a' : '#b9ad97'; g.stroke();
-  const coinX = chipX + 28, coinR = 18;
-  const grad = g.createRadialGradient(coinX - 6, cy - 8, 2, coinX, cy, coinR);
-  if (ok) { grad.addColorStop(0, '#fff6b8'); grad.addColorStop(.35, '#ffd34d'); grad.addColorStop(1, '#e9a521'); }
-  else { grad.addColorStop(0, '#f2f0ea'); grad.addColorStop(.4, '#cfc8b8'); grad.addColorStop(1, '#a9a092'); }
-  g.beginPath(); g.arc(coinX, cy, coinR, 0, Math.PI * 2); g.fillStyle = grad; g.fill();
-  g.lineWidth = 3; g.strokeStyle = ok ? '#c98a17' : '#8f8678'; g.stroke();
-  g.font = FONT.replace('{size}', '34'); g.textAlign = 'left'; g.textBaseline = 'middle';
-  g.fillStyle = ok ? '#6b3f12' : '#8f8678';
-  g.fillText(String(fee), coinX + coinR + 8, cy + 2);
-  if (!ok) drawEmoji(g, '🔒', chipX + chipW - 18, chipY + 6, 20);
-  // label
-  if (label) { g.font = FONT.replace('{size}', '26'); g.textAlign = 'center'; g.fillStyle = '#7a4a2a'; g.fillText(label, W / 2 + 4, py + ph - 22); }
-}
 const THINK = .35;
 // The seated customer closest to running out of patience is served / brewed for first.
 const mostUrgent = (orders, test, now) => { let best = null, bp = -1; for (const o of orders) if (test(o)) { const p = seatPatienceRatio(o, now); if (p > bp) { bp = p; best = o; } } return best; };
 const THINK_ = 0; // seconds between job searches for an idle unit
-
-function drawStatus(g, size, icon = '', auto = false) {
-  if (!icon) return;
-  const c = size / 2;
-  g.fillStyle = 'rgba(60,35,15,.22)'; g.beginPath(); g.arc(c, c + 3, c * .7, 0, Math.PI * 2); g.fill();
-  g.fillStyle = '#ffffff'; g.beginPath(); g.arc(c, c, c * .7, 0, Math.PI * 2); g.fill();
-  g.lineWidth = auto ? 7 : 4; g.strokeStyle = icon === ICON.noBeans ? '#e5533f' : auto ? '#3f8fe0' : '#6aa84f'; g.stroke();
-  if (auto) drawEmoji(g, '🔄', c + size * .27, c - size * .27, size * .22);
-  if (icon === ICON.noBeans) { drawEmoji(g, '☕', c, c + 2, size * .44); drawEmoji(g, '❌', c + size * .22, c + size * .2, size * .26); return; }
-  drawEmoji(g, icon, c, c + 2, size * .46);
-}
-
-// "Ready to train" badge: gold circle with ⬆️.
-function drawUp(g, size) {
-  const c = size / 2;
-  g.fillStyle = 'rgba(60,35,15,.25)'; g.beginPath(); g.arc(c, c + 3, c * .72, 0, Math.PI * 2); g.fill();
-  g.fillStyle = '#ffd25a'; g.beginPath(); g.arc(c, c, c * .72, 0, Math.PI * 2); g.fill();
-  g.lineWidth = 5; g.strokeStyle = '#fff6d0'; g.stroke();
-  drawEmoji(g, '⬆️', c, c + 2, size * .5);
+function rr(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+// What a unit is doing, as one short word over its head. Problems are red, waiting is grey, work is plain.
+const TAG_TONE = { bad: { bg: '#d9503c', fg: '#fff' }, wait: { bg: '#6d6253', fg: '#fff' }, work: { bg: '#fff8e8', fg: '#4a2f1c' } };
+const TAG_BAD = new Set(['phone', 'giggle', 'zzz', 'battery', 'overheat', 'jam', 'sulking', 'tired', 'hungry', 'noBeans', 'storageFull', 'noSeeds', 'cantDo', 'noWell', 'noStore', 'goofPlay', 'goofLost', 'botLost', 'botDock']);
+const TAG_WAIT = new Set(['growing', 'noBatch', 'noPile', 'noPlots', 'lunch', 'bench']);
+const tagTone = key => (TAG_BAD.has(key) || key.startsWith('f_') ? 'bad' : TAG_WAIT.has(key) ? 'wait' : 'work');
+function drawTag(g, size, text = '', tone = 'work', fee = null) {
+  if (!text) return;
+  const H = 54, c = TAG_TONE[tone] || TAG_TONE.work, hasFee = fee != null, D = 34;
+  g.font = FONT.replace('{size}', 36); g.textBaseline = 'middle'; g.textAlign = 'left';
+  const textW = g.measureText(text).width, num = hasFee ? String(fee) : '', numW = hasFee ? g.measureText(num).width : 0, coinW = hasFee ? D + numW + 20 : 0, W = textW + 34 + (hasFee ? coinW + 6 : 0);
+  const k = Math.min(1, (size - 6) / W); // a long line shrinks to fit, the coins stay readable
+  g.save(); g.translate(size / 2, size / 2); g.scale(k, k);
+  const x = -W / 2, y = -H / 2;
+  rr(g, x, y, W, H, H / 2); g.fillStyle = c.bg; g.fill();
+  g.fillStyle = c.fg; g.fillText(text, x + 17, 2);
+  if (hasFee) { // a real gold coin, drawn: the coin emoji is grey on some systems
+    const cx = x + W - coinW - 5, r = D / 2, mx = cx + 8 + r;
+    rr(g, cx, y + 4, coinW, H - 8, (H - 8) / 2); g.fillStyle = '#fff1c4'; g.fill();
+    const grad = g.createRadialGradient(mx - 5, -6, 2, mx, 0, r);
+    grad.addColorStop(0, '#fff6b8'); grad.addColorStop(.4, '#ffd34d'); grad.addColorStop(1, '#e9a521');
+    g.beginPath(); g.arc(mx, 0, r, 0, Math.PI * 2); g.fillStyle = grad; g.fill(); g.lineWidth = 3; g.strokeStyle = '#b9781a'; g.stroke();
+    g.fillStyle = '#4a2f1c'; g.fillText(num, mx + r + 4, 2);
+  }
+  g.restore();
 }
 
 /**
@@ -172,7 +131,16 @@ let cupGeo = null, cupMat = null;
 const fallbackCupGeo = () => { if (!cupGeo) { cupGeo = new THREE.CylinderGeometry(.08, .065, .16, 10).translate(0, .08, 0); cupGeo.userData.keep = true; } return cupGeo; };
 const fallbackCupMat = () => { if (!cupMat) { cupMat = new THREE.MeshStandardMaterial({ color: 0xf4f1e6 }); cupMat.userData.keep = true; } return cupMat; };
 
-export function createStaff({ scene, store, vfx, templates = {}, pads, navigate = null, getActiveCrop = () => null, getCarrying = () => null, getSeat = () => null, getQueued = () => null, canStand = () => true, isPaused = () => false, say = null, getPlayerPos = () => null, isWalkable = null }) {
+// A plot's state is read many times per search by every idle unit: one read per plot per quarter second is plenty.
+let plotMemo = { at: 0, region: null, m: new Map() };
+function plotState(state, id, now) {
+  const r = state.world.currentRegion;
+  if (now - plotMemo.at > 250 || plotMemo.region !== r) plotMemo = { at: now, region: r, m: new Map() };
+  let v = plotMemo.m.get(id);
+  if (!v) { v = readPlotState(state, id, now); plotMemo.m.set(id, v); }
+  return v;
+}
+export function createStaff({ scene, store, vfx, templates = {}, pads, navigate = null, getFocus = () => null, getActiveCrop = () => null, getCarrying = () => null, getSeat = () => null, getQueued = () => null, canStand = () => true, isPaused = () => false, say = null, getPlayerPos = () => null, getManagerPos = () => null, isWalkable = null }) {
   const group = new THREE.Group();
   group.name = 'realm-staff';
   scene.add(group);
@@ -180,7 +148,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
   const zones = { farm: new THREE.Group(), shop: new THREE.Group() };
   group.add(zones.farm, zones.shop);
   // The farm well (giếng nước, layout FARM_WELL): stone ring, dark water, two posts, a small roof, crank and rope with a
-  // bucket. Tending workers fill a bucket here before watering (water job step 'fetch', TEND.bucketPlots per trip).
+  // bucket. Waterers fill a bucket here before watering (water job step fetch, bucketPlots per trip).
   const well = (() => {
     const g = new THREE.Group(); g.name = 'farm-well';
     const stone = new THREE.MeshStandardMaterial({ color: 0xa9a196, roughness: .9 }), stoneDark = new THREE.MeshStandardMaterial({ color: 0x8a8278, roughness: .95 });
@@ -196,8 +164,11 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     add(new THREE.CylinderGeometry(.11, .085, .17, 10), wood, 0, .78, 0);                       // hanging bucket
     const r1 = add(new THREE.BoxGeometry(1.5, .06, .62), roof, 0, 1.86, .24, -.62), r2 = add(new THREE.BoxGeometry(1.5, .06, .62), roof, 0, 1.86, -.24, .62);
     r1.rotation.set(-.62, 0, 0); r2.rotation.set(.62, 0, 0);
-    g.position.set(FARM_WELL.x, 0, FARM_WELL.z);
+    g.position.set(FARM_WELL.x, farmGroundY(FARM_WELL.x, FARM_WELL.z), FARM_WELL.z);
+    g.visible = false; // no ready-made well on a new farm (founder 2026-11-08): you build your own; workers still use this spot for water
     zones.farm.add(g);
+    // Realistic pass: the Gedeo water point (galvanised tank on a stone plinth, tap, jerrycans) replaces the cartoon well.
+    createPlant('waterTank').then(o => { for (const c of [...g.children]) c.visible = false; o.scale.setScalar(.6); o.traverse(c => { c.raycast = () => {}; }); g.add(o); }).catch(() => {});
     return g;
   })();
   // A worker's bucket while watering (shared geometry / material; kept by disposeScene).
@@ -215,7 +186,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     ring: new THREE.TorusGeometry(.44, .05, 8, 28).rotateX(Math.PI / 2),
   };
   const mat = {
-    sproutBot: new THREE.MeshStandardMaterial({ color: 0x9fd88a, roughness: .45, metalness: .1 }),
+    harvestBot: new THREE.MeshStandardMaterial({ color: 0x9fd88a, roughness: .45, metalness: .1 }),
     brewBot: new THREE.MeshStandardMaterial({ color: 0xf2b880, roughness: .45, metalness: .1 }),
     face: new THREE.MeshStandardMaterial({ color: 0xf7f3ea, roughness: .4 }),
     eye: new THREE.MeshBasicMaterial({ color: 0x6ff0ff }),
@@ -227,6 +198,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
   const tierMat = TIER_COLORS.map(c => new THREE.MeshStandardMaterial({ color: c, roughness: .35, metalness: .3, emissive: c, emissiveIntensity: .25 }));
   const pickGeo = new THREE.BoxGeometry(.9, 1.9, .9).translate(0, .95, 0);
   const pickMat = new THREE.MeshBasicMaterial();
+  const tagHitMat = new THREE.SpriteMaterial({ transparent: true, opacity: 0, depthWrite: false });
   const phoneGeo = new THREE.BoxGeometry(.09, .16, .02);
   const phoneMat = new THREE.MeshStandardMaterial({ color: 0x1d2330, emissive: 0x3a7bd5, emissiveIntensity: .6 });
   for (const x of [pickGeo, pickMat, phoneGeo, phoneMat]) x.userData.keep = true; // shared: disposeScene(worker) must skip them
@@ -244,7 +216,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
   function makeRobot(type) {
     const root = new THREE.Group();
     const body = new THREE.Group();
-    const torsoMat = (mat[type] || mat.sproutBot).clone(); // per robot: glows red while overheated
+    const torsoMat = (mat[type] || mat.harvestBot).clone(); // per robot: glows red while overheated
     const torso = new THREE.Mesh(geo.body, torsoMat); torso.scale.set(1, 1.1, 1); torso.position.y = .5;
     const head = new THREE.Mesh(geo.head, mat.face); head.position.y = 1.1;
     const eyeMat = mat.eye.clone(); // per robot: turns red when the battery is empty
@@ -257,7 +229,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     body.add(torso, head, eye, antenna, tip, pack, ring);
     const shadow = new THREE.Mesh(geo.shadow, mat.shadow); shadow.position.y = .03;
     root.add(body, shadow);
-    return { root, body, eyeMat, torsoMat, parts: { pack, ring, tip, antenna } };
+    return { root, body, eyeMat, torsoMat, parts: { pack, ring, tip, antenna }, shadow };
   }
   function makeCup() {
     const g = new THREE.Group();
@@ -283,17 +255,32 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
         seen.add(u.uid);
         let e = units.get(u.uid);
         if (!e) {
-          if (def.kind === 'robot') e = { ...makeRobot(u.type), kind: 'robot' };
-          else {
-            const person = createPerson(zone === 'farm' ? '#6f9a4a' : '#8a5a3a', { gender: u.gender === 'male' || u.gender === 'female' ? u.gender : i % 2 ? 'female' : 'male' });
+          if (def.kind === 'robot') {
+            e = { ...makeRobot(u.type), kind: 'robot' };
+            // Farm robots: the Gedeo machine of its one function, animated drive / work / idle.
+            if (zone === 'farm') {
+              const uid = u.uid, b = e.body.children;
+              dressGedeoRobot(e.root, def.file, [...b.filter(m => m !== e.parts.pack && m !== e.parts.ring), e.shadow], () => {
+                const me = units.get(uid); return me?.moving ? 'drive' : me?.job ? 'work' : 'idle';
+              });
+            }
+          } else {
+            const gender = u.gender === 'male' || u.gender === 'female' ? u.gender : i % 2 ? 'female' : 'male';
+            const person = createPerson(zone === 'farm' ? '#6f9a4a' : '#8a5a3a', { gender });
             const blocks = [...person.children]; // createPerson's own meshes: the only GPU resources this worker owns
-            if (def.model) dressPerson(person, def.model);
+            const uid = u.uid;
+            if (zone === 'farm') dressGedeoWorker(person, def.looks[gender] || Object.values(def.looks)[0], () => units.get(uid)?.job?.type || null); // Gedeo farm worker, clip by job
+            else if (def.model) dressPerson(person, def.model);
             e = { root: person, body: person, kind: 'worker', blocks };
           }
           Object.assign(e, { uid: u.uid, type: u.type, trait: u.trait || null, zone, slot: i, phase: Math.random() * 6, job: null, think: Math.random() * THINK, walk: 0, status: '', yaw: 0, path: null, tgtX: NaN, tgtZ: NaN, watch: 0, watchX: 0, watchZ: 0, repaths: 0 });
           const idle = zone === 'farm' ? freeFarmSpot(state, IDLE.farm(i)) : IDLE[zone](i);
           e.root.position.set(idle.x, 0, idle.z);
-          e.label = makeCanvasSprite(96, drawStatus, { scale: .7 });
+          e.label = makeCanvasSprite(384, drawTag, { scale: 2.25 });
+          // the tag's tap area: only the pill, not the whole canvas square
+          e.tagHit = new THREE.Sprite(tagHitMat); e.tagHit.geometry.userData.keep = true; e.tagHit.scale.set(3.4, 1, 1); e.tagHit.visible = false;
+          e.tagHit.position.y = e.kind === 'robot' ? 2.25 : 2.35; e.tagHit.userData.target = { kind: 'staffFix', uid: u.uid };
+          e.root.add(e.tagHit);
           e.label.sprite.position.y = e.kind === 'robot' ? 2.25 : 2.35;
           e.label.sprite.visible = false;
           e.root.add(e.label.sprite);
@@ -303,7 +290,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
           e.cup2 = makeCup(); // workers carry two cups (other hand)
           e.cup2.position.set(-.16, 1.02, .36);
           e.root.add(e.cup2);
-          if (def.kind !== 'robot') { e.bucket = new THREE.Mesh(bucketGeo, bucketMat); e.bucket.position.set(.28, .9, .12); e.bucket.visible = false; e.bucket.raycast = () => {}; e.root.add(e.bucket); }
+          if (def.kind !== 'robot' && !def.looks) { e.bucket = new THREE.Mesh(bucketGeo, bucketMat); e.bucket.position.set(.28, .9, .12); e.bucket.visible = false; e.bucket.raycast = () => {}; e.root.add(e.bucket); }
           e.water = 0; // plants left in the bucket
           Object.assign(e, { post: null, runnerIdx: 0, home: { x: idle.x, z: idle.z }, idleT: 0, stroll: null, atPad: null, block: null, sideT: 0, sideX: 0, sideZ: 0, sideCool: 0 });
           // Staff manager: state (applyState), vitals batch (staggered start), bench spot, knock taps, smoke clock.
@@ -318,25 +305,11 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
           e.pick.visible = false;
           e.pick.userData.target = { kind: 'staff', uid: u.uid, body: true }; // body taps: knocking a jammed robot
           e.root.add(e.pick);
-          e.fee = makeBreakBubble(u.uid);
-          e.fee.sprite.position.y = e.kind === 'robot' ? 2.15 : 2.3;
-          e.root.add(e.fee.sprite);
           e.workT = 0;
-          if (e.kind === 'worker') {
-            e.up = makeCanvasSprite(96, drawUp, { scale: .75 });
-            e.up.sprite.position.y = 2.95;
-            e.up.sprite.visible = false;
-            e.up.sprite.userData.target = { kind: 'staffUp', uid: u.uid };
-            e.up.sprite.raycast = THREE.Sprite.prototype.raycast; // tappable (canvas sprites are not by default)
-            e.root.add(e.up.sprite);
-          }
           units.set(u.uid, e);
         }
         e.u = u;
         if (e.kind === 'robot') showParts(e);
-        else armband(e, u);
-        // ⬆️ over a worker with a skill point to spend on a stat it can afford now (statError: points, coins, caps).
-        if (e.kind === 'worker') e.canTrain = (u.points || 0) > 0 && upgradableStats(state, u).length > 0;
         applyState(e, now);
         e.benchIdx = e.bench ? benchN++ : 0;
         if (e.bench) benchSpot(state, zone, e.benchIdx, e.benchSpot);
@@ -347,43 +320,28 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
       });
     }
     for (const [uid, e] of units) if (!seen.has(uid)) remove(uid, e);
+    syncPiles(state);
   }
-  // Gold armband (management-rules §6, GM.look.armband) on the left upper arm of a lead / manager-rank worker. Before the
-  // GLB is on it sits on the block arm; once dressed it moves onto the rig's LeftArm bone (sized back to metres there).
-  const bandGeo = new THREE.CylinderGeometry(.085, .085, .09, 14, 1, true);
-  const bandMat = new THREE.MeshStandardMaterial({ color: GM.look.armband, roughness: .35, metalness: .4, side: THREE.DoubleSide });
-  const bandUp = new THREE.Vector3(0, 1, 0), bandDir = new THREE.Vector3(), bandScale = new THREE.Vector3();
-  function armband(e, u) {
-    const want = GM.look.armbandRanks.includes(rankOf(u));
-    if (!want) { if (e.band) { e.band.removeFromParent(); e.band = null; } return; }
-    const person = e.root;
-    if (!e.band) {
-      e.band = new THREE.Mesh(bandGeo, bandMat); e.band.raycast = () => {}; e.band.userData.onBlock = true;
-      e.band.position.set(.4, 1.24, 0); e.band.scale.set(1.25, 1, 1.4); person.add(e.band); // block arms[1] = left
+  // Picked cherries waiting on a field for a hauler: a small sack stack at the field's corner.
+  const piles = new Map();
+  function syncPiles(state) {
+    const r = regionOf(state), want = new Set();
+    for (const p of r ? ownedPlots(state) : []) {
+      if (!pileCount(r.plots[p.id])) continue;
+      want.add(p.id);
+      if (piles.has(p.id)) continue;
+      const g = new THREE.Group(), x = p.x + 1.05, z = p.z + 1.05;
+      g.position.set(x, farmGroundY(x, z), z);
+      piles.set(p.id, g); zones.farm.add(g);
+      gedeoProp('sack-stack').then(m => { if (!m || piles.get(p.id) !== g) return; m.scale.setScalar(.42); m.traverse(c => { c.raycast = () => {}; }); g.add(m); });
     }
-    if (e.band.userData.onBlock && !e.band.userData.noBone && person.userData.dressed) {
-      let bone = null;
-      person.traverse(o => { if (!bone && o.isBone && /LeftArm$/.test(o.name)) bone = o; });
-      const child = bone?.children.find(c => c.isBone);
-      if (!bone || !child) { e.band.userData.noBone = true; return; } // a rig without the bone keeps it where the block arm was
-      e.band.userData.onBlock = false;
-      bone.add(e.band);
-      bone.updateWorldMatrix(true, false); bone.getWorldScale(bandScale);
-      const k = 1 / Math.max(1e-6, bandScale.x);
-      bandDir.copy(child.position);
-      e.band.position.copy(bandDir).multiplyScalar(.35);
-      e.band.quaternion.setFromUnitVectors(bandUp, bandDir.normalize());
-      e.band.scale.setScalar(k);
-    }
+    for (const [id, g] of piles) if (!want.has(id)) { zones.farm.remove(g); piles.delete(id); }
   }
   function remove(uid, e) {
     release(e);
-    e.band?.removeFromParent(); e.band = null;
     if (hiRing.parent === e.root) { e.root.remove(hiRing); hiRing.visible = false; }
     e.torsoMat?.dispose();
     e.label.dispose();
-    e.up?.dispose();
-    e.fee.dispose();
     e.eyeMat?.dispose();
     e.root.removeFromParent();
     if (e.kind === 'worker') disposeWorker(e); // robot parts are shared
@@ -418,7 +376,9 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
   }
 
   // ---------- claims ----------
-  const claimed = key => claims.has(key);
+  // A spot a unit could not reach is left alone for a moment, so nobody walks into the same dead end again.
+  const avoid = new Map();
+  const claimed = key => claims.has(key) || (avoid.get(key) || 0) > Date.now();
   function claim(e, key) { claims.set(key, e.uid); (e.claims ||= []).push(key); }
   function release(e) { for (const k of e.claims || []) if (claims.get(k) === e.uid) claims.delete(k); e.claims = []; }
   function releaseKey(e, key) {
@@ -431,21 +391,28 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     // A state that is not "ok" (tired, hungry, sulking, lunch, bench…) wins over the job icon: the player sees why.
     // An idle robot keeps its task icon up (auto mode: blue ring), so the player sees what it is set to.
     const shown = (!e.stopped && e.stIcon) || s;
-    const idleTask = e.kind === 'robot' && !shown ? taskOf(e) : null;
-    const key = idleTask ? `task:${idleTask}:${robotTask(e.u) === 'auto'}` : shown;
+    // A problem coins can fix shows its price next to the words, and the tag can be tapped.
+    const fix = e.job?.type === 'goof' ? { cost: goofFee(e.u, store.state.gm?.unit) } : shown && e.u ? quickFix(e.u, Date.now()) : null;
+    const fee = fix ? fix.cost : null;
+    e.feeTag = fee != null;
+    const tagSize = e.feeTag ? 3.1 : 2.25; // a tag you can pay is bigger and easier to tap
+    e.label.sprite.scale.set(tagSize, tagSize, 1);
+    const key = `${shown}|${fee}`;
     if (e.status === s && e.labelKey === key) return;
     e.status = s; e.labelKey = key;
-    const icon = ICON[shown] || (idleTask ? ICON[idleTask] : '');
-    e.label.redraw(icon, !!idleTask && robotTask(e.u) === 'auto');
-    e.label.sprite.visible = !!icon;
+    const tagKey = ICON[shown] ? shown : '';
+    e.label.redraw(tagKey ? t(`realm.staff.tag.${tagKey}`) : '', tagTone(tagKey), fee);
+    e.label.sprite.visible = !!tagKey;
   }
+  // Parts go to level 10 on the farm but there are three looks: 1-3, 4-6, 7 and up.
+  const tierLook = t => (t >= 7 ? 3 : t >= 4 ? 2 : Math.max(1, Math.min(3, t)));
   function showParts(e) {
     const P = e.parts; if (!P) return;
     const b = partTier(e.u, 'battery'), m = partTier(e.u, 'motor'), c = partTier(e.u, 'cooler'), f = partTier(e.u, 'frame');
-    P.pack.visible = b > 0; if (b) { P.pack.material = tierMat[b]; P.pack.scale.set(1, .8 + b * .2, 1); }
-    P.ring.visible = m > 0; if (m) P.ring.material = tierMat[m];
-    P.tip.material = c ? tierMat[c] : mat.tip;          // cooler: antenna tip
-    P.antenna.material = f ? tierMat[f] : mat.face;     // frame: antenna mast
+    P.pack.visible = b > 0; if (b) { P.pack.material = tierMat[tierLook(b)]; P.pack.scale.set(1, .8 + tierLook(b) * .2, 1); }
+    P.ring.visible = m > 0; if (m) P.ring.material = tierMat[tierLook(m)];
+    P.tip.material = c ? tierMat[tierLook(c)] : mat.tip;          // cooler: antenna tip
+    P.antenna.material = f ? tierMat[tierLook(f)] : mat.face;     // frame: antenna mast
   }
 
   // ---------- staff manager: state, pose, vitals (docs/design/staff-manager.md §3, §4, §9) ----------
@@ -464,11 +431,10 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     const icon = e.pose === 'stop' ? '' : stateIconKey(e.st, e.bench);
     // Bench units are not drawn (user rule 2026-11-07): they only show in the staff manager (Dự bị); back on shift they
     // reappear at their rest spot and walk to work. Hidden units are skipped by separation and tap targets too.
-    e.root.visible = e.pose !== 'bench';
-    if (e.stopped && !wasStopped) { endJob(e); e.moving = false; e.wander = null; e.feeSig = ''; }
+    e.root.visible = e.pose !== 'bench' && !e.culled;
+    if (e.stopped && !wasStopped) { endJob(e); e.moving = false; e.wander = null; }
     if (!e.stopped && wasStopped) resumed(e, wasStopped, now);
-    if (wasWorking && !e.working) { endJob(e); e.stroll = null; e.path = null; e.feeSig = ''; if (!e.stopped) e.wander = null; }
-    if (e.working && wasWorking === false) { e.fee.sprite.visible = false; e.feeSig = ''; }
+    if (wasWorking && !e.working) { endJob(e); e.stroll = null; e.path = null; if (!e.stopped) e.wander = null; }
     if (icon !== e.stIcon) { e.stIcon = icon; if (!e.stopped) setStatus(e, e.status); }
   }
   // Rest spot of the n-th bench unit (written into `out`): farm → a small grid beside the storehouse; café → along
@@ -537,9 +503,10 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     const dx = wp.x - p.x, dz = wp.z - p.z, dist = Math.hypot(dx, dz);
     if (dist < (e.path.length > 1 ? .2 : .1)) { e.path.shift(); e.moving = e.path.length > 0; return !e.path.length; }
     const step = Math.min(dist, SPEED[e.kind] * (e.type === 'brewBot' ? STAFF_SIM.brewBotWalkMul : 1) * unitSpeed(e.u) * gearWalk(e.u) * (e.speedK || 1) * (e.stateK || 1) * dt); // gearWalk: boots // stateK: tired ×0.6, hungry ×0.7
-    p.x += dx / dist * step; p.z += dz / dist * step;
+    const way = e.zone === 'farm' ? steer(e, dx / dist, dz / dist) : null;
+    p.x += (way ? way.x : dx / dist) * step; p.z += (way ? way.z : dz / dist) * step;
     e.moving = true;
-    e.yaw = Math.atan2(dx, dz);
+    e.yaw = way ? Math.atan2(way.x, way.z) : Math.atan2(dx, dz);
     if ((e.watch += dt) > .8) {
       const moved = Math.hypot(p.x - e.watchX, p.z - e.watchZ);
       e.watch = 0; e.watchX = p.x; e.watchZ = p.z;
@@ -549,6 +516,29 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
       }
     }
     return false;
+  }
+  // Dodging (farm): anyone within AVOID_R ahead bends the heading away from them, the player too; both turn to their own
+  // right, so two people meeting head-on pass each other. Null = keep the path's heading; never steers into a blocked cell.
+  const AVOID_R = 1.5, steerOut = { x: 0, z: 0 };
+  function steer(e, ax, az) {
+    const p = e.root.position;
+    let side = 0;
+    const feel = (ox, oz) => {
+      const dx = ox - p.x, dz = oz - p.z, d = Math.hypot(dx, dz);
+      if (d < .01 || d > AVOID_R) return;
+      const ahead = (dx * ax + dz * az) / d;
+      if (ahead < .3) return;
+      const cross = ax * dz - az * dx; // which side it is on: turn the other way (dead ahead: to the right)
+      side += (cross < -.05 ? -1 : 1) * (1 - d / AVOID_R) * ahead;
+    };
+    for (const o of units.values()) if (o !== e && o.zone === 'farm' && o.root.visible) feel(o.root.position.x, o.root.position.z);
+    const me = getPlayerPos(), boss = getManagerPos();
+    if (me) feel(me.x, me.z);
+    if (boss) feel(boss.x, boss.z);
+    if (!side) return null;
+    const k = Math.max(-1.6, Math.min(1.6, side * 2.2)), nx = ax + az * k, nz = az - ax * k, len = Math.hypot(nx, nz);
+    steerOut.x = nx / len; steerOut.z = nz / len;
+    return standable(e, p.x + steerOut.x * .45, p.z + steerOut.z * .45) ? steerOut : null;
   }
   function plan(e, tx, tz, keepCount = false) {
     const p = e.root.position;
@@ -584,8 +574,9 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
       if (A.zone !== B.zone || (A.stopped && B.stopped)) continue;
       const a = A.root.position, b = B.root.position;
       const dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz);
-      if (d > 0 && d < .6) { // a unit on a break stays put: the other one takes the whole push
-        const push = (.6 - d) * .25 / d;
+      const room = A.zone === 'farm' && (A.kind === 'robot' || B.kind === 'robot') ? 1.1 : .6; // robots are wider
+      if (d > 0 && d < room) { // a unit on a break stays put: the other one takes the whole push
+        const push = (room - d) * .25 / d;
         if (!A.stopped) tryPush(A, -dx * push * (B.stopped ? 2 : 1), -dz * push * (B.stopped ? 2 : 1));
         if (!B.stopped) tryPush(B, dx * push * (A.stopped ? 2 : 1), dz * push * (A.stopped ? 2 : 1));
       }
@@ -602,10 +593,33 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
   }
 
   // ---------- job selection ----------
-  const near = (e, list) => {
-    const p = e.root.position;
+  // Nearest by real walking distance (over several tiers: through the ramps / stairs); on the farm a spot others are
+  // already working at costs extra, so the team spreads over the fields and the tiers instead of bunching up.
+  const CROWD_R = 3, CROWD_COST = 5, TIER_AWAY = 40;
+  // Its own tier first: the work of the tier it is responsible for, anywhere else only when that tier has none (farm-crew.md §11).
+  const homeFirst = (e, list) => {
+    const t = store.state.gm?.tiers?.[e.uid];
+    if (t == null) return list;
+    const mine = list.filter(q => tierIndexAt(q.x, q.z) === t);
+    return mine.length ? mine : list;
+  };
+  // Field work is strictly the unit's own tier (founder 2026-11-09: the tiers stay balanced); only a tier with no fields sets it free.
+  const homeOnly = (e, list) => {
+    const t = store.state.gm?.tiers?.[e.uid];
+    if (t == null || !ownedPlots(store.state).some(q => tierIndexAt(q.x, q.z) === t)) return list;
+    return list.filter(q => tierIndexAt(q.x, q.z) === t);
+  };
+  const near = (e, list, ageOf = null) => {
+    const p = e.root.position, farm = e.zone === 'farm', homeTier = store.state.gm?.tiers?.[e.uid];
+    const busy = farm ? [...units.values()].filter(o => o.zone === 'farm' && o.job) : [];
     let best = null, bd = Infinity;
-    for (const it of list) { const d = Math.hypot(it.x - p.x, it.z - p.z); if (d < bd) { bd = d; best = it; } }
+    for (const it of list) {
+      let d = farm ? farmRouteDist(p.x, p.z, it.x, it.z) : Math.hypot(it.x - p.x, it.z - p.z);
+      if (farm) for (const o of busy) if (o !== e && Math.hypot(o.job.x - it.x, o.job.z - it.z) < CROWD_R) d += CROWD_COST;
+      if (farm && homeTier != null && tierIndexAt(it.x, it.z) !== homeTier) d += TIER_AWAY; // the manager's post for it: other tiers only when it has nothing at home
+      if (ageOf) d -= Math.min(FARM_MANAGER.ageCapM, Math.max(0, ageOf(it))); // what has waited longest moves up, so far fields are never starved
+      if (d < bd) { bd = d; best = it; }
+    }
     return best;
   };
   // A robot's task now: its set task, or the one its auto mode picked. Workers: null (they do everything).
@@ -615,15 +629,16 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     return t === 'auto' ? (e.autoTask || ROBOT_TASKS[e.type]?.[0] || null) : t;
   }
   const rule = (e, name) => e.kind === 'worker' && hasRule(e.u, name);
-  // Job types this unit takes (§6): a robot its one task, a worker its tasks (none = everything).
-  const takes = (e, type) => (e.kind === 'robot' ? (taskOf(e) || type) === type : allows(e.u?.tasks, type));
+  // Job types this unit takes: a robot its one task, a farm worker its trade, a café worker its tasks (none = everything).
+  const takes = (e, type) => (e.kind === 'robot' ? (taskOf(e) || type) === type : STAFF[e.type]?.jobs ? STAFF[e.type].jobs.includes(type) : allows(e.u?.tasks, type));
   // Crop to plant: the manager's day plan for that field's lot (when one runs it, management-rules §3.4), else the
   // player's pick (robots, and workers from the 'playerCrop' level), else the best affordable one.
   function cropFor(state, e = null, plotId = null) {
-    const planned = plotId ? planCropFor(state, plotId) : null;
-    if (planned && seedCost(state, planned) <= state.player.coins) return planned;
+    const planned = plotId ? (state.gm?.unit && fmOf(state).auto ? managerCropFor(state, plotId) : planCropFor(state, plotId)) : null; // his pick for this terrace
     const active = e && e.kind === 'worker' && !rule(e, 'playerCrop') ? null : getActiveCrop();
-    return pickCropFor(state, plotId, active); // else the best for the field's growing zone (coffee-varieties.md)
+    const crop = planned && seedCost(state, planned) <= state.player.coins ? planned : pickCropFor(state, plotId, active); // else the best for the field's growing zone
+    if (!crop || !e || !isHardCrop(crop) || knows(e.u, 'hardCrop')) return crop;
+    return easyCropFor(state, plotId, isHardCrop) || crop; // not learned yet: plant what it can (suited to this terrace first) instead of standing idle
   }
   // Stand beside the bed (south edge) so the unit does not stand inside the tree.
   const plotSpot = plot => ({ x: plot.x, z: plot.z + 1.25 });
@@ -633,29 +648,58 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     const r = regionOf(state);
     const roomForBeans = stored(state) < capacity(state); // all goods share the storehouse
     const canHarvest = takes(e, 'harvest'), canPlant = takes(e, 'plant');
+    let cantDo = false; // work is waiting that this unit has not learned yet
+    const canCrop = crop => { const ok = !isHardCrop(crop) || knows(e.u, 'hardCrop'); if (!ok) cantDo = true; return ok; };
     // Why it has nothing to do (shown over its head and in the Staff report): set below when no job is found.
     e.reason = null; e.reasonMs = 0;
+    // An order from the manager comes before the trade's routine.
+    const toPlant = plots.filter(p => !r.plots[p.id]).length; // a planter plants what is open before opening more
+    const orders = (state.gm?.orders || []).filter(o => takes(e, o.job) && !claimed(`station:${o.id}`) && !(o.job === 'openField' && toPlant >= 4)).map(o => ({ o, ...orderSpot(o) })).filter(x => Number.isFinite(x.x));
+    const next = orders.length ? near(e, orders) : null;
+    if (next) { const at = freeFarmSpot(state, { x: next.x, z: next.z + 1.4 }); return { type: 'execute', oid: next.o.id, station: next.o.id, icon: `x_${next.o.job}`, hold: 2.5, x: at.x, z: at.z }; }
+    // Trades that do not work on the fields.
+    if (takes(e, 'process')) { const job = processJob(e, state, r, now); if (!job) e.reason = 'noBatch'; return job; }
+    if (takes(e, 'haul')) return haulJob(e, state, r, plots);
     if (!plots.length) { e.reason = 'noPlots'; return null; }
     if (roomForBeans && canHarvest) {
-      const ready = plots.filter(p => !claimed(`plot:${p.id}`) && r.plots[p.id] && plotState(state, p.id, now).stage === 'ready');
+      const ready = homeOnly(e, plots.filter(p => !claimed(`plot:${p.id}`) && r.plots[p.id] && plotState(state, p.id, now).stage === 'ready' && canCrop(r.plots[p.id].crop)));
       // 'ripeFirst' (worker level): the most urgent first (Arabica drops its cherries, then Liberica's first pick, then
       // the longest ready); else the nearest Arabica when one is ripe, else the nearest.
       const arabica = ready.filter(p => CROPS[r.plots[p.id].crop]?.drop);
-      const p = rule(e, 'ripeFirst') ? mostUrgent(state, ready, now) : near(e, arabica.length ? arabica : ready);
+      const p = rule(e, 'ripeFirst') ? mostUrgent(state, ready, now) : near(e, arabica.length ? arabica : ready, q => harvestUrgency(state, q.id, now));
       if (p) return { type: 'harvest', plotId: p.id, ...plotSpot(p) };
     }
     if (canPlant && cropFor(state, e)) {
-      const empty = plots.filter(p => !claimed(`plot:${p.id}`) && !r.plots[p.id]);
-      const p = near(e, empty);
+      const empty = homeOnly(e, plots.filter(p => !claimed(`plot:${p.id}`) && !r.plots[p.id]));
+      const p = near(e, empty.filter(q => canCrop(cropFor(state, e, q.id))));
       if (p) return { type: 'plant', plotId: p.id, ...plotSpot(p) };
     }
-    // Paid tending (staff/tend): water the growing plots, nearest first.
-    if (e.kind === 'worker' && e.u?.water > 0 && takes(e, 'water')) {
-      const growing = plots.filter(p => !claimed(`plot:${p.id}`) && r.plots[p.id] && !r.plots[p.id].watered && plotState(state, p.id, now).stage !== 'ready');
-      const p = near(e, growing);
+    // Waterer / RainBot: growing plots no drip line reaches, nearest first.
+    if (takes(e, 'water')) {
+      const growing = homeOnly(e, plots.filter(p => !claimed(`plot:${p.id}`) && r.plots[p.id] && !r.plots[p.id].watered && !dripCovers(state, p.id) && plotState(state, p.id, now).stage !== 'ready'));
+      // 'driestFirst' (smart): the plant with the longest wait left gains most from water; else the nearest.
+      const p = rule(e, 'driestFirst') ? growing.reduce((best, q) => (!best || plotState(state, q.id, now).remainingMs > plotState(state, best.id, now).remainingMs ? q : best), null) : near(e, growing, q => (now - r.plots[q.id].plantedAt) / 60000);
       // empty bucket → the well first (step 'fetch'), then the plant (finish() turns the job into the pour)
-      if (p) return e.water > 0 ? { type: 'water', plotId: p.id, ...plotSpot(p) } : { type: 'water', step: 'fetch', plotId: p.id, x: FARM_WELL.draw.x, z: FARM_WELL.draw.z };
+      if (p) {
+        if (e.water > 0) return { type: 'water', plotId: p.id, ...plotSpot(p) };
+        const src = waterSource(e, state, p); // an empty bucket goes to the best water point first (finish() turns the job into the pour)
+        if (!src) { e.reason = 'noWell'; return null; }
+        return { type: 'water', step: 'fetch', plotId: p.id, x: src.x, z: src.z };
+      }
     }
+    // Pruner / TrimBot: cut back the old trees first, else a light pruning once per season.
+    if (takes(e, 'prune')) {
+      const growing = homeOnly(e, plots.filter(p => !claimed(`plot:${p.id}`) && r.plots[p.id] && plotState(state, p.id, now).stage !== 'ready'));
+      const old = growing.filter(p => treeOld(r.plots[p.id]) && pruneCost(r.plots[p.id].crop) <= state.player.coins && (knows(e.u, 'oldTree') || !(cantDo = true)));
+      const p = near(e, old.length ? old : growing.filter(q => !r.plots[q.id].trimmed && !treeOld(r.plots[q.id])));
+      if (p) return { type: 'prune', old: old.length > 0, plotId: p.id, ...plotSpot(p) };
+    }
+    // Drone: leaf spray once per season.
+    if (takes(e, 'spray') && state.player.coins >= CREW.sprayFee) {
+      const p = near(e, homeOnly(e, plots.filter(q => !claimed(`plot:${q.id}`) && r.plots[q.id] && !r.plots[q.id].sprayed && plotState(state, q.id, now).stage !== 'ready')));
+      if (p) return { type: 'spray', plotId: p.id, ...plotSpot(p) };
+    }
+    if (cantDo) { e.reason = 'cantDo'; return null; }
     let ready = 0, empty = 0, soonest = Infinity;
     for (const p of plots) {
       const pl = r.plots[p.id];
@@ -669,6 +713,64 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
       : 'growing';
     e.reasonMs = soonest === Infinity ? 0 : soonest;
     return null;
+  }
+  // Where a unit stands to use a placed machine or station.
+  const machineSpot = (state, b) => freeFarmSpot(state, { x: b.x, z: b.z + Math.max(...BUILDINGS[b.type].size) / 2 + .8 });
+  // Water point for this trip: of the built water tanks, the one with the shortest unit → tank → plant walk.
+  function waterSource(e, state, plot) {
+    const p = e.root.position;
+    let best = null, bd = Infinity;
+    for (const b of buildingsOf(state, 'well')) { const d = farmRouteDist(p.x, p.z, b.x, b.z) + farmRouteDist(b.x, b.z, plot.x, plot.z); if (d < bd) { bd = d; best = b; } }
+    return best ? machineSpot(state, best) : null;
+  }
+  // Hauler: load piles from the fields (nearest, or the biggest from 'biggestFirst'), pick up more close by while it has
+  // room, then carry everything to the nearest storehouse. Each step is its own job, so a reload simply carries on.
+  function haulJob(e, state, r, plots) {
+    const stores = storeBuildings(state);
+    if (!stores.length) { e.reason = 'noStore'; return null; }
+    const me = state.staff.units.find(u => u.uid === e.uid), load = cargoCount(me), p0 = e.root.position;
+    let piles = plots.filter(p => !claimed(`plot:${p.id}`) && pileCount(r.plots[p.id]) > 0);
+    const chains = e.kind === 'robot' ? partTier(e.u, 'battery') >= 1 : rule(e, 'chainPiles');
+    if (load > 0) {
+      if (chains && load < haulCapacity(state, me)) piles = piles.filter(p => Math.hypot(p.x - p0.x, p.z - p0.z) <= CREW.haulChainM); else piles = [];
+      if (!piles.length) {
+        if (stored(state) >= capacity(state)) { e.reason = 'storageFull'; return null; }
+        const spot = machineSpot(state, near(e, stores));
+        return { type: 'haul', step: 'drop', x: spot.x, z: spot.z };
+      }
+    }
+    if (!piles.length) { e.reason = 'noPile'; return null; }
+    piles = homeFirst(e, piles);
+    const p = rule(e, 'biggestFirst') ? piles.reduce((a, b) => (pileCount(r.plots[b.id]) > pileCount(r.plots[a.id]) ? b : a)) : near(e, piles);
+    return { type: 'haul', step: 'load', plotId: p.id, ...plotSpot(p) };
+  }
+  // Low stats (farm-crew.md §7): instead of the job it was about to start, the unit goes off somewhere.
+  const GOOF_ICON = { worker: { play: 'goofPlay', lost: 'goofLost' }, robot: { lost: 'botLost', dock: 'botDock' } };
+  function maybeGoof(e, state, job) {
+    const incident = funnyRoll(e.u, Math.random(), Math.random(), gmCalmMul(state.gm?.unit));
+    if (incident) { act('staff/funny', { uid: e.uid, incident: incident.id }); return null; }
+    const kind = goofRoll(e.u, Math.random());
+    if (!kind) return job;
+    const p = e.root.position;
+    let spot = kind === 'dock' ? e.home : null;
+    if (!spot) { // play: far off, any tier; lost: another field not far away
+      const far = kind === 'play' ? [10, 60] : [4, 14];
+      const list = [...ownedPlots(state).map(q => plotSpot(q)), ...buildingsOf(state, 'well'), ...storeBuildings(state)].filter(q => { const d = farmRouteDist(p.x, p.z, q.x, q.z); return d >= far[0] && d <= far[1]; });
+      if (!list.length) return job;
+      const q = list[Math.floor(Math.random() * list.length)];
+      spot = freeFarmSpot(state, { x: q.x + (Math.random() - .5) * 2, z: q.z + 1.5 });
+    }
+    if (say && Math.random() < .35) say(e.root, t(`realm.staff.goof.${kind}`), { priority: 1 });
+    return { type: 'goof', icon: GOOF_ICON[e.kind][kind], hold: goofHold(e.u, kind), x: spot.x, z: spot.z };
+  }
+  // Processor: collect a finished batch first, else start one at the nearest free station.
+  function processJob(e, state, r, now) {
+    const free = (r.buildings || []).filter(b => recipeOf(b) && !claimed(`station:${b.uid}`) && (b.type !== 'wetMill' || knows(e.u, 'wetMill')));
+    const done = free.filter(b => b.job && !collectError(state, b, now));
+    const b = near(e, done.length ? done : free.filter(x => !x.job && !prodError(state, x)));
+    if (!b) return null;
+    const spot = machineSpot(state, b);
+    return { type: 'process', step: b.job ? 'collect' : 'start', building: b.uid, station: b.uid, x: spot.x, z: spot.z };
   }
   function mostUrgent(state, list, now) {
     let best = null, bu = -Infinity;
@@ -757,6 +859,16 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     out.x = padHeld(e, key) ? P.x + PAD_SIDE : P.x; out.z = P.z;
     return out;
   }
+  // Where a unit is in its work cycle, for the manager panel (one job at a time: e.job). Derived, never stored.
+  function phaseOf(e) {
+    if (e.bench) return 'UNAVAILABLE';
+    if (e.blocked) return ['battery', 'overheat', 'lunch'].includes(e.st) ? 'RECOVERING' : 'BLOCKED';
+    const j = e.job;
+    if (j) return j.type === 'water' && j.step === 'fetch' ? 'REFILLING_WATER' : j.arrived ? 'WORKING' : 'MOVING';
+    if (e.reason === 'noWell') return 'WAITING_FOR_WATER';
+    if (e.stuckAt && Date.now() - e.stuckAt < 3000) return 'BLOCKED';
+    return ['storageFull', 'noStore', 'noSeeds', 'noBatch'].includes(e.reason) ? 'WAITING_FOR_RESOURCE' : 'IDLE';
+  }
   function startJob(e, job) {
     e.speedK = 1;
     e.waitT = 0;
@@ -774,7 +886,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     if (job.plotId) claim(e, `plot:${job.plotId}`);
     if (job.orderId != null) claim(e, `order:${job.orderId}`);
     if (job.station) claim(e, `station:${job.station}`);
-    setStatus(e, job.type);
+    setStatus(e, job.icon || job.type);
   }
   const findOrder = (state, id) => { const os = regionOf(state)?.shop.orders; if (!os || id == null) return null; for (const o of os) if (o.id === id) return o; return null; };
   // A cup still worth carrying: its order is ready, not in the player's hand, and its customer still sits there.
@@ -870,17 +982,33 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
       e.think = e.kind === 'robot' || rule(e, 'quick') ? 0 : 1.2; // slow-witted workers stand a moment before the next job
     } else if (j.type === 'water' && j.step === 'fetch') {
       // bucket filled at the well: carry it to the plant (the plot stays claimed)
-      e.water = TEND.bucketPlots;
-      vfx?.burst('sparkle', { x: FARM_WELL.x, y: .7, z: FARM_WELL.z }, { count: 6 });
+      e.water = bucketPlots(e.u); // + its watering can
+      vfx?.burst('sparkle', { x: j.x, y: .7, z: j.z }, { count: 6 });
       const plot = plotOf(state, j.plotId);
       if (plot && regionOf(state)?.plots[j.plotId]) {
         const sp = plotSpot(plot);
-        Object.assign(j, { step: 'pour', x: sp.x, z: sp.z, work: 0, arrived: false });
+        Object.assign(j, { step: 'pour', x: sp.x, z: sp.z, work: 0, arrived: false, walkT: 0, anchor: null });
         if (e.bucket) e.bucket.visible = true;
         return;
       }
     } else if (j.type === 'water') {
-      if (act('farm/water', { plotId: j.plotId, uid: e.uid }).ok) { vfx?.burst('sparkle', { x: j.x, y: .6, z: j.z - 1.2 }, { count: 8 }); workDone(e); e.water = Math.max(0, (e.water || 0) - 1); }
+      if (act('farm/water', { plotId: j.plotId, uid: e.uid }).ok) { workDone(e); e.water = Math.max(0, (e.water || 0) - 1); }
+      e.think = 0;
+    } else if (j.type === 'prune') {
+      if (act(j.old ? 'farm/prune' : 'farm/trim', { plotId: j.plotId, uid: e.uid }).ok) workDone(e);
+      e.think = 0;
+    } else if (j.type === 'spray') {
+      if (act('farm/spray', { plotId: j.plotId, uid: e.uid }).ok) workDone(e);
+      e.think = 0;
+    } else if (j.type === 'process') {
+      if (act(j.step === 'collect' ? 'prod/collect' : 'prod/start', { uid: j.building, by: e.uid }).ok) workDone(e);
+      e.think = 0;
+    } else if (j.type === 'execute') {
+      if (act('gm/execute', { id: j.oid, uid: e.uid }).ok) workDone(e);
+      e.think = 0;
+    } else if (j.type === 'haul') {
+      if (j.step === 'load') act('farm/pickUp', { plotId: j.plotId, uid: e.uid });
+      else if (stored(state) < capacity(state) && act('farm/deposit', { uid: e.uid, drop: oops(e, 'drop') }).ok) workDone(e);
       e.think = 0;
     } else if (j.type === 'order') {
       const queued = getQueued();
@@ -955,33 +1083,11 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
   }
 
   // Fee bubble height for sizeAttenuation=false sprites: constant on screen whatever the zoom.
-  function feeHeight() { return FEE_PX * 2 * Math.tan(FOV * Math.PI / 360) / Math.max(400, globalThis.innerHeight || 800); }
   // Constant-screen-size canvas sprite (like the world badges), bottom-anchored on the head, tappable.
-  function makeBreakBubble(uid) {
-    const canvas = document.createElement('canvas');
-    canvas.width = FEE_W; canvas.height = FEE_H;
-    const map = new THREE.CanvasTexture(canvas);
-    map.colorSpace = THREE.SRGBColorSpace;
-    const material = new THREE.SpriteMaterial({ map, transparent: true, depthTest: false, depthWrite: false, sizeAttenuation: false });
-    const sprite = new THREE.Sprite(material);
-    sprite.geometry.userData.keep = true;
-    sprite.center.set(.5, 0);
-    sprite.renderOrder = 42;
-    const h = feeHeight();
-    sprite.scale.set(h * FEE_W / FEE_H, h, 1);
-    sprite.userData.target = { kind: 'staff', uid };
-    sprite.visible = false;
-    return {
-      sprite,
-      draw(kind, fee, ok) { drawBreak(canvas.getContext('2d'), FEE_W, FEE_H, kind, fee, ok, t((BUBBLE[kind] || BUBBLE.phone).label)); map.needsUpdate = true; },
-      dispose() { sprite.removeFromParent(); map.dispose(); material.dispose(); },
-    };
-  }
   // Back to work after a stop (paid fix, knock, or an overheat that cooled down by itself: no coin burst then).
   function resumed(e, prev = null, now = Date.now()) {
     e.workT = 0;
     e.phone.visible = false;
-    e.fee.sprite.visible = false;
     e.root.rotation.x = 0;
     if (e.kind === 'robot') { e.body.position.x = 0; e.body.rotation.z = 0; } // a worker's body is its root: never move it
     if (e.eyeMat) e.eyeMat.color.set(0x6ff0ff);
@@ -994,20 +1100,21 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     if (!selfCooled && prev?.kind !== 'jam') vfx?.burst('coin', e.root.position);
   }
   // The 🪙 bubble with the paid fix (e.fix, else the stop's fee) over a unit that cannot work.
-  function fixBubble(e, time, kind) {
-    const fee = e.fix ? e.fix.cost : e.stopped?.fee || 0;
-    e.fee.sprite.visible = true;
-    const ok = store.state.player.coins >= fee, sig = `${kind}|${fee}|${ok}`;
-    if (sig !== e.feeSig) { e.feeSig = sig; e.fee.draw(kind, fee, ok); }
-    e.fee.sprite.center.y = -Math.abs(Math.sin(time * 3.2 + e.phase)) * .12; // gentle bounce in screen space
-  }
   // A unit on a break: no job; worker looks at the phone; a robot slumps (battery: red blinking eye), smokes with a red
   // body (overheat) or jitters in place (jam; a knock jolts it harder).
   function onBreak(e, time, dt = 0) {
     const b = e.stopped;
     e.moving = false;
-    e.tendOffer = false;
-    fixBubble(e, time, b.kind);
+    if (b.kind === 'funny') { // up to something: tag over the head, wandering (flirting: over to someone), robots rattle
+      setStatus(e, `f_${b.id}`);
+      if (e.kind === 'robot') { e.body.position.x = Math.sin(time * 23 + e.phase) * .05; e.body.rotation.z = Math.sin(time * 11) * .08; return; }
+      e.phone.visible = b.id === 'phone';
+      if (dt) {
+        if (b.id === 'flirt' && !e.wander) { for (const o of units.values()) if (o !== e && o.zone === e.zone && o.kind === 'worker') { e.wander = { x: o.root.position.x + .9, z: o.root.position.z, reached: false }; break; } }
+        if (b.id !== 'nap') { wander(e, dt, time); e.speedK = .55; }
+      }
+      return;
+    }
     if (e.kind === 'robot' && (b.kind === 'overheat' || b.kind === 'jam')) {
       e.body.rotation.x *= 1 - dampK(6, dt || .016);
       e.body.position.y = .2;
@@ -1033,8 +1140,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
       e.root.rotation.x = .1; // head down over the phone
       // On the farm a slacker wanders around with the phone (the 🪙 bubble follows): "đi lung tung".
       if (e.zone === 'farm' && dt) { wander(e, dt, time); e.speedK = .4; }
-      const cycle = (time + e.phase) % 6;
-      setStatus(e, cycle < 4 ? 'phone' : cycle < 5 ? 'giggle' : 'zzz');
+      setStatus(e, 'phone');
     }
   }
 
@@ -1045,15 +1151,24 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     const w = e.wander;
     if (w && !w.reached && e.zone === 'farm' && !farmFree(store.state, w.x, w.z)) e.wander = null; // a field / building was placed there
     else if (w && !w.reached) {
-      e.speedK = .55;
+      e.speedK = w.go ? 1 : .55; // going back to its own tier: at a normal walk
       if (moveTo(e, w.x, w.z, dt)) { w.reached = true; w.pause = .6 + Math.random() * 1.2; e.moving = false; w.look = e.yaw; }
       return;
     }
     if (w && (w.pause -= dt) > 0) { e.moving = false; e.yaw = w.look + Math.sin(time * 1.3 + e.phase) * .6; return; } // look around
-    const p = e.root.position;
+    const p = e.root.position, myTier = e.zone === 'farm' ? store.state.gm?.tiers?.[e.uid] : null;
+    if (myTier != null && tierIndexAt(p.x, p.z) !== myTier) { // with nothing to do it waits on its own tier, not where it happens to be
+      const list = ownedPlots(store.state).filter(q => tierIndexAt(q.x, q.z) === myTier);
+      if (list.length) {
+        const q = list[(e.slot | 0) % list.length], spot = freeFarmSpot(store.state, { x: q.x + (Math.random() - .5) * 2, z: q.z + 1.6 });
+        e.wander = { x: spot.x, z: spot.z, reached: false, go: true };
+        return;
+      }
+    }
     for (let k = 0; k < 10; k++) {
       const a = Math.random() * Math.PI * 2, r = 2 + Math.random() * 4;
       const x = p.x + Math.cos(a) * r, z = p.z + Math.sin(a) * r;
+      if (myTier != null && tierIndexAt(x, z) !== myTier) continue;
       if (!canStand(e.zone, x, z) || (e.zone === 'farm' && !farmFree(store.state, x, z)) || claimed(`spot:${Math.round(x)},${Math.round(z)}`)) continue;
       e.wander = { x, z, reached: false };
       return;
@@ -1120,15 +1235,6 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     if (Math.hypot(p.x - pads.order.x, p.z - pads.order.z) < PAD_HOLD) e.atPad = 'order';
     else if (Math.hypot(p.x - pads.brew.x, p.z - pads.brew.z) < PAD_HOLD) e.atPad = 'brew';
   }
-  // Farm worker with every field growing: a 🪙 "water" bubble (tap → staff/tend: it waters TEND.plots plots).
-  function tendBubble(e) {
-    const on = e.kind === 'worker' && e.reason === 'growing' && !(e.u?.water > 0);
-    if (on !== !!e.tendOffer) { e.tendOffer = on; e.feeSig = ''; }
-    e.fee.sprite.visible = on;
-    if (!on) return;
-    const ok = store.state.player.coins >= TEND.fee, sig = `tend|${ok}`;
-    if (sig !== e.feeSig) { e.feeSig = sig; e.fee.draw('tend', TEND.fee, ok); }
-  }
   // Robot without a job: auto mode re-picks its task every ROBOT_AUTO.autoSeconds (says so when it switches); a fixed
   // task with nothing to do → a report-style line now and then, so the player sees the setting is off.
   function robotIdle(e, dt, state, now) {
@@ -1157,7 +1263,6 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
   // (sits at lunch / exhausted, sulks turned away, else just stands) under its 🪙 fix bubble.
   function offShift(e, dt, time) {
     if (e.pose === 'bench') {
-      e.fee.sprite.visible = false;
       const b = e.benchSpot;
       e.speedK = .7;
       if (!moveTo(e, b.x, b.z, dt)) return;
@@ -1167,13 +1272,12 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     }
     e.moving = false;
     if (e.pose === 'sulk') e.yaw = FACE_AWAY + Math.sin(time * .7 + e.phase) * .12;
-    if (e.fix) fixBubble(e, time, e.st); else e.fee.sprite.visible = false;
   }
   // Worker sitting (lunch, exhausted): body low, legs forward; back up when it stands again.
   function sitPose(e, dt) {
     if (e.kind !== 'worker') return;
-    const sit = e.pose === 'sit', p = e.root.position, goal = sit ? SIT_Y : 0;
-    if (p.y !== goal) p.y = Math.abs(p.y - goal) < .005 ? goal : p.y + (goal - p.y) * dampK(8, dt || .016);
+    const sit = e.pose === 'sit', goal = sit ? SIT_Y : 0, y = e.sitY || 0;
+    if (y !== goal) e.sitY = Math.abs(y - goal) < .005 ? goal : y + (goal - y) * dampK(8, dt || .016); // an offset: the ground height is added below
     const legs = e.root.userData.legs;
     if (legs && sit !== !!e.sitting) { legs[0].rotation.x = legs[1].rotation.x = sit ? -1.3 : 0; }
     e.sitting = sit;
@@ -1201,7 +1305,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     }
     // a rival's offer that ran out is resolved by the inbox (clock/tick expires the poach task on played time)
     if ((timers.mvp += dt) >= BOOKS.mvpMinutes * 60) { timers.mvp = 0; act('staff/mvp', {}); }
-    if ((timers.boss += dt) >= CAREER.manager.careEverySeconds) { timers.boss = 0; leaderRound(now); softwareRound(now); }
+    if ((timers.boss += dt) >= 5) { timers.boss = 0; softwareRound(now); }
   }
   // General manager (docs/design/general-manager.md): thinks every gmThinkSeconds (by skill), paid about every minute,
   // a rival may come for it every GM.poach.everyMinutes. Runs whether or not any staff is drawn.
@@ -1209,6 +1313,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     const gm = gmOf(state);
     if (!gm) { timers.gmThink = timers.gmPay = timers.gmRival = 0; return; }
     if ((timers.gmThink += dt) >= gmThinkSeconds(gm)) { timers.gmThink = 0; act('gm/think', { roll: Math.random() }); }
+    if ((timers.gmHands = (timers.gmHands || 0) + dt) >= FARM_MANAGER.hands.everySec) { timers.gmHands = 0; if (fmOf(state).auto) act('gm/hands', { skip: [...claims.keys()].filter(k => k.startsWith('plot:')).map(k => k.slice(5)) }); }
     if ((timers.gmPay += dt) >= 60 || !state.gm.payAt) { timers.gmPay = 0; act('gm/payroll', {}); }
     if ((timers.gmRival += dt) >= GM.poach.everyMinutes * 60) { timers.gmRival = 0; act('gm/rivalVisit', { roll: Math.random() }); }
     // a rival's offer that ran out is resolved by the inbox (clock/tick)
@@ -1221,24 +1326,6 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
       if (!u || e.kind !== 'robot' || !u.stopped) continue;
       if (u.stopped.kind === 'battery' && hasSoftware(u, 'autoCharge') && !careError(store.state, u, 'recharge', now)) act('staff/care', { uid: u.uid, kind: 'recharge', by: u.uid });
       else if (u.stopped.kind === 'jam' && hasSoftware(u, 'autoUnjam') && now - (u.stopped.at || now) >= SOFTWARE.packs.autoUnjam.seconds * 1000) act('staff/care', { uid: u.uid, kind: 'knock', by: u.uid });
-    }
-  }
-  // Career effects (docs/design/staff-profile.md step 3): a working lead / manager sends phone slackers back (free) after
-  // CAREER.lead.nudgeSeconds; a manager buys coffee / food for tired / hungry workers of its zone (your coins).
-  function leaderRound(now) {
-    for (const zone of ZONES) {
-      const bosses = zoneLeaders(store.state, zone, now);
-      if (!bosses.length) continue;
-      const manager = bosses.find(b => rankOf(b) === 'manager');
-      for (const e of units.values()) {
-        const u = e.u;
-        if (!u || e.zone !== zone || e.kind !== 'worker' || bosses.some(b => b.uid === u.uid)) continue;
-        if (nudgeDue(store.state, u, now)) { act('staff/nudge', { uid: u.uid }); continue; }
-        if (!manager || !u.active || u.stopped) continue;
-        const need = needs(u);
-        const kind = need.hungry ? 'food' : need.tired ? 'coffee' : null;
-        if (kind && !careError(store.state, u, kind, now)) act('staff/care', { uid: u.uid, kind, by: manager.uid });
-      }
     }
   }
 
@@ -1254,10 +1341,26 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     e.root.rotation.y += d * dampK(10, dt);
   }
 
+  // A big team stays smooth: the farm units nearest the camera get shadows and full-rate animation, the farthest are not drawn.
+  // Only the visuals change: every unit keeps working wherever it is.
+  let lodT = 0;
+  function lodRound() {
+    const f = getFocus(), L = FARM_MANAGER.lod;
+    if (!f) return;
+    const list = [...units.values()].filter(e => e.zone === 'farm').map(e => ({ e, d: Math.hypot(e.root.position.x - f.x, e.root.position.z - f.z) })).sort((a, b) => a.d - b.d);
+    list.forEach(({ e }, i) => {
+      const shadow = i < L.shadows, culled = i >= L.drawn;
+      e.root.userData.animEvery = i < L.fullAnim ? 1 : i < L.halfAnim ? 2 : 4;
+      const key = `${shadow}${!!e.root.userData.dressed}`; // re-applied once its model has arrived
+      if (e.shadowKey !== key) { e.shadowKey = key; e.root.traverse(o => { if (!o.isMesh) return; o.userData.castsAlone ??= o.castShadow; o.castShadow = shadow && o.userData.castsAlone; }); }
+      if (e.culled !== culled) { e.culled = culled; e.root.visible = e.pose !== 'bench' && !culled; }
+    });
+  }
   // Per frame. state = store.state, now = Date.now(); time = realm clock.
   function update(dt, time, state, now) {
     const paused = isPaused() || state.story.phase !== 'play' || !state.world.currentRegion;
     const interval = vitalsInterval(units.size);
+    if ((lodT -= dt) <= 0) { lodT = FARM_MANAGER.lod.everySec; lodRound(); }
     workersIn.farm = workersIn.shop = 0;
     if (hiRing.visible) {
       if ((hiT -= dt) <= 0) { hiRing.visible = false; hiRing.removeFromParent(); }
@@ -1278,7 +1381,6 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
         e.body.position.y = .25 + Math.sin(time * 2.4 + e.phase) * .08;
         if (!e.moving) e.body.rotation.y = Math.sin(time * .8 + e.phase) * .35; else e.body.rotation.y *= 1 - dampK(8, dt);
       } else swingLegs(e, dt);
-      if (e.up) { e.up.sprite.visible = !!e.canTrain && !e.stopped; if (e.up.sprite.visible) e.up.sprite.position.y = 2.95 + Math.abs(Math.sin(time * 3.4 + e.phase)) * .12; }
       if (e.label.sprite.visible) e.label.sprite.position.y = (e.kind === 'robot' ? 2.25 : 2.35) + Math.abs(Math.sin(time * 3 + e.phase)) * .08;
       turnToYaw(e, dt);
       if (paused) { e.moving = false; continue; }
@@ -1287,7 +1389,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
       if (e.job) {
         const brk = STAFF_BREAKS[e.kind];
         if (e.kind === 'robot') { if ((e.workT += dt) >= batteryMinutes(e.u) * 60) { e.workT = 0; act('staff/stop', { uid: e.uid }); continue; } }
-        else if (Math.random() < brk.slackChancePerMinute * slackMul(e.u) * chaosSlackMul(state, e.zone) * dt / 60) { act('staff/stop', { uid: e.uid }); continue; } // chaos: slack ×2
+        else if (e.zone !== 'farm' && Math.random() < brk.slackChancePerMinute * slackMul(e.u) * chaosSlackMul(state, e.zone) * dt / 60) { act('staff/stop', { uid: e.uid }); continue; } // chaos: slack ×2
       }
       if (e.sideCool > 0) e.sideCool -= dt;
       // Lane step-aside (set by separate): a short sidestep, the job / path resumes after it.
@@ -1311,11 +1413,13 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
         e.think -= dt;
         if (e.think <= 0) {
           e.think = THINK;
-          const job = e.zone === 'farm' ? farmJob(e, state, now) : shopJob(e, state, now);
-          if (job) { e.wander = null; e.speedK = 1; if (e.tendOffer) { e.tendOffer = false; e.fee.sprite.visible = false; } startJob(e, job); } // a job interrupts the stroll right away
+          const found = e.zone === 'farm' ? farmJob(e, state, now) : shopJob(e, state, now);
+          const job = found && e.zone === 'farm' ? maybeGoof(e, state, found) : found;
+          if (job) { e.wander = null; e.speedK = 1; startJob(e, job); } // a job interrupts the stroll right away
+          else if (e.zone === 'farm') e.think = FARM_MANAGER.idleThink + Math.random() * .5; // nothing to do: look again a bit later, not 3× a second
         }
         if (!e.job) {
-          if (e.zone === 'farm') { wander(e, dt, time); setStatus(e, e.kind === 'worker' ? e.reason || '' : ''); tendBubble(e); }
+          if (e.zone === 'farm') { wander(e, dt, time); setStatus(e, e.reason || ''); }
           else { idleAtPost(e, dt, time, state); setStatus(e, e.block || ''); }
           trackPad(e);
           continue;
@@ -1325,11 +1429,26 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
       if (!j.arrived) {
         e.speedK = e.zone === 'shop' && rule(e, 'urgent') ? jobUrgency(state, j, now) : 1;
         if (moveTo(e, j.x, j.z, dt)) j.arrived = true;
+        else if (e.zone === 'farm') { // stuck = not moving, however long the walk is: upper terraces are a long way off
+          const at = e.root.position;
+          if (!j.anchor || Math.hypot(at.x - j.anchor.x, at.z - j.anchor.z) > 1.5) { j.anchor = { x: at.x, z: at.z }; j.walkT = 0; }
+          else if ((j.walkT = (j.walkT || 0) + dt) > FARM_MANAGER.stuckSeconds) {
+            if (j.type === 'execute') j.arrived = true; // a manager's order is done from as close as it can get (never stalls a purchase)
+            else {
+              const until = Date.now() + FARM_MANAGER.avoidSeconds * 1000;
+              for (const k of e.claims || []) avoid.set(k, until);
+              if (avoid.size > 64) for (const [k, t] of avoid) if (t <= Date.now()) avoid.delete(k);
+              endJob(e); e.path = null; e.think = 0; e.stuckAt = Date.now();
+              continue;
+            }
+          }
+        }
         trackPad(e);
         continue;
       }
       e.moving = false;
       trackPad(e);
+      if (e.zone === 'farm' && j.plotId && j.step !== 'fetch' && j.type !== 'goof') { const f = plotOf(state, j.plotId), at = e.root.position; if (f) e.yaw = Math.atan2(f.x - at.x, f.z - at.z); } // faces the plant it works on
       if (e.zone === 'shop' && (j.type !== 'deliver' || j.step !== 'carry')) e.yaw = FACE_COUNTER; // work faces the counter
       // Chained brew: wait at the pad until the cup is ready, then pick it up.
       if (j.type === 'deliver' && j.step === 'wait') {
@@ -1338,11 +1457,13 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
         if (!isReady(o, now)) continue;
         j.step = 'pickup'; j.work = 0;
       }
-      if (j.work === 0 && j.type !== 'deliver') vfx?.burst(j.type === 'harvest' || j.type === 'plant' ? 'leaf' : 'steam', e.root.position, { count: 4 });
+      if (j.work === 0 && j.type !== 'deliver' && j.type !== 'goof') vfx?.burst(j.type === 'harvest' || j.type === 'plant' ? 'leaf' : 'steam', e.root.position, { count: 4 });
       j.work += dt;
-      if (j.work >= (j.type === 'deliver' ? STAFF_SIM.deliverSeconds : WORK[e.type] || 1) / (unitSpeed(e.u) * craftSpeed(e.u, j.type) * gearJob(e.u, j.type) * (e.stateK || 1))) finish(e, store.state, Date.now()); // craft: practiced jobs go faster
+      if (j.hold ? j.work >= j.hold : j.work >= (j.type === 'deliver' ? STAFF_SIM.deliverSeconds : WORK[e.type] || 1) / (unitSpeed(e.u) * craftSpeed(e.u, j.type) * gearJob(e.u, j.type) * (e.stateK || 1))) finish(e, store.state, Date.now()); // craft: practiced jobs go faster
     }
     if (!paused && units.size > 1) { sepList.length = 0; for (const e of units.values()) if (e.root.visible) sepList.push(e); separate(sepList); }
+    // everyone stands on the mountain tiers (eased, so crossing a tier wall looks like taking the steps)
+    for (const e of units.values()) { const p = e.root.position, gy = farmGroundY(p.x, p.z) + (e.sitY || 0); p.y = Math.abs(gy - p.y) > 4 ? gy : p.y + (gy - p.y) * Math.min(1, dt * 10); }
     if (!paused) teamTimers(dt, state, now);
   }
   const sepList = [];
@@ -1363,6 +1484,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
       const u = e.u || {};
       return {
         job: e.job?.type || null, reason: e.job ? null : e.reason || null, ms: e.reasonMs || 0,
+        phase: phaseOf(e),
         task: e.kind === 'robot' ? taskOf(e) : null, tasks: e.kind === 'worker' ? u.tasks || [] : null, post: e.post || null, zone: e.zone,
         state: e.st, pose: e.pose, working: !!e.working, bench: !!e.bench, fix: e.fix ? { kind: e.fix.kind, cost: e.fix.cost } : null,
         energy: u.energy ?? null, fullness: u.fullness ?? null, morale: u.morale ?? null, heat: u.heat ?? null, wear: u.wear ?? null,
@@ -1370,11 +1492,22 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
         battery: e.kind === 'robot' ? (u.stopped?.kind === 'battery' ? 0 : Math.max(0, Math.round(100 * (1 - (e.workT || 0) / (batteryMinutes(u) * 60))))) : null,
       };
     },
-    /** Tap targets: units that cannot work with a fix (their fee bubble first, then the body), tend / ⬆️ bubbles. */
+    /** A wandering unit called back for coins. Null when this unit is not wandering (its fix is a care action). */
+    recall(uid) {
+      const e = units.get(uid);
+      if (e?.job?.type !== 'goof') return null;
+      const r = act('staff/recall', { uid });
+      if (r.ok) { endJob(e); e.path = null; e.think = 0; }
+      return r;
+    },
+    /** Where the farm crew stands (the manager walks around them). */
+    *farmPositions() { for (const e of units.values()) if (e.zone === 'farm' && e.root.visible) yield e.root.position; },
+    /** Tap targets: the ⬆️ bubble first, then every unit's body (a tap opens its profile card). */
     *pickers() {
       for (const e of units.values()) {
         if (!e.root.parent?.visible || !e.root.visible) continue;
-        if (e.stopped || (e.fix && !e.working && e.pose !== 'bench')) { yield e.fee.sprite; yield e.pick; } else { if (e.tendOffer) yield e.fee.sprite; if (e.up?.sprite.visible) yield e.up.sprite; }
+        if (e.feeTag) yield e.tagHit; // the priced tag first: tapping it pays
+        yield e.pick;
       }
     },
     /** One tap on a jammed robot's body: true on the KNOCK.taps-th tap in a row (the realm then sends staff/care knock). */
@@ -1429,7 +1562,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     dispose() {
       this.clear();
       Object.values(geo).forEach(g => g.dispose());
-      pickGeo.dispose(); pickMat.dispose(); phoneGeo.dispose(); phoneMat.dispose(); bandGeo.dispose(); bandMat.dispose();
+      tagHitMat.dispose(); pickGeo.dispose(); pickMat.dispose(); phoneGeo.dispose(); phoneMat.dispose();
       Object.values(mat).forEach(m => m.dispose());
       tierMat.forEach(m => m.dispose());
       hiGeo.dispose(); hiMat.dispose();

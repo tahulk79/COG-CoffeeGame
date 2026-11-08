@@ -1,8 +1,11 @@
 // Save schema v3 (Farm & Café V3). Stored under its own localStorage key, so the old v1 save is never overwritten.
-import { TASKS, PENALTY, HISTORY, CROPS, GM, GEAR, INCOME, LOAN, loanOwed, loanTermMin, incomeRef, SOFTWARE, WARRANTY, PROFILE, CAREER, CRAFT, autoRank, profileOfUid, robotSerial, START, BUILDINGS, STAFF, TRAITS, RECRUIT, ROBOT_TASKS, PLAYTEST, SKILL, STAT_ORDER, VITALS, RARE, WORKER_TASKS, BOOKS, energyMax, levelForXp, startCoins, VENUES, RATING, CELL } from './config/economy.js';
+import { maxStatOf, maxTierOf, EXPIRY_ENABLED } from './config/economy.js';
+import { STAFF_CAP, FARM_MANAGER } from './config/economy.js';
+import { crewTypeOf, workerJobs } from './config/economy.js';
+import { TASKS, PENALTY, HISTORY, CROPS, GM, GEAR, INCOME, LOAN, loanOwed, loanTermMin, incomeRef, SOFTWARE, WARRANTY, PROFILE, CAREER, CRAFT, profileOfUid, robotSerial, START, BUILDINGS, STAFF, TRAITS, RECRUIT, ROBOT_TASKS, PLAYTEST, SKILL, STAT_ORDER, VITALS, RARE, WORKER_TASKS, BOOKS, energyMax, levelForXp, startCoins, VENUES, RATING, CELL } from './config/economy.js';
 import { COUNTRIES, LEGACY_REGIONS, isRegionId, regionGames } from './config/world.js';
 import { countryRecipes, SUPPLY } from './config/research.js';
-import { FIXED, PARCELS, LOT_KINDS, areaOfParcel, inRect, rectsOverlap, plotsOf } from './config/layout.js';
+import { FIXED, PARCELS, LOT_KINDS, areaOfParcel, inRect, rectsOverlap, plotsOf, ESTATES } from './config/layout.js';
 import { RECIPES, GOODS, ITEM_GOODS } from './config/economy.js';
 
 export const SCHEMA = 3;
@@ -53,7 +56,7 @@ export function createSave(now = Date.now(), character = null) {
     // mode: the current region's game (region.mode: 'farm' | 'cafe'; null → the HUD asks, offering only the games the
     // region's country has). Coins / XP / level / beans are shared by both games.
     mode: null,
-    tutorial: { step: 0, done: false, farmDone: false, cafeDone: false },
+    tutorial: { step: 0, done: true, farmDone: true, cafeDone: true }, // the opening tutorial is removed
     autoplay: { runs: 0, granted: false, active: null },   // active = { startedAt, endsAt } while a run plays
     stats: { harvested: 0, planted: 0, served: 0, built: 0, upgraded: 0, parcels: 0, earned: 0, sold: 0, bought: 0, venueSold: 0, reviews: 0, fights: 0 },
     tx: [],
@@ -77,6 +80,7 @@ export function normalizeSave(raw, now = Date.now()) {
   out.story = { ...base.story, ...obj(s.story) };
   if (!PHASES.includes(out.story.phase)) out.story.phase = out.character ? 'intro' : 'select';
   out.story.seen = obj(out.story.seen) || {};
+  if (!EXPIRY_ENABLED && out.story.phase === 'expiry') { out.story.phase = 'play'; out.story.expiry = null; } // the Level-10 limit is off: a save waiting on it just plays on
   out.player = { ...base.player, ...obj(s.player) };
   out.player.coins = num(out.player.coins, base.player.coins, 0, 1e15);
   out.player.xp = num(out.player.xp, 0, 0, 1e12);
@@ -133,7 +137,14 @@ export function normalizeSave(raw, now = Date.now()) {
   out.world.ownedRegions = [...new Set([...legacyOwned,
     ...Object.entries(out.world.regions).filter(([, r]) => r.status !== 'expired').map(([id]) => id)].filter(isRegionId))];
   out.world.freeUnlocks = num(out.world.freeUnlocks, 0, 0, 9) | 0;
-  out.staff = { units: Array.isArray(s.staff?.units) ? s.staff.units.filter(u => obj(u) && typeof u.type === 'string' && Object.hasOwn(STAFF, u.type)).map(u => ({ ...u })) : [] };
+  // Farm crew (docs/design/farm-crew.md §4): a farmhand / SproutBot from an older save becomes a trade; its stats stay.
+  let oldHands = 0;
+  const toCrew = u => {
+    if (!obj(u) || (u.type !== 'farmhand' && u.type !== 'sproutBot')) return u;
+    const type = crewTypeOf(u, u.type === 'farmhand' ? oldHands++ : 0);
+    return { ...u, type, task: 'auto', tasks: [] };
+  };
+  out.staff = { units: Array.isArray(s.staff?.units) ? s.staff.units.map(toCrew).filter(u => obj(u) && typeof u.type === 'string' && Object.hasOwn(STAFF, u.type)).map(u => ({ ...u })) : [] };
   for (const u of out.staff.units) {
     if (obj(u.assigned) && typeof u.assigned.regionId === 'string') u.assigned = { ...u.assigned, regionId: remap(u.assigned.regionId) };
     if (u.trait != null && !Object.hasOwn(TRAITS, u.trait)) delete u.trait;
@@ -141,7 +152,7 @@ export function normalizeSave(raw, now = Date.now()) {
     if (STAFF[u.type].kind === 'robot') {
       if (!ROBOT_TASKS[u.type]?.includes(u.task)) u.task = 'auto';
       // The old charger part is merged into the battery (battery = the better of the two).
-      const p = obj(u.parts) || {}, t = v => num(v, 0, 0, 3) | 0;
+      const p = obj(u.parts) || {}, t = v => num(v, 0, 0, maxTierOf(u)) | 0;
       u.parts = { battery: Math.max(t(p.battery), t(p.charger)), motor: t(p.motor), cooler: t(p.cooler), frame: t(p.frame) };
       u.heat = num(u.heat, 0, 0, 100); u.wear = num(u.wear, 100, 0, 100); u.partsSpent = num(u.partsSpent, 0, 0, 1e9);
       delete u.level; delete u.xp; delete u.tasks; delete u.breakUntil;
@@ -156,7 +167,7 @@ export function normalizeSave(raw, now = Date.now()) {
     if (u.stopped != null && !(obj(u.stopped) && typeof u.stopped.kind === 'string')) delete u.stopped;
     if (!obj(u.assigned) || typeof u.assigned.regionId !== 'string') u.assigned = null;
   }
-  normalizeActive(out.staff.units, levelForXp(out.player.xp));
+  normalizeActive(out.staff.units, STAFF_CAP.perZone); // no limit by level: every unit keeps its shift
   const st = obj(s.staff) || {};
   out.staff.upkeepAt = num(st.upkeepAt, 0, 0);
   // Ledger rows (per minute) and team day rows (per local day): earned, spent and the spending categories.
@@ -210,8 +221,8 @@ export function normalizeSave(raw, now = Date.now()) {
 // SKILL.xpPerPoint); vitals default to a fresh hire's; tasks only from the zone's list.
 function normalizeWorker(u) {
   const st = obj(u.stats);
-  const old = num(u.level, 1, 1, SKILL.maxStat) | 0;
-  u.stats = Object.fromEntries(STAT_ORDER.map(k => [k, num(st ? st[k] : old, st ? 1 : old, 1, SKILL.maxStat) | 0]));
+  const old = num(u.level, 1, 1, maxStatOf(u)) | 0;
+  u.stats = Object.fromEntries(STAT_ORDER.map(k => [k, num(st ? st[k] : old, st ? 1 : old, 1, maxStatOf(u)) | 0]));
   u.points = num(u.points, 0, 0, 1e6) | 0;
   u.xp = st ? num(u.xp, 0, 0, SKILL.xpPerPoint) : num(u.xp, 0, 0, 1e6) % SKILL.xpPerPoint;
   delete u.level;
@@ -219,7 +230,7 @@ function normalizeWorker(u) {
   u.energy = num(u.energy, VITALS.start.energy, 0, energyMax(u));
   u.fullness = num(u.fullness, VITALS.start.fullness, 0, 100);
   u.morale = num(u.morale, VITALS.start.morale, 0, 100);
-  const allowed = WORKER_TASKS[STAFF[u.type].zone] || [];
+  const allowed = STAFF[u.type].jobs ? [] : workerJobs(u); // a trade has one job: nothing to choose
   u.tasks = Array.isArray(u.tasks) ? [...new Set(u.tasks.filter(t => allowed.includes(t)))].slice(0, 2) : [];
   if (u.breakUntil != null && !Number.isFinite(u.breakUntil)) delete u.breakUntil;
   delete u.task; delete u.parts; delete u.heat; delete u.wear;
@@ -281,7 +292,28 @@ export function newGmState() {
     // planner v2 (management-rules §3.3–§3.7): plan = the day plan { atPlayed, crops { lotId: crop }, target }; util =
     // land-use samples { rows [{ m, z, p, q }] }; ticks = rules held n thinks in a row; wish = licences missed today
     // { d, n, m }; busy = thinks in a row with more candidates than actions { n, excess, avg }; topUp = { d, denied, filed }.
-    plan: null, util: null, ticks: {}, wish: null, busy: null, topUp: null };
+    plan: null, util: null, ticks: {}, wish: null, busy: null, topUp: null,
+    fm: newFmState() };
+}
+// Farm Manager V2 settings (docs/design/farm-manager-v2.md). auto: he runs the farm at all; minReserve / spendLimit: 0 = none
+// beyond the automatic reserve / income budget; pins: the tier the player fixed for a unit; plan / log / calib / away: his own notes.
+export function newFmState() { return { auto: true, mode: 'balanced', minReserve: 0, spendLimit: 0, build: true, land: true, hire: true, autoSell: true, pins: {}, plan: null, log: [], calib: 1, away: null }; }
+function normalizeFm(raw) {
+  const f = obj(raw), out = newFmState();
+  if (!f) return out;
+  for (const k of ['auto', 'build', 'land', 'hire']) if (typeof f[k] === 'boolean') out[k] = f[k];
+  // On by default (founder 2026-11-09), older saves too: only a choice the player made himself (sellChosen) is kept.
+  if (f.sellChosen === true && typeof f.autoSell === 'boolean') { out.autoSell = f.autoSell; out.sellChosen = true; }
+  if (FARM_MANAGER.modes[f.mode]) out.mode = f.mode;
+  out.minReserve = FARM_MANAGER.reservePicks.includes(f.minReserve) ? f.minReserve : 0;
+  out.spendLimit = FARM_MANAGER.limitPicks.includes(f.spendLimit) ? f.spendLimit : 0;
+  const pins = obj(f.pins) || {};
+  out.pins = Object.fromEntries(Object.entries(pins).filter(([, t]) => Number.isInteger(t) && t >= 0 && t <= 3));
+  if (obj(f.plan) && Number.isFinite(f.plan.at)) out.plan = f.plan;
+  out.log = (Array.isArray(f.log) ? f.log : []).filter(e => obj(e) && typeof e.k === 'string' && Number.isFinite(e.p)).slice(-FARM_MANAGER.logKeep);
+  out.calib = num(f.calib, 1, FARM_MANAGER.calib.min, FARM_MANAGER.calib.max);
+  if (obj(f.away) && Number.isFinite(f.away.at)) out.away = f.away;
+  return out;
 }
 // General manager block of a save: known values only; a broken one starts fresh (nothing else depends on it).
 function normalizeGm(raw) {
@@ -292,16 +324,14 @@ function normalizeGm(raw) {
     // The shared Unit interface (management-rules §1.1): uid 'g1', kind 'manager', book / days / recent, backlog and
     // its states (waiting = Chờ lệnh, strike = Đình công). The GM stays in s.gm, never in s.staff.units.
     const b = obj(u.book) || {};
-    out.unit = { uid: 'g1', kind: 'manager', name: u.name.slice(0, 20), gender: u.gender === 'male' ? 'male' : 'female', skill: num(u.skill, 1, 1, 5) | 0,
+    out.unit = { uid: 'g1', kind: 'manager', name: u.name.slice(0, 20), gender: u.gender === 'male' ? 'male' : 'female', skill: num(u.skill, 1, 1, 5) | 0, worked: num(u.worked, 0, 0, 1e7) | 0, ...(obj(u.stats) ? { stats: Object.fromEntries(GM.stats.map(k => [k, num(u.stats[k], 1, 1, GM.maxStat) | 0])) } : {}),
       style: GM.styles[u.style] ? u.style : 'balanced', loyalty: num(u.loyalty, GM.loyalty.start, 0, 100), raises: num(u.raises, 0, 0, 20) | 0, hiredAt: num(u.hiredAt, 0, 0), paid: num(u.paid, 0, 0, 1e9),
       tenurePlayedMin: num(u.tenurePlayedMin, 0, 0, 1e9), backlog: num(u.backlog, 0, 0, 99) | 0, decayMs: num(u.decayMs, 0, 0, 36e5),
       book: { jobs: num(b.jobs, 0, 0) | 0, earned: num(b.earned, 0, 0), spent: num(b.spent, 0, 0), mistakes: num(b.mistakes, 0, 0) | 0, since: num(b.since, num(u.hiredAt, 0, 0), 0) },
       days: (Array.isArray(u.days) ? u.days : []).filter(r => obj(r) && Number.isInteger(r.d)).map(r => ({ d: r.d, jobs: num(r.jobs, 0, 0) | 0, earned: num(r.earned, 0, 0), spent: num(r.spent, 0, 0), mistakes: num(r.mistakes, 0, 0) | 0 }))
         .sort((a, c) => a.d - c.d).slice(-PROFILE.daysKeep),
       recent: (Array.isArray(u.recent) ? u.recent : []).filter(histRowOk).map(histRowOf).slice(-HISTORY.perUnit) };
-    const w = obj(u.waiting), k = obj(u.strike);
-    if (w && Number.isFinite(w.untilPlayed)) out.unit.waiting = { untilPlayed: w.untilPlayed };
-    if (k && Number.isFinite(k.sincePlayed)) out.unit.strike = { sincePlayed: k.sincePlayed, since: num(k.since, 0, 0) };
+    out.unit.backlog = 0; // old saves: a manager left on strike or waiting goes back to work
     const tr = obj(u.training);
     if (tr && Number.isFinite(tr.untilPlayed)) out.unit.training = { untilPlayed: tr.untilPlayed, to: num(tr.to, out.unit.skill + 1, 1, 5) | 0 };
   }
@@ -324,9 +354,12 @@ function normalizeGm(raw) {
   out.seenAt = num(g.seenAt, 0, 0);
   out.shareFrom = num(g.shareFrom, 0, 0, 1e9) | 0; // played minute from which the GM's profit share is still unpaid
   if (g.moodNote === 'idle' || g.moodNote === 'absent') out.moodNote = g.moodNote;
-  const c = obj(g.chaos);
-  out.chaos = !out.unit && c && Number.isFinite(c.since) ? { since: c.since } : null;
+  out.chaos = null; // no team chaos any more
+  if (Number.isInteger(g.reserve)) out.reserve = g.reserve;
+  if (obj(g.tiers)) out.tiers = g.tiers;
+  if (Array.isArray(g.orders)) out.orders = g.orders.filter(o => obj(o) && typeof o.id === 'string' && obj(o.act));
   normalizePlanner(out, g);
+  out.fm = normalizeFm(g.fm);
   return out;
 }
 // Planner v2 bookkeeping (normalizeGm): known shapes only, anything broken starts empty. Idempotent.
@@ -383,7 +416,7 @@ function normalizeMoney(out, s, level) {
       loans = [{ id: 'L0', amount, owed: left, takenAtPlayed: 0, termMin: loanTermMin(left, incomeRef(game, level)), late: false }];
     }
   }
-  out.loans = loans.slice(0, LOAN.maxOpen);
+  out.loans = loans; // no cap on open loans
   delete out.loan;
   // Arrears belong to someone: none without a GM / a follower on the team (they left, the debt left with them).
   if (!out.gm?.unit) wages.gm = 0;
@@ -531,12 +564,10 @@ function normalizeProfile(u, now) {
     const p = profileOfUid(u.uid);
     u.age = num(u.age, p.age, PROFILE.age[0], 99) | 0;
     u.home = typeof u.home === 'string' && u.home ? u.home.slice(0, 32) : p.home;
-    // Career: a known rank (never below what the level gives); craft: counts of the zone's job types.
-    const auto = autoRank(u), i = CAREER.ranks.indexOf(u.rank);
-    u.rank = i >= CAREER.ranks.indexOf(auto) ? u.rank : auto;
+    delete u.rank; // no ranks any more: stats are what counts
     const c = obj(u.craft) || {};
     u.craft = Object.fromEntries((CRAFT.tasks[STAFF[u.type].zone] || []).filter(t => num(c[t], 0, 0) > 0).map(t => [t, num(c[t], 0, 0, 1e7) | 0]));
-    if (!Number.isFinite(u.eligibleAt)) delete u.eligibleAt;
+    delete u.eligibleAt;
     // Gear: tiers 0..maxTier of the zone's items.
     const g = obj(u.gear) || {};
     u.gear = Object.fromEntries((GEAR.zone[STAFF[u.type].zone] || []).filter(k => num(g[k], 0, 0) > 0).map(k => [k, num(g[k], 0, 0, GEAR.maxTier) | 0]));
@@ -678,6 +709,14 @@ function migrateFarmLots(v) {
   return { parcels, buildings: kept, refund };
 }
 
+// Estates (land-ui-simplify §2A): owning any lot of an estate = owning the whole estate (old saves bought lot by lot);
+// the home estate is always owned. Café lots pass through.
+export function withEstates(parcels) {
+  const set = new Set(parcels);
+  for (const e of Object.values(ESTATES)) if (e.id === 'home' || e.lots.some(id => set.has(id))) for (const id of e.lots) set.add(id);
+  return [...set];
+}
+
 export function normalizeRegion(r) {
   const v = migrateLayout(obj(r) || {});
   const buildings = Array.isArray(v.buildings) ? v.buildings.filter(b => obj(b) && typeof b.type === 'string' && Object.hasOwn(BUILDINGS, b.type)).map(normalizeBuilding) : [];
@@ -689,7 +728,7 @@ export function normalizeRegion(r) {
     ...(v.refund ? { refund: v.refund } : {}),
     status: ['active', 'idle', 'expired'].includes(v.status) ? v.status : 'idle',
     enteredAt: num(v.enteredAt, 0), expiredAt: num(v.expiredAt, 0),
-    parcels: Array.isArray(v.parcels) ? [...new Set(v.parcels.filter(id => typeof id === 'string' && Object.hasOwn(PARCELS, id)))] : [], // unknown lot ids dropped
+    parcels: withEstates(Array.isArray(v.parcels) ? [...new Set(v.parcels.filter(id => typeof id === 'string' && Object.hasOwn(PARCELS, id)))] : []), // unknown lot ids dropped; estates completed
     roads: Array.isArray(v.roads) ? [...new Set(v.roads)] : [],
     buildings,
     fields,
