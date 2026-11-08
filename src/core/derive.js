@@ -1,6 +1,6 @@
 // Pure selectors over the v3 save. No mutation. Used by the reducer, the scene and the HUD.
-import { FOLLOW, GM, gmCandidatesFor, gmSalary, SHIFT, TEND, PROFILE, CAREER, rankOf, GEAR, gearTier, WARRANTY, SOFTWARE, softwarePrice, hasSoftware, TUTORIAL, BUILDINGS, CROPS, CROP_ORDER, DRINKS, DRINK_ORDER, STAFF, hireLimit, STAFF_CAP, RECRUIT, applicantsFor, traitEffect, MISTAKES, QUALITY, isHardDrink, unitLevel, levelSpeed, statOf, statCap, statCost, STAT_ORDER, SKILL, ROBOT_TASKS, PART_COST, PART_ORDER, partTier, partCost, UPKEEP, VITALS, CARE, ROBOT_WEAR, WORKER_TASKS, taskLimit, energyMax, unitFee, staffFee, unitSpeed, batteryMinutes, heatPerMin, jamChance, slackMul, ROBOT_PARTS, STAFF_BREAKS, STAFF_ORDER, GM_RULES, UPGRADE_GATE, LAND, FIRE, BOOKS, CHEST_LEVELS, LOAN, loanOwed, ROUND_LEVEL_CAP, REBIRTH, CELL, levelForXp, xpForLevel, GRACE, SHOP, BEANS, VENUES, VENUE_ORDER, VENUE_ITEMS, RATING, FIELD, fieldExtraCost, fieldExtraCap, GOODS, GOOD_ORDER, ITEM_GOODS, RECIPES, INCOME, INCOME_FLOOR, incomeRef, loanTermMin, robotCap, DEBT, TASKS, PENALTY, HISTORY } from './config/economy.js';
-import { PARCELS, ROADS, RESERVED, BOUNDS, GATE, areaOfParcel, areaAt, rectsOverlap, rectsTouch, inRect, terrainOfLot, lotAllows, TERRAIN_USES, PRE_TILLED, SNAP, lotContaining } from './config/layout.js';
+import { FOLLOW, GM, gmCandidatesFor, gmSalary, SHIFT, TEND, PROFILE, CAREER, rankOf, GEAR, gearTier, WARRANTY, SOFTWARE, softwarePrice, hasSoftware, TUTORIAL, BUILDINGS, CROPS, CROP_ORDER, DRINKS, DRINK_ORDER, STAFF, hireLimit, STAFF_CAP, RECRUIT, applicantsFor, traitEffect, MISTAKES, QUALITY, isHardDrink, unitLevel, levelSpeed, statOf, statCap, statCost, STAT_ORDER, SKILL, ROBOT_TASKS, PART_COST, PART_ORDER, partTier, partCost, UPKEEP, VITALS, CARE, ROBOT_WEAR, WORKER_TASKS, taskLimit, energyMax, unitFee, staffFee, unitSpeed, batteryMinutes, heatPerMin, jamChance, slackMul, ROBOT_PARTS, STAFF_BREAKS, STAFF_ORDER, GM_RULES, UPGRADE_GATE, LAND, FIRE, BOOKS, CHEST_LEVELS, LOAN, loanOwed, ROUND_LEVEL_CAP, REBIRTH, CELL, levelForXp, xpForLevel, GRACE, SHOP, BEANS, VENUES, VENUE_ORDER, VENUE_ITEMS, RATING, FIELD, fieldExtraCost, fieldExtraCap, GOODS, GOOD_ORDER, ITEM_GOODS, RECIPES, CLIMATE_EFFECT, CLIMATE_PICK, PERENNIAL, INCOME, INCOME_FLOOR, incomeRef, loanTermMin, robotCap, DEBT, TASKS, PENALTY, HISTORY } from './config/economy.js';
+import { PARCELS, ROADS, RESERVED, BOUNDS, GATE, areaOfParcel, areaAt, rectsOverlap, rectsTouch, inRect, terrainOfLot, lotAllows, climateOfLot, TERRAIN_USES, PRE_TILLED, SNAP, lotContaining } from './config/layout.js';
 import { countryRecipes, INGREDIENTS, INGREDIENT_ORDER, RESEARCH, SUPPLY, supplierOf, buyerOf, FARMLAB, methodEffect, methodKey } from './config/research.js';
 import { parseRegionId, citiesOf, COUNTRY_ORDER, regionCost, regionGames } from './config/world.js';
 
@@ -41,14 +41,26 @@ export const stored = s => GOOD_ORDER.reduce((n, id) => n + Math.floor(goodCount
 /** Free storage space (0 when full or over). */
 export const storageRoom = s => Math.max(0, capacity(s) - stored(s));
 // extra: a field's own speed-up (its best well in reach), added like the staff / blessing bonuses.
-export const growMs = (s, cropId, extra = 0) => Math.round(CROPS[cropId].growSeconds * 1000 / (1 + staffBonus(s, 'growSpeed') + blessing(s, 'grow') + extra));
+// growMs: one season of a grown tree (the time between harvests); establishMs: a new sapling's first crop.
+const speedOf = (s, extra) => 1 + staffBonus(s, 'growSpeed') + blessing(s, 'grow') + extra;
+export const growMs = (s, cropId, extra = 0) => Math.round((CROPS[cropId].cycleSeconds ?? CROPS[cropId].growSeconds) * 1000 / speedOf(s, extra));
+export const establishMs = (s, cropId, extra = 0) => Math.round(CROPS[cropId].growSeconds * 1000 / speedOf(s, extra));
+/** Harvests a tree has given (its age in seasons) and whether it is old (fewer beans, PERENNIAL.oldYield). */
+export const treeAge = p => (p?.n | 0);
+export const treeOld = p => !!p && !!CROPS[p.crop]?.life && treeAge(p) >= CROPS[p.crop].life;
+export const pruneCost = crop => Math.round(CROPS[crop].seedCost * PERENNIAL.pruneCost);
 /** Grow time of one planted plot: a tutorial seed (`fast`, planted before the first harvest) ripens in a few seconds. */
 // A plot a low-level worker planted crooked (`slow`, staff mistake) grows MISTAKES.crookedSlow slower. A field within
 // reach of a well grows faster (wellBonus). `plotId` is optional: it is looked up from the plot object when missing.
 export const plotGrowMs = (s, p, plotId = plotIdOf(s, p)) => {
-  const base = growMs(s, p.crop, plotId ? wellBonus(s, plotId) : 0);
+  const c = CROPS[p.crop], extra = plotId ? wellBonus(s, plotId) : 0;
+  // a sapling (n = 0) needs its first-crop time, a cut-back tree pruneGrow of it, a grown tree one season; Liberica's
+  // second pick of a season only the rest of its cherries
+  let base = p.wave && c?.waves ? Math.round(c.waves.regrowSeconds * 1000 / speedOf(s, extra))
+    : treeAge(p) > 0 ? growMs(s, p.crop, extra) : Math.round(establishMs(s, p.crop, extra) * (p.pruned ? PERENNIAL.pruneGrow : 1));
   const way = Array.isArray(p.method) && s.world?.currentRegion ? methodEffect(s.world.currentRegion, p.crop, p.method).timeMul : 1; // research step 3
-  return p.fast ? Math.min(TUTORIAL.firstGrowSeconds * 1000, base) : Math.round(base * way * (p.slow ? MISTAKES.crookedSlow : 1));
+  const zone = plotId ? climateEffect(p.crop, climateOfPlot(s, plotId))?.timeMul || 1 : 1; // the wrong growing zone
+  return p.fast ? Math.min(TUTORIAL.firstGrowSeconds * 1000, base) : Math.round(base * way * zone * (p.slow ? MISTAKES.crookedSlow : 1));
 };
 // Farm World 2.0: the drying yard no longer multiplies beans (it processes them), so the yield is crop + staff only.
 export const yieldOf = (s, cropId) => Math.max(1, Math.round(CROPS[cropId].beans * (1 + staffBonus(s, 'yieldBonus'))));
@@ -114,6 +126,51 @@ export const plotOf = (s, id) => {
   if (!m.byId) m.byId = new Map(ownedPlots(s).map(p => [p.id, p]));
   return m.byId.get(id) || null;
 };
+// ---- coffee varieties (docs/design/coffee-varieties.md) ----
+/** Growing zone of a field: its lot's ('lowland' | 'upland' | 'highland' | 'wetland'). */
+export const climateOfPlot = (s, plotId) => climateOfLot(plotOf(s, plotId)?.parcel);
+/** { timeMul?, stars? } of `crop` in `zone`, or null when the zone is neutral for it. */
+export const climateEffect = (crop, zone) => CLIMATE_EFFECT[crop]?.[zone] || null;
+/** 'good' (bonus) | 'ok' | 'bad' (penalty) — the hint shown while holding a seed. */
+export const climateFit = (crop, zone) => { const e = climateEffect(crop, zone); return !e ? 'ok' : (e.stars || 0) < 0 || (e.timeMul || 1) > 1 ? 'bad' : 'good'; };
+/** Raw price of one bean of `crop` at the storehouse. */
+export const beanPrice = crop => CROPS[crop]?.price ?? GOODS.beans.price;
+/** Varieties cheapest first (what the café and the dryer use up first) and dearest first (what a partial sale sells). */
+export const BEAN_TAKE_ORDER = Object.keys(CROPS).sort((a, b) => beanPrice(a) - beanPrice(b));
+export const BEAN_SELL_ORDER = [...BEAN_TAKE_ORDER].reverse();
+/** Beans per variety; always sums to inventory.beans (a gap, e.g. an old save, counts as Robusta). */
+export function beanMix(s) {
+  const total = Math.max(0, Math.floor(s.inventory.beans || 0)), m = {};
+  let sum = 0;
+  for (const c of Object.keys(CROPS)) { m[c] = Math.max(0, Math.floor(s.inventory.beanMix?.[c] || 0)); sum += m[c]; }
+  if (sum < total) m.robusta += total - sum;
+  else for (const c of BEAN_TAKE_ORDER) { if (sum <= total) break; const t = Math.min(sum - total, m[c]); m[c] -= t; sum -= t; }
+  return m;
+}
+/** Robusta is self-sterile: it needs pollen from other Robusta. False only when every field around it (within
+ *  `pollinate.radius`) grows another variety; an empty or lone bed is fine (wild pollen, no softlock at the start). */
+export function pollinated(s, plotId) {
+  const r = region(s), me = plotOf(s, plotId), crop = r?.plots[plotId]?.crop, rule = CROPS[crop]?.pollinate;
+  if (!rule || !me) return true;
+  let others = 0;
+  for (const f of ownedPlots(s)) {
+    if (f.id === plotId || Math.hypot(f.x - me.x, f.z - me.z) > rule.radius) continue;
+    const c = r.plots[f.id]?.crop;
+    if (!c || c === crop) return true;
+    others++;
+  }
+  return others === 0;
+}
+/** Beans the processing chain may take (Arabica is sold raw only). */
+export const processableBeans = s => { const m = beanMix(s); return Object.keys(m).reduce((n, c) => n + (CROPS[c].rawOnly ? 0 : m[c]), 0); };
+/** Coins a bean of `crop` is worth at best: its raw price, or the processing chain's value (pb) + its specialty premium. */
+export function cropBeanValue(s, crop, pb = perBean(s)) {
+  const raw = beanPrice(crop) * (buyerNow(s).mul.beans ?? 1);
+  if (CROPS[crop].rawOnly) return raw;
+  // through the chain: its value + the specialty premium (paid on the dry batch) when a dryer runs
+  const prem = buildingsOf(s, RECIPES.dry.building).length ? Math.max(0, beanPrice(crop) - GOODS.beans.price) * (RECIPES.dry.premium || 0) : 0;
+  return Math.max(raw, pb + prem);
+}
 // The plot id of a region.plots entry (reverse lookup by object identity, memoized per region).
 function plotIdOf(s, p) {
   const r = region(s);
@@ -149,7 +206,8 @@ export function plotState(s, plotId, now) {
   if (!p) return { stage: 'empty' };
   const total = plotGrowMs(s, p, plotId), elapsed = Math.max(0, now - p.plantedAt);
   const ratio = Math.min(1, elapsed / total);
-  return { stage: ratio >= 1 ? 'ready' : ratio < .08 ? 'planted' : 'growing', crop: p.crop, ratio, remainingMs: Math.max(0, total - elapsed) };
+  return { stage: ratio >= 1 ? 'ready' : ratio < .08 ? 'planted' : 'growing', crop: p.crop, ratio, remainingMs: Math.max(0, total - elapsed),
+    age: treeAge(p), old: treeOld(p), young: treeAge(p) === 0 };
 }
 
 // Free robusta when the player is stuck (no coins for seeds, nothing growing, nothing stored or being processed, no café
@@ -165,6 +223,12 @@ export function graceActive(s) {
 export function sellQuote(s, good = 'beans', amount = Infinity) {
   if (!own(GOODS, good)) return { good, amount: 0, coins: 0 };
   const n = Math.max(0, Math.min(Math.floor(goodCount(s, good)), Math.floor(Number.isFinite(amount) ? amount : Infinity)));
+  if (good === 'beans') { // per variety, dearest first
+    const m = beanMix(s), kinds = {};
+    let left = n, raw = 0;
+    for (const c of BEAN_SELL_ORDER) { const k = Math.min(left, m[c]); if (k > 0) { kinds[c] = k; raw += k * beanPrice(c); left -= k; } }
+    return { good, amount: n, kinds, coins: Math.round(raw * (buyerNow(s).mul.beans ?? 1) * 100) / 100 };
+  }
   return { good, amount: n, coins: Math.round(n * GOODS[good].price * (buyerNow(s).mul[good] ?? 1) * 100) / 100 }; // the chosen buyer's price
 }
 /** Selling everything stored: per good + total coins. */
@@ -393,7 +457,7 @@ export function jobState(b, now) {
 export function missingInput(s, b) {
   const io = recipeIO(b);
   if (!io) return null;
-  for (const [good, need] of Object.entries(io.in)) { const have = Math.floor(goodCount(s, good)); if (have < need) return { good, need, have }; }
+  for (const [good, need] of Object.entries(io.in)) { const have = Math.floor(good === 'beans' ? processableBeans(s) : goodCount(s, good)); if (have < need) return { good, need, have }; }
   return null;
 }
 /** Why a batch cannot start: null | 'unknown' | 'noRecipe' | 'gameLocked' | 'jobBusy' | 'noInput' | 'coins'. */
@@ -899,7 +963,7 @@ export function perBean(s) {
   return Math.max(...Object.entries(rate).map(([g, r]) => (GOODS[g]?.price || 0) * r));
 }
 /** Coins one harvest of `crop` brings (yield × per-bean value − seed). */
-export const perJobFarm = (s, crop, pb = perBean(s)) => yieldOf(s, crop) * pb - seedCost(s, crop);
+export const perJobFarm = (s, crop, pb = perBean(s)) => yieldOf(s, crop) * cropBeanValue(s, crop, pb) - seedCost(s, crop) / (CROPS[crop].life || 1); // the sapling is paid once per life
 /** Value of one job in a zone: farm = one harvest of the planned / best crop, café = an average cup ÷ jobs per cup. */
 export function perJob(s, zone) {
   if (zone === 'shop') {
@@ -1016,6 +1080,49 @@ export function cropRate(s, crop, pb = perBean(s)) {
 export function chooseCrop(s) {
   const pb = perBean(s);
   return unlockedCrops(s).map(id => ({ id, r: cropRate(s, id, pb) })).sort((a, b) => b.r - a.r || CROPS[b.id].xp - CROPS[a.id].xp)[0]?.id || null;
+}
+/** Best unlocked crop for one field's growing zone. Value of one harvest = coins (yield × bean value − seed) + XP ×
+ *  CLIMATE_PICK.xpCoins (levels matter as much as coins); rate = min(fields × value / grow time, labour × value / 2)
+ *  where labour = the farm team's jobs per minute + CLIMATE_PICK.soloJobsPerMin (you), a season = 1 job (the pick;
+ *  Liberica 2) and the sapling is spread over the tree's life. Wrong-zone penalties (time, ★) included. */
+export function bestCropFor(s, plotId, pb = perBean(s)) {
+  return unlockedCrops(s).map(id => ({ id, r: cropRateFor(s, plotId, id, pb) })).sort((a, b) => b.r - a.r || CROPS[b.id].xp - CROPS[a.id].xp)[0]?.id || null;
+}
+/** Value per minute of `crop` on one field (see bestCropFor). */
+export function cropRateFor(s, plotId, id, pb = perBean(s)) {
+  const zone = climateOfPlot(s, plotId), fields = Math.max(1, ownedPlots(s).length);
+  const team = assignedUnits(s, s.world.currentRegion, 'farm').filter(u => u.active);
+  const labour = (team.length ? team.reduce((n, u) => n + jobsPerMin(u), 0) : 0) + CLIMATE_PICK.soloJobsPerMin;
+  const e = climateEffect(id, zone) || {}, st = Math.max(1, Math.min(3, 3 + (e.stars || 0)));
+  const v = Math.max(1, Math.round(yieldOf(s, id) * (QUALITY.yield[st] || 1))) * cropBeanValue(s, id, pb) - seedCost(s, id) / (CROPS[id].life || 1) + CROPS[id].xp * CLIMATE_PICK.xpCoins;
+  const w = CROPS[id].waves, jobs = w ? 2 : 1; // one season of a grown tree = 1 pick (Liberica 2); the sapling is paid once per life
+  const min = (growMs(s, id) + (w ? w.regrowSeconds * 1000 : 0)) * (e.timeMul || 1) / 60000;
+  return Math.min(fields * v / Math.max(.01, min), labour * v / jobs);
+}
+/** A tree worth replacing: a better variety for this field's zone is unlocked and earns ≥ CLIMATE_PICK.switchMul × the
+ *  tree's own (an old tree counts at PERENNIAL.oldYield). */
+export function betterCropFor(s, plotId) {
+  const p = region(s)?.plots[plotId];
+  if (!p) return null;
+  const pb = perBean(s), best = bestCropFor(s, plotId, pb);
+  if (!best || best === p.crop) return null;
+  return cropRateFor(s, plotId, best, pb) >= CLIMATE_PICK.switchMul * cropRateFor(s, plotId, p.crop, pb) * (treeOld(p) ? PERENNIAL.oldYield : 1) ? best : null;
+}
+/** Crop to plant on a field now: `preferred` when unlocked and affordable, else the best for the field's growing zone,
+ *  else the cheapest affordable one (null when none). */
+export function pickCropFor(s, plotId = null, preferred = null) {
+  const ok = c => !!c && cropUnlocked(s, c) && seedCost(s, c) <= s.player.coins;
+  if (ok(preferred)) return preferred;
+  const best = plotId ? bestCropFor(s, plotId) : chooseCrop(s);
+  if (ok(best)) return best;
+  return unlockedCrops(s).filter(ok).sort((a, b) => seedCost(s, a) - seedCost(s, b))[0] || null;
+}
+/** Harvest urgency of a ripe field: Arabica (its cherries fall) > Liberica (first pick) > the rest; older first within. */
+export function harvestUrgency(s, plotId, now) {
+  const p = region(s)?.plots[plotId];
+  if (!p) return -Infinity;
+  const over = (now - p.plantedAt - plotGrowMs(s, p, plotId)) / 60000, c = CROPS[p.crop];
+  return (c?.drop ? 20 : c?.waves && !p.wave ? 10 : 0) + over;
 }
 /** The planned crop for a field (its parcel's), when a manager runs the plan; else null (the worker brain picks). */
 export function planCropFor(s, plotId) {

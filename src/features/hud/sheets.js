@@ -150,11 +150,18 @@ export function seedsSheet(ctx) {
         on: { click: () => { ctx.realm?.setActiveCrop?.(id); ctx.sheet.close(); ctx.toast(T('hud.seedPicked', { crop: T(`crop.${id}`) }), 'info'); } } },
       h('span', { class: 'hud-seed-ico', attrs: { 'aria-hidden': 'true' } }, def.icon),
       h('span', { class: 'hud-seed-name' }, T(`crop.${id}`)),
-      open ? h('span', { class: 'hud-seed-meta' }, coinAmount(cost), h('span', null, `⏱ ${duration(region(s) ? growMs(s, id) : def.growSeconds * 1000)}`), h('span', null, `🫘 ${def.beans}`))
-        : lockTag(s.player.round < def.round ? T('hud.roundN', { round: def.round }) : T('hud.levelN', { level: def.level })));
+      open ? h('span', { class: 'hud-seed-meta' }, coinAmount(cost), h('span', null, T('hud.seed.first', { t: duration(def.growSeconds * 1000) })), h('span', null, T('hud.seed.season', { t: duration(region(s) ? growMs(s, id) : def.cycleSeconds * 1000) })), h('span', null, `🫘 ${def.beans}`), h('span', null, T('hud.seed.price', { price: fmt(def.price) })))
+        : lockTag(s.player.round < def.round ? T('hud.roundN', { round: def.round }) : T('hud.levelN', { level: def.level })),
+      h('span', { class: 'hud-seed-where' }, T(`crop.${id}.where`)));
       list.append(chip);
     }
-    return h('div', null, h('p', { class: 'hud-hint' }, T('hud.seeds.hint')), list, region(s) && regionGame(s) === 'farm' ? trialLab(ctx, s) : null);
+    // Variety card of the seed in hand: what it is, how to grow it, one real fact (docs/design/coffee-varieties.md).
+    const card = active && CROPS[active] ? h('div', { class: 'hud-variety' },
+      h('p', { class: 'hud-sm-h' }, `${CROPS[active].icon} ${T(`crop.${active}`)} · ${T(`crop.${active}.alt`)}`),
+      h('ul', { class: 'hud-variety-stats' }, ...['grow', 'yield', 'strength', 'price'].map(k => h('li', null, h('span', null, T(`hud.variety.${k}`)), h('strong', null, T(`crop.${active}.${k}`))))),
+      h('p', { class: 'hud-line' }, '🧑‍🌾 ', T(`crop.${active}.care`)),
+      h('p', { class: 'hud-line hud-line--muted' }, '💡 ', T(`crop.${active}.fact`))) : null;
+    return h('div', null, h('p', { class: 'hud-hint' }, T('hud.seeds.hint')), list, card, region(s) && regionGame(s) === 'farm' ? trialLab(ctx, s) : null);
   };
 }
 

@@ -1,7 +1,7 @@
 // Pure reducer for Farm & Café V3. `apply(state, action, ctx)` → { ok, state, events, error }.
 // The input state is never mutated: a successful action returns a new state object. All timing comes from ctx.now,
 // randomness from action payloads, so every transition is deterministic and testable (tests/core/*.test.mjs).
-import { TASKS, PENALTY, HISTORY, GM, gmCandidatesFor, gmSalary, gearDrain, GEAR, softwarePrice, gearTier, craftLevel, PROFILE, CAREER, rankOf, autoRank, robotSerial, profileOfUid, AUTO, autoPrice, BEANS, startCoins, xpForLevel, STAFF_BREAKS, staffFee, unitFee, RECRUIT, TRAITS, PART_COST, QUALITY, TEND, UPKEEP, SHIFT, VITALS, CARE, RARE, ROBOT_WEAR, ROBOT_PARTS, SKILL, STAT_ORDER, statOf, statCost, startStats, unitLevel, energyMax, heatPerMin, partTier, taskLimit, MISTAKES, RIVAL, BOOKS, BUILDINGS, CROPS, DRINKS, STAFF, XP, REBIRTH, START, EXPIRY_LEVEL, levelForXp, MAX_LEVEL, levelGift, chestPrize, LOAN, loanOwed, INCOME, CLOCK, VENUES, VENUE_ITEMS, RATING, REVIEW_REASONS, LEAVE_REASONS, FIELD, GOODS, ITEM_GOODS } from './config/economy.js';
+import { TASKS, PENALTY, HISTORY, GM, gmCandidatesFor, gmSalary, gearDrain, GEAR, softwarePrice, gearTier, craftLevel, PROFILE, CAREER, rankOf, autoRank, robotSerial, profileOfUid, AUTO, autoPrice, BEANS, startCoins, xpForLevel, STAFF_BREAKS, staffFee, unitFee, RECRUIT, TRAITS, PART_COST, QUALITY, TEND, UPKEEP, SHIFT, VITALS, CARE, RARE, ROBOT_WEAR, ROBOT_PARTS, SKILL, STAT_ORDER, statOf, statCost, startStats, unitLevel, energyMax, heatPerMin, partTier, taskLimit, MISTAKES, RIVAL, BOOKS, BUILDINGS, CROPS, DRINKS, STAFF, XP, REBIRTH, START, EXPIRY_LEVEL, levelForXp, MAX_LEVEL, levelGift, chestPrize, LOAN, loanOwed, INCOME, CLOCK, VENUES, VENUE_ITEMS, RATING, REVIEW_REASONS, LEAVE_REASONS, FIELD, GOODS, ITEM_GOODS, RECIPES, PERENNIAL } from './config/economy.js';
 import { PARCELS, ROADS, FIXED, PRE_TILLED, plotById, plotsOf } from './config/layout.js';
 import { parseRegionId } from './config/world.js';
 import { menuItemsOf } from './config/menus.js';
@@ -22,7 +22,7 @@ function sellGood(s, good, amount, ev) {
   if (!own(GOODS, good)) return fail('unknown');
   const q = D.sellQuote(s, good, amount ?? Infinity);
   if (q.amount <= 0) return fail('noBeans');
-  addGood(s, good, -q.amount);
+  addGood(s, good, -q.amount, { order: D.BEAN_SELL_ORDER });
   earn(s, q.coins, ev);
   s.stats.sold = (s.stats.sold || 0) + q.amount;
   if (good === 'beans') ev.push({ type: 'beansSold', amount: q.amount, coins: q.coins });
@@ -125,7 +125,7 @@ function payArrears(s, budget, ev) {
 function grantItems(s, items) {
   for (const it of items) {
     if (it.kind === 'coins') s.player.coins = Math.round((s.player.coins + it.amount) * 100) / 100;
-    else if (it.kind === 'beans') s.inventory.beans += it.amount;
+    else if (it.kind === 'beans') addBeans(s, 'robusta', it.amount);
     else if (ITEM_GOODS.includes(it.kind)) addGood(s, it.kind, it.amount);
     else if (it.kind === 'hireTicket') s.rewards.tickets += it.amount;
     else if (it.kind === 'autoRun') s.autoplay.runs += it.amount;
@@ -134,8 +134,25 @@ function grantItems(s, items) {
 const uid = (s, prefix) => `${prefix}${s.nextUid++}`;
 const own = D.own;
 // Goods in storage: beans stay in inventory.beans (the café brews from them), the farm's processed goods in items.
-function addGood(s, good, n) {
-  if (good === 'beans') { s.inventory.beans = Math.max(0, (s.inventory.beans || 0) + n); return; }
+// Beans are stored per variety (inventory.beanMix, docs/design/coffee-varieties.md); inventory.beans stays the total.
+// addBeans: + n of one variety. takeBeans: − n, cheapest variety first (`skipRaw`: never Arabica, for processing);
+// `order` overrides the order (a sale takes the dearest first). Returns the beans taken per variety.
+function addBeans(s, crop, n) {
+  const m = D.beanMix(s), c = Object.hasOwn(CROPS, crop) ? crop : 'robusta';
+  m[c] = Math.max(0, m[c] + Math.floor(n));
+  s.inventory.beanMix = m;
+  s.inventory.beans = Object.values(m).reduce((a, b) => a + b, 0);
+}
+function takeBeans(s, n, { skipRaw = false, order = D.BEAN_TAKE_ORDER } = {}) {
+  const m = D.beanMix(s), took = {};
+  let left = Math.floor(n);
+  for (const c of order) { if (left <= 0) break; if (skipRaw && CROPS[c].rawOnly) continue; const k = Math.min(left, m[c]); if (k > 0) { m[c] -= k; took[c] = k; left -= k; } }
+  s.inventory.beanMix = m;
+  s.inventory.beans = Object.values(m).reduce((a, b) => a + b, 0);
+  return took;
+}
+function addGood(s, good, n, opt) {
+  if (good === 'beans') { if (n >= 0) { addBeans(s, 'robusta', n); return null; } return takeBeans(s, -n, opt); }
   s.inventory.items ||= {};
   s.inventory.items[good] = Math.max(0, (s.inventory.items[good] || 0) + n);
 }
@@ -154,7 +171,7 @@ function settleSupply(s, now, ev) {
   if (due.length) {
     s.supply.pending = s.supply.pending.filter(p => now < p.at);
     const n = due.reduce((a, p) => a + p.amount, 0);
-    s.inventory.beans += n;
+    addBeans(s, 'robusta', n);
     ev?.push({ type: 'beansArrived', amount: n });
   }
 }
@@ -401,11 +418,13 @@ function planDay(s, ev, ctx) {
   if (zones.includes('farm') && crop) {
     const byLot = {};
     for (const p of D.ownedPlots(s)) if (p.parcel) (byLot[p.parcel] ||= []).push(p.id);
+    // Each lot gets the best crop for its growing zone (coffee-varieties.md): a crop the zone penalises is never kept.
     for (const [lot, ids] of Object.entries(byLot)) {
+      const best = D.bestCropFor(s, ids[0]) || crop, zone = D.climateOfPlot(s, ids[0]), fits = c => D.climateFit(c, zone) !== 'bad';
       const growing = ids.map(id => r.plots[id]?.crop).filter(Boolean);
-      if (!growing.length) { crops[lot] = crop; continue; }
+      if (!growing.length) { crops[lot] = best; continue; }
       const most = Object.entries(growing.reduce((n, c) => ({ ...n, [c]: (n[c] || 0) + 1 }), {})).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0];
-      crops[lot] = prev[lot] && D.cropUnlocked(s, prev[lot]) ? prev[lot] : most;
+      crops[lot] = prev[lot] && D.cropUnlocked(s, prev[lot]) && fits(prev[lot]) ? prev[lot] : fits(most) ? most : best;
     }
   }
   const was = ACTOR;
@@ -913,7 +932,7 @@ const handlers = {
     const cost = D.seedCost(s, crop);
     if (s.player.coins < cost) return fail('coins', { missing: cost - s.player.coins });
     spend(s, cost);
-    r.plots[plotId] = { crop, plantedAt: ctx.now };
+    r.plots[plotId] = { crop, plantedAt: ctx.now, born: ctx.now, n: 0 }; // a sapling: the tree stays after each harvest
     // The way you adopted (research step 3). The default way is the old, neutral farming: no method on the plot.
     const way = D.methodOf(s, crop);
     if (methodKey(way) !== methodKey(FARMLAB.defaultMethod)) r.plots[plotId].method = [...way];
@@ -935,12 +954,20 @@ const handlers = {
     if (D.stored(s) >= cap) return fail('storageFull', { capacity: cap }); // every good shares the storehouse
     const unit = by != null ? D.unitOf(s, by) : null;
     const pl = r.plots[plotId];
-    const fresh = ctx.now - pl.plantedAt - D.plotGrowMs(s, pl, plotId) <= QUALITY.freshSeconds * 1000;
+    const crop = CROPS[st.crop], overMs = ctx.now - pl.plantedAt - D.plotGrowMs(s, pl, plotId);
+    const fresh = overMs <= (crop.freshSeconds ?? QUALITY.freshSeconds) * 1000;
+    const zoneStars = D.climateEffect(st.crop, D.climateOfPlot(s, plotId))?.stars || 0; // growing zone (vùng trồng)
     const way = Array.isArray(pl.method) ? methodEffect(s.world.currentRegion, st.crop, pl.method) : null;
     // The way it was grown: its quality is the chance this harvest comes out one star better (deterministic per plot).
     const luck = ((Math.sin((pl.plantedAt % 1e7) * 0.0137 + plotId.length * 7.31) * 43758.5453) % 1 + 1) % 1;
-    const stars = Math.min(3, (unit ? D.unitStars(unit) : fresh ? 3 : 1) + (way && luck < way.quality ? 1 : 0));
-    const beans = Math.max(1, Math.round(D.starYield(s, st.crop, stars) * (way?.yieldMul || 1)) - (unripe === true ? 1 : 0));
+    const stars = Math.max(1, Math.min(3, (unit ? D.unitStars(unit) : fresh ? 3 : 1) + (way && luck < way.quality ? 1 : 0) + zoneStars));
+    let beans = Math.max(1, Math.round(D.starYield(s, st.crop, stars) * (way?.yieldMul || 1)) - (unripe === true ? 1 : 0));
+    const dropped = crop.drop && overMs > crop.drop.after * 1000 ? 1 + Math.floor((overMs - crop.drop.after * 1000) / (crop.drop.every * 1000)) : 0;
+    const lonely = crop.pollinate && !D.pollinated(s, plotId) ? crop.pollinate.loss : 0;
+    beans = Math.max(1, beans - dropped - lonely);
+    if (D.treeOld(pl)) beans = Math.max(1, Math.round(beans * PERENNIAL.oldYield)); // an old tree: cut it back or replant
+    let wave = 0; // Liberica: the first pick takes `first` of the beans, the plant stays for the rest
+    if (crop.waves && !pl.wave) { const all = beans; beans = Math.max(1, Math.round(all * crop.waves.first)); wave = Math.max(1, all - beans); }
     if (pl.trial) { // a trial field: its numbers go into the comparison table
       const rid = s.world.currentRegion, key = methodKey(pl.method);
       s.farmLab ||= { methods: {}, trials: {}, results: {} };
@@ -949,12 +976,44 @@ const handlers = {
       if (!s.farmLab.trials[rid].length) delete s.farmLab.trials[rid];
       ev.push({ type: 'trialDone', crop: st.crop, method: pl.method, beans });
     }
-    s.inventory.beans += beans; // soft cap: one harvest may overflow; next one is refused
-    if (unit) { unitEarned(s, unit, beans * BEANS.sellPrice, ctx.now); practice(unit, 'harvest', ctx.now); if (unripe === true) tally(unit, ctx.now, 'mistakes', 1); } // book: beans valued at the sell price
-    delete r.plots[plotId];
+    addBeans(s, st.crop, beans); // soft cap: one harvest may overflow; next one is refused
+    if (unit) { unitEarned(s, unit, beans * D.beanPrice(st.crop), ctx.now); practice(unit, 'harvest', ctx.now); if (unripe === true) tally(unit, ctx.now, 'mistakes', 1); } // book: beans valued at the sell price
+    // Perennial: the tree stays. Liberica's first pick leaves the rest of the season on it; otherwise the next season
+    // starts now (one-off flags of the planting — tutorial speed, a crooked planting, a trial, watering — end here).
+    pl.born ??= pl.plantedAt;
+    pl.plantedAt = ctx.now;
+    delete pl.fast; delete pl.watered;
+    if (wave) pl.wave = wave;
+    else { delete pl.wave; delete pl.slow; delete pl.trial; delete pl.pruned; pl.n = (pl.n | 0) + 1; }
     s.stats.harvested++;
-    grantXp(s, CROPS[st.crop].xp, ev);
-    ev.push({ type: 'harvested', plotId, crop: st.crop, beans, stars, xp: CROPS[st.crop].xp, unripe: unripe === true });
+    const xp = wave ? 0 : crop.xp; // a season's XP comes once, with its last pick
+    grantXp(s, xp, ev);
+    ev.push({ type: 'harvested', plotId, crop: st.crop, beans, stars, xp, by, age: pl.n | 0, old: D.treeOld(pl), unripe: unripe === true, dropped, lonely: lonely > 0, wave: wave ? 1 : pl.wave ? 2 : 0 });
+  },
+
+  // Cưa đốn phục hồi: an old tree is cut back to the stump; it re-grows (PERENNIAL.pruneGrow × its first crop) and is
+  // young again. Only an old tree, not while its cherries are ripe.
+  'farm/prune'(s, { plotId } = {}, ev, ctx) {
+    const r = D.region(s), pl = r && D.own(r.plots, plotId) ? r.plots[plotId] : null;
+    if (!pl) return fail('empty');
+    if (otherGame(r, 'farm')) return fail('gameLocked');
+    if (!D.treeOld(pl)) return fail('notOld');
+    if (D.plotState(s, plotId, ctx.now).stage === 'ready') return fail('ripe');
+    const cost = D.pruneCost(pl.crop);
+    if (s.player.coins < cost) return fail('coins', { missing: cost - s.player.coins });
+    spend(s, cost);
+    pl.born ??= pl.plantedAt;
+    pl.n = 0; pl.pruned = true; pl.plantedAt = ctx.now;
+    delete pl.wave; delete pl.watered;
+    ev.push({ type: 'pruned', plotId, crop: pl.crop, cost });
+  },
+  // Chặt bỏ: the tree is removed (no refund) so the field can take another variety.
+  'farm/uproot'(s, { plotId } = {}, ev) {
+    const r = D.region(s), pl = r && D.own(r.plots, plotId) ? r.plots[plotId] : null;
+    if (!pl) return fail('empty');
+    if (otherGame(r, 'farm')) return fail('gameLocked');
+    delete r.plots[plotId];
+    ev.push({ type: 'uprooted', plotId, crop: pl.crop });
   },
 
   // Farm game: sell a good at the storehouse (all of it by default) → coins. farm/sellBeans = beans (older HUD).
@@ -965,7 +1024,7 @@ const handlers = {
     if (otherGame(D.region(s), 'farm')) return fail('gameLocked');
     const q = D.sellAllQuote(s);
     if (q.amount <= 0) return fail('noBeans');
-    for (const part of q.parts) { addGood(s, part.good, -part.amount); if (part.good === 'beans') ev.push({ type: 'beansSold', amount: part.amount, coins: part.coins }); }
+    for (const part of q.parts) { addGood(s, part.good, -part.amount, { order: D.BEAN_SELL_ORDER }); if (part.good === 'beans') ev.push({ type: 'beansSold', amount: part.amount, coins: part.coins }); }
     earn(s, q.coins, ev);
     s.stats.sold = (s.stats.sold || 0) + q.amount;
     ev.push({ type: 'goodsSold', parts: q.parts, amount: q.amount, coins: q.coins });
@@ -985,7 +1044,7 @@ const handlers = {
       ev.push({ type: 'beansLate', amount: q.amount, seconds: SUPPLY.lateSeconds });
       return;
     }
-    s.inventory.beans += q.amount;
+    addBeans(s, 'robusta', q.amount);
     s.stats.bought = (s.stats.bought || 0) + q.amount;
     ev.push({ type: 'beansBought', amount: q.amount, cost: q.cost, free: q.free });
   },
@@ -1067,7 +1126,7 @@ const handlers = {
     if (!D.canBrew(unit, o.drink)) return fail('hard');
     const need = DRINKS[o.drink].beans;
     if (s.inventory.beans < need) return fail('beans', { need, have: s.inventory.beans });
-    s.inventory.beans -= need;
+    takeBeans(s, need);
     o.stage = 'brewing'; o.brewStart = ctx.now; o.brewMs = D.brewMs(s, o.drink); o.stars = unit ? D.unitStars(unit) : 3;
     if (unit) practice(unit, 'brew', ctx.now);
     ev.push({ type: 'brewStarted', orderId: o.id, drink: o.drink, ms: o.brewMs, stars: o.stars });
@@ -1235,9 +1294,14 @@ const handlers = {
       return fail(err, miss ? { need: miss.good, amount: miss.need, have: miss.have } : err === 'coins' ? { missing: D.recipeIO(b).fee - s.player.coins } : undefined);
     }
     const io = D.recipeIO(b);
-    for (const [good, n] of Object.entries(io.in)) addGood(s, good, -n);
+    let premium = 0; // specialty batch: dearer varieties in it pay their premium on collect (RECIPES[].premium)
+    for (const [good, n] of Object.entries(io.in)) {
+      const took = addGood(s, good, -n, { skipRaw: true });
+      if (took && RECIPES[io.recipe]?.premium) for (const [c, k] of Object.entries(took)) premium += k * Math.max(0, D.beanPrice(c) - GOODS.beans.price) * RECIPES[io.recipe].premium;
+    }
     if (io.fee > 0) spend(s, io.fee);
     b.job = { recipe: io.recipe, at: ctx.now, ms: io.ms, out: io.out, xp: io.xp };
+    if (premium > 0) b.job.premium = Math.round(premium * 100) / 100;
     s.stats.batches = (s.stats.batches || 0) + 1;
     ev.push({ type: 'prodStarted', uid: b.uid, building: b.type, recipe: io.recipe, in: io.in, fee: io.fee, ms: io.ms });
   },
@@ -1246,8 +1310,9 @@ const handlers = {
     const b = D.region(s)?.buildings.find(v => v.uid === id);
     const err = D.collectError(s, b, ctx.now);
     if (err) return fail(err, err === 'notDone' ? { remainingMs: b.job.at + b.job.ms - ctx.now } : err === 'storageFull' ? { capacity: D.capacity(s) } : undefined);
-    const { out, xp, recipe } = b.job;
+    const { out, xp, recipe, premium } = b.job;
     for (const [good, n] of Object.entries(out || {})) if (own(GOODS, good)) addGood(s, good, n);
+    if (premium > 0) { earn(s, premium, ev); ev.push({ type: 'specialtyBonus', uid: b.uid, coins: premium }); }
     delete b.job;
     s.stats.produced = (s.stats.produced || 0) + 1;
     grantXp(s, xp || 0, ev);
@@ -1802,7 +1867,7 @@ const handlers = {
     const cost = D.testCost(list, s);
     spend(s, cost);
     ledger(s, ctx.now, 'spent', cost, 'research', 'shop');
-    s.inventory.beans -= DRINKS[base].beans;
+    takeBeans(s, DRINKS[base].beans);
     s.research ||= { known: {}, tests: {}, busyUntil: 0 };
     s.research.busyUntil = ctx.now + RESEARCH.testSeconds * 1000;
     const v = D.judgeTest(s, cc, base, list);
@@ -2336,12 +2401,13 @@ const handlers = {
     // Founder rule: the incident is a FULL restart. Nothing is kept except who you are (character, story, rebirth
     // credits/blessings, auto runs, tutorial done). The new region starts with exactly 1 empty field and an empty café.
     // A full copy of the save is written to `<key>-pre-expiry` by the store just before this runs.
-    ex.snapshot = { coins: s.player.coins, xp: s.player.xp, round: s.player.round, beans: s.inventory.beans, items: { ...s.inventory.items },
+    ex.snapshot = { coins: s.player.coins, xp: s.player.xp, round: s.player.round, beans: s.inventory.beans, beanMix: { ...s.inventory.beanMix }, items: { ...s.inventory.items },
       regions: Object.keys(s.world.regions), units: s.staff.units.length };
     s.player.coins = startCoins();
     s.player.xp = 0;
     s.player.round = 1;
     s.inventory.beans = 0;
+    s.inventory.beanMix = {};
     s.inventory.items = Object.fromEntries(ITEM_GOODS.map(g => [g, 0])); // processed goods go too (full restart)
     // The one who follows you keeps who it is (stats, rank, gear, craft) and starts unassigned, wage-paid (FOLLOW).
     const keep = follower != null ? s.staff.units.find(u => u.uid === follower) : null;
@@ -2470,7 +2536,7 @@ const handlers = {
     const fin = v => (Number.isFinite(Number(v)) ? Number(v) : 0);
     coins = fin(coins); xp = fin(xp);
     if (coins > 0) earn(s, coins, ev);
-    if (beans) s.inventory.beans += beans | 0;
+    if (beans) addBeans(s, 'robusta', beans | 0);
     if (xp > 0) grantXp(s, xp / D.xpMultiplier(s), ev);
   },
   // QA URL params (?profile=test&coins=…&beans=…&level=…): set exact values (test profile only).

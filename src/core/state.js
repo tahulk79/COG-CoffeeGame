@@ -92,6 +92,11 @@ export function normalizeSave(raw, now = Date.now()) {
   if (!Array.isArray(out.rebirth.history)) out.rebirth.history = [];
   out.inventory = { ...base.inventory, ...obj(s.inventory) };
   out.inventory.beans = num(out.inventory.beans, 0, 0, 1e9) | 0;
+  // Beans per variety (docs/design/coffee-varieties.md). Old saves have none: every bean they hold becomes Robusta.
+  const mix = obj(out.inventory.beanMix) || {};
+  out.inventory.beanMix = Object.fromEntries(Object.keys(CROPS).map(c => [c, num(mix[c], 0, 0, 1e9) | 0]));
+  const mixSum = Object.values(out.inventory.beanMix).reduce((a, b) => a + b, 0);
+  if (mixSum !== out.inventory.beans) out.inventory.beanMix = { ...Object.fromEntries(Object.keys(CROPS).map(c => [c, 0])), robusta: out.inventory.beans };
   const items = obj(out.inventory.items) || {};
   out.inventory.items = Object.fromEntries(ITEM_GOODS.map(g => [g, num(items[g], 0, 0, 1e9) | 0]));
   out.world = { ...base.world, ...obj(s.world) };

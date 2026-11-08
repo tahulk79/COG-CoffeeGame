@@ -295,6 +295,14 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
 .hud-drink-local{grid-column:2;font:700 12px/1.35 var(--h-font);color:#7a4a10}
 .hud-tool[hidden]{display:none}
 .hud-seed-meta{display:flex;flex-wrap:wrap;gap:10px;font:700 13px/1.2 var(--h-font);color:var(--h-ink-soft)}
+.hud-seed:has(.hud-seed-where){grid-template-rows:auto auto auto}.hud-seed:has(.hud-seed-where) .hud-seed-ico{grid-row:1/4}
+.hud-seed-where{font:700 12px/1.25 var(--h-font);color:#5f8a3c}
+.hud-variety{margin:12px 0 4px;padding:10px 12px;border-radius:16px;background:#fff;box-shadow:inset 0 0 0 2px var(--h-line)}
+.hud-variety .hud-sm-h{margin:0 0 6px}
+.hud-variety-stats{list-style:none;margin:0 0 6px;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:4px 12px}
+.hud-variety-stats li{display:flex;justify-content:space-between;gap:6px;font:700 13px/1.3 var(--h-font);color:var(--h-ink-soft)}
+.hud-variety-stats strong{color:var(--h-ink,#4a3420)}
+.hud-variety .hud-line{margin:4px 0 0}
 .hud-slots{margin:0 0 8px;padding:6px 12px;border-radius:12px;background:#fff;font:800 14px/1.2 var(--h-font);box-shadow:inset 0 0 0 2px var(--h-line)}
 .hud-units{list-style:none;margin:0;padding:0;display:grid;gap:8px}
 .hud-unit{display:flex;align-items:center;gap:10px;padding:6px 8px 6px 10px;border-radius:16px;background:#fff;box-shadow:inset 0 0 0 2px var(--h-line)}
@@ -652,6 +660,45 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
 .hud-sm-bar--warn .hud-sm-bar-track>span{background:linear-gradient(90deg,#ffd25a,#f0a429)}
 .hud-sm-bar--bad .hud-sm-bar-track>span{background:linear-gradient(90deg,#ff9a6b,var(--h-red))}
 .hud-sm-bar-num{text-align:right;font-variant-numeric:tabular-nums}
+/* ---- staff modal, mobile-first redesign (2026-11-08): header numbers, «Cần bạn», roster, folds ---- */
+.hud-sm-stats{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.hud-sm-stat{display:inline-flex;align-items:center;gap:4px;min-height:26px;padding:2px 10px;border-radius:99px;background:#fff;box-shadow:inset 0 0 0 2px var(--h-line);font:800 12.5px/1.2 var(--h-font);color:var(--h-ink,#4a3420)}
+.hud-sm-stat.is-warn{background:#fff1d6;box-shadow:inset 0 0 0 2px #f4cf7a;color:#7a4a12}
+.hud-sm-stat.is-good{color:#3f6b1f}
+.hud-ny-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:2px 0 8px}
+.hud-ny-head .hud-sm-h{margin:0}
+.hud-ny-head .hud-btn{min-width:0;padding:6px 10px}
+.hud-ny-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.hud-ny{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;padding:6px 8px 6px 6px;border-radius:16px;background:#fff;box-shadow:inset 0 0 0 2px var(--h-line)}
+.hud-ny.is-p0{background:#fff1e8;box-shadow:inset 0 0 0 2px #f2a27a}
+.hud-ny.is-p1,.hud-ny.is-p2{box-shadow:inset 0 0 0 2px #f4cf7a}
+.hud-ny.is-p6{opacity:.85}
+.hud-ny--task{display:block;padding:0;background:none;box-shadow:none}
+.hud-ny--task>.hud-gm-req{margin:0}
+.hud-ny-main{display:flex;align-items:center;gap:8px;min-width:0;min-height:44px;padding:0;border:0;background:none;text-align:left;font:inherit;color:inherit}
+.hud-ny-ico{flex:none;display:grid;place-items:center;width:36px;height:36px;border-radius:12px;background:#fdf3dc;font-size:20px}
+.hud-ny-text{min-width:0;display:grid;gap:1px}
+.hud-ny-text strong{font:800 14px/1.2 var(--h-font);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hud-ny-text small{font:700 12px/1.25 var(--h-font);color:var(--h-ink-soft)}
+.hud-ny-act .hud-btn{min-width:0;max-width:44vw;padding:6px 10px}
+.hud-ny-more{display:block;width:100%;min-height:40px;margin-top:6px;border:0;border-radius:12px;background:#f1e3c4;color:#7a5a3a;font:800 13px/1.2 var(--h-font)}
+.hud-rs{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.hud-rs-row{border-radius:16px;background:#fff;box-shadow:inset 0 0 0 2px var(--h-line)}
+.hud-rs-row.is-bad{box-shadow:inset 0 0 0 2px #f2a27a}.hud-rs-row.is-warn{box-shadow:inset 0 0 0 2px #f4cf7a}
+.hud-rs-main{display:flex;align-items:center;gap:10px;width:100%;min-height:60px;padding:6px 8px;border:0;background:none;text-align:left;font:inherit;color:inherit}
+.hud-rs-main .hud-sm-avatar{width:42px;height:42px;border-radius:14px;font-size:24px}
+.hud-rs-main .hud-sm-avatar-state{width:22px;height:22px;font-size:12px}
+.hud-rs-text{flex:1;min-width:0;display:grid;gap:1px}
+.hud-rs-name{font:800 14.5px/1.2 var(--h-font);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hud-rs-text .hud-report{font:700 12px/1.25 var(--h-font);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hud-rs-meter{flex:none;position:relative;width:8px;height:34px;border-radius:99px;background:#f1e3c4;overflow:hidden}
+.hud-rs-meter>i{position:absolute;left:0;right:0;bottom:0;border-radius:inherit;background:#6cc041;transition:height .4s ease-out}
+.hud-rs-meter.is-warn>i{background:#f0a429}.hud-rs-meter.is-bad>i{background:var(--h-red)}
+.hud-fold{padding:0}
+.hud-fold-head{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:48px;margin:0;padding:0 12px;border:0;border-radius:14px;background:#fff;box-shadow:inset 0 0 0 2px var(--h-line);font:800 15px/1.2 var(--h-font);color:inherit;text-align:left}
+.hud-fold.is-open>.hud-fold-head{background:#fdf3dc}
+.hud-fold-chev{color:#c8ab78;font-size:18px}
+.hud-fold-body{padding-top:8px}
 .hud-sm-empty{display:grid;justify-items:start;gap:10px;padding:8px 0}
 /* Detail */
 .hud-sm-dhead{display:flex;align-items:center;gap:14px;margin:2px 0 6px}
@@ -1020,3 +1067,5 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
   .hud-inbox-btn{position:absolute;left:0;top:calc(100% + 34px);font-size:11px;padding:3px 9px}
   .hud-journal-btn{order:2;width:40px;height:40px;font-size:20px}
 }
+
+.hud-fit{white-space:nowrap;font-weight:800}.hud-fit.is-good{color:#3f6b1f}.hud-fit.is-bad{color:#a2621a;opacity:.85}

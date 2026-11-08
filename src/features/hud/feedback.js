@@ -209,6 +209,16 @@ export function createFeedback(ctx) {
         case 'gmLater': if (now - (lastAt.gmLater || 0) > 60000) { lastAt.gmLater = now; toast(T('hud.inbox.toast.later', { name: ev.name || '' }), 'info'); } break;
         // planner v2 (management-rules §3.4–§3.7)
         case 'gmDayPlan': toast(T('hud.gm.toast.dayPlan', { name: ev.name || '', mix: (ev.mix || []).map(m => `${T(`crop.${m.crop}`)} ${m.pct}%`).join(' · ') || '—', coins: fmt(ev.target) }), 'info'); break;
+        // coffee varieties: what the player's own pick lost or left on the plant (staff picks stay quiet)
+        case 'harvested':
+          if (ev.by != null) break;
+          if (ev.dropped) toast(T('hud.toast.dropped', { crop: T(`crop.${ev.crop}`), n: ev.dropped }), 'warn');
+          else if (ev.lonely && now - (lastAt.lonely || 0) > 60000) { lastAt.lonely = now; toast(T('hud.toast.lonely'), 'info'); }
+          else if (ev.wave === 1) toast(T('hud.toast.wave1', { crop: T(`crop.${ev.crop}`) }), 'info');
+          break;
+        case 'pruned': toast(T('hud.toast.pruned'), 'good'); break;
+        case 'uprooted': toast(T('hud.toast.uprooted'), 'info'); break;
+        case 'specialtyBonus': if (now - (lastAt.specialty || 0) > 30000) { lastAt.specialty = now; toast(T('hud.toast.specialty', { coins: fmt(ev.coins) }), 'good'); } break;
         case 'licenceBought': toast(T('hud.gm.toast.licence', { lic: T(`hud.gm.lic.${ev.group}`) }), 'good'); break;
         case 'gmTraining': toast(T('hud.gm.toast.training', { name: ev.name || '', skill: ev.to, min: ev.minutes }), 'info'); break;
         case 'gmTrained': toast(T('hud.gm.toast.trained', { name: ev.name || '', skill: ev.skill }), 'good'); sfx('reward.quest'); break;

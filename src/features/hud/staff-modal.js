@@ -1,24 +1,26 @@
-// Staff manager: a full modal (docs/design/staff-manager.md §10), one per game (the zone of the screen shown: farm
-// staff on the farm, café staff in the café). Replaces the old staff bottom sheet.
-//  · sticky header: title, "Đang làm 3/3 · Dự bị 2 · Nuôi 🪙30 / 10 phút · Đội kiếm 🪙420 / 10 phút", × close,
-//    the rival's poach banner (Giữ lại / Cho đi) and the tabs Đội · Tuyển dụng · Báo cáo;
-//  · Đội: filter chips, bulk «Xử lý tất cả» + «Đổi ca», one card per unit (state, report, bars, quick fix) → Detail;
-//  · Detail (← back): state + care buttons, 📍 Xem ở đâu, on shift / bench, tasks, 4 stats or robot parts, today's
-//    book, how it works, fire / sell;
+// Staff manager: a full modal (docs/design/staff-manager.md §10, mobile-first redesign 2026-11-08), one per game (the
+// zone of the screen shown: farm staff on the farm, café staff in the café).
+//  · sticky header: title, 3 numbers (on shift n/max · team earned / 10 min · problems), × close, tabs Đội · Tuyển · Quản lý;
+//  · Đội: «Cần bạn» — ONE list of what needs the player, ranked by the same rules the manager uses (open tasks and
+//    the rival's lure first, then blocking problems with their paid fix, slow problems, a free slot for a bench worker,
+//    promotions, then the team's fastest-payback upgrades from D.upgradeOptions), one button per row; then the roster
+//    (one line per unit: photo, state, what it does, a condition meter) and the report folded at the bottom;
+//  · Detail (← back): ID card, then 3 tabs: Hôm nay (state, care, shift, today's grade, tasks) · Phát triển (upgrade
+//    suggestions by payback, career, stats / parts, gear / software, craft) · Nhật ký;
 //  · 📍 Xem ở đâu collapses the modal to a bottom strip (name, state, fix, «Mở lại») while the camera shows the unit.
 // The realm changes vitals and jobs without store events, so the open modal refreshes every second; a refresh only
 // swaps the DOM when what it shows changed (never while a finger is down) and keeps each screen's scroll position.
 import { CROP_ORDER } from '../../core/config/economy.js';
 import { countryRecipes, SUPPLY, FARMLAB, methodKey } from '../../core/config/research.js';
 import { TASKS, PENALTY, HISTORY, GM, gmCandidatesFor, gmSalary, GEAR, gearTier, SOFTWARE, softwarePrice, hasSoftware, WARRANTY, PROFILE, CAREER, CRAFT, rankOf, craftLevel, STAFF, STAFF_ORDER, TRAITS, RECRUIT, ROBOT_TASKS, ROBOT_PARTS, PART_ORDER, PART_COST, WORKER_TASKS, TASK_LIMIT, SMART_RULES, QUALITY, TEND, MISTAKES, STAFF_BREAKS, SKILL, RARE, STAT_ORDER, LEVEL_STEP, VITALS, UPKEEP, RIVAL, BOOKS, ROBOT_WEAR, CARE, statOf, statCap, taskLimit, energyMax, unitLevel, mistakeChance, hasRule, batteryMinutes, slackMul, partTier, robotTask, heatPerMin, jamChance, isHardDrink, UPGRADE_GATE } from '../../core/config/economy.js';
-import { region, regionGame, level, hireCap, hireCapReached, slots, activeCount, freeSlots, zoneUnits, staffError, freeHire, applicants, recruitError, poolRefreshIn, unitStars, unitOf, statError, statPrice, partError, partPrice, unitState, careCost, careError, quickFix, upkeepOf, upkeepPer, fireRefund, ledgerWindow, unitProfit, poachOf, canBrew, dayKey, lastDays, dayRow, dayKpis, daysSince, unitGrade, teamKpi, robotPayback, REPORT_PERIODS, SPEND_CATS, periodKeys, teamMoney, teamRanking, nextRank, promoteError, canPromote, rankHolder, tenureDays, tenureShiftDays, tenureMinLeft, robotRoom, wageArrears, gmQuitArrears, zoneLeaders, warrantyLeft, gearPrice, gearError, softwareError, tendPlots, gearStockOf, gmUnlocked, gmOf, gmBoard, gmBoardRefreshIn, gmPay, gmBudgetLeft, gmPlan, gmPermission, gmAdvisorOf, chaosOf, calmCost, chaosSlackMul, gmMood, followerWage, countryNow, recipeFound, contractOf, cropUnlocked, methodOf, trialsHere, buyerNow, gmPoachOf, gmRequests, gmLog, unitLog, teamJournal, gmCareWallet, gmCareWalletLeft, gmBacklog, gmWaiting, gmStrike, apologiseCost, gmBudgetCap, gmLicensed, licenceError, licencePrice, gmTrainCost, gmTrainError, gmHighValue, histRows, upgradeOptions, throughputShare } from '../../core/derive.js';
+import { region, regionGame, level, hireCap, hireCapReached, slots, activeCount, freeSlots, zoneUnits, staffError, freeHire, applicants, recruitError, poolRefreshIn, unitStars, unitOf, statError, statPrice, partError, partPrice, unitState, careCost, careError, quickFix, upkeepOf, upkeepPer, fireRefund, ledgerWindow, unitProfit, poachOf, canBrew, dayKey, lastDays, dayRow, dayKpis, daysSince, unitGrade, teamKpi, robotPayback, REPORT_PERIODS, SPEND_CATS, periodKeys, teamMoney, teamRanking, nextRank, promoteError, canPromote, rankHolder, tenureDays, tenureShiftDays, tenureMinLeft, robotRoom, wageArrears, gmQuitArrears, zoneLeaders, warrantyLeft, gearPrice, gearError, softwareError, tendPlots, gearStockOf, gmUnlocked, gmOf, gmBoard, gmBoardRefreshIn, gmPay, gmBudgetLeft, gmPlan, gmPermission, gmAdvisorOf, chaosOf, calmCost, chaosSlackMul, gmMood, followerWage, countryNow, recipeFound, contractOf, cropUnlocked, methodOf, trialsHere, buyerNow, gmPoachOf, gmRequests, gmLog, unitLog, teamJournal, gmCareWallet, gmCareWalletLeft, gmBacklog, gmWaiting, gmStrike, apologiseCost, gmBudgetCap, gmLicensed, licenceError, licencePrice, gmTrainCost, gmTrainError, gmHighValue, histRows, upgradeOptions, throughputShare, tasksOpen } from '../../core/derive.js';
 import { sfx } from '../../shared/audio/index.js';
 import { h } from './dom.js';
 import { T, fmt, gmReasonText } from './text.js';
 import { formatNumber } from '../../i18n/index.js';
 import { staffEffect } from './effects.js';
 import { actionButton, coinAmount, lockTag, needMore } from './widgets.js';
-import { rowText } from './inbox.js';
+import { rowText, taskCard } from './inbox.js';
 
 const REFRESH_MS = 1000;
 const isRobot = u => STAFF[u?.type]?.kind === 'robot';
@@ -32,6 +34,8 @@ const PERK_FX = { speed: RARE.swiftSpeed, pct: Math.round(RARE.charmingBonus * 1
 // Shown state of a unit (the core's unitState plus where it is and the zero-energy / zero-food stops).
 const STATE_ICON = { phone: '📱', battery: '🪫', overheat: '🔥', jam: '⚙️', lunch: '🍽️', sulking: '😤', hungry: '🍔', tired: '😮‍💨',
   exhausted: '😵', starving: '🍔', worn: '🔧', bench: '🪑', ok: '🙂', unassigned: '💤', elsewhere: '🗺️' };
+// Old profile tab ids (links from the manager's plan, saved navigation) → the 3 tabs of the redesign.
+const PTAB_OF = { overview: 'today', stats: 'grow', gear: 'grow', parts: 'grow', service: 'history' };
 const BLOCKING = new Set(['phone', 'battery', 'overheat', 'jam', 'sulking', 'exhausted', 'starving']);
 const SLOW = new Set(['tired', 'hungry', 'worn']);
 const CARE_ICON = { nag: '🗣️', bonusSmall: '💵', coffee: '☕', food: '🍔', lunch: '🍽️', bonus: '🎁', rest: '🪑', recharge: '⚡', cool: '❄️', repair: '🔧', service: '🛠️', tend: '💧' };
@@ -43,7 +47,7 @@ const JOURNAL_ICON = { autoCare: '🤖', promoted: '🎖️', steppedDown: '🔽
 
 export function createStaffModal(ctx) {
   const store = ctx.store;
-  const st = { open: false, tab: 'team', filter: 'all', uid: null, ptab: 'overview', period: 'today', collapsed: false };
+  const st = { open: false, tab: 'team', filter: 'all', uid: null, ptab: 'today', period: 'today', collapsed: false, more: false, folds: Object.create(null) };
   const scrollMem = Object.create(null); // screen key → body scrollTop
   let timer = null, pressing = false, pending = false, refreshingPool = false;
 
@@ -68,7 +72,7 @@ export function createStaffModal(ctx) {
   document.addEventListener('pointercancel', up, true);
 
   const zoneNow = () => (ctx.realm?.view ? (ctx.realm.view === 'cafe' ? 'shop' : 'farm') : regionGame(store.state) === 'cafe' ? 'shop' : 'farm');
-  const screenKey = () => (st.uid ? `unit:${st.uid}:${st.ptab}` : st.tab === 'report' ? `tab:report:${st.period}` : `tab:${st.tab}:${st.filter}`);
+  const screenKey = () => (st.uid ? `unit:${st.uid}:${st.ptab}` : `tab:${st.tab}`);
   const act = (type, payload) => ctx.act(type, payload);
   const rerender = () => paint(true);
 
@@ -94,10 +98,10 @@ export function createStaffModal(ctx) {
     if (title.textContent !== t) title.textContent = t;
     back.hidden = !st.uid;
     swap(summary, summaryView(s, now, zone));
-    swap(banner, poachView(s, now));
+    swap(banner, null); // the rival's lure is the first row of «Cần bạn» now
     swap(tabs, st.uid ? null : tabsView(s, now, zone));
     const key = screenKey();
-    const node = st.uid ? detailView(s, now, zone, unitOf(s, st.uid)) : st.tab === 'hire' ? hireView(s, now, zone) : st.tab === 'report' ? reportView(s, now, zone) : st.tab === 'gm' ? gmView(s, now, zone) : teamView(s, now, zone);
+    const node = st.uid ? detailView(s, now, zone, unitOf(s, st.uid)) : st.tab === 'hire' ? hireView(s, now, zone) : st.tab === 'gm' ? gmView(s, now, zone) : teamView(s, now, zone);
     if (body.dataset.screen !== key) {
       body.dataset.screen = key;
       body.replaceChildren(node);
@@ -111,7 +115,9 @@ export function createStaffModal(ctx) {
 
   function goTo(next) {
     if (body.dataset.screen) scrollMem[body.dataset.screen] = body.scrollTop;
-    if (next.uid !== undefined && next.uid !== st.uid && next.ptab === undefined) next = { ...next, ptab: 'overview' }; // another profile opens on its overview
+    if (next.uid !== undefined && next.uid !== st.uid && next.ptab === undefined) next = { ...next, ptab: 'today' }; // another profile opens on Hôm nay
+    if (next.ptab) next = { ...next, ptab: PTAB_OF[next.ptab] || next.ptab };
+    if (next.tab === 'report') next = { ...next, tab: 'team', folds: { ...st.folds, report: true } };
     Object.assign(st, next);
     sfx('ui.tab');
     paint(true);
@@ -210,15 +216,15 @@ export function createStaffModal(ctx) {
   // ---------- header ----------
   function summaryView(s, now, zone) {
     const here = region(s) ? zoneUnits(s, zone).filter(u => hereOf(s, u)) : [];
-    const bench = here.filter(u => !u.active).length;
+    const problems = here.filter(u => isProblem(stateKey(s, u, now))).length;
     const win = teamMoney(s, now, '10m', zone); // this game's team only
     const tickets = s.rewards?.tickets || 0;
-    return h('p', { class: 'hud-sm-line' },
-      h('span', null, T('hud.sm.sum.active', { n: activeCount(s, zone), max: slots(s, zone) })), ' · ',
-      h('span', null, T('hud.sm.sum.bench', { n: bench })), ' · ',
-      h('span', null, T('hud.sm.sum.upkeep', { coins: fmt(upkeepPer(s, zone)), min: UPKEEP.perMinutes })), ' · ',
-      h('span', null, T('hud.sm.sum.earned', { coins: fmt(win.earned), min: BOOKS.mvpMinutes })),
-      tickets > 0 ? h('span', { class: 'hud-sm-ticket' }, ' · ', T('hud.staff.tickets', { n: tickets })) : null);
+    const cell = (icon, text, tone = '') => h('span', { class: `hud-sm-stat${tone ? ` is-${tone}` : ''}` }, h('span', { attrs: { 'aria-hidden': 'true' } }, icon), text);
+    return h('p', { class: 'hud-sm-line hud-sm-stats' },
+      cell('👥', T('hud.sm.sum2.active', { n: activeCount(s, zone), max: slots(s, zone) })),
+      cell('🪙', T('hud.sm.sum2.earned', { coins: fmt(win.earned), min: BOOKS.mvpMinutes })),
+      cell(problems ? '⚠️' : '✅', T(problems ? 'hud.sm.sum2.problems' : 'hud.sm.sum2.ok', { n: problems }), problems ? 'warn' : 'good'),
+      tickets > 0 ? cell('🎟️', T('hud.staff.tickets', { n: tickets })) : null);
   }
   function poachView(s, now) {
     const p = poachOf(s);
@@ -242,14 +248,74 @@ export function createStaffModal(ctx) {
     rerender();
   }
   function tabsView(s, now, zone) {
-    const units = zoneUnits(s, zone);
-    const problems = units.filter(u => isProblem(stateKey(s, u, now))).length;
     const tab = (id, label, badge) => h('button', { type: 'button', class: 'hud-tab', dataset: { hudId: `staffTab-${id}` }, attrs: { 'aria-pressed': String(st.tab === id) },
       on: { click: () => goTo({ tab: id }) } }, label, badge ? h('span', { class: 'hud-sm-badge' }, String(badge)) : null);
+    // Three tabs (Báo cáo lives at the bottom of Đội): words only, so they fit a phone with their badges.
     return h('div', { class: 'hud-tabs hud-sm-tabs', attrs: { role: 'group', 'aria-label': T('hud.sm.tabs') } },
-      // Four tabs on a phone: words only (the icons pushed "Tuyển dụng" / "Quản lý" and their badges out of view).
-      tab('team', T('hud.sm.tab.team'), problems), tab('hire', T('hud.sm.tab.hire')), tab('report', T('hud.sm.tab.report')),
+      tab('team', T('hud.sm.tab.team'), needsYou(s, now, zone).filter(x => x.pri <= 2).length), tab('hire', T('hud.sm.tab.hire')),
       tab('gm', T('hud.gm.tab'), gmRequests(s).length + (gmPoachOf(s) ? 1 : 0) + (s.gm?.chaos || gmStrike(s) ? 1 : 0)));
+  }
+  // A section the player opens / closes (remembered while the modal lives); its body is built only when open.
+  function fold(key, titleText, build) {
+    const open = !!st.folds[key];
+    return h('section', { class: `hud-sm-sec hud-fold${open ? ' is-open' : ''}` },
+      h('button', { type: 'button', class: 'hud-fold-head', dataset: { hudId: `staffFold-${key}` }, attrs: { 'aria-expanded': String(open) },
+        on: { click: () => { st.folds[key] = !open; sfx('ui.tab'); rerender(); } } },
+        h('span', { class: 'hud-fold-title' }, titleText), h('span', { class: 'hud-fold-chev', attrs: { 'aria-hidden': 'true' } }, open ? '▾' : '▸')),
+      open ? h('div', { class: 'hud-fold-body' }, ...[].concat(build()).filter(Boolean)) : null);
+  }
+
+  // ---------- Cần bạn: what needs the player, ranked like the manager ranks it ----------
+  // pri 0 = now (a lure, a blocked unit), 1 = an answer the manager waits for, 2 = a slow unit, 3 = an idle seat,
+  // 4 = a promotion, 5 = an upgrade that pays back within UPGRADE_GATE.paybackMin (fastest first, at most NY_UPGRADES).
+  const NY_SHOW = 4, NY_UPGRADES = 2;
+  const PAY_ICON = { 'staff/upgradeStat': '⬆️', 'staff/buyGear': '🧤', 'staff/upgradePart': '🔩', 'staff/buySoftware': '💾' };
+  const upgradeWhat = o => (o.what.stat ? T(`hud.stat.${o.what.stat}`) : o.what.part ? T(`hud.staff.part.${o.what.part}`) : o.what.item ? T(`hud.g4.item.${o.what.item}`) : o.what.pack ? T(`hud.g4.pack.${o.what.pack}`) : '');
+  let nyMemo = { s: null, at: 0, zone: null, v: [] };
+  function needsYou(s, now, zone) {
+    if (nyMemo.s === s && nyMemo.zone === zone && now - nyMemo.at < 900) return nyMemo.v;
+    const out = [];
+    const row = (pri, icon, u, text, btn) => out.push({ pri, node: h('li', { class: `hud-ny is-p${pri}` },
+      h('button', { type: 'button', class: 'hud-ny-main', attrs: { 'aria-label': T('hud.sm.openUnit', { name: nameOf(u) }) }, on: { click: () => goTo({ uid: u.uid }) } },
+        h('span', { class: 'hud-ny-ico', attrs: { 'aria-hidden': 'true' } }, icon),
+        h('span', { class: 'hud-ny-text' }, h('strong', null, nameOf(u)), h('small', null, text))),
+      btn ? h('div', { class: 'hud-ny-act' }, btn) : null) });
+    // open tasks: the rival's lure and the manager's questions (answered right here, the inbox shows the same cards)
+    for (const t of tasksOpen(s)) {
+      if (t.kind === 'poach' && t.zone && t.zone !== zone) continue;
+      out.push({ pri: t.kind === 'poach' || t.kind === 'gmPoach' ? 0 : 1, node: h('li', { class: 'hud-ny hud-ny--task' }, taskCard(ctx, s, t)) });
+    }
+    const here = region(s) ? zoneUnits(s, zone) : [];
+    for (const u of here) {
+      const key = stateKey(s, u, now), fix = hereOf(s, u) ? fixOf(u, key, now) : null, def = STAFF[u.type];
+      if (fix) row(BLOCKING.has(key) ? 0 : 2, STATE_ICON[key] || '⚠️', u, T(`hud.sm.state.${key}`), careButton(s, u, fix.kind, now, { compact: true }));
+      else if (key === 'bench' && freeSlots(s, def.zone) > 0) row(3, '🪑', u, T('hud.ny.bench'),
+        actionButton({ label: T('hud.sm.toShift'), icon: '▶️', tone: 'go', onClick: () => act('staff/setActive', { uid: u.uid, active: true }) }));
+      else if (key === 'unassigned') row(3, '💤', u, T('hud.ny.unassigned'), actionButton({ label: T('hud.staff.assign'), disabled: !region(s), onClick: () => act('staff/assign', { uid: u.uid }) }));
+      if (!isRobot(u) && hereOf(s, u) && canPromote(s, u, now)) {
+        const next = nextRank(u);
+        row(4, RANK_ICON[next] || '🎖️', u, T('hud.ny.promote', { rank: T(`hud.cr.rank.${next}`) }),
+          actionButton({ label: T('hud.ny.promoteBtn'), icon: '🎖️', tone: 'go',
+            onClick: () => { const r = act('staff/promote', { uid: u.uid }); if (r.ok) { sfx('reward.levelup'); ctx.toast(T('hud.cr.promoted', { name: nameOf(u), rank: T(`hud.cr.rank.${next}`) }), 'good'); } } }));
+      }
+    }
+    // upgrades: the manager's value table (coins per minute each step adds), fastest payback first
+    const ups = here.filter(u => hereOf(s, u) && u.active).flatMap(u => upgradeOptions(s, u).map(o => ({ u, o })))
+      .filter(x => x.o.payback <= UPGRADE_GATE.paybackMin).sort((a, b) => a.o.payback - b.o.payback).slice(0, NY_UPGRADES);
+    for (const { u, o } of ups) {
+      const short = s.player.coins < o.cost;
+      row(5, PAY_ICON[o.act.type] || '⬆️', u, T('hud.ny.upgrade', { what: upgradeWhat(o), min: Math.max(1, Math.round(o.payback)) }),
+        actionButton({ label: T('hud.ny.upgradeBtn'), cost: o.cost, tone: 'gold', disabled: short, note: short ? needMore(o.cost - s.player.coins) : null,
+          onClick: () => { const r = act(o.act.type, o.act.payload); if (r.ok) sfx('coin.spend'); } }));
+    }
+    out.sort((a, b) => a.pri - b.pri);
+    nyMemo = { s, at: now, zone, v: out };
+    return out;
+  }
+  /** Condition 0..100 of a unit here: its weakest vital (worker energy / morale / fullness, robot charge / heat / wear). */
+  function conditionOf(u, info) {
+    if (isRobot(u)) return Math.round(Math.min(u.stopped?.kind === 'battery' ? 0 : info?.battery ?? 100, 100 - (u.heat || 0), u.wear ?? 100));
+    return Math.round(Math.min((u.energy ?? 100) / Math.max(1, energyMax(u)) * 100, u.morale ?? VITALS.start.morale, u.fullness ?? 100));
   }
 
   // ---------- Đội ----------
@@ -257,49 +323,42 @@ export function createStaffModal(ctx) {
     const units = zoneUnits(s, zone);
     if (!units.length) return h('div', { class: 'hud-sm-empty' }, h('p', { class: 'hud-line' }, T('hud.sm.noTeam')),
       actionButton({ label: T('hud.sm.goHire'), icon: '🧑', onClick: () => goTo({ tab: 'hire' }) }));
-    const rows = units.map(u => ({ u, key: stateKey(s, u, now) }));
-    const counts = {
-      all: rows.length,
-      active: rows.filter(r => hereOf(s, r.u) && r.u.active).length,
-      bench: rows.filter(r => hereOf(s, r.u) && !r.u.active).length,
-      problem: rows.filter(r => isProblem(r.key)).length,
-    };
-    const filter = counts[st.filter] != null ? st.filter : 'all';
-    const chip = id => h('button', { type: 'button', class: 'hud-sm-chip', attrs: { 'aria-pressed': String(filter === id) }, on: { click: () => goTo({ filter: id }) } },
-      T(`hud.sm.filter.${id}`, { n: counts[id] }));
-    const chips = h('div', { class: 'hud-sm-chips', attrs: { role: 'group', 'aria-label': T('hud.sm.filters') } }, chip('all'), chip('active'), chip('bench'), chip('problem'));
-    // Bulk: pay every paid fix (problems of units here), or swap the tired out for rested bench workers.
-    const fixes = rows.filter(r => hereOf(s, r.u)).map(r => ({ u: r.u, fix: fixOf(r.u, r.key, now) }))
+    // 1. Cần bạn
+    const ny = needsYou(s, now, zone), shown = st.more ? ny : ny.slice(0, NY_SHOW);
+    const fixes = units.filter(u => hereOf(s, u)).map(u => ({ u, fix: fixOf(u, stateKey(s, u, now), now) }))
       .filter(x => x.fix && [null, 'coins'].includes(careError(s, x.u, x.fix.kind, now)));
     const total = fixes.reduce((n, x) => n + x.fix.cost, 0);
-    const bulk = h('div', { class: 'hud-sm-bulk' },
-      actionButton({ id: 'staffFixAll', label: T('hud.sm.fixAll'), icon: '🧰', cost: fixes.length ? total : undefined, tone: 'gold', disabled: !fixes.length || s.player.coins < Math.min(...fixes.map(x => x.fix.cost)),
-        note: fixes.length && s.player.coins < total ? T('hud.sm.fixSome') : null, onClick: () => fixAll() }),
-      actionButton({ id: 'staffSwap', label: T('hud.sm.swap'), icon: '🔄', tone: 'plain', disabled: !region(s), onClick: () => swapShift() }));
-    const shown = rows.filter(r => filter === 'all' || (filter === 'active' ? hereOf(s, r.u) && r.u.active : filter === 'bench' ? hereOf(s, r.u) && !r.u.active : isProblem(r.key)));
-    // Problems first, then on shift, bench, elsewhere (stable by hire order inside each group).
+    const needs = h('section', { class: 'hud-sm-sec hud-ny-sec' },
+      h('div', { class: 'hud-ny-head' }, h('h3', { class: 'hud-sm-h' }, T('hud.ny.title', { n: ny.length })),
+        fixes.length > 1 ? actionButton({ id: 'staffFixAll', label: T('hud.sm.fixAll'), icon: '🧰', cost: total, tone: 'gold', disabled: s.player.coins < Math.min(...fixes.map(x => x.fix.cost)),
+          note: s.player.coins < total ? T('hud.sm.fixSome') : null, onClick: () => fixAll() }) : null),
+      ny.length ? h('ul', { class: 'hud-ny-list' }, ...shown.map(x => x.node)) : h('p', { class: 'hud-line hud-line--good' }, T('hud.ny.empty')),
+      ny.length > NY_SHOW ? h('button', { type: 'button', class: 'hud-ny-more', on: { click: () => { st.more = !st.more; rerender(); } } },
+        st.more ? T('hud.ny.less') : T('hud.ny.more', { n: ny.length - NY_SHOW })) : null);
+    // 2. Đội: one line per unit, problems first, then on shift, bench, elsewhere (hire order inside each group)
+    const rows = units.map(u => ({ u, key: stateKey(s, u, now) }));
     const rank = r => (BLOCKING.has(r.key) ? 0 : SLOW.has(r.key) ? 1 : hereOf(s, r.u) && r.u.active ? 2 : hereOf(s, r.u) ? 3 : 4);
-    shown.sort((a, b) => rank(a) - rank(b));
-    const list = h('ul', { class: 'hud-sm-cards' }, ...shown.map(r => unitCard(s, r.u, r.key, now)));
-    return h('div', null, chips, bulk, shown.length ? list : h('p', { class: 'hud-line hud-line--muted' }, T('hud.sm.filterEmpty')));
+    rows.sort((a, b) => rank(a) - rank(b));
+    const roster = h('section', { class: 'hud-sm-sec' },
+      h('div', { class: 'hud-ny-head' }, h('h3', { class: 'hud-sm-h' }, T('hud.sm.roster', { n: rows.length, active: activeCount(s, zone), max: slots(s, zone) })),
+        actionButton({ id: 'staffSwap', label: T('hud.sm.swap'), icon: '🔄', tone: 'plain', disabled: !region(s), onClick: () => swapShift() })),
+      h('ul', { class: 'hud-rs' }, ...rows.map(r => rosterRow(s, r.u, r.key, now))),
+      h('p', { class: 'hud-sub' }, T('hud.sm.upkeepLine', { coins: fmt(upkeepPer(s, zone)), min: UPKEEP.perMinutes })));
+    // 3. Báo cáo (folded): money, spend, ranking, research, tips, journal
+    return h('div', null, needs, roster, fold('report', `📊 ${T('hud.sm.tab.report')}`, () => reportView(s, now, zone)));
   }
-  function unitCard(s, u, key, now) {
-    const def = STAFF[u.type], info = infoOf(s, u), fix = fixOf(u, key, now);
+  function rosterRow(s, u, key, now) {
+    const info = infoOf(s, u), here = hereOf(s, u), cond = here ? conditionOf(u, info) : null;
     const poached = poachOf(s)?.uid === u.uid;
-    let btn = null;
-    if (fix) btn = careButton(s, u, fix.kind, now, { compact: true });
-    else if (key === 'bench') btn = actionButton({ label: T('hud.sm.toShift'), icon: '▶️', tone: 'go', disabled: freeSlots(s, def.zone) <= 0, onClick: () => act('staff/setActive', { uid: u.uid, active: true }) });
-    else if (key === 'unassigned') btn = actionButton({ label: T('hud.staff.assign'), disabled: !region(s), onClick: () => act('staff/assign', { uid: u.uid }) });
-    else if (canTend(u, info)) btn = tendButton(s, u);
-    const ready = !isRobot(u) && STAT_ORDER.some(k => !statError(s, u, k));
-    const main = h('button', { type: 'button', class: 'hud-sm-card-main', dataset: { hudId: `staffUnit-${u.uid}` }, attrs: { 'aria-label': T('hud.sm.openUnit', { name: nameOf(u) }) }, on: { click: () => goTo({ uid: u.uid }) } },
-      avatarOf(s, u, key),
-      h('span', { class: 'hud-sm-card-text' },
-        h('strong', { class: 'hud-sm-card-name' }, nameOf(u), u.perk ? ' ⭐' : '', ready ? h('span', { class: 'hud-unit-tag is-ready' }, '⬆️') : null, poached ? h('span', { class: 'hud-sm-tag-bad' }, '💼') : null),
-        h('small', { class: 'hud-sm-card-meta' }, headLine(u), gradePill(unitGrade(s, u, dayKey(now)))),
-        h('small', { class: `hud-report hud-report--${toneOf(key)}` }, nowLine(s, u, key, now, info))),
-      h('span', { class: 'hud-sm-chev', attrs: { 'aria-hidden': 'true' } }, '›'));
-    return h('li', { class: `hud-sm-card is-${toneOf(key)}` }, main, hereOf(s, u) ? vitalBars(u, false, info) : null, btn ? h('div', { class: 'hud-sm-card-fix' }, btn) : null);
+    return h('li', { class: `hud-rs-row is-${toneOf(key)}` },
+      h('button', { type: 'button', class: 'hud-rs-main', dataset: { hudId: `staffUnit-${u.uid}` }, attrs: { 'aria-label': T('hud.sm.openUnit', { name: nameOf(u) }) }, on: { click: () => goTo({ uid: u.uid }) } },
+        avatarOf(s, u, key),
+        h('span', { class: 'hud-rs-text' },
+          h('strong', { class: 'hud-rs-name' }, nameOf(u), u.perk ? ' ⭐' : '', poached ? ' 💼' : '', ' ', gradePill(unitGrade(s, u, dayKey(now)))),
+          h('small', { class: `hud-report hud-report--${toneOf(key)}` }, nowLine(s, u, key, now, info))),
+        cond != null ? h('span', { class: `hud-rs-meter is-${cond < 25 ? 'bad' : cond < 50 ? 'warn' : 'ok'}`, attrs: { role: 'img', 'aria-label': T('hud.sm.condition', { n: cond }) } },
+          h('i', { style: { height: `${Math.max(4, cond)}%` } })) : null,
+        h('span', { class: 'hud-sm-chev', attrs: { 'aria-hidden': 'true' } }, '›')));
   }
   function fixAll() {
     const s = store.state, now = Date.now(), zone = zoneNow();
@@ -341,11 +400,14 @@ export function createStaffModal(ctx) {
     if (chaosOf(s)) out.push(chaosBlock(s, now));
     if (gm) {
       if (gmPoachOf(s)) out.push(gmPoachBlock(s, now, gm));
-      out.push(gmCard(s, now, gm), gmPowers(s, now, gm), gmDayPlanBlock(s, now, gm), gmLicenceBlock(s, now, gm), gmWorth(s, now, gm), gmRequestsBlock(s, now));
+      // What waits for you first, then what he does (mode + day plan); the rest is folded (mobile-first redesign).
+      out.push(gmCard(s, now, gm), gmRequestsBlock(s, now), gmPowers(s, now, gm), gmDayPlanBlock(s, now, gm),
+        fold('gmLicence', `🪪 ${T('hud.gm.sec.licences')}`, () => gmLicenceBlock(s, now, gm)),
+        fold('gmWorth', `💰 ${T('hud.gm.sec.worth')}`, () => gmWorth(s, now, gm)));
     }
-    if (gmAdvisorOf(s)) out.push(gmSuggestions(s, now, gm));
+    if (gmAdvisorOf(s)) out.push(gm ? fold('gmSuggest', `💡 ${T('hud.gm.sec.plan')}`, () => gmSuggestions(s, now, gm)) : gmSuggestions(s, now, gm));
     if (!gm) out.push(gmBoardBlock(s, now));
-    if (gm || gmLog(s, 1).length) out.push(gmLogBlock(s, now));
+    if (gm || gmLog(s, 1).length) out.push(fold('gmLog', `📒 ${T('hud.gm.sec.log')}`, () => gmLogBlock(s, now)));
     if (gm) out.push(h('div', { class: 'hud-sm-fire' }, actionButton({ id: 'gmFire', label: T('hud.gm.fire'), tone: 'plain', onClick: () => gmFire() })));
     return h('div', null, ...out);
   }
@@ -702,20 +764,40 @@ export function createStaffModal(ctx) {
   // Personnel file (docs/design/staff-profile.md): an ID card (photo, who, since when), then tabs.
   //  worker: Tổng quan (now + care, today's grade + KPIs, 7-day profit, tasks) · Chỉ số (stats, how it works) · Lịch sử
   //  robot:  Tổng quan (now + care, today's run + grade, payback, 7-day profit, task) · Bộ phận (parts) · Bảo trì (log)
-  const PROFILE_TABS = { worker: ['overview', 'stats', 'gear', 'history'], robot: ['overview', 'parts', 'service'] };
+  const PROFILE_TABS = { worker: ['today', 'grow', 'history'], robot: ['today', 'grow', 'history'] };
   function detailView(s, now, zone, u) {
     if (!u) return h('p', { class: 'hud-line' }, T('hud.sm.gone'));
-    const robot = isRobot(u), tabsOf = PROFILE_TABS[robot ? 'robot' : 'worker'].filter(t => t !== 'gear' || (GEAR.zone[STAFF[u.type].zone] || []).length); // café gear later
-    const ptab = tabsOf.includes(st.ptab) ? st.ptab : 'overview';
+    const robot = isRobot(u), tabsOf = PROFILE_TABS[robot ? 'robot' : 'worker'];
+    const ptab = tabsOf.includes(st.ptab) ? st.ptab : 'today';
     const out = h('div', { class: 'hud-sm-detail' }, idCard(s, now, u),
       h('div', { class: 'hud-tabs hud-sm-ptabs', attrs: { role: 'group', 'aria-label': T('hud.pf.tabs') } },
         ...tabsOf.map(id => h('button', { type: 'button', class: 'hud-tab', dataset: { hudId: `staffPTab-${id}` }, attrs: { 'aria-pressed': String(ptab === id) },
           on: { click: () => { if (st.ptab !== id) goTo({ ptab: id }); } } }, T(`hud.pf.tab.${id}`)))));
-    if (ptab === 'overview') out.append(...overviewView(s, now, zone, u));
-    else if (ptab === 'stats') out.append(statsBlock(s, u, zone), craftBlock(u), section('hud.staff.howTitle', howItWorks(u, STAFF[u.type].zone, infoOf(s, u))));
-    else if (ptab === 'parts') out.append(partsBlock(s, u), softwareBlock(s, u), section('hud.staff.howTitle', howItWorks(u, STAFF[u.type].zone, infoOf(s, u))));
-    else if (ptab === 'gear') out.append(gearBlock(s, u));
+    if (ptab === 'today') out.append(...overviewView(s, now, zone, u));
+    else if (ptab === 'grow') out.append(...growView(s, now, zone, u));
     else out.append(...historyView(s, now, u));
+    return out;
+  }
+  // Phát triển: the upgrades worth buying now (payback, like «Cần bạn»), then every ladder of this unit.
+  function growView(s, now, zone, u) {
+    const robot = isRobot(u), how = () => howItWorks(u, STAFF[u.type].zone, infoOf(s, u));
+    const opts = upgradeOptions(s, u).sort((a, b) => a.payback - b.payback).slice(0, 3);
+    const tips = opts.length ? h('ul', { class: 'hud-ny-list' }, ...opts.map(o => {
+      const short = s.player.coins < o.cost, slow = o.payback > UPGRADE_GATE.paybackMin;
+      return h('li', { class: `hud-ny is-p${slow ? 6 : 5}` },
+        h('span', { class: 'hud-ny-main' }, h('span', { class: 'hud-ny-ico', attrs: { 'aria-hidden': 'true' } }, PAY_ICON[o.act.type] || '⬆️'),
+          h('span', { class: 'hud-ny-text' }, h('strong', null, upgradeWhat(o)), h('small', null, T(slow ? 'hud.ny.paybackSlow' : 'hud.ny.payback', { min: Math.max(1, Math.round(o.payback)) })))),
+        h('div', { class: 'hud-ny-act' }, actionButton({ label: T('hud.ny.upgradeBtn'), cost: o.cost, tone: slow ? 'plain' : 'gold', disabled: short, note: short ? needMore(o.cost - s.player.coins) : null,
+          onClick: () => { const r = act(o.act.type, o.act.payload); if (r.ok) sfx('coin.spend'); } })));
+    })) : h('p', { class: 'hud-line hud-line--muted' }, T('hud.pf.suggestNone'));
+    const out = [section('hud.pf.sec.suggest', tips, h('p', { class: 'hud-sub' }, T('hud.pf.suggestNote')))];
+    if (robot) out.push(partsBlock(s, u), softwareBlock(s, u));
+    else {
+      out.push(careerBlock(s, now, u), statsBlock(s, u, zone));
+      if ((GEAR.zone[STAFF[u.type].zone] || []).length) out.push(gearBlock(s, u));
+      out.push(fold('craft', T('hud.cr.craftSec'), () => craftBlock(u)));
+    }
+    out.push(fold(`how:${u.uid}`, T('hud.staff.howTitle'), () => how()));
     return out;
   }
   // ID card: photo (the unit shot in the world, else its icon), name, who / since when, tags, what it does now.
@@ -782,9 +864,9 @@ export function createStaffModal(ctx) {
       ...shift));
     parts.push(todayBlock(s, now, u));
     if (robot) parts.push(paybackBlock(now, u));
-    parts.push(weekBlock(now, u));
+    parts.push(fold(`week:${u.uid}`, T('hud.pf.sec.week'), () => weekBlock(now, u)));
     if (robot) parts.push(robotTaskBlock(s, u, info));
-    else parts.push(careerBlock(s, now, u), taskBlock(s, u, zone));
+    else parts.push(taskBlock(s, u, zone)); // career → Phát triển
     return parts;
   }
 

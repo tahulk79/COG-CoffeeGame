@@ -2,6 +2,8 @@
 export default {
   en: {
     'realm.forSale': ({ price }) => `🪙 ${price}`,
+    'realm.forSaleZone': ({ price, zone }) => `${zone} · 🪙 ${price}`,
+    'realm.zone.lowland': '🌾 Lowland', 'realm.zone.upland': '⛰️ Upland', 'realm.zone.highland': '🏔️ Highland', 'realm.zone.wetland': '💧 Pondside',
     'realm.level': ({ level }) => `Lv ${level}`,
     'realm.sign.order': 'ORDER',
     'realm.sign.brew': 'BREW',
@@ -110,6 +112,8 @@ export default {
   },
   vi: {
     'realm.forSale': ({ price }) => `🪙 ${price}`,
+    'realm.forSaleZone': ({ price, zone }) => `${zone} · 🪙 ${price}`,
+    'realm.zone.lowland': '🌾 Đồng bằng', 'realm.zone.upland': '⛰️ Trung du', 'realm.zone.highland': '🏔️ Cao nguyên', 'realm.zone.wetland': '💧 Ven ao',
     'realm.level': ({ level }) => `Cấp ${level}`,
     'realm.sign.order': 'GỌI MÓN',
     'realm.sign.brew': 'PHA CHẾ',

@@ -124,6 +124,16 @@ export const TERRAIN_USES = {
   shop: ['building', 'decor'],     // café lots (café rules unchanged)
 };
 export const terrainOfLot = id => (Object.hasOwn(TERRAIN_OVERRIDE, id) ? TERRAIN_OVERRIDE[id] : (Object.hasOwn(PARCELS, id) && LOT_TERRAIN[PARCELS[id].kind]) || 'wild');
+// Growing zone of a lot (docs/design/coffee-varieties.md): south of the main road = lowland, the first two rows north =
+// upland (trung du), the far north = highland (cao nguyên), the pond and its orchard = wetland. Café lots have none.
+const ZONE_LOTS = {
+  lowland: ['F1', 'F2', 'F5', 'F6', 'F13', 'F14', 'Y0', 'W1', 'D1'],
+  upland: ['F3', 'F4', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12', 'F15', 'F16', 'P1', 'P2'],
+  highland: ['F17', 'F18', 'W2', 'W3', 'P3', 'P4', 'G1', 'O2', 'W4', 'W5', 'H1'],
+  wetland: ['PD1', 'O1'],
+};
+export const CLIMATE_OF = Object.fromEntries(Object.entries(ZONE_LOTS).flatMap(([z, ids]) => ids.map(id => [id, z])));
+export const climateOfLot = id => (Object.hasOwn(CLIMATE_OF, id) ? CLIMATE_OF[id] : 'lowland');
 export const lotAllows = (id, use) => (TERRAIN_USES[terrainOfLot(id)] || []).includes(use);
 // Fields a lot comes with when bought ("pre-tilled"): the 6 classic plot spots of every field lot (plotsOf below).
 export const PRE_TILLED = { farm: 6 };

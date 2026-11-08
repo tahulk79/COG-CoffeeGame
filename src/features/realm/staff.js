@@ -46,9 +46,9 @@
 // paid fix (D.quickFix) carry the 🪙 bubble; the realm's tap maps it to the right staff/care kind. Worker tasks (u.tasks)
 // restrict the job types a worker takes on both areas.
 import * as THREE from 'three';
-import { STAFF, CROP_ORDER, DRINKS, STAFF_BREAKS, ROBOT_TASKS, ROBOT_AUTO, unitSpeed, batteryMinutes, slackMul, hasRule, robotTask, mistakeChance, partTier, isHardDrink, BEANS, TEND, jamChance, energyMax, RIVAL, BOOKS, CAREER, GM, craftSpeed, rankOf, gearWalk, gearJob, hasSoftware, SOFTWARE, STAFF_SIM, CLOCK } from '../../core/config/economy.js';
+import { STAFF, CROPS, CROP_ORDER, DRINKS, STAFF_BREAKS, ROBOT_TASKS, ROBOT_AUTO, unitSpeed, batteryMinutes, slackMul, hasRule, robotTask, mistakeChance, partTier, isHardDrink, BEANS, TEND, jamChance, energyMax, RIVAL, BOOKS, CAREER, GM, craftSpeed, rankOf, gearWalk, gearJob, hasSoftware, SOFTWARE, STAFF_SIM, CLOCK } from '../../core/config/economy.js';
 import { PARCELS, FIXED, FARM_WELL } from '../../core/config/layout.js';
-import { assignedUnits, ownedPlots, plotState, cropUnlocked, seedCost, capacity, stored, plotOf, tileAt, seatCount, seatsUsed, brewSlots, seatPatienceRatio, beanBuyQuote, plotGrowMs, canBrew, region as regionOf, unitState, unitBlocked, unitWorking, stateSpeedMul, quickFix, upgradableStats, buildingsOf, footprint, zoneLeaders, nudgeDue, needs, careError, chaosSlackMul, gmOf, gmThinkSeconds, workerPoach, planCropFor } from '../../core/derive.js';
+import { pickCropFor, harvestUrgency, assignedUnits, ownedPlots, plotState, cropUnlocked, seedCost, capacity, stored, plotOf, tileAt, seatCount, seatsUsed, brewSlots, seatPatienceRatio, beanBuyQuote, plotGrowMs, canBrew, region as regionOf, unitState, unitBlocked, unitWorking, stateSpeedMul, quickFix, upgradableStats, buildingsOf, footprint, zoneLeaders, nudgeDue, needs, careError, chaosSlackMul, gmOf, gmThinkSeconds, workerPoach, planCropFor } from '../../core/derive.js';
 import { assignPosts, pickShopJob, orderBlock, waitsForBrew, secondCup, nearestFirst, urgencyK, facing, yieldsTo, isReady, POST_JOBS, autoTask, ROBOT_POST, allows, ctxTakes, TICKS, vitalsInterval, vitalsNoop, timerDue, poseOf, stateIconKey, showsFix, knockStep, KNOCK } from './staff-brain.js';
 import { createPerson } from '../../characters/player.js';
 import { dressPerson } from '../../characters/npc.js';
@@ -623,12 +623,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     const planned = plotId ? planCropFor(state, plotId) : null;
     if (planned && seedCost(state, planned) <= state.player.coins) return planned;
     const active = e && e.kind === 'worker' && !rule(e, 'playerCrop') ? null : getActiveCrop();
-    if (active && cropUnlocked(state, active) && seedCost(state, active) <= state.player.coins) return active;
-    for (let i = CROP_ORDER.length - 1; i >= 0; i--) {
-      const id = CROP_ORDER[i];
-      if (cropUnlocked(state, id) && seedCost(state, id) <= state.player.coins) return id;
-    }
-    return null;
+    return pickCropFor(state, plotId, active); // else the best for the field's growing zone (coffee-varieties.md)
   }
   // Stand beside the bed (south edge) so the unit does not stand inside the tree.
   const plotSpot = plot => ({ x: plot.x, z: plot.z + 1.25 });
@@ -643,8 +638,10 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     if (!plots.length) { e.reason = 'noPlots'; return null; }
     if (roomForBeans && canHarvest) {
       const ready = plots.filter(p => !claimed(`plot:${p.id}`) && r.plots[p.id] && plotState(state, p.id, now).stage === 'ready');
-      // 'ripeFirst' (worker level): the plot ready the longest first (it would drop its fruit); else the nearest.
-      const p = rule(e, 'ripeFirst') ? oldestReady(state, r, ready, now) : near(e, ready);
+      // 'ripeFirst' (worker level): the most urgent first (Arabica drops its cherries, then Liberica's first pick, then
+      // the longest ready); else the nearest Arabica when one is ripe, else the nearest.
+      const arabica = ready.filter(p => CROPS[r.plots[p.id].crop]?.drop);
+      const p = rule(e, 'ripeFirst') ? mostUrgent(state, ready, now) : near(e, arabica.length ? arabica : ready);
       if (p) return { type: 'harvest', plotId: p.id, ...plotSpot(p) };
     }
     if (canPlant && cropFor(state, e)) {
@@ -672,6 +669,11 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
       : 'growing';
     e.reasonMs = soonest === Infinity ? 0 : soonest;
     return null;
+  }
+  function mostUrgent(state, list, now) {
+    let best = null, bu = -Infinity;
+    for (const p of list) { const u = harvestUrgency(state, p.id, now); if (u > bu) { bu = u; best = p; } }
+    return best;
   }
   function oldestReady(state, r, list, now) {
     let best = null, bo = -Infinity;

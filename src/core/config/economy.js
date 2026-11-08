@@ -102,14 +102,40 @@ export const HISTORY = {
   },
 };
 
-// Crops: EMPTY → PLANT → GROW → READY → HARVEST → EMPTY. No water, no fertilizer, plant disappears after harvest.
+// Crops are perennial trees (docs/design/coffee-varieties.md §2b): EMPTY → PLANT (a sapling, paid once) → ESTABLISH
+// (growSeconds, the first crop) → READY → HARVEST → the tree stays → next season (cycleSeconds) → READY → …
+// After `life` harvests the tree is old (PERENNIAL.oldYield of its beans): cut it back (farm/prune, cưa đốn phục hồi)
+// or uproot it (farm/uproot) and plant again.
+// Three real varieties (docs/design/coffee-varieties.md):
+//  · price: coins per raw bean at the storehouse (beans are stored per variety in inventory.beanMix).
+//  · freshSeconds: ripe window that still counts as a fresh (3★) pick by the player (QUALITY.freshSeconds otherwise).
+//  · rawOnly (optional): never fed to the processing chain. Unused: a dearer bean keeps its value through the chain via
+//    RECIPES.dry.premium (specialty batch) instead.
+//  · drop: Arabica cherries fall when ripe: after `after` s past ripe, one bean is lost every `every` s (never below 1).
+//  · pollinate: Robusta is self-sterile: a plant with no other Robusta within `radius` m loses `loss` beans (min 1).
+//  · waves: Liberica ripens unevenly: the first pick gives `first` of the beans, the rest ripen `regrowSeconds` later.
 export const CROPS = {
-  robusta: { id: 'robusta', seedCost: 2, growSeconds: 15, beans: 2, xp: 1, level: 1, round: 1, icon: '🌱', color: 0x9a5b34 },
-  arabica: { id: 'arabica', seedCost: 6, growSeconds: 40, beans: 4, xp: 3, level: 3, round: 1, icon: '🌿', color: 0xb5452f },
-  // liberica: kept only so old saves with it planted still harvest; not offered (it was the Round 2 crop).
-  liberica: { id: 'liberica', seedCost: 16, growSeconds: 90, beans: 8, xp: 6, level: 6, round: 2, icon: '🌳', color: 0x7d2f2a },
+  robusta: { id: 'robusta', seedCost: 15, growSeconds: 60, cycleSeconds: 36, life: 40, beans: 2, xp: 2, level: 1, round: 1, icon: '🌱', color: 0x9a5b34,
+    price: 2, freshSeconds: 30, pollinate: { radius: 3.5, loss: 1 } },
+  arabica: { id: 'arabica', seedCost: 35, growSeconds: 120, cycleSeconds: 80, life: 30, beans: 3, xp: 4, level: 3, round: 1, icon: '🌿', color: 0xb5452f,
+    price: 5, freshSeconds: 10, drop: { after: 30, every: 20 } },
+  liberica: { id: 'liberica', seedCost: 30, growSeconds: 240, cycleSeconds: 150, life: 50, beans: 3, xp: 6, level: 5, round: 1, icon: '🌳', color: 0x7d2f2a,
+    price: 3, freshSeconds: 600, waves: { first: 0.6, regrowSeconds: 45 } },
 };
-export const CROP_ORDER = ['robusta', 'arabica'];
+export const CROP_ORDER = ['robusta', 'arabica', 'liberica'];
+// Perennial trees: an old tree (harvests ≥ life) gives oldYield of its beans. Cutting it back (cưa đốn) costs
+// pruneCost × the sapling price and the tree re-grows for pruneGrow × its first-crop time, then is young again.
+export const PERENNIAL = { oldYield: 0.5, pruneCost: 0.6, pruneGrow: 0.6 };
+// Growing zones (vùng trồng) of a lot, by altitude: the farm climbs north (layout CLIMATE_OF). Effects per crop and zone:
+// timeMul × grow time, stars ± on the harvest (1..3). No zone forbids a crop (no softlock).
+export const CLIMATE_ORDER = ['lowland', 'upland', 'highland', 'wetland'];
+export const CLIMATE_EFFECT = {
+  arabica: { lowland: { timeMul: 1.3, stars: -1 }, wetland: { timeMul: 1.3, stars: -1 }, highland: { stars: 1 } },
+  liberica: { wetland: { stars: 1 } },
+};
+// How the manager / robots / autoplay pick a crop per field (derive.bestCropFor): an XP point is worth `xpCoins` coins,
+// and a player farming alone does about `soloJobsPerMin` farm jobs a minute (walk + tap).
+export const CLIMATE_PICK = { xpCoins: 6, soloJobsPerMin: 30 };
 
 // Drinks sold in the café. beans = beans consumed per cup.
 export const DRINKS = {
@@ -762,7 +788,9 @@ export const ITEM_GOODS = ['dried', 'roasted', 'bag']; // stored in inventory.it
 // Recipes: one batch = `in` → `out` in `seconds` (÷ effect.speed of the building level, × effect.batch for in/out/fee),
 // `fee` coins of fuel per batch, `xp` per batch collected. The job's duration is fixed when it starts.
 export const RECIPES = {
-  dry: { id: 'dry', building: 'dryer', in: { beans: 12 }, out: { dried: 12 }, seconds: 30, fee: 0, xp: 1 },
+  // premium: coins per bean × (its variety's raw price − the base bean price), paid when the batch is collected, so a
+  // dearer variety (Arabica) keeps its value through the chain (coffee-varieties.md §4: "specialty batch").
+  dry: { id: 'dry', building: 'dryer', in: { beans: 12 }, out: { dried: 12 }, seconds: 30, fee: 0, xp: 1, premium: 1 },
   roast: { id: 'roast', building: 'roastery', in: { dried: 12 }, out: { roasted: 9 }, seconds: 45, fee: 3, xp: 2 },
   pack: { id: 'pack', building: 'packer', in: { roasted: 9 }, out: { bag: 3 }, seconds: 40, fee: 2, xp: 2 },
 };

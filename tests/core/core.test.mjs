@@ -35,10 +35,10 @@ test('farm tutorial: seeds planted before the first harvest ripen in a few secon
   h.tick(TUTORIAL.firstGrowSeconds * 1000);
   h.must('farm/harvest', { plotId: 'F1-1' });
   assert.equal(D.plotState(h.state, 'F1-2', h.now).stage, 'ready', 'seeds planted during the tutorial stay fast');
-  h.must('farm/plant', { plotId: 'F1-1' });
+  // perennial: the tree stays; its next season takes the real time
   assert.equal(D.plotState(h.state, 'F1-1', h.now + TUTORIAL.firstGrowSeconds * 1000).stage, 'growing');
 });
-test('farm loop: EMPTY → PLANT → GROW → READY → HARVEST → EMPTY, no watering', () => {
+test('farm loop: EMPTY → PLANT → ESTABLISH → READY → HARVEST → the tree stays → next season → old → prune / uproot', () => {
   const h = playing();
   h.state.tutorial.farmDone = true; // real grow times (tutorial seeds ripen fast: own test below)
   const coins = h.state.player.coins;
@@ -52,9 +52,25 @@ test('farm loop: EMPTY → PLANT → GROW → READY → HARVEST → EMPTY, no wa
   h.tick(CROPS.robusta.growSeconds * 500);
   assert.equal(D.plotState(h.state, 'F1-1', h.now).stage, 'ready');
   h.must('farm/harvest', { plotId: 'F1-1' });
-  assert.equal(D.plotState(h.state, 'F1-1', h.now).stage, 'empty');
+  const st = D.plotState(h.state, 'F1-1', h.now);
+  assert.equal(st.stage, 'planted', 'perennial: the tree stays and starts its next season');
+  assert.equal(st.age, 1);
   assert.equal(h.state.inventory.beans, D.starYield(h.state, 'robusta', 3), 'picked right when ripe: 3★');
   assert.ok(h.state.player.xp > 0);
+  // one season of a grown tree (cycleSeconds), no new sapling to pay
+  const coins2 = h.state.player.coins;
+  h.tick(CROPS.robusta.cycleSeconds * 1000);
+  assert.equal(D.plotState(h.state, 'F1-1', h.now).stage, 'ready');
+  h.must('farm/harvest', { plotId: 'F1-1' });
+  assert.equal(h.state.player.coins, coins2);
+  // old tree: fewer beans; prune (only when old) makes it young again; uproot empties the field
+  assert.equal(h.act('farm/prune', { plotId: 'F1-1' }).error, 'notOld');
+  h.region().plots['F1-1'].n = CROPS.robusta.life;
+  assert.ok(D.treeOld(h.region().plots['F1-1']));
+  h.must('farm/prune', { plotId: 'F1-1' });
+  assert.equal(D.plotState(h.state, 'F1-1', h.now).age, 0);
+  h.must('farm/uproot', { plotId: 'F1-1' });
+  assert.equal(D.plotState(h.state, 'F1-1', h.now).stage, 'empty');
 });
 
 test('farm: cannot plant unowned plots or locked crops; storage full blocks harvest', () => {

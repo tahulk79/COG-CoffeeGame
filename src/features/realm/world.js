@@ -12,7 +12,7 @@
 // Each area gets its own instanced decor. Rebuilt only on store changes (sync), never per frame except the gate glow.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { BOUNDS, CAFE_BOUNDS, ROADS, ROAD_ORDER, PARCELS, GATE, RESERVED, rectCenter, inRect, areaOfParcel, rectsTouch, lotAllows, terrainOfLot } from '../../core/config/layout.js';
+import { BOUNDS, CAFE_BOUNDS, ROADS, ROAD_ORDER, PARCELS, GATE, RESERVED, rectCenter, inRect, areaOfParcel, rectsTouch, lotAllows, terrainOfLot, climateOfLot } from '../../core/config/layout.js';
 import { COUNTRIES, parseRegionId } from '../../core/config/world.js';
 import { region as regionOf, openRoads, frontierParcels, useOf, footprint } from '../../core/derive.js';
 import { t, formatNumber } from '../../i18n/index.js';
@@ -139,9 +139,17 @@ function groundGeometry(rect, bounds = BOUNDS) {
     // Slightly deeper green outside the playable area (forest floor) so the map reads as a clearing.
     const out = Math.max(bounds.minX - x, x - bounds.maxX, bounds.minZ - z, z - bounds.maxZ, 0);
     const b = (.9 + n * .2) * (1 - Math.min(.14, out * .012));
-    colors[i * 3] = b * (1 + .07 * warm);
-    colors[i * 3 + 1] = b * (1 + .02 * warm);
-    colors[i * 3 + 2] = b * (1 - .14 * warm);
+    // Coffee country by altitude (coffee-varieties.md §3): the farm climbs north — lowland stays sunny green, the upland
+    // shows red basalt soil through the grass (đất đỏ bazan), the highland is a deep cool green. Smooth bands in z.
+    const band = (z0, z1) => Math.max(0, Math.min(1, (z0 - z) / (z0 - z1)));
+    const up = band(1, -9) * (1 - band(-27, -37)), high = band(-27, -37);
+    // upland: patches where the grass is thin and the red basalt shows (noise-shaped, strongest mid-band)
+    const patch = Math.max(0, Math.min(1, (valueNoise(x / 4.5 + 9, z / 4.5, 5) - .38) * 3.2));
+    const soil = up * (.35 + .65 * patch);
+    const r = 1 + 1.25 * soil - .16 * high, g = 1 - .72 * soil - .02 * high, bl = 1 - .8 * soil - .04 * high;
+    colors[i * 3] = b * (1 + .07 * warm) * r;
+    colors[i * 3 + 1] = b * (1 + .02 * warm) * g;
+    colors[i * 3 + 2] = b * (1 - .14 * warm) * bl;
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   return geo;
@@ -287,9 +295,46 @@ export function createWorld({ scene, templates }) {
     cafe.add(pavement);
   }
 
+  // ---------- coffee hills around the farm (scenery only, outside BOUNDS): rows of coffee on the slopes, misty ----------
+  // Low-poly mounds north and on both sides, higher to the north (the highland), each with dark-green row stripes so
+  // the horizon reads as a coffee plantation, not a forest. One instanced draw call for the hills, one for the rows.
+  {
+    const rnd = mulberry32(404), b = BOUNDS;
+    const hillGeo = keep(new THREE.SphereGeometry(1, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2));
+    const hillMat = keep(new THREE.MeshStandardMaterial({ color: 0x6f9a4a, roughness: 1, flatShading: true }));
+    const rowGeo = keep(new THREE.TorusGeometry(1, .018, 4, 40, Math.PI).rotateX(-Math.PI / 2));
+    const rowMat = keep(new THREE.MeshStandardMaterial({ color: 0x2f5a2a, roughness: 1 }));
+    const hills = [];
+    // north (the highland's backdrop) and east (the camera looks north-east), close enough to show at full zoom-out
+    for (let i = 0; i < 9; i++) hills.push({ x: b.minX - 16 + i * (b.maxX - b.minX + 32) / 8 + (rnd() - .5) * 6, z: b.minZ - 30 - rnd() * 14, r: 20 + rnd() * 10, h: 10 + rnd() * 8 });
+    for (let i = 0; i < 6; i++) hills.push({ x: b.maxX + 20 + rnd() * 8, z: b.minZ + 4 + i * (b.maxZ - b.minZ) / 5.5, r: 14 + rnd() * 6, h: 6 + rnd() * 4 + 6 * (1 - i / 5) });
+    for (let i = 0; i < 4; i++) hills.push({ x: b.minX - 22 - rnd() * 6, z: b.minZ + 2 + i * 16, r: 14 + rnd() * 6, h: 8 + rnd() * 6 });
+    const hillMesh = keep(new THREE.InstancedMesh(hillGeo, hillMat, hills.length));
+    const rows = [];
+    hills.forEach(hl => { for (let k = 1; k <= 5; k++) rows.push({ ...hl, k }); });
+    const rowMesh = keep(new THREE.InstancedMesh(rowGeo, rowMat, rows.length));
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), col = new THREE.Color();
+    hills.forEach((hl, i) => {
+      hillMesh.setMatrixAt(i, m.compose(p.set(hl.x, -1, hl.z), q.identity(), s.set(hl.r, hl.h, hl.r * .8)));
+      hillMesh.setColorAt(i, col.setHSL(.24 + rnd() * .05, .38, .5 + rnd() * .08, THREE.SRGBColorSpace));
+    });
+    // contour rows: the hill's ring at height fraction k/6, facing the farm (half torus turned toward +z)
+    rows.forEach((rw, i) => {
+      const f = rw.k / 6, rr = Math.cos(Math.asin(f)) * 1.002;
+      const face = Math.atan2(0 - rw.x, 0 - rw.z) - Math.PI / 2;
+      rowMesh.setMatrixAt(i, m.compose(p.set(rw.x, -1 + f * rw.h + .05, rw.z), q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, face), s.set(rw.r * rr, 1, rw.r * .8 * rr)));
+    });
+    // the contour rows read as dark scratches at the phone's camera distance: only the hills are drawn
+    rowMesh.count = 0;
+    for (const mesh of [hillMesh]) { mesh.raycast = () => {}; mesh.receiveShadow = true; farm.add(mesh); }
+  }
+
   // ---------- shared small geometries ----------
   const geo = {
     bush: keep(new THREE.IcosahedronGeometry(.7, 0)),
+    wildTrunk: keep(new THREE.CylinderGeometry(.13, .2, 2.6, 6).translate(0, 1.3, 0)),
+    wildCrown: keep(new THREE.IcosahedronGeometry(1.15, 0).scale(1, 1.25, 1).translate(0, 3.1, 0)),
+    stump: keep(new THREE.CylinderGeometry(.22, .27, .32, 7).translate(0, .16, 0)),
     rock: keep(new THREE.DodecahedronGeometry(.5, 0)),
     sign: keep(signGeometry()),
   };
@@ -437,7 +482,7 @@ export function createWorld({ scene, templates }) {
     const tuftColor = () => new THREE.Color().setRGB(.85 + rnd() * .3, .9 + rnd() * .22, .8 + rnd() * .25);
     const wildColor = () => new THREE.Color().setRGB(1.05 + rnd() * .2, 1.02 + rnd() * .15, .72 + rnd() * .2);
     const tufts = [], flowers = [], rocks = [];
-    const wildTufts = {}, wildFlowers = {}, borderStones = {}, thickets = {};
+    const wildTufts = {}, wildFlowers = {}, borderStones = {}, thickets = {}, wildTrunks = {}, wildCrowns = {}, stumps = {};
     const b = cfg.bounds;
     const area = [b.minX - 8, b.minZ - 8, b.maxX + 8, b.maxZ + 8];
     const free = cfg.isFree;
@@ -491,7 +536,24 @@ export function createWorld({ scene, templates }) {
       // Overgrown land (farm lots not bought yet): thick bushes and a few rocks, clear of the sign.
       if (cfg.overgrow) {
         const bl = thickets[id] = [], rl = borderStones[id] = [];
-        const nb = Math.round((x1 - x0) * (z1 - z0) / 7);
+        // Wild forest still to be cleared (khai hoang): a few tall trees and cut stumps among the scrub
+        const tl2 = wildTrunks[id] = [], cl2 = wildCrowns[id] = [], sl = stumps[id] = [];
+        const nt = Math.max(2, Math.round((x1 - x0) * (z1 - z0) / 26));
+        for (let i = 0, tries = 0; i < nt && tries < 30; tries++) {
+          const x = x0 + 1.2 + rnd() * (x1 - x0 - 2.4), z = z0 + 1.2 + rnd() * (z1 - z0 - 2.4);
+          if (!ok(x, z) || Math.hypot(x - sp.x, z - sp.z) < 2.6) continue;
+          const k = .8 + rnd() * .5, rot = rnd() * 6.28;
+          tl2.push(item(x, 0, z, k, k * (1 + rnd() * .3), k, rot, new THREE.Color().setHSL(.07, .35, .3 + rnd() * .08, THREE.SRGBColorSpace)));
+          cl2.push(item(x, 0, z, k, k * (1 + rnd() * .3), k, rot, new THREE.Color().setHSL(.27 + rnd() * .06, .42, .26 + rnd() * .1, THREE.SRGBColorSpace)));
+          i++;
+        }
+        for (let i = 0; i < 3; i++) {
+          const x = x0 + .8 + rnd() * (x1 - x0 - 1.6), z = z0 + .8 + rnd() * (z1 - z0 - 1.6);
+          if (!ok(x, z)) continue;
+          const k = .8 + rnd() * .5;
+          sl.push(item(x, 0, z, k, k * (.7 + rnd() * .6), k, rnd() * 6.28, new THREE.Color().setHSL(.08, .3, .52 + rnd() * .1, THREE.SRGBColorSpace)));
+        }
+        const nb = Math.round((x1 - x0) * (z1 - z0) / 10);
         for (let i = 0; i < nb; i++) {
           const x = x0 + .6 + rnd() * (x1 - x0 - 1.2), z = z0 + .6 + rnd() * (z1 - z0 - 1.2);
           if (!ok(x, z)) continue;
@@ -528,6 +590,9 @@ export function createWorld({ scene, templates }) {
       flowers: dynamicInstances(flowerGeo, mats.flower, flowers, wildFlowers),
       rocks: dynamicInstances(geo.rock, mats.rock, rocks, borderStones),
       thickets: dynamicInstances(geo.bush, mats.thicket, [], thickets),
+      wildTrunks: dynamicInstances(geo.wildTrunk, mats.thicket, [], wildTrunks),
+      wildCrowns: dynamicInstances(geo.wildCrown, mats.thicket, [], wildCrowns),
+      stumps: dynamicInstances(geo.stump, mats.thicket, [], stumps),
     };
     for (const d of Object.values(out)) { d.mesh.receiveShadow = true; keep(d.mesh); target.add(d.mesh); }
     return out;
@@ -794,11 +859,12 @@ export function createWorld({ scene, templates }) {
       }
       e.sign.visible = st === 'sale'; // every for-sale lot (expand mode relies on this: all signs, not only near ones)
       if (st !== 'owned') { activeWild.push(p.id); if (farmLot) wildFarm.push(p.id); }
-      if (st === 'sale') e.label.set(t('realm.forSale', { price: formatNumber(p.cost) }));
+      if (st === 'sale') e.label.set(farmLot ? t('realm.forSaleZone', { price: formatNumber(p.cost), zone: t(`realm.zone.${climateOfLot(p.id)}`) }) : t('realm.forSale', { price: formatNumber(p.cost) }));
       if (st === 'owned' && p.kind === 'orchard') orchards.push(p.id);
     }
     for (const d of Object.values(decor)) { d.tufts.show(activeWild); d.flowers.show(activeWild); }
     decor.farm.thickets.show(wildFarm);
+    decor.farm.wildTrunks.show(wildFarm); decor.farm.wildCrowns.show(wildFarm); decor.farm.stumps.show(wildFarm);
     decor.farm.rocks.show([...open, ...wildFarm]); // border stones of open roads + rocks on overgrown land
     orchard.show(orchards, state);
     rebuildFences(owned);

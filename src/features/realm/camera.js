@@ -16,7 +16,7 @@ import { DEG, clamp, dampK } from './util.js';
 export const FOV = 38;
 export const PITCH = 52 * DEG;
 export const YAW = -45 * DEG; // founder: view turned 90° left (camera south-west of the target)
-const ZOOM_MIN = .45, ZOOM_MAX = 1.9; // ZOOM_MAX = default zoomMax (farm)
+const ZOOM_MIN = .45, ZOOM_MAX = 2.4; // ZOOM_MAX = default zoomMax (farm: far enough to see the coffee hills)
 const OVERVIEW_ZOOM = 3, OVERVIEW_MAX = 3.4; // land / expand mode: a portrait phone sees much more of the farm
 const FOCUS_FILL = .9;      // explicit frames fill ~90% of the shorter screen side
 const ZOOM_IN = .62;        // founder: closer default view than the original rig

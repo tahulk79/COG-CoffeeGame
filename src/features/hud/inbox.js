@@ -34,9 +34,9 @@ export function taskText(s, t) {
   return gmReasonText(t.reason);
 }
 
-export function inboxSheet(ctx) {
-  const act = (type, payload) => ctx.act(type, payload);
-  function openCard(s, t) {
+/** One open task as a card with its answer buttons (the inbox and the staff modal's «Cần bạn» list share it). */
+export function taskCard(ctx, s, t) {
+    const act = (type, payload) => ctx.act(type, payload);
     const left = taskLeftMs(s, t), life = Math.max(1, t.untilPlayed - t.atPlayed), share = Math.max(0, Math.min(1, left / life));
     const urgent = share < GM.look.urgentShare, critical = share < GM.look.ringLifeShare;
     const short = s.player.coins < t.cost;
@@ -58,7 +58,11 @@ export function inboxSheet(ctx) {
       h('p', { class: 'hud-inbox-meta' }, h('span', { class: 'hud-inbox-chip' }, T(`hud.inbox.kind.${t.kind}`)), h('span', null, who),
         t.cost > 0 ? h('span', { class: 'hud-inbox-cost' }, T('hud.gm.reqCost', { coins: fmt(t.cost) })) : null),
       h('div', { class: 'hud-row' }, ...btns));
-  }
+}
+
+export function inboxSheet(ctx) {
+  const act = (type, payload) => ctx.act(type, payload);
+  const openCard = (s, t) => taskCard(ctx, s, t);
   function doneRow(s, t) {
     const wait = Number.isFinite(t.answeredAtPlayed) ? Math.max(0, t.answeredAtPlayed - t.atPlayed) : null;
     const meta = [wait != null ? T('hud.inbox.after', { t: clock(wait) }) : null, t.fine > 0 ? T('hud.inbox.fine', { coins: fmt(t.fine) }) : null].filter(Boolean).join(' · ');

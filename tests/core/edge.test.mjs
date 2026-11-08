@@ -123,7 +123,7 @@ test('edge: every building upgrades to level 8 already in Round 1, then maxLevel
 // ---------- staff ----------
 test('edge: staff assigned in region A stays assigned there when travelling to B; bonus only applies in A', () => {
   const h = rich();
-  const base = Math.round(CROPS.robusta.growSeconds * 1000);
+  const base = Math.round(CROPS.robusta.cycleSeconds * 1000); // one season of a grown tree
   h.must('staff/hire', { type: 'farmhand' });
   const unit = h.state.staff.units[0];
   assert.deepEqual(unit.assigned, { regionId: 'vn-1', zone: 'farm' });

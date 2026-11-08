@@ -520,8 +520,7 @@ test('books, ledger, history: harvest / serve with uid earn, mistakes counted; l
   h.must('shop/spill', { orderId: 9, uid: bw });
   h.must('staff/mistake', { uid: bw, kind: 'wrongTable' });
   assert.equal(unit(h, bw).book.mistakes, 2);
-  // Without uid nothing changes (the player's own work)
-  h.must('farm/plant', { plotId: plot });
+  // Without uid nothing changes (the player's own work); the tree stays, next season
   h.tick(D.plotGrowMs(h.state, h.region().plots[plot]));
   h.must('farm/harvest', { plotId: plot });
   assert.equal(unit(h, fw).book.earned, beans * BEANS.sellPrice);

@@ -24,7 +24,7 @@ import * as THREE from 'three';
 import { BUILDINGS, CROPS, CROP_ORDER, DRINKS, GOODS, VENUES, VENUE_ORDER } from '../../core/config/economy.js';
 import { PARCELS, ROADS, inRect, GATE, FIXED, CUSTOMER, CAFE_SEATS, AREAS, BOUNDS, CAFE_BOUNDS, RESERVED, VENUE_LOTS, SHOP_FRAMES, STREET_FRAME, SHOP_ORDER, shopAt, parcelAt, areaAt, areaOfParcel } from '../../core/config/layout.js';
 import { readSettings } from '../../state/progress.js';
-import { region as regionOf, footprint, upgradeError, parcelError, seatCount, seatsUsed, brewSlots, seatPatienceRatio, ownedPlots, plotOf, capacity, stored, cropUnlocked, seedCost, canPlay, cafeStaffed, regionGame, venueOpen, venueError, farmViewBounds, roadOpen, defOf, tileAt, jobState, prodError, collectError, sellAllQuote, unitOf, unitState, unitBlocked, quickFix, workerPoach } from '../../core/derive.js';
+import { pickCropFor, climateOfPlot, climateFit, region as regionOf, footprint, upgradeError, parcelError, seatCount, seatsUsed, brewSlots, seatPatienceRatio, ownedPlots, plotOf, capacity, stored, cropUnlocked, seedCost, canPlay, cafeStaffed, regionGame, venueOpen, venueError, farmViewBounds, roadOpen, defOf, tileAt, jobState, prodError, collectError, sellAllQuote, unitOf, unitState, unitBlocked, quickFix, workerPoach } from '../../core/derive.js';
 import { currentStep } from '../../core/tutorial.js';
 import { t as tr } from '../../i18n/index.js';
 import { loadModel } from '../../shared/three/models.js';
@@ -149,7 +149,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   const world = createWorld({ scene, templates });
   const venues = createVenueScene({ scene, templates }); // the 3 street shops (shopfronts, counters, stools)
   const staticBlockers = [...world.blockers, ...venues.blockers]; // city houses + venue shops (constant)
-  const plots = createPlots({ scene, templates, vfx });
+  const plots = createPlots({ scene, templates, vfx, getActiveCrop: () => activeCrop });
   const buildings = createBuildings({ scene, prefabs, templates, vfx });
   // Grid pathfinding, one navigator per area (nav.js): shared by the player's walks, staff and customers.
   // Agent radius .45 m keeps paths clear of the avatar's own collision margin.
@@ -764,9 +764,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   const auto = { on: false, phase: 'pause', wait: 0, timer: 0, step: null, caption: null, target: null, idleT: 0 };
   const autoNearest = list => { let best = null, bd = Infinity; for (const p of list) { const d = Math.hypot(p.x - avatar.position.x, p.z - avatar.position.z); if (d < bd) { bd = d; best = p; } } return best; };
   function autoCrop(state) {
-    if (cropUnlocked(state, activeCrop) && seedCost(state, activeCrop) <= state.player.coins) return activeCrop;
-    for (let i = CROP_ORDER.length - 1; i >= 0; i--) if (cropUnlocked(state, CROP_ORDER[i]) && seedCost(state, CROP_ORDER[i]) <= state.player.coins) return CROP_ORDER[i];
-    return null;
+    return pickCropFor(state, null, activeCrop);
   }
   const say = (key, params = null, target = null) => { auto.caption = key ? { key, params } : null; auto.target = target; };
   function autoGo(x, z, key, params, target, act) {

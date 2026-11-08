@@ -2,9 +2,9 @@
 // Venue card ({ kind: 'venue', venue }, docs/design/cafe-street.md §3.8): a street shop — icon, name, pitch, menu with
 // prices; locked → level gate or "Open X 🪙cost" (shop/openVenue; a 2nd tap after paying is a core noop); open →
 // ⭐ rating (+ review count), sold this session (ctx.venueSold, counted in feedback.js) and "Go to X" (realm.focusShop).
-import { BUILDINGS, CROPS, GOODS, GOOD_ORDER, VENUES, VENUE_ITEMS } from '../../core/config/economy.js';
-import { PARCELS, lotAllows, terrainOfLot } from '../../core/config/layout.js';
-import { region, plotOf, plotState, upgradeCost, upgradeError, levelCap, parcelError, seedCost, capacity, stored, goodCount, seatCount, seatsUsed, venueError, venueOpen, venueRating, venueReviews, venueItems,
+import { BUILDINGS, CROPS, GOODS, GOOD_ORDER, VENUES, VENUE_ITEMS, PERENNIAL } from '../../core/config/economy.js';
+import { PARCELS, lotAllows, terrainOfLot, climateOfLot } from '../../core/config/layout.js';
+import { climateOfPlot, climateFit, beanMix, sellQuote, plotGrowMs as plotGrowMsOf, treeAge, treeOld, pruneCost, region, plotOf, plotState, upgradeCost, upgradeError, levelCap, parcelError, seedCost, capacity, stored, goodCount, seatCount, seatsUsed, venueError, venueOpen, venueRating, venueReviews, venueItems,
   removeError, removeRefund, wellBonus, recipeIO, jobState, prodError, missingInput, collectError, countOf, maxCount, buildCost, buildError, nextLimitLevel, tileAt } from '../../core/derive.js';
 import { newTxId } from '../../core/store.js';
 import { h, setText } from './dom.js';
@@ -73,7 +73,11 @@ export function createActionBar(ctx) {
         const st = plotState(s, target.id, now);
         const crop = ctx.realm?.activeCrop || 'robusta';
         const rmErr = removeError(s, target.id);
-        return { kind: 'plot', id: target.id, stage: st.stage, crop: st.crop || null, active: crop, seed: seedCost(s, crop),
+        const zone = climateOfPlot(s, target.id), pl = region(s).plots[target.id];
+        const drop = st.crop && CROPS[st.crop].drop, ripeFor = st.stage === 'ready' && pl ? Math.floor((now - pl.plantedAt) / 1000) - Math.round(plotGrowMsOf(s, pl, target.id) / 1000) : 0;
+        return { kind: 'plot', id: target.id, stage: st.stage, crop: st.crop || null, active: crop, seed: seedCost(s, crop), zone, fit: climateFit(st.crop || crop, zone),
+          dropping: !!drop && ripeFor > drop.after, dropSoon: !!drop && ripeFor >= 0 && ripeFor <= drop.after, wave: pl?.wave ? 2 : st.crop && CROPS[st.crop].waves ? 1 : 0,
+          age: pl ? treeAge(pl) : 0, old: treeOld(pl), pruned: !!pl?.pruned, prune: pl ? pruneCost(pl.crop) : 0, coinsOk: pl ? coins >= pruneCost(pl.crop) : false,
           rmErr, refund: rmErr ? 0 : removeRefund(s, target.id), armed: isArmed(target.id), well: Math.round(wellBonus(s, target.id) * 100) };
       }
       case 'land': {
@@ -107,7 +111,7 @@ export function createActionBar(ctx) {
             cErr: js.stage === 'ready' ? collectError(s, b, now) : null };
         }
         // Storehouse / barn: every good stored, its price, the shared capacity.
-        if (def.effect?.capacity) m.store = { goods: GOOD_ORDER.map(g => [g, Math.floor(goodCount(s, g))]), stored: stored(s), cap: capacity(s) };
+        if (def.effect?.capacity) m.store = { goods: GOOD_ORDER.map(g => [g, Math.floor(goodCount(s, g))]), stored: stored(s), cap: capacity(s), mix: beanMix(s), beanCoins: sellQuote(s, 'beans').coins };
         if (b.type === 'orderCounter' || b.type === 'tables') m.seats = { used: seatsUsed(s), seats: seatCount(s) };
         return m;
       }
@@ -184,12 +188,19 @@ export function createActionBar(ctx) {
   function plotCard(m, s) {
     const crop = CROPS[m.crop];
     setText(title, crop ? `${crop.icon} ${T(`crop.${crop.id}`)}` : `🟫 ${T('hud.plot.soil')}`);
+    // Growing zone (vùng trồng) and how the crop in the bed / the seed in hand fits it (coffee-varieties.md).
+    const forCrop = m.crop || m.active;
+    body.append(h('p', { class: `hud-line${m.fit === 'bad' ? ' hud-line--bad' : m.fit === 'good' ? ' hud-line--good' : ' hud-line--muted'}` },
+      `${T(`zone.${m.zone}.icon`)} ${T(`zone.${m.zone}`)} · `, T(`hud.plot.fit.${m.fit}`, { crop: T(`crop.${forCrop}`) })));
     if (m.stage === 'empty') {
       const active = CROPS[m.active];
       body.append(h('p', { class: 'hud-line' }, T('hud.plot.empty', { crop: T(`crop.${m.active}`), icon: active.icon })),
         h('div', { class: 'hud-row' }, actionButton({ label: T('hud.plot.changeSeed'), icon: '🌱', tone: 'plain', onClick: () => ctx.onTool('seeds') })));
     } else if (m.stage === 'ready') {
       body.append(h('p', { class: 'hud-line hud-line--good' }, T('hud.plot.ready')), h('p', { class: 'hud-hint' }, T('hud.plot.harvestHint')));
+      if (m.dropping) body.append(h('p', { class: 'hud-line hud-line--bad' }, T('hud.plot.dropping')));
+      else if (m.dropSoon) body.append(h('p', { class: 'hud-line hud-line--muted' }, T('hud.plot.dropSoon')));
+      if (m.wave) body.append(h('p', { class: 'hud-line hud-line--muted' }, T(`hud.plot.wave${m.wave}`)));
     } else {
       const time = h('strong', { class: 'hud-countdown' });
       body.append(h('p', { class: 'hud-line' }, T('hud.plot.growing'), ' ', time));
@@ -197,6 +208,24 @@ export function createActionBar(ctx) {
       updateCountdown(s);
     }
     if (m.well) body.append(h('p', { class: 'hud-line hud-line--muted' }, T('fw.field.wellOn', { v: m.well })));
+    // Perennial tree (coffee-varieties.md §2b): its age in seasons; an old tree is cut back (cưa đốn) or replaced.
+    if (crop) {
+      const life = crop.life || 0;
+      body.append(h('p', { class: `hud-line${m.old ? ' hud-line--bad' : ' hud-line--muted'}` },
+        m.old ? T('hud.tree.old', { n: m.age, pct: Math.round(PERENNIAL.oldYield * 100) })
+          : m.age === 0 ? T(m.pruned ? 'hud.tree.regrow' : 'hud.tree.young') : T('hud.tree.age', { n: m.age, left: Math.max(0, life - m.age) })));
+      const tools = [];
+      if (m.old) tools.push(actionButton({ id: 'treePrune', label: T('hud.tree.prune'), icon: '🪚', cost: m.prune, tone: 'gold', disabled: !m.coinsOk || m.stage === 'ready',
+        note: m.stage === 'ready' ? T('hud.tree.pickFirst') : !m.coinsOk ? needMore(m.prune - Math.floor(s.player.coins)) : null,
+        onClick: () => { if (ctx.blockedByAuto?.()) return; ctx.act('farm/prune', { plotId: m.id }); } }));
+      tools.push(actionButton({ id: 'treeUproot', label: T('hud.tree.uproot'), icon: '🪓', tone: 'plain',
+        onClick: async () => {
+          if (ctx.blockedByAuto?.()) return;
+          const yes = await ctx.confirm({ title: T('hud.tree.uprootTitle', { crop: T(`crop.${crop.id}`) }), body: T('hud.tree.uprootBody', { n: m.age }), confirmLabel: T('hud.tree.uproot') });
+          if (yes) ctx.act('farm/uproot', { plotId: m.id });
+        } }));
+      body.append(h('div', { class: 'hud-row' }, ...tools));
+    }
     // Field tools: Move (keeps a growing crop) · Clear (only empty fields; always two taps, "Clear field?" first).
     body.append(h('div', { class: 'hud-row hud-row--tools' },
       actionButton({ id: 'fieldMove', label: T('fw.field.move'), icon: '✥', tone: 'plain',
@@ -256,12 +285,14 @@ export function createActionBar(ctx) {
     let kinds = 0, total = 0;
     for (const [g, n] of st.goods) {
       if (g !== 'beans' && n <= 0) continue; // beans always listed: the tutorial's Sell button lives on that row
-      if (n > 0) { kinds++; total += n * GOODS[g].price; }
-      const beans = g === 'beans';
+      const beans = g === 'beans', value = beans ? st.beanCoins : n * GOODS[g].price;
+      if (n > 0) { kinds++; total += value; }
+      // Beans per variety, each at its own price (Arabica is never processed: sold raw to specialty roasters).
+      const mixLine = beans && n > 0 ? Object.entries(st.mix).filter(([, k]) => k > 0).map(([c, k]) => `${CROPS[c].icon} ${T(`crop.${c}`)} ×${fmt(k)} · ${fmt(CROPS[c].price)}`).join('  ') : null;
       list.append(h('li', { class: 'hud-good' },
         h('span', { class: 'hud-good-ico', attrs: { 'aria-hidden': 'true' } }, GOODS[g].icon),
-        h('span', { class: 'hud-good-text' }, h('strong', null, `${T(`good.${g}`)} ×${fmt(n)}`), h('small', null, T('fw.goods.each', { price: fmt(GOODS[g].price) }))),
-        actionButton({ id: beans ? 'sellBeans' : `sell-${g}`, label: T('fw.goods.sell', { n: fmt(n) }), cost: n > 0 ? n * GOODS[g].price : null, tone: 'gold', disabled: n < 1,
+        h('span', { class: 'hud-good-text' }, h('strong', null, `${T(`good.${g}`)} ×${fmt(n)}`), h('small', null, mixLine || T('fw.goods.each', { price: fmt(GOODS[g].price) }))),
+        actionButton({ id: beans ? 'sellBeans' : `sell-${g}`, label: T('fw.goods.sell', { n: fmt(n) }), cost: n > 0 ? value : null, tone: 'gold', disabled: n < 1,
           note: beans && n < 1 ? T('hud.beans.none') : null, onClick: () => (beans ? ctx.act('farm/sellBeans') : ctx.act('farm/sell', { good: g })) })));
     }
     wrap.append(list);
@@ -305,9 +336,17 @@ export function createActionBar(ctx) {
     setText(title, `${ICONS[p.kind] || '🌾'} ${T(`hud.parcel.${p.kind}`, { id: p.id })}`);
     if (m.err === 'owned') { body.append(h('p', { class: 'hud-line hud-line--good' }, T('hud.parcel.owned'))); return; }
     body.append(h('p', { class: 'hud-line' }, T(`hud.parcel.${p.kind}Info`)));
+    // Growing zone of the land and the varieties that suit it (coffee-varieties.md §3): what to plant before you buy.
+    const farmArea = p.kind !== 'shop', zone = climateOfLot(p.id);
+    if (farmArea && !lotAllows(p.id, 'field')) body.append(h('p', { class: 'hud-line hud-line--muted' }, `${T(`zone.${zone}.icon`)} ${T(`zone.${zone}`)} · `, T(`hud.zone.soil.${zone}`)));
+    else if (farmArea) {
+      const fits = ['robusta', 'arabica', 'liberica'].map(c => ({ c, f: climateFit(c, zone) }));
+      body.append(h('p', { class: 'hud-line hud-line--muted' }, `${T(`zone.${zone}.icon`)} ${T(`zone.${zone}`)} · `, T(`hud.zone.soil.${zone}`)),
+        h('p', { class: 'hud-line' }, ...fits.map(({ c, f }) => h('span', { class: `hud-fit is-${f}` }, `${CROPS[c].icon} ${T(`crop.${c}`)} ${f === 'good' ? '★' : f === 'bad' ? '−' : '✓'} `))));
+    }
     // Far land: no open road reaches it yet → buy the land next to it first.
     if (m.err === 'road') { body.append(h('p', { class: 'hud-line hud-line--muted' }, '🔒 ', T('hud.parcel.noRoad'))); return; }
-    body.append(h('div', { class: 'hud-row' }, actionButton({ id: 'buy', label: T('hud.buy'), icon: '🏷️', cost: p.cost, disabled: m.err === 'coins',
+    body.append(h('div', { class: 'hud-row' }, actionButton({ id: 'buy', label: T(farmArea ? 'hud.parcel.clear' : 'hud.buy'), icon: farmArea ? '🪓' : '🏷️', cost: p.cost, disabled: m.err === 'coins',
       note: m.err === 'coins' ? needMore(m.missing) : null, onClick: () => ctx.act('land/buyParcel', { parcelId: p.id }) })));
   }
 
