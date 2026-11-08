@@ -80,7 +80,7 @@ export const PENALTY = {
   loyalty: 3, loyaltyDay: 15, morale: 3, moraleZoneDay: 30, strikeMoralePerMin: 1,
   backlog: { waitAt: 3, poachAt: 6, strikeAt: 8, waitMin: 10, decayEveryMin: 10, decay: 1, emptyDecay: 2 },
   apologiseSalaries: 2, apologiseLoyalty: 10, lateLoyalty: 1, returnLoyaltyCap: 40,
-  cooldownMin: { denied: 15, expired: 10, done: 1, failed: 1 },
+  cooldownMin: { denied: 5, expired: 3, done: 1, failed: 1 }, // 15 / 10 → 5 / 3 (founder 2026-11-08: a phone session is short)
 };
 // Nhật ký — the unified history (management-rules §1.3 / §5). rows: shared ring; perUnit: each unit's own ring
 // (u.recent, the manager's s.gm.unit.recent); days: per-day rows per actor (distinct days kept); tombstones: units
@@ -390,7 +390,8 @@ export const GM = {
   defaults: { mode: 'operator', budget: 100, bigLimit: 300 },
   limitDefaults: { autoMul: 0.3, autoStep: 50, bigMul: 1, bigStep: 100, highValueMul: 20 },
   windowMinutes: 10,
-  thinkSeconds: [20, 15, 10, 7, 5], actionsPerThink: [1, 1, 2, 2, 3], // by skill 1..5
+  thinkSeconds: [8, 6, 5, 4, 3], // was [20, 15, 10, 7, 5] (founder 2026-11-08: the manager must react within a phone session)
+  actionsPerThink: [1, 1, 2, 2, 3], // by skill 1..5
   // requestMinutes / requestsKeep / poach.keepSeconds: superseded by TASKS.life / TASKS.cap (requests and rival offers are
   // inbox tasks now; kept for older callers). logKeep: rows of the manager's log view (D.gmLog).
   requestMinutes: 5, requestsKeep: 6, logKeep: 30, daysKeep: 7,
@@ -436,7 +437,7 @@ export const GM = {
   //  offscreenEvery: the zone not on screen is thought about every n-th think (care + trade + plan rows only);
   //  statOf: the worker stat that fits a job (fit = fitBase + fitPerStat × stat); thinkSlowMul: backlog ≥
   //  PENALTY.backlog.waitAt → cadence × this and one action per think.
-  plan: { lockWorkers: { farm: true, shop: false }, everyMin: 20, targetMul: 1.1, targetRound: 10, offscreenEvery: 2, fitBase: 0.5, fitPerStat: 0.1, thinkSlowMul: 2,
+  plan: { lockWorkers: { farm: true, shop: false }, everyMin: 10, targetMul: 1.1, targetRound: 10, offscreenEvery: 2, fitBase: 0.5, fitPerStat: 0.1, thinkSlowMul: 2,
     statOf: { harvest: 'accuracy', deliver: 'speed', plant: 'stamina', water: 'stamina', order: 'smart', brew: 'smart' } },
   // score = urgency band × (value + 1) / (cost / I10 + costFloor) × styleMul[style][styleGroup]
   urgency: { blocking: 5, storage: 5, orders: 4, idlePlots: 3, morale: 3, growth: 2, cosmetic: 1 },
@@ -465,12 +466,12 @@ export const GM = {
   // filing and again from its approval; a lot needs windowMin samples of its own before it can be sold. Utilisation is
   // sampled once per played minute (windowMin kept).
   // boundEveryMin: a land-bound farm (D.landBound: more hands than plots) asks for land this often
-  land: { buyPaybackMin: 45, busyPct: 0.85, coinsMul: 1.2, sellUtil: 0.2, windowMin: 30, everyMin: 30, boundEveryMin: 10, coolActs: ['land/buyParcel', 'land/sell'] },
+  land: { buyPaybackMin: 45, busyPct: 0.85, coinsMul: 1.2, sellUtil: 0.2, windowMin: 30, everyMin: 10, boundEveryMin: 2, coolActs: ['land/buyParcel', 'land/sell'] },
   // Buildings (§3.7): upgrade one when its production queue was full ≥ fullMin played minutes and it pays back ≤ paybackMin.
   building: { fullMin: 10, paybackMin: 45 },
   // Loans (§3.7): a capital job the coins cannot pay may file a loan task when its payback < term × paybackTermShare;
   // one loan task per everyMin. Repay alone when coins ≥ owed + care wallet + autoLimit (up to autoLimit).
-  loanRule: { everyMin: 30, paybackTermShare: 0.5 },
+  loanRule: { everyMin: 10, paybackTermShare: 0.5 },
   // Real-money top-up (§3.7, §8 Q2): only a proposal, after afterDenied denied loan tasks today and I10 <
   // incomeShare × plan.target, at most perDay a day, never penalised. No real-money store exists yet: approving it only
   // logs the answer.
@@ -549,7 +550,7 @@ export const QUALITY = { price: [1, 1, 1.2, 1.5], yield: [1, 1, 1.25, 1.5], fres
 // Tending (farm): a worker with nothing to do (every field growing) shows a 🪙 bubble; paying `fee` sends it to water
 // up to `plots` growing plots, each ripening `speedup` × its grow time sooner. Workers only (robots do one task).
 // bucketPlots: a tending worker fills a bucket at the farm well (layout FARM_WELL) and waters that many plants per trip.
-export const TEND = { fee: 15, plots: 4, speedup: 0.3, bucketPlots: 2 };
+export const TEND = { fee: 15, plots: 4, speedup: 0.3, bucketPlots: 4 }; // one trip to the well waters every paid plant
 export const isHardDrink = drink => QUALITY.hardDrinks.includes(drink);
 
 // Small staff mistakes (docs/design/staff-upgrades.md §2.2): chance per job by worker ACCURACY 1..5 (index 0..4), ×

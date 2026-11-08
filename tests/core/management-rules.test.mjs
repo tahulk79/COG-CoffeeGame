@@ -401,7 +401,7 @@ test('throttle: backlog 3 → Chờ lệnh (10 min), 6 → poachable, 8 → stri
   assert.equal(gm(e).backlog, 1, 'a task of his open: −1');
 });
 
-test('deny: no penalty, loyalty −1, cooldown 15 played min, backlog −1', () => {
+test('deny: no penalty, loyalty −1, cooldown PENALTY.cooldownMin.denied played min, backlog −1', () => {
   const h = withGm(6);
   h.state.gm.unit.backlog = 1;
   const coins = h.state.player.coins;
@@ -413,7 +413,7 @@ test('deny: no penalty, loyalty −1, cooldown 15 played min, backlog −1', () 
   assert.equal(gm(h).loyalty, 62);
   assert.equal(gm(h).backlog, 0);
   assert.equal(D.taskCooling(h.state, 'k:deny'), true);
-  play(h, 15 * MIN - 1000);
+  play(h, PENALTY.cooldownMin.denied * MIN - 1000);
   assert.equal(D.taskCooling(h.state, 'k:deny'), true);
   play(h, 1000);
   assert.equal(D.taskCooling(h.state, 'k:deny'), false);
@@ -702,16 +702,16 @@ test('land: sell refund 0.6 × price; never a starter / the last lot; a freshly 
   assert.equal(D.landSellError(h.state, 'F2'), 'notOwned');
 });
 
-test('planner: ≤ 1 land proposal per 30 played min', () => {
+test('planner: ≤ 1 land proposal per GM.land.everyMin played min', () => {
   const h = withGm(6);
   h.must('gm/buyLicence', { group: 'land' });
   withRules([rule('l1', 'land/sell', 'land'), rule('l2', 'land/buyParcel', 'land')], () => {
     h.must('gm/think', { roll: 0.5 });
     assert.equal(D.gmRequests(h.state).filter(t => t.kind === 'land').length, 1);
     assert.equal(h.state.tasks.cool.land, D.playedMs(h.state) + GM.land.everyMin * MIN);
-    play(h, 10 * MIN);
+    play(h, GM.land.everyMin * MIN - 1000);
     h.must('gm/think', { roll: 0.5 });
-    assert.equal(D.gmRequests(h.state).filter(t => t.kind === 'land').length, 1);
+    assert.equal(D.gmRequests(h.state).filter(t => t.kind === 'land').length, 1, 'still cooling one second before the end');
   });
 });
 
