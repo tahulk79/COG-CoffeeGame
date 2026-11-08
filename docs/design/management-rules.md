@@ -637,6 +637,20 @@ New: `gm/think` (renames `gm/tick`), `gm/planDay`, `gm/train {stat}`, `gm/buyLic
 
 ### 7.4 Phased rollout (each shippable alone)
 
+**Balance pass 2 (2026-11-08, founder: "ok" to the five proposals):**
+- **GM value gate premise changed.** "< 0 at ≤ 2 units" is dropped: on the farm the manager's worth comes from growth decisions (crops, land, upgrades), so even a team of 2 gained +39 coins/min of net worth. New gate: from 4 units the 95 % interval of Δ net worth is > 0 **and** the manager pays back his fee + licences within 60 played minutes; ≤ 2 units is shown for information.
+- **Café manager uses free care first:** a hungry café worker goes to the free 60-s lunch (rule `lunchShop`, every style); paid food stays a farm choice. Beans are still bought only when waiting cups need them (`beansLow`).
+- **Upgrade buttons show the planner's payback** ("Hoàn vốn ~X phút", amber past 90 min, "Lúc này chưa đáng" when the step adds nothing now) and the café shows "Quán đang thiếu khách, không thiếu người" when the measured load says staff are not the bottleneck. Late café stat / gear prices are kept (they still pay on the farm).
+- **Neglect fines unchanged:** the calmer manager files fewer tasks, so 45 min of neglect costs the café ≈ 5 % of I30 instead of 8–12 %; the per-task fine is as designed.
+- **Sim persona:** the delegate hires a first helper from Lv3 (a real player does), so the Lv3 running-cost rows measure a roster.
+
+**Founder feedback 2026-11-08 ("rich, many staff, 2 lots — the manager is asleep"):**
+- A job held back only by a missing licence (land, beans, credit) now files an **inbox task** for that licence ("Sếp cấp giấy phép Đất & xây giúp em, em làm được ngay: mua lô F2"), instead of a quiet suggestion in the manager's tab.
+- **Land-bound farm** (`D.landBound`: farm units × `GM.planRules.plotsPerWorker` 3 > plots): no more hires (`hireRoom` capped at ⌈plots / 3⌉), and land is proposed every `GM.land.boundEveryMin` 10 min instead of 30.
+- **Farm well** (giếng nước, layout `FARM_WELL`, south-west edge of the gate plaza): tending workers walk to it, fill a bucket (`TEND.bucketPlots` 2 plants per trip), carry it and water.
+
+**Gate run after balance pass 1 (`--gates --runs 10 --gm-seeds 6`): 41 PASS, 13 FAIL, 2 SKIP** (before: 38 / 41): 3 vacuous cost rows (no unit at Lv3 / no manager at farm Lv6), 6 late café / farm stat and gear paybacks of 105–343 min, café neglect 5.3 %, farm neglect read at Lv7, GM value farm N=2 +39 (old premise) and café N=4 −14.
+
 **GM net value gate, measurement (changed 2026-11-08):** Δ **net worth** (coins − debt + buildings, lots, units' hire / parts / software / gear / stat steps at cost; fees, licences, care, salary and fines are lost) per played minute over **40** played minutes (the throughput payback horizon) from the region-2 hire, manager vs the same coins sunk. Cash over 20 min counted every upgrade the delegate approved as a loss and none of what it bought.
 
 | Phase | Ships | Tests that change / are added | Sim gate |

@@ -642,7 +642,7 @@ function answerYes(s, t, { how = 'bonus', roll = 0.5, late = false }, ev, ctx) {
   const ok = s.player.coins >= t.cost && gmRun(s, { key: t.key, act: t.act, cost: t.cost, reason: t.reason }, ctx, ev, { roll, budget: false, approved: true, taskId: t.id });
   if (late) { t.status = ok ? 'late' : 'failed'; t.answeredAtPlayed = D.playedMs(s); } else closeTask(s, t, ok ? 'approved' : 'failed');
   if (ok) { if (late) delete tasksOf(s).cool[t.key]; else cool(s, t.key, 'done'); }
-  if (ok) { if (GM.land.coolActs.includes(t.act?.type)) cool(s, 'land', null, GM.land.everyMin); } // ≤ 1 land proposal per everyMin, from the deal too
+  if (ok) { if (GM.land.coolActs.includes(t.act?.type)) cool(s, 'land', null, D.landEveryMin(s)); } // ≤ 1 land proposal per everyMin, from the deal too
   else {
     cool(s, t.key, 'failed'); // re-filed after the cooldown
     gmLog(s, ctx.now, 'failed', { key: t.key, reason: t.reason }, { taskId: t.id });
@@ -2006,7 +2006,7 @@ const handlers = {
         if (!t) continue;
         filed++;
         if (loan) cool(s, 'loan', null, GM.loanRule.everyMin);
-        if (landDeal && !loan) cool(s, 'land', null, GM.land.everyMin);
+        if (landDeal && !loan) cool(s, 'land', null, D.landEveryMin(s));
         if (item.kind === 'topUp') { const tu = topUpOf(s); tu.filed = (tu.filed || 0) + 1; }
         gmLog(s, ctx.now, 'asked', { key: item.key, reason: item.reason, cost: item.cost }, { taskId: t.id });
         g.lastJobAt = ctx.now;

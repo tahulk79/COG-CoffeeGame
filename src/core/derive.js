@@ -1173,6 +1173,9 @@ export function gmSnapshot(s, now, zone, offscreen = false) {
     snap.emptyPlots = plots.filter(p => !r.plots[p.id]).length;
     snap.busyPct = plots.length ? plots.filter(p => r.plots[p.id]).length / plots.length : 0;
     snap.piling = snap.ripeWaiting;
+    // land-bound farm (founder 2026-11-08: "many staff, 2 lots"): no more hands than plots can feed — one farm unit per
+    // GM.planRules.plotsPerWorker plots; past that, land is the bottleneck and the manager asks for land, not people
+    snap.hireRoom = Math.min(snap.hireRoom, Math.max(0, Math.ceil(plots.length / GM.planRules.plotsPerWorker) - zoneUnits(s, zone).length));
     snap.buildings = (r.buildings || []).filter(b => recipeOf(b)).map(b => ({ id: b.uid, b, prodReady: !!b.job && !collectError(s, b, now), prodIdle: !b.job && okOrCoins(prodError(s, b)) && !missingInput(s, b) }));
     if (!offscreen) Object.assign(snap, landSnap(s, snap), buildSnap(s));
   } else if (zone === 'shop' && r) {
@@ -1197,6 +1200,9 @@ export function gmSnapshot(s, now, zone, offscreen = false) {
   }
   return snap;
 }
+/** Farm with more hands than land (units × plotsPerWorker > plots): the manager proposes land more often. */
+export const landBound = s => zoneUnits(s, 'farm').length * GM.planRules.plotsPerWorker > ownedPlots(s).length;
+export const landEveryMin = s => (landBound(s) ? GM.land.boundEveryMin : GM.land.everyMin);
 function landSnap(s, snap) {
   const L = GM.land, out = { landBuyOk: false, landSellOk: false, landBuy: null, landSell: null };
   const crop = chooseCrop(s);
@@ -1375,7 +1381,15 @@ export function gmCandidates(s, now, { offscreen = true } = {}) {
       }
     }
   }
-  for (const c of playerAdvice(s, now, on)) list.push(c);
+  // A job held back ONLY by a missing licence (land, beans, credit — founder 2026-11-08: "rich, many staff, 2 lots,
+  // the manager does nothing"): he asks for that licence now, as an inbox task the player approves (and pays), instead
+  // of a quiet suggestion in his tab. One per licence; the blocked job's value carries over so it ranks honestly.
+  const need = {};
+  if (s.gm?.unit && s.gm.mode !== 'advisor') for (const c of list) if (c.licence && c.group !== 'advice' && !gmLicensed(s, c.licence) && licencePrice(c.licence) > 0 && !need[c.licence]) need[c.licence] = c;
+  for (const [grp, c] of Object.entries(need)) list.push({ key: `licence:${grp}`, rule: 'licence', zone: c.zone, group: 'capital', licence: null, kind: 'staffGrowth',
+    act: { type: 'gm/buyLicence', payload: { group: grp } }, cost: licencePrice(grp), value: c.value, sale: 0, urgency: 'growth', score: c.score,
+    reason: ['licenceFor', { lic: grp, for: c.reason }], subject: null, always: true, noFile: false, offscreen: false, tier: 'big', bigLimit });
+  for (const c of playerAdvice(s, now, on)) if (!need[c.act?.payload?.group] || c.act?.type !== 'gm/buyLicence') list.push(c);
   return { list: list.sort((a, b) => b.score - a.score || a.key.localeCompare(b.key)), hits };
 }
 /**

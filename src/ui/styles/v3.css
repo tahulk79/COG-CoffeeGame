@@ -612,6 +612,9 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
 .hud-sm-back:active{background:#0000000d}
 .hud-sm-line{margin:0;font:700 12px/1.4 var(--h-font);color:var(--h-ink-soft)}
 .hud-sm-line>span{white-space:nowrap}
+.hud-sm-payback{display:block;font:700 11px/1.3 var(--h-font);color:var(--h-ok,#3f6b1f)}
+.hud-sm-payback.is-low{color:#a2621a}
+.hud-sm-warn{margin:4px 0 8px;padding:6px 10px;border-radius:10px;background:#fff1d6;color:#7a4a12;font:700 12px/1.35 var(--h-font)}
 .hud-sm-line>span.hud-sm-ticket{white-space:normal;overflow-wrap:anywhere} /* long "free hire ticket" sentence: wrap, never overflow the phone width */
 .hud-sm-tabs{margin:8px 0 2px}
 .hud-sm-badge{display:inline-grid;place-items:center;min-width:18px;height:18px;margin-left:4px;padding:0 5px;border-radius:99px;background:var(--h-red);color:#fff;font:800 11px/1 var(--h-font);vertical-align:middle}

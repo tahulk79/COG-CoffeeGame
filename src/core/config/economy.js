@@ -430,7 +430,7 @@ export const GM = {
   careWallet: { min: 50, rosterMul: 1.5, workerPer10: 35, robotExtra: 20, windowMin: 10 },
   // Licences (Giấy phép, §2.5): the player's, kept by the Level-10 incident. Used by the P3 planner.
   licences: { groups: ['hr', 'assign', 'beans', 'land', 'credit'], prices: { hr: 0, assign: 0, beans: 300, land: 1000, credit: 1500 }, unlockLevel: 6 },
-  planRules: { storageFull: 0.9, phoneMoraleBelow: 40, nagEverySeconds: 60, hirePiling: 3, softRepeats: 2, hotRepeats: 1, contractWarnHours: 2, betterMul: 1.1 },
+  planRules: { storageFull: 0.9, phoneMoraleBelow: 40, nagEverySeconds: 60, hirePiling: 3, plotsPerWorker: 3, softRepeats: 2, hotRepeats: 1, contractWarnHours: 2, betterMul: 1.1 },
   // ---- Planner v2 (management-rules §3.3–§3.7); the rules themselves are the GM_RULES rows below ----
   // plan: the day plan (Kế hoạch ngày) every everyMin played minutes and on hire; target = round10(I10 × 2 × targetMul);
   //  offscreenEvery: the zone not on screen is thought about every n-th think (care + trade + plan rows only);
@@ -464,7 +464,8 @@ export const GM = {
   // at most one land proposal (coolActs: buying / selling a lot, not building upgrades) per everyMin, counted from its
   // filing and again from its approval; a lot needs windowMin samples of its own before it can be sold. Utilisation is
   // sampled once per played minute (windowMin kept).
-  land: { buyPaybackMin: 45, busyPct: 0.85, coinsMul: 1.2, sellUtil: 0.2, windowMin: 30, everyMin: 30, coolActs: ['land/buyParcel', 'land/sell'] },
+  // boundEveryMin: a land-bound farm (D.landBound: more hands than plots) asks for land this often
+  land: { buyPaybackMin: 45, busyPct: 0.85, coinsMul: 1.2, sellUtil: 0.2, windowMin: 30, everyMin: 30, boundEveryMin: 10, coolActs: ['land/buyParcel', 'land/sell'] },
   // Buildings (§3.7): upgrade one when its production queue was full ≥ fullMin played minutes and it pays back ≤ paybackMin.
   building: { fullMin: 10, paybackMin: 45 },
   // Loans (§3.7): a capital job the coins cannot pay may file a loan task when its payback < term × paybackTermShare;
@@ -547,7 +548,8 @@ export const TASK_LIMIT = { base: 1, more: 2, moreFromSmart: 3 };
 export const QUALITY = { price: [1, 1, 1.2, 1.5], yield: [1, 1, 1.25, 1.5], freshSeconds: 10, workerTwoStar: 3, hardLevel: 5, hardDrinks: ['latte'] };
 // Tending (farm): a worker with nothing to do (every field growing) shows a 🪙 bubble; paying `fee` sends it to water
 // up to `plots` growing plots, each ripening `speedup` × its grow time sooner. Workers only (robots do one task).
-export const TEND = { fee: 15, plots: 4, speedup: 0.3 };
+// bucketPlots: a tending worker fills a bucket at the farm well (layout FARM_WELL) and waters that many plants per trip.
+export const TEND = { fee: 15, plots: 4, speedup: 0.3, bucketPlots: 2 };
 export const isHardDrink = drink => QUALITY.hardDrinks.includes(drink);
 
 // Small staff mistakes (docs/design/staff-upgrades.md §2.2): chance per job by worker ACCURACY 1..5 (index 0..4), ×
@@ -879,7 +881,11 @@ export const GM_RULES = [
     act: 'staff/care', care: 'bonusSmall', args: 'care', cost: 'care', valueOf: 'contrib', offscreen: true, reason: 'phoneLowMorale' },
   { key: 'lunch', group: 'ops', licence: 'hr', zone: 'any', each: 'worker', metric: 'hungry', op: '==', value: true, and: [['onShift', '==', true]], style: ['careful'], urgency: 'morale',
     act: 'staff/care', care: 'lunch', args: 'care', cost: 'care', valueOf: 'contrib', offscreen: true, reason: 'hungryLunch' },
-  { key: 'food', group: 'care', licence: 'hr', zone: 'any', each: 'worker', metric: 'hungry', op: '==', value: true, and: [['onShift', '==', true]], style: ['balanced', 'bold'], urgency: 'morale',
+  // café (balance pass 2026-11-08): a demand-bound café loses almost nothing while a barista eats for 60 s, so every
+  // style sends a hungry café worker to the free lunch; paid food stays the farm's choice (a missed harvest costs)
+  { key: 'lunchShop', group: 'ops', licence: 'hr', zone: 'shop', each: 'worker', metric: 'hungry', op: '==', value: true, and: [['onShift', '==', true]], style: ['balanced', 'bold'], urgency: 'morale',
+    act: 'staff/care', care: 'lunch', args: 'care', cost: 'care', valueOf: 'contrib', offscreen: true, reason: 'hungryLunch' },
+  { key: 'food', group: 'care', licence: 'hr', zone: 'farm', each: 'worker', metric: 'hungry', op: '==', value: true, and: [['onShift', '==', true]], style: ['balanced', 'bold'], urgency: 'morale',
     act: 'staff/care', care: 'food', args: 'care', cost: 'care', valueOf: 'contrib', offscreen: true, reason: 'hungry' },
   { key: 'coffee', group: 'care', licence: 'hr', zone: 'any', each: 'worker', metric: 'tired', op: '==', value: true, and: [['onShift', '==', true]], urgency: 'morale',
     act: 'staff/care', care: 'coffee', args: 'care', cost: 'care', valueOf: 'contrib', offscreen: true, reason: 'tired' },

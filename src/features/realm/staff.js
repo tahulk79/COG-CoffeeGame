@@ -47,7 +47,7 @@
 // restrict the job types a worker takes on both areas.
 import * as THREE from 'three';
 import { STAFF, CROP_ORDER, DRINKS, STAFF_BREAKS, ROBOT_TASKS, ROBOT_AUTO, unitSpeed, batteryMinutes, slackMul, hasRule, robotTask, mistakeChance, partTier, isHardDrink, BEANS, TEND, jamChance, energyMax, RIVAL, BOOKS, CAREER, GM, craftSpeed, rankOf, gearWalk, gearJob, hasSoftware, SOFTWARE, STAFF_SIM, CLOCK } from '../../core/config/economy.js';
-import { PARCELS, FIXED } from '../../core/config/layout.js';
+import { PARCELS, FIXED, FARM_WELL } from '../../core/config/layout.js';
 import { assignedUnits, ownedPlots, plotState, cropUnlocked, seedCost, capacity, stored, plotOf, tileAt, seatCount, seatsUsed, brewSlots, seatPatienceRatio, beanBuyQuote, plotGrowMs, canBrew, region as regionOf, unitState, unitBlocked, unitWorking, stateSpeedMul, quickFix, upgradableStats, buildingsOf, footprint, zoneLeaders, nudgeDue, needs, careError, chaosSlackMul, gmOf, gmThinkSeconds, workerPoach, planCropFor } from '../../core/derive.js';
 import { assignPosts, pickShopJob, orderBlock, waitsForBrew, secondCup, nearestFirst, urgencyK, facing, yieldsTo, isReady, POST_JOBS, autoTask, ROBOT_POST, allows, ctxTakes, TICKS, vitalsInterval, vitalsNoop, timerDue, poseOf, stateIconKey, showsFix, knockStep, KNOCK } from './staff-brain.js';
 import { createPerson } from '../../characters/player.js';
@@ -179,6 +179,30 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
   // Farm staff live in the farm area, shop staff in the café area: one child group each, toggled by setView.
   const zones = { farm: new THREE.Group(), shop: new THREE.Group() };
   group.add(zones.farm, zones.shop);
+  // The farm well (giếng nước, layout FARM_WELL): stone ring, dark water, two posts, a small roof, crank and rope with a
+  // bucket. Tending workers fill a bucket here before watering (water job step 'fetch', TEND.bucketPlots per trip).
+  const well = (() => {
+    const g = new THREE.Group(); g.name = 'farm-well';
+    const stone = new THREE.MeshStandardMaterial({ color: 0xa9a196, roughness: .9 }), stoneDark = new THREE.MeshStandardMaterial({ color: 0x8a8278, roughness: .95 });
+    const wood = new THREE.MeshStandardMaterial({ color: 0x8a5a33, roughness: .8 }), roof = new THREE.MeshStandardMaterial({ color: 0xb4532f, roughness: .7 });
+    const water = new THREE.MeshStandardMaterial({ color: 0x2e7fb8, roughness: .2, metalness: .1 }), rope = new THREE.MeshStandardMaterial({ color: 0xd9c08a, roughness: .9 });
+    const add = (geo, m, x, y, z, rx = 0, rz = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.rotation.set(rx, 0, rz); o.castShadow = true; o.receiveShadow = true; o.raycast = () => {}; g.add(o); return o; };
+    add(new THREE.CylinderGeometry(.62, .68, .62, 18, 1, true), stone, 0, .31, 0);
+    add(new THREE.TorusGeometry(.62, .09, 8, 22), stoneDark, 0, .64, 0, Math.PI / 2);
+    add(new THREE.CircleGeometry(.56, 18), water, 0, .42, 0, -Math.PI / 2);
+    for (const x of [-.58, .58]) add(new THREE.BoxGeometry(.1, 1.15, .1), wood, x, 1.1, 0);
+    add(new THREE.CylinderGeometry(.05, .05, 1.26, 8), wood, 0, 1.45, 0, 0, Math.PI / 2);       // crank axle
+    add(new THREE.CylinderGeometry(.012, .012, .62, 4), rope, 0, 1.13, 0);                      // rope
+    add(new THREE.CylinderGeometry(.11, .085, .17, 10), wood, 0, .78, 0);                       // hanging bucket
+    const r1 = add(new THREE.BoxGeometry(1.5, .06, .62), roof, 0, 1.86, .24, -.62), r2 = add(new THREE.BoxGeometry(1.5, .06, .62), roof, 0, 1.86, -.24, .62);
+    r1.rotation.set(-.62, 0, 0); r2.rotation.set(.62, 0, 0);
+    g.position.set(FARM_WELL.x, 0, FARM_WELL.z);
+    zones.farm.add(g);
+    return g;
+  })();
+  // A worker's bucket while watering (shared geometry / material; kept by disposeScene).
+  const bucketGeo = new THREE.CylinderGeometry(.13, .1, .2, 10).translate(0, -.1, 0), bucketMat = new THREE.MeshStandardMaterial({ color: 0x7a5233, roughness: .8 });
+  bucketGeo.userData.keep = true; bucketMat.userData.keep = true;
   // Shared robot parts.
   const geo = {
     body: new THREE.SphereGeometry(.42, 18, 14),
@@ -279,6 +303,8 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
           e.cup2 = makeCup(); // workers carry two cups (other hand)
           e.cup2.position.set(-.16, 1.02, .36);
           e.root.add(e.cup2);
+          if (def.kind !== 'robot') { e.bucket = new THREE.Mesh(bucketGeo, bucketMat); e.bucket.position.set(.28, .9, .12); e.bucket.visible = false; e.bucket.raycast = () => {}; e.root.add(e.bucket); }
+          e.water = 0; // plants left in the bucket
           Object.assign(e, { post: null, runnerIdx: 0, home: { x: idle.x, z: idle.z }, idleT: 0, stroll: null, atPad: null, block: null, sideT: 0, sideX: 0, sideZ: 0, sideCool: 0 });
           // Staff manager: state (applyState), vitals batch (staggered start), bench spot, knock taps, smoke clock.
           Object.assign(e, { st: 'ok', pose: 'work', bench: false, blocked: false, working: undefined, stateK: 1, fix: null, stIcon: '', stT: 0,
@@ -400,7 +426,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     const i = e.claims ? e.claims.indexOf(key) : -1;
     if (i >= 0) e.claims.splice(i, 1);
   }
-  function endJob(e) { release(e); e.job = null; e.cup.visible = false; e.cup2.visible = false; setStatus(e, ''); }
+  function endJob(e) { release(e); e.job = null; e.cup.visible = false; e.cup2.visible = false; if (e.bucket) e.bucket.visible = e.water > 0; setStatus(e, ''); }
   function setStatus(e, s) {
     // A state that is not "ok" (tired, hungry, sulking, lunch, bench…) wins over the job icon: the player sees why.
     // An idle robot keeps its task icon up (auto mode: blue ring), so the player sees what it is set to.
@@ -630,7 +656,8 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     if (e.kind === 'worker' && e.u?.water > 0 && takes(e, 'water')) {
       const growing = plots.filter(p => !claimed(`plot:${p.id}`) && r.plots[p.id] && !r.plots[p.id].watered && plotState(state, p.id, now).stage !== 'ready');
       const p = near(e, growing);
-      if (p) return { type: 'water', plotId: p.id, ...plotSpot(p) };
+      // empty bucket → the well first (step 'fetch'), then the plant (finish() turns the job into the pour)
+      if (p) return e.water > 0 ? { type: 'water', plotId: p.id, ...plotSpot(p) } : { type: 'water', step: 'fetch', plotId: p.id, x: FARM_WELL.draw.x, z: FARM_WELL.draw.z };
     }
     let ready = 0, empty = 0, soonest = Infinity;
     for (const p of plots) {
@@ -839,8 +866,19 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
       const crop = cropFor(state, e, j.plotId);
       if (crop && r && !r.plots[j.plotId] && plotOf(state, j.plotId) && act('farm/plant', { plotId: j.plotId, crop, uid: e.uid, crooked: oops(e, 'crooked') && oopsLine(e, 'crooked') }).ok) workDone(e);
       e.think = e.kind === 'robot' || rule(e, 'quick') ? 0 : 1.2; // slow-witted workers stand a moment before the next job
+    } else if (j.type === 'water' && j.step === 'fetch') {
+      // bucket filled at the well: carry it to the plant (the plot stays claimed)
+      e.water = TEND.bucketPlots;
+      vfx?.burst('sparkle', { x: FARM_WELL.x, y: .7, z: FARM_WELL.z }, { count: 6 });
+      const plot = plotOf(state, j.plotId);
+      if (plot && regionOf(state)?.plots[j.plotId]) {
+        const sp = plotSpot(plot);
+        Object.assign(j, { step: 'pour', x: sp.x, z: sp.z, work: 0, arrived: false });
+        if (e.bucket) e.bucket.visible = true;
+        return;
+      }
     } else if (j.type === 'water') {
-      if (act('farm/water', { plotId: j.plotId, uid: e.uid }).ok) { vfx?.burst('sparkle', { x: j.x, y: .6, z: j.z - 1.2 }, { count: 8 }); workDone(e); }
+      if (act('farm/water', { plotId: j.plotId, uid: e.uid }).ok) { vfx?.burst('sparkle', { x: j.x, y: .6, z: j.z - 1.2 }, { count: 8 }); workDone(e); e.water = Math.max(0, (e.water || 0) - 1); }
       e.think = 0;
     } else if (j.type === 'order') {
       const queued = getQueued();
@@ -1260,10 +1298,10 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
       }
       // Farm World 2.0: the job's field was removed or moved (build/remove, build/move) → drop it quietly and re-plan,
       // never walk to the old spot or act on a field that is gone.
-      if (e.job?.plotId && e.zone === 'farm') {
+      if (e.job?.plotId && e.zone === 'farm') { // (a 'fetch' step walks to the well, not to the field: only check the field exists)
         const pl = plotOf(state, e.job.plotId);
         const sp = pl && plotSpot(pl);
-        if (!sp || Math.abs(sp.x - e.job.x) > 1e-6 || Math.abs(sp.z - e.job.z) > 1e-6) { endJob(e); e.path = null; e.think = 0; }
+        if (!sp || (e.job.step !== 'fetch' && (Math.abs(sp.x - e.job.x) > 1e-6 || Math.abs(sp.z - e.job.z) > 1e-6))) { endJob(e); e.path = null; e.think = 0; }
       }
       if (e.xpN && (e.xpT = (e.xpT || 0) + dt) > 15) flushXp(e);
       if (e.kind === 'robot' && !e.job) robotIdle(e, dt, state, now);
@@ -1393,6 +1431,8 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
       Object.values(mat).forEach(m => m.dispose());
       tierMat.forEach(m => m.dispose());
       hiGeo.dispose(); hiMat.dispose();
+      bucketGeo.dispose(); bucketMat.dispose();
+      well.traverse(o => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } }); well.removeFromParent();
       group.removeFromParent();
     },
   };
