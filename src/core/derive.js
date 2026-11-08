@@ -1,5 +1,5 @@
 // Pure selectors over the v3 save. No mutation. Used by the reducer, the scene and the HUD.
-import { FOLLOW, GM, gmCandidatesFor, gmSalary, SHIFT, TEND, PROFILE, CAREER, rankOf, GEAR, gearTier, WARRANTY, SOFTWARE, softwarePrice, hasSoftware, TUTORIAL, BUILDINGS, CROPS, CROP_ORDER, DRINKS, DRINK_ORDER, STAFF, hireLimit, STAFF_CAP, RECRUIT, applicantsFor, traitEffect, MISTAKES, QUALITY, isHardDrink, unitLevel, levelSpeed, statOf, statCap, statCost, STAT_ORDER, SKILL, ROBOT_TASKS, PART_COST, PART_ORDER, partTier, partCost, UPKEEP, VITALS, CARE, ROBOT_WEAR, WORKER_TASKS, taskLimit, energyMax, unitFee, FIRE, BOOKS, CHEST_LEVELS, LOAN, loanOwed, ROUND_LEVEL_CAP, REBIRTH, CELL, levelForXp, xpForLevel, GRACE, SHOP, BEANS, VENUES, VENUE_ORDER, VENUE_ITEMS, RATING, FIELD, fieldExtraCost, fieldExtraCap, GOODS, GOOD_ORDER, ITEM_GOODS, RECIPES } from './config/economy.js';
+import { FOLLOW, GM, gmCandidatesFor, gmSalary, SHIFT, TEND, PROFILE, CAREER, rankOf, GEAR, gearTier, WARRANTY, SOFTWARE, softwarePrice, hasSoftware, TUTORIAL, BUILDINGS, CROPS, CROP_ORDER, DRINKS, DRINK_ORDER, STAFF, hireLimit, STAFF_CAP, RECRUIT, applicantsFor, traitEffect, MISTAKES, QUALITY, isHardDrink, unitLevel, levelSpeed, statOf, statCap, statCost, STAT_ORDER, SKILL, ROBOT_TASKS, PART_COST, PART_ORDER, partTier, partCost, UPKEEP, VITALS, CARE, ROBOT_WEAR, WORKER_TASKS, taskLimit, energyMax, unitFee, staffFee, unitSpeed, batteryMinutes, heatPerMin, jamChance, slackMul, ROBOT_PARTS, STAFF_BREAKS, STAFF_ORDER, GM_RULES, UPGRADE_GATE, LAND, FIRE, BOOKS, CHEST_LEVELS, LOAN, loanOwed, ROUND_LEVEL_CAP, REBIRTH, CELL, levelForXp, xpForLevel, GRACE, SHOP, BEANS, VENUES, VENUE_ORDER, VENUE_ITEMS, RATING, FIELD, fieldExtraCost, fieldExtraCap, GOODS, GOOD_ORDER, ITEM_GOODS, RECIPES, INCOME, INCOME_FLOOR, incomeRef, loanTermMin, robotCap, DEBT, TASKS, PENALTY, HISTORY } from './config/economy.js';
 import { PARCELS, ROADS, RESERVED, BOUNDS, GATE, areaOfParcel, areaAt, rectsOverlap, rectsTouch, inRect, terrainOfLot, lotAllows, TERRAIN_USES, PRE_TILLED, SNAP, lotContaining } from './config/layout.js';
 import { countryRecipes, INGREDIENTS, INGREDIENT_ORDER, RESEARCH, SUPPLY, supplierOf, buyerOf, FARMLAB, methodEffect, methodKey } from './config/research.js';
 import { parseRegionId, citiesOf, COUNTRY_ORDER, regionCost, regionGames } from './config/world.js';
@@ -517,6 +517,10 @@ export const workingUnits = (s, zone, now = null) => assignedUnits(s, s.world.cu
 // already have more keep them (nobody is fired); they just cannot hire until the level catches up.
 export const hireCap = (s, _zone) => hireLimit(level(s));
 export const hireCapReached = (s, zone) => zoneUnits(s, zone).length >= hireCap(s, zone);
+/** Robots of a zone on the whole team; at most robotCap(hireCap) of them (management-rules §2.1). */
+export const zoneRobots = (s, zone) => zoneUnits(s, zone).filter(isRobot).length;
+/** Robots a zone may still take now (robot share ceil(slots / 2)). */
+export const robotRoom = (s, zone) => Math.max(0, robotCap(hireCap(s, zone)) - zoneRobots(s, zone));
 export function staffError(s, type) {
   const def = own(STAFF, type);
   if (!def) return 'unknown';
@@ -524,6 +528,7 @@ export function staffError(s, type) {
   if (level(s) < def.level) return 'level';
   if (hireCapReached(s, def.zone)) return 'hireLimit';
   if (zoneUnits(s, def.zone).length >= STAFF_CAP.perZone) return 'teamFull';
+  if (def.kind === 'robot' && zoneRobots(s, def.zone) >= robotCap(hireCap(s, def.zone))) return 'robotShare';
   if (!freeHire(s) && s.player.coins < def.cost) return 'coins';
   return null;
 }
@@ -552,7 +557,8 @@ export function recruitError(s, zone, index) {
 }
 // ---------- quality ★ ----------
 /** Stars a staff unit's work gets (robot 1; worker 2 from accuracy QUALITY.workerTwoStar or with goldHands, else 1). */
-export const unitStars = u => (isWorkerUnit(u) && (u.perk === 'goldHands' || statOf(u, 'accuracy') >= QUALITY.workerTwoStar) ? 2 : 1);
+export const unitStars = u => (isWorkerUnit(u) ? (u.perk === 'goldHands' || statOf(u, 'accuracy') >= QUALITY.workerTwoStar ? 2 : 1)
+  : isRobot(u) && hasSoftware(u, 'precision') ? SOFTWARE.packs.precision.stars : 1); // robots: 2★ with the precision pack
 /** May this unit brew `drink`? Hard drinks: workers with accuracy QUALITY.hardLevel only, never robots. No unit = the player. */
 export const canBrew = (u, drink) => !u || !isHardDrink(drink) || (isWorkerUnit(u) && statOf(u, 'accuracy') >= QUALITY.hardLevel);
 export const starPrice = (s, drink, stars) => Math.round(drinkPrice(s, drink) * (QUALITY.price[stars] || 1));
@@ -596,10 +602,10 @@ export function partError(s, u, part) {
   const tier = partTier(u, part);
   if (tier >= PART_COST.maxTier) return 'maxLevel';
   if (tier + 1 >= PART_COST.maxTier && level(s) < PART_COST.tier3Level) return 'level';
-  if (s.player.coins < partCost(u.type, tier)) return 'coins';
+  if (s.player.coins < partCost(u.type, tier, part)) return 'coins';
   return null;
 }
-export const partPrice = (u, part) => partCost(u.type, partTier(u, part));
+export const partPrice = (u, part) => partCost(u.type, partTier(u, part), part);
 export const taskError = (u, task) => (!u || !ROBOT_TASKS[u.type] ? 'unknown' : task === 'auto' || ROBOT_TASKS[u.type].includes(task) ? null : 'unknown');
 /** Worker tasks (staff/setTasks): null = valid; 'unknown' | 'tooMany'. `tasks` must already be deduped. */
 export function tasksError(u, tasks) {
@@ -685,7 +691,10 @@ export function quickFix(u, now = null) {
 // ---------- upkeep, fire, books (§2, §8) ----------
 /** Coins a benched worker costs per UPKEEP.perMinutes (robots and working staff: 0). */
 // Bench worker: upkeep; a lead / manager on shift: its allowance (CAREER.allowance), both per UPKEEP.perMinutes.
-export const upkeepOf = u => (u?.follower ? followerWage(u) : !isWorkerUnit(u) ? 0 : !u.active ? UPKEEP.benchRatio * STAFF[u.type].cost : CAREER.allowance[rankOf(u)] || 0);
+// A robot parked off any zone (unassigned, so off shift) costs its standby (UPKEEP.robotStandbyRatio × price,
+// management-rules §2.2 "standby only while unassigned"); benched but still assigned to a zone: free.
+export const upkeepOf = u => (u?.follower ? followerWage(u) : isRobot(u) ? (u.active || u.assigned ? 0 : Math.round(UPKEEP.robotStandbyRatio * STAFF[u.type].cost))
+  : !isWorkerUnit(u) ? 0 : !u.active ? UPKEEP.benchRatio * STAFF[u.type].cost : CAREER.allowance[rankOf(u)] || 0);
 /** Wage of a unit that followed you through the Level-10 restart (FOLLOW), per UPKEEP.perMinutes, on or off shift. */
 export const followerWage = u => (isRobot(u) ? FOLLOW.robotWage : Math.max(FOLLOW.minWage, Math.round(FOLLOW.wageRatio * (STAFF[u.type]?.cost || 0))));
 /** Who asks to follow you at the Level-10 restart (roll < FOLLOW.robotChance and robots owned → the busiest robot,
@@ -803,6 +812,7 @@ export function gearError(s, u, item) {
 export function softwareError(s, u, pack) {
   if (!u || !isRobot(u) || !SOFTWARE.packs[pack]) return 'unknown';
   if (hasSoftware(u, pack)) return 'owned';
+  if (level(s) < (SOFTWARE.packs[pack].level || 0)) return 'level';
   return s.player.coins < softwarePrice(u, pack) ? 'coins' : null;
 }
 /** Gear in the store for a zone: [{ i (index in s.staff.gearStock), item, tier }]. */
@@ -815,14 +825,16 @@ export const gmUnlocked = s => level(s) >= GM.unlockLevel;
 export const gmOf = s => s.gm?.unit || null;
 export const gmBoard = s => gmCandidatesFor(s.gm?.board?.seed ?? 1);
 export const gmBoardRefreshIn = (s, now) => Math.max(0, (s.gm?.board?.at || 0) + GM.board.refreshMinutes * 60000 - now);
-export const gmThinkSeconds = gm => GM.thinkSeconds[Math.max(0, Math.min(4, (gm?.skill || 1) - 1))];
+// Backlog ≥ PENALTY.backlog.waitAt (ignored tasks): he thinks GM.plan.thinkSlowMul × slower (§3.3).
+export const gmThinkSeconds = gm => GM.thinkSeconds[Math.max(0, Math.min(4, (gm?.skill || 1) - 1))] * ((gm?.backlog || 0) >= PENALTY.backlog.waitAt ? GM.plan.thinkSlowMul : 1);
 /** Base salary per GM.payMinutes in the current mode. */
 export const gmPay = s => (gmOf(s) ? gmSalary(gmOf(s), s.gm.mode) : 0);
-/** Coins the GM may still spend on its own in the current 10-minute window (style: careful uses half). */
+/** The growth budget per 10 minutes (style: careful uses half; full mode ×3), and what is still left in the window. */
+export const gmBudgetCap = s => (s.gm?.unit ? Math.round(s.gm.budget * (GM.styles[s.gm.unit.style]?.budgetMul ?? 1) * (GM.modes[s.gm.mode]?.budgetMul ?? 1)) : 0);
 export function gmBudgetLeft(s, now) {
   const g = s.gm;
   if (!g?.unit) return 0;
-  const cap = Math.round(g.budget * (GM.styles[g.unit.style]?.budgetMul ?? 1));
+  const cap = gmBudgetCap(s);
   const open = g.window && now - g.window.start < GM.windowMinutes * 60000;
   return Math.max(0, cap - (open ? g.window.spent : 0));
 }
@@ -832,7 +844,7 @@ export const gmZone = s => (regionGame(s) === 'cafe' ? 'shop' : regionGame(s) ==
 export const chaosOf = s => s.gm?.chaos || null;
 /** Slack chance factor for a zone: ×2 in chaos, ×1.5 when a Manager-rank worker holds the team together. */
 export function chaosSlackMul(s, zone) {
-  if (!chaosOf(s)) return 1;
+  if (!chaosOf(s) && !gmStrike(s)) return 1; // a striking manager (Đình công) = chaos rules too (management-rules §4.3)
   const manager = s.staff.units.some(u => STAFF[u.type]?.zone === zone && rankOf(u) === 'manager');
   return manager ? 1 + (GM.chaos.slackMul - 1) * GM.chaos.managerHalves : GM.chaos.slackMul;
 }
@@ -841,128 +853,573 @@ export const calmCost = s => GM.chaos.calmBase + GM.chaos.calmPerUnit * s.staff.
 /** Someone can give advice now: a GM, or (during chaos) a Manager-rank worker standing in as advisor. */
 export const gmAdvisorOf = s => gmOf(s) || (chaosOf(s) ? s.staff.units.find(u => rankOf(u) === 'manager') || null : null);
 
-/**
- * What a manager would do now in the game on screen, best first. A manager only KEEPS things running (founder
- * feedback 2026-11-07): care, robot upkeep, shifts, selling / buying beans, keeping a lured worker. Growth — hiring,
- * firing, promoting, stats, machines, software (and later recipes, crops, suppliers) — is the player's own job: those
- * items come back as 'advice' (shown with "you do it", never run by the manager). Each item:
- *   { key, act: { type, payload }, cost, tier: 'safe' | 'budget' | 'big' | 'advice', score, reason: [i18n key, params] }
- * tier: safe = free and harmless; budget = small spending (big when cost ≥ the big-job limit); big = always big;
- * advice = only ever suggested (firing). `score` ≈ how much it matters (coins / minute saved or earned, rough).
- */
-export function gmPlan(s, now) {
-  const zone = gmZone(s);
+// ---------- planner v2 (management-rules §3.3–§3.7) ----------
+// The manager's rules are DATA rows (economy.js GM_RULES) over a fixed metric vocabulary (GM_SNAPSHOT_METRICS). One
+// snapshot per zone (gmSnapshot), one generic evaluator (gmCandidates), one permission order (gmPermission). The
+// builders a row may name (args / cost / valueOf / sale) are the fixed vocabularies RULE_ARGS / RULE_COST / RULE_VALUE.
+const PLAN_ZONES = ['farm', 'shop'];
+const zoneOfUnit = u => STAFF[u?.type]?.zone || null;
+const okOrCoins = e => !e || e === 'coins'; // the planner decides about coins itself (permission: suggest / loan)
+/** Licences (Giấy phép, §2.5): the player's; a free group (price 0) is always held; topUp / advice need none. */
+export const licencePrice = group => GM.licences.prices[group] ?? 0;
+export const gmLicensed = (s, group) => !group || group === 'topUp' || group === 'advice' || !(licencePrice(group) > 0) || (s.gm?.licences || []).includes(group);
+/** Why licence `group` cannot be bought now: unknown | owned | level | coins | null. */
+export function licenceError(s, group) {
+  if (!GM.licences.groups.includes(group)) return 'unknown';
+  if (gmLicensed(s, group)) return 'owned';
+  if (level(s) < GM.licences.unlockLevel) return 'level';
+  if (s.player.coins < licencePrice(group)) return 'coins';
+  return null;
+}
+/** Training (Đào tạo): price of the next skill step, and why it cannot start (unknown | maxLevel | busy | coins). */
+export const gmTrainCost = gm => (gm ? GM.training.basePerSkill * ((gm.skill || 1) + 1) : 0);
+export function gmTrainError(s) {
+  const gm = gmOf(s);
+  if (!gm) return 'unknown';
+  if ((gm.skill || 1) >= GM.thinkSeconds.length) return 'maxLevel';
+  if (gm.training) return 'busy';
+  if (s.player.coins < gmTrainCost(gm)) return 'coins';
+  return null;
+}
+/** The zones the manager works: the game on screen, and (off screen) the other zone when units are assigned there. */
+export function gmScope(s) {
+  const on = gmZone(s);
+  return { on, off: PLAN_ZONES.filter(z => z !== on && assignedUnits(s, s.world.currentRegion, z).length > 0) };
+}
+// ---- values (coins per played minute, management-rules §2.5 / §3.5) ----
+/** Best sale value per harvested bean with the processing buildings owned (recipes chained from raw beans). */
+export function perBean(s) {
+  const rate = { beans: 1 };
+  for (const rc of Object.values(RECIPES)) {
+    if (!buildingsOf(s, rc.building).length) continue;
+    const [inG, inN] = Object.entries(rc.in)[0] || [];
+    const [outG, outN] = Object.entries(rc.out)[0] || [];
+    if (rate[inG] != null && outG) rate[outG] = Math.max(rate[outG] || 0, rate[inG] * outN / inN);
+  }
+  return Math.max(...Object.entries(rate).map(([g, r]) => (GOODS[g]?.price || 0) * r));
+}
+/** Coins one harvest of `crop` brings (yield × per-bean value − seed). */
+export const perJobFarm = (s, crop, pb = perBean(s)) => yieldOf(s, crop) * pb - seedCost(s, crop);
+/** Value of one job in a zone: farm = one harvest of the planned / best crop, café = an average cup ÷ jobs per cup. */
+export function perJob(s, zone) {
+  if (zone === 'shop') {
+    const d = unlockedDrinks(s), avg = d.length ? d.reduce((n, id) => n + drinkPrice(s, id), 0) / d.length : DRINKS[DRINK_ORDER[0]].price;
+    return avg / GM.value.jobsPerDrink;
+  }
+  const crop = chooseCrop(s);
+  return crop ? Math.max(0, perJobFarm(s, crop)) : 0;
+}
+/** Jobs per played minute of a unit (reference rate × its speed). */
+export const jobsPerMin = u => (GM.value.jobsPerMin[u?.type] || 0) * unitSpeed(u);
+/** contrib(u) = jobsPerMin(u) × perJob(zone) (§2.0). */
+export const contrib = (s, u, pj = perJob(s, zoneOfUnit(u))) => jobsPerMin(u) * pj;
+/** Mandatory running cost per played minute: a worker's slack fees, a robot's recharge + cooling + jams + service. */
+export function runCostPerMin(u) {
+  if (isRobot(u)) {
+    const j = jobsPerMin(u);
+    return unitFee(u) / batteryMinutes(u) + CARE.cool * heatPerMin(u) / 100 + jamChance(u) * j * CARE.repair
+      + (STAFF[u.type].cost * CARE.serviceRatio) * j * ROBOT_WEAR.wearPerJob * ROBOT_PARTS.frame.wearMul[partTier(u, 'frame')] / 100;
+  }
+  return STAFF_BREAKS.worker.slackChancePerMinute * slackMul(u) * unitFee(u);
+}
+/** Every upgrade a unit could get with its value per minute (§2.5 value table): [{ act, cost, value, payback, quality, late }]. */
+/** Work the zone can absorb per played minute (its demand in jobs): café = walk-ins per minute × jobsPerDrink, farm =
+ *  harvests the owned fields ripen per minute (fields ÷ grow time of the planned / best crop). Infinity without a region. */
+/** Jobs a free worker could start RIGHT NOW in a zone (the manager's load sample, GM.load): café = ready cups + taken
+ *  orders that fit a free brew slot + waiting customers that fit a free seat; farm = ripe plots (storage room) + empty
+ *  plots. Orders stuck behind full brew slots / seats are a building bottleneck: a faster worker does not clear them. */
+export function actionableJobs(s, zone, now) {
+  const q = taskQueue(s, zone, now);
+  if (zone !== 'shop') return (q.harvest || 0) + (q.plant || 0) + (q.water || 0);
+  const os = region(s)?.shop.orders || [], brewing = os.filter(o => o.stage === 'brewing' && now < (o.brewStart || 0) + (o.brewMs || 0)).length;
+  return (q.deliver || 0) + Math.min(q.brew || 0, Math.max(0, brewSlots(s) - brewing)) + Math.min(q.order || 0, Math.max(0, seatCount(s) - seatsUsed(s)));
+}
+export function zoneDemandJobs(s, zone) {
+  if (!region(s)) return Infinity;
+  if (zone === 'shop') return 60000 / Math.max(1, arrivalMs(s)) * GM.value.jobsPerDrink;
+  const crop = chooseCrop(s);
+  return crop ? ownedPlots(s).length / Math.max(0.01, growMs(s, crop) / 60000) : Infinity;
+}
+/** Share 0..1 of a throughput step that turns into extra jobs: 1 while the zone's demand is ≥ 10 % above the team's
+ *  capacity (Σ jobsPerMin of its working units, `u` included), falling to 0 when the team already covers the demand —
+ *  a faster barista in a café that waits for walk-ins, or a faster farmhand on fields that are not ripe, adds nothing. */
+export function throughputShare(s, u) {
+  const zone = zoneOfUnit(u), load = s.gm?.unit ? s.gm.load?.[zone] : null;
+  // with a manager: his measured waiting-jobs EMA (GM.load); without one, the demand model below
+  if (Number.isFinite(load)) {
+    const n = Math.max(1, assignedUnits(s, s.world.currentRegion, zone).filter(x => x.active).length);
+    return Math.min(1, Math.max(0, (load / n - GM.load.free) / GM.load.span));
+  }
+  const demand = zoneDemandJobs(s, zone);
+  if (!Number.isFinite(demand)) return 1;
+  const team = assignedUnits(s, s.world.currentRegion, zone).filter(x => x.active && x.uid !== u.uid);
+  const cap = team.reduce((n, x) => n + jobsPerMin(x), 0) + jobsPerMin(u);
+  return cap > 0 ? Math.min(1, Math.max(0, (demand - cap) / (0.1 * cap))) : 1;
+}
+export function upgradeOptions(s, u, pj = perJob(s, zoneOfUnit(u)), mistakes = 0) {
+  // c: the unit's contribution as far as a throughput step can raise it (× throughputShare: no value past the demand)
+  const V = GM.value, Q = UPGRADE_GATE.quality, out = [], c = contrib(s, u, pj) * throughputShare(s, u), R = V.reactionMin, id = u.uid;
+  const qualityValue = mistakes / 60 * pj; // mistakes today, as coins per minute (shown, outside the gate)
+  const push = (type, payload, cost, value, quality, late, what) => { if (cost > 0 && value > 0) out.push({ act: { type, payload }, cost, value, payback: cost / value, quality, late, what }); };
+  if (isWorkerUnit(u)) {
+    for (const stat of STAT_ORDER) {
+      if (!okOrCoins(statError(s, u, stat))) continue;
+      const p = statPrice(u, stat), quality = Q.includes(stat);
+      const value = quality ? qualityValue : stat === 'speed' ? V.speedStep * c : stat === 'stamina' ? V.slackStep * runCostPerMin(u) + V.staminaDowntime * c : 0;
+      push('staff/upgradeStat', { uid: id, stat }, p.coins, value, quality, statOf(u, stat) >= 3, { stat });
+    }
+    for (const item of GEAR.zone[zoneOfUnit(u)] || []) {
+      const price = gearPrice(u, item), def = GEAR.items[item];
+      if (price == null || !okOrCoins(gearError(s, u, item))) continue;
+      const quality = Q.includes(item), throughput = !!(def.walk || def.brew);
+      if (!quality && !throughput) continue;
+      push('staff/buyGear', { uid: id, item }, price, quality ? qualityValue : V.gearThroughput * c, quality, gearTier(u, item) >= 1, { item });
+    }
+    return out;
+  }
+  const P = ROBOT_PARTS, auto = hasSoftware(u, 'autoCharge');
+  for (const part of PART_ORDER) {
+    if (!okOrCoins(partError(s, u, part))) continue;
+    // late = the ≤ 90-min gate: every tier ≥ 2, and the cooler (a reliability part, management-rules §2.5 table).
+    const t = partTier(u, part), cost = partPrice(u, part), late = t + 1 >= 2 || part === 'cooler';
+    let value = 0;
+    if (part === 'battery') {
+      if (late && auto) continue; // with Tự sạc the ladder is pure fee: never past tier 1 (§3.7)
+      const m0 = P.battery.minutes[t], m1 = P.battery.minutes[t + 1], f = staffFee(u.type);
+      value = f * P.battery.feeMul[t] / m0 - f * P.battery.feeMul[t + 1] / m1 + (auto ? 0 : c * (R / (R + m0) - R / (R + m1)));
+    } else if (part === 'motor') {
+      value = V.motorStep * c - CARE.cool * heatPerMin(u) * (P.motor.heatMul[t + 1] / P.motor.heatMul[t] - 1) / 100;
+    } else if (part === 'cooler') {
+      value = heatPerMin(u) * (1 - P.cooler.heatMul[t + 1] / P.cooler.heatMul[t]) / 100 * (CARE.cool + c * ROBOT_WEAR.overheatSeconds / 60);
+    } else value = jamChance(u) * (1 - P.frame.jamMul[t + 1] / P.frame.jamMul[t]) * jobsPerMin(u) * (CARE.repair + c * R);
+    push('staff/upgradePart', { uid: id, part }, cost, value, Q.includes(part), late, { part });
+  }
+  if (okOrCoins(softwareError(s, u, 'precision'))) push('staff/buySoftware', { uid: id, pack: 'precision' }, softwarePrice(u, 'precision'), V.precision * c, false, false, { pack: 'precision' });
+  return out;
+}
+/** The best throughput upgrade inside the payback gate (or, quality, the best quality one): one option or null. */
+export function bestUpgrade(s, u, pj, mistakes = 0, quality = false) {
+  const G = UPGRADE_GATE;
+  return upgradeOptions(s, u, pj, mistakes).filter(o => (quality ? o.quality : !o.quality && o.payback <= (o.late ? G.latePaybackMin : G.paybackMin)))
+    .sort((a, b) => b.value / b.cost - a.value / a.cost)[0] || null;
+}
+// ---- crops (§3.5) and the day plan's jobs (§3.4) ----
+/** min(plotCap, labourCap) of a crop: what the fields and the team can turn into coins per minute. */
+export function cropRate(s, crop, pb = perBean(s)) {
+  const pj = perJobFarm(s, crop, pb), growMin = growMs(s, crop) / 60000;
+  const plotCap = ownedPlots(s).length * pj / Math.max(0.01, growMin);
+  const team = assignedUnits(s, s.world.currentRegion, 'farm').filter(u => u.active);
+  if (!team.length) return plotCap; // you farm alone: the fields are the limit
+  return Math.min(plotCap, team.reduce((n, u) => n + jobsPerMin(u), 0) * pj);
+}
+/** The crop the manager plants: argmax cropRate over unlocked crops (tie → more XP); null when none. */
+export function chooseCrop(s) {
+  const pb = perBean(s);
+  return unlockedCrops(s).map(id => ({ id, r: cropRate(s, id, pb) })).sort((a, b) => b.r - a.r || CROPS[b.id].xp - CROPS[a.id].xp)[0]?.id || null;
+}
+/** The planned crop for a field (its parcel's), when a manager runs the plan; else null (the worker brain picks). */
+export function planCropFor(s, plotId) {
+  const g = s.gm;
+  if (!g?.unit || g.mode === 'advisor' || gmStrike(s) || !g.plan?.crops) return null;
+  const parcel = plotOf(s, plotId)?.parcel, crop = parcel ? g.plan.crops[parcel] : null;
+  return crop && cropUnlocked(s, crop) ? crop : null;
+}
+/** Work waiting per job type of a zone (need = queued / (1 + units on it)). */
+export function taskQueue(s, zone, now) {
   const r = region(s);
-  if (!zone || !r || s.story.phase !== 'play') return [];
-  const out = [];
-  const bigLimit = s.gm?.bigLimit ?? GM.defaults.bigLimit;
-  const add = (key, type, payload, cost, tier, score, reason, params = {}) => {
-    const t = tier === 'budget' && cost >= bigLimit ? 'big' : tier;
-    out.push({ key, act: { type, payload }, cost: Math.max(0, Math.round(cost || 0)), tier: t, score, reason: [reason, params] });
-  };
-  const name = u => u.name || null;
-  // goods
+  if (!r) return {};
   if (zone === 'farm') {
-    const cap = capacity(s), st = stored(s);
-    if (cap > 0 && st / cap >= 0.9) add('sell', 'farm/sellAll', {}, 0, 'safe', 60, 'storageFull', { pct: Math.round(st / cap * 100) });
-  } else {
-    const waiting = (r.shop.orders || []).filter(o => o.stage === 'taken' || o.stage === 'waiting');
-    const need = waiting.reduce((n, o) => n + (DRINKS[o.drink]?.beans || 1), 0);
-    const q = beanBuyQuote(s);
-    if (need > 0 && s.inventory.beans < need && !q.error && q.amount > 0) add('beans', 'shop/buyBeans', {}, q.cost, 'budget', 55, 'beansLow', { n: q.amount });
+    const plots = ownedPlots(s), st = plots.map(p => (r.plots[p.id] ? plotState(s, p.id, now).stage : 'empty'));
+    const tending = assignedUnits(s, s.world.currentRegion, 'farm').some(u => (u.water || 0) > 0);
+    return { harvest: storageRoom(s) > 0 ? st.filter(x => x === 'ready').length : 0, plant: st.filter(x => x === 'empty').length,
+      water: tending ? plots.filter((p, i) => st[i] !== 'empty' && st[i] !== 'ready' && !r.plots[p.id]?.watered).length : 0 };
   }
-  // units of this game here
-  const here = assignedUnits(s, s.world.currentRegion, zone);
-  for (const u of here) {
-    const st = unitState(u, now), robot = !isWorkerUnit(u), id = u.uid, nm = name(u);
-    if (robot) {
-      if (st === 'battery') add(`care:${id}:recharge`, 'staff/care', { uid: id, kind: 'recharge' }, careCost(u, 'recharge'), 'budget', 35, 'robotBattery', { serial: u.serial });
-      else if (st === 'jam') add(`care:${id}:knock`, 'staff/care', { uid: id, kind: 'knock' }, 0, 'safe', 30, 'robotJam', { serial: u.serial });
-      else if (st === 'overheat') add(`care:${id}:cool`, 'staff/care', { uid: id, kind: 'cool' }, careCost(u, 'cool'), 'budget', 8, 'robotHot', { serial: u.serial });
-      if ((u.wear ?? 100) < ROBOT_WEAR.lowWear) add(`care:${id}:service`, 'staff/care', { uid: id, kind: 'service' }, careCost(u, 'service'), 'budget', 15, 'robotWorn', { serial: u.serial, wear: Math.round(u.wear) });
-      // repeated trouble today → hardware / software
-      const today = dayKey(now), log = (u.log || []).filter(e => dayKey(e.at) === today);
-      const recharges = log.filter(e => (e.type === 'cared' || e.type === 'autoCare') && e.extra === 'recharge').length;
-      const jams = log.filter(e => e.type === 'jam').length, hot = log.filter(e => e.type === 'overheat').length;
-      if (recharges >= 2 && !softwareError(s, u, 'autoCharge')) add(`sw:${id}:autoCharge`, 'staff/buySoftware', { uid: id, pack: 'autoCharge' }, softwarePrice(u, 'autoCharge'), 'advice', 6, 'robotSoftCharge', { serial: u.serial, n: recharges });
-      if (jams >= 2 && !softwareError(s, u, 'autoUnjam')) add(`sw:${id}:autoUnjam`, 'staff/buySoftware', { uid: id, pack: 'autoUnjam' }, softwarePrice(u, 'autoUnjam'), 'advice', 5, 'robotSoftJam', { serial: u.serial, n: jams });
-      if (hot >= 1 && !partError(s, u, 'cooler')) add(`part:${id}:cooler`, 'staff/upgradePart', { uid: id, part: 'cooler' }, partPrice(u, 'cooler'), 'advice', 5, 'robotCooler', { serial: u.serial, n: hot });
-      if (jams >= 2 && !partError(s, u, 'frame')) add(`part:${id}:frame`, 'staff/upgradePart', { uid: id, part: 'frame' }, partPrice(u, 'frame'), 'advice', 5, 'robotFrame', { serial: u.serial, n: jams });
-      continue;
+  const os = r.shop.orders || [];
+  return { order: os.filter(o => o.stage === 'waiting').length, brew: os.filter(o => o.stage === 'taken').length,
+    deliver: os.filter(o => o.stage === 'brewing' && now >= (o.brewStart || 0) + (o.brewMs || 0)).length };
+}
+/**
+ * The day plan's assignments for a zone: { workers: { uid: tasks[] }, robots: { uid: task } }. Robots take the job with
+ * the most need (or 'auto'); workers the top taskLimit jobs by need × fit (fit = fitBase + fitPerStat × the job's stat),
+ * every job family keeping at least one unit. A team smaller than the job families keeps "everything" ([]).
+ */
+export function planTasks(s, zone, now) {
+  const P = GM.plan, q = taskQueue(s, zone, now), here = assignedUnits(s, s.world.currentRegion, zone);
+  const on = {}, out = { workers: {}, robots: {} };
+  const need = t => ((q[t] || 0) + 0.01) / (1 + (on[t] || 0)); // + a hair: an empty queue still ranks by fit
+  for (const r of here.filter(isRobot).sort((a, b) => a.uid.localeCompare(b.uid))) {
+    const list = ROBOT_TASKS[r.type] || [];
+    const best = list.filter(t => (q[t] || 0) > 0).sort((a, b) => need(b) - need(a))[0];
+    out.robots[r.uid] = best || 'auto';
+    for (const t of best ? [best] : list) on[t] = (on[t] || 0) + 1;
+  }
+  const workers = here.filter(isWorkerUnit).sort((a, b) => a.uid.localeCompare(b.uid));
+  const core = (WORKER_TASKS[zone] || []).filter(t => t !== 'water' || (q.water || 0) > 0);
+  const fit = (w, t) => P.fitBase + P.fitPerStat * statOf(w, P.statOf[t] || 'speed');
+  // café workers keep 'everything' (their posts already re-split order / brew / deliver every second): the sim measured
+  // a 20-min fixed list costing the café 9–14 coins/min of net worth (balance pass 2026-11-08, GM.plan.lockWorkers)
+  if (!GM.plan.lockWorkers[zone] || workers.length < core.filter(t => !(on[t] > 0)).length) { for (const w of workers) out.workers[w.uid] = []; return out; }
+  for (const w of workers) {
+    const mine = [];
+    for (let k = 0; k < taskLimit(w); k++) {
+      const t = core.filter(x => !mine.includes(x)).sort((a, b) => need(b) * fit(w, b) - need(a) * fit(w, a))[0];
+      if (!t) break;
+      mine.push(t); on[t] = (on[t] || 0) + 1;
     }
-    if (st === 'phone') {
-      // Nagging always costs morale: at most once a minute per worker, then a small bonus instead.
-      const naggedLately = (u.log || []).some(e => e.type === 'nagged' && now - e.at < 60000);
-      if ((u.morale ?? VITALS.start.morale) < 40 || naggedLately) add(`care:${id}:bonusSmall`, 'staff/care', { uid: id, kind: 'bonusSmall' }, careCost(u, 'bonusSmall'), 'budget', 30, 'phoneLowMorale', { name: nm });
-      else add(`care:${id}:nag`, 'staff/care', { uid: id, kind: 'nag' }, 0, 'safe', 30, 'phone', { name: nm });
+    out.workers[w.uid] = mine;
+  }
+  // every family keeps ≥ 1 unit: take it from a family that has two or more
+  for (const t of core.filter(x => !(on[x] > 0))) {
+    const w = workers.map(x => ({ x, fit: fit(x, t) })).sort((a, b) => b.fit - a.fit).find(({ x }) => out.workers[x.uid].length < taskLimit(x) || out.workers[x.uid].some(y => on[y] > 1));
+    if (!w) continue;
+    const list = out.workers[w.x.uid];
+    if (list.length >= taskLimit(w.x)) { const drop = list.find(y => on[y] > 1); list.splice(list.indexOf(drop), 1); on[drop]--; }
+    list.push(t); on[t] = 1;
+  }
+  return out;
+}
+// ---- land utilisation (§3.6), sampled once per played minute into s.gm.util ----
+/** One utilisation sample of the region now: { z: { zone: busy share }, p: { parcelId: busy share }, q: { building type: 1 when its queue is full } }. */
+export function utilSample(s) {
+  const r = region(s), out = { z: {}, p: {}, q: {} };
+  if (!r) return out;
+  const plots = ownedPlots(s), per = {};
+  for (const p of plots) { const k = p.parcel || '?'; (per[k] ||= [0, 0])[1]++; if (r.plots[p.id]) per[k][0]++; }
+  for (const [k, [b, n]] of Object.entries(per)) if (k !== '?') out.p[k] = Math.round(b / n * 1000) / 1000;
+  if (plots.length) out.z.farm = Math.round(plots.filter(p => r.plots[p.id]).length / plots.length * 1000) / 1000;
+  for (const type of [...new Set((r.buildings || []).filter(b => recipeOf(b)).map(b => b.type))]) {
+    const list = buildingsOf(s, type);
+    if (list.every(b => b.job) && list.some(b => !missingInput(s, b))) out.q[type] = 1;
+  }
+  return out;
+}
+const utilRows = s => s.gm?.util?.rows || [];
+/** Mean busy share of a zone / a parcel over the sampled window (null without samples). */
+export function utilisation(s, { zone = null, parcel = null } = {}) {
+  const v = utilRows(s).map(r => (parcel ? r.p?.[parcel] : r.z?.[zone])).filter(x => Number.isFinite(x));
+  return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+}
+/** How many of the sampled minutes include parcel `id` (a lot bought lately has few). */
+const utilSamples = (s, id) => utilRows(s).filter(r => Number.isFinite(r.p?.[id])).length;
+/** Played minutes a building type's production queue has been full without a break (newest samples first). */
+export function prodFullMin(s, type) {
+  const rows = utilRows(s);
+  let n = 0;
+  for (let i = rows.length - 1; i >= 0 && rows[i].q?.[type]; i--) n++;
+  return n;
+}
+/** Why parcel `id` cannot be sold: unknown | notOwned | starter | last | buildings | null. Refund = LAND.sellRefund × price. */
+export function landSellError(s, id) {
+  const p = own(PARCELS, id), r = region(s);
+  if (!p || !r || areaOfParcel(id) !== 'farm') return 'unknown';
+  if (!r.parcels.includes(id)) return 'notOwned';
+  if (p.starter) return 'starter';
+  if (r.parcels.filter(x => x !== id && own(PARCELS, x) && areaOfParcel(x) === 'farm' && PARCELS[x].kind === p.kind).length === 0) return 'last';
+  if ((r.buildings || []).some(b => !BUILDINGS[b.type]?.walkable && inRect(b.x, b.z, p.rect))) return 'buildings';
+  return null;
+}
+export const landSellRefund = id => Math.floor(LAND.sellRefund * (own(PARCELS, id)?.cost || 0));
+/** A loan pack that pays for a capital job the coins cannot (§3.7), or null: the smallest allowed pack covering the gap whose term > payback / share. */
+export function gmLoanFor(s, c) {
+  if (c.group !== 'capital' || !gmLicensed(s, 'credit') || c.act?.type?.startsWith('loan/')) return null;
+  const gap = c.cost - s.player.coins;
+  const pack = LOAN.packs.filter(a => a >= gap && !loanError(s, a))[0];
+  if (!pack) return null;
+  const term = loanTerm(s, pack), payback = c.cost / Math.max(0.01, c.value || 0);
+  return payback < term * GM.loanRule.paybackTermShare ? { amount: pack, termMin: term, payback } : null;
+}
+// ---- the snapshot (fixed vocabulary, GM_SNAPSHOT_METRICS) ----
+function unitSnap(s, u, now, pj, today) {
+  const st = unitState(u, now), n = needs(u), robot = isRobot(u), log = unitLog(u).filter(e => dayKey(e.at) === today);
+  const mistakes = dayRow(u, today)?.mistakes || 0;
+  const up = bestUpgrade(s, u, pj, mistakes), ql = bestUpgrade(s, u, pj, mistakes, true);
+  const g = !robot && unitGrade(s, u, today), y = !robot && unitGrade(s, u, lastDays(now, 2)[0]);
+  const morale = u.morale ?? VITALS.start.morale;
+  return { id: u.uid, u, kind: robot ? 'robot' : 'worker', zone: zoneOfUnit(u), state: st, onShift: !!u.active && !u.stopped && !Number.isFinite(u.breakUntil),
+    hungry: !robot && (n.hungry || (u.fullness ?? 100) <= 0), tired: !robot && (n.tired || (u.energy ?? 100) <= 0), sulking: !robot && !!n.sulking, morale,
+    phoneSoft: !robot && (morale < GM.planRules.phoneMoraleBelow || log.some(e => e.type === 'nagged' && now - e.at < GM.planRules.nagEverySeconds * 1000)),
+    wear: robot ? (u.wear ?? 100) : 100,
+    recharges: log.filter(e => (e.type === 'cared' || e.type === 'autoCare') && e.extra === 'recharge').length,
+    jams: log.filter(e => e.type === 'jam').length, overheats: log.filter(e => e.type === 'overheat').length, mistakes: robot ? log.filter(e => e.type === 'jam').length : mistakes,
+    gradeD2: g?.letter === 'D' && y?.letter === 'D', canPromote: !robot && canPromote(s, u, now) && !CAREER.auto.includes(nextRank(u)),
+    upgrade: up, upgradeBest: up ? up.value / up.cost : 0, quality: ql, qualityBest: ql ? ql.value / ql.cost : 0,
+    canCharge: robot && okOrCoins(softwareError(s, u, 'autoCharge')), canUnjam: robot && okOrCoins(softwareError(s, u, 'autoUnjam')),
+    contrib: contrib(s, u, pj) };
+}
+/** The manager's view of one zone now (the metric vocabulary of GM_RULES). */
+export function gmSnapshot(s, now, zone, offscreen = false) {
+  const r = region(s), cur = s.world.currentRegion, here = assignedUnits(s, cur, zone), g = s.gm, today = dayKey(now);
+  const pj = perJob(s, zone), units = here.map(u => unitSnap(s, u, now, pj, today));
+  const workersHere = here.filter(isWorkerUnit), wallet = gmCareWalletLeft(s);
+  const snap = { zone, offscreen, units, buildings: [], coins: s.player.coins, owed: loanTotal(s), I10: I10(s), I30: I30(s), perJob: pj,
+    workers: workersHere.length, robots: here.length - workersHere.length,
+    blockedUnits: here.filter(u => unitBlocked(u, now)).length, idleUnits: here.filter(u => u.active && !unitBlocked(u, now) && !unitTasks(u).length).length,
+    moraleMin: Math.min(100, ...workersHere.map(u => u.morale ?? VITALS.start.morale)),
+    careNeed: units.filter(x => ['battery', 'overheat', 'phone', 'sulking'].includes(x.state) || x.hungry || x.tired).length,
+    tiredOn: workersHere.some(u => u.active && (u.energy ?? 100) < SHIFT.tiredBelow),
+    restedOff: workersHere.some(u => !u.active && (u.energy ?? 100) >= SHIFT.restedFrom && !unitBlocked(u, now)),
+    freeSlots: freeSlots(s, zone), hireRoom: Math.max(0, Math.min(hireCap(s, zone), STAFF_CAP.perZone) - zoneUnits(s, zone).length), robotRoom: robotRoom(s, zone),
+    storagePct: 0, storageValue: 0, saleBlocked: false, ripeWaiting: 0, emptyPlots: 0, busyPct: 0, waitingOrders: 0, takenOrders: 0, readyCups: 0,
+    beans: s.inventory.beans || 0, beanNeed: 0, beansLow: false, landBuyOk: false, landSellOk: false, buildUpOk: false, repayRoom: 0, topUpDue: false, trainDue: false,
+    poachHere: false, piling: 0, robotWorth: -1 };
+  snap.careShort = snap.careNeed > 0 && s.player.coins < wallet;
+  const q = taskQueue(s, zone, now);
+  if (zone === 'farm' && r) {
+    const cap = capacity(s), plots = ownedPlots(s);
+    snap.storagePct = cap > 0 ? stored(s) / cap : 0;
+    snap.storageValue = sellAllQuote(s).coins || 0;
+    snap.saleBlocked = ['sellFull', 'sellCare'].some(k => taskPending(s, k) || taskCooling(s, k)); // one «Bán hết» at a time
+    snap.ripeWaiting = plots.filter(p => r.plots[p.id] && plotState(s, p.id, now).stage === 'ready').length;
+    snap.emptyPlots = plots.filter(p => !r.plots[p.id]).length;
+    snap.busyPct = plots.length ? plots.filter(p => r.plots[p.id]).length / plots.length : 0;
+    snap.piling = snap.ripeWaiting;
+    snap.buildings = (r.buildings || []).filter(b => recipeOf(b)).map(b => ({ id: b.uid, b, prodReady: !!b.job && !collectError(s, b, now), prodIdle: !b.job && okOrCoins(prodError(s, b)) && !missingInput(s, b) }));
+    if (!offscreen) Object.assign(snap, landSnap(s, snap), buildSnap(s));
+  } else if (zone === 'shop' && r) {
+    const os = r.shop.orders || [];
+    snap.waitingOrders = q.order || 0; snap.takenOrders = q.brew || 0; snap.readyCups = q.deliver || 0;
+    snap.beanNeed = os.filter(o => o.stage === 'taken' || o.stage === 'waiting').reduce((n, o) => n + (DRINKS[o.drink]?.beans || 1), 0);
+    const bq = beanBuyQuote(s);
+    snap.beansLow = snap.beanNeed > 0 && snap.beans < 2 * snap.beanNeed && !(bq.error && bq.error !== 'coins') && bq.amount > 0;
+    snap.piling = snap.waitingOrders;
+  }
+  // hiring: a robot only when it beats a worker after its running cost (§3.7)
+  const rType = STAFF_ORDER.find(t => STAFF[t].kind === 'robot' && STAFF[t].zone === zone), wType = RECRUIT.worker[zone];
+  if (rType && wType && level(s) >= STAFF[rType].level) { const rb = { type: rType }, wk = { type: wType }; snap.robotWorth = contrib(s, rb, pj) - runCostPerMin(rb) - contrib(s, wk, pj); }
+  const p = workerPoach(s), pu = p && unitOf(s, p.uid);
+  snap.poachHere = !!pu && zoneOfUnit(pu) === zone;
+  if (!offscreen) {
+    // repay alone from surplus (§3.7): coins ≥ owed + care wallet + autoLimit → up to autoLimit
+    const owed = loanTotal(s);
+    if (owed > 0 && g?.unit && s.player.coins >= owed + gmCareWallet(s) + g.budget) snap.repayRoom = Math.min(Math.floor(owed), g.budget);
+    snap.topUpDue = topUpDue(s, now);
+    snap.trainDue = !!gmTrainDue(s);
+  }
+  return snap;
+}
+function landSnap(s, snap) {
+  const L = GM.land, out = { landBuyOk: false, landSellOk: false, landBuy: null, landSell: null };
+  const crop = chooseCrop(s);
+  if (!crop) return out;
+  const perPlot = Math.max(0, perJobFarm(s, crop)) / Math.max(0.01, growMs(s, crop) / 60000);
+  const zoneUse = utilisation(s, { zone: 'farm' }) ?? snap.busyPct;
+  // BUY: the cheapest field lot for sale
+  const lot = frontierParcels(s).filter(id => PRE_TILLED[PARCELS[id].kind] > 0).sort((a, b) => PARCELS[a].cost - PARCELS[b].cost)[0];
+  if (lot) {
+    const price = PARCELS[lot].cost, fields = PRE_TILLED[PARCELS[lot].kind];
+    const earn = fields * perPlot * Math.max(0.05, zoneUse), payback = price / Math.max(0.01, earn);
+    const pay = s.player.coins >= L.coinsMul * price || !!gmLoanFor(s, { group: 'capital', cost: price, value: earn, act: { type: 'land/buyParcel' } });
+    out.landBuy = { parcelId: lot, price, payback, value: earn };
+    out.landBuyOk = payback <= L.buyPaybackMin && snap.busyPct >= L.busyPct && pay;
+  }
+  // SELL: a lot used < sellUtil over the whole window whose refund beats LAND.sellPaybackMin of its income
+  if (utilRows(s).length >= L.windowMin) {
+    const r = region(s);
+    // a lot is judged on its own GM.land.windowMin samples: one bought minutes ago (fields not planted yet) never qualifies
+    const lot2 = r.parcels.filter(id => !landSellError(s, id) && utilSamples(s, id) >= L.windowMin).map(id => ({ id, u: utilisation(s, { parcel: id }) ?? 1 })).filter(x => x.u < L.sellUtil).sort((a, b) => a.u - b.u || a.id.localeCompare(b.id))[0];
+    if (lot2) {
+      const refund = landSellRefund(lot2.id), fields = ownedPlots(s).filter(p => p.parcel === lot2.id).length;
+      const keepValue = LAND.sellPaybackMin * fields * perPlot * lot2.u;
+      out.landSell = { parcelId: lot2.id, refund, value: refund / LAND.sellPaybackMin };
+      out.landSellOk = s.player.coins < gmCareWallet(s) || refund >= keepValue;
     }
-    const need = needs(u);
-    if (u.active && !u.stopped && !Number.isFinite(u.breakUntil)) {
-      if (need.hungry || (u.fullness ?? 100) <= 0) {
-        if (s.gm?.unit?.style === 'careful') add(`care:${id}:lunch`, 'staff/care', { uid: id, kind: 'lunch' }, 0, 'safe', 20, 'hungryLunch', { name: nm });
-        else add(`care:${id}:food`, 'staff/care', { uid: id, kind: 'food' }, careCost(u, 'food'), 'budget', 20, 'hungry', { name: nm });
+  }
+  return out;
+}
+function buildSnap(s) {
+  const B = GM.building;
+  let best = null;
+  for (const type of [...new Set((region(s)?.buildings || []).filter(b => recipeOf(b)).map(b => b.type))]) {
+    if (prodFullMin(s, type) < B.fullMin) continue;
+    const b = buildingsOf(s, type).filter(x => okOrCoins(upgradeError(s, x))).sort((a, c) => a.level - c.level)[0];
+    if (!b) continue;
+    const rc = recipeOf(b), def = BUILDINGS[type];
+    const margin = Object.entries(rc.out).reduce((n, [g, k]) => n + (GOODS[g]?.price || 0) * k, 0) - Object.entries(rc.in).reduce((n, [g, k]) => n + (GOODS[g]?.price || 0) * k, 0) - rc.fee;
+    const rate = lv => pick(def.effect.batch, lv) * pick(def.effect.speed, lv) * 60 / rc.seconds * margin;
+    const value = rate(b.level + 1) - rate(b.level), cost = upgradeCost(type, b.level);
+    if (!(value > 0) || cost / value > B.paybackMin) continue;
+    if (!best || value / cost > best.value / best.cost) best = { uid: b.uid, type, cost, value };
+  }
+  return { buildUpOk: !!best, buildUp: best };
+}
+/** Real-money top-up proposal due (§3.7): ≥ afterDenied denied loan tasks today, I10 < incomeShare × plan.target, ≤ perDay. */
+export function topUpDue(s, now) {
+  const T = GM.topUp, t = s.gm?.topUp;
+  if (!t || t.d !== dayKey(now) || (t.denied || 0) < T.afterDenied || (t.filed || 0) >= T.perDay) return false;
+  return !!s.gm?.plan?.target && I10(s) < T.incomeShare * s.gm.plan.target && !tasksOpen(s).some(x => x.kind === 'topUp');
+}
+/** Training pays (§3.7): more candidates than actions for trainThinks thinks in a row, and the extra actions repay the fee in time. */
+export function gmTrainDue(s) {
+  const gm = gmOf(s), b = s.gm?.busy, U = GM.selfUpgrade;
+  if (!gm || !b || (b.n || 0) < U.trainThinks || !okOrCoins(gmTrainError(s))) return null;
+  const k = Math.max(0, Math.min(GM.thinkSeconds.length - 1, gm.skill - 1));
+  const perMin = (i, n) => GM.actionsPerThink[i] * 60 / GM.thinkSeconds[i] * n;
+  const extra = Math.max(0, perMin(k + 1, 1) - perMin(k, 1)) * Math.min(1, (b.excess || 0) / Math.max(1, GM.actionsPerThink[k]));
+  const gain = extra * (b.avg || 0) * U.actionValueMin, cost = gmTrainCost(gm);
+  return gain > 0 && cost / gain <= U.trainPaybackMin ? { cost, value: gain } : null;
+}
+// ---- builders a GM_RULES row may name ----
+const nameOf = u => u?.name || null;
+const RULE_ARGS = {
+  none: () => ({}),
+  zone: (s, snap) => ({ payload: { zone: snap.zone } }),
+  storage: (s, snap) => ({ params: { pct: Math.round(snap.storagePct * 100), coins: Math.round(snap.storageValue) } }),
+  // a sale just under highValue: the most valuable good, as many as stay under the line (§4.4 "sells 420 of 600 alone")
+  sellUnderHigh: (s, snap) => {
+    const hv = gmHighValue(s);
+    const best = GOOD_ORDER.map(gd => ({ gd, n: Math.floor(goodCount(s, gd)), each: (sellQuote(s, gd, 1).coins || 0) })).filter(x => x.n > 0 && x.each > 0).sort((a, b) => b.each - a.each)[0];
+    if (!best) return null;
+    const n = Math.min(best.n, Math.floor((hv - 1) / best.each));
+    if (n <= 0) return null;
+    const q = sellQuote(s, best.gd, n);
+    return { payload: { good: best.gd, amount: n }, sale: q.coins, key: best.gd, params: { n, good: best.gd, coins: Math.round(q.coins) } };
+  },
+  beanPack: s => { const q = beanBuyQuote(s); return q.amount > 0 ? { payload: {}, cost: q.free ? 0 : q.cost, params: { n: q.amount } } : null; },
+  care: (s, snap, x, rule, now) => (okOrCoins(careError(s, x.u, rule.care, now)) ? { payload: { uid: x.id, kind: rule.care }, key: x.id, subject: x.id, params: { name: nameOf(x.u), serial: x.u.serial, wear: Math.round(x.wear) } } : null),
+  restedBench: (s, snap) => {
+    const u = assignedUnits(s, s.world.currentRegion, snap.zone).find(w => isWorkerUnit(w) && !w.active && (w.energy ?? 100) >= SHIFT.restedFrom);
+    return u ? { payload: { uid: u.uid, active: true }, key: u.uid, subject: u.uid, value: contrib(s, u, snap.perJob), params: { name: nameOf(u) } } : null;
+  },
+  building: (s, snap, x) => ({ payload: { uid: x.id }, key: x.id, params: { building: x.b.type } }),
+  poached: (s, snap) => { const p = workerPoach(s), u = p && unitOf(s, p.uid); return u ? { payload: { uid: u.uid }, key: u.uid, subject: u.uid, cost: p.fee, value: contrib(s, u, snap.perJob), params: { name: nameOf(u) } } : null; },
+  bestApplicant: (s, snap) => {
+    const board = applicants(s, snap.zone);
+    const i = board.map((a, k) => ({ k, v: STAT_ORDER.reduce((n, st) => n + (a.stats?.[st] || 1), 0) + (a.trait === 'diligent' ? 1 : a.trait === 'lazy' ? -1 : 0) }))
+      .filter(x => okOrCoins(recruitError(s, snap.zone, x.k))).sort((a, b) => b.v - a.v)[0]?.k;
+    if (i == null) return null;
+    const a = board[i];
+    return { payload: { zone: snap.zone, index: i, name: a.name }, key: `${snap.zone}:${a.name}`, cost: freeHire(s) ? 0 : a.cost, value: contrib(s, { type: a.type, stats: a.stats }, snap.perJob), params: { name: a.name, n: snap.piling } };
+  },
+  robotType: (s, snap) => {
+    const type = STAFF_ORDER.find(t => STAFF[t].kind === 'robot' && STAFF[t].zone === snap.zone);
+    return type && okOrCoins(staffError(s, type)) ? { payload: { type }, key: `${snap.zone}:${type}`, cost: hireCost(s, type), value: Math.max(0, snap.robotWorth) + contrib(s, { type: RECRUIT.worker[snap.zone] }, snap.perJob), params: { n: snap.piling } } : null;
+  },
+  bestUpgrade: (s, snap, x) => upArgs(x, x.upgrade),
+  bestQuality: (s, snap, x) => upArgs(x, x.quality),
+  software: (s, snap, x, rule) => ({ payload: { uid: x.id, pack: rule.pack }, key: x.id, subject: x.id, cost: softwarePrice(x.u, rule.pack),
+    value: rule.pack === 'autoCharge' ? x.contrib * GM.value.reactionMin / (GM.value.reactionMin + batteryMinutes(x.u)) : jamChance(x.u) * jobsPerMin(x.u) * (CARE.repair + x.contrib * GM.value.reactionMin),
+    params: { serial: x.u.serial, n: rule.pack === 'autoCharge' ? x.recharges : x.jams } }),
+  promote: (s, snap, x) => ({ payload: { uid: x.id }, key: x.id, subject: x.id, params: { name: nameOf(x.u), rank: nextRank(x.u) } }),
+  unit: (s, snap, x) => ({ payload: { uid: x.id }, key: x.id, subject: x.id, params: { name: nameOf(x.u) } }),
+  train: s => { const t = gmTrainDue(s), gm = gmOf(s); return t ? { payload: {}, cost: t.cost, value: t.value, params: { skill: (gm.skill || 1) + 1 } } : null; },
+  landBuy: (s, snap) => (snap.landBuy ? { payload: { parcelId: snap.landBuy.parcelId }, key: snap.landBuy.parcelId, subject: snap.landBuy.parcelId, cost: snap.landBuy.price, value: snap.landBuy.value,
+    params: { lot: snap.landBuy.parcelId, coins: snap.landBuy.price, min: Math.round(snap.landBuy.payback) } } : null),
+  landSell: (s, snap) => (snap.landSell ? { payload: { parcelId: snap.landSell.parcelId }, key: snap.landSell.parcelId, subject: snap.landSell.parcelId, value: snap.landSell.value,
+    params: { lot: snap.landSell.parcelId, coins: snap.landSell.refund } } : null),
+  buildUp: (s, snap) => (snap.buildUp ? { payload: { uid: snap.buildUp.uid }, key: snap.buildUp.uid, cost: snap.buildUp.cost, value: snap.buildUp.value, params: { building: snap.buildUp.type, coins: snap.buildUp.cost } } : null),
+  repay: (s, snap) => (snap.repayRoom > 0 ? { payload: { amount: snap.repayRoom }, cost: snap.repayRoom, params: { coins: snap.repayRoom } } : null),
+};
+function upArgs(x, o) {
+  if (!o) return null;
+  const w = o.what || {};
+  return { act: o.act, key: `${x.id}:${w.stat || w.part || w.item || w.pack}`, subject: x.id, cost: o.cost, value: o.value,
+    params: { name: nameOf(x.u), serial: x.u.serial, stat: w.stat, part: w.part, item: w.item, pack: w.pack, min: Math.round(o.payback) } };
+}
+const RULE_COST = {
+  none: () => 0, arg: (s, snap, x, a) => a.cost || 0,
+  care: (s, snap, x, a, rule) => careCost(x.u, rule.care),
+  prodFee: (s, snap, x) => recipeIO(x.b)?.fee || 0,
+};
+const RULE_VALUE = {
+  none: () => 0, arg: (s, snap, x, a) => a.value || 0,
+  contrib: (s, snap, x) => (x?.contrib != null ? x.contrib : 0),
+  sale: (s, snap, x, a, rule) => (rule.sale === 'arg' ? a.sale || 0 : snap.storageValue) / Math.max(1, snap.I10 / 10), // minutes of income the sale brings
+  orders: snap => snap.waitingOrders * snap.perJob * GM.value.jobsPerDrink,
+  prod: (s, snap, x) => { const io = recipeIO(x.b); if (!io) return 0; const v = o => Object.entries(o).reduce((n, [g, k]) => n + (GOODS[g]?.price || 0) * k, 0); return Math.max(0, (v(io.out) - v(io.in) - io.fee) * 60000 / Math.max(1, io.ms)); },
+};
+// value 'orders' gets (snap) only: keep the signature uniform
+const valueOf = (name, s, snap, x, a, rule) => (name === 'orders' ? RULE_VALUE.orders(snap) : (RULE_VALUE[name] || RULE_VALUE.none)(s, snap, x, a, rule));
+const RULE_OPS = { '>=': (a, b) => a >= b, '<=': (a, b) => a <= b, '>': (a, b) => a > b, '<': (a, b) => a < b, '==': (a, b) => a === b, '!=': (a, b) => a !== b };
+const metricOf = (x, snap, m) => (x && m in x ? x[m] : snap[m]);
+/** Does one GM_RULES row hold for a subject (a unit / building row of the snapshot, or the zone itself)? */
+export function gmRuleHolds(rule, x, snap) {
+  for (const [m, op, v] of [[rule.metric, rule.op, rule.value], ...(rule.and || [])]) {
+    const a = metricOf(x, snap, m);
+    if (a === undefined || a === null || !RULE_OPS[op]?.(a, v)) return false;
+  }
+  return true;
+}
+/** Task tier for the HUD labels: advice (your job) | safe (free) | big (always asks) | budget (small cost). */
+const tierOf = (s, c) => (c.group === 'advice' ? 'advice' : c.always || c.cost >= (s.gm?.bigLimit ?? GM.defaults.bigLimit) || (c.sale || 0) >= gmHighValue(s) ? 'big' : c.cost > 0 ? 'budget' : 'safe');
+/**
+ * Every candidate the manager sees now (management-rules §3.3), best score first, and `hits` (rule:zone → condition
+ * held this think, for the `ticks` rows). offscreen: also think about the zone not on screen (care + trade rows).
+ * score = urgency × (value + 1) / (cost / I10 + costFloor) × styleMul[style][group].
+ */
+export function gmCandidates(s, now, { offscreen = true } = {}) {
+  const { on, off } = gmScope(s), list = [], hits = {};
+  if (!on || !region(s) || s.story.phase !== 'play') return { list, hits };
+  const style = s.gm?.unit?.style || 'balanced', bigLimit = s.gm?.bigLimit ?? GM.defaults.bigLimit;
+  for (const zone of [on, ...(offscreen ? off : [])]) {
+    const isOff = zone !== on, snap = gmSnapshot(s, now, zone, isOff);
+    for (const rule of GM_RULES) {
+      if ((rule.zone !== 'any' && rule.zone !== zone) || (isOff && !rule.offscreen) || (rule.style && !rule.style.includes(style))) continue;
+      const subjects = rule.each === 'building' ? snap.buildings : rule.each === 'unit' ? snap.units : rule.each ? snap.units.filter(x => x.kind === rule.each) : [null];
+      const held = subjects.filter(x => gmRuleHolds(rule, x, snap));
+      if (rule.ticks) { const hk = `${rule.key}:${zone}`; hits[hk] = held.length > 0; if ((s.gm?.ticks?.[hk] || 0) + 1 < rule.ticks) continue; }
+      for (const x of held) {
+        const a = (RULE_ARGS[rule.args] || RULE_ARGS.none)(s, snap, x, rule, now);
+        if (!a) continue;
+        const act = a.act || { type: rule.act, payload: a.payload || {} };
+        const cost = Math.max(0, Math.round((RULE_COST[rule.cost] || RULE_COST.none)(s, snap, x, a, rule) || 0));
+        const value = Math.max(0, valueOf(rule.valueOf, s, snap, x, a, rule) || 0);
+        const sale = rule.sale === 'arg' ? a.sale || 0 : rule.sale === 'storageValue' ? snap.storageValue : 0;
+        const sg = GM.styleGroupOf[rule.group];
+        const score = (GM.urgency[rule.urgency] || 1) * (value + 1) / (cost / Math.max(1, snap.I10) + GM.costFloor) * (sg ? GM.styleMul[style]?.[sg] ?? 1 : 1);
+        const c = { key: `${rule.key}${rule.zone === 'any' && !a.key ? `:${zone}` : ''}${a.key ? `:${a.key}` : ''}`, rule: rule.key, zone, group: rule.group, licence: rule.licence,
+          kind: rule.kind || null, act, cost, value: Math.round(value * 100) / 100, sale: Math.round(sale), urgency: rule.urgency, score: Math.round(score * 100) / 100,
+          reason: [rule.reason, a.params || {}], subject: a.subject || null, always: GM.alwaysApprove.includes(act.type), noFile: !!rule.noFile, offscreen: isOff };
+        c.tier = tierOf(s, c);
+        c.bigLimit = bigLimit;
+        list.push(c);
       }
-      if (need.tired || (u.energy ?? 100) <= 0) add(`care:${id}:coffee`, 'staff/care', { uid: id, kind: 'coffee' }, careCost(u, 'coffee'), 'budget', 20, 'tired', { name: nm });
-      if (need.sulking) add(`care:${id}:bonus`, 'staff/care', { uid: id, kind: 'bonus' }, careCost(u, 'bonus'), 'budget', 15, 'sulking', { name: nm });
     }
-    // growth
-    const stat = STAT_ORDER.filter(k => !statError(s, u, k)).sort((a, b) => statOf(u, a) - statOf(u, b))[0];
-    if (stat) add(`stat:${id}:${stat}`, 'staff/upgradeStat', { uid: id, stat }, statPrice(u, stat).coins, 'advice', 8, 'statReady', { name: nm, stat });
-    const next = nextRank(u);
-    if (canPromote(s, u, now)) add(`promote:${id}`, 'staff/promote', { uid: id }, 0, 'advice', 12, 'promote', { name: nm, rank: next });
-    const g = unitGrade(s, u, dayKey(now)), y = unitGrade(s, u, lastDays(now, 2)[0]);
-    if (g?.letter === 'D' && y?.letter === 'D') add(`fire:${id}`, 'staff/fire', { uid: id }, 0, 'advice', 2, 'fireD', { name: nm });
   }
-  // supply is yours too (research step 2): contracts running out / missing, a buyer paying more today
+  for (const c of playerAdvice(s, now, on)) list.push(c);
+  return { list: list.sort((a, b) => b.score - a.score || a.key.localeCompare(b.key)), hits };
+}
+/**
+ * What a manager would do now, best first (the HUD's «Việc nên làm» and gm/delegate): every rule candidate plus the
+ * player's own jobs (suppliers, crop trials, recipes — the manager never does those) and licence suggestions.
+ * Each item: { key, act, cost, value, sale, tier, group, licence, kind, score, reason, zone }.
+ */
+export const gmPlan = (s, now) => gmCandidates(s, now).list;
+// The player's own jobs the manager only points at (research is never his, founder rule), and licences worth buying.
+function playerAdvice(s, now, zone) {
+  const out = [], r = region(s);
+  if (!r) return out;
+  const add = (key, type, payload, cost, score, reason, params = {}) => out.push({ key, rule: key, zone, group: 'advice', licence: 'advice', kind: null, act: { type, payload }, cost, value: 0, sale: 0,
+    urgency: 'cosmetic', score, reason: [reason, params], subject: null, always: false, noFile: true, tier: 'advice' });
+  // a licence the manager kept missing today (§3.7 self-upgrade): you buy it
+  const w = s.gm?.wish;
+  if (s.gm?.unit && w?.d === dayKey(now)) for (const grp of GM.licences.groups) {
+    if (!gmLicensed(s, grp) && (w.n?.[grp] || 0) >= GM.selfUpgrade.licenceFires) add(`licence:${grp}`, 'gm/buyLicence', { group: grp }, licencePrice(grp), 50, 'licenceWish', { lic: grp, n: w.n[grp] });
+  }
   if (zone === 'shop') for (const g of SUPPLY.groupOrder) {
     const c = contractOf(s, g, now), found = suppliersFound(s, g, now);
-    if (c && c.until - now < 2 * 3600000) add(`contract:${g}`, 'supply/open', {}, 0, 'advice', 4, 'contractEnd', { group: g, h: Math.max(1, Math.round((c.until - now) / 3600000)) });
-    else if (!c && found) add(`contract:${g}`, 'supply/open', {}, 0, 'advice', 3, 'contractNone', { group: g });
+    if (c && c.until - now < GM.planRules.contractWarnHours * 3600000) add(`contract:${g}`, 'supply/open', {}, 0, 4, 'contractEnd', { group: g, h: Math.max(1, Math.round((c.until - now) / 3600000)) });
+    else if (!c && found) add(`contract:${g}`, 'supply/open', {}, 0, 3, 'contractNone', { group: g });
   }
   if (zone === 'farm') for (const crop of CROP_ORDER.filter(c => cropUnlocked(s, c))) {
-    // crop methods are yours too (research step 3): nothing tried yet / a tried way beats the one in use
     const res = Object.values(trialResults(s, crop)), rid = regionKey(s);
-    if (!res.length && !trialsHere(s).some(t => t.crop === crop)) { add(`trial:${crop}`, 'farmlab/open', {}, 0, 'advice', 2, 'trialNone', { crop }); continue; }
+    if (!res.length && !trialsHere(s).some(t => t.crop === crop)) { add(`trial:${crop}`, 'farmlab/open', {}, 0, 2, 'trialNone', { crop }); continue; }
     const curY = methodKey(methodOf(s, crop)) === methodKey(FARMLAB.defaultMethod) ? 1 : methodEffect(rid, crop, methodOf(s, crop)).yieldMul;
     const best = res.map(x => methodEffect(rid, crop, x.method).yieldMul).sort((a, b) => b - a)[0] || 0;
-    if (best >= curY * 1.1) add(`trial:${crop}`, 'farmlab/open', {}, 0, 'advice', 3, 'trialBetter', { crop, pct: Math.round((best / curY - 1) * 100) });
+    if (best >= curY * GM.planRules.betterMul) add(`trial:${crop}`, 'farmlab/open', {}, 0, 3, 'trialBetter', { crop, pct: Math.round((best / curY - 1) * 100) });
   }
   if (zone === 'farm') {
     const cur = buyerNow(s, now), found = suppliersFound(s, 'buyers', now);
     if (!cur.locked) for (let i = 1; i <= found; i++) {
       const b = buyerOf(regionKey(s), i, dayKey(now));
-      if (i !== cur.i && b.mul.beans >= (cur.mul.beans || 1) * 1.1) { add('buyer', 'supply/open', {}, 0, 'advice', 4, 'betterBuyer', { name: b.name, pct: Math.round((b.mul.beans / (cur.mul.beans || 1) - 1) * 100) }); break; }
+      if (i !== cur.i && b.mul.beans >= (cur.mul.beans || 1) * GM.planRules.betterMul) { add('buyer', 'supply/open', {}, 0, 4, 'betterBuyer', { name: b.name, pct: Math.round((b.mul.beans / (cur.mul.beans || 1) - 1) * 100) }); break; }
     }
   }
-  // research is yours: unknown local recipes in this country (café only)
   if (zone === 'shop') {
     const cc = countryNow(s);
     const open = countryRecipes(cc).filter(rc => rc.ings.length && drinkUnlocked(s, rc.base) && !recipeKnown(s, cc, rc.index)).length;
-    if (open) add('research', 'research/open', {}, 0, 'advice', 3, 'research', { n: open });
+    if (open) add('research', 'research/open', {}, 0, 3, 'research', { n: open });
   }
-  // shifts
-  const tiredOn = here.some(u => isWorkerUnit(u) && u.active && (u.energy ?? 100) < SHIFT.tiredBelow);
-  const restedOff = here.some(u => isWorkerUnit(u) && !u.active && (u.energy ?? 100) >= SHIFT.restedFrom && !unitBlocked(u, now));
-  if (tiredOn && restedOff) add('shift', 'staff/swapShift', { zone }, 0, 'safe', 25, 'swapShift');
-  else if (restedOff && freeSlots(s, zone) > 0) {
-    const u = here.find(x => isWorkerUnit(x) && !x.active && (x.energy ?? 100) >= SHIFT.restedFrom);
-    if (u) add(`active:${u.uid}`, 'staff/setActive', { uid: u.uid, active: true }, 0, 'safe', 25, 'toShift', { name: name(u) });
-  }
-  // the rival is poaching a worker
-  const p = s.staff.poach, pu = p && unitOf(s, p.uid);
-  if (pu && STAFF[pu.type].zone === zone) add(`keep:${pu.uid}`, 'staff/keep', { uid: pu.uid }, p.fee, 'big', 40, 'keepWorker', { name: name(pu) });
-  // hire: a free place and work piling up (farm: ripe plots waiting, café: customers waiting)
-  if (zoneUnits(s, zone).length < hireCap(s, zone)) {
-    const piling = zone === 'farm' ? ownedPlots(s).filter(pl => plotState(s, pl.id, now).stage === 'ready').length
-      : (r.shop.orders || []).filter(o => o.stage === 'waiting').length;
-    if (piling >= 3) {
-      const board = applicants(s, zone);
-      const i = board.map((a, k) => ({ k, v: STAT_ORDER.reduce((n, st) => n + (a.stats?.[st] || 1), 0) + (a.trait === 'diligent' ? 1 : a.trait === 'lazy' ? -1 : 0) }))
-        .filter(x => !recruitError(s, zone, x.k)).sort((a, b) => b.v - a.v)[0]?.k;
-      if (i != null) add(`hire:${zone}:${board[i].name}`, 'staff/recruit', { zone, index: i, name: board[i].name }, freeHire(s) ? 0 : board[i].cost, 'advice', 10, 'hire', { name: board[i].name, n: piling });
-    }
-  }
-  return out.sort((a, b) => b.score - a.score);
+  return out;
 }
 /**
  * The manager's mood drivers now (founder feedback): idleMin = minutes without a job (you play everything yourself),
@@ -976,21 +1433,140 @@ export function gmMood(s, now) {
   const absentMin = Math.max(0, (now - (g.seenAt || now)) / 60000);
   return { idleMin, absentMin, idle: idleMin > M.idleGraceMin, absent: absentMin > M.absentGraceMin };
 }
-/** What the GM may do with a plan item now: 'do' | 'request' | 'suggest'. */
-export function gmPermission(s, item, now) {
+/**
+ * What the manager may do with a candidate now (management-rules §3.3 permission order): 'suggest' (advisor, no
+ * licence, your own job) → 'file' (alwaysApprove, cost ≥ bigLimit, sale ≥ highValue: no mode bypasses it; coins short:
+ * 'loan' when a loan pack pays it back in time, else 'suggest' — a task you cannot pay is never filed) → 'do'
+ * (care / ops inside the care wallet) → coins short: 'loan' (a capital job a loan pack pays back in time, with the
+ * credit licence) or 'suggest' → 'do' inside the growth budget → 'file'.
+ */
+export function gmPermission(s, c, now) {
   const g = s.gm, mode = g?.unit ? g.mode : 'advisor';
-  if (item.tier === 'advice' || mode === 'advisor') return 'suggest';
-  if (s.player.coins < item.cost) return 'suggest';
-  if (mode === 'full') return 'do';
-  if (item.tier === 'safe') return 'do';
-  if (item.tier === 'budget') return item.cost <= gmBudgetLeft(s, now) ? 'do' : 'request';
-  return 'request';
+  if (c.group === 'advice' || mode === 'advisor' || !gmLicensed(s, c.licence)) return 'suggest';
+  // never file what the coins cannot pay: a capital job a loan pays back in time becomes a loan task, the rest a suggestion
+  if (c.always || c.cost >= (g.bigLimit ?? GM.defaults.bigLimit) || (c.sale || 0) >= gmHighValue(s)) return s.player.coins < c.cost ? (gmLoanFor(s, c) ? 'loan' : 'suggest') : 'file';
+  if ((c.group === 'care' || c.group === 'ops') && c.cost <= gmCareWalletLeft(s) && s.player.coins >= c.cost) return 'do';
+  if (s.player.coins < c.cost) return gmLoanFor(s, c) ? 'loan' : 'suggest';
+  if (c.cost <= gmBudgetLeft(s, now)) return 'do';
+  return 'file';
 }
+/** A plan item paid from the care wallet (care of a unit). */
+export const isCareItem = item => item?.act?.type === 'staff/care';
+/** Care wallet per GM.careWallet.windowMin played minutes: max(min, rosterMul × Σ per unit of this region). */
+export function gmCareWallet(s) {
+  const W = GM.careWallet;
+  const per = assignedUnits(s).reduce((n, u) => n + (isRobot(u) ? unitFee(u) + W.robotExtra : W.workerPer10), 0);
+  return Math.round(Math.max(W.min, W.rosterMul * per));
+}
+/** What is left of the care wallet in its current played window. */
+export function gmCareWalletLeft(s) {
+  const w = s.gm?.careWin, open = w && playedMs(s) - w.startPlayed < GM.careWallet.windowMin * 60000;
+  return Math.max(0, gmCareWallet(s) - (open ? w.spent : 0));
+}
+// ---------- inbox — Việc cần duyệt (management-rules §1.2 / §4) ----------
+/** Open tasks (oldest first) and answered ones (newest first). */
+export const tasksOpen = s => s.tasks?.open || [];
+export const tasksDone = s => s.tasks?.done || [];
+export const taskById = (s, id) => tasksOpen(s).find(t => t.id === id) || tasksDone(s).find(t => t.id === id) || null;
+/** Played ms left on a task (≤ 0: due). */
+export const taskLeftMs = (s, t) => (t ? t.untilPlayed - playedMs(s) : 0);
+/** Task kind for an action the manager files. */
+export const taskKindOf = actType => TASKS.kindOf[actType] || 'staffGrowth';
+/** The manager's open requests (tasks filed by 'g1'). */
+export const gmRequests = s => tasksOpen(s).filter(t => t.by === 'g1');
+/** The rival's lure on a worker in progress: { id, uid, zone, fee, leftMs } or null. */
+export function workerPoach(s) {
+  const t = tasksOpen(s).find(x => x.kind === 'poach');
+  return t ? { id: t.id, uid: t.act.payload.uid, zone: t.zone, fee: t.cost, leftMs: taskLeftMs(s, t) } : null;
+}
+/** The rival's lure on the manager in progress: { id, fee, leftMs } or null. */
+export function gmPoachOf(s) {
+  const t = tasksOpen(s).find(x => x.kind === 'gmPoach');
+  return t ? { id: t.id, fee: t.cost, leftMs: taskLeftMs(s, t) } : null;
+}
+/** A key the manager must leave alone for now (denied / expired / done lately), or already waiting in the inbox. */
+export const taskCooling = (s, key) => (s.tasks?.cool?.[key] || 0) > playedMs(s);
+export const taskPending = (s, key) => tasksOpen(s).some(t => t.key === key);
+/** An expired manager task can still be approved late (within TASKS.lateMin played minutes): only while the manager who
+ * filed it is still here (gmLeave / the Level-10 wipe mark his old tasks lateOff), in the region it was filed in, and
+ * never a kind that is not penalised (a top-up). */
+export const taskLateOk = (s, t) => !!t && t.status === 'expired' && t.by === 'g1' && !t.lateOff && !!s.gm?.unit && !TASKS.noPenaltyKinds.includes(t.kind)
+  && (t.regionId == null || t.regionId === s.world.currentRegion) && playedMs(s) - (t.answeredAtPlayed || 0) <= TASKS.lateMin * 60000;
+/** Fines of the last PENALTY.windowMin played minutes. */
+export const finesRecent = s => (s.tasks?.fines || []).filter(f => f.p > playedMs(s) - PENALTY.windowMin * 60000).reduce((n, f) => n + f.c, 0);
+/** The coin fine an expiring manager task would cost now (§4.3): min(perTask × I30, cap30OfI10 × I10 − recent fines, coins). */
+export const taskFine = s => Math.max(0, Math.floor(Math.min(PENALTY.perTask * I30(s), PENALTY.cap30OfI10 * I10(s) - finesRecent(s), s.player.coins)));
+/** The manager's backlog of ignored tasks, and the states it causes (Chờ lệnh / dễ bị dụ / Đình công). */
+export const gmBacklog = s => s.gm?.unit?.backlog || 0;
+export const gmWaiting = s => !!s.gm?.unit?.waiting && playedMs(s) < s.gm.unit.waiting.untilPlayed && gmBacklog(s) >= PENALTY.backlog.waitAt;
+export const gmPoachable = s => gmBacklog(s) >= PENALTY.backlog.poachAt;
+export const gmStrike = s => s.gm?.unit?.strike || null;
+/** What gm/apologise costs: PENALTY.apologiseSalaries × the salary. */
+export const apologiseCost = s => Math.round(PENALTY.apologiseSalaries * gmPay(s));
+// ---------- history — Nhật ký (management-rules §1.3 / §5) ----------
+/** A history row's group. */
+export const histGroupOf = type => HISTORY.groups[type] || 'event';
+/** Every unit in one place: the team + the manager (uid 'g1'). */
+export const allUnits = s => (s.gm?.unit ? [...s.staff.units, s.gm.unit] : [...s.staff.units]);
+/** A uid's name (team, manager or a unit that left). */
+export function histName(s, uid) {
+  if (uid === 'g1') return s.gm?.unit?.name || [...(s.history?.tombstones || [])].reverse().find(x => x.uid === 'g1')?.name || null;
+  const u = unitOf(s, uid);
+  if (u) return u.name || null;
+  return (s.history?.tombstones || []).find(x => x.uid === uid)?.name || null;
+}
+/** The kind of an actor / subject: 'player' | 'manager' | 'worker' | 'robot' | 'system'. */
+export function histKind(s, uid) {
+  if (uid === 'player') return 'player';
+  if (uid === 'g1') return 'manager';
+  if (uid === 'system' || !uid) return 'system';
+  const u = unitOf(s, uid);
+  if (u) return isRobot(u) ? 'robot' : 'worker';
+  return (s.history?.tombstones || []).find(x => x.uid === uid)?.kind || 'worker';
+}
+/** Days present in the shared rows (newest first). */
+export const historyDays = s => [...new Set((s.history?.rows || []).map(r => dayKey(r.at)))].sort((a, b) => b - a);
+/**
+ * Shared rows, newest first, filtered: actor 'all' | 'player' | 'manager' | 'worker' | 'robot' (who did it or whom it
+ * was about), group, zone, day (dayKey).
+ */
+export function histRows(s, { actor = 'all', group = 'all', zone = 'all', day = null, uid = null } = {}) {
+  const rows = s.history?.rows || [];
+  const out = [];
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const r = rows[i];
+    if (uid && r.actor !== uid && r.subject !== uid) continue;
+    if (group !== 'all' && r.group !== group) continue;
+    if (zone !== 'all' && r.zone && r.zone !== zone) continue;
+    if (day != null && dayKey(r.at) !== day) continue;
+    if (actor !== 'all') {
+      const a = histKind(s, r.actor), b = r.subject ? histKind(s, r.subject) : null;
+      if (a !== actor && !(actor !== 'player' && b === actor)) continue;
+    }
+    out.push(r);
+  }
+  return out;
+}
+// Old shapes, derived (the HUD of before the unified history keeps working): newest first.
+/** A unit's own timeline { at, type, extra } (was u.log). */
+export const unitLog = u => [...(u?.recent || [])].reverse().map(r => (r.extra === undefined ? { at: r.at, type: r.type } : { at: r.at, type: r.type, extra: r.extra }));
+const JOURNAL_TYPES = new Set(['hired', 'left', 'activated', 'benched', 'overheat', 'jam', 'managerCare', 'autoCare', 'nagged', 'cared', 'upgraded', 'promoted', 'steppedDown', 'nudged', 'slacked', 'poachRefused', 'poachStarted', 'kept']);
+/** The team journal { at, type, uid, name, extra } (was s.staff.journal): the team's rows. */
+export const teamJournal = (s, keep = BOOKS.journalKeep) => histRows(s).filter(r => r.subject && r.subject !== 'g1' && JOURNAL_TYPES.has(r.type)).slice(0, keep)
+  .map(r => ({ at: r.at, type: r.type, uid: r.subject, name: r.name ?? histName(s, r.subject), ...(r.extra === undefined ? {} : { extra: r.extra }) }));
+/** The manager's log { at, type, extra } (was s.gm.log). */
+export const gmLog = (s, keep = GM.logKeep) => histRows(s).filter(r => r.gm === 1).slice(0, keep).map(r => (r.extra === undefined ? { at: r.at, type: r.type } : { at: r.at, type: r.type, extra: r.extra }));
 // ---------- career (docs/design/staff-profile.md, step 3) ----------
 /** The rank above a worker's (null at the top or for robots). */
 export const nextRank = u => { const r = rankOf(u); const i = CAREER.ranks.indexOf(r); return r && i < CAREER.ranks.length - 1 ? CAREER.ranks[i + 1] : null; };
-/** Whole days on the team. */
+/** Whole (calendar) days on the team — shown on the cards; careers count shift-days (tenureShiftDays). */
 export const tenureDays = (u, now) => daysSince(Number.isFinite(u?.hiredAt) ? u.hiredAt : u?.book?.since ?? now, now);
+/** Played minutes on the team (clock/tick). */
+export const tenureMin = u => Math.max(0, Number(u?.tenurePlayedMin) || 0);
+/** Whole shift-days on the team (1 sd = CAREER.shiftDayMin played minutes, management-rules §2.5). */
+export const tenureShiftDays = u => Math.floor(tenureMin(u) / CAREER.shiftDayMin + 1e-9);
+/** Played minutes still missing to `sd` shift-days. */
+export const tenureMinLeft = (u, sd) => Math.max(0, Math.ceil(sd * CAREER.shiftDayMin - tenureMin(u)));
 /** The unit holding a one-per-zone rank in a zone (any region), or null. */
 export const rankHolder = (s, zone, rank) => s.staff.units.find(x => STAFF[x.type]?.zone === zone && rankOf(x) === rank) || null;
 /**
@@ -1003,7 +1579,7 @@ export function promoteError(s, u, now) {
   if (!next) return 'maxRank';
   const need = CAREER.need[next];
   if (unitLevel(u) < need.level) return 'level';
-  if (tenureDays(u, now) < need.days) return 'days';
+  if (tenureShiftDays(u) < (need.sd || 0)) return 'days';
   if (CAREER.onePerZone.includes(next) && rankHolder(s, STAFF[u.type].zone, next)) return 'taken';
   return null;
 }
@@ -1051,7 +1627,7 @@ export function teamRanking(s, keys, zone) {
   }).sort((a, b) => b.profit - a.profit || (b.grade?.score ?? -1) - (a.grade?.score ?? -1));
 }
 /** The rival's poach in progress (null when none). */
-export const poachOf = s => s.staff.poach || null;
+export const poachOf = s => workerPoach(s);
 
 // ---------- level gifts ----------
 /** Levels reached whose gift box has not been opened yet (lowest first). */
@@ -1064,12 +1640,80 @@ export const pendingGifts = s => {
 export const isChestLevel = lvl => CHEST_LEVELS.includes(lvl);
 
 // ---------- loan ----------
-export const loanOf = s => (s.loan && s.loan.owed > 0 ? s.loan : null);
+// Loans (management-rules §2.7 / §4.5): s.loans[] (oldest first, ≤ LOAN.maxOpen).
+/** Open loans, oldest first. */
+export const loansOf = s => (Array.isArray(s.loans) ? s.loans : []).filter(ln => ln && ln.owed > 0);
+/** Total still owed on every open loan. */
+export const loanTotal = s => Math.round(loansOf(s).reduce((n, ln) => n + ln.owed, 0) * 100) / 100;
+/** A loan ran past its term: no new loan until every late loan is paid ("không thể vay"). */
+export const loanBlocked = s => loansOf(s).some(ln => ln.late);
+/** Credit limit on the total owed: LOAN.creditMul × I10ref × (1 + creditLevelStep × level), I10ref = 10 × I(L). */
+export const creditLimit = s => Math.round(LOAN.creditMul * incomePerMin(s) * INCOME.shortMin * (1 + LOAN.creditLevelStep * level(s)));
+/** Played minutes a new loan of `amount` gets to be repaid (fixed when taken). */
+export const loanTerm = (s, amount) => loanTermMin(loanOwed(amount), incomePerMin(s));
+/** Played minutes left on a loan (≤ 0: due). */
+export const loanMinLeft = (s, ln) => (ln ? (ln.takenAtPlayed + ln.termMin * 60000 - playedMs(s)) / 60000 : 0);
+/**
+ * One view of the debt for the HUD (the Borrow / Repay sheet, the top-bar dot): every open loan added up — amount,
+ * owed, the oldest one's takenAtPlayed / term, late / blocked flags, and the loans themselves. null when debt-free.
+ */
+export function loanOf(s) {
+  const list = loansOf(s);
+  if (!list.length) return null;
+  const amount = list.reduce((n, ln) => n + ln.amount, 0);
+  return { amount, owed: loanTotal(s), takenAtPlayed: list[0].takenAtPlayed, termMin: list[0].termMin, late: list.some(ln => ln.late), count: list.length, loans: list,
+    minLeft: Math.min(...list.map(ln => loanMinLeft(s, ln))) };
+}
+/** Why pack `amount` cannot be borrowed now: unknown | blocked (a late loan) | loanMax | level | credit | null. */
 export function loanError(s, amount) {
   if (!LOAN.packs.includes(amount)) return 'unknown';
+  if (loanBlocked(s)) return 'loanBlocked';
+  if (loansOf(s).length >= LOAN.maxOpen) return 'loanMax';
+  if (level(s) < (LOAN.packLevel[amount] || 1)) return 'level';
+  if (loanTotal(s) + loanOwed(amount) > creditLimit(s)) return 'credit';
   return null;
 }
-export const loanQuote = amount => ({ amount, owed: loanOwed(amount) });
+/** Error data for the HUD / fail(): the level a pack needs, the credit left. */
+export const loanErrorData = (s, amount, err = loanError(s, amount)) => (err === 'level' ? { minLevel: LOAN.packLevel[amount] }
+  : err === 'credit' ? { limit: creditLimit(s), left: Math.max(0, Math.floor(creditLimit(s) - loanTotal(s))) } : err === 'loanMax' ? { max: LOAN.maxOpen } : undefined);
+export const loanQuote = (amount, s = null) => ({ amount, owed: loanOwed(amount), termMin: s ? loanTerm(s, amount) : null });
+/** Wage arrears (s.debt.wages): the GM's unpaid salary, the follower's unpaid wage. */
+export const wageArrears = s => ({ gm: s.debt?.wages?.gm || 0, follower: s.debt?.wages?.follower || 0 });
+/** Arrears that make the GM quit: GM.quitArrearsSalaries × its salary. */
+export const gmQuitArrears = s => (gmOf(s) ? GM.quitArrearsSalaries * gmPay(s) : Infinity);
+/** Arrears that make the follower leave: DEBT.wageCapMul × its wage. */
+export const followerQuitArrears = u => DEBT.wageCapMul * followerWage(u);
+
+// ---------- reference income & income series (management-rules §2.0) ----------
+/** The game the reference income is read for: the region's game (else the one on screen, else the farm). */
+export const incomeGame = s => regionGame(s) || s.mode || 'farm';
+/** I(L): reference coins per played minute of this game at `lvl` (default: the player level). */
+export const incomePerMin = (s, lvl = level(s)) => incomeRef(incomeGame(s), lvl);
+/** Played time (ms) and the played minute index. */
+export const playedMs = s => s.clock?.played || 0;
+export const playedMinute = s => Math.floor(playedMs(s) / 60000);
+/** Income rows of the last `minutes` played minutes (the current one included). */
+export const incomeRows = (s, minutes) => { const from = playedMinute(s) - minutes; return (s.income?.rows || []).filter(r => r.m > from); };
+/** Coins earned over the last `minutes` played minutes (no floor). */
+export const incomeEarned = (s, minutes) => incomeRows(s, minutes).reduce((n, r) => n + (r.earned || 0), 0);
+/** Net coins of one actor ('player' | 'g1' | 'staff') over the last `minutes` played minutes. */
+export const incomeNetBy = (s, actor, minutes) => incomeRows(s, minutes).reduce((n, r) => n + (r.by?.[actor] || 0), 0);
+/** Floored income sum over `minutes` played minutes: max(INCOME_FLOOR × I(L) × minutes, earned). */
+export const incomeSum = (s, minutes) => Math.max(INCOME_FLOOR * incomePerMin(s) * minutes, incomeEarned(s, minutes));
+/** I10 / I30: the 10- / 30-minute income sums (floored). */
+export const I10 = s => incomeSum(s, INCOME.shortMin);
+export const I30 = s => incomeSum(s, INCOME.longMin);
+/** Net coins of the GM's own jobs in played minutes [fromMin, toMin) (its profit share is paid on this). */
+export const gmProfitBetween = (s, fromMin, toMin) => (s.income?.rows || []).filter(r => r.m >= fromMin && r.m < toMin).reduce((n, r) => n + (r.by?.g1 || 0), 0);
+// Nearest listed option, ties to the smaller one.
+const snapTo = (v, list) => [...list].sort((a, b) => Math.abs(a - v) - Math.abs(b - v) || a - b)[0];
+/** The GM's starting limits from I(L) (GM.limitDefaults), snapped to the listed options: { budget, bigLimit }. */
+export function gmDefaultLimits(s) {
+  const I = incomePerMin(s), d = GM.limitDefaults;
+  return { budget: snapTo(Math.round(d.autoMul * I / d.autoStep) * d.autoStep, GM.budgets), bigLimit: snapTo(Math.round(d.bigMul * I / d.bigStep) * d.bigStep, GM.bigLimits) };
+}
+/** A sale at or above this needs the player's approval (GM.limitDefaults.highValueMul × I(L)); used by the P3 planner. */
+export const gmHighValue = s => Math.round(GM.limitDefaults.highValueMul * incomePerMin(s));
 
 // Region availability on the world map. Every region can be opened with coins (no Rounds).
 // Free: the very first region of the game, and one new region right after the Level-10 expiration (no softlock).

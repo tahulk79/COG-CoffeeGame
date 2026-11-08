@@ -250,38 +250,75 @@ test('level gifts: one per level, fixed gifts, surprise chest at Lv5, reset by t
   assert.deepEqual(h.state.rewards, { claimed: [], tickets: 0 });
 });
 
+// Updated for docs/design/management-rules.md §2.7 / §4.5 (P1/P2): s.loans[] (one entry per pack, ≤ 2 open), packs
+// open by level (1 000 Lv4, 2 000 Lv6, 5 000 Lv8), creditLimit 1.5 × I10 × (1 + 0.1 × level), a term fixed at take
+// time, +5 % once when late then no new loan; autoRepay 20 % of every income to the oldest loan; the debt survives.
 test('loan: borrow a pack, part of every income repays it, pay the rest, loans stack, the debt survives the incident', () => {
   const h = playing();
   h.state.player.coins = 0;
   assert.equal(h.act('loan/take', { amount: 1234 }).error, 'unknown');
+  // §2.7 pack levels: nothing to borrow at Lv1
+  const lv1 = h.act('loan/take', { amount: 1000 });
+  assert.equal(lv1.error, 'level'); assert.deepEqual(lv1.data, { minLevel: 4 });
+  h.state.player.xp = xpForLevel(6);
+  assert.equal(D.creditLimit(h.state), 6000, 'farm Lv6: 1.5 × 2 500 × 1.6');
   h.must('loan/take', { amount: 1000 });
   assert.equal(h.state.player.coins, 1000);
-  assert.equal(h.state.loan.owed, 1100);
-  // Borrowing again stacks: coins and debt add up
+  assert.equal(h.state.loans.length, 1);
+  assert.equal(h.state.loans[0].owed, 1100);
+  assert.equal(h.state.loans[0].termMin, 50, '§2.7 farm Lv6: 1 000 → 50 min (term mul 2)');
+  // Borrowing again opens a second loan (two entries, not one stacked object); the HUD view adds them up
   h.must('loan/take', { amount: 2000 });
   assert.equal(h.state.player.coins, 3000);
-  assert.equal(h.state.loan.amount, 3000);
-  assert.equal(h.state.loan.owed, 3300);
-  h.state.player.coins = 1000; h.state.loan = { amount: 1000, owed: 1100, takenAt: h.state.loan.takenAt };
-  // Income: 20% goes to the debt
+  assert.deepEqual(h.state.loans.map(ln => [ln.amount, ln.owed]), [[1000, 1100], [2000, 2200]]);
+  assert.equal(h.state.loans[1].termMin, 90, '§2.7 farm Lv6: 2 000 → 90 min (term mul 2)');
+  assert.equal(D.loanOf(h.state).amount, 3000);
+  assert.equal(D.loanOf(h.state).owed, 3300);
+  assert.equal(h.act('loan/take', { amount: 1000 }).error, 'loanMax', '§2.7 max 2 open');
+  // Income: 20% goes to the oldest debt first
+  h.state.player.coins = 1000;
   h.state.inventory.beans = 10;
-  h.must('farm/sellBeans', { amount: 10 }); // 10 × 2 = 20 coins → 4 to the debt
-  assert.equal(h.state.loan.owed, 1096);
-  assert.equal(h.state.player.coins, 1016);
-  // Pay what you have (all of it here)
+  const c0 = h.state.player.coins;
+  h.must('farm/sellBeans', { amount: 10 });
+  const gain = h.events.filter(e => e.type === 'beansSold').at(-1).coins;
+  assert.ok(gain > 0);
+  assert.equal(h.state.loans[0].owed, 1100 - 0.2 * gain);
+  assert.equal(h.state.loans[1].owed, 2200);
+  assert.equal(h.state.player.coins, c0 + 0.8 * gain);
+  // Pay part: the oldest loan first
   h.state.player.coins = 2000;
+  h.must('loan/repay', { amount: 1100 - 0.2 * gain });
+  assert.deepEqual(h.state.loans.map(ln => ln.owed), [2200]);
+  // Pay what you have (all of it here)
+  h.state.player.coins = 3000;
   const r = h.must('loan/repay');
   assert.ok(r.events.some(e => e.type === 'loanRepaid'));
-  assert.equal(h.state.loan, null);
-  assert.equal(h.state.player.coins, 904);
+  assert.deepEqual(h.state.loans, []);
+  assert.equal(D.loanOf(h.state), null);
+  assert.equal(h.state.player.coins, 800);
   assert.equal(h.act('loan/repay').noop, true);
-  // The incident does not wipe an open loan: a debt is a debt
+  // Late (§4.5): past its term the loan owes +5 % once, and no new loan until it is paid
+  h.must('loan/take', { amount: 1000 });
+  h.state.clock.played = (h.state.clock.played || 0) + h.state.loans[0].termMin * 60000;
+  h.must('loan/tick');
+  assert.equal(h.state.loans[0].owed, Math.round(1100 * 1.05));
+  assert.equal(h.state.loans[0].late, true);
+  assert.equal(h.act('loan/tick').noop, true, 'the late fee is charged once');
+  assert.equal(h.act('loan/take', { amount: 1000 }).error, 'loanBlocked');
+  h.state.player.coins = 5000; h.must('loan/repay');
+  // Credit limit (§2.7): farm Lv8 7 560 → one 5 000 pack (5 500), not 5 000 + 2 000
+  h.state.player.xp = xpForLevel(8);
+  assert.equal(D.creditLimit(h.state), 7560);
   h.must('loan/take', { amount: 5000 });
+  assert.equal(h.state.loans[0].termMin, 150, '§2.7 farm Lv8 5 000 → 150 (cap)');
+  assert.equal(h.act('loan/take', { amount: 2000 }).error, 'credit');
+  // The incident does not wipe an open loan: a debt is a debt
   toLevel10(h);
-  const owed = h.state.loan.owed; // the Lv10 sale already repaid a little
+  const owed = D.loanTotal(h.state); // the Lv10 sale already repaid a little
   h.must('expiry/execute');
   assert.ok(owed > 5000);
-  assert.equal(h.state.loan.owed, owed);
+  assert.equal(D.loanTotal(h.state), owed);
+  assert.equal(h.state.loans.length, 1);
 });
 
 function toLevel10(h) {
@@ -824,8 +861,8 @@ test('staff stats: XP → skill points, per-stat upgrades with points + coins; r
   h.must('staff/upgradePart', { uid: bot, part: 'cooler' });
   assert.equal(h.act('staff/upgradePart', { uid: bot, part: 'battery' }).error, 'level', 'tier 3 needs Lv8');
   assert.ok(E.unitFee(D.unitOf(h.state, bot)) < fee0, 'a better battery recharges cheaper');
-  assert.equal(E.batteryMinutes(D.unitOf(h.state, bot)), 6);
-  assert.equal(D.unitOf(h.state, bot).partsSpent, E.partCost('sproutBot', 0) * 2 + E.partCost('sproutBot', 1));
+  assert.equal(E.batteryMinutes(D.unitOf(h.state, bot)), 13, 'management-rules §2.3: battery minutes [6, 9, 13, 18], tier 2 = 13');
+  assert.equal(D.unitOf(h.state, bot).partsSpent, E.partCost('sproutBot', 0, 'battery') + E.partCost('sproutBot', 1, 'battery') + E.partCost('sproutBot', 0, 'cooler'), 'battery t0 + t1 + cooler t0 (cooler ×0.6)');
   // Saves keep it all
   const n = normalizeSave(JSON.parse(JSON.stringify(h.state)), h.now);
   assert.deepEqual(n.staff.units[0].stats, u().stats);

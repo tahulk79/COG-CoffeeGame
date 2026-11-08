@@ -49,5 +49,15 @@ export function gmReasonText(reason) {
   if (p.rank) p.rank = T(`hud.cr.rank.${p.rank}`);
   if (p.group) p.group = T(`hud.sup.g.${p.group}`);
   if (p.crop) p.crop = T(`crop.${p.crop}`);
+  // planner v2 (management-rules §3.7): what an upgrade buys, a licence, a building, a good, the job a loan is for
+  if (params.part) p.what = T(`hud.staff.part.${params.part}`);
+  else if (params.item) p.what = T(`hud.g4.item.${params.item}`);
+  else if (params.pack) p.what = T(`hud.g4.pack.${params.pack}`);
+  else if (params.stat) p.what = p.stat;
+  if (p.lic) p.lic = T(`hud.gm.lic.${p.lic}`);
+  if (p.building) p.building = T(`building.${p.building}`);
+  if (p.good) p.good = T(`good.${p.good}`);
+  if (Array.isArray(params.for)) p.for = gmReasonText(params.for);
+  for (const k of ['coins', 'n']) if (Number.isFinite(params[k])) p[k] = fmt(params[k]);
   return T(`hud.gm.r.${key}`, p);
 }

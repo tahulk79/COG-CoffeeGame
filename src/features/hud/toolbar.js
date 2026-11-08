@@ -7,7 +7,7 @@
 // Red dot when something is new or affordable. Buttons of the other screen are hidden (never removed: the tutorial and
 // tests can still find them by id).
 import { BUILD_MENU_FARM, BUILD_MENU_CAFE, BUILDINGS, CROPS, CROP_ORDER, DRINK_ORDER, STAFF, STAFF_ORDER, BEANS, ITEM_GOODS } from '../../core/config/economy.js';
-import { buildError, countOf, maxCount, useOf, defOf, staffError, unitBlocked, upgradableStats, zoneUnits, unlockedCrops, unlockedDrinks, freeSlots, region, upgradeError, canPromote, capacity, stored, goodCount, beanBuyQuote } from '../../core/derive.js';
+import { buildError, countOf, maxCount, useOf, defOf, staffError, unitBlocked, upgradableStats, zoneUnits, unlockedCrops, unlockedDrinks, freeSlots, region, upgradeError, canPromote, capacity, stored, goodCount, beanBuyQuote, tasksOpen } from '../../core/derive.js';
 import { h, setText } from './dom.js';
 import { T } from './text.js';
 import { drinkSeenKey } from './sheets.js';
@@ -43,7 +43,7 @@ export function toolDots(s, view = 'farm') {
   const here = s.staff.units.filter(u => STAFF[u.type]?.zone === zone && u.assigned?.regionId === s.world.currentRegion);
   const idle = !!r && freeSlots(s, zone) > 0 && s.staff.units.some(u => !u.assigned && STAFF[u.type]?.zone === zone);
   const firstHire = !!r && !zoneUnits(s, zone).length && STAFF_ORDER.some(type => STAFF[type].zone === zone && !staffError(s, type));
-  dots.staff = !!s.staff.poach || !!s.gm?.poach || !!s.gm?.chaos || (s.gm?.requests?.length || 0) > 0 || here.some(u => unitBlocked(u, now) || upgradableStats(s, u).length > 0 || canPromote(s, u, now)) || idle || firstHire;
+  dots.staff = tasksOpen(s).length > 0 || !!s.gm?.chaos || !!s.gm?.unit?.strike || here.some(u => unitBlocked(u, now) || upgradableStats(s, u).length > 0 || canPromote(s, u, now)) || idle || firstHire;
   dots.world = false;
   // Beans link: farm → storehouse full (sell!); café → almost out of beans and a pack can be bought.
   const cap = r ? capacity(s) : 0;

@@ -1,7 +1,7 @@
 // Pure reducer for Farm & Café V3. `apply(state, action, ctx)` → { ok, state, events, error }.
 // The input state is never mutated: a successful action returns a new state object. All timing comes from ctx.now,
 // randomness from action payloads, so every transition is deterministic and testable (tests/core/*.test.mjs).
-import { GM, gmCandidatesFor, gmSalary, gearDrain, GEAR, softwarePrice, gearTier, craftLevel, PROFILE, CAREER, rankOf, autoRank, robotSerial, profileOfUid, AUTO, autoPrice, BEANS, startCoins, xpForLevel, STAFF_BREAKS, staffFee, unitFee, RECRUIT, TRAITS, PART_COST, QUALITY, TEND, UPKEEP, SHIFT, VITALS, CARE, RARE, ROBOT_WEAR, ROBOT_PARTS, SKILL, STAT_ORDER, statOf, statCost, startStats, unitLevel, energyMax, heatPerMin, partTier, taskLimit, MISTAKES, RIVAL, BOOKS, BUILDINGS, CROPS, DRINKS, STAFF, XP, REBIRTH, START, EXPIRY_LEVEL, levelForXp, MAX_LEVEL, levelGift, chestPrize, LOAN, loanOwed, VENUES, VENUE_ITEMS, RATING, REVIEW_REASONS, LEAVE_REASONS, FIELD, GOODS, ITEM_GOODS } from './config/economy.js';
+import { TASKS, PENALTY, HISTORY, GM, gmCandidatesFor, gmSalary, gearDrain, GEAR, softwarePrice, gearTier, craftLevel, PROFILE, CAREER, rankOf, autoRank, robotSerial, profileOfUid, AUTO, autoPrice, BEANS, startCoins, xpForLevel, STAFF_BREAKS, staffFee, unitFee, RECRUIT, TRAITS, PART_COST, QUALITY, TEND, UPKEEP, SHIFT, VITALS, CARE, RARE, ROBOT_WEAR, ROBOT_PARTS, SKILL, STAT_ORDER, statOf, statCost, startStats, unitLevel, energyMax, heatPerMin, partTier, taskLimit, MISTAKES, RIVAL, BOOKS, BUILDINGS, CROPS, DRINKS, STAFF, XP, REBIRTH, START, EXPIRY_LEVEL, levelForXp, MAX_LEVEL, levelGift, chestPrize, LOAN, loanOwed, INCOME, CLOCK, VENUES, VENUE_ITEMS, RATING, REVIEW_REASONS, LEAVE_REASONS, FIELD, GOODS, ITEM_GOODS } from './config/economy.js';
 import { PARCELS, ROADS, FIXED, PRE_TILLED, plotById, plotsOf } from './config/layout.js';
 import { parseRegionId } from './config/world.js';
 import { menuItemsOf } from './config/menus.js';
@@ -40,17 +40,86 @@ function grantXp(s, amount, events) {
     events.push({ type: 'expiryTriggered', regionId: s.world.currentRegion });
   }
 }
-function spend(s, amount) { s.player.coins = Math.max(0, Math.round((s.player.coins - amount) * 100) / 100); }
-// Coin income. While a loan is open, LOAN.autoRepay of it goes to the debt first.
-function earn(s, amount, ev) {
-  let cut = 0;
-  if (s.loan && s.loan.owed > 0 && amount > 0) {
-    cut = Math.min(s.loan.owed, Math.round(amount * LOAN.autoRepay * 100) / 100);
-    s.loan.owed = Math.round((s.loan.owed - cut) * 100) / 100;
-    if (s.loan.owed <= 0) { s.loan = null; ev?.push({ type: 'loanRepaid' }); }
+// Who moves the coins of the action being applied (income series, management-rules §2.0): 'player' (your taps and
+// decisions), 'staff' (a unit's own job, the team's running costs) or 'g1' (a job the GM ran, set by gmRun). Set by
+// apply() for each action (synchronous, so a module variable is safe); NOW = ctx.now of that action.
+let ACTOR = 'player';
+let NOW = 0;
+let CUR = null; // the draft being changed (note() writes history rows without a state argument)
+const SYSTEM_ACTIONS = new Set(['clock/tick', 'loan/tick', 'rival/visit', 'rival/resolve', 'task/expire', 'gm/rivalVisit']);
+const actorOf = (type, p) => (SYSTEM_ACTIONS.has(type) ? 'system' : type === 'gm/payroll' || type === 'staff/upkeep' ? 'staff'
+  : /^(farm|shop)\//.test(type) && p?.uid != null ? 'staff' : type === 'staff/care' && p?.by != null ? 'staff' : 'player');
+// The played minute's row of the income series (INCOME.keepMinutes kept).
+function incomeRow(s) {
+  const m = D.playedMinute(s);
+  s.income ||= { rows: [] };
+  let rows = s.income.rows, row = rows[rows.length - 1];
+  if (!row || row.m !== m) {
+    row = { m, earned: 0, spent: 0, by: {} };
+    rows.push(row);
+    if (rows.length > INCOME.keepMinutes) s.income.rows = rows.slice(-INCOME.keepMinutes);
   }
-  s.player.coins = Math.round((s.player.coins + amount - cut) * 100) / 100;
+  return row;
+}
+function bookIncome(s, earned, spent) {
+  if (!(earned > 0) && !(spent > 0)) return;
+  const row = incomeRow(s);
+  if (earned > 0) row.earned = r2(row.earned + earned);
+  if (spent > 0) row.spent = r2(row.spent + spent);
+  row.by[ACTOR] = r2((row.by[ACTOR] || 0) + (earned || 0) - (spent || 0));
+  const day = histDay(s, ACTOR);
+  if (earned > 0) day.earned = r2(day.earned + earned);
+  if (spent > 0) day.spent = r2(day.spent + spent);
+}
+// A coin spend (a cost): booked in the income series. Loan repayments and refunds do not go through here.
+function spend(s, amount) {
+  const before = s.player.coins;
+  s.player.coins = Math.max(0, Math.round((s.player.coins - amount) * 100) / 100);
+  bookIncome(s, 0, r2(before - s.player.coins));
+}
+// Coin income (booked in full in the income series). While loans are open, LOAN.autoRepay of it goes to them, oldest
+// first; then wage arrears (s.debt.wages: the GM first, then the follower) are paid out of what is left.
+function earn(s, amount, ev) {
+  let left = amount;
+  if (amount > 0) {
+    const open = D.loansOf(s);
+    let cut = r2(amount * LOAN.autoRepay);
+    for (const ln of open) {
+      if (cut <= 0) break;
+      const c = Math.min(ln.owed, cut);
+      ln.owed = r2(ln.owed - c); cut = r2(cut - c); left = r2(left - c);
+    }
+    if (open.length) {
+      s.loans = open.filter(ln => ln.owed > 0);
+      if (!s.loans.length) ev?.push({ type: 'loanRepaid' });
+    }
+  }
+  bookIncome(s, amount, 0);
+  s.player.coins = Math.round((s.player.coins + left) * 100) / 100;
   s.stats.earned += amount;
+  if (left > 0) payArrears(s, left, ev);
+}
+// Wage arrears are paid first out of new coins (management-rules §2.6): the GM's, then the follower's, at most
+// `budget` (the income that just came in, after the loan cut).
+function payArrears(s, budget, ev) {
+  const w = s.debt?.wages;
+  if (!w || !(w.gm > 0 || w.follower > 0)) return;
+  const was = ACTOR;
+  ACTOR = 'staff';
+  for (const k of ['gm', 'follower']) {
+    const pay = Math.min(w[k] || 0, budget, Math.floor(s.player.coins * 100) / 100);
+    if (!(pay > 0)) continue;
+    spend(s, pay);
+    budget = r2(budget - pay);
+    w[k] = r2(w[k] - pay);
+    if (k === 'gm' && s.gm?.unit) {
+      ledger(s, NOW, 'spent', pay, 'wage', D.gmZone(s));
+      const row = s.staff.ledger[s.staff.ledger.length - 1]; if (row) row.gm = r2((row.gm || 0) + pay);
+      const day = gmDay(s, NOW); day.salary = r2(day.salary + pay);
+    } else ledger(s, NOW, 'spent', pay, 'wage', null);
+    ev?.push({ type: 'arrearsPaid', who: k, coins: pay, owed: w[k] });
+  }
+  ACTOR = was;
 }
 // A gift's items into the save (coins / beans / free-hire tickets / auto runs).
 function grantItems(s, items) {
@@ -90,10 +159,13 @@ function settleSupply(s, now, ev) {
   }
 }
 // ---------- general manager helpers (docs/design/general-manager.md) ----------
-function gmLog(s, now, type, extra) {
-  const e = { at: now, type };
-  if (extra !== undefined) e.extra = extra;
-  s.gm.log = [e, ...(s.gm.log || [])].slice(0, GM.logKeep);
+// The manager's log rows (were s.gm.log, now history rows flagged gm: 1; D.gmLog is the old view). Who did it: you
+// (approved / denied / hired / kept / calmed / apologised — about the manager), the rival (poached / refused), else him.
+const GM_BY_PLAYER = new Set(['approved', 'denied', 'hired', 'kept', 'calmed', 'apologised']);
+const GM_BY_SYSTEM = new Set(['poached', 'refused', 'expired', 'loanLate']);
+function gmLog(s, now, type, extra, more = {}) {
+  const actor = GM_BY_PLAYER.has(type) ? 'player' : GM_BY_SYSTEM.has(type) ? 'system' : 'g1';
+  hist(s, { at: now, type, actor, subject: actor === 'g1' ? undefined : 'g1', extra, gm: 1, zone: D.gmZone(s), ...more });
 }
 function gmDay(s, now) {
   const d = D.dayKey(now), rows = (s.gm.days ||= []);
@@ -104,7 +176,8 @@ function gmDay(s, now) {
 // Runs one plan item through its own action handler. Counts the coins it really cost (budget window unless approved),
 // logs it, tags its events (byGm: the HUD keeps quiet about them). False when the action failed or changed nothing.
 const GM_LOUD = new Set(['levelUp', 'expiryTriggered', 'regionExpired', 'loanRepaid']);
-function gmRun(s, item, ctx, ev, { roll = 0.5, budget = true, approved = false } = {}) {
+// budget: 'care' (the care wallet, played window), true / 'budget' (the growth budget window), false (approved / full).
+function gmRun(s, item, ctx, ev, { roll = 0.5, budget = true, approved = false, taskId = null } = {}) {
   const handler = handlers[item.act.type];
   if (!handler) return false;
   const before = s.player.coins, from = ev.length;
@@ -115,26 +188,49 @@ function gmRun(s, item, ctx, ev, { roll = 0.5, budget = true, approved = false }
     payload.index = D.applicants(s, payload.zone).findIndex(a => a.name === payload.name);
     if (payload.index < 0) return false;
   }
-  const res = handler(s, payload, ev, ctx) || {};
+  const was = ACTOR;
+  ACTOR = 'g1'; // the coins this job moves are the GM's (its profit share is paid on them)
+  let res;
+  try { res = handler(s, payload, ev, ctx) || {}; } finally { ACTOR = was; }
   if (res.ok === false || res.noop) { ev.length = from; return false; }
   // The GM's own jobs stay quiet in the HUD; jobs you approved or handed over speak as usual. Level-ups (and the
   // Level-10 incident) always show, whoever earned the XP.
   if (!approved) for (let i = from; i < ev.length; i++) if (!GM_LOUD.has(ev[i].type)) ev[i].byGm = true;
-  const cost = Math.max(0, r2(before - s.player.coins));
+  const delta = r2(s.player.coins - before), cost = Math.max(0, -delta);
   const g = s.gm;
-  if (budget && cost > 0) {
+  if (budget === 'care' && cost > 0) {
+    const P = D.playedMs(s);
+    if (!g.careWin || P - g.careWin.startPlayed >= GM.careWallet.windowMin * 60000) g.careWin = { startPlayed: P, spent: 0 };
+    g.careWin.spent = r2(g.careWin.spent + cost);
+  } else if (budget && cost > 0) {
     if (!g.window || ctx.now - g.window.start >= GM.windowMinutes * 60000) g.window = { start: ctx.now, spent: 0 };
     g.window.spent = r2(g.window.spent + cost);
   }
-  g.requests = (g.requests || []).filter(q => q.key !== item.key); // done: a matching request is no longer needed
+  // done: a matching request still waiting in the inbox is no longer needed
+  for (const t of D.gmRequests(s)) if (t.key === item.key && t.id !== taskId) closeTask(s, t, 'approved');
   g.lastJobAt = ctx.now; // a used manager is a happy manager (GM.mood)
-  if (g.unit) g.unit.loyalty = r2(Math.min(100, g.unit.loyalty + GM.mood.jobLoyalty));
+  if (g.unit) {
+    g.unit.loyalty = r2(Math.min(100, g.unit.loyalty + GM.mood.jobLoyalty));
+    const b = (g.unit.book ||= { jobs: 0, earned: 0, spent: 0, mistakes: 0, since: ctx.now });
+    const gain = item.act.type === 'loan/take' ? 0 : delta; // borrowed coins are not the manager's earnings
+    b.jobs++; b.spent = r2(b.spent + cost); if (gain > 0) b.earned = r2(b.earned + gain);
+    const d = gmUnitDay(g.unit, ctx.now); d.jobs++; d.spent = r2(d.spent + cost); if (gain > 0) d.earned = r2(d.earned + gain);
+  }
   const day = gmDay(s, ctx.now);
   day.actions++;
   day.spent = r2(day.spent + cost);
-  gmLog(s, ctx.now, approved ? 'approved' : 'did', { key: item.key, reason: item.reason, cost });
-  ev.push({ type: 'gmActed', key: item.key, reason: item.reason, cost, approved });
+  histDay(s, 'g1').jobs++;
+  gmLog(s, ctx.now, approved ? 'approved' : 'did', { key: item.key, reason: item.reason, cost }, { cost, ...(taskId ? { taskId } : {}), subject: approved ? 'g1' : item.act.payload?.uid });
+  const at = item.act.payload || {}; // where he walks to in the world (realm/manager.js): a unit, a field, a lot or a building
+  ev.push({ type: 'gmActed', key: item.key, reason: item.reason, cost, approved, uid: at.uid ?? null, plotId: at.plotId ?? null, parcelId: at.parcelId ?? null, act: item.act.type, zone: item.zone || at.zone || null });
   return true;
+}
+// The manager's own day rows (Unit interface, management-rules §1.1): jobs / earned / spent, PROFILE.daysKeep kept.
+function gmUnitDay(gm, now) {
+  const d = D.dayKey(now), rows = (gm.days ||= []);
+  let row = rows[rows.length - 1];
+  if (!row || row.d !== d) { row = { d, jobs: 0, earned: 0, spent: 0, mistakes: 0 }; rows.push(row); if (rows.length > PROFILE.daysKeep) gm.days = rows.slice(-PROFILE.daysKeep); }
+  return row;
 }
 // Back after the game was closed (s.gm.payAt = the last minute the game ran, set by gm/payroll every minute): the
 // manager kept the team going at GM.away.share of its running profit rate, for at most GM.away.capMinutes, and is
@@ -155,42 +251,455 @@ function gmAwayPay(s, now, ev, closedFrom) {
   const earned = r2(Math.max(0, rate) * share * mins);
   s.gm.payAt = now; // the away time is settled here, never again by gm/payroll
   if (earned <= 0 && share <= 0) return;
-  const net2 = r2(earned - salary);
-  s.player.coins = r2(Math.max(0, s.player.coins + net2));
-  const day = gmDay(s, now); day.salary = r2(day.salary + salary);
+  // Settled like gm/payroll (management-rules §2.6, §8 Q12): the team's takings come in as income (loan cut, arrears
+  // first), the salary is paid as far as the coins allow, the rest becomes wage arrears (loyalty −unpaidPerMin per
+  // unpaid minute, inside this return's PENALTY.returnLoyaltyCap; GM.quitArrearsSalaries salaries owed → he quits).
+  const was = ACTOR;
+  let paid = 0;
+  ACTOR = 'staff';
+  try {
+    if (earned > 0) earn(s, earned, ev);
+    paid = Math.min(salary, Math.floor(s.player.coins * 100) / 100);
+    if (paid > 0) {
+      spend(s, paid);
+      ledger(s, now, 'spent', paid, 'wage', D.gmZone(s));
+      const row = s.staff.ledger[s.staff.ledger.length - 1]; if (row) row.gm = r2((row.gm || 0) + paid);
+    }
+  } finally { ACTOR = was; }
+  const net2 = r2(earned - salary), short = r2(salary - paid);
+  const day = gmDay(s, now); day.salary = r2(day.salary + paid);
   gmLog(s, now, 'away', { min: Math.round(mins), earned, salary });
   ev.push({ type: 'gmAway', name: gm.name, minutes: Math.round(mins), awayMinutes: Math.round(awayMin), earned, salary, net: net2 });
+  if (short <= 0) return;
+  const w = ((s.debt ||= { wages: { gm: 0, follower: 0 } }).wages ||= { gm: 0, follower: 0 });
+  w.gm = r2((w.gm || 0) + short);
+  let loss = GM.loyalty.unpaidPerMin * mins * (salary > 0 ? short / salary : 0);
+  const rc = s.gm.returnCap;
+  if (rc) { loss = Math.max(0, Math.min(loss, PENALTY.returnLoyaltyCap - rc.lost)); rc.lost = r2(rc.lost + loss); }
+  gm.loyalty = r2(Math.max(0, gm.loyalty - loss));
+  gmLog(s, now, 'unpaid', { coins: short, owed: w.gm });
+  ev.push({ type: 'gmUnpaid', coins: short, owed: w.gm, name: gm.name });
+  if (w.gm >= D.gmQuitArrears(s)) gmLeave(s, now, 'quit', ev);
+}
+// Back after the game was not running for TASKS.returnAwayMin or more (management-rules §4.1, §8 Q10): every open task
+// gets at least TASKS.graceMin more played minutes and one grouped "N việc chờ" event; with a manager, the loyalty he
+// loses on this return (the away drop, an unpaid away salary and the expiries of those grace minutes) is capped at
+// PENALTY.returnLoyaltyCap (s.gm.returnCap). Once per return: the first clock/tick after the gap (no manager needed),
+// or gm/seen / gm/payroll when they come first — the played clock has not moved in between, so the grace is the same.
+function returnGrace(s, ev) {
+  const P = D.playedMs(s), grace = P + TASKS.graceMin * 60000, rc = s.gm?.returnCap;
+  if (rc && P <= rc.untilPlayed) return false; // this return is already open
+  for (const t of D.tasksOpen(s)) if (t.untilPlayed < grace) t.untilPlayed = grace;
+  if (s.gm?.unit) s.gm.returnCap = { untilPlayed: grace, lost: 0 };
+  const n = D.tasksOpen(s).length;
+  if (n) ev.push({ type: 'tasksWaiting', n, name: s.gm?.unit?.name || null });
+  return true;
+}
+// The manager's side of a return (gm/seen on your first touch, or gm/payroll when it runs first): the grace above,
+// what he kept going meanwhile (gmAwayPay), and after GM.mood.awayGraceHours the loyalty drop per hour (inside the
+// return cap); below the refuse line the rival is already at the door. False when it was no return.
+function gmBack(s, ev, now) {
+  if (!D.gmOf(s)) return false;
+  const closedFrom = Math.max(s.gm.payAt || 0, s.gm.seenAt || 0) || now;
+  if (now - closedFrom < TASKS.returnAwayMin * 60000) return false;
+  returnGrace(s, ev);
+  gmAwayPay(s, now, ev, closedFrom);
+  if (s.gm.payAt) s.gm.payAt = now; // the away time is settled, never again by gm/payroll
+  const gm = D.gmOf(s), M = GM.mood, hours = (now - closedFrom) / 3600000;
+  if (!gm || hours <= M.awayGraceHours) return true; // (he may have quit over unpaid salary)
+  let drop = Math.min(M.awayMax, Math.round((hours - M.awayGraceHours) * M.awayPerHour));
+  const rc = s.gm.returnCap;
+  if (rc) { drop = Math.max(0, Math.min(drop, PENALTY.returnLoyaltyCap - rc.lost)); rc.lost = r2(rc.lost + drop); }
+  gm.loyalty = r2(Math.max(0, gm.loyalty - drop));
+  s.gm.lastJobAt = now; // the time away is counted here, not again as "idle"
+  gmLog(s, now, 'missedYou', { hours: Math.round(hours), drop });
+  ev.push({ type: 'gmMissedYou', name: gm.name, hours: Math.round(hours), drop });
+  if (gm.loyalty < GM.loyalty.refuse && !D.gmPoachOf(s)) gmPoachStart(s, gm, ev);
+  return true;
 }
 // The GM leaves (poached / fired). Poached → chaos: worker job lists are wiped back to auto, requests cancelled.
 function gmLeave(s, now, why, ev) {
   const name = s.gm.unit?.name || null;
+  gmLog(s, now, 'left', { name, why });
+  tombstone(s, 'g1', name, 'manager', now);
   s.gm.unit = null;
-  s.gm.poach = null;
-  s.gm.requests = [];
+  // his requests and a rival's offer for him leave with him (cancelled, never penalised)
+  for (const t of D.tasksOpen(s).filter(x => x.by === 'g1' || x.kind === 'gmPoach')) closeTask(s, t, 'cancelled');
+  for (const t of D.tasksDone(s)) if (t.by === 'g1') t.lateOff = true; // nor approved late once he is gone
+  delete s.gm.returnCap;
+  if (s.debt?.wages) s.debt.wages.gm = 0; // unpaid salary leaves with the manager
   if (why === 'poached') {
     s.gm.chaos = { since: now };
     for (const u of D.assignedUnits(s, s.world.currentRegion)) { if (STAFF[u.type].kind === 'worker') u.tasks = []; else u.task = 'auto'; } // the team it ran
   }
-  gmLog(s, now, 'left', { name, why });
   ev.push({ type: 'gmLeft', name, why, chaos: why === 'poached' });
 }
+
+// A rival's offer to the manager: an inbox task (kind gmPoach, TASKS.life.gmPoach played minutes). Keep him with a
+// bonus (GM.keepBonusSalaries × salary) or a raise, or let him go. False when the inbox is full.
+function gmPoachStart(s, gm, ev) {
+  const fee = gmSalary(gm, s.gm.mode) * GM.keepBonusSalaries;
+  const t = fileTask(s, ev, { kind: 'gmPoach', key: 'keep:g1', by: 'system', act: { type: 'gm/keep', payload: {} }, cost: fee, reason: ['gmPoach', { name: gm.name, rival: GM.poach.rival }], zone: D.gmZone(s) });
+  if (!t) return false;
+  gmLog(s, NOW, 'poached', { rival: GM.poach.rival }, { taskId: t.id });
+  ev.push({ type: 'gmPoach', name: gm.name, rival: GM.poach.rival, fee, id: t.id, seconds: TASKS.life.gmPoach * 60 });
+  return true;
+}
+
+// ---------- planner v2 helpers (management-rules §3.4–§3.7) ----------
+// Land use, sampled once per played minute into s.gm.util.rows (GM.land.windowMin kept): the zone's and every lot's
+// busy share, and which production queues are full. True when a sample was added.
+// The manager's view of how much work waits per zone (an EMA of taskQueue, GM.load): throughputShare reads it, so
+// speed / gear / motor are only worth buying where jobs really pile up (balance pass 2026-11-08).
+function sampleLoad(s, now) {
+  const g = s.gm, L = GM.load, { on, off } = D.gmScope(s);
+  const load = { ...(g.load || {}) };
+  for (const zone of [on, ...off].filter(Boolean)) {
+    const total = D.actionableJobs(s, zone, now);
+    const prev = load[zone];
+    load[zone] = Math.round((prev == null ? total : prev * (1 - L.ema) + total * L.ema) * 100) / 100;
+  }
+  if (JSON.stringify(load) === JSON.stringify(g.load || {})) return false;
+  g.load = load;
+  return true;
+}
+function sampleUtil(s) {
+  const m = D.playedMinute(s), u = (s.gm.util ||= { rows: [] });
+  u.rows ||= [];
+  if (u.rows.length && u.rows[u.rows.length - 1].m === m) return false;
+  u.rows = [...u.rows, { m, ...D.utilSample(s) }].slice(-GM.land.windowMin);
+  return true;
+}
+// Today's real-money top-up bookkeeping (§3.7): { d, denied (loan tasks you denied today), filed }.
+function topUpOf(s) {
+  const d = D.dayKey(NOW);
+  if (s.gm.topUp?.d !== d) s.gm.topUp = { d, denied: 0, filed: 0 };
+  return s.gm.topUp;
+}
+// A licence the manager lacked for a candidate (§3.7 self-upgrade): counted at most once per played minute per group,
+// today only. Returns true when a count moved.
+function wishLicence(s, groups, now) {
+  const d = D.dayKey(now), m = D.playedMinute(s);
+  if (s.gm.wish?.d !== d) s.gm.wish = { d, n: {}, m: {} };
+  const w = s.gm.wish;
+  let moved = false;
+  for (const grp of groups) {
+    if (!GM.licences.groups.includes(grp) || w.m[grp] === m) continue;
+    w.m[grp] = m; w.n[grp] = (w.n[grp] || 0) + 1; moved = true;
+  }
+  return moved;
+}
+// The day plan (Kế hoạch ngày, §3.4): per farm lot the crop to plant (hysteresis: a lot with something growing keeps
+// its crop), every worker's jobs by need × fit, every robot's task by need, and the target for the next 20 minutes.
+// One 'dayPlan' history row (the assignments' own setTasks / robotTask rows are written as the manager's).
+function planDay(s, ev, ctx) {
+  const g = s.gm, r = D.region(s), P = D.playedMs(s);
+  if (!g?.unit || !r) return;
+  const { on, off } = D.gmScope(s), zones = [on, ...off].filter(Boolean);
+  const prev = g.plan?.crops || {}, crops = {};
+  const crop = D.chooseCrop(s);
+  if (zones.includes('farm') && crop) {
+    const byLot = {};
+    for (const p of D.ownedPlots(s)) if (p.parcel) (byLot[p.parcel] ||= []).push(p.id);
+    for (const [lot, ids] of Object.entries(byLot)) {
+      const growing = ids.map(id => r.plots[id]?.crop).filter(Boolean);
+      if (!growing.length) { crops[lot] = crop; continue; }
+      const most = Object.entries(growing.reduce((n, c) => ({ ...n, [c]: (n[c] || 0) + 1 }), {})).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0];
+      crops[lot] = prev[lot] && D.cropUnlocked(s, prev[lot]) ? prev[lot] : most;
+    }
+  }
+  const was = ACTOR;
+  ACTOR = 'g1';
+  const assignments = {};
+  try {
+    for (const zone of zones) {
+      const plan = D.planTasks(s, zone, ctx.now);
+      for (const [id, tasks] of Object.entries(plan.workers)) { const from = ev.length; handlers['staff/setTasks'](s, { uid: id, tasks }, ev, ctx); for (let i = from; i < ev.length; i++) ev[i].byGm = true; assignments[id] = tasks; }
+      for (const [id, task] of Object.entries(plan.robots)) { const from = ev.length; handlers['staff/setTask'](s, { uid: id, task }, ev, ctx); for (let i = from; i < ev.length; i++) ev[i].byGm = true; assignments[id] = task; }
+    }
+  } finally { ACTOR = was; }
+  const R = GM.plan.targetRound, target = Math.round(D.I10(s) * 2 * GM.plan.targetMul / R) * R;
+  g.plan = { atPlayed: P, crops, target };
+  // a real-money proposal lives until the next day plan at most (TASKS.life.topUp): withdrawn quietly, never counted
+  // or shown as a task that ran out (§3.7, §8 Q2)
+  for (const t of D.tasksOpen(s).filter(x => x.kind === 'topUp')) { closeTask(s, t, 'cancelled'); cool(s, t.key, 'expired'); }
+  const fields = D.ownedPlots(s).length || 1, share = {};
+  for (const p of D.ownedPlots(s)) if (crops[p.parcel]) share[crops[p.parcel]] = (share[crops[p.parcel]] || 0) + 1;
+  const mix = Object.entries(share).sort((a, b) => b[1] - a[1]).map(([c, n]) => ({ crop: c, pct: Math.round(n / fields * 100) }));
+  hist(s, { type: 'dayPlan', actor: 'g1', zone: on, gm: 1, extra: { mix, target, assignments } });
+  ev.push({ type: 'gmDayPlan', name: g.unit.name, mix, target });
+}
+
+// ---------- history — Nhật ký (management-rules §1.3 / §5) ----------
+// One write path for every row: the shared ring (HISTORY.rows), and the own ring (HISTORY.perUnit) of each unit the
+// row is by or about (the manager's is s.gm.unit.recent). row: { type, actor?, subject?, group?, zone?, at?, cost?,
+// gain?, taskId?, extra?, name?, gm? }. at = real time (ctx.now), atPlayed = the played clock.
+function histOf(s) {
+  const h = (s.history ||= { rows: [], days: [], tombstones: [], seq: 0 });
+  h.rows ||= []; h.days ||= []; h.tombstones ||= []; h.seq ||= 0;
+  return h;
+}
+const unitByUid = (s, id) => (id === 'g1' ? s.gm?.unit || null : id ? D.unitOf(s, id) : null);
+function hist(s, row) {
+  const h = histOf(s);
+  const r = { id: `h${++h.seq}`, atPlayed: D.playedMs(s), at: row.at ?? NOW, actor: row.actor || 'system', group: row.group || D.histGroupOf(row.type), type: row.type,
+    zone: row.zone ?? null, regionId: s.world.currentRegion || null };
+  for (const k of ['subject', 'cost', 'gain', 'taskId', 'extra', 'name', 'gm']) if (row[k] !== undefined && row[k] !== null) r[k] = row[k];
+  h.rows.push(r);
+  if (h.rows.length > HISTORY.rows) h.rows = h.rows.slice(-HISTORY.rows);
+  // job rows («thu hoạch ×12») stay in the shared ring only: one a minute would push a unit's own events out of its 30
+  if (r.type !== 'work') for (const id of new Set([r.actor, r.subject])) {
+    const u = unitByUid(s, id);
+    if (!u) continue;
+    u.recent = [...(u.recent || []), ('extra' in r ? { ...r, extra: r.extra && typeof r.extra === 'object' ? { ...r.extra } : r.extra } : { ...r })].slice(-HISTORY.perUnit);
+  }
+  return r;
+}
+// Per-day numbers per actor ('player' | 'g1' | 'staff' | 'penalty' | 'system'), HISTORY.days distinct days kept.
+function histDay(s, actor) {
+  const h = histOf(s), d = D.dayKey(NOW);
+  let row = null;
+  for (let i = h.days.length - 1; i >= 0 && h.days[i].d === d; i--) if (h.days[i].actor === actor) { row = h.days[i]; break; }
+  if (!row) {
+    row = { d, actor, jobs: 0, earned: 0, spent: 0, mistakes: 0, tasksDone: 0, tasksExpired: 0 };
+    h.days.push(row);
+    const keep = [...new Set(h.days.map(x => x.d))].slice(-HISTORY.days);
+    if (keep.length && h.days[0].d < keep[0]) h.days = h.days.filter(x => x.d >= keep[0]);
+  }
+  return row;
+}
+// A unit (or the manager, uid 'g1') left: its name stays readable in the history.
+function tombstone(s, id, name, kind, now) {
+  const h = histOf(s);
+  h.tombstones = [...h.tombstones.filter(x => x.uid !== id), { uid: id, name: name || null, kind, leftAt: now }].slice(-HISTORY.tombstones);
+}
+
+// ---------- inbox — Việc cần duyệt (management-rules §1.2 / §4) ----------
+// s.tasks { open ≤ TASKS.cap (oldest first), done ≤ TASKS.doneKeep (newest first), cool { key: until played ms },
+// fines [{ p: played ms, c: coins }] of the last PENALTY.windowMin, pen { d, loyalty, morale { zone } } today's penalty
+// totals for the day caps }.
+function tasksOf(s) {
+  const t = (s.tasks ||= { open: [], done: [], cool: {}, fines: [], pen: { d: 0, loyalty: 0, morale: {} } });
+  t.open ||= []; t.done ||= []; t.cool ||= {}; t.fines ||= []; t.pen ||= { d: 0, loyalty: 0, morale: {} };
+  return t;
+}
+function penDay(s) {
+  const t = tasksOf(s), d = D.dayKey(NOW);
+  if (t.pen.d !== d) t.pen = { d, loyalty: 0, morale: {} };
+  return t.pen;
+}
+// A key the manager leaves alone for PENALTY.cooldownMin[why] played minutes (or `minutes` when given).
+function cool(s, key, why, minutes = null) {
+  if (!key) return;
+  const t = tasksOf(s), P = D.playedMs(s);
+  for (const [k, until] of Object.entries(t.cool)) if (until <= P) delete t.cool[k];
+  t.cool[key] = Math.max(t.cool[key] || 0, P + (minutes ?? PENALTY.cooldownMin[why] ?? 0) * 60000);
+}
+// Files a task (null when the inbox is full). by: 'g1' (the manager's request) | 'system' (a rival's visit).
+function fileTask(s, ev, { kind, key, by = 'g1', act, cost = 0, value = 0, reason, zone = null }) {
+  const T = tasksOf(s);
+  if (T.open.length >= TASKS.cap) return null;
+  const P = D.playedMs(s), life = (TASKS.life[kind] || TASKS.life.staffGrowth) * 60000;
+  const t = { id: `t${s.nextUid++}`, kind, key, group: TASKS.groupOf[kind] || 'hr', by, act, cost: Math.max(0, Math.round(cost || 0)), value, reason, zone,
+    atPlayed: P, untilPlayed: P + life, remindedAt: [P], status: 'open', regionId: s.world.currentRegion || null };
+  T.open.push(t);
+  hist(s, { type: 'taskFiled', actor: by, subject: by === 'g1' ? act?.payload?.uid : act?.payload?.uid || (kind === 'gmPoach' ? 'g1' : undefined), taskId: t.id, cost: t.cost || undefined, zone,
+    extra: { kind, key, reason } });
+  ev.push({ type: 'taskFiled', id: t.id, kind, by, reason, cost: t.cost, minutes: life / 60000 });
+  return t;
+}
+// Moves a task to done with its answer (status approved | denied | expired | failed | late | cancelled).
+function closeTask(s, t, status) {
+  const T = tasksOf(s);
+  T.open = T.open.filter(x => x.id !== t.id);
+  t.status = status;
+  t.answeredAtPlayed = D.playedMs(s);
+  T.done = [t, ...T.done.filter(x => x.id !== t.id)].slice(0, TASKS.doneKeep);
+}
+// After any answer / expiry: Chờ lệnh ends below the line, a strike ends once none of his tasks is left open.
+function settleGm(s, ev) {
+  const gm = s.gm?.unit;
+  if (!gm) return;
+  if (gm.waiting && (gm.backlog || 0) < PENALTY.backlog.waitAt) { delete gm.waiting; ev.push({ type: 'gmWaitingOver', name: gm.name }); }
+  if (gm.strike && !D.gmRequests(s).length) { delete gm.strike; gmLog(s, NOW, 'strikeOver', {}); ev.push({ type: 'gmStrikeOver', name: gm.name }); }
+}
+// A task ran out (management-rules §4.3). A rival's visit: its outcome (the worker / the manager leaves). A manager
+// task: loyalty → throttle (backlog: Chờ lệnh / poachable / strike) → a capped coin fine (never below 0) → the zone's
+// morale. Top-ups and system tasks are never penalised.
+function expireTask(s, t, ev) {
+  if (!D.tasksOpen(s).some(x => x.id === t.id)) return;
+  closeTask(s, t, 'expired');
+  cool(s, t.key, 'expired');
+  hist(s, { type: 'taskExpired', actor: 'system', subject: t.by === 'g1' ? 'g1' : t.act?.payload?.uid || (t.kind === 'gmPoach' ? 'g1' : undefined), taskId: t.id, zone: t.zone,
+    extra: { kind: t.kind, key: t.key, reason: t.reason } });
+  if (t.kind === 'poach') {
+    const unit = D.unitOf(s, t.act.payload.uid);
+    if (unit) removeUnit(s, unit, NOW, 'poached', ev);
+    return;
+  }
+  if (t.kind === 'gmPoach') { if (s.gm?.unit) gmLeave(s, NOW, 'poached', ev); return; }
+  const gm = s.gm?.unit, free = TASKS.noPenaltyKinds.includes(t.kind); // a top-up never counts as a failed duty
+  if (t.by === 'g1' && !free) histDay(s, 'g1').tasksExpired++;
+  if (free || t.by !== 'g1' || !gm) { ev.push({ type: 'taskExpired', id: t.id, kind: t.kind, reason: t.reason, fine: 0 }); return; }
+  const pen = penDay(s), P = D.playedMs(s), B = PENALTY.backlog;
+  // 1. loyalty (≤ loyaltyDay a day; on a return, together with the away drop ≤ returnLoyaltyCap)
+  let loss = Math.max(0, Math.min(PENALTY.loyalty, PENALTY.loyaltyDay - pen.loyalty));
+  const rc = s.gm.returnCap; // a task due inside the return's grace (it was moved to exactly rc.untilPlayed)
+  if (rc && t.untilPlayed <= rc.untilPlayed) { loss = Math.max(0, Math.min(loss, PENALTY.returnLoyaltyCap - rc.lost)); rc.lost = r2(rc.lost + loss); }
+  pen.loyalty = r2(pen.loyalty + loss);
+  gm.loyalty = r2(Math.max(0, gm.loyalty - loss));
+  // 2. throttle
+  gm.backlog = (gm.backlog || 0) + 1;
+  gm.decayMs = 0; // the −1 / 10 min decay counts from the last rise (management-rules §4.3 / §4.4: 64 → 1, 70 → 2, 74 → 3)
+  if (gm.backlog >= B.waitAt && !D.gmWaiting(s)) {
+    gm.waiting = { untilPlayed: P + B.waitMin * 60000 };
+    gmLog(s, NOW, 'waiting', { backlog: gm.backlog });
+    ev.push({ type: 'gmWaiting', name: gm.name, backlog: gm.backlog });
+  }
+  if (gm.backlog >= B.strikeAt && !gm.strike) {
+    gm.strike = { sincePlayed: P, since: NOW };
+    gmLog(s, NOW, 'strike', { backlog: gm.backlog });
+    ev.push({ type: 'gmStrike', name: gm.name });
+  }
+  // 3. coins, last and capped
+  const fine = D.taskFine(s);
+  if (fine > 0) {
+    const was = ACTOR; ACTOR = 'penalty';
+    try { spend(s, fine); } finally { ACTOR = was; }
+    const T = tasksOf(s);
+    T.fines = [...T.fines.filter(f => f.p > P - PENALTY.windowMin * 60000), { p: P, c: fine }];
+    t.fine = fine;
+    hist(s, { type: 'fine', actor: 'system', subject: 'g1', taskId: t.id, cost: fine, zone: t.zone });
+  }
+  // 4. the imbalance you can see: the zone's spirits
+  const moraleDrop = moraleHit(s, t.zone, PENALTY.morale);
+  ev.push({ type: 'taskExpired', id: t.id, kind: t.kind, reason: t.reason, fine, loyalty: loss, backlog: gm.backlog, morale: moraleDrop, name: gm.name });
+}
+// Morale lost by every worker of a zone from the penalty layer, ≤ PENALTY.moraleZoneDay per zone a day. Returns the drop.
+function moraleHit(s, zone, amount) {
+  if (zone !== 'farm' && zone !== 'shop') return 0;
+  const pen = penDay(s);
+  const drop = r2(Math.max(0, Math.min(amount, PENALTY.moraleZoneDay - (pen.morale[zone] || 0))));
+  if (drop <= 0) return 0;
+  pen.morale[zone] = r2((pen.morale[zone] || 0) + drop);
+  for (const u of D.assignedUnits(s, s.world.currentRegion, zone)) if (STAFF[u.type].kind === 'worker') u.morale = r2(clampN((u.morale ?? VITALS.start.morale) - drop, 0, 100));
+  return drop;
+}
+// Every open task whose time is up, oldest deadline first. Returns how many ran out.
+function expireDue(s, ev) {
+  const P = D.playedMs(s);
+  const due = D.tasksOpen(s).filter(t => t.untilPlayed <= P).sort((a, b) => a.untilPlayed - b.untilPlayed);
+  for (const t of due) expireTask(s, t, ev);
+  if (due.length) settleGm(s, ev);
+  return due.length;
+}
+// Reminders (toast + badge) at TASKS.remindHalf of a task's life and TASKS.remindLastMin before its end.
+function remindDue(s, ev) {
+  const P = D.playedMs(s);
+  for (const t of D.tasksOpen(s)) {
+    const pts = [t.atPlayed + TASKS.remindHalf * (t.untilPlayed - t.atPlayed)];
+    const last = TASKS.remindLastMin[t.kind];
+    if (last) pts.push(t.untilPlayed - last * 60000);
+    pts.sort((a, b) => a - b);
+    const i = (t.remindedAt?.length || 1) - 1;
+    if (i < pts.length && P >= pts[i]) {
+      t.remindedAt = [...(t.remindedAt || [t.atPlayed]), P];
+      ev.push({ type: 'taskRemind', id: t.id, kind: t.kind, by: t.by, reason: t.reason, leftMs: t.untilPlayed - P, last: i === pts.length - 1 && !!last });
+    }
+  }
+}
+// A "yes" to a task (task/approve, task/late). poach: keep the worker (its fee); gmPoach: keep the manager (how:
+// 'bonus' fee | 'raise'); a manager request: its job runs now (not in his budget) — or 'failed' without the coins.
+function answerYes(s, t, { how = 'bonus', roll = 0.5, late = false }, ev, ctx) {
+  if (t.kind === 'poach') {
+    const unit = D.unitOf(s, t.act.payload.uid);
+    if (!unit) { closeTask(s, t, 'cancelled'); return; }
+    if (s.player.coins < t.cost) return fail('coins', { missing: t.cost - s.player.coins });
+    spend(s, t.cost);
+    unitSpent(s, unit, t.cost, ctx.now);
+    unit.morale = r2(Math.min(100, (unit.morale ?? VITALS.start.morale) + RIVAL.keepMorale));
+    closeTask(s, t, 'approved');
+    journal(s, ctx.now, 'kept', unit);
+    ev.push({ type: 'poachKept', uid: unit.uid, fee: t.cost });
+    return;
+  }
+  if (t.kind === 'gmPoach') {
+    const gm = D.gmOf(s);
+    if (!gm) { closeTask(s, t, 'cancelled'); return; }
+    if (how === 'raise') { gm.raises = (gm.raises || 0) + 1; gm.loyalty = Math.min(100, gm.loyalty + GM.raiseLoyalty); }
+    else {
+      if (s.player.coins < t.cost) return fail('coins', { missing: t.cost - s.player.coins });
+      spend(s, t.cost);
+      ledger(s, ctx.now, 'spent', t.cost, 'wage', D.gmZone(s));
+      gm.loyalty = Math.min(100, gm.loyalty + GM.keepLoyalty);
+    }
+    closeTask(s, t, 'approved');
+    gmLog(s, ctx.now, 'kept', { how }, { taskId: t.id });
+    ev.push({ type: 'gmKept', how, name: gm.name });
+    return;
+  }
+  const gm = s.gm?.unit;
+  const ok = s.player.coins >= t.cost && gmRun(s, { key: t.key, act: t.act, cost: t.cost, reason: t.reason }, ctx, ev, { roll, budget: false, approved: true, taskId: t.id });
+  if (late) { t.status = ok ? 'late' : 'failed'; t.answeredAtPlayed = D.playedMs(s); } else closeTask(s, t, ok ? 'approved' : 'failed');
+  if (ok) { if (late) delete tasksOf(s).cool[t.key]; else cool(s, t.key, 'done'); }
+  if (ok) { if (GM.land.coolActs.includes(t.act?.type)) cool(s, 'land', null, GM.land.everyMin); } // ≤ 1 land proposal per everyMin, from the deal too
+  else {
+    cool(s, t.key, 'failed'); // re-filed after the cooldown
+    gmLog(s, ctx.now, 'failed', { key: t.key, reason: t.reason }, { taskId: t.id });
+    ev.push({ type: 'gmFailed', reason: t.reason });
+  }
+  if (gm) {
+    gm.loyalty = r2(Math.min(100, gm.loyalty + (late ? PENALTY.lateLoyalty : GM.mood.approveLoyalty))); // the boss listened
+    gm.backlog = Math.max(0, (gm.backlog || 0) - 1);
+    delete gm.waiting; // any answer wakes him up
+  }
+  if (t.by === 'g1') histDay(s, 'g1').tasksDone++;
+  if (late) hist(s, { type: 'taskLate', actor: 'player', subject: 'g1', taskId: t.id, zone: t.zone, extra: { kind: t.kind, key: t.key, reason: t.reason } });
+  settleGm(s, ev);
+  ev.push({ type: 'taskAnswered', id: t.id, kind: t.kind, answer: late ? 'late' : 'approved', ok });
+}
+// A "no": poach → the worker goes (RIVAL.letGoRefund of its price back); gmPoach → the manager goes (chaos); a manager
+// request → loyalty denyLoyalty, the key waits PENALTY.cooldownMin.denied, backlog −1 (never a fine).
+function answerNo(s, t, ev, ctx) {
+  if (t.kind === 'poach') {
+    closeTask(s, t, 'denied');
+    const unit = D.unitOf(s, t.act.payload.uid);
+    if (!unit) return;
+    const refund = Math.round(RIVAL.letGoRefund * (unit.paid || 0));
+    if (refund > 0) s.player.coins = r2(s.player.coins + refund);
+    removeUnit(s, unit, ctx.now, 'letGo', ev, { refund });
+    return;
+  }
+  if (t.kind === 'gmPoach') { closeTask(s, t, 'denied'); if (s.gm?.unit) gmLeave(s, ctx.now, 'poached', ev); return; }
+  closeTask(s, t, 'denied');
+  cool(s, t.key, 'denied');
+  if (t.by === 'g1' && t.act?.type === 'loan/take') { const tu = topUpOf(s); tu.denied = (tu.denied || 0) + 1; } // §3.7: top-up only after denied loans
+  const gm = s.gm?.unit;
+  if (gm) {
+    gm.loyalty = r2(Math.max(0, gm.loyalty + GM.mood.denyLoyalty));
+    gm.backlog = Math.max(0, (gm.backlog || 0) - 1);
+    delete gm.waiting;
+  }
+  if (t.by === 'g1') histDay(s, 'g1').tasksDone++;
+  gmLog(s, ctx.now, 'denied', { key: t.key, reason: t.reason }, { taskId: t.id });
+  settleGm(s, ev);
+  ev.push({ type: 'taskAnswered', id: t.id, kind: t.kind, answer: 'denied' });
+}
+
 // ---------- staff helpers (docs/design/staff-manager.md §8 books / ledger / journal) ----------
 const r2 = n => Math.round(n * 100) / 100;
 const clampN = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const uidNum = u => parseInt(String(u.uid).replace(/\D+/g, ''), 10) || 0;
-// Journal: newest first, BOOKS.journalKeep entries.
+// Journal / timeline rows (were s.staff.journal and u.log, now history rows; D.teamJournal / D.unitLog are the old
+// views). By whom: the unit itself (its own trouble / craft), the rival, or whoever runs this action (you, the manager,
+// a lead / software → the unit).
+const SELF_TYPES = new Set(['overheat', 'jam', 'slacked', 'craft', 'mvp', 'autoCare', 'warranty']);
+const RIVAL_TYPES = new Set(['poachStarted', 'poachRefused']);
 function journal(s, now, type, u, extra) {
-  const e = { at: now, type, uid: u?.uid ?? null, name: u?.name ?? null };
-  if (extra !== undefined) e.extra = extra;
-  s.staff.journal = [e, ...(s.staff.journal || [])].slice(0, BOOKS.journalKeep);
-  if (u) note(u, now, type, extra);
+  const actor = !u ? ACTOR : SELF_TYPES.has(type) ? u.uid : RIVAL_TYPES.has(type) ? 'system' : ACTOR === 'staff' || ACTOR === 'penalty' ? u.uid : ACTOR;
+  hist(s, { at: now, type, actor, subject: u?.uid, name: u?.name ?? undefined, extra, zone: u ? STAFF[u.type]?.zone ?? null : null });
 }
-// The unit's own timeline (profile → Lịch sử / Bảo trì): newest first, PROFILE.logKeep rows. Survives the team journal.
-function note(u, now, type, extra) {
-  const e = { at: now, type };
-  if (extra !== undefined) e.extra = extra;
-  u.log = [e, ...(u.log || [])].slice(0, PROFILE.logKeep);
-}
+const note = (u, now, type, extra, s = CUR) => journal(s, now, type, u, extra);
 // Per-day numbers of a unit (profile KPIs, the 7-day chart, grades): one row per local calendar day, PROFILE.daysKeep kept.
 function dayOf(u, now) {
   const d = D.dayKey(now);
@@ -202,6 +711,15 @@ function dayOf(u, now) {
     if (rows.length > PROFILE.daysKeep) u.days = rows.slice(-PROFILE.daysKeep);
   }
   return row;
+}
+// A unit's job row: added to its row of the same batch window and job type, else a new row.
+function workRow(s, u, n, task, now) {
+  const P = D.playedMs(s), win = HISTORY.workBatchSec * 1000, rows = histOf(s).rows, slot = Math.floor(P / win);
+  for (let i = rows.length - 1; i >= 0 && Math.floor(rows[i].atPlayed / win) === slot; i--) {
+    const r = rows[i];
+    if (r.type === 'work' && r.actor === u.uid && (r.extra?.task ?? null) === task) { r.extra = { ...r.extra, n: (r.extra?.n || 0) + n }; return; }
+  }
+  hist(s, { at: now, type: 'work', actor: u.uid, extra: { n, task }, zone: STAFF[u.type]?.zone ?? null });
 }
 // Craft practice (CAREER step 3): one more job of a type for a worker; a new craft step goes to its timeline.
 function practice(u, task, now) {
@@ -254,7 +772,7 @@ function unitEarned(s, u, amount, now) { if (!(amount > 0)) return; tally(u, now
 // A new unit joins the current region's zone: on shift when a working slot is free, else benched.
 function makeUnit(s, { type, trait, name, gender, perk, age, home, paid = 0 }, now) {
   const def = STAFF[type];
-  const unit = { uid: uid(s, 'u'), type, assigned: null, active: false, paid, hiredAt: now, book: { jobs: 0, earned: 0, spent: 0, mistakes: 0, since: now }, days: [] };
+  const unit = { uid: uid(s, 'u'), type, assigned: null, active: false, paid, hiredAt: now, tenurePlayedMin: 0, book: { jobs: 0, earned: 0, spent: 0, mistakes: 0, since: now }, days: [] };
   if (def.kind === 'robot') Object.assign(unit, { serial: robotSerial(type, unit.uid), task: 'auto', parts: { battery: 0, motor: 0, cooler: 0, frame: 0 }, partsSpent: 0, heat: 0, wear: 100, software: [], softwareSpent: 0, warrantyUsed: 0 });
   else {
     if (trait) Object.assign(unit, { trait, name, gender });
@@ -272,9 +790,10 @@ function makeUnit(s, { type, trait, name, gender, perk, age, home, paid = 0 }, n
 }
 // A unit leaves the team (unpaid, poached, let go, fired / sold): poach cleared, journal + staffLeft event.
 function removeUnit(s, u, now, reason, ev, extra = {}) {
-  s.staff.units = s.staff.units.filter(x => x.uid !== u.uid);
-  if (s.staff.poach?.uid === u.uid) s.staff.poach = null;
   journal(s, now, 'left', u, reason);
+  s.staff.units = s.staff.units.filter(x => x.uid !== u.uid);
+  for (const t of D.tasksOpen(s).filter(x => x.kind === 'poach' && x.act?.payload?.uid === u.uid)) closeTask(s, t, 'cancelled');
+  tombstone(s, u.uid, u.name || u.serial || null, STAFF[u.type]?.kind || 'worker', now);
   ev.push({ type: 'staffLeft', uid: u.uid, name: u.name || null, staff: u.type, reason, ...extra });
 }
 function addPreTilled(r, lotId) {
@@ -750,6 +1269,22 @@ const handlers = {
     const opened = D.openRoads(s).filter(id => !before.has(id));
     if (opened.length) ev.push({ type: 'roadsOpened', parcelId, roads: opened }); // the farm paths grow with the land
   },
+  // Sells a lot (management-rules §2.5 / §3.6; the manager only proposes it as an inbox task): LAND.sellRefund × its
+  // price back (a refund, not income). Never a starter lot, the last lot of its kind or a lot with a building; its
+  // fields and what grows on them go with it.
+  'land/sell'(s, { parcelId } = {}, ev) {
+    const err = D.landSellError(s, parcelId);
+    if (err) return fail(err);
+    const r = D.region(s), refund = D.landSellRefund(parcelId), lot = PARCELS[parcelId];
+    const gone = D.ownedPlots(s).filter(p => p.parcel === parcelId).map(p => p.id);
+    r.parcels = r.parcels.filter(x => x !== parcelId);
+    r.fields = (r.fields || []).filter(f => !gone.includes(f.id));
+    for (const id of gone) delete r.plots[id];
+    if (s.gm?.plan?.crops) delete s.gm.plan.crops[parcelId];
+    if (refund > 0) s.player.coins = r2(s.player.coins + refund);
+    hist(s, { type: 'landSold', actor: ACTOR, subject: parcelId, gain: refund || undefined, extra: { lot: parcelId, fields: gone.length, price: lot.cost } });
+    ev.push({ type: 'parcelSold', parcelId, refund, fields: gone.length });
+  },
   'land/openRoad'(s, { roadId }, ev) {
     const err = D.roadError(s, roadId);
     if (err === 'owned') return { noop: true };
@@ -837,21 +1372,26 @@ const handlers = {
     s.staff.upkeepAt = ctx.now;
     const k = mins / UPKEEP.perMinutes;
     let paid = 0;
-    const unpaid = [];
+    const unpaid = [], robots = [];
     for (const u of [...s.staff.units].sort((a, b) => uidNum(a) - uidNum(b))) {
       const share = r2(D.upkeepOf(u) * k);
       if (!(share > 0)) continue;
       if (s.player.coins >= share) { spend(s, share); unitSpent(s, u, share, ctx.now, u.follower || u.active ? 'wage' : 'upkeep'); paid += share; continue; }
-      if (u.follower) { // it followed you: its pay goes on your debt instead of leaving (founder: "cho nợ")
-        s.loan = s.loan ? { ...s.loan, owed: r2(s.loan.owed + share) } : { amount: 0, owed: share, takenAt: ctx.now };
-        ev.push({ type: 'followerDebt', uid: u.uid, coins: share, owed: s.loan.owed });
+      if (u.follower) { // it followed you: what you cannot pay is owed as wage arrears (founder: "cho nợ"), never a loan
+        const part = Math.floor(s.player.coins * 100) / 100;
+        if (part > 0) { spend(s, part); unitSpent(s, u, part, ctx.now, 'wage'); paid += part; }
+        const w = ((s.debt ||= { wages: { gm: 0, follower: 0 } }).wages ||= { gm: 0, follower: 0 });
+        w.follower = r2((w.follower || 0) + share - part);
+        ev.push({ type: 'followerDebt', uid: u.uid, coins: r2(share - part), owed: w.follower });
+        if (w.follower >= D.followerQuitArrears(u)) { w.follower = 0; removeUnit(s, u, ctx.now, 'unpaid', ev); } // DEBT.wageCapMul wages unpaid: it leaves
         continue;
       }
+      if (STAFF[u.type].kind === 'robot') { robots.push(u.uid); continue; } // standby unpaid: a robot has no morale to lose
       u.morale = r2(clampN((u.morale ?? VITALS.start.morale) - UPKEEP.unpaidMorale * k, 0, 100));
       unpaid.push(u.uid);
       if (u.morale <= 0) removeUnit(s, u, ctx.now, 'unpaid', ev);
     }
-    ev.push({ type: 'upkeepPaid', coins: r2(paid), unpaid, minutes: r2(mins) });
+    ev.push({ type: 'upkeepPaid', coins: r2(paid), unpaid, ...(robots.length ? { unpaidRobots: robots } : {}), minutes: r2(mins) });
   },
   // Vitals (§3 workers, §4 robots), batched by the realm every few seconds per unit: `work` / `rest` seconds (each
   // clamped to VITALS.maxBatchSeconds), robots also `jobs` finished. A stopped / benched / lunching unit cannot work,
@@ -950,11 +1490,15 @@ const handlers = {
   },
   // Finished jobs (batched by the realm): the unit's book counts them; a worker also gets XP (× trait) and every
   // SKILL.xpPerPoint XP turns into a skill point (banked without a cap). Robots never learn.
-  'staff/workDone'(s, { uid: id, n = 1 }, ev, ctx) {
+  // task: the job type (harvest / plant / … ) for the history row; jobs fold into one row per unit per
+  // HISTORY.workBatchSec played seconds («thu hoạch ×12», management-rules §5).
+  'staff/workDone'(s, { uid: id, n = 1, task = null }, ev, ctx) {
     const unit = D.unitOf(s, id);
     if (!unit) return fail('unknown');
     const k = Math.max(1, Math.min(20, n | 0));
     tally(unit, ctx.now, 'jobs', k);
+    histDay(s, 'staff').jobs += k;
+    workRow(s, unit, k, typeof task === 'string' && task.length <= 16 ? task : null, ctx.now);
     if (STAFF[unit.type].kind !== 'worker') return;
     let xp = r2((unit.xp || 0) + k * (TRAITS[unit.trait]?.xpMul ?? 1)), gained = 0;
     while (xp >= SKILL.xpPerPoint) { xp = r2(xp - SKILL.xpPerPoint); gained++; }
@@ -1019,6 +1563,7 @@ const handlers = {
     if (D.taskError(unit, task)) return fail('unknown');
     if ((unit.task || 'auto') === task) return { noop: true };
     unit.task = task;
+    hist(s, { type: 'robotTask', actor: ACTOR === 'staff' ? id : ACTOR, subject: id, extra: { task }, zone: STAFF[unit.type].zone });
     ev.push({ type: 'taskSet', uid: id, task });
   },
   // A worker's job types (§6): [] = auto; at most taskLimit (1, 2 from smart 3).
@@ -1030,6 +1575,7 @@ const handlers = {
     const now = unit.tasks || [];
     if (now.length === list.length && now.every((t, i) => t === list[i])) return { noop: true };
     unit.tasks = list;
+    hist(s, { type: 'setTasks', actor: ACTOR === 'staff' ? id : ACTOR, subject: id, extra: { tasks: list }, zone: STAFF[unit.type].zone });
     ev.push({ type: 'tasksSet', uid: id, tasks: list });
   },
   // Robot hardware: battery (longer work, cheaper recharge), motor (faster, hotter), cooler (less heat), frame (fewer
@@ -1097,6 +1643,7 @@ const handlers = {
     const unit = D.unitOf(s, id);
     if (!unit || !Object.hasOwn(MISTAKES.rates, kind)) return fail('unknown');
     tally(unit, ctx.now, 'mistakes', 1);
+    histDay(s, 'staff').mistakes++;
     ev.push({ type: 'staffMistake', uid: id, kind });
   },
   // Fire a worker (FIRE.worker × hire price back) or sell a robot (FIRE.robot × price + FIRE.robotParts × hardware).
@@ -1202,10 +1749,11 @@ const handlers = {
   // ---------- rivals (§7) ----------
   // A rival owner visits (realm timer every RIVAL.everyMinutes): with roll < chance they try to poach the
   // highest-level low-morale worker of the zone (else the best rare one). A happy worker (morale ≥ refuseMorale)
-  // refuses; otherwise the player has keepSeconds to keep them (staff/keep) or let them go.
+  // refuses; otherwise an inbox task (kind poach) gives the player TASKS.life.poach played minutes to keep them or let
+  // them go (task/approve | task/deny, old staff/keep | staff/letGo).
   'rival/visit'(s, { zone, roll = 1 }, ev, ctx) {
     if (!RECRUIT.worker[zone]) return fail('unknown');
-    if (s.staff.poach || !((Number(roll) || 0) < RIVAL.chance)) return { noop: true };
+    if (D.workerPoach(s) || !((Number(roll) || 0) < RIVAL.chance) || D.tasksOpen(s).length >= TASKS.cap) return { noop: true };
     const pool = D.assignedUnits(s, s.world.currentRegion, zone).filter(u => STAFF[u.type].kind === 'worker');
     const best = list => [...list].sort((a, b) => unitLevel(b) - unitLevel(a) || uidNum(a) - uidNum(b))[0];
     // Low morale first, then a worker the player keeps waiting for a promotion (CAREER.waitMinutes), then a rare one.
@@ -1218,35 +1766,28 @@ const handlers = {
       ev.push({ type: 'poachRefused', uid: target.uid, name: target.name || null, rival });
       return;
     }
-    s.staff.poach = { uid: target.uid, zone, until: ctx.now + RIVAL.keepSeconds * 1000, fee: RIVAL.keepFeePerLevel * unitLevel(target) };
+    // The offer is an inbox task (kind poach, TASKS.life.poach played minutes): keep (its fee) or let go.
+    const fee = RIVAL.keepFeePerLevel * unitLevel(target);
+    const t = fileTask(s, ev, { kind: 'poach', key: `keep:${target.uid}`, by: 'system', act: { type: 'staff/keep', payload: { uid: target.uid } }, cost: fee,
+      reason: ['keepWorker', { name: target.name || null }], zone });
     journal(s, ctx.now, 'poachStarted', target, rival);
-    ev.push({ type: 'poachStarted', uid: target.uid, name: target.name || null, rival, fee: s.staff.poach.fee, until: s.staff.poach.until });
+    ev.push({ type: 'poachStarted', uid: target.uid, name: target.name || null, rival, fee, id: t.id, seconds: TASKS.life.poach * 60 });
   },
+  // Old answers to a rival's offer, now aliases over the inbox (task/approve / task/deny of its poach task).
   'staff/keep'(s, { uid: id }, ev, ctx) {
-    const p = s.staff.poach, unit = D.unitOf(s, id);
-    if (!p || p.uid !== id || !unit) return fail('unknown');
-    if (s.player.coins < p.fee) return fail('coins', { missing: p.fee - s.player.coins });
-    spend(s, p.fee);
-    unitSpent(s, unit, p.fee, ctx.now);
-    unit.morale = r2(Math.min(100, (unit.morale ?? VITALS.start.morale) + RIVAL.keepMorale));
-    s.staff.poach = null;
-    journal(s, ctx.now, 'kept', unit);
-    ev.push({ type: 'poachKept', uid: id, fee: p.fee });
+    const t = D.tasksOpen(s).find(x => x.kind === 'poach' && x.act?.payload?.uid === id);
+    if (!t || !D.unitOf(s, id)) return fail('unknown');
+    return answerYes(s, t, {}, ev, ctx);
   },
   'staff/letGo'(s, { uid: id }, ev, ctx) {
-    const p = s.staff.poach, unit = D.unitOf(s, id);
-    if (!p || p.uid !== id || !unit) return fail('unknown');
-    const refund = Math.round(RIVAL.letGoRefund * (unit.paid || 0));
-    if (refund > 0) s.player.coins = r2(s.player.coins + refund);
-    removeUnit(s, unit, ctx.now, 'letGo', ev, { refund });
+    const t = D.tasksOpen(s).find(x => x.kind === 'poach' && x.act?.payload?.uid === id);
+    if (!t || !D.unitOf(s, id)) return fail('unknown');
+    return answerNo(s, t, ev, ctx);
   },
-  // Time is up (realm, once now > until): the worker leaves for the rival, nothing back.
-  'rival/resolve'(s, _p, ev, ctx) {
-    const p = s.staff.poach;
-    if (!p || ctx.now <= p.until) return { noop: true };
-    const unit = D.unitOf(s, p.uid);
-    s.staff.poach = null;
-    if (unit) removeUnit(s, unit, ctx.now, 'poached', ev);
+  // Time is up: the inbox's expiry (clock/tick) already sends the worker to the rival; kept as an alias that expires
+  // whatever is due now.
+  'rival/resolve'(s, _p, ev) {
+    if (!expireDue(s, ev)) return { noop: true };
   },
 
   // ---------- research lab: the drink test bench (docs/design/research.md) ----------
@@ -1362,17 +1903,23 @@ const handlers = {
     if (s.player.coins < c.fee) return fail('coins', { missing: c.fee - s.player.coins });
     spend(s, c.fee);
     ledger(s, ctx.now, 'spent', c.fee, 'hire', D.gmZone(s));
-    s.gm.unit = { name: c.name, gender: c.gender, skill: c.skill, style: c.style, loyalty: c.loyalty, raises: 0, hiredAt: ctx.now, paid: c.fee };
+    // The shared Unit interface (management-rules §1.1): uid 'g1', kind 'manager', book / days / recent, backlog.
+    s.gm.unit = { uid: 'g1', kind: 'manager', name: c.name, gender: c.gender, skill: c.skill, style: c.style, loyalty: c.loyalty, raises: 0, hiredAt: ctx.now, paid: c.fee,
+      tenurePlayedMin: 0, backlog: 0, book: { jobs: 0, earned: 0, spent: 0, mistakes: 0, since: ctx.now }, days: [], recent: [] };
+    Object.assign(s.gm, D.gmDefaultLimits(s)); // limits from the reference income I(L), snapped to the options
+    s.gm.shareFrom = D.playedMinute(s);       // its profit share counts its own jobs from now on
+    if (s.debt?.wages) s.debt.wages.gm = 0;
     s.gm.board = { seed: (Math.imul((s.gm.board?.seed || 1) ^ s.nextUid++, 0x9e3779b1) >>> 1) | 0, at: ctx.now };
     s.gm.payAt = ctx.now;
     s.gm.lastJobAt = ctx.now;
     s.gm.seenAt = ctx.now;
     s.gm.window = { start: ctx.now, spent: 0 };
-    s.gm.requests = [];
+    s.gm.careWin = null;
     const calmed = !!s.gm.chaos;
     s.gm.chaos = null;
     gmLog(s, ctx.now, 'hired', { name: c.name, fee: c.fee });
     ev.push({ type: 'gmHired', name: c.name, fee: c.fee, calmed });
+    if (s.gm.mode !== 'advisor') planDay(s, ev, ctx); // the first day plan comes with him (§3.4)
   },
   'gm/refreshBoard'(s, { roll = 0, paid = false }, ev, ctx) {
     const due = D.gmBoardRefreshIn(s, ctx.now) <= 0;
@@ -1386,7 +1933,7 @@ const handlers = {
     if (!D.gmOf(s) || !GM.modes[mode]) return fail('unknown');
     if (s.gm.mode === mode) return { noop: true };
     s.gm.mode = mode;
-    if (mode === 'advisor') s.gm.requests = [];
+    if (mode === 'advisor') for (const t of D.gmRequests(s)) closeTask(s, t, 'cancelled'); // an advisor only suggests
     ev.push({ type: 'gmMode', mode });
   },
   'gm/setBudget'(s, { budget }, ev) {
@@ -1399,51 +1946,171 @@ const handlers = {
     if (s.gm.bigLimit === limit) return { noop: true };
     s.gm.bigLimit = limit;
   },
-  // The GM's turn (realm timer, D.gmThinkSeconds): expire old requests, resolve a poach that ran out, then act on the
-  // plan (D.gmPlan) by its powers: do (up to GM.actionsPerThink), or file a request for you, best first.
-  'gm/tick'(s, { roll = 0.5 }, ev, ctx) {
+  // The GM's turn (realm timer, D.gmThinkSeconds; management-rules §3.3, planner v2): due tasks expire first (a rival's
+  // offer that ran out takes him away); then — unless he strikes or only advises — he samples the land's use (once a
+  // played minute), makes the day plan when it is due (GM.plan.everyMin), and runs the GM_RULES candidates
+  // (D.gmCandidates, best score first) through D.gmPermission: do (≤ GM.actionsPerThink; care / ops from the care
+  // wallet), file a task (≤ TASKS.maxFiledPerThink; a full inbox → "Để sau", logged), or a loan task for a capital job
+  // the coins cannot pay. Keys cooling down or already waiting are skipped. Chờ lệnh: care / ops only, one action, no
+  // filing. The zone not on screen is thought about every GM.plan.offscreenEvery-th think.
+  'gm/think'(s, { roll = 0.5 }, ev, ctx) {
     if (!D.gmOf(s)) return { noop: true };
+    let changed = expireDue(s, ev) > 0;
     const g = s.gm;
-    let changed = false;
-    const live = g.requests.filter(q => q.until > ctx.now);
-    if (live.length !== g.requests.length) {
-      for (const q of g.requests.filter(x => x.until <= ctx.now)) gmLog(s, ctx.now, 'expired', { key: q.key, reason: q.reason });
-      g.requests = live; changed = true;
-    }
-    if (g.poach && ctx.now > g.poach.until) { gmLeave(s, ctx.now, 'poached', ev); return; }
-    if (g.mode === 'advisor') return changed ? undefined : { noop: true };
-    let done = 0, k = 0;
-    const max = GM.actionsPerThink[Math.max(0, Math.min(4, g.unit.skill - 1))];
-    for (const item of D.gmPlan(s, ctx.now)) {
-      if (done >= max) break;
-      const perm = D.gmPermission(s, item, ctx.now);
-      const r = ((Number(roll) || 0) + 0.6180339887 * k++) % 1; // one independent-looking roll per job of this tick
-      if (perm === 'do') { if (gmRun(s, item, ctx, ev, { roll: r, budget: g.mode !== 'full' })) { done++; changed = true; } }
-      else if (perm === 'request' && !g.requests.some(q => q.key === item.key) && g.requests.length < GM.requestsKeep) {
-        g.requests.push({ id: `q${s.nextUid++}`, key: item.key, act: item.act, cost: item.cost, reason: item.reason, at: ctx.now, until: ctx.now + GM.requestMinutes * 60000 });
-        gmLog(s, ctx.now, 'asked', { key: item.key, reason: item.reason, cost: item.cost });
+    if (!g.unit || D.gmStrike(s) || g.mode === 'advisor') return changed ? undefined : { noop: true };
+    changed = sampleUtil(s) || changed;
+    changed = sampleLoad(s, ctx.now) || changed;
+    if (!g.plan || D.playedMs(s) - g.plan.atPlayed >= GM.plan.everyMin * 60000) { planDay(s, ev, ctx); changed = true; }
+    const turn = Math.floor(D.playedMs(s) / 1000 / D.gmThinkSeconds(g.unit)); // played-time turn number (half cadence off screen)
+    const { list, hits } = D.gmCandidates(s, ctx.now, { offscreen: turn % GM.plan.offscreenEvery === 0 });
+    const ticks = Object.fromEntries(Object.entries(hits).filter(([, v]) => v).map(([key]) => [key, (g.ticks?.[key] || 0) + 1]));
+    if (JSON.stringify(ticks) !== JSON.stringify(g.ticks || {})) { g.ticks = ticks; changed = true; }
+    const waiting = D.gmWaiting(s), M = TASKS.maxFiledPerThink, slow = (g.unit.backlog || 0) >= PENALTY.backlog.waitAt;
+    const max = waiting || slow ? 1 : GM.actionsPerThink[Math.max(0, Math.min(4, g.unit.skill - 1))];
+    const careOps = c => c.group === 'care' || c.group === 'ops';
+    const wished = new Set();
+    let done = 0, filed = 0, k = 0;
+    for (const c of list) {
+      if (c.group === 'advice') continue;
+      if (!D.gmLicensed(s, c.licence)) { wished.add(c.licence); continue; } // self-upgrade: counted below
+      if (done >= max && (filed >= M || waiting)) continue;
+      // already asked (his own request) or cooling down; a rival's offer (system task) he may still settle himself
+      // below the big-job limit, but never files a second task for it (noFile)
+      if (D.taskCooling(s, c.key) || D.gmRequests(s).some(t => t.key === c.key)) continue;
+      const perm = D.gmPermission(s, c, ctx.now);
+      const r = ((Number(roll) || 0) + 0.6180339887 * k++) % 1; // one independent-looking roll per job of this think
+      if (perm === 'do') {
+        if (done >= max || (waiting && !careOps(c))) continue;
+        const wallet = careOps(c) && c.cost <= D.gmCareWalletLeft(s) ? 'care' : true;
+        if (gmRun(s, c, ctx, ev, { roll: r, budget: wallet })) { done++; changed = true; cool(s, c.key, 'done'); }
+      } else if (perm === 'file' || perm === 'loan') {
+        if (c.noFile || waiting || filed >= M || done + filed >= max + M || D.taskPending(s, c.key)) continue;
+        const loan = perm === 'loan' ? D.gmLoanFor(s, c) : null;
+        if (perm === 'loan' && (!loan || D.taskCooling(s, 'loan') || D.tasksOpen(s).some(t => t.kind === 'loan'))) continue;
+        const landDeal = GM.land.coolActs.includes(c.act?.type); // buying / selling a lot (not a building upgrade)
+        if (landDeal && D.taskCooling(s, 'land')) continue; // ≤ 1 land proposal per GM.land.everyMin
+        if (D.tasksOpen(s).length >= TASKS.cap) { // never dropped silently: "Để sau" (≤ once per TASKS.laterEveryMin), the key waits a moment
+          cool(s, c.key, 'done');
+          const P = D.playedMs(s);
+          if (g.laterAt == null || P - g.laterAt >= TASKS.laterEveryMin * 60000 || P < g.laterAt) {
+            g.laterAt = P;
+            gmLog(s, ctx.now, 'later', { key: c.key, reason: c.reason });
+            ev.push({ type: 'gmLater', reason: c.reason, name: g.unit.name });
+          }
+          changed = true;
+          continue;
+        }
+        const item = loan ? { key: `loan:${c.key}`, kind: 'loan', act: { type: 'loan/take', payload: { amount: loan.amount } }, cost: 0, value: c.value, reason: ['loanFor', { coins: loan.amount, min: loan.termMin, for: c.reason }], zone: c.zone }
+          : { key: c.key, kind: c.kind || D.taskKindOf(c.act.type), act: c.act, cost: c.cost, value: c.value, reason: c.reason, zone: c.zone };
+        const t = fileTask(s, ev, { kind: item.kind, key: item.key, by: 'g1', act: item.act, cost: item.cost, value: item.value, reason: item.reason, zone: item.zone || D.gmZone(s) });
+        if (!t) continue;
+        filed++;
+        if (loan) cool(s, 'loan', null, GM.loanRule.everyMin);
+        if (landDeal && !loan) cool(s, 'land', null, GM.land.everyMin);
+        if (item.kind === 'topUp') { const tu = topUpOf(s); tu.filed = (tu.filed || 0) + 1; }
+        gmLog(s, ctx.now, 'asked', { key: item.key, reason: item.reason, cost: item.cost }, { taskId: t.id });
         g.lastJobAt = ctx.now;
-        ev.push({ type: 'gmRequest', reason: item.reason, cost: item.cost, name: g.unit.name });
+        ev.push({ type: 'gmRequest', reason: item.reason, cost: item.cost, name: g.unit.name, id: t.id, kind: t.kind });
         changed = true;
       }
     }
+    // self-upgrade (§3.7): a rule group he holds no licence for fired → counted (≤ once per played minute per group);
+    // busy: more candidates than actions → after GM.selfUpgrade.trainThinks thinks in a row, training may pay
+    if (wished.size) changed = wishLicence(s, wished, ctx.now) || changed;
+    const acts = list.filter(c => c.group !== 'advice' && D.gmLicensed(s, c.licence) && !D.taskCooling(s, c.key) && !D.taskPending(s, c.key));
+    const excess = Math.max(0, acts.length - max);
+    const busy = excess > 0 ? { n: (g.busy?.n || 0) + 1, excess, avg: Math.round(acts.reduce((n, c) => n + c.value, 0) / acts.length * 100) / 100 } : null;
+    if (JSON.stringify(busy) !== JSON.stringify(g.busy || null)) { g.busy = busy; changed = true; }
     if (!changed) return { noop: true };
   },
-  // You approve / deny a request. Approved jobs run now (not counted in the GM's own budget).
-  'gm/approve'(s, { id }, ev, ctx) {
-    const q = s.gm.requests.find(x => x.id === id);
-    if (!q) return fail('unknown');
-    s.gm.requests = s.gm.requests.filter(x => x !== q);
-    if (s.gm.unit) s.gm.unit.loyalty = r2(Math.min(100, s.gm.unit.loyalty + GM.mood.approveLoyalty)); // the boss listened
-    const ok = gmRun(s, { key: q.key, act: q.act, cost: q.cost, reason: q.reason }, ctx, ev, { roll: 0.5, budget: false, approved: true });
-    if (!ok) { gmLog(s, ctx.now, 'failed', { key: q.key, reason: q.reason }); ev.push({ type: 'gmFailed', reason: q.reason }); }
+  'gm/tick'(s, p, ev, ctx) { return handlers['gm/think'](s, p, ev, ctx); }, // old name
+  // The day plan now (also every GM.plan.everyMin played minutes inside gm/think, and on hire).
+  'gm/planDay'(s, _p, ev, ctx) {
+    if (!D.gmOf(s) || s.gm.mode === 'advisor' || D.gmStrike(s)) return fail('unknown');
+    planDay(s, ev, ctx);
   },
-  'gm/deny'(s, { id }, ev, ctx) {
-    const q = s.gm.requests.find(x => x.id === id);
-    if (!q) return fail('unknown');
-    s.gm.requests = s.gm.requests.filter(x => x !== q);
-    if (s.gm.unit) s.gm.unit.loyalty = r2(Math.max(0, s.gm.unit.loyalty + GM.mood.denyLoyalty));
-    gmLog(s, ctx.now, 'denied', { key: q.key, reason: q.reason });
+  // A licence (Giấy phép, §2.5) for the manager: the player's, bought once, kept by the Level-10 incident.
+  'gm/buyLicence'(s, { group } = {}, ev) {
+    const err = D.licenceError(s, group);
+    if (err === 'owned') return { noop: true };
+    if (err) return fail(err, err === 'coins' ? { missing: D.licencePrice(group) - s.player.coins } : err === 'level' ? { level: GM.licences.unlockLevel } : undefined);
+    const price = D.licencePrice(group);
+    if (price > 0) spend(s, price);
+    s.gm.licences = [...new Set([...(s.gm.licences || []), group])];
+    if (s.gm.wish?.n) delete s.gm.wish.n[group];
+    hist(s, { type: 'licence', actor: 'player', subject: s.gm.unit ? 'g1' : undefined, cost: price || undefined, extra: { group, coins: price }, gm: s.gm.unit ? 1 : undefined });
+    ev.push({ type: 'licenceBought', group, cost: price });
+  },
+  // Training (Đào tạo, §2.5): GM.training.basePerSkill × (skill + 1); skill + 1 after GM.training.shiftDays shift-days of
+  // play (clock/tick finishes it). He keeps working meanwhile.
+  'gm/train'(s, _p, ev) {
+    const err = D.gmTrainError(s);
+    if (err) return fail(err, err === 'coins' ? { missing: D.gmTrainCost(D.gmOf(s)) - s.player.coins } : undefined);
+    const gm = D.gmOf(s), cost = D.gmTrainCost(gm);
+    spend(s, cost);
+    ledger(s, NOW, 'spent', cost, 'upgrade', D.gmZone(s));
+    gm.training = { untilPlayed: D.playedMs(s) + GM.training.shiftDays * CAREER.shiftDayMin * 60000, to: (gm.skill || 1) + 1 };
+    gmLog(s, NOW, 'trainStart', { to: gm.training.to, coins: cost }, { cost });
+    ev.push({ type: 'gmTraining', name: gm.name, to: gm.training.to, cost, minutes: GM.training.shiftDays * CAREER.shiftDayMin });
+  },
+  // The answer to the manager's real-money top-up proposal (§3.7, §8 Q2). The player executes real money himself; no
+  // real-money store exists in the game yet, so this only logs that you saw it (no coins move).
+  'gm/topUpSeen'(s, _p, ev) {
+    hist(s, { type: 'topUpSeen', actor: 'player', subject: 'g1', gm: 1 });
+    ev.push({ type: 'topUpSeen' });
+  },
+  // ---------- the inbox's answers (management-rules §4.2) ----------
+  // approve: how 'bonus' | 'raise' for a rival's offer on the manager; roll for a care job that needs one.
+  'task/approve'(s, { id, how = 'bonus', roll = 0.5 } = {}, ev, ctx) {
+    const t = D.tasksOpen(s).find(x => x.id === id);
+    if (!t) return fail('unknown');
+    return answerYes(s, t, { how, roll }, ev, ctx);
+  },
+  'task/deny'(s, { id } = {}, ev, ctx) {
+    const t = D.tasksOpen(s).find(x => x.id === id);
+    if (!t) return fail('unknown');
+    return answerNo(s, t, ev, ctx);
+  },
+  // A manager task that ran out less than TASKS.lateMin ago: approved late (+lateLoyalty, its cooldown cleared; the
+  // fine stays paid). Only while the manager who filed it is still here, in its region (D.taskLateOk).
+  'task/late'(s, { id, roll = 0.5 } = {}, ev, ctx) {
+    const t = D.tasksDone(s).find(x => x.id === id);
+    if (!D.taskLateOk(s, t)) return fail('unknown');
+    return answerYes(s, t, { roll, late: true }, ev, ctx);
+  },
+  // Runs out the task `id` when its time is up (or, without id, every task that is due). The played clock calls it.
+  'task/expire'(s, { id = null } = {}, ev) {
+    if (id == null) { if (!expireDue(s, ev)) return { noop: true }; return; }
+    const t = D.tasksOpen(s).find(x => x.id === id);
+    if (!t || t.untilPlayed > D.playedMs(s)) return { noop: true };
+    expireTask(s, t, ev);
+    settleGm(s, ev);
+  },
+  // At least TASKS.graceMin more played minutes on task `id` (or on every open task): the return grace (§4.1).
+  'task/extend'(s, { id = null } = {}, ev) {
+    const P = D.playedMs(s) + TASKS.graceMin * 60000;
+    let n = 0;
+    for (const t of D.tasksOpen(s)) if ((id == null || t.id === id) && t.untilPlayed < P) { t.untilPlayed = P; n++; }
+    if (!n) return { noop: true };
+    ev.push({ type: 'tasksExtended', n });
+  },
+  // Old answers, now aliases over the inbox.
+  'gm/approve'(s, { id } = {}, ev, ctx) { return handlers['task/approve'](s, { id }, ev, ctx); },
+  'gm/deny'(s, { id } = {}, ev, ctx) { return handlers['task/deny'](s, { id }, ev, ctx); },
+  // Sorry, boss (management-rules §4.2): PENALTY.apologiseSalaries × salary → backlog 0, +apologiseLoyalty, strike over.
+  'gm/apologise'(s, _p, ev, ctx) {
+    const gm = D.gmOf(s);
+    if (!gm) return fail('unknown');
+    if (!(gm.backlog > 0) && !gm.strike && !gm.waiting) return { noop: true };
+    const cost = D.apologiseCost(s);
+    if (s.player.coins < cost) return fail('coins', { missing: cost - s.player.coins });
+    spend(s, cost);
+    ledger(s, ctx.now, 'spent', cost, 'wage', D.gmZone(s));
+    gm.backlog = 0;
+    gm.loyalty = r2(Math.min(100, gm.loyalty + PENALTY.apologiseLoyalty));
+    delete gm.strike; delete gm.waiting;
+    gmLog(s, ctx.now, 'apologised', { coins: cost }, { cost });
+    ev.push({ type: 'gmApologised', coins: cost, name: gm.name });
   },
   // You hand one suggestion to the manager (or the stand-in Manager-rank worker): done now, your call.
   'gm/delegate'(s, { key, roll = 0.5 }, ev, ctx) {
@@ -1452,19 +2119,22 @@ const handlers = {
     if (!item || item.tier === 'advice') return fail('unknown');
     if (s.player.coins < item.cost) return fail('coins', { missing: item.cost - s.player.coins });
     if (!gmRun(s, item, ctx, ev, { roll, budget: false, approved: true })) return fail('failed');
-    s.gm.requests = s.gm.requests.filter(x => x.key !== key);
   },
   // Salary (realm, about every minute): base for the time since the last pay (≤ GM.payMinutes) + the mode's share of
   // the team's positive profit in that time (ledger, both games). Paid → loyalty slowly up; unpaid → down fast.
   'gm/payroll'(s, _p, ev, ctx) {
+    // the game was not running (tab hidden / closed): settle the return first, so this payroll never hides it from gm/seen
+    const back = s.gm?.payAt ? gmBack(s, ev, ctx.now) : false;
     const gm = D.gmOf(s);
-    if (!gm) return { noop: true };
+    if (!gm) return back ? undefined : { noop: true };
     const mins = Math.min(GM.payMinutes, Math.max(0, (ctx.now - (s.gm.payAt || ctx.now)) / 60000));
-    if (!s.gm.payAt) { s.gm.payAt = ctx.now; return; } // first call starts the clock
-    if (mins <= 0) return { noop: true };
-    const from = Math.floor((ctx.now - mins * 60000) / 60000);
-    const rows = (s.staff.ledger || []).filter(e => e.min >= from);
-    const profit = rows.reduce((n, e) => n + (e.earned || 0) - (e.spent || 0) + (e.gm || 0), 0); // the GM's own pay is not team cost here
+    if (!s.gm.payAt) { s.gm.payAt = ctx.now; s.gm.shareFrom ??= D.playedMinute(s); return; } // first call starts the clock
+    if (mins <= 0) return back ? undefined : { noop: true };
+    // Profit share (management-rules §2.6): only on the GM's OWN jobs (income rows by 'g1'), whole played minutes since
+    // the last share — a passive manager costs its salary alone.
+    const curM = D.playedMinute(s), fromM = Math.min(curM, s.gm.shareFrom || 0);
+    const profit = D.gmProfitBetween(s, fromM, curM);
+    s.gm.shareFrom = curM;
     const pay = r2(gmSalary(gm, s.gm.mode) * mins / GM.payMinutes + Math.max(0, profit) * (GM.modes[s.gm.mode]?.share || 0));
     s.gm.payAt = ctx.now;
     if (pay <= 0) return;
@@ -1479,71 +2149,60 @@ const handlers = {
       if (s.gm.moodNote !== why) { s.gm.moodNote = why; gmLog(s, ctx.now, why, { min: Math.round(why === 'absent' ? mood.absentMin : mood.idleMin) }); ev.push({ type: 'gmMood', why, name: gm.name }); }
     } else delete s.gm.moodNote;
     const day = gmDay(s, ctx.now);
-    if (s.player.coins >= pay) {
-      spend(s, pay);
-      ledger(s, ctx.now, 'spent', pay, 'wage', D.gmZone(s));
-      const row = s.staff.ledger[s.staff.ledger.length - 1]; if (row) row.gm = r2((row.gm || 0) + pay);
-      day.salary = r2(day.salary + pay);
-      gm.loyalty = r2(Math.min(100, gm.loyalty + GM.loyalty.paidPer10 * mins / 10));
-      ev.push({ type: 'gmPaid', coins: pay });
-    } else {
+    // Partial pay (management-rules §2.6): pay what the coins allow, the rest becomes wage arrears (s.debt.wages.gm),
+    // paid first out of the next income. Loyalty −unpaidPerMin per minute left unpaid; arrears of
+    // GM.quitArrearsSalaries salaries → the GM quits (no chaos).
+    const paidNow = Math.min(pay, Math.floor(s.player.coins * 100) / 100);
+    if (paidNow > 0) {
+      spend(s, paidNow);
+      ledger(s, ctx.now, 'spent', paidNow, 'wage', D.gmZone(s));
+      const row = s.staff.ledger[s.staff.ledger.length - 1]; if (row) row.gm = r2((row.gm || 0) + paidNow);
+      day.salary = r2(day.salary + paidNow);
+      ev.push({ type: 'gmPaid', coins: paidNow });
+    }
+    const short = r2(pay - paidNow);
+    if (short <= 0) gm.loyalty = r2(Math.min(100, gm.loyalty + GM.loyalty.paidPer10 * mins / 10));
+    else {
+      const w = ((s.debt ||= { wages: { gm: 0, follower: 0 } }).wages ||= { gm: 0, follower: 0 });
+      w.gm = r2((w.gm || 0) + short);
       gm.loyalty = r2(Math.max(0, gm.loyalty - GM.loyalty.unpaidPerMin * mins));
-      gmLog(s, ctx.now, 'unpaid', { coins: pay });
-      ev.push({ type: 'gmUnpaid', coins: pay, name: gm.name });
+      gmLog(s, ctx.now, 'unpaid', { coins: short, owed: w.gm });
+      ev.push({ type: 'gmUnpaid', coins: short, owed: w.gm, name: gm.name });
+      if (w.gm >= D.gmQuitArrears(s)) gmLeave(s, ctx.now, 'quit', ev);
     }
   },
   // A rival tries to lure the GM (realm timer GM.poach.everyMinutes): loyal ones (≥ GM.loyalty.refuse) say no.
   'gm/rivalVisit'(s, { roll = 1 }, ev, ctx) {
     const gm = D.gmOf(s);
     const chance = Math.min(0.9, GM.poach.chance * (D.gmMood(s, ctx.now)?.absent ? GM.mood.absentPoachMul : 1)); // the boss is away: easier to lure
-    if (!gm || s.gm.poach || !((Number(roll) || 0) < chance)) return { noop: true };
-    if (gm.loyalty >= GM.loyalty.refuse) { gmLog(s, ctx.now, 'refused', { rival: GM.poach.rival }); ev.push({ type: 'gmRefused', name: gm.name, rival: GM.poach.rival }); return; }
-    s.gm.poach = { until: ctx.now + GM.poach.keepSeconds * 1000, fee: gmSalary(gm, s.gm.mode) * GM.keepBonusSalaries };
-    gmLog(s, ctx.now, 'poached', { rival: GM.poach.rival });
-    ev.push({ type: 'gmPoach', name: gm.name, rival: GM.poach.rival, until: s.gm.poach.until, fee: s.gm.poach.fee });
+    // backlog ≥ PENALTY.backlog.poachAt (ignored too long): the rival always gets to talk to him, loyal or not.
+    const easy = D.gmPoachable(s);
+    if (!gm || D.gmPoachOf(s) || (!easy && !((Number(roll) || 0) < chance))) return { noop: true };
+    if (!easy && gm.loyalty >= GM.loyalty.refuse) { gmLog(s, ctx.now, 'refused', { rival: GM.poach.rival }); ev.push({ type: 'gmRefused', name: gm.name, rival: GM.poach.rival }); return; }
+    if (!gmPoachStart(s, gm, ev)) return { noop: true };
   },
-  // Keep the GM: a one-off bonus (loyalty +GM.keepLoyalty) or a lasting raise (+GM.raiseStep salary, loyalty +GM.raiseLoyalty).
-  'gm/keep'(s, { how = 'bonus' }, ev, ctx) {
-    const gm = D.gmOf(s), p = s.gm.poach;
-    if (!gm || !p) return fail('unknown');
-    if (how === 'raise') { gm.raises = (gm.raises || 0) + 1; gm.loyalty = Math.min(100, gm.loyalty + GM.raiseLoyalty); }
-    else {
-      if (s.player.coins < p.fee) return fail('coins', { missing: p.fee - s.player.coins });
-      spend(s, p.fee);
-      ledger(s, ctx.now, 'spent', p.fee, 'wage', D.gmZone(s));
-      gm.loyalty = Math.min(100, gm.loyalty + GM.keepLoyalty);
-    }
-    s.gm.poach = null;
-    gmLog(s, ctx.now, 'kept', { how });
-    ev.push({ type: 'gmKept', how, name: gm.name });
+  // Keep the GM: a one-off bonus (loyalty +GM.keepLoyalty) or a lasting raise (+GM.raiseStep salary, loyalty
+  // +GM.raiseLoyalty). Aliases over the inbox's gmPoach task.
+  'gm/keep'(s, { how = 'bonus' } = {}, ev, ctx) {
+    const t = D.tasksOpen(s).find(x => x.kind === 'gmPoach');
+    if (!D.gmOf(s) || !t) return fail('unknown');
+    return answerYes(s, t, { how }, ev, ctx);
   },
   'gm/letGo'(s, _p, ev, ctx) {
-    if (!D.gmOf(s) || !s.gm.poach) return fail('unknown');
-    gmLeave(s, ctx.now, 'poached', ev);
+    const t = D.tasksOpen(s).find(x => x.kind === 'gmPoach');
+    if (!D.gmOf(s) || !t) return fail('unknown');
+    return answerNo(s, t, ev, ctx);
   },
   // You touched the game (HUD, throttled to GM.mood.seenEverySeconds). After a long time away (game closed) the
   // manager's loyalty drops per hour; if that leaves it below the refuse line, the rival is already at the door.
   'gm/seen'(s, _p, ev, ctx) {
-    const gm = D.gmOf(s);
-    if (!gm) return { noop: true };
+    if (!D.gmOf(s)) return { noop: true };
     // "Away" = the game was not running (gm/payroll stamps payAt every minute while it runs). Time with the game open
     // but untouched is already the per-minute "absent" drain, so it is not punished twice here.
-    const closedFrom = Math.max(s.gm.payAt || 0, s.gm.seenAt || 0) || ctx.now;
-    gmAwayPay(s, ctx.now, ev, closedFrom); // what the manager kept going meanwhile
-    const M = GM.mood, hours = (ctx.now - closedFrom) / 3600000;
+    gmBack(s, ev, ctx.now);
+    if (!s.gm.unit) return; // quit over unpaid salary while you were away
     s.gm.seenAt = ctx.now;
     if (s.gm.moodNote === 'absent') delete s.gm.moodNote;
-    if (hours <= M.awayGraceHours) return;
-    const drop = Math.min(M.awayMax, Math.round((hours - M.awayGraceHours) * M.awayPerHour));
-    gm.loyalty = r2(Math.max(0, gm.loyalty - drop));
-    s.gm.lastJobAt = ctx.now; // the time away is counted here, not again as "idle"
-    gmLog(s, ctx.now, 'missedYou', { hours: Math.round(hours), drop });
-    ev.push({ type: 'gmMissedYou', name: gm.name, hours: Math.round(hours), drop });
-    if (gm.loyalty < GM.loyalty.refuse && !s.gm.poach) {
-      s.gm.poach = { until: ctx.now + GM.poach.keepSeconds * 1000, fee: gmSalary(gm, s.gm.mode) * GM.keepBonusSalaries };
-      gmLog(s, ctx.now, 'poached', { rival: GM.poach.rival });
-      ev.push({ type: 'gmPoach', name: gm.name, rival: GM.poach.rival, until: s.gm.poach.until, fee: s.gm.poach.fee });
-    }
   },
   // You let the GM go yourself: a planned handover, no chaos.
   'gm/fire'(s, _p, ev, ctx) {
@@ -1558,7 +2217,7 @@ const handlers = {
     spend(s, cost);
     ledger(s, ctx.now, 'spent', cost, 'care', D.gmZone(s));
     s.gm.chaos = null;
-    for (const u of s.staff.units) if (STAFF[u.type].kind === 'worker') u.morale = r2(Math.min(100, (u.morale ?? VITALS.start.morale) + 10));
+    for (const u of s.staff.units) if (STAFF[u.type].kind === 'worker') u.morale = r2(Math.min(100, (u.morale ?? VITALS.start.morale) + GM.chaos.calmMorale));
     gmLog(s, ctx.now, 'calmed', { coins: cost });
     ev.push({ type: 'gmCalmed', coins: cost });
   },
@@ -1578,27 +2237,93 @@ const handlers = {
   },
 
   // ---------- loans ----------
-  'loan/take'(s, { amount }, ev, ctx) {
+  // A new loan (management-rules §2.7): its own entry in s.loans (≤ LOAN.maxOpen), its term in played minutes fixed now.
+  'loan/take'(s, { amount }, ev) {
     const err = D.loanError(s, amount);
-    if (err) return fail(err);
-    const open = D.loanOf(s); // loans stack: the new pack adds to the open debt
-    s.loan = open
-      ? { amount: open.amount + amount, owed: Math.round((open.owed + loanOwed(amount)) * 100) / 100, takenAt: open.takenAt }
-      : { amount, owed: loanOwed(amount), takenAt: ctx.now };
-    s.player.coins = Math.round((s.player.coins + amount) * 100) / 100;
-    ev.push({ type: 'loanTaken', amount, owed: s.loan.owed });
+    if (err) return fail(err, D.loanErrorData(s, amount, err));
+    const ln = { id: `L${s.nextUid++}`, amount, owed: loanOwed(amount), takenAtPlayed: D.playedMs(s), termMin: D.loanTerm(s, amount), late: false };
+    s.loans = [...D.loansOf(s), ln];
+    s.player.coins = Math.round((s.player.coins + amount) * 100) / 100; // borrowed coins are not income
+    hist(s, { type: 'loanTaken', actor: ACTOR, gain: amount, extra: { id: ln.id, owed: ln.owed, termMin: ln.termMin } });
+    ev.push({ type: 'loanTaken', amount, owed: D.loanTotal(s), termMin: ln.termMin });
   },
   // Pays the debt with the coins at hand: `amount` coins when given (the Repay tab's chosen amount), else as much as
-  // possible. Never more than the debt or the coins you have.
+  // possible. Never more than the debt or the coins you have. Late loans first (to lift the block), then the oldest.
+  // A repayment is not a running cost (not booked as spent in the income series).
   'loan/repay'(s, { amount = null } = {}, ev) {
-    const loan = D.loanOf(s);
-    if (!loan) return { noop: true };
+    const owed = D.loanTotal(s);
+    if (!(owed > 0)) return { noop: true };
     if (amount != null && !(Number.isFinite(Number(amount)) && Number(amount) > 0)) return fail('invalid');
-    const pay = Math.min(loan.owed, Math.floor(s.player.coins), amount == null ? Infinity : Math.floor(Number(amount)));
-    if (pay <= 0) return fail('coins', { missing: Math.ceil(loan.owed) });
-    spend(s, pay);
-    loan.owed = Math.round((loan.owed - pay) * 100) / 100;
-    if (loan.owed <= 0) { s.loan = null; ev.push({ type: 'loanRepaid' }); } else ev.push({ type: 'loanPaid', amount: pay, owed: loan.owed });
+    const pay = Math.min(owed, Math.floor(s.player.coins), amount == null ? Infinity : Math.floor(Number(amount)));
+    if (pay <= 0) return fail('coins', { missing: Math.ceil(owed) });
+    s.player.coins = r2(s.player.coins - pay);
+    let left = pay;
+    for (const ln of [...D.loansOf(s)].sort((a, b) => (b.late ? 1 : 0) - (a.late ? 1 : 0))) {
+      const c = Math.min(ln.owed, left);
+      ln.owed = r2(ln.owed - c); left = r2(left - c);
+      if (left <= 0) break;
+    }
+    s.loans = D.loansOf(s);
+    hist(s, { type: s.loans.length ? 'loanPaid' : 'loanRepaid', actor: ACTOR, cost: pay, extra: { owed: D.loanTotal(s) } });
+    if (!s.loans.length) ev.push({ type: 'loanRepaid' }); else ev.push({ type: 'loanPaid', amount: pay, owed: D.loanTotal(s) });
+  },
+
+  // A loan past its term (management-rules §4.5; the realm sends it every CLOCK.loanTickSeconds of play): owed ×
+  // (1 + LOAN.lateFee) once and no new loan until every late loan is paid ("không thể vay").
+  'loan/tick'(s, _p, ev) {
+    let n = 0;
+    for (const ln of D.loansOf(s)) {
+      if (ln.late || D.playedMs(s) < ln.takenAtPlayed + ln.termMin * 60000) continue;
+      ln.owed = Math.round(ln.owed * (1 + LOAN.lateFee));
+      ln.late = true;
+      n++;
+      hist(s, { type: 'loanLate', actor: 'system', subject: s.gm?.unit ? 'g1' : undefined, cost: ln.owed, extra: { id: ln.id, owed: ln.owed }, gm: s.gm?.unit ? 1 : undefined });
+      ev.push({ type: 'loanLate', id: ln.id, owed: ln.owed, name: s.gm?.unit?.name || null });
+    }
+    if (!n) return { noop: true };
+  },
+
+  // ---------- played clock (management-rules §4.1) ----------
+  // The realm sends the seconds actually played (CLOCK.tickSeconds, ≤ CLOCK.maxTickMs per tick): s.clock.played moves,
+  // every unit (and the GM) gains tenure in played minutes, and the inbox runs on it: reminders, expiries (with their
+  // penalties), the manager's backlog decay, the end of Chờ lệnh, a strike's morale drain. Nothing moves while the game
+  // is closed or paused.
+  'clock/tick'(s, { ms = 0 } = {}, ev, ctx) {
+    if (s.story.phase !== 'play' || !s.world.currentRegion) return { noop: true };
+    const d = clampN(Math.floor(Number(ms) || 0), 0, CLOCK.maxTickMs);
+    if (!d) return { noop: true };
+    const now = ctx?.now ?? NOW;
+    // the first tick after the game was not running (tab hidden / closed / paused) for TASKS.returnAwayMin or more:
+    // the return grace before this tick can run anything out (with or without a manager, §4.1 / §8 Q10)
+    if (s.clock?.at && now - s.clock.at >= TASKS.returnAwayMin * 60000) returnGrace(s, ev);
+    s.clock = { played: (s.clock?.played || 0) + d, at: now };
+    const min = d / 60000, r6 = n => Math.round(n * 1e6) / 1e6;
+    for (const u of s.staff.units) u.tenurePlayedMin = r6((u.tenurePlayedMin || 0) + min);
+    const gm = s.gm?.unit;
+    if (gm) {
+      gm.tenurePlayedMin = r6((gm.tenurePlayedMin || 0) + min);
+      // backlog decay: −decay per decayEveryMin played minutes (−emptyDecay while none of his tasks is open)
+      const B = PENALTY.backlog;
+      gm.decayMs = (gm.decayMs || 0) + d;
+      while (gm.decayMs >= B.decayEveryMin * 60000) {
+        gm.decayMs -= B.decayEveryMin * 60000;
+        if (gm.backlog > 0) gm.backlog = Math.max(0, gm.backlog - (D.gmRequests(s).length ? B.decay : B.emptyDecay));
+      }
+      if (!(gm.backlog > 0)) gm.decayMs = 0;
+      if (gm.waiting && s.clock.played >= gm.waiting.untilPlayed) { delete gm.waiting; ev.push({ type: 'gmWaitingOver', name: gm.name }); }
+      if (gm.training && s.clock.played >= gm.training.untilPlayed) {
+        gm.skill = Math.min(GM.thinkSeconds.length, gm.training.to || (gm.skill || 1) + 1);
+        delete gm.training;
+        gmLog(s, NOW, 'trained', { skill: gm.skill });
+        ev.push({ type: 'gmTrained', name: gm.name, skill: gm.skill });
+      }
+      // a strike = chaos rules for the zone: −strikeMoralePerMin per minute (inside the day's morale cap)
+      if (gm.strike) moraleHit(s, D.gmZone(s), PENALTY.strikeMoralePerMin * min);
+    }
+    remindDue(s, ev);
+    expireDue(s, ev); // the tasks moved to the grace point expire under the return cap…
+    settleGm(s, ev);
+    if (s.gm?.returnCap && s.clock.played > s.gm.returnCap.untilPlayed) delete s.gm.returnCap; // …which closes after them
   },
 
   // ---------- Level 10 region expiration ----------
@@ -1620,6 +2345,9 @@ const handlers = {
     s.inventory.items = Object.fromEntries(ITEM_GOODS.map(g => [g, 0])); // processed goods go too (full restart)
     // The one who follows you keeps who it is (stats, rank, gear, craft) and starts unassigned, wage-paid (FOLLOW).
     const keep = follower != null ? s.staff.units.find(u => u.uid === follower) : null;
+    // Every unit that does not come along (and the manager) keeps a tombstone, so its rows stay readable.
+    for (const u of s.staff.units) if (u !== keep) tombstone(s, u.uid, u.name || u.serial || null, STAFF[u.type].kind, ctx.now);
+    if (s.gm?.unit) tombstone(s, 'g1', s.gm.unit.name, 'manager', ctx.now);
     s.staff.units = [];
     if (keep) {
       const robot = STAFF[keep.type].kind === 'robot';
@@ -1630,8 +2358,23 @@ const handlers = {
       note(u, ctx.now, 'followed', { robot });
       ev.push({ type: 'followerKept', uid: u.uid, name: u.name || u.serial || null, robot });
     }
-    Object.assign(s.staff, { poach: null, ledger: [], daily: [], journal: [], upkeepAt: 0, mvp: null, gearStock: [] });
-    s.gm = { ...newGmState(), board: s.gm?.board || newGmState().board }; // the manager goes too (full restart)
+    Object.assign(s.staff, { ledger: [], daily: [], upkeepAt: 0, mvp: null, gearStock: [] });
+    // The manager goes too (full restart); his board and the player's licences stay (management-rules §5 / §8 Q6).
+    s.gm = { ...newGmState(), board: s.gm?.board || newGmState().board, licences: [...(s.gm?.licences || [])] };
+    // Inbox: what was open is cancelled (its people are gone), the answered list stays.
+    const T = tasksOf(s);
+    for (const t of [...T.open]) closeTask(s, t, 'cancelled');
+    for (const t of T.done) if (t.by === 'g1') t.lateOff = true; // the old manager's requests are never approved late
+    T.cool = {}; T.fines = [];
+    // History: days and tombstones stay; every plan / approval row (the manager's trail) stays, the other rows are
+    // trimmed to the newest HISTORY.keepOthersOnWipe; a 'rebirth' row marks the new start.
+    const H = histOf(s), keepG = new Set(HISTORY.keepGroupsOnWipe);
+    const others = new Set(H.rows.filter(r => !keepG.has(r.group)).slice(-HISTORY.keepOthersOnWipe).map(r => r.id));
+    H.rows = H.rows.filter(r => keepG.has(r.group) || others.has(r.id));
+    // Wage arrears: the GM's go with it; the follower's stay only if that same follower comes along again.
+    // The played clock (s.clock) and the loans (s.loans) are kept; the income series starts over with the new region.
+    s.debt = { wages: { gm: 0, follower: keep?.follower ? (s.debt?.wages?.follower || 0) : 0 } };
+    s.income = { rows: [] };
     s.rewards = { claimed: [], tickets: 0 }; // gifts are earned again from level 1
     // The loan is NOT wiped: a debt is a debt, it carries over to the new region (and is never announced in advance).
     s.world.regions = { [ex.regionId]: { ...normalizeRegion({ status: 'expired' }), expiredAt: ctx.now } };
@@ -1643,6 +2386,7 @@ const handlers = {
     s.world.currentRegion = null;
     s.mode = null; // the next region picks its game again
     s.story.phase = 'chooseRegion';
+    hist(s, { type: 'rebirth', actor: 'system', group: 'event', extra: { regionId: ex.regionId, follower: keep?.uid || null } });
     ev.push({ type: 'regionExpired', regionId: ex.regionId });
   },
 
@@ -1764,13 +2508,17 @@ export function apply(state, action, ctx = { now: Date.now() }) {
   if (!handler) return { ok: false, state, events: [], error: 'unknownAction' };
   if (action.txId && state.tx.includes(action.txId)) return { ok: true, state, events: [], duplicate: true };
   if (PAUSABLE.test(action.type) && state.story.phase === 'expiry') return { ok: false, state, events: [], error: 'paused' };
-  if (/^(farm|shop|build|land|prod|staff|rival|gm|research|supply|farmlab)\//.test(action.type) && (state.story.phase !== 'play' || !state.world.currentRegion)) {
+  if (/^(farm|shop|build|land|prod|staff|rival|gm|task|research|supply|farmlab)\//.test(action.type) && (state.story.phase !== 'play' || !state.world.currentRegion)) {
     return { ok: false, state, events: [], error: 'notPlaying' };
   }
   if (CAFE_LOOP.has(action.type) && D.shopPaused(state)) return { ok: false, state, events: [], error: 'cafeClosed' };
   const draft = clone(state);
   const events = [];
-  const result = handler(draft, action.payload || {}, events, ctx) || {};
+  ACTOR = actorOf(action.type, action.payload);
+  NOW = ctx.now;
+  CUR = draft;
+  let result;
+  try { result = handler(draft, action.payload || {}, events, ctx) || {}; } finally { ACTOR = 'player'; CUR = null; }
   if (result.ok === false) return { ok: false, state, events: [], error: result.error, data: result.data };
   if (result.noop) return { ok: true, state, events: [], noop: true };
   if (action.txId) draft.tx = [...draft.tx, action.txId].slice(-TX_KEEP);

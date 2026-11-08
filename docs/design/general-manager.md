@@ -1,5 +1,14 @@
 # General manager (Tổng quản lý): engineering spec
 
+> **Superseded in part by `management-rules.md` (v1.1, founder answered §8 "theo đề xuất", 2026-11-08)** for: the
+> inbox (Việc cần duyệt — requests are played-time tasks with reminders, expiry penalties, late approval only while the
+> same manager is here), the licences (all five from Lv6, kept by the Level-10 wipe), loans (the GM *does* propose a
+> loan task for a capital job it cannot pay, with the Tín dụng licence; a task the coins cannot pay is never filed),
+> offline work (`GM.away`: share of the team rate, salary paid or turned into wage arrears; 10 unpaid salaries → he
+> quits, no chaos), the return rules (+2 played min grace on every open task, loyalty lost on one return ≤ 40, with or
+> without a manager) and the land / building rules (≤ 1 land buy/sell proposal per 30 min; a lot needs its own 30
+> samples before it can be sold). Where this file disagrees, `management-rules.md` wins.
+
 Founder asked for it on 2026-11-07 and told Claude to decide by the proposal's logic ("Có đề xuất bạn dựa vào logic để
 chốt làm"), so all 6 questions follow the proposal page (`docs/design/general-manager-proposal.html`,
 https://claude.ai/artifact/3kV4dDFk8WYR5x6o9AmzuZ):

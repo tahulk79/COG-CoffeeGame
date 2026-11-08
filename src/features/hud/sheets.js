@@ -1,7 +1,7 @@
 // Sheet contents: Build (café), Seeds (farm), Menu (café drinks) and Progress (Round + Rebirth). Staff: staff-modal.js.
 // Pure render functions of the store state. Each screen has its own toolbar (toolbar.js), so sheets filter by view.
 import { BUILD_MENU, BUILD_MENU_FARM, BUILD_MENU_CAFE, BUILDINGS, CATEGORY_ORDER, AUTO, autoPrice, CROPS, CROP_ORDER, STAFF, STAFF_ORDER, LOAN, loanOwed, DRINKS, DRINK_ORDER, BEANS } from '../../core/config/economy.js';
-import { buildError, buildingLevel, defOf, useOf, countOf, maxCount, nextLimitLevel, buildCost, fieldAllowance, frontierParcels, parcelError, stored, cropUnlocked, drinkUnlocked, drinkPrice, brewMs, seedCost, growMs, level, region, capacity, beanBuyQuote, upgradeError, upgradeCost } from '../../core/derive.js';
+import { buildError, buildingLevel, defOf, useOf, countOf, maxCount, nextLimitLevel, buildCost, fieldAllowance, frontierParcels, parcelError, stored, cropUnlocked, drinkUnlocked, drinkPrice, brewMs, seedCost, growMs, level, region, capacity, beanBuyQuote, upgradeError, upgradeCost, loanOf, loanError, loanTerm, loanMinLeft, creditLimit, loanTotal, loansOf } from '../../core/derive.js';
 import { PARCELS, terrainOfLot } from '../../core/config/layout.js';
 import { newTxId } from '../../core/store.js';
 import { h } from './dom.js';
@@ -400,7 +400,8 @@ export function levelUnlocks(s, lvl) {
 /** Loan packs (borrow now, owe it back + fee; part of every income repays it) and the open loan with its progress. */
 export function loanSheet(ctx) {
   // Two clear places (founder 2026-11-07: "Trả số xu đang có" was too easy to hit by mistake):
-  //  · Borrow tab — the 3 packs (a loan stacks on the open debt).
+  //  · Borrow tab — the 3 packs; each new loan is its own entry (≤ LOAN.maxOpen), with its own term in played minutes,
+  //    a pack level and the credit limit (management-rules §2.7); a lock says why a pack cannot be taken now.
   //  · Repay tab (only while in debt) — the debt, its progress, then "how much?" chips, a preview of what is left
   //    after paying, and one Pay button that asks to confirm.
   let pending = false, tab = null, pick = null;
@@ -410,11 +411,20 @@ export function loanSheet(ctx) {
     const txId = newTxId('loan');
     ctx.sheet.rerender();
     try {
-      const owed = loanOwed(amount);
-      const yes = await ctx.confirm({ title: T('hud.loan.confirmTitle', { n: fmt(amount) }), body: T('hud.loan.confirmBody', { owed: fmt(owed), pct: Math.round(LOAN.autoRepay * 100) }),
+      const owed = loanOwed(amount), term = loanTerm(ctx.store.state, amount);
+      const yes = await ctx.confirm({ title: T('hud.loan.confirmTitle', { n: fmt(amount) }), body: `${T('hud.loan.confirmBody', { owed: fmt(owed), pct: Math.round(LOAN.autoRepay * 100) })} ${T('hud.loan.termBody', { min: term, pct: Math.round(LOAN.lateFee * 100) })}`,
         costLabel: T('hud.loan.owedLine', { n: fmt(owed) }), confirmLabel: T('hud.loan.take') });
       if (yes) { const r = ctx.act('loan/take', { amount }, { txId }); if (r.ok && !r.duplicate) ctx.toast(T('hud.toast.loanTaken', { n: fmt(amount) }), 'good'); }
     } finally { pending = false; ctx.sheet.rerender(); }
+  }
+  // Why a pack is locked now (null = it can be borrowed): its level, the loan count, the credit limit, a late loan.
+  function loanLock(s, amount) {
+    const err = loanError(s, amount);
+    if (err === 'level') return lockTag(T('hud.levelN', { level: LOAN.packLevel[amount] }));
+    if (err === 'loanMax') return lockTag(T('hud.loan.lockMax', { max: LOAN.maxOpen }));
+    if (err === 'credit') return lockTag(T('hud.loan.lockCredit'));
+    if (err === 'loanBlocked') return lockTag(T('hud.loan.lockBlocked'));
+    return null;
   }
   async function repay(amount, owed) {
     if (pending) return;
@@ -432,7 +442,7 @@ export function loanSheet(ctx) {
     } finally { pending = false; ctx.sheet.rerender(); }
   }
   return s => {
-    const loan = s.loan && s.loan.owed > 0 ? s.loan : null;
+    const loan = loanOf(s); // every open loan added up (the oldest first in loan.loans)
     if (!loan) tab = 'borrow'; else if (!tab) tab = 'repay';
     const out = h('div', { class: 'hud-loan' });
     if (loan) {
@@ -450,6 +460,10 @@ export function loanSheet(ctx) {
         h('p', { class: 'hud-loan-owed' }, T('hud.loan.owed'), ' ', coinAmount(owed)),
         h('div', { class: 'hud-loan-bar', attrs: { role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(Math.round(paid * 100)) } },
           h('span', { attrs: { style: `width:${Math.round(paid * 100)}%` } })),
+        ...loan.loans.map((ln, i) => h('p', { class: `hud-hint hud-loan-row${ln.late ? ' is-late' : ''}` },
+          ln.late ? T('hud.loan.rowLate', { i: i + 1, owed: fmt(Math.ceil(ln.owed)), pct: Math.round(LOAN.lateFee * 100) })
+            : T('hud.loan.row', { i: i + 1, owed: fmt(Math.ceil(ln.owed)), min: Math.max(0, Math.ceil(loanMinLeft(s, ln))) }))),
+        loan.late ? h('p', { class: 'hud-report hud-report--bad' }, T('hud.loan.blocked')) : null,
         h('p', { class: 'hud-hint' }, T('hud.loan.auto', { pct: Math.round(LOAN.autoRepay * 100) }))));
       if (max <= 0) { out.append(h('p', { class: 'hud-hint hud-loan-empty' }, T('hud.loan.noCoins'))); return out; }
       // Amounts: a few round steps under what you can pay, then "everything you can" (all of the debt when you have it).
@@ -467,8 +481,10 @@ export function loanSheet(ctx) {
         actionButton({ id: 'loanRepay', label: T('hud.loan.payBtn', { n: fmt(pick) }), tone: 'go', disabled: pending, onClick: () => repay(pick, loan.owed) })));
       return out;
     }
-    if (loan) out.append(h('p', { class: 'hud-hint hud-loan-stack' }, T('hud.loan.stack', { n: fmt(Math.ceil(loan.owed)) })));
-    out.append(h('p', { class: 'hud-sub' }, T('hud.loan.intro', { pct: Math.round(LOAN.fee * 100) })));
+    if (loan) out.append(h('p', { class: 'hud-hint hud-loan-stack' }, T('hud.loan.stack', { n: fmt(Math.ceil(loan.owed)), k: loansOf(s).length, max: LOAN.maxOpen })));
+    if (loan?.late) out.append(h('p', { class: 'hud-report hud-report--bad' }, T('hud.loan.blocked')));
+    out.append(h('p', { class: 'hud-sub' }, T('hud.loan.intro', { pct: Math.round(LOAN.fee * 100) })),
+      h('p', { class: 'hud-hint' }, T('hud.loan.credit', { left: fmt(Math.max(0, Math.floor(creditLimit(s) - loanTotal(s)))), limit: fmt(creditLimit(s)) })));
     const packs = h('div', { class: 'hud-loan-packs' });
     LOAN.packs.forEach((amount, i) => {
       const owed = loanOwed(amount);
@@ -476,7 +492,8 @@ export function loanSheet(ctx) {
         h('span', { class: 'hud-loan-pack-ico', attrs: { 'aria-hidden': 'true' } }, ['💰', '💰💰', '💰💰💰'][i] || '💰'),
         h('strong', { class: 'hud-loan-pack-amount' }, coinAmount(amount)),
         h('span', { class: 'hud-loan-pack-owed' }, T('hud.loan.payBack', { n: fmt(owed) })),
-        actionButton({ id: `loan-${amount}`, label: T('hud.loan.take'), tone: 'gold', disabled: pending, onClick: () => take(amount) })));
+        h('span', { class: 'hud-loan-pack-owed' }, T('hud.loan.term', { min: loanTerm(s, amount) })),
+        loanLock(s, amount) || actionButton({ id: `loan-${amount}`, label: T('hud.loan.take'), tone: 'gold', disabled: pending, onClick: () => take(amount) })));
     });
     out.append(packs);
     return out;

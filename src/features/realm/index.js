@@ -7,7 +7,7 @@
  * fade, player + camera move to AREAS[view].spawn). Customers keep simulating in either view; they render in the café. Store orders/plots/buildings are the source of truth: visuals are diffed by id on every
  * store change (subscribe), and only time-based visuals (growth, brewing, patience) are evaluated per frame.
  * Sub-modules: world (ground/roads/fields/gate; café city via city.js), plots, buildings, cafe (customers: queue →
- * seat → served), seats, staff, avatar, camera (CameraController), placement (ghost preview), markers (tutorial arrow,
+ * seat → served), seats, staff, manager (Tổng quản lý: desk, walk / point, 📋 bubble), avatar, camera (CameraController), placement (ghost preview), markers (tutorial arrow,
  * selection, drag cursor), badges (object notices: ▲ upgrade, ! order, + brew, ☕ serve, sickle, + for sale),
  * cinematics, input (gesture recognizer). Every action dispatched here is reported through hooks.onResult.
  *
@@ -24,7 +24,7 @@ import * as THREE from 'three';
 import { BUILDINGS, CROPS, CROP_ORDER, DRINKS, GOODS, VENUES, VENUE_ORDER } from '../../core/config/economy.js';
 import { PARCELS, ROADS, inRect, GATE, FIXED, CUSTOMER, CAFE_SEATS, AREAS, BOUNDS, CAFE_BOUNDS, RESERVED, VENUE_LOTS, SHOP_FRAMES, STREET_FRAME, SHOP_ORDER, shopAt, parcelAt, areaAt, areaOfParcel } from '../../core/config/layout.js';
 import { readSettings } from '../../state/progress.js';
-import { region as regionOf, footprint, upgradeError, parcelError, seatCount, seatsUsed, brewSlots, seatPatienceRatio, ownedPlots, plotOf, capacity, stored, cropUnlocked, seedCost, canPlay, cafeStaffed, regionGame, venueOpen, venueError, farmViewBounds, roadOpen, defOf, tileAt, jobState, prodError, collectError, sellAllQuote, unitOf, unitState, unitBlocked, quickFix } from '../../core/derive.js';
+import { region as regionOf, footprint, upgradeError, parcelError, seatCount, seatsUsed, brewSlots, seatPatienceRatio, ownedPlots, plotOf, capacity, stored, cropUnlocked, seedCost, canPlay, cafeStaffed, regionGame, venueOpen, venueError, farmViewBounds, roadOpen, defOf, tileAt, jobState, prodError, collectError, sellAllQuote, unitOf, unitState, unitBlocked, quickFix, workerPoach } from '../../core/derive.js';
 import { currentStep } from '../../core/tutorial.js';
 import { t as tr } from '../../i18n/index.js';
 import { loadModel } from '../../shared/three/models.js';
@@ -37,6 +37,8 @@ import { createPlots } from './plots.js';
 import { createBuildings, makePrefab } from './buildings.js';
 import { createCafe } from './cafe.js';
 import { createStaff } from './staff.js';
+import { createManager } from './manager.js';
+import { gmReasonText } from '../hud/text.js';
 import { createAvatar } from './avatar.js';
 import { createPlacement } from './placement.js';
 import { createMarkers, FRAME_LAND } from './markers.js';
@@ -85,7 +87,7 @@ const firstGood = out => (out && Object.keys(out).find(g => GOODS[g])) || null;
 const sumOut = out => Object.values(out || {}).reduce((n, v) => n + (Number(v) || 0), 0);
 
 /**
- * @param {{ renderer: THREE.WebGLRenderer, store: object, gender: 'male'|'female', hooks?: { onSelect?, onResult?, onWalkToGate?, onStaffTap? } }} opts
+ * @param {{ renderer: THREE.WebGLRenderer, store: object, gender: 'male'|'female', hooks?: { onSelect?, onResult?, onWalkToGate?, onStaffTap?, onManagerTap? } }} opts
  */
 export async function createRealm({ renderer, store, gender, hooks = {} }) {
   const canvas = renderer.domElement;
@@ -168,6 +170,9 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     getPlayerPos: () => avatar.position,
     isWalkable: (zone, x, z) => !navs[zone === 'farm' ? 'farm' : 'cafe'].blockedAt(x, z),
   });
+  // The manager in the world (manager.js, management-rules §6): desk by the zone gate, walks to what he acts on, 📋 bubble.
+  // His lines speak in either area, but only while his own area is on screen (manager.js checks the view).
+  const manager = createManager({ scene, navigate, isPaused: () => inputLocked || !!cinematics.active || disposed, say: (o, text, opts) => !switching && !disposed && speech.say(o, text, opts) });
   const placement = createPlacement({ scene, prefabs });
   const markers = createMarkers({ scene, camera });
   const cafe = createCafe({ scene, vfx, dispatch, templates, navigate, speech: talk });
@@ -262,7 +267,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   function syncAll(state, instant = false) {
     const id = state.world.currentRegion || null;
     if (id !== regionId) {
-      if (regionId !== undefined) { setCarry(null); plots.clear(); buildings.clear(); cafe.reset(); street.clear(); incidents.clear(); speech.clear(); staff.clear(); leaveModes(); setSelection(null); needArrive = !!id; cancelSwitch(); swapView(modeView(state)); }
+      if (regionId !== undefined) { setCarry(null); plots.clear(); buildings.clear(); cafe.reset(); street.clear(); incidents.clear(); speech.clear(); staff.clear(); manager.clear(); leaveModes(); setSelection(null); needArrive = !!id; cancelSwitch(); swapView(modeView(state)); }
       regionId = id;
       instant = true;
       avatar.teleport(avatar.position.x, avatar.position.z);
@@ -274,6 +279,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     venues.sync(state);
     street.sync(state);
     staff.sync(state);
+    manager.sync(state);
     // Building footprints block the player (slightly shrunk so doorways feel forgiving).
     // (walkable buildings — the terrace — never block the player)
     const solidBuildings = (regionOf(state)?.buildings || []).filter(b => BUILDINGS[b.type] && !BUILDINGS[b.type].walkable);
@@ -307,7 +313,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     const u = unitOf(state, item.uid);
     if (!u || u.assigned?.regionId !== state.world.currentRegion) return false;
     if ((staff.zoneOf(item.uid) === 'farm') !== (view === 'farm')) return false;
-    return item.key.endsWith(':poach') ? state.staff.poach?.uid === item.uid : unitBlocked(u, Date.now());
+    return item.key.endsWith(':poach') ? workerPoach(state)?.uid === item.uid : unitBlocked(u, Date.now());
   }
   function spotWhere(item, state) {
     if (item.kind === 'silo') { const b = regionOf(state)?.buildings.find(x => x.type === 'silo'); return b ? { x: b.x, z: b.z } : null; }
@@ -345,6 +351,18 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     spot.queue = spot.queue.filter(q => t - q.at < 30000); // stale ones drop
   }
 
+  // What a manager job was for (store event gmActed) → where he walks: a unit, a building, a field, a lot, the storehouse.
+  const gmEventCtx = {
+    locate(ev) {
+      const st = store.state;
+      if (ev.uid) { const p = staff.posOf(ev.uid); if (p) return p; const b = buildings.get(ev.uid); if (b) return { x: b.x, z: b.z }; }
+      if (ev.plotId) { const f = plotOf(st, ev.plotId); if (f) return f; }
+      if (ev.parcelId && PARCELS[ev.parcelId]) { const r = PARCELS[ev.parcelId].rect; return { x: (r[0] + r[2]) / 2, z: (r[1] + r[3]) / 2 }; }
+      if (ev.act === 'farm/sellAll' || ev.act === 'farm/sell') return regionOf(st)?.buildings.find(b => b.type === 'silo') || null;
+      return null;
+    },
+    reasonText: r => gmReasonText(r),
+  };
   const unsubscribe = store.subscribe((state, events, type) => {
     if (type === 'reset' || type === 'reload') { regionId = regionId === undefined ? undefined : '__reset__'; }
     // Before the sync: effects that need the old visuals (tree pop, customer mood, where a removed object stood).
@@ -377,6 +395,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     badgeClock = 1; // refresh object notices right away
     for (const ev of events) {
       if (ev.type === 'poachStarted' || ev.type === 'poachRefused' || ev.type === 'mvp') staff.onEvent(ev); // rival line / MVP cheer over the unit
+      manager.onEvent(ev, gmEventCtx); // the manager walks / points / speaks (manager.js)
       if (ev.type === 'staffStopped' || ev.type === 'poachStarted') spotQueue({ kind: 'unit', uid: ev.uid, key: `unit:${ev.uid}:${ev.kind || 'poach'}` });
       if (ev.type === 'planted') { plots.onPlanted(ev.plotId, clock); sfx('farm.plant'); }
       else if (ev.type === 'built') { buildings.onBuilt(ev.uid, clock); sfx('farm.build'); }
@@ -541,7 +560,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     }
     // Staff on a break (both areas): tap their coin bubble or body to pay and get them working again.
     if (includeBuildings) {
-      const hits = raycaster.intersectObjects([...staff.pickers()], false);
+      const hits = raycaster.intersectObjects([...staff.pickers(), ...manager.pickers()], false);
       if (hits.length) return hits[0].object.userData.target;
     }
     // Seated customers (café): tap to deliver their cup.
@@ -854,6 +873,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     if (target?.kind === 'building') return tapBuilding(target);
     if (target?.kind === 'customer') return tapCustomer(target);
     if (target?.kind === 'staff') return tapStaff(target);
+    if (target?.kind === 'manager') { hooks.onManagerTap?.(); return; } // the manager → the HUD opens his inbox
     if (target?.kind === 'staffUp') { hooks.onStaffTap?.(target.uid); return; } // ⬆️ ready to train → the HUD opens its card
     if (target?.kind === 'field') return harvestField(target.id);
     if (target?.kind === 'parcel') return tapParcel(target.id);
@@ -1185,6 +1205,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     world.setView(view);
     buildings.setView(view);
     staff.setView(view);
+    manager.setView(view);
     plots.group.visible = view === 'farm';
     cafe.group.visible = view === 'cafe';
     venues.setView(view);
@@ -1291,6 +1312,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     incidents.update(dt, clock, state, now, playing);
     speech.update(dt, clock);
     staff.update(dt, clock, state, now);
+    manager.update(dt, clock, state);
     world.update(clock);
     placement.update(clock);
     // Tutorial arrow + selected plot timer.
@@ -1547,6 +1569,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       venues.dispose();
       speech.dispose();
       staff.dispose();
+      manager.dispose();
       buildings.dispose();
       plots.dispose();
       world.dispose();

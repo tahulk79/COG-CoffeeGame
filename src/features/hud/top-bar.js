@@ -1,7 +1,7 @@
 // Top HUD: level badge with XP ring + name (top-left), coin pill, bean pill (= the storehouse: tap it), gear (top-right).
 // 🚂 next to the gear opens the Rounds roadmap (Round 1 now, 2–3 locked); 💰 under the gear opens the loan packs.
-import { levelProgress, capacity, stored, region } from '../../core/derive.js';
-import { EXPIRY_LEVEL } from '../../core/config/economy.js';
+import { levelProgress, capacity, stored, region, loanOf, tasksOpen } from '../../core/derive.js';
+import { EXPIRY_LEVEL, GM } from '../../core/config/economy.js';
 import { farmHasGoods } from './toolbar.js';
 import { h, setText, bump } from './dom.js';
 import { T, fmt } from './text.js';
@@ -48,13 +48,19 @@ export function createTopBar(ctx) {
   // before. Tap → the Rounds sheet, which says what happens at Level 10.
   const lv10 = h('button', { id: 'hud-lv10', class: 'hud-lv10', type: 'button', attrs: { 'aria-label': T('hud.lv10.aria', { level: EXPIRY_LEVEL }) },
     on: { click: () => ctx.onTool?.('rounds') } });
+  // Inbox «Duyệt (n)» in the manager's colour (management-rules §4.1 / §6): shown while any task waits for you.
+  const inboxBtn = h('button', { id: 'hud-btn-inbox', class: 'hud-inbox-btn', type: 'button', hidden: true, attrs: { 'aria-label': T('hud.inbox.openAria') },
+    on: { click: () => ctx.onTool?.('inbox') } });
+  // 📒 Nhật ký: the unified history (§5).
+  const journalBtn = h('button', { id: 'hud-btn-journal', class: 'hud-roundmap hud-journal-btn', type: 'button', attrs: { 'aria-label': T('hud.hist.openBtn') },
+    on: { click: () => ctx.onTool?.('journal') } }, h('span', { attrs: { 'aria-hidden': 'true' } }, '📒'));
   const gear = h('button', { class: 'hud-gear', type: 'button', attrs: { 'aria-label': T('hud.settings') }, on: { click: () => ctx.onOpenSettings?.() } }, '⚙️');
 
   const el = h('div', { class: 'hud-top' },
     h('div', { class: 'hud-top-left' },
       h('div', { class: 'hud-player' }, badge, h('div', { class: 'hud-player-text' }, name, xpBar)),
-      h('div', { class: 'hud-pills' }, coins, beans), lv10),
-    h('div', { class: 'hud-top-right' }, roundBtn, h('div', { class: 'hud-gear-col' }, gear, loanBtn)));
+      h('div', { class: 'hud-pills' }, coins, beans), lv10, inboxBtn),
+    h('div', { class: 'hud-top-right' }, journalBtn, roundBtn, h('div', { class: 'hud-gear-col' }, gear, loanBtn)));
 
   const coinCounter = counter(coinsVal), beanCounter = counter(beansVal);
   let last = {};
@@ -78,7 +84,16 @@ export function createTopBar(ctx) {
     if (warn) { lv10.classList.toggle('is-soon', left <= 3); setText(lv10, left <= 3 ? T('hud.lv10.soon', { n: left, level: EXPIRY_LEVEL }) : T('hud.lv10.chip', { level: EXPIRY_LEVEL })); }
     setText(roundNum, T('hud.rounds.badge', { round: next.round }));
     loanBtn.hidden = s.story.phase !== 'play';
-    loanBtn.classList.toggle('is-debt', !!(s.loan && s.loan.owed > 0));
+    journalBtn.hidden = s.story.phase !== 'play';
+    const waiting = s.story.phase === 'play' ? tasksOpen(s).length : 0;
+    inboxBtn.hidden = !waiting;
+    if (waiting) setText(inboxBtn, `📋 ${T('hud.inbox.btn', { n: waiting })}`);
+    // red while a task has < GM.look.ringLifeShare of its life left (the red ring under the manager in the world)
+    const P = s.clock?.played || 0;
+    inboxBtn.classList.toggle('is-urgent', waiting > 0 && tasksOpen(s).some(t => t.untilPlayed - P < (t.untilPlayed - t.atPlayed) * GM.look.ringLifeShare));
+    const debt = loanOf(s);
+    loanBtn.classList.toggle('is-debt', !!debt);
+    loanBtn.classList.toggle('is-late', !!debt?.late);
     setText(beansCap, cap ? `/${fmt(cap)}` : '');
     if (next.full !== last.full) {
       beans.classList.toggle('is-full', next.full);

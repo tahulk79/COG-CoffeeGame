@@ -1,5 +1,11 @@
 # Staff manager: implementation spec (founder approved "theo đề xuất", 2026-11-07)
 
+> **Superseded in part by `management-rules.md` (v1.1, 2026-11-08)** for: career tenure (played shift-days, 1 = 5
+> played min), robots per zone (≤ ceil(slots / 2); team per zone = level, no bench +2), wage arrears (unpaid pay is
+> owed, paid first from new income), the lead / manager-rank gold armband (#f0b429, the manager's violet #7c4dbd is
+> reserved), the inbox for rival offers (played-time deadlines, +2 min grace on a return) and the history (Nhật ký).
+> Where this file disagrees, `management-rules.md` wins.
+
 Source design (Vietnamese, for the founder): Claude Doc "Quản lý Nhân viên & Robot: thiết kế modal".
 This file is the **engineering spec**: exact rules and numbers. All numbers live in `src/core/config/economy.js`
 (never hardcode in UI/scene). Everything is deterministic in the reducer (`src/core/game.js`): time from `ctx.now`,

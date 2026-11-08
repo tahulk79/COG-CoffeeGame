@@ -1,5 +1,5 @@
 // Save schema v3 (Farm & Café V3). Stored under its own localStorage key, so the old v1 save is never overwritten.
-import { CROPS, GM, GEAR, SOFTWARE, WARRANTY, PROFILE, CAREER, CRAFT, autoRank, profileOfUid, robotSerial, START, BUILDINGS, STAFF, TRAITS, RECRUIT, ROBOT_TASKS, PLAYTEST, SKILL, STAT_ORDER, VITALS, RARE, WORKER_TASKS, BOOKS, energyMax, levelForXp, startCoins, VENUES, RATING, CELL } from './config/economy.js';
+import { TASKS, PENALTY, HISTORY, CROPS, GM, GEAR, INCOME, LOAN, loanOwed, loanTermMin, incomeRef, SOFTWARE, WARRANTY, PROFILE, CAREER, CRAFT, autoRank, profileOfUid, robotSerial, START, BUILDINGS, STAFF, TRAITS, RECRUIT, ROBOT_TASKS, PLAYTEST, SKILL, STAT_ORDER, VITALS, RARE, WORKER_TASKS, BOOKS, energyMax, levelForXp, startCoins, VENUES, RATING, CELL } from './config/economy.js';
 import { COUNTRIES, LEGACY_REGIONS, isRegionId, regionGames } from './config/world.js';
 import { countryRecipes, SUPPLY } from './config/research.js';
 import { FIXED, PARCELS, LOT_KINDS, areaOfParcel, inRect, rectsOverlap, plotsOf } from './config/layout.js';
@@ -27,9 +27,9 @@ export function createSave(now = Date.now(), character = null) {
       freeUnlocks: 0,     // free region unlocks granted by the Level-10 expiration
     },
     // pool: each game's applicant board (RECRUIT): seed draws the 3 applicants (applicantsFor), at = when it was drawn.
-    // upkeepAt: last bench upkeep charge; ledger: team earned / spent per game minute; journal: newest first;
-    // poach: a rival's offer in progress { uid, zone, until, fee }; mvp: the last MVP (docs/design/staff-manager.md).
-    staff: { units: [], pool: { farm: { seed: 1, at: 0 }, shop: { seed: 2, at: 0 } }, upkeepAt: 0, ledger: [], daily: [], gearStock: [], journal: [], poach: null, mvp: null },
+    // upkeepAt: last bench upkeep charge; ledger: team earned / spent per game minute; mvp: the last MVP
+    // (docs/design/staff-manager.md). A rival's offer is an inbox task (s.tasks), the journal is in s.history.
+    staff: { units: [], pool: { farm: { seed: 1, at: 0 }, shop: { seed: 2, at: 0 } }, upkeepAt: 0, ledger: [], daily: [], gearStock: [], mvp: null },
     // gm: the general manager (docs/design/general-manager.md) — hired unit, powers, budget window, requests, chaos.
     gm: newGmState(),
     // research: recipes found per country (menu item indices), the last tests per country, the bench's busy time.
@@ -39,7 +39,17 @@ export function createSave(now = Date.now(), character = null) {
     // farmLab: adopted crop methods, trial fields running and their results — per region (research step 3).
     farmLab: { methods: {}, trials: {}, results: {} },
     rewards: { claimed: [], tickets: 0 }, // level gifts opened (levels) + free-hire tickets
-    loan: null,                           // { amount, owed, takenAt } while a loan is open
+    // loans: open loans (≤ LOAN.maxOpen) { id, amount, owed, takenAtPlayed, termMin, late } — oldest first.
+    loans: [],
+    // debt.wages: wage arrears (management-rules §2.7) — the GM's unpaid salary and the follower's unpaid wage.
+    debt: { wages: { gm: 0, follower: 0 } },
+    // clock.played: ms of PLAYED time (clock/tick, management-rules §4.1); income.rows: coins per played minute (§2.0).
+    clock: { played: 0 },
+    income: { rows: [] },
+    // tasks: the inbox (management-rules §1.2 / §4): open ≤ TASKS.cap, done ≤ TASKS.doneKeep, key cooldowns, recent
+    // fines, today's penalty totals. history: Nhật ký (§1.3 / §5): shared rows, per-day rows, tombstones.
+    tasks: newTasks(),
+    history: newHistory(),
     // mode: the current region's game (region.mode: 'farm' | 'cafe'; null → the HUD asks, offering only the games the
     // region's country has). Coins / XP / level / beans are shared by both games.
     mode: null,
@@ -51,6 +61,8 @@ export function createSave(now = Date.now(), character = null) {
   };
 }
 
+export const newTasks = () => ({ open: [], done: [], cool: {}, fines: [], pen: { d: 0, loyalty: 0, morale: {} } });
+export const newHistory = () => ({ rows: [], days: [], tombstones: [], seq: 0 });
 const num = (v, d = 0, min = -Infinity, max = Infinity) => Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : d;
 const obj = v => (v && typeof v === 'object' && !Array.isArray(v)) ? v : null;
 
@@ -133,6 +145,9 @@ export function normalizeSave(raw, now = Date.now()) {
     if (u.perk != null && !RARE.perks.includes(u.perk)) delete u.perk;
     u.book = normalizeBook(u.book, now);
     normalizeProfile(u, now);
+    // Career tenure in played minutes (management-rules §2.5): a save from before it counts its real time on the team,
+    // at most one shift-day (nobody jumps a rank on the migration).
+    u.tenurePlayedMin = num(u.tenurePlayedMin, Math.min(CAREER.shiftDayMin, Math.max(0, (now - u.hiredAt) / 60000)), 0, 1e9);
     if (u.stopped != null && !(obj(u.stopped) && typeof u.stopped.kind === 'string')) delete u.stopped;
     if (!obj(u.assigned) || typeof u.assigned.regionId !== 'string') u.assigned = null;
   }
@@ -146,10 +161,6 @@ export function normalizeSave(raw, now = Date.now()) {
     .map(e => ({ min: e.min, earned: num(e.earned, 0, 0), spent: num(e.spent, 0, 0), ...cats(e) })).slice(-BOOKS.ledgerKeep);
   out.staff.daily = (Array.isArray(st.daily) ? st.daily : backfillDaily(out.staff.units)).filter(e => obj(e) && Number.isInteger(e.d))
     .map(e => ({ d: e.d, earned: num(e.earned, 0, 0), spent: num(e.spent, 0, 0), ...cats(e) })).sort((a, b) => a.d - b.d).slice(-PROFILE.teamDaysKeep);
-  out.staff.journal = (Array.isArray(st.journal) ? st.journal : []).filter(e => obj(e) && typeof e.type === 'string' && Number.isFinite(e.at)).slice(0, BOOKS.journalKeep);
-  const po = obj(st.poach);
-  out.staff.poach = po && out.staff.units.some(u => u.uid === po.uid) && Number.isFinite(po.until)
-    ? { uid: po.uid, zone: po.zone === 'shop' ? 'shop' : 'farm', until: po.until, fee: num(po.fee, 0, 0, 1e6) } : null;
   out.staff.mvp = obj(st.mvp) ? st.mvp : null;
   out.gm = normalizeGm(s.gm);
   out.research = normalizeResearch(s.research);
@@ -174,8 +185,9 @@ export function normalizeSave(raw, now = Date.now()) {
   delete out.firstGame;
   const rw = obj(s.rewards) || {};
   out.rewards = { claimed: Array.isArray(rw.claimed) ? [...new Set(rw.claimed.filter(n => Number.isInteger(n) && n >= 2 && n <= 100))] : [], tickets: num(rw.tickets, 0, 0, 99) | 0 };
-  const ln = obj(s.loan);
-  out.loan = ln && Number.isFinite(ln.owed) && ln.owed > 0 ? { amount: num(ln.amount, 0, 0, 1e9), owed: num(ln.owed, 0, 0, 1e9), takenAt: num(ln.takenAt, 0) } : null;
+  normalizeMoney(out, s, levelForXp(out.player.xp));
+  normalizeHistory(out, s, now);
+  normalizeTasks(out, s, now);
   out.tutorial = { ...base.tutorial, ...obj(s.tutorial) };
   if (out.tutorial.done) { out.tutorial.farmDone = true; out.tutorial.cafeDone = true; } // skipped before the split
   out.autoplay = { ...base.autoplay, ...obj(s.autoplay) };
@@ -257,35 +269,227 @@ function normalizeResearch(raw) {
 }
 /** A fresh general-manager block (no GM hired). */
 export function newGmState() {
-  return { unit: null, mode: GM.defaults.mode, budget: GM.defaults.budget, bigLimit: GM.defaults.bigLimit, window: null, requests: [], log: [], days: [],
-    board: { seed: 7, at: 0 }, payAt: 0, lastJobAt: 0, seenAt: 0, poach: null, chaos: null };
+  // careWin: the care wallet's played window; licences: the player's (kept by the Level-10 incident). Requests and a
+  // rival's offer are inbox tasks (s.tasks), the log is history rows (s.history).
+  return { unit: null, mode: GM.defaults.mode, budget: GM.defaults.budget, bigLimit: GM.defaults.bigLimit, window: null, careWin: null, days: [],
+    board: { seed: 7, at: 0 }, payAt: 0, lastJobAt: 0, seenAt: 0, chaos: null, shareFrom: 0, licences: [],
+    // planner v2 (management-rules §3.3–§3.7): plan = the day plan { atPlayed, crops { lotId: crop }, target }; util =
+    // land-use samples { rows [{ m, z, p, q }] }; ticks = rules held n thinks in a row; wish = licences missed today
+    // { d, n, m }; busy = thinks in a row with more candidates than actions { n, excess, avg }; topUp = { d, denied, filed }.
+    plan: null, util: null, ticks: {}, wish: null, busy: null, topUp: null };
 }
 // General manager block of a save: known values only; a broken one starts fresh (nothing else depends on it).
 function normalizeGm(raw) {
   const g = obj(raw), out = newGmState();
   if (!g) return out;
   const u = obj(g.unit);
-  if (u && typeof u.name === 'string') out.unit = { name: u.name.slice(0, 20), gender: u.gender === 'male' ? 'male' : 'female', skill: num(u.skill, 1, 1, 5) | 0,
-    style: GM.styles[u.style] ? u.style : 'balanced', loyalty: num(u.loyalty, GM.loyalty.start, 0, 100), raises: num(u.raises, 0, 0, 20) | 0, hiredAt: num(u.hiredAt, 0, 0), paid: num(u.paid, 0, 0, 1e9) };
+  if (u && typeof u.name === 'string') {
+    // The shared Unit interface (management-rules §1.1): uid 'g1', kind 'manager', book / days / recent, backlog and
+    // its states (waiting = Chờ lệnh, strike = Đình công). The GM stays in s.gm, never in s.staff.units.
+    const b = obj(u.book) || {};
+    out.unit = { uid: 'g1', kind: 'manager', name: u.name.slice(0, 20), gender: u.gender === 'male' ? 'male' : 'female', skill: num(u.skill, 1, 1, 5) | 0,
+      style: GM.styles[u.style] ? u.style : 'balanced', loyalty: num(u.loyalty, GM.loyalty.start, 0, 100), raises: num(u.raises, 0, 0, 20) | 0, hiredAt: num(u.hiredAt, 0, 0), paid: num(u.paid, 0, 0, 1e9),
+      tenurePlayedMin: num(u.tenurePlayedMin, 0, 0, 1e9), backlog: num(u.backlog, 0, 0, 99) | 0, decayMs: num(u.decayMs, 0, 0, 36e5),
+      book: { jobs: num(b.jobs, 0, 0) | 0, earned: num(b.earned, 0, 0), spent: num(b.spent, 0, 0), mistakes: num(b.mistakes, 0, 0) | 0, since: num(b.since, num(u.hiredAt, 0, 0), 0) },
+      days: (Array.isArray(u.days) ? u.days : []).filter(r => obj(r) && Number.isInteger(r.d)).map(r => ({ d: r.d, jobs: num(r.jobs, 0, 0) | 0, earned: num(r.earned, 0, 0), spent: num(r.spent, 0, 0), mistakes: num(r.mistakes, 0, 0) | 0 }))
+        .sort((a, c) => a.d - c.d).slice(-PROFILE.daysKeep),
+      recent: (Array.isArray(u.recent) ? u.recent : []).filter(histRowOk).map(histRowOf).slice(-HISTORY.perUnit) };
+    const w = obj(u.waiting), k = obj(u.strike);
+    if (w && Number.isFinite(w.untilPlayed)) out.unit.waiting = { untilPlayed: w.untilPlayed };
+    if (k && Number.isFinite(k.sincePlayed)) out.unit.strike = { sincePlayed: k.sincePlayed, since: num(k.since, 0, 0) };
+    const tr = obj(u.training);
+    if (tr && Number.isFinite(tr.untilPlayed)) out.unit.training = { untilPlayed: tr.untilPlayed, to: num(tr.to, out.unit.skill + 1, 1, 5) | 0 };
+  }
   if (GM.modes[g.mode]) out.mode = g.mode;
   if (GM.budgets.includes(g.budget)) out.budget = g.budget;
   if (GM.bigLimits.includes(g.bigLimit)) out.bigLimit = g.bigLimit;
   const w = obj(g.window);
   if (w && Number.isFinite(w.start)) out.window = { start: w.start, spent: num(w.spent, 0, 0) };
-  out.requests = out.unit ? (Array.isArray(g.requests) ? g.requests : []).filter(q => obj(q) && typeof q.id === 'string' && obj(q.act) && typeof q.act.type === 'string' && Number.isFinite(q.until)).slice(0, GM.requestsKeep) : [];
-  out.log = (Array.isArray(g.log) ? g.log : []).filter(e => obj(e) && typeof e.type === 'string' && Number.isFinite(e.at)).slice(0, GM.logKeep);
+  const cw = obj(g.careWin);
+  if (cw && Number.isFinite(cw.startPlayed)) out.careWin = { startPlayed: cw.startPlayed, spent: num(cw.spent, 0, 0) };
+  out.licences = [...new Set((Array.isArray(g.licences) ? g.licences : []).filter(x => GM.licences.groups.includes(x)))];
+  const rc = obj(g.returnCap);
+  if (out.unit && rc && Number.isFinite(rc.untilPlayed)) out.returnCap = { untilPlayed: rc.untilPlayed, lost: num(rc.lost, 0, 0, 100) };
+  if (Number.isFinite(g.laterAt) && g.laterAt >= 0) out.laterAt = g.laterAt; // the last «Để sau» (played ms)
   out.days = (Array.isArray(g.days) ? g.days : []).filter(e => obj(e) && Number.isInteger(e.d)).map(e => ({ d: e.d, actions: num(e.actions, 0, 0) | 0, salary: num(e.salary, 0, 0), spent: num(e.spent, 0, 0) })).slice(-GM.daysKeep);
   const b = obj(g.board);
   if (b) out.board = { seed: Number.isInteger(b.seed) ? b.seed : out.board.seed, at: num(b.at, 0, 0) };
   out.payAt = num(g.payAt, 0, 0);
   out.lastJobAt = num(g.lastJobAt, 0, 0);
   out.seenAt = num(g.seenAt, 0, 0);
+  out.shareFrom = num(g.shareFrom, 0, 0, 1e9) | 0; // played minute from which the GM's profit share is still unpaid
   if (g.moodNote === 'idle' || g.moodNote === 'absent') out.moodNote = g.moodNote;
-  const p = obj(g.poach);
-  out.poach = out.unit && p && Number.isFinite(p.until) ? { until: p.until, fee: num(p.fee, 0, 0, 1e9) } : null;
   const c = obj(g.chaos);
   out.chaos = !out.unit && c && Number.isFinite(c.since) ? { since: c.since } : null;
+  normalizePlanner(out, g);
   return out;
+}
+// Planner v2 bookkeeping (normalizeGm): known shapes only, anything broken starts empty. Idempotent.
+function normalizePlanner(out, g) {
+  const pl = obj(g.plan), isNum = v => Number.isFinite(v);
+  if (pl && isNum(pl.atPlayed)) {
+    const crops = Object.fromEntries(Object.entries(obj(pl.crops) || {}).filter(([k, v]) => Object.hasOwn(PARCELS, k) && typeof v === 'string' && Object.hasOwn(CROPS, v)));
+    out.plan = { atPlayed: num(pl.atPlayed, 0, 0, 1e13), crops, target: num(pl.target, 0, 0, 1e12) };
+  }
+  const ut = obj(g.util);
+  if (ut && Array.isArray(ut.rows)) {
+    const share = o => Object.fromEntries(Object.entries(obj(o) || {}).filter(([, v]) => isNum(v)).map(([k, v]) => [k, Math.min(1, Math.max(0, v))]));
+    const rows = ut.rows.filter(r => obj(r) && Number.isInteger(r.m) && r.m >= 0).map(r => ({ m: r.m, z: share(r.z), p: share(r.p), q: Object.fromEntries(Object.entries(obj(r.q) || {}).filter(([, v]) => v === 1)) }))
+      .sort((a, b) => a.m - b.m).filter((r, i, a) => i === a.length - 1 || a[i + 1].m !== r.m).slice(-GM.land.windowMin);
+    out.util = { rows };
+  }
+  const ld = obj(g.load);
+  if (ld) out.load = Object.fromEntries(Object.entries(ld).filter(([k, v]) => (k === 'farm' || k === 'shop') && isNum(v) && v >= 0).map(([k, v]) => [k, Math.min(1e4, v)]));
+  out.ticks = Object.fromEntries(Object.entries(obj(g.ticks) || {}).filter(([k, v]) => typeof k === 'string' && Number.isInteger(v) && v > 0 && v < 1e6));
+  const w = obj(g.wish);
+  if (w && Number.isInteger(w.d)) {
+    const ints = o => Object.fromEntries(Object.entries(obj(o) || {}).filter(([k, v]) => GM.licences.groups.includes(k) && Number.isInteger(v) && v >= 0));
+    out.wish = { d: w.d, n: ints(w.n), m: ints(w.m) };
+  }
+  const b = obj(g.busy);
+  if (b && Number.isInteger(b.n) && b.n > 0) out.busy = { n: b.n, excess: num(b.excess, 0, 0, 1e6) | 0, avg: num(b.avg, 0, 0, 1e9) };
+  const t = obj(g.topUp);
+  if (t && Number.isInteger(t.d)) out.topUp = { d: t.d, denied: num(t.denied, 0, 0, 1e6) | 0, filed: num(t.filed, 0, 0, 1e6) | 0 };
+}
+// Money blocks (management-rules §7.3): played clock, the income series, loans (s.loans[]) and wage arrears.
+// Old saves: the single stacked s.loan becomes one entry (takenAtPlayed 0, term at today's level); its follower-wage part
+// (an s.loan with amount 0 was only follower pay) moves to s.debt.wages.follower. Idempotent: s.loan is gone afterwards.
+function normalizeMoney(out, s, level) {
+  // at: the real time of the last tick (a gap ≥ TASKS.returnAwayMin = a return, §4.1); old saves: none (no return)
+  out.clock = { played: num(obj(s.clock)?.played, 0, 0, 1e13), ...(Number.isFinite(obj(s.clock)?.at) && s.clock.at > 0 ? { at: s.clock.at } : {}) };
+  const by = b => Object.fromEntries(INCOME.actors.filter(k => Number.isFinite(obj(b)?.[k]) && b[k] !== 0).map(k => [k, Math.round(b[k] * 100) / 100]));
+  out.income = { rows: (Array.isArray(obj(s.income)?.rows) ? s.income.rows : []).filter(r => obj(r) && Number.isInteger(r.m) && r.m >= 0)
+    .map(r => ({ m: r.m, earned: num(r.earned, 0, 0, 1e12), spent: num(r.spent, 0, 0, 1e12), by: by(r.by) }))
+    .sort((a, b) => a.m - b.m).filter((r, i, a) => i === a.length - 1 || a[i + 1].m !== r.m).slice(-INCOME.keepMinutes) };
+  const w = obj(obj(s.debt)?.wages) || {};
+  const wages = { gm: num(w.gm, 0, 0, 1e9), follower: num(w.follower, 0, 0, 1e9) };
+  let loans = (Array.isArray(s.loans) ? s.loans : []).filter(ln => obj(ln) && Number.isFinite(ln.owed) && ln.owed > 0)
+    .map((ln, i) => ({ id: typeof ln.id === 'string' && ln.id ? ln.id.slice(0, 16) : `L0-${i}`, amount: num(ln.amount, 0, 0, 1e9), owed: num(ln.owed, 0, 0, 1e9),
+      takenAtPlayed: num(ln.takenAtPlayed, 0, 0, 1e13), termMin: num(ln.termMin, LOAN.term.maxMin, LOAN.term.minMin, LOAN.term.maxMin), late: ln.late === true }));
+  const old = obj(s.loan);
+  if (!Array.isArray(s.loans) && old && Number.isFinite(old.owed) && old.owed > 0) {
+    const amount = num(old.amount, 0, 0, 1e9), owed = num(old.owed, 0, 0, 1e9);
+    const pay = Math.min(owed, Math.max(0, owed - loanOwed(amount))); // what is above the packs' own debt = follower pay
+    if (amount <= 0) wages.follower += owed;
+    else {
+      if (pay > 0) wages.follower += pay;
+      const game = out.world.regions[out.world.currentRegion]?.mode || out.mode;
+      const left = Math.round((owed - pay) * 100) / 100;
+      loans = [{ id: 'L0', amount, owed: left, takenAtPlayed: 0, termMin: loanTermMin(left, incomeRef(game, level)), late: false }];
+    }
+  }
+  out.loans = loans.slice(0, LOAN.maxOpen);
+  delete out.loan;
+  // Arrears belong to someone: none without a GM / a follower on the team (they left, the debt left with them).
+  if (!out.gm?.unit) wages.gm = 0;
+  if (!out.staff.units.some(u => u.follower)) wages.follower = 0;
+  out.debt = { wages: { gm: Math.round(wages.gm * 100) / 100, follower: Math.round(wages.follower * 100) / 100 } };
+}
+// ---------- history & inbox (management-rules §7.3) ----------
+const HIST_ACTORS = new Set(['player', 'g1', 'system']);
+const histRowOk = r => obj(r) && typeof r.type === 'string' && Number.isFinite(r.at);
+// One history row, known fields only.
+function histRowOf(r, i = 0) {
+  const o = { id: typeof r.id === 'string' && r.id ? r.id.slice(0, 16) : `hm${i}`, atPlayed: num(r.atPlayed, 0, 0, 1e13), at: r.at,
+    actor: typeof r.actor === 'string' && r.actor ? r.actor.slice(0, 16) : 'system', group: HISTORY.groupOrder.includes(r.group) ? r.group : HISTORY.groups[r.type] || 'event',
+    type: r.type.slice(0, 24), zone: r.zone === 'farm' || r.zone === 'shop' ? r.zone : null, regionId: typeof r.regionId === 'string' ? r.regionId : null };
+  if (typeof r.subject === 'string' && r.subject) o.subject = r.subject.slice(0, 16);
+  for (const k of ['cost', 'gain']) if (Number.isFinite(r[k])) o[k] = r[k];
+  if (typeof r.taskId === 'string') o.taskId = r.taskId;
+  if (typeof r.name === 'string') o.name = r.name.slice(0, 20);
+  if (r.gm === 1) o.gm = 1;
+  if (r.extra !== undefined) o.extra = r.extra;
+  return o;
+}
+// s.history. Saves from before it: the team journal, every unit's timeline (u.log) and the manager's log become rows
+// (oldest first; unit rows by the unit or about it, manager rows by 'g1'), u.recent = the unit's last HISTORY.perUnit.
+// Idempotent: once s.history exists the old arrays are only dropped.
+function normalizeHistory(out, s, now) {
+  const h = obj(s.history);
+  const rawUnits = new Map((Array.isArray(s.staff?.units) ? s.staff.units : []).filter(obj).map(u => [u.uid, u]));
+  if (h) {
+    const rows = (Array.isArray(h.rows) ? h.rows : []).filter(histRowOk).map(histRowOf).slice(-HISTORY.rows);
+    const days = (Array.isArray(h.days) ? h.days : []).filter(r => obj(r) && Number.isInteger(r.d) && typeof r.actor === 'string')
+      .map(r => ({ d: r.d, actor: r.actor.slice(0, 16), ...Object.fromEntries(['jobs', 'earned', 'spent', 'mistakes', 'tasksDone', 'tasksExpired'].map(k => [k, num(r[k], 0, 0)])) }))
+      .sort((a, b) => a.d - b.d);
+    const keepD = [...new Set(days.map(r => r.d))].slice(-HISTORY.days);
+    const tomb = (Array.isArray(h.tombstones) ? h.tombstones : []).filter(t => obj(t) && typeof t.uid === 'string')
+      .map(t => ({ uid: t.uid.slice(0, 16), name: typeof t.name === 'string' ? t.name.slice(0, 20) : null, kind: ['worker', 'robot', 'manager'].includes(t.kind) ? t.kind : 'worker', leftAt: num(t.leftAt, 0, 0) }))
+      .slice(-HISTORY.tombstones);
+    const maxSeq = rows.reduce((n, r) => Math.max(n, parseInt(r.id.replace(/\D+/g, ''), 10) || 0), 0);
+    out.history = { rows, days: days.filter(r => keepD.includes(r.d)), tombstones: tomb, seq: Math.max(num(h.seq, 0, 0, 1e12) | 0, maxSeq) };
+    for (const u of out.staff.units) delete u.log;
+    return;
+  }
+  const rows = [], seen = new Set();
+  const push = (e, actor, subject, name, gm) => {
+    const k = `${e.at}|${e.type}|${subject || actor}`;
+    if (seen.has(k)) return;
+    seen.add(k);
+    const u = subject && subject !== 'g1' ? out.staff.units.find(x => x.uid === subject) : null;
+    const r = { id: '', atPlayed: 0, at: e.at, actor, group: HISTORY.groups[e.type] || 'event', type: String(e.type).slice(0, 24), zone: u ? STAFF[u.type].zone : null, regionId: null };
+    if (subject) r.subject = subject;
+    if (name) r.name = String(name).slice(0, 20);
+    if (gm) r.gm = 1;
+    if (e.extra !== undefined) r.extra = e.extra;
+    rows.push(r);
+  };
+  const ok = e => obj(e) && typeof e.type === 'string' && Number.isFinite(e.at);
+  for (const e of (Array.isArray(s.staff?.journal) ? s.staff.journal : []).filter(ok)) push(e, typeof e.uid === 'string' ? e.uid : 'player', typeof e.uid === 'string' ? e.uid : null, e.name, false);
+  for (const u of out.staff.units) for (const e of (Array.isArray(rawUnits.get(u.uid)?.log) ? rawUnits.get(u.uid).log : []).filter(ok)) push(e, u.uid, u.uid, u.name, false);
+  if (out.gm.unit) for (const e of (Array.isArray(s.gm?.log) ? s.gm.log : []).filter(ok)) push(e, HIST_ACTORS.has(e.actor) ? e.actor : 'g1', null, null, true);
+  rows.sort((a, b) => a.at - b.at);
+  rows.forEach((r, i) => { r.id = `h${i + 1}`; });
+  out.history = { rows: rows.slice(-HISTORY.rows), days: [], tombstones: [], seq: rows.length };
+  for (const u of out.staff.units) {
+    u.recent = rows.filter(r => r.subject === u.uid).slice(-HISTORY.perUnit).map(r => ({ ...r }));
+    delete u.log;
+  }
+  if (out.gm.unit) out.gm.unit.recent = rows.filter(r => r.gm).slice(-HISTORY.perUnit).map(r => ({ ...r }));
+  void now;
+}
+// One open task, known fields only (null when broken).
+function taskOf(t, units, hasGm, open = true) {
+  if (!obj(t) || typeof t.id !== 'string' || !Object.hasOwn(TASKS.life, t.kind) || !obj(t.act) || typeof t.act.type !== 'string' || !Number.isFinite(t.untilPlayed)) return null;
+  if (open && t.kind === 'poach' && !units.some(u => u.uid === t.act.payload?.uid)) return null; // an open offer needs its worker
+  if (open && (t.by === 'g1' || t.kind === 'gmPoach') && !hasGm) return null;
+  return { id: t.id.slice(0, 16), kind: t.kind, key: typeof t.key === 'string' ? t.key.slice(0, 64) : t.id, group: typeof t.group === 'string' ? t.group : TASKS.groupOf[t.kind] || 'hr',
+    by: t.by === 'system' ? 'system' : 'g1', act: { type: t.act.type, payload: obj(t.act.payload) ? { ...t.act.payload } : {} }, cost: num(t.cost, 0, 0, 1e9), value: num(t.value, 0, -1e9, 1e9),
+    reason: Array.isArray(t.reason) ? t.reason : [String(t.reason || 'unknown')], zone: t.zone === 'farm' || t.zone === 'shop' ? t.zone : null,
+    atPlayed: num(t.atPlayed, 0, 0, 1e13), untilPlayed: num(t.untilPlayed, 0, 0, 1e13), remindedAt: (Array.isArray(t.remindedAt) ? t.remindedAt : []).filter(Number.isFinite).slice(0, 4),
+    status: typeof t.status === 'string' ? t.status : 'open', ...(Number.isFinite(t.answeredAtPlayed) ? { answeredAtPlayed: t.answeredAtPlayed } : {}), ...(Number.isFinite(t.fine) ? { fine: t.fine } : {}),
+    ...(typeof t.regionId === 'string' ? { regionId: t.regionId.slice(0, 32) } : {}), ...(t.lateOff === true ? { lateOff: true } : {}) };
+}
+// s.tasks. Saves from before the inbox: the manager's requests, the rival's offer on a worker and on the manager become
+// open tasks; their real-time deadlines turn into played time (time left kept). Idempotent: the old fields are dropped.
+function normalizeTasks(out, s, now) {
+  const t = obj(s.tasks), units = out.staff.units, hasGm = !!out.gm.unit, P = out.clock.played;
+  const res = newTasks();
+  if (t) {
+    res.open = (Array.isArray(t.open) ? t.open : []).map(x => taskOf(x, units, hasGm)).filter(Boolean).map(x => ({ ...x, status: 'open' })).slice(0, TASKS.cap);
+    res.done = (Array.isArray(t.done) ? t.done : []).map(x => taskOf(obj(x) ? { ...x, untilPlayed: Number.isFinite(x.untilPlayed) ? x.untilPlayed : 0 } : null, units, true, false)).filter(Boolean).slice(0, TASKS.doneKeep);
+    res.cool = Object.fromEntries(Object.entries(obj(t.cool) || {}).filter(([, v]) => Number.isFinite(v) && v > P).slice(0, 100));
+    res.fines = (Array.isArray(t.fines) ? t.fines : []).filter(f => obj(f) && Number.isFinite(f.p) && Number.isFinite(f.c) && f.p > P - PENALTY.windowMin * 60000).map(f => ({ p: f.p, c: f.c }));
+    const pen = obj(t.pen);
+    if (pen && Number.isInteger(pen.d)) res.pen = { d: pen.d, loyalty: num(pen.loyalty, 0, 0, 100), morale: Object.fromEntries(['farm', 'shop'].filter(z => Number.isFinite(obj(pen.morale)?.[z])).map(z => [z, pen.morale[z]])) };
+  } else {
+    const left = until => Math.max(0, num(until, now, 0) - now);
+    const file = (kind, key, by, act, cost, reason, zone, until, lifeMs) => {
+      if (res.open.length >= TASKS.cap) return;
+      const l = Math.min(left(until), lifeMs);
+      res.open.push({ id: `t0-${res.open.length}`, kind, key, group: TASKS.groupOf[kind] || 'hr', by, act, cost, value: 0, reason, zone, atPlayed: Math.max(0, P + l - lifeMs), untilPlayed: P + l, remindedAt: [P], status: 'open' });
+    };
+    const po = obj(s.staff?.poach), pu = po && units.find(u => u.uid === po.uid);
+    if (pu && Number.isFinite(po.until)) file('poach', `keep:${pu.uid}`, 'system', { type: 'staff/keep', payload: { uid: pu.uid } }, num(po.fee, 0, 0, 1e6), ['keepWorker', { name: pu.name || null }], po.zone === 'shop' ? 'shop' : 'farm', po.until, TASKS.life.poach * 60000);
+    const gp = obj(s.gm?.poach);
+    if (hasGm && gp && Number.isFinite(gp.until)) file('gmPoach', 'keep:g1', 'system', { type: 'gm/keep', payload: {} }, num(gp.fee, 0, 0, 1e9), ['gmPoach', { name: out.gm.unit.name, rival: GM.poach.rival }], null, gp.until, TASKS.life.gmPoach * 60000);
+    if (hasGm) for (const q of (Array.isArray(s.gm?.requests) ? s.gm.requests : [])) {
+      if (!obj(q) || typeof q.id !== 'string' || !obj(q.act) || typeof q.act.type !== 'string' || !Number.isFinite(q.until)) continue;
+      const kind = TASKS.kindOf[q.act.type] || 'staffGrowth';
+      file(kind, typeof q.key === 'string' ? q.key : q.id, 'g1', { type: q.act.type, payload: obj(q.act.payload) ? { ...q.act.payload } : {} }, num(q.cost, 0, 0, 1e9), Array.isArray(q.reason) ? q.reason : [String(q.reason || 'unknown')], null, q.until, TASKS.life[kind] * 60000);
+    }
+  }
+  out.tasks = res;
 }
 // Saves from before the team day rows: rebuild them from the units' own day rows (units that already left are lost).
 function backfillDaily(units) {
@@ -337,7 +541,8 @@ function normalizeProfile(u, now) {
   const keys = ['jobs', 'earned', 'spent', 'capex', 'upkeep', 'mistakes', 'shift', 'work', 'down'];
   u.days = (Array.isArray(u.days) ? u.days : []).filter(r => obj(r) && Number.isInteger(r.d))
     .map(r => ({ d: r.d, ...Object.fromEntries(keys.map(k => [k, num(r[k], 0, 0)])) })).sort((a, b) => a.d - b.d).slice(-PROFILE.daysKeep);
-  u.log = (Array.isArray(u.log) ? u.log : []).filter(e => obj(e) && typeof e.type === 'string' && Number.isFinite(e.at)).slice(0, PROFILE.logKeep);
+  // u.log (the old timeline) is migrated into s.history / u.recent by normalizeHistory, then dropped.
+  u.recent = (Array.isArray(u.recent) ? u.recent : []).filter(histRowOk).map(histRowOf).slice(-HISTORY.perUnit);
 }
 function normalizeBook(b, now) {
   const o = obj(b) || {};
