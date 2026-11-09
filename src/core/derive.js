@@ -1,5 +1,5 @@
 // Pure selectors over the v3 save. No mutation. Used by the reducer, the scene and the HUD.
-import { statCostOf } from './config/economy.js';
+import { statCostOf, PLANT_ROW } from './config/economy.js';
 import { tierIndexAt } from './config/layout.js';
 import { maxStatOf, maxTierOf, FUNNY, gmThinkOf, gmActionsOf, gmMoneyMul, gmHaggleMul, gmCalmMul, gmStatOf } from './config/economy.js';
 import { doesJob, haulLoadOf, bucketOf } from './config/economy.js';
@@ -34,7 +34,15 @@ export const assignedUnits = (s, regionId = s.world.currentRegion, zone) =>
 export const unitWorking = (u, now = null) => u.active !== false && !unitBlocked(u, now);
 // A worker's own effect grows with its level (+8% a level); robots keep theirs.
 const unitEffect = (u, key) => (STAFF[u.type]?.effect?.[key] || 0) * (STAFF[u.type]?.kind === 'worker' ? levelSpeed(u) : 1);
-const staffBonus = (s, key) => assignedUnits(s).filter(unitWorking).reduce((sum, u) => sum + unitEffect(u, key) + traitEffect(u, key), 0);
+const computeStaffBonus = (s, key) => assignedUnits(s).filter(unitWorking).reduce((sum, u) => sum + unitEffect(u, key) + traitEffect(u, key), 0);
+let readingState = null; // see readOnlyPass
+const staffBonus = (s, key) => (readingState?.s === s ? (readingState.bonus[key] ??= computeStaffBonus(s, key)) : computeStaffBonus(s, key));
+/** Runs fn while `s` is known not to change (a committed state, never the reducer's draft): every plot of a sync then shares one staff bonus. */
+export function readOnlyPass(s, fn) {
+  const outer = readingState;
+  readingState = { s, bonus: {} };
+  try { return fn(); } finally { readingState = outer; }
+}
 const blessing = (s, key) => (s.rebirth.blessings[key] || 0) * (REBIRTH.blessings[key] || 0);
 
 // Storage: the storehouse plus every barn (sum: a 2nd barn really adds room).
@@ -95,7 +103,7 @@ export function farmOverloaded(s, now = Date.now()) {
  * capped at the trade's share of the crew. Plus storehouses for what the farm picks before it is sold.
  */
 export function farmStaffing(s, now = Date.now()) {
-  const w = farmWorkload(s, now), S = FARM_MANAGER.staffing, H = FARM_MANAGER.hands, V = GM.value.jobsPerMin, cap = STAFF_CAP.perZone, gm = gmOf(s);
+  const w = farmWorkload(s, now), S = FARM_MANAGER.staffing, H = FARM_MANAGER.hands, V = GM.value.jobsPerMin, cap = hireCap(s, 'farm'), gm = gmOf(s);
   const own = gm && fmOf(s).auto ? gmHandsPerMin(gm) * H.harvestShare : 0;
   const units = (backlog, arriving, hands, rate, share) => Math.min(Math.ceil(cap * share), Math.ceil(Math.max(0, backlog / S.clearMin + arriving - hands) / rate));
   const open = new Set(ownedPlots(s).map(p => tierIndexAt(p.x, p.z))).size;
@@ -213,6 +221,8 @@ export function farmViewBounds(s, pad = 6) {
 // Per-region memo (the reducer clones the region on every action, so a WeakMap keyed by the region object is exact).
 const memo = new WeakMap();
 const memoOf = r => { let m = memo.get(r); if (!m) memo.set(r, m = {}); return m; };
+/** One action that changes the land several times (a whole row of trees) must drop the memo between the steps. */
+export const forgetRegionMemo = r => { memo.delete(r); };
 const lotIdAt = (x, z) => Object.values(PARCELS).find(p => inRect(x, z, p.rect))?.id || null;
 /** The region's crop fields ({ id, x, z }). */
 export const fieldsOf = s => region(s)?.fields || [];
@@ -221,7 +231,7 @@ export const ownedPlots = s => {
   const r = region(s);
   if (!r) return [];
   const m = memoOf(r);
-  return (m.plots ||= (r.fields || []).map(f => ({ id: f.id, x: f.x, z: f.z, parcel: lotIdAt(f.x, f.z) })));
+  return (m.plots ||= (r.fields || []).map(f => ({ id: f.id, x: f.x, z: f.z, parcel: lotIdAt(f.x, f.z), row: f.row })));
 };
 /** One field by id (null when it does not exist in the current region). Replaces the static layout.plotById. */
 export const plotOf = (s, id) => {
@@ -367,15 +377,8 @@ export function sellQuote(s, good = 'beans', amount = Infinity) {
   }
   return { good, amount: n, coins: Math.round(n * GOODS[good].price * (buyerNow(s).mul[good] ?? 1) * 100) / 100 }; // the chosen buyer's price
 }
-const vehicleLoad = b => pick(BUILDINGS[b.type].effect.load, b.level);
-/** The vehicle a hauler uses: the placed one that carries the most at its level (null = on foot). */
-export function haulVehicle(s) {
-  let best = null;
-  for (const b of region(s)?.buildings || []) if (BUILDINGS[b.type]?.effect?.load && (!best || vehicleLoad(b) > vehicleLoad(best))) best = b;
-  return best;
-}
-/** Units this hauler carries in one trip (its stats + the best vehicle). */
-export const haulCapacity = (s, u) => { const v = haulVehicle(s); return haulLoadOf(u, v ? vehicleLoad(v) : 0); };
+/** Units this hauler carries in one trip (its stats). */
+export const haulCapacity = u => haulLoadOf(u);
 const sumOf = o => Object.values(o || {}).reduce((n, v) => n + v, 0);
 export const pileCount = pl => sumOf(pl?.pile);
 export const cargoCount = u => sumOf(u?.cargo);
@@ -497,6 +500,30 @@ export function placementError(s, type, x, z, rot = 0, ignoreId = null) {
   if (!cafeLot && use !== 'field' && cutsAccess(r, lot, fp, use, ignoreId)) return 'noAccess';
   return null;
 }
+/**
+ * The row a stroke from (x0, z0) to (x1, z1) would plant: the line snaps to the nearest 45°, one spot every PLANT_ROW.spacing m.
+ * spots: [{ x, z, error }] (error = why this spot is left out: taken, wall, not owned, another terrace, or out of coins).
+ * n / cost: the trees it will really plant and what they cost (seeds + clearing past the free rows, the same prices as one by one).
+ */
+export function rowPlan(s, crop, x0, z0, x1, z1) {
+  const dx = x1 - x0, dz = z1 - z0, step = Math.PI / 4, a = Math.round(Math.atan2(dz, dx) / step) * step, ux = Math.cos(a), uz = Math.sin(a);
+  const count = Math.min(PLANT_ROW.maxTrees, 1 + Math.floor(Math.max(0, dx * ux + dz * uz) / PLANT_ROW.spacing + 1e-6));
+  const axis = u => Math.sign(Math.round(u * 1e6)) * Math.ceil(Math.abs(u) * PLANT_ROW.spacing * 10 - 1e-6) / 10, sx = axis(ux), sz = axis(uz); // whole 10 cm steps: neighbours on a diagonal never touch
+  const zone = tierZoneAt(x0, z0), allow = fieldAllowance(s), spots = [];
+  let coins = s.player.coins, beds = fieldsOf(s).length, seed = seedCost(s, crop), cost = 0, n = 0, error = null, broke = false;
+  for (let i = 0; i < count; i++) {
+    const p = snapPosition('field', x0 + sx * i, z0 + sz * i, 0);
+    let err = broke ? 'coins' : tierZoneAt(p.x, p.z) !== zone ? 'mountain' : placementError(s, 'field', p.x, p.z, 0);
+    if (!err) {
+      const price = seed + (beds < allow ? 0 : fieldExtraCost(beds - allow));
+      if (coins < price) { err = 'coins'; broke = true; }
+      else { coins -= price; cost += price; beds++; n++; seed = CROPS[crop].seedCost; } // the free grace seed is only ever the first
+    }
+    if (err) error ||= err;
+    spots.push({ x: p.x, z: p.z, error: err });
+  }
+  return { spots, n, cost: Math.round(cost * 100) / 100, error, broke, dir: ((Math.round(a / step) % 4) + 4) % 4 };
+}
 // Would a solid footprint `fp` leave a field or a non-decor building in this lot with no walkable neighbour reaching
 // the lot's surroundings (roads / open land)? Local flood fill on the SNAP lattice over the lot + 1 m (cheap: ≤ ~800 cells).
 function cutsAccess(r, lot, fp, use, ignoreId) {
@@ -567,8 +594,6 @@ export function buildCost(s, type) {
   if (type === 'field') return fieldCost(s);
   return Math.round(def.cost * (def.costGrowth || 1) ** countOf(s, type) / 5) * 5;
 }
-/** How many animals the barns house together (each barn's level sets its share). */
-export const housingOf = s => (region(s)?.buildings || []).filter(b => b.type === 'barn').reduce((n, b) => n + pick(BUILDINGS.barn.effect.housing, b.level || 1), 0);
 export function buildError(s, type) {
   const def = defOf(type);
   if (!def || def.starter || def.retired) return 'unknown';
@@ -576,11 +601,6 @@ export function buildError(s, type) {
   const mode = region(s)?.mode;
   if ((mode === 'cafe' && def.zone === 'farm') || (mode === 'farm' && def.zone === 'shop')) return 'gameLocked';
   // No level / round / count gates: with the coins you may build and plant anything, as many as you like.
-  if (def.animal) { // livestock lives in a barn: build one first, each houses a few animals
-    const bs = region(s)?.buildings || [], barns = bs.filter(b => b.type === 'barn');
-    if (!barns.length) return 'needBarn';
-    if (bs.filter(b => BUILDINGS[b.type]?.animal).length >= housingOf(s)) return 'barnFull';
-  }
   if (s.player.coins < buildCost(s, type)) return 'coins';
   return null;
 }
@@ -776,6 +796,11 @@ export const workingUnits = (s, zone, now = null) => assignedUnits(s, s.world.cu
 // already have more keep them (nobody is fired); they just cannot hire until the level catches up.
 export const hireCap = (s, _zone) => hireLimit(level(s));
 export const hireCapReached = (s, zone) => zoneUnits(s, zone).length >= hireCap(s, zone);
+/** The level that lets this zone hire one more; null at the ceiling STAFF_CAP.perZone, where no level helps. */
+export function nextHireLevel(s, zone) {
+  const n = Math.max(hireCap(s, zone), zoneUnits(s, zone).length);
+  return n >= STAFF_CAP.perZone ? null : n + 1;
+}
 /** Robots of a zone on the whole team; at most robotCap(hireCap) of them (management-rules §2.1). */
 export const zoneRobots = (s, zone) => zoneUnits(s, zone).filter(isRobot).length;
 /** Robots a zone may still take now (robot share ceil(slots / 2)). */
@@ -785,8 +810,8 @@ export function staffError(s, type) {
   if (!def) return 'unknown';
   if (s.player.round < def.round) return 'round';
   if (level(s) < def.level) return 'level';
-  if (hireCapReached(s, def.zone)) return 'hireLimit';
   if (zoneUnits(s, def.zone).length >= STAFF_CAP.perZone) return 'teamFull';
+  if (hireCapReached(s, def.zone)) return 'hireLimit';
   if (def.kind === 'robot' && zoneRobots(s, def.zone) >= robotCap(hireCap(s, def.zone))) return 'robotShare';
   if (!freeHire(s) && s.player.coins < def.cost) return 'coins';
   return null;
@@ -816,8 +841,8 @@ export function recruitError(s, zone, index) {
   const def = STAFF[a.type];
   if (s.player.round < def.round) return 'round';
   if (level(s) < def.level) return 'level';
-  if (hireCapReached(s, zone)) return 'hireLimit';
   if (zoneUnits(s, zone).length >= STAFF_CAP.perZone) return 'teamFull';
+  if (hireCapReached(s, zone)) return 'hireLimit';
   if (!freeHire(s) && s.player.coins < a.cost) return 'coins';
   return null;
 }
@@ -1089,6 +1114,10 @@ export const bucketPlots = u => bucketOf(u);
 export const gmUnlocked = s => level(s) >= GM.unlockLevel;
 /** The hired GM (or null). */
 export const gmOf = s => s.gm?.unit || null;
+/** Auto is running the farm: the manager in s.gm.unit is its stand-in, not somebody you hired (AUTO in economy.js). */
+export const autoManaged = s => !!s.gm?.unit?.isAuto;
+/** A hired manager standing on a farm: the farm only has Auto now, so he is let go with his fee back (auto/retireHired). */
+export const hiredOnFarm = s => !!s.gm?.unit && !s.gm.unit.isAuto && regionGame(s) === 'farm';
 export const gmBoard = s => gmCandidatesFor(s.gm?.board?.seed ?? 1);
 export const gmBoardRefreshIn = (s, now) => Math.max(0, (s.gm?.board?.at || 0) + GM.board.refreshMinutes * 60000 - now);
 // Backlog ≥ PENALTY.backlog.waitAt (ignored tasks): he thinks GM.plan.thinkSlowMul × slower (§3.3).
@@ -1444,7 +1473,7 @@ export function landSellError(s, id) {
 export const landSellRefund = id => Math.floor(LAND.sellRefund * (own(PARCELS, id)?.cost || 0));
 /** A loan pack that pays for a capital job the coins cannot (§3.7), or null: the smallest allowed pack covering the gap whose term > payback / share. */
 export function gmLoanFor(s, c) {
-  if (c.group !== 'capital' || !gmLicensed(s, 'credit') || c.act?.type?.startsWith('loan/')) return null;
+  if (autoManaged(s) || c.group !== 'capital' || !gmLicensed(s, 'credit') || c.act?.type?.startsWith('loan/')) return null; // Auto never borrows: the debt would outlive the run
   const gap = c.cost - s.player.coins;
   const pack = LOAN.packs.filter(a => a >= gap && !loanError(s, a))[0];
   if (!pack) return null;
@@ -1546,9 +1575,8 @@ export function gmSnapshot(s, now, zone, offscreen = false) {
     snap.topUpDue = topUpDue(s, now);
     snap.trainDue = !!gmTrainDue(s);
     snap.buildItems = zone === 'farm' ? gmBuildNeeds(s) : [];
-    snap.crewGap = zone === 'farm' && gmCrewGap(s, now).length > 0 && zoneUnits(s, 'farm').length < STAFF_CAP.perZone;
+    snap.crewGap = zone === 'farm' && gmCrewGap(s, now).length > 0 && zoneUnits(s, 'farm').length < hireCap(s, 'farm');
     snap.fieldSpots = zone === 'farm' ? gmFieldSpots(s, now) : [];
-    snap.herdNeed = zone === 'farm' && !!gmHerdNeed(s);
   }
   return snap;
 }
@@ -1613,7 +1641,7 @@ export function topUpDue(s, now) {
 /** Training pays (§3.7): more candidates than actions for trainThinks thinks in a row, and the extra actions repay the fee in time. */
 // What the crew is missing, most basic first: he buys it and finds it a spot next to the fields (any tier).
 // Layout that leaves room to grow: each tier keeps a service strip along one edge for buildings that reach nothing (storage,
-// processing, vehicles); fields fill the rest. Things with a radius go where they newly cover the most fields.
+// processing); fields fill the rest. Things with a radius go where they newly cover the most fields.
 const SERVICE_DEPTH = 3.4, SERVICE_XS = [3, -3, 6, -6, 9, -9, 12, -12, 15, -15, 18, -18, 21, -21, 24, -24];
 const onRoad = (x, z, pad = .8) => ROAD_LIST.some(d => x >= d.rect[0] - pad && x <= d.rect[2] + pad && z >= d.rect[1] - pad && z <= d.rect[3] + pad);
 function serviceSpot(s, type, tier) {
@@ -1649,7 +1677,7 @@ function gmBuildSpot(s, type, rings = [3.5, 5.5, 7.5], anchors = ownedPlots(s).s
 }
 // Everything the farm can use, most basic first, several at once: storage, a water tank and later a drip line and shade on
 // every tier with fields, enough processing for the harvest, the machines, then upgrades of what stands.
-const UPGRADE_FIRST = ['silo', 'well', 'dryer', 'wetMill', 'dripLine', 'pulper', 'motorbike', 'tillerCart', 'farmTruck'];
+const UPGRADE_FIRST = ['silo', 'well', 'dryer', 'wetMill', 'dripLine', 'pulper'];
 function gmBuildNeeds(s) {
   const r = region(s), crew = assignedUnits(s, s.world.currentRegion, 'farm').filter(u => u.active !== false), out = [];
   if (!r) return out;
@@ -1681,7 +1709,7 @@ function gmBuildNeeds(s) {
   }
   const stations = countOf(s, 'dryer') + countOf(s, 'wetMill');
   if (planted >= 6 && stations < Math.ceil(planted / 15)) addOn(planted >= 12 && !countOf(s, 'wetMill') ? 'wetMill' : 'dryer', `station:${stations}`, thinnest(['dryer', 'wetMill']), stations === 0); // the first is a basic, the rest must pay
-  for (const [type, job] of [['pulper', 'process'], ['motorbike', 'haul'], ['tillerCart', 'haul'], ['farmTruck', 'haul']]) if (!countOf(s, type) && has(job)) addOn(type, type, thinnest([type]), false);
+  if (!countOf(s, 'pulper') && has('process')) addOn('pulper', 'pulper', thinnest(['pulper']), false);
   for (let t = 0; t < 4; t++) { const here = tierPlots(t); if (here.length < 6) continue;
     if (!onTier('dripLine', t)) add('dripLine', `drip:${t}`, here.slice(0, 12), false, t);
     if (!onTier('shadeTree', t) && here.some(p => BUILDINGS.shadeTree.effect.crops.includes(r.plots[p.id]?.crop))) add('shadeTree', `shade:${t}`, here.slice(0, 12), false, t); } // shade only helps the crops it lists
@@ -1725,7 +1753,7 @@ export function gmStaffPlan(s, now = Date.now()) {
   const H = FARM_MANAGER.hands, own = fmOf(s).auto && gmOf(s) ? gmHandsPerMin(gmOf(s)) / H.jobsPerPicker : 0;
   const want = { plant: Math.min(8, Math.max(own ? 0 : 1, Math.ceil((empty + growth) / 6) - Math.floor(own * (1 - H.harvestShare)))), harvest: N.harvest, water: N.water, process: Math.ceil(stations / 2),
     haul: planted.length >= 6 && storeBuildings(s).length ? N.haul : 0, prune: N.prune,
-    build: crew.length >= 2 && avail >= 400 ? 1 : 0, expand: crew.length >= 3 && avail >= 600 && nextEstate(s) ? 1 : 0, livestock: crew.length >= 3 && avail >= 800 ? 1 : 0 };
+    build: crew.length >= 2 && avail >= 400 ? 1 : 0, expand: crew.length >= 3 && avail >= 600 && nextEstate(s) ? 1 : 0 };
   const order = Object.keys(want);
   return order.map((job, i) => { const h = have(job); return { job, want: want[job], have: h, short: want[job] - h, i }; })
     .filter(x => x.want > 0 && (x.have === 0 || x.short >= 0.5)).sort((a, b) => b.short / b.want - a.short / a.want || a.i - b.i);
@@ -1784,24 +1812,13 @@ function tierWorth(s) {
     return Math.max(1e-6, ...rates, 0);
   });
 }
-/** Livestock once the purse is comfortable: a barn first, then the cheapest animal that fits. */
-function gmHerdNeed(s) {
-  if (assignedUnits(s, s.world.currentRegion, 'farm').length < 3) return null;
-  for (const type of countOf(s, 'barn') ? ['chickenCoop', 'goat', 'cow'] : ['barn']) {
-    const cost = buildCost(s, type);
-    if (buildError(s, type) || s.player.coins < cost * 5) continue;
-    const spot = gmBuildSpot(s, type);
-    if (spot) return { type, x: spot.x, z: spot.z, cost };
-  }
-  return null;
-}
 /** The specialist job behind one of the manager's decisions (null = nobody but him does it). */
 export function orderJob(act) {
   if (act?.type === 'land/buyParcel') return 'expand';
   if (act?.type === 'build/upgrade') return 'build';
   if (act?.type !== 'build/place') return null;
   const t = act.payload?.type;
-  return t === 'field' ? 'openField' : t === 'barn' || BUILDINGS[t]?.animal ? 'livestock' : 'build';
+  return t === 'field' ? 'openField' : 'build';
 }
 /** Someone on shift can carry out this job. */
 export const crewFor = (s, job) => assignedUnits(s, s.world.currentRegion, 'farm').some(u => u.active !== false && doesJob(u, job));
@@ -1816,8 +1833,9 @@ export function orderSpot(o) {
  * comes out equal (at most one apart), and within that each trade is spread as evenly as it can be. Pins are kept and counted.
  * On a tie a unit keeps the tier it has, so nobody walks for nothing.
  */
+export const openTiers = s => [...new Set(ownedPlots(s).map(p => tierIndexAt(p.x, p.z)))].sort((a, b) => a - b);
 export function planTiers(s) {
-  const open = [...new Set(ownedPlots(s).map(p => tierIndexAt(p.x, p.z)))].sort((a, b) => a - b), out = {}, on = {};
+  const open = openTiers(s), out = {}, on = {};
   const tiers = open.length ? open : [0], pins = fmOf(s).pins, prev = s.gm?.tiers || {}, total = [0, 0, 0, 0];
   const crew = assignedUnits(s, s.world.currentRegion, 'farm').sort((a, b) => String(a.uid).localeCompare(String(b.uid)));
   const sizes = {}, put = (u, t) => { out[u.uid] = t; (on[u.type] ||= [0, 0, 0, 0])[t]++; total[t]++; };
@@ -1886,7 +1904,6 @@ const RULE_ARGS = {
     return null;
   },
   fieldNeed: (s, snap, x) => ({ payload: { type: 'field', x: x.x, z: x.z }, key: `${x.x},${x.z}`, cost: x.cost, value: x.value, params: {} }),
-  herdNeed: s => { const n = gmHerdNeed(s); return n ? { payload: { type: n.type, x: n.x, z: n.z }, key: n.type, cost: n.cost, value: Math.max(1, n.cost / 20), params: {} } : null; },
   buildNeed: (s, snap, x) => ({ ...(x.upgrade ? { act: { type: 'build/upgrade', payload: { uid: x.uid, x: x.x, z: x.z } } } : { payload: { type: x.type, x: x.x, z: x.z } }), key: x.key, cost: x.cost, value: x.value, essential: !!x.basic, params: { building: x.type } }),
   bestApplicant: (s, snap) => {
     const board = applicants(s, snap.zone);
@@ -2060,6 +2077,20 @@ export function gmPermission(s, c) {
   if (s.player.coins < c.cost) return gmLoanFor(s, c) ? 'loan' : 'suggest';
   return 'do'; // everything else is his call
 }
+/** The player handed this zone's team to the manager (staff board button), and he is able to act on it. */
+export const gmHanded = (s, zone) => !!(gmOf(s) && s.gm.handed?.[zone] && s.gm.mode !== 'advisor' && (zone !== 'farm' || fmOf(s).auto));
+const STAFF_JOB_CAT = { 'staff/upgradeStat': 'upgrade', 'staff/upgradePart': 'upgrade', 'staff/buyGear': 'upgrade', 'staff/buySoftware': 'upgrade', 'staff/fire': 'fire', 'staff/swapShift': 'shift', 'staff/setActive': 'shift', 'staff/care': 'care', 'staff/resume': 'care', 'staff/keep': 'care', 'staff/recruit': 'hire', 'staff/hire': 'hire' };
+/** What the manager did to this zone's team today: counts per kind of job, coins spent, and the jobs themselves (newest first). */
+export function gmStaffReport(s, now, zone) {
+  const n = { upgrade: 0, fire: 0, shift: 0, care: 0, hire: 0 }, rows = [];
+  let spent = 0;
+  for (const r of histRows(s, { zone, day: dayKey(now) })) {
+    const cat = r.gm === 1 && r.type === 'did' ? STAFF_JOB_CAT[r.extra?.act] : null;
+    if (!cat) continue;
+    n[cat]++; spent += r.extra.cost || 0; rows.push({ at: r.at, cat, reason: r.extra.reason, cost: r.extra.cost || 0 });
+  }
+  return { n, spent: Math.round(spent), rows };
+}
 /** A plan item paid from the care wallet (care of a unit). */
 export const isCareItem = item => item?.act?.type === 'staff/care';
 /** Care wallet per GM.careWallet.windowMin played minutes: max(min, rosterMul × Σ per unit of this region). */
@@ -2226,7 +2257,10 @@ export const isChestLevel = lvl => CHEST_LEVELS.includes(lvl);
 // ---------- loan ----------
 // Loans (management-rules §2.7 / §4.5): s.loans[] (oldest first, ≤ LOAN.maxOpen).
 /** Open loans, oldest first. */
-export const loansOf = s => (Array.isArray(s.loans) ? s.loans : []).filter(ln => ln && ln.owed > 0);
+export const allLoans = s => (Array.isArray(s.loans) ? s.loans : []).filter(ln => ln && ln.owed > 0);
+/** A loan belongs to the city it was taken in: only that city's Gold repays it (null: carried over the Level-10 reset, not settled yet). */
+export const loanHere = (s, ln) => ln.regionId == null || ln.regionId === s.world?.currentRegion;
+export const loansOf = s => allLoans(s).filter(ln => loanHere(s, ln));
 /** Total still owed on every open loan. */
 export const loanTotal = s => Math.round(loansOf(s).reduce((n, ln) => n + ln.owed, 0) * 100) / 100;
 /** A loan ran past its term: no new loan until every late loan is paid ("không thể vay"). */

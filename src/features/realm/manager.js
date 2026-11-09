@@ -29,6 +29,8 @@ import { makeCanvasSprite, drawEmoji, dampK, FONT } from './util.js';
 import { t } from '../../i18n/index.js';
 
 const L = GM.look;
+/** Only someone you hired stands in the world: Auto works through the farmer (realm/index.js updateFarmer). */
+const hiredManager = state => { const gm = gmOf(state); return gm?.isAuto ? null : gm; };
 const COLOR = L.color;
 const SHIRT = '#f6f3ec';
 const CAP = '#4e2c80';
@@ -178,7 +180,7 @@ export function createManager({ scene, say = null, navigate = null, isPaused = (
   const visibleNow = () => !!zone && AREA[zone] === view;
 
   function read(state) {
-    const gm = gmOf(state);
+    const gm = hiredManager(state);
     info.has = !!gm; info.chaos = !!chaosOf(state);
     if (!gm) { info.open = 0; info.urgent = info.waiting = info.strike = info.sad = false; return; }
     const P = playedMs(state);
@@ -195,7 +197,7 @@ export function createManager({ scene, say = null, navigate = null, isPaused = (
   }
 
   function sync(state) {
-    const gm = gmOf(state), z = state.world?.currentRegion ? gmZone(state) : null;
+    const gm = hiredManager(state), z = state.world?.currentRegion ? gmZone(state) : null;
     zone = z;
     for (const k of ['farm', 'shop']) desks[k].root.visible = k === 'shop' && k === z && (!!gm || !!chaosOf(state)); // on the farm he has no desk: he walks the fields
     const want = gm && z ? `${gm.uid}:${gm.name}:${gm.gender}` : '';

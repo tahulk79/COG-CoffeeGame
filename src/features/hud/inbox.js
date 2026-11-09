@@ -118,6 +118,7 @@ export function rowText(s, r) {
     switch (r.type) {
       case 'did': return x?.cost > 0 ? T('hud.gm.log.didCost', { what, coins: fmt(x.cost) }) : T('hud.gm.log.did', { what });
       case 'approved': case 'asked': case 'expired': case 'denied': case 'failed': case 'later': return T(`hud.gm.log.${r.type}`, { what });
+      case 'handed': case 'takenBack': return T(`hud.gm.log.${r.type}`);
       case 'hired': return T('hud.gm.log.hired', { name: x?.name || '', coins: fmt(x?.fee || 0) });
       case 'left': return T(x?.why === 'fired' ? 'hud.gm.log.fired' : x?.why === 'quit' ? 'hud.gm.log.quit' : 'hud.gm.log.left', { name: x?.name || '' });
       case 'poached': case 'refused': return T(`hud.gm.log.${r.type}`, { rival: x?.rival || '' });

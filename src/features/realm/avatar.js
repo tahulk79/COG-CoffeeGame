@@ -7,6 +7,7 @@ import { createPlayerMotion } from '../../characters/motion.js';
 import { createPerson } from '../../characters/player.js';
 import { BOUNDS, PLAYER_SPAWN, farmGroundY } from '../../core/config/layout.js';
 import { clamp, dampK } from './util.js';
+import { disposeScene } from '../../shared/three/dispose-scene.js';
 
 const SPEED = 5.2;
 const RADIUS = .4;
@@ -25,6 +26,7 @@ export async function createAvatar({ scene, gender }) {
 
   let goal = null; // {x, z} final walk target
   let onArrive = null;
+  let autoWalk = false;         // this walk was started by Auto nông trại (a walk of the player's replaces it)
   let navigate = null;          // (sx, sz, tx, tz) → [{x, z}] waypoints
   const path = [];              // remaining waypoints (last = goal)
   let watch = 0, watchX = 0, watchZ = 0, repaths = 0;
@@ -116,7 +118,9 @@ export async function createAvatar({ scene, gender }) {
     root,
     position: root.position,
     get moving() { return !!goal || keyDir.lengthSq() > 0; },
-    walkTo(x, z, arrive = null) {
+    get autoWalking() { return !!goal && autoWalk && keyDir.lengthSq() === 0; },
+    walkTo(x, z, arrive = null, { auto = false } = {}) {
+      autoWalk = auto;
       goal = { x: clamp(x, bounds.minX, bounds.maxX), z: clamp(z, bounds.minZ, bounds.maxZ) };
       onArrive = arrive; stuck = 0; repaths = 0; watch = 0; watchX = root.position.x; watchZ = root.position.z;
       plan(goal.x, goal.z);
@@ -129,6 +133,6 @@ export async function createAvatar({ scene, gender }) {
     setBounds(b) { bounds = b || BOUNDS; },
     teleport(x, z, yaw = null) { root.position.set(x, farmGroundY(x, z), z); goal = null; onArrive = null; path.length = 0; if (yaw !== null) root.rotation.y = yawGoal = yaw; },
     update,
-    dispose() { motion?.dispose(); root.removeFromParent(); },
+    dispose() { motion?.dispose(); disposeScene(root); root.removeFromParent(); }, // loadPlayer fetches a fresh GLB per realm: nothing here is shared
   };
 }

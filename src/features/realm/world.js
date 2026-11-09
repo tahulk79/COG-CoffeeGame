@@ -26,6 +26,8 @@ import { gardenStyleOf } from '../../core/config/economy.js';
 import { loadPlant, createPlant, createPlantInstances } from '../../shared/three/gedeo-vegetation.js';
 import { farmTex, farmMaterial, blendSoil } from '../../shared/three/farm-textures.js';
 import { getQuality } from '../../shared/vfx/index.js';
+import { disposeInstances } from '../../shared/three/dispose-scene.js';
+import { createInstanceCull } from './instance-cull.js';
 
 const ROAD_COLOR = 0xe6a462;
 const WHITE = new THREE.Color(1, 1, 1); // warm orange-tan dirt
@@ -306,6 +308,7 @@ function dynamicInstances(geometry, material, statics, groups) {
   const cap = statics.length + Object.values(groups).reduce((n, l) => n + l.length, 0);
   const mesh = new THREE.InstancedMesh(geometry, material, Math.max(1, cap));
   mesh.raycast = () => {};
+  mesh.userData.cullable = true;
   let key = null;
   const mirrors = []; let last = [[], null, ''];
   // skip(it) → true leaves that instance out (e.g. an orchard tree under a field); skipKey = its signature.
@@ -321,6 +324,7 @@ function dynamicInstances(geometry, material, statics, groups) {
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     mesh.computeBoundingSphere();
+    mesh.userData.cullDirty = true;
   }
   show([]);
   return { mesh, show, statics, groups, mirrors, get last() { return last; } };
@@ -842,6 +846,7 @@ export function createWorld({ scene, templates }) {
       });
       mesh.castShadow = true; mesh.receiveShadow = true;
       mesh.raycast = () => {};
+      mesh.userData.cullable = true;
       target.add(mesh);
       return mesh;
     };
@@ -1215,7 +1220,7 @@ export function createWorld({ scene, templates }) {
   }
 
   return {
-    group, areas, mats, gate, gatePicker, tierPickers: () => dressing?.pickers?.() || [], moveTierSign: (seed, x, z) => dressing?.moveSign?.(seed, x, z) || false, hideTierSign: (seed, b) => dressing?.hideSign?.(seed, b), sync, update,
+    group, areas, mats, gate, gatePicker, cull: createInstanceCull(group), tierPickers: () => dressing?.pickers?.() || [], moveTierSign: (seed, x, z) => dressing?.moveSign?.(seed, x, z) || false, hideTierSign: (seed, b) => dressing?.hideSign?.(seed, b), sync, update,
     /** Static decor the player cannot walk through (the city's houses). */
     blockers: city.blockers,
     /** Shows only one area: 'farm' | 'cafe' (null → both, used while shaders compile). */
@@ -1231,6 +1236,8 @@ export function createWorld({ scene, templates }) {
       fence.geometry.dispose(); roadMesh.geometry.dispose(); trailMesh.geometry.dispose();
       gridLines.geometry.dispose(); saleTint.geometry.dispose();
       for (const d of disposables) d.dispose?.();
+      dressing?.dispose();
+      disposeInstances(group); // the realm's final disposeScene no longer sees this group
       group.removeFromParent();
     },
   };

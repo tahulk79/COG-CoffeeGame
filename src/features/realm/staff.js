@@ -48,6 +48,7 @@ import * as THREE from 'three';
 import { STAFF, CROPS, CROP_ORDER, DRINKS, STAFF_BREAKS, ROBOT_TASKS, ROBOT_AUTO, unitSpeed, batteryMinutes, slackMul, hasRule, robotTask, mistakeChance, partTier, isHardDrink, BEANS, BUILDINGS, CREW, FUNNY, goofFee, funnyRoll, gmCalmMul, goofRoll, goofHold, knows, isHardCrop, jamChance, energyMax, RIVAL, BOOKS, GM, craftSpeed, gearWalk, gearJob, hasSoftware, SOFTWARE, STAFF_SIM, CLOCK } from '../../core/config/economy.js';
 import { PARCELS, FIXED, FARM_WELL, farmGroundY, farmRouteDist, tierIndexAt } from '../../core/config/layout.js';
 import { FARM_MANAGER, AUTO } from '../../core/config/economy.js';
+import { getQuality } from '../../shared/vfx/index.js';
 import { managerCropFor } from '../../core/farm-manager.js';
 import { fmOf, easyCropFor, pickCropFor, harvestUrgency, assignedUnits, ownedPlots, plotState as readPlotState, cropUnlocked, seedCost, capacity, stored, plotOf, tileAt, seatCount, seatsUsed, brewSlots, seatPatienceRatio, beanBuyQuote, plotGrowMs, canBrew, region as regionOf, unitState, unitBlocked, unitWorking, stateSpeedMul, quickFix, upgradableStats, buildingsOf, footprint, needs, careError, chaosSlackMul, gmOf, gmThinkSeconds, workerPoach, planCropFor, recipeOf, orderSpot, prodError, collectError, treeOld, pruneCost, dripCovers, haulCapacity, pileCount, cargoCount, storeBuildings, bucketPlots } from '../../core/derive.js';
 import { assignPosts, pickShopJob, orderBlock, waitsForBrew, secondCup, nearestFirst, urgencyK, facing, yieldsTo, isReady, POST_JOBS, autoTask, ROBOT_POST, allows, ctxTakes, TICKS, vitalsInterval, vitalsNoop, timerDue, poseOf, stateIconKey, showsFix, knockStep, KNOCK } from './staff-brain.js';
@@ -72,7 +73,7 @@ const WORK = STAFF_SIM.work;   // seconds per job by unit type (core config)
 const ICON = { harvest: '🌾', plant: '🌱', brew: '☕', order: '🧾', deliver: '🚶', phone: '📱', giggle: '😂', zzz: '💤', battery: '🔋', charged: '⚡', noBeans: '☕❌', water: '💧', prune: '✂️', spray: '🛸', process: '🫘', haul: '📦', noBatch: '🫘', cantDo: '❓', goofPlay: '🎮', goofLost: '🤷', botLost: '📡', botDock: '🔌', noPile: '🧺', noStore: '🏚️', noWell: '🚱', growing: '⏳', storageFull: '📦', noSeeds: '💸', noPlots: '🏞️',
   tired: '😮‍💨', hungry: '🍔', sulking: '😤', lunch: '🍽️', overheat: '🔥', jam: '⚙️', bench: '🪑' };
 for (const [id] of [...FUNNY.worker, ...FUNNY.robot]) ICON[`f_${id}`] = '❗';
-for (const job of ['openField', 'expand', 'build', 'livestock']) ICON[`x_${job}`] = '🛠️';
+for (const job of ['openField', 'expand', 'build']) ICON[`x_${job}`] = '🛠️';
 // Staff manager poses (§9).
 const SIT_Y = -.32;            // m: body lowered when sitting (lunch, exhausted)
 const FACE_AWAY = Math.PI;     // sulking: back to the camera (the view looks north)
@@ -140,7 +141,7 @@ function plotState(state, id, now) {
   if (!v) { v = readPlotState(state, id, now); plotMemo.m.set(id, v); }
   return v;
 }
-export function createStaff({ scene, store, vfx, templates = {}, pads, navigate = null, getFocus = () => null, getActiveCrop = () => null, getCarrying = () => null, getSeat = () => null, getQueued = () => null, canStand = () => true, isPaused = () => false, say = null, getPlayerPos = () => null, getManagerPos = () => null, isWalkable = null }) {
+export function createStaff({ scene, store, vfx, templates = {}, pads, navigate = null, getFocus = () => null, getActiveCrop = () => null, getCarrying = () => null, getSeat = () => null, getQueued = () => null, canStand = () => true, isPaused = () => false, say = null, getPlayerPos = () => null, getManagerPos = () => null, isWalkable = null, autoOnFoot = () => false }) {
   const group = new THREE.Group();
   group.name = 'realm-staff';
   scene.add(group);
@@ -732,7 +733,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     let piles = plots.filter(p => !claimed(`plot:${p.id}`) && pileCount(r.plots[p.id]) > 0);
     const chains = e.kind === 'robot' ? partTier(e.u, 'battery') >= 1 : rule(e, 'chainPiles');
     if (load > 0) {
-      if (chains && load < haulCapacity(state, me)) piles = piles.filter(p => Math.hypot(p.x - p0.x, p.z - p0.z) <= CREW.haulChainM); else piles = [];
+      if (chains && load < haulCapacity(me)) piles = piles.filter(p => Math.hypot(p.x - p0.x, p.z - p0.z) <= CREW.haulChainM); else piles = [];
       if (!piles.length) {
         if (stored(state) >= capacity(state)) { e.reason = 'storageFull'; return null; }
         const spot = machineSpot(state, near(e, stores));
@@ -1295,7 +1296,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     if ((timers.loan += dt) >= CLOCK.loanTickSeconds) { timers.loan = 0; if (state.loans?.length) act('loan/tick', {}); }
     gmTimers(dt, state);
     // Auto nông trại: a round every AUTO.everySec of played time while a run is on (the player keeps playing).
-    if (state.autoplay?.active) { if ((timers.auto += dt) >= AUTO.everySec) { const ms = Math.round(timers.auto * 1000); timers.auto = 0; act('auto/tick', { ms, skip: [...claims.keys()].filter(k => k.startsWith('plot:')).map(k => k.slice(5)) }); } }
+    if (state.autoplay?.active) { if ((timers.auto += dt) >= AUTO.everySec) { const ms = Math.round(timers.auto * 1000); timers.auto = 0; act('auto/tick', { ms, roll: Math.random(), skip: autoOnFoot() ? ownedPlots(state).map(p => p.id) : [...claims.keys()].filter(k => k.startsWith('plot:')).map(k => k.slice(5)) }); } } // farmer on foot: this round only counts the time and sells, he does the jobs himself
     else timers.auto = 0;
     if (!units.size) return;
     // The first call only starts the reducer's clock (once per session, so a failed call cannot repeat every frame).
@@ -1316,6 +1317,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     const gm = gmOf(state);
     if (!gm) { timers.gmThink = timers.gmPay = timers.gmRival = 0; return; }
     if ((timers.gmThink += dt) >= gmThinkSeconds(gm)) { timers.gmThink = 0; act('gm/think', { roll: Math.random() }); }
+    if (gm.isAuto) { timers.gmHands = timers.gmPay = timers.gmRival = 0; return; } // field work is auto/tick; no salary, no rival
     if ((timers.gmHands = (timers.gmHands || 0) + dt) >= FARM_MANAGER.hands.everySec) { timers.gmHands = 0; if (fmOf(state).auto) act('gm/hands', { skip: [...claims.keys()].filter(k => k.startsWith('plot:')).map(k => k.slice(5)) }); }
     if ((timers.gmPay += dt) >= 60 || !state.gm.payAt) { timers.gmPay = 0; act('gm/payroll', {}); }
     if ((timers.gmRival += dt) >= GM.poach.everyMinutes * 60) { timers.gmRival = 0; act('gm/rivalVisit', { roll: Math.random() }); }
@@ -1348,7 +1350,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
   // Only the visuals change: every unit keeps working wherever it is.
   let lodT = 0;
   function lodRound() {
-    const f = getFocus(), L = FARM_MANAGER.lod;
+    const f = getFocus(), L = getQuality() === 'low' ? FARM_MANAGER.lod.low : FARM_MANAGER.lod;
     if (!f) return;
     const list = [...units.values()].filter(e => e.zone === 'farm').map(e => ({ e, d: Math.hypot(e.root.position.x - f.x, e.root.position.z - f.z) })).sort((a, b) => a.d - b.d);
     list.forEach(({ e }, i) => {
@@ -1475,6 +1477,8 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     group, sync, update,
     /** True when a staff member is bringing this order's cup (the player must not pick it up too). */
     isClaimed: orderId => claims.has(`order:${orderId}`),
+    /** True when a crew member is on this field. */
+    plotClaimed: plotId => claims.has(`plot:${plotId}`),
     /** What a unit is doing now: 'harvest' | 'plant' | 'brew' | 'order' | 'deliver' | 'noBeans' | 'phone' | 'battery' | '' (idle). */
     statusOf: uid => { const e = units.get(uid); return e?.stopped ? e.stopped.kind : e?.flash > 0 ? '' : e?.status || ''; },
     /**

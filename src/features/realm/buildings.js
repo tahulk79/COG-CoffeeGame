@@ -24,7 +24,7 @@ const DECK_H = .14;
 const DECK_COVERAGE = 0; // no wooden deck under any building any more (founder 2026-11-08): the model stands on the ground
 const RISE = .7;
 // Effects while a machine runs: [particle kind, per second, spread in metres].
-const PROD_FX = { wetMill: [['splash', 5, 1.4], ['mist', 2, 1.2]], dryer: [['steam', 2.5, 2]] };
+const PROD_FX = { wetMill: [['splash', 5, 1.4], ['mist', 2, 1.2]], dryer: [['steam', 4, 5]] };
 const BAR_W = 1.5, BAR_H = .26, BAR_FILL_W = BAR_W * .92, BAR_FILL_H = BAR_H * .62; // production bar (world m)
 // Café counter signs. Label text: realm.sign.* when the locale has it, else the building name.
 const SIGNS = {
@@ -423,7 +423,6 @@ export function createBuildings({ scene, prefabs, templates, vfx }) {
       if (e.prod) e.prod.job = b.job || null; // saved batch: update() reads its stage every frame
       if (e.level !== b.level) {
         e.level = b.level;
-        const sz = BUILDINGS[b.type].effect?.size?.[Math.min(b.level || 1, 5) - 1]; if (sz && !BUILDINGS[b.type].animal) e.model.scale.setScalar(sz); // upgrades make it bigger
         e.badge?.set(t('realm.level', { level: b.level }));
         if (b.type === 'terrace') setTerraceLevel(e, b.level);
       }
@@ -518,7 +517,7 @@ export function createBuildings({ scene, prefabs, templates, vfx }) {
     const e = entities.get(uid);
     if (!e) return;
     const d = BUILDINGS[e.type];
-    if (!d.decor && !d.animal && d.use !== 'decor' && e.height >= 1) { startBuild(e, time); return; }
+    if (!d.decor && d.use !== 'decor' && e.height >= 1) { startBuild(e, time); return; }
     e.rise = time;
     e.model.position.y = -e.height;
     vfx.burst('dust', e.root.position, { count: 14 });

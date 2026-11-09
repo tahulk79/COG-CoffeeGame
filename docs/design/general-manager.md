@@ -1,5 +1,7 @@
 # General manager (Tổng quản lý): engineering spec
 
+> **2026-11-09, founder: the farm no longer hires a manager, it uses Auto, a manager by the hour** (`docs/design/v3-gdd.md`, section Auto). While a run is on, `s.gm.unit` holds a stand-in (`isAuto: true`) that goes through the same `gm/think`. It never borrows, files no signature tasks, gets no salary and cannot be poached. The café still hires one as described below.
+
 > **Superseded in part by `management-rules.md` (v1.1, founder answered §8 "theo đề xuất", 2026-11-08)** for: the
 > inbox (Việc cần duyệt — requests are played-time tasks with reminders, expiry penalties, late approval only while the
 > same manager is here), the licences (all five from Lv6, kept by the Level-10 wipe), loans (the GM *does* propose a

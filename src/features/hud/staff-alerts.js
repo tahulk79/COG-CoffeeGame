@@ -35,7 +35,7 @@ export function createStaffAlerts(ctx) {
       else if (INFO_ONLY.includes(why)) out.push({ u, key: why, fix: null, pri: 2 });
     }
     for (const [why, n] of Object.entries(waiting)) out.push({ need: why, n, key: `${why}${n}`, pri: -1 });
-    if (crew.length && !gmOf(s) && zoneNow() === 'farm') out.push({ noGm: true, key: 'noGm', pri: -2 });
+    if (crew.length && !gmOf(s) && zoneNow() === 'farm' && ((s.autoplay?.runs || 0) > 0 || s.autoplay?.saved > 0)) out.push({ noGm: true, key: 'noGm', pri: -2 }); // a run waiting to be used; a nudge only while it is free to take
     return out.sort((a, b) => a.pri - b.pri);
   }
   function payAll(rows) {
@@ -50,7 +50,7 @@ export function createStaffAlerts(ctx) {
   }
   function row(s, r) {
     if (r.noGm) return h('li', { class: 'hud-al-row is-p0' }, h('div', { class: 'hud-al-who' }, h('strong', null, T('hud.al.noGm')), h('small', null, T('hud.al.noGmSub'))),
-      h('button', { type: 'button', class: 'hud-al-see', on: { click: () => ctx.staffModal.open({ tab: 'gm' }) } }, T('hud.hire')));
+      h('button', { type: 'button', class: 'hud-al-see', on: { click: () => ctx.onTool('auto') } }, T('hud.auto.open')));
     if (r.need) return h('li', { class: 'hud-al-row is-p0' }, h('div', { class: 'hud-al-who' }, h('strong', null, T(`hud.al.need.${r.need}`)), h('small', null, T('hud.al.waitingN', { n: r.n }))),
       h('button', { type: 'button', class: 'hud-al-see', on: { click: () => ctx.openBuild(FARM_NEED[r.need]) } }, T('hud.al.build')));
     const issue = r.key === 'funny' ? `${T(`funny.${r.u.stopped.id}.${r.u.stopped.level}`)} · ${T('hud.uc.level', { n: r.u.stopped.level })}` : T(`hud.al.${r.key}`);

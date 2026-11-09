@@ -2,10 +2,10 @@
 // Venue card ({ kind: 'venue', venue }, docs/design/cafe-street.md §3.8): a street shop — icon, name, pitch, menu with
 // prices; locked → level gate or "Open X 🪙cost" (shop/openVenue; a 2nd tap after paying is a core noop); open →
 // ⭐ rating (+ review count), sold this session (ctx.venueSold, counted in feedback.js) and "Go to X" (realm.focusShop).
-import { BUILDINGS, BARN_ANIMALS, CROPS, GOODS, GOOD_ORDER, VENUES, VENUE_ITEMS, PERENNIAL , GARDEN } from '../../core/config/economy.js';
+import { BUILDINGS, CROPS, GOODS, GOOD_ORDER, VENUES, VENUE_ITEMS, PERENNIAL , GARDEN } from '../../core/config/economy.js';
 import { PARCELS, lotAllows, terrainOfLot, climateOfLot, estateOfLot, ESTATE_FIELDS } from '../../core/config/layout.js';
 import { beanPrice, buyerNow, treeHealth, unlockedCrops, nextEstate, parcelCost, climateOfPlot, climateFit, beanMix, sellQuote, plotGrowMs as plotGrowMsOf, treeAge, treeOld, pruneCost, region, plotOf, plotState, upgradeCost, upgradeError, levelCap, parcelError, seedCost, capacity, stored, goodCount, seatCount, seatsUsed, venueError, venueOpen, venueRating, venueReviews, venueItems,
-  removeError, removeRefund, wellBonus, recipeIOFor, jobState, prodError, missingInput, collectError, countOf, maxCount, buildCost, buildError, housingOf, nextLimitLevel, tileAt , gardenOf } from '../../core/derive.js';
+  removeError, removeRefund, wellBonus, recipeIOFor, jobState, prodError, missingInput, collectError, countOf, maxCount, buildCost, buildError, nextLimitLevel, tileAt , gardenOf } from '../../core/derive.js';
 import { newTxId } from '../../core/store.js';
 import { h, setText } from './dom.js';
 import { modelIcon } from './model-icons.js';
@@ -369,29 +369,6 @@ export function createActionBar(ctx) {
 
   // ONE layout for every building (founder 2026-11-08), the barn screen: picture + what it does on the left, the upgrade box on the
   // right, then what it holds / makes (stock rows, production), then Move / Remove. Wide, no scrollbar.
-  function livestockIcon(def) {
-    const ico = h('span', { class: 'hud-livestock-ico', attrs: { 'aria-hidden': 'true' } }, def.icon);
-    modelIcon(def).then(url => { if (!url) return; const img = Object.assign(document.createElement('img'), { src: url, alt: '', draggable: false }); img.className = 'hud-livestock-img'; ico.replaceChildren(img); });
-    return ico;
-  }
-  // Barn: the animals you can buy here (they roam around the barn)
-  function livestockBlock(m) {
-    const s = ctx.store.state, list = region(s)?.buildings || [];
-    const have = list.filter(b => BUILDINGS[b.type]?.animal).length;
-    const grid = h('div', { class: 'hud-livestock-grid' });
-    const wrap = h('div', { class: 'hud-livestock' }, h('p', { class: 'hud-line' }, T('hud.barn.cap', { n: have, max: housingOf(s) }), have >= housingOf(s) ? ` · ${T('err.barnFull')}` : ''), grid);
-    for (const type of BARN_ANIMALS) {
-      const err = buildError(s, type), cost = buildCost(s, type), n = list.filter(b => b.type === type).length, def = BUILDINGS[type];
-      grid.append(h('div', { class: 'hud-livestock-tile' },
-        n ? h('b', { class: 'hud-livestock-n' }, `×${n}`) : null,
-        livestockIcon(def),
-        h('strong', null, T(`building.${type}`)),
-        actionButton({ id: `buy-${type}`, label: T('hud.buy'), cost, tone: 'go', disabled: !!err,
-          onClick: () => { const r = ctx.realm?.buyAnimal?.(type, m.uid); if (r && !r.ok) ctx.toast(errorText(r), 'warn'); } })));
-    }
-    return wrap;
-  }
-
   function buildingCard(m) {
     const def = BUILDINGS[m.type], st = m.store, max = def.decor ? 1 : def.upgrade.length + 1, level = m.level;
     el.classList.add('is-wide');
@@ -423,11 +400,10 @@ export function createActionBar(ctx) {
     } else top.classList.add('is-solo');
     body.append(top);
     if (m.prod) body.append(prodBlock(m));
-    if (m.type === 'barn') body.append(livestockBlock(m));
     if (st) body.append(storeBlock(m, { bare: true }));
     if (m.seats) body.append(h('p', { class: 'hud-line' }, T('hud.seats.line', { n: m.seats.used, max: m.seats.seats })));
     const tools = h('div', { class: 'hud-row hud-row--tools' });
-    if (!def.fixed && !def.animal) tools.append(actionButton({ id: 'move', label: T('hud.move'), icon: '✥', tone: 'plain', onClick: () => { if (ctx.blockedByAuto?.()) return; ctx.clearSelection(); ctx.realm?.startPlacement?.(m.type, { uid: m.uid }); } }));
+    if (!def.fixed) tools.append(actionButton({ id: 'move', label: T('hud.move'), icon: '✥', tone: 'plain', onClick: () => { if (ctx.blockedByAuto?.()) return; ctx.clearSelection(); ctx.realm?.startPlacement?.(m.type, { uid: m.uid }); } }));
     const rm = removeButton(m.uid, m, { label: T('fw.building.remove'), icon: '🗑️', confirm: true, busyNote: T('fw.building.busy') });
     if (rm) tools.append(rm);
     if (tools.childNodes.length) body.append(tools);

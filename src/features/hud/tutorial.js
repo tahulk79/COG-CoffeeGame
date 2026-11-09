@@ -8,6 +8,7 @@ import { currentStep } from '../../core/tutorial.js';
 import { h } from './dom.js';
 import { drinkName } from '../../ui/local-menu.js';
 import { T, fmt, clock } from './text.js';
+import { mascot } from './mascot.js';
 
 const HAND_SVG = '<svg viewBox="0 0 64 72" width="56" height="63" aria-hidden="true"><path d="M24 6c3.6 0 6.5 2.9 6.5 6.5V31l2.2-.9c3.2-1.3 6.6.6 7.3 3.9l.2.9 1.6-.6c3.3-1.1 6.8 1 7.3 4.4l.1.7 1.5-.4c3.4-.8 6.7 1.6 6.9 5.1l.4 9.4c.4 9.4-6.4 17.5-15.7 18.6l-7 .8c-6.6.8-13-2.6-16-8.6L10.5 50c-1.6-3.2-.4-7 2.7-8.6 2.7-1.4 6-.7 7.9 1.6l-3.2-8V12.5C17.5 8.9 20.4 6 24 6z" fill="#fff" stroke="#3d2a1a" stroke-width="3.2" stroke-linejoin="round"/><path d="M30.5 31v9M41 34v8M51 39v6" stroke="#3d2a1a" stroke-width="2.6" stroke-linecap="round" opacity=".55"/></svg>';
 
@@ -22,7 +23,7 @@ export function createTutorial(ctx) {
   // Tapping the tip never reaches the ground (the character would walk there): it glides the camera to the guided target.
   const tip = h('div', { class: 'hud-tip', hidden: true, attrs: { role: 'status', 'aria-live': 'polite' },
     on: { click: e => { if (!e.target.closest('.hud-tip-skip') && world) ctx.realm?.focus?.(world, { force: true }); } } },
-    h('span', { class: 'hud-tip-ico', attrs: { 'aria-hidden': 'true' } }, '💡'), tipText, skip);
+    mascot('hud-tip-ico'), tipText, skip);
   const hand = h('div', { class: 'hud-hand', hidden: true });
   hand.innerHTML = `<div class="hud-hand-inner">${HAND_SVG}</div>`; // static, trusted markup
   // Target off-screen: a round arrow at the screen edge points to it; tapping it glides the camera there (Hay Day: the
@@ -105,7 +106,7 @@ export function createTutorial(ctx) {
     // First field (the opening tutorial is gone): a farm with no field at all shows one tip on the Phát triển button,
     // until the first sapling is placed — a new player otherwise lands on empty grass with nothing to tap.
     const fr = region(s);
-    if (ctx.isPlaying() && fr && fr.mode !== 'cafe' && !(fr.fields || []).length && !ctx.modals.open && !ctx.sheet.openId && !ctx.realm?.placement) {
+    if (ctx.isPlaying() && fr && fr.mode !== 'cafe' && !(fr.fields || []).length && !ctx.modals.open && !ctx.sheet.openId && !ctx.realm?.placement && !ctx.realm?.planting) {
       skip.hidden = true; // a one-line hint, not the tutorial: nothing to skip (it goes once the first field is placed)
       setTip(T('hud.hint.firstField')); setWorld(null);
       setUi(document.querySelector('#hud-btn-build'));

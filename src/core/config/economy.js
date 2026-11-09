@@ -183,7 +183,8 @@ export const ROUND_LEVEL_CAP = { 1: 8, 2: 8, 3: 8 };
 //  · recipe: processing buildings run one batch of RECIPES[recipe] at a time; effect.speed / effect.batch by level
 //    (each upgrade improves ONE of them, alternating).
 //  · refund: share of the coins spent (build + upgrades) given back by build/remove (0 = cannot be removed).
-// Footprints follow each model's real aspect (2026-11-08): dryer rack 3 × 1 m, wet mill 4 × 2 m, sheds / barn 3 × 2.5 m.
+// Footprints (founder 2026-11-09, "công trình to hơn, dàn phơi thật to"): drying yard 12 × 3 m, storehouse 6 × 5 m, wet mill 7 × 3.8 m,
+// well 3 × 3 m, pulper 4 × 4 m, drip line 8 × 3 m. Size is looks and land only: price and output do not depend on it. Old saves: settle-sizes.js.
 // (older note) Farm workshops and barns are 3 × 3 m like a field: ONE cleared field = ONE building slot (explicit conversion works
 // with a single tap), and an 8 × 8 m yard still holds four of them.
 export const CELL = 2;
@@ -191,7 +192,7 @@ export const BUILDINGS = {
   // Trees, plants and flowers (shadeTree, cordia, enset, flowers, plant) are walkable: people and robots pass straight through them (founder 2026-11-09).
   // The ONE storage building (founder 2026-11-08): nothing is given at the start; build as many Storehouses as you like,
   // each adds its capacity (on top of STORAGE_BASE), upgrade or remove them (50 % back).
-  silo: { id: 'silo', zone: 'farm', use: 'building', category: 'storage', limit: 99, costGrowth: 1.35, refund: 0.5, size: [1.9, 1.6], cost: 100, round: 1, level: 1,
+  silo: { id: 'silo', zone: 'farm', use: 'building', category: 'storage', limit: 99, costGrowth: 1.35, refund: 0.5, size: [3, 2.5], cost: 100, round: 1, level: 1,
     upgrade: [60, 220, 600, 1400, 3000, 6000, 12000], model: 'gedeo/coffee-warehouse-lod0.glb', icon: '🏚️',
     effect: { capacity: [40, 70, 110, 160, 220, 300, 400, 520] } },
   orderCounter: { id: 'orderCounter', zone: 'shop', use: 'building', category: 'cafe', limit: 1, refund: 0, size: [2, 1], cost: 0, starter: true, fixed: true, round: 1, level: 1,
@@ -210,7 +211,7 @@ export const BUILDINGS = {
     effect: { priceBonus: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8] } },
   // Farm processing (Farm World 2.0): beans → dried beans. Was a passive "+% beans per harvest" bonus before layout 5.
   dryer: { id: 'dryer', zone: 'farm', use: 'building', category: 'processing', recipe: 'dry', limit: [[1, 1], [4, 2], [7, 3], [12, 4], [18, 5]], costGrowth: 1.6, refund: 0.5,
-    size: [1.5, .5], cost: 120, round: 1, level: 1,
+    size: [6, 1.5], cost: 120, round: 1, level: 1,
     upgrade: [200, 500, 1100, 2400, 4800, 9600, 19200], model: 'gedeo/drying-bed-lod0.glb', icon: '🟫',
     effect: { speed: [1, 1.25, 1.25, 1.5, 1.5, 1.75, 1.75, 2], batch: [1, 1, 2, 2, 3, 3, 4, 4] } },
   roastery: { id: 'roastery', retired: true, zone: 'farm', use: 'building', category: 'processing', recipe: 'roast', limit: [[4, 1], [6, 2], [9, 3], [14, 4]], costGrowth: 1.6, refund: 0.5,
@@ -225,21 +226,15 @@ export const BUILDINGS = {
   // next to the drying yard (natural process): faster, costs water + fuel per batch, and washed specialty lots pay a
   // bigger premium per dearer bean (washed Yirgacheffe / Sidamo is what buyers pay most for).
   wetMill: { id: 'wetMill', zone: 'farm', use: 'building', category: 'processing', recipe: 'wash', limit: [[1, 1], [6, 2], [10, 3]], costGrowth: 1.6, refund: 0.5,
-    size: [2, 1], cost: 220, round: 1, level: 1,
+    size: [3.5, 1.9], cost: 220, round: 1, level: 1,
     upgrade: [300, 700, 1500, 3200, 6400, 12800, 25600], model: 'gedeo/wet-mill.glb', icon: '🌊',
     effect: { speed: [1, 1.25, 1.25, 1.5, 1.5, 1.75, 1.75, 2], batch: [1, 1, 2, 2, 3, 3, 4, 4] } },
   // Farm machines (docs/design/farm-crew.md §3): bought and placed, each makes one trade's work faster and costs a small
-  // running fee. Drip line / pulper work by reach (radius); a hauler uses the one vehicle that carries the most.
+  // running fee. Drip line / pulper work by reach (radius).
   dripLine: { id: 'dripLine', zone: 'farm', use: 'building', category: 'processing', limit: 6, costGrowth: 1.5, refund: 0.5,
-    size: [3, 1], cost: 180, round: 1, level: 1, trueScale: 1, upgrade: [120, 300, 700, 1500], model: 'gedeo/drip-line.glb', icon: '🚿', xp: 5, effect: { radius: [12, 14, 16, 18, 20], fee: 1 } },
+    size: [4, 1.5], cost: 180, round: 1, level: 1, trueScale: 1.4, upgrade: [120, 300, 700, 1500], model: 'gedeo/drip-line.glb', icon: '🚿', xp: 5, effect: { radius: [12, 14, 16, 18, 20], fee: 1 } },
   pulper: { id: 'pulper', zone: 'farm', use: 'building', category: 'processing', limit: 2, costGrowth: 1.5, refund: 0.5,
-    size: [1.4, 1.4], cost: 350, round: 1, level: 1, trueScale: 1, upgrade: [250, 600, 1300, 2800], model: 'gedeo/pulper-machine.glb', icon: '⚙️', xp: 5, effect: { timeCut: [0.3, 0.35, 0.4, 0.45, 0.5], radius: [12, 12, 14, 14, 16], fee: 1 } },
-  motorbike: { id: 'motorbike', zone: 'farm', use: 'building', category: 'processing', limit: 1, costGrowth: 1.5, refund: 0.5,
-    size: [1.8, .8], cost: 120, round: 1, level: 1, trueScale: 1, upgrade: [100, 250, 600, 1200], model: 'gedeo/motorbike-sacks.glb', icon: '🛵', xp: 5, effect: { load: [6, 8, 10, 12, 14], tripFee: 1 } },
-  tillerCart: { id: 'tillerCart', zone: 'farm', use: 'building', category: 'processing', limit: 1, costGrowth: 1.5, refund: 0.5,
-    size: [3.4, 1.5], cost: 450, round: 1, level: 1, trueScale: 1, upgrade: [350, 800, 1800, 3600], model: 'gedeo/power-tiller-cart.glb', icon: '🚜', xp: 5, effect: { load: [14, 18, 22, 26, 30], tripFee: 2 } },
-  farmTruck: { id: 'farmTruck', zone: 'farm', use: 'building', category: 'processing', limit: 1, costGrowth: 1.5, refund: 0.5,
-    size: [2.2, 5], cost: 1500, round: 1, level: 1, trueScale: 1, upgrade: [1000, 2200, 4500, 9000], model: 'gedeo/farm-truck.glb', icon: '🚚', xp: 5, effect: { load: [30, 38, 46, 54, 64], tripFee: 6 } },
+    size: [2, 2], cost: 350, round: 1, level: 1, trueScale: 1.6, upgrade: [250, 600, 1300, 2800], model: 'gedeo/pulper-machine.glb', icon: '⚙️', xp: 5, effect: { timeCut: [0.3, 0.35, 0.4, 0.45, 0.5], radius: [12, 12, 14, 14, 16], fee: 1 } },
   // Extra storage: every barn adds its capacity to the storehouse's (sum, not max).
   // Retired 2026-11-08: same job and model as the Storehouse (silo) — one storage building now. Old saves keep theirs.
   warehouse: { id: 'warehouse', retired: true, zone: 'farm', use: 'building', category: 'storage', limit: [[3, 1], [5, 2], [7, 3], [9, 4], [13, 6]], costGrowth: 1.5, refund: 0.5,
@@ -249,7 +244,7 @@ export const BUILDINGS = {
   // Infrastructure: fields whose centre is within `radius` m grow `grow` faster. Coverage, not stacking: a field gets
   // the best well in reach, so a 2nd well only helps fields the 1st one does not reach.
   well: { id: 'well', zone: 'farm', use: 'building', category: 'infrastructure', limit: [[1, 1], [5, 2], [7, 3], [9, 4]], costGrowth: 1.5, refund: 0.5,
-    size: [1, 1], cost: 200, round: 1, level: 1,
+    size: [1.5, 1.5], cost: 200, round: 1, level: 1,
     upgrade: [250, 600, 1400, 3000, 6000, 12000, 24000], model: 'gedeo/water-tank-lod0.glb', icon: '💧',
     effect: { grow: [0.15, 0.15, 0.2, 0.2, 0.25, 0.25, 0.3, 0.3], radius: [6, 7, 7, 8, 8, 9, 9, 10] } },
   tables: { id: 'tables', zone: 'shop', use: 'building', category: 'cafe', limit: 4, refund: 0.5, size: [1, 1], cost: 60, round: 1, level: 2,
@@ -276,13 +271,6 @@ export const BUILDINGS = {
   cordia: { id: 'cordia', walkable: true, zone: 'farm', use: 'decor', category: 'infrastructure', limit: 99, costGrowth: 1.2, refund: 0.5,
     size: [1, 1], cost: 110, round: 1, level: 1, decor: true, trueScale: .5, upgrade: [], model: 'gedeo/cordia-africana-lod1.glb', icon: '🌳', xp: 4,
     effect: { radius: 6, stars: 1, crops: ['arabica'] } },
-  // Livestock (chăn nuôi): the animals of a Gedeo homestead, real-size models. Placeable anywhere on owned farm land, like any decor.
-  barn: { id: 'barn', zone: 'farm', use: 'decor', category: 'livestock', limit: 6, costGrowth: 1.15, refund: 0.5, size: [2, 2], cost: 180, round: 1, level: 1, trueScale: 0.55, upgrade: [200, 450, 900, 1800], model: 'gedeo/worker-shelter-lod0.glb', icon: '🛖', xp: 6, effect: { housing: [8, 10, 12, 15, 18] } },
-  chickenCoop: { id: 'chickenCoop', zone: 'farm', use: 'decor', category: 'livestock', limit: 12, costGrowth: 1.15, refund: 0.5, size: [.6, .6], cost: 60, round: 1, level: 1, animal: true, trueScale: 2.2, upgrade: [40, 90, 180, 360], model: 'gedeo/chicken.glb', icon: '🐔', xp: 3, effect: { size: [1, 1.1, 1.2, 1.3, 1.4] } },
-  rooster: { id: 'rooster', zone: 'farm', use: 'decor', category: 'livestock', limit: 12, costGrowth: 1.15, refund: 0.5, size: [.6, .6], cost: 70, round: 1, level: 1, animal: true, trueScale: 2, upgrade: [40, 90, 180, 360], model: 'gedeo/chicken-rooster.glb', icon: '🐓', xp: 3, effect: { size: [1, 1.1, 1.2, 1.3, 1.4] } },
-  cow: { id: 'cow', zone: 'farm', use: 'decor', category: 'livestock', limit: 8, costGrowth: 1.15, refund: 0.5, size: [1.2, 1.2], cost: 240, round: 1, level: 1, animal: true, trueScale: 1.4, upgrade: [180, 400, 800, 1600], model: 'gedeo/cow.glb', icon: '🐄', xp: 6, effect: { size: [1, 1.1, 1.2, 1.3, 1.4] } },
-  goat: { id: 'goat', zone: 'farm', use: 'decor', category: 'livestock', limit: 10, costGrowth: 1.15, refund: 0.5, size: [.9, .9], cost: 150, round: 1, level: 1, animal: true, trueScale: 1.8, upgrade: [100, 220, 450, 900], model: 'gedeo/goat.glb', icon: '🐐', xp: 5, effect: { size: [1, 1.1, 1.2, 1.3, 1.4] } },
-  farmDog: { id: 'farmDog', zone: 'farm', use: 'decor', category: 'livestock', limit: 3, costGrowth: 1.15, refund: 0.5, size: [.8, .8], cost: 90, round: 1, level: 1, animal: true, trueScale: 1.8, upgrade: [70, 160, 320, 640], model: 'gedeo/dog.glb', icon: '🐕', xp: 3, effect: { size: [1, 1.1, 1.2, 1.3, 1.4] } },
   // Enset (chuối giả) — the Gedeo companion plant of coffee gardens. Decor, real size.
   enset: { id: 'enset', walkable: true, zone: 'farm', use: 'decor', category: 'decoration', limit: 12, refund: 0.5, size: [1, 1], cost: 35, round: 1, level: 2, decor: true, trueScale: .6,
     upgrade: [], model: 'gedeo/ensete-ventricosum-lod1.glb', icon: '🌴', xp: 3 },
@@ -295,15 +283,15 @@ export const BUILDINGS = {
 // extraBase × extraGrowth^k (k = extras already placed): 20, 20, 25 … 45 at the 11th, 95 at the 21st, then at most 300 — every level-up tills 6 more free rows.
 export const FIELD = { id: 'field', zone: 'farm', use: 'field', category: 'farming', size: [.5, .5], cost: 0, round: 1, level: 1,
   upgrade: [], icon: '🟫', xp: 2, refund: 0.5, extraBase: 20, extraGrowth: 1.08, extraMaxCost: 300, extraPerLevel: 2, extraMax: 40 };
+// Planting a long row in one stroke (founder 2026-11-09): the trees stand `spacing` m apart, at most `maxTrees` per stroke. A row costs exactly
+// what its trees would cost one by one; each tree is still one field, so staff, the manager, Auto and old saves see nothing new.
+export const PLANT_ROW = { spacing: 1.5, maxTrees: 30 };
 export const fieldExtraCost = k => Math.min(FIELD.extraMaxCost, Math.round(FIELD.extraBase * FIELD.extraGrowth ** Math.max(0, k | 0) / 5) * 5); // clearing one bed never costs more than extraMaxCost
 export const fieldExtraCap = level => Math.min(FIELD.extraMax, FIELD.extraPerLevel * Math.max(1, level | 0));
 // Catalogue tabs per screen (HUD construction catalogue) and the build menu per screen.
 export const CATEGORY_ORDER = { farm: ['farming', 'processing', 'storage', 'infrastructure', 'decoration'], cafe: ['cafe', 'decoration'] };
 export const STORAGE_BASE = 30; // room on the bare ground before any Storehouse is built
-/** Animals are not built from the menu: tap a barn → buy them there (they roam around the barn). Each barn houses ANIMALS_PER_BARN. */
-export const BARN_ANIMALS = ['chickenCoop', 'rooster', 'goat', 'cow', 'farmDog'];
-export const ANIMALS_PER_BARN = 8;
-export const BUILD_MENU_FARM = ['wetMill', 'dryer', 'pulper', 'dripLine', 'motorbike', 'tillerCart', 'farmTruck', 'silo', 'well', 'shadeTree', 'cordia', 'enset', 'flowers', 'plant', 'lamp', 'barn'];
+export const BUILD_MENU_FARM = ['wetMill', 'dryer', 'pulper', 'dripLine', 'silo', 'well', 'shadeTree', 'cordia', 'enset', 'flowers', 'plant', 'lamp'];
 export const BUILD_MENU_CAFE = ['roaster', 'tables', 'kiosk', 'pastry', 'flowers', 'plant', 'lamp'];
 export const BUILD_MENU = [...new Set([...BUILD_MENU_CAFE, ...BUILD_MENU_FARM])];
 
@@ -311,11 +299,12 @@ export const BUILD_MENU = [...new Set([...BUILD_MENU_CAFE, ...BUILD_MENU_FARM])]
 // Hiring cap: a zone's team is at most STAFF_CAP.perZone (derive hireCap, err hireLimit), every hire gets a working slot,
 // counted per game zone (farm / shop), so every hire works. The bench is for resting units (and costs upkeep).
 // Workers open at Lv1; robots at Lv4 (dearer, no phone breaks: a later milestone to wait for).
-// Founder 2026-11-08: no limit by level, money decides. STAFF_CAP.perZone is only the ceiling a phone can draw.
-export const hireLimit = () => STAFF_CAP.perZone; // = working slots per zone (name kept for older imports)
+// Founder 2026-11-08: no limit by level, money decides, up to STAFF_CAP.base. Past that the team grows one per level above
+// base (Lv39 → 39 people), which is what the hire screen promises; STAFF_CAP.perZone is the ceiling a phone can draw.
+export const hireLimit = (level = 0) => Math.min(STAFF_CAP.perZone, Math.max(STAFF_CAP.base, level | 0)); // = working slots per zone
 // robotShare (docs/design/management-rules.md §2.1): robots in a zone ≤ ceil(slots × robotShare), so a robot never
 // displaces the last worker. There is no bench overflow (team per zone = level, founder rule 2026-11-07, §8 Q7).
-export const STAFF_CAP = { perZone: 30, robotShare: 0.5 };
+export const STAFF_CAP = { base: 30, perZone: 60, robotShare: 0.5 };
 /** Most robots a zone may hold at this hire cap (management-rules §2.1: ceil(slots / 2)). */
 export const robotCap = slots => Math.ceil(Math.max(0, slots | 0) * STAFF_CAP.robotShare);
 export const STAFF = {
@@ -329,7 +318,6 @@ export const STAFF = {
   barista: { id: 'barista', kind: 'worker', zone: 'shop', cost: 200, level: 1, round: 1, icon: '🧑‍🍳', effect: { brewSpeed: 0.25 }, model: 'cafe/staff.glb' },
   surveyor: { id: 'surveyor', kind: 'worker', zone: 'farm', cost: 200, level: 1, round: 1, icon: '🗺️', jobs: ['expand'], looks: { male: 'worker-supervisor-m' }, effect: { growSpeed: 0.05 }, model: null },
   builder: { id: 'builder', kind: 'worker', zone: 'farm', cost: 180, level: 1, round: 1, icon: '🔨', jobs: ['build'], looks: { male: 'worker-pruner-m', female: 'worker-processor-f' }, effect: { growSpeed: 0.05 }, model: null },
-  herder: { id: 'herder', kind: 'worker', zone: 'farm', cost: 160, level: 1, round: 1, icon: '🐄', jobs: ['livestock'], looks: { female: 'villager-elder-f', male: 'villager-elder-m' }, effect: { growSpeed: 0.05 }, model: null },
   harvestBot: { id: 'harvestBot', kind: 'robot', zone: 'farm', cost: 1200, level: 1, round: 1, icon: '🤖', file: 'robot-harvest', effect: { yieldBonus: 0.25 }, model: null },
   plantBot: { id: 'plantBot', kind: 'robot', zone: 'farm', cost: 1200, level: 1, round: 1, icon: '🤖', file: 'robot-plant', effect: { yieldBonus: 0.25 }, model: null },
   waterBot: { id: 'waterBot', kind: 'robot', zone: 'farm', cost: 1000, level: 1, round: 1, icon: '🤖', file: 'robot-water', effect: { growSpeed: 0.2 }, model: null },
@@ -338,7 +326,7 @@ export const STAFF = {
   droneBot: { id: 'droneBot', kind: 'robot', zone: 'farm', cost: 1600, level: 1, round: 1, icon: '🛸', file: 'robot-drone', effect: { yieldBonus: 0.15 }, model: null },
   brewBot: { id: 'brewBot', kind: 'robot', zone: 'shop', cost: 1500, level: 1, round: 1, icon: '🦾', effect: { priceBonus: 0.15 }, model: null },
 };
-export const STAFF_ORDER = ['picker', 'planter', 'waterer', 'processor', 'hauler', 'pruner', 'surveyor', 'builder', 'herder', 'barista', 'harvestBot', 'plantBot', 'waterBot', 'haulBot', 'pruneBot', 'droneBot', 'brewBot'];
+export const STAFF_ORDER = ['picker', 'planter', 'waterer', 'processor', 'hauler', 'pruner', 'surveyor', 'builder', 'barista', 'harvestBot', 'plantBot', 'waterBot', 'haulBot', 'pruneBot', 'droneBot', 'brewBot'];
 // Crew numbers (farm-crew.md §6). The four worker stats mean the same in every trade:
 //  speed: work + walk faster (LEVEL_STEP) · stamina: energy + what one trip carries (perStamina)
 //  accuracy: the trade's quality (mistakes, or accuracy.*) · smart: the trade's habits (rules, levels in SMART_RULES)
@@ -382,7 +370,7 @@ export const CARE = { nagChance: 0.6, nagMorale: 5, coffee: 20, coffeeEnergy: 60
 // worker slacks (STAFF_BREAKS), its starting / capped stats (§5) and the funny one adds a small bonus where they work.
 export const RECRUIT = { size: 3, refreshMinutes: 10, refreshCost: 20, worker: { farm: 'picker', shop: 'barista' },
   // trades: most needed first (nothing grows without a planter); worker = a zone's stand-in type (price checks)
-  trades: { farm: ['planter', 'picker', 'waterer', 'processor', 'hauler', 'pruner', 'builder', 'surveyor', 'herder'], shop: ['barista'] } };
+  trades: { farm: ['planter', 'picker', 'waterer', 'processor', 'hauler', 'pruner', 'builder', 'surveyor'], shop: ['barista'] } };
 export const TRAITS = {
   diligent: { icon: '😀', costMul: 1.3, slackMul: 0.4, xpMul: 1.25, bonus: null, start: { stamina: 2 } },
   lazy: { icon: '🥱', costMul: 0.6, slackMul: 2, xpMul: 0.75, bonus: null, cap: { stamina: 3 } },
@@ -445,7 +433,7 @@ export const CAREER = { shiftDayMin: 5 }; // played minutes in one shift-day (th
 // Craft skills (step 3): each job type a worker does grows its own skill by practice (count of that job). Steps at
 // `steps` jobs: Mới → Quen → Thạo → Chuyên gia. Each step: that job speedPerStep faster, its mistakes × (1 − mistakeCutPerStep).
 export const CRAFT = {
-  tasks: { farm: ['harvest', 'plant', 'water', 'process', 'haul', 'prune', 'openField', 'expand', 'build', 'livestock'], shop: ['order', 'brew', 'deliver'] },
+  tasks: { farm: ['harvest', 'plant', 'water', 'process', 'haul', 'prune', 'openField', 'expand', 'build'], shop: ['order', 'brew', 'deliver'] },
   steps: [50, 200, 600], speedPerStep: 0.05, mistakeCutPerStep: 0.25,
   mistakeTask: { drop: 'haul', unripe: 'harvest', crooked: 'plant', spill: 'deliver', wrongTable: 'deliver' },
 };
@@ -510,6 +498,7 @@ export const GM = {
   //  autoLimit = round(autoMul × I(L) / autoStep) × autoStep, bigLimit = round(bigMul × I(L) / bigStep) × bigStep,
   //  each snapped to the nearest listed option (ties snap down). highValueMul × I(L) = a sale that needs approval (P3).
   defaults: { mode: 'full', budget: 100, bigLimit: 300 },
+  handedPerThink: 4, // staff jobs he may do per round on top of his usual attention, once the player handed him the team
   limitDefaults: { autoMul: 0.3, autoStep: 50, bigMul: 1, bigStep: 100, highValueMul: 20 },
   windowMinutes: 10,
   thinkSeconds: [8, 6, 5, 4, 3], // was [20, 15, 10, 7, 5] (founder 2026-11-08: the manager must react within a phone session)
@@ -585,7 +574,7 @@ export const GM = {
   // shortage), a team of 2 ≈ 4.6; the old arrival-based demand model bought speed and gear nobody needed (the café
   // earned 110–140 coins/min LESS with the manager than without).
   load: { ema: 0.2, free: 1, span: 1 },
-  value: { jobsPerMin: { surveyor: 1, builder: 2, herder: 2, picker: 8, planter: 8, waterer: 8, processor: 6, hauler: 6, pruner: 6, barista: 8, harvestBot: 11, plantBot: 11, waterBot: 11, haulBot: 8, pruneBot: 8, droneBot: 11, brewBot: 10 }, jobsPerDrink: 3, reactionMin: 1, speedStep: 0.08, slackStep: 0.15,
+  value: { jobsPerMin: { surveyor: 1, builder: 2, picker: 8, planter: 8, waterer: 8, processor: 6, hauler: 6, pruner: 6, barista: 8, harvestBot: 11, plantBot: 11, waterBot: 11, haulBot: 8, pruneBot: 8, droneBot: 11, brewBot: 10 }, jobsPerDrink: 3, reactionMin: 1, speedStep: 0.08, slackStep: 0.15,
     staminaDowntime: 0.025, motorStep: 0.1, gearThroughput: 0.05, precision: 0.25, qualityMistakes: 3 },
   // Land (§3.6): buy when payback ≤ buyPaybackMin, the zone ≥ busyPct busy and coins ≥ coinsMul × price (or a loan
   // fits); sell when a parcel is < sellUtil used for windowMin and its refund beats LAND.sellPaybackMin of its income;
@@ -636,14 +625,14 @@ export const FARM_MANAGER = {
   recovery: { coinsMul: 1.5, minutes: 30 },
   calib: { ema: 0.15, min: 0.3, max: 1.2 },
   // Share of one harvest's value that one job of this kind creates (a model assumption, see the doc §5).
-  jobValue: { harvest: 1, plant: 0.6, water: 0.25, process: 0.3, haul: 0.25, prune: 0.15, spray: 0.15, openField: 0.2, expand: 0.1, build: 0.1, livestock: 0.05 },
+  jobValue: { harvest: 1, plant: 0.6, water: 0.25, process: 0.3, haul: 0.25, prune: 0.15, spray: 0.15, openField: 0.2, expand: 0.1, build: 0.1 },
   water: { extraUncovered: 0.5, extraMinFields: 6, walkMps: 2.2, tripWorkM: 12 },
   // The manager's own hands (he taps like you do): everySec between rounds, perMin jobs at ⚡1, +perSpeed per ⚡ step, harvestShare of a round goes to picking first.
   // incidentLoanLevels: no borrowing this many levels (or fewer) before the first region's Lv10 incident (farm-manager incidentNear).
   incidentLoanLevels: 5,
   hands: { everySec: 2, perMin: 60, perSpeed: 0.2, harvestShare: 0.7, sellAt: 0.5, jobsPerPicker: 8 },
   // Big teams: only the units nearest the camera get shadows, full-rate animation, or are drawn at all (the rest keep working).
-  lod: { everySec: 0.5, shadows: 8, fullAnim: 10, halfAnim: 18, drawn: 22 }, idleThink: 1,
+  lod: { everySec: 0.5, shadows: 8, fullAnim: 10, halfAnim: 18, drawn: 22, low: { shadows: 0, fullAnim: 4, halfAnim: 8, drawn: 12 } }, idleThink: 1,
   // Staffing from the counters (ripe, thirsty, old trees, storage): clear the backlog in clearMin and keep up with what comes in.
   // share: most of the 30-unit crew one trade may take. No new fields while ripe > picks × stopBacklogMin or more ripens than can be picked.
   staffing: { clearMin: 5, stopBacklogMin: 2, holdAutoMin: 1, holdManualMin: 10, share: { harvest: 0.5, water: 0.2, prune: 0.1, haul: 0.15 } },
@@ -779,8 +768,8 @@ export const workerJobs = u => STAFF[u?.type]?.jobs || WORKER_TASKS[STAFF[u?.typ
 /** Can this unit do this job at all (its trade, or its robot function)? */
 // The standard metrics (farm-crew.md §6): every number a trade's stats change, in one place.
 const steps = (u, stat) => statOf(u, stat) - 1, isBot = u => STAFF[u?.type]?.kind === 'robot';
-/** Units one haul trip carries: on foot + vehicle + stamina step (robot: battery tier). */
-export const haulLoadOf = (u, vehicle = 0) => CREW.haulBase + vehicle + (isBot(u) ? CREW.perBattery.haul * partTier(u, 'battery') : CREW.perStamina.haul * steps(u, 'stamina'));
+/** Units one haul trip carries: on foot + stamina step (robot: battery tier). */
+export const haulLoadOf = u => CREW.haulBase + (isBot(u) ? CREW.perBattery.haul * partTier(u, 'battery') : CREW.perStamina.haul * steps(u, 'stamina'));
 /** Plants watered per trip to the water point: bucket + watering can + stamina (robot: tank + battery tier). */
 export const bucketOf = u => (isBot(u) ? CREW.robotBucket + CREW.perBattery.water * partTier(u, 'battery')
   : TEND.bucketPlots + GEAR.items.can.plots[gearTier(u, 'can')] + CREW.perStamina.water * steps(u, 'stamina'));
@@ -856,7 +845,7 @@ export const ROBOT_WEAR = { heatPerMin: 25, coolPerMin: 40, overheatSeconds: 30,
 // café chaining / urgency / lane numbers of the pure brain.
 export const STAFF_SIM = {
   speed: { worker: 2.6, robot: 3.2 }, brewBotWalkMul: 1.15,
-  work: { surveyor: 2.5, builder: 2.5, herder: 2.5, picker: 1.2, planter: 1.2, waterer: 1, processor: 1.4, hauler: 1.4, pruner: 1.6, harvestBot: .8, plantBot: .8, waterBot: .7, haulBot: 1, pruneBot: 1, droneBot: .6, barista: .7, brewBot: .4 }, deliverSeconds: .25,
+  work: { surveyor: 2.5, builder: 2.5, picker: 1.2, planter: 1.2, waterer: 1, processor: 1.4, hauler: 1.4, pruner: 1.6, harvestBot: .8, plantBot: .8, waterBot: .7, haulBot: 1, pruneBot: 1, droneBot: .6, barista: .7, brewBot: .4 }, deliverSeconds: .25,
   chainWaitMs: 2500, twoCupM: 4, urgentRatio: .7, urgentSpeed: 1.25, laneM: 1.4,
 };
 export const partTier = (u, part) => Math.min(maxTierOf(u), Math.max(0, (u?.parts?.[part] | 0)));
@@ -894,9 +883,17 @@ export const traitEffect = (unit, key) => TRAITS[unit?.trait]?.bonus?.[STAFF[uni
 // works itself in the background — pick ripe trees (most urgent first), plant empty fields with the best affordable variety,
 // cut back worn-out trees, water, and sell everything when the storehouse is `sellAt` full. The player keeps full control
 // and can act at the same time. A round every `everySec` does up to `perRound` jobs (≈ a quick hand: 60 jobs/min).
-// Stop keeps the time left (resume later, no new run spent). It never buys land, buildings, staff or upgrades.
+// On the farm the farmer walks to each job and does it on arrival (realm index.js updateFarmer, never faster than the rounds);
+// while the player drives the avatar or is elsewhere, the rounds do the work in the background.
+// A run also works through the quest list (core/quests.js): claims what is done, opens the level gifts, and buys what a quest
+// asks for (fields, buildings, staff, land), keeping `questReserve` coins. It buys nothing that no quest asks for.
+// Stop keeps the time left (resume later, no new run spent).
 // One free run for every save; more cost in-game coins (never real money): price grows with each purchase.
-export const AUTO = { freeRuns: 1, runSeconds: 600, everySec: 2, perRound: 2, sellAt: 0.8, maxTickMs: 10000, price: 300, priceStep: 100, maxPrice: 1500 };
+// Founder 2026-11-09: Auto IS the farm's manager, by the hour (the farm can no longer hire one; the cafe still can). While a
+// run is on, a stand-in manager (s.gm.unit with isAuto) makes the same decisions as a hired one (hire, care, upgrade, split
+// the crew, build, buy land). It never borrows, files nothing for your signature, gets no salary and cannot be poached.
+// managerStars: his numbers, 1 = the same 60 jobs/min as before and no bonus on sales or incident fees.
+export const AUTO = { freeRuns: 1, runSeconds: 600, everySec: 2, perRound: 2, sellAt: 0.8, maxTickMs: 10000, workBeat: 0.3, handBackSec: 1.5, lookAhead: 6, questReserve: 60, price: 300, priceStep: 100, maxPrice: 1500, managerStars: 1 };
 export const autoPrice = bought => Math.min(AUTO.maxPrice, AUTO.price + AUTO.priceStep * (bought | 0));
 
 // Breaks: workers sometimes slack off (stand still on their phone); robots run out of battery after a while of work.
@@ -1107,7 +1104,7 @@ export const GM_SNAPSHOT_METRICS = {
   zone: ['units', 'workers', 'robots', 'blockedUnits', 'idleUnits', 'moraleMin', 'storagePct', 'storageValue', 'saleBlocked', 'ripeWaiting', 'emptyPlots',
     'busyPct', 'waitingOrders', 'takenOrders', 'readyCups', 'beans', 'beanNeed', 'beansLow', 'coins', 'owed', 'I10', 'I30', 'careNeed', 'careShort',
     'tiredOn', 'restedOff', 'freeSlots', 'hireRoom', 'robotRoom', 'piling', 'robotWorth', 'poachHere', 'landBuyOk', 'landSellOk', 'buildUpOk',
-    'repayRoom', 'topUpDue', 'trainDue', 'buildNeed', 'crewGap', 'fieldNeed', 'herdNeed', 'offscreen'],
+    'repayRoom', 'topUpDue', 'trainDue', 'buildNeed', 'crewGap', 'fieldNeed', 'offscreen'],
   unit: ['kind', 'state', 'onShift', 'hungry', 'tired', 'sulking', 'morale', 'phoneSoft', 'wear', 'recharges', 'jams', 'overheats', 'mistakes',
     'gradeD2', 'funnyWorth', 'weak', 'richUp', 'upgradeBest', 'qualityBest', 'canCharge', 'canUnjam', 'contrib'],
   building: ['prodReady', 'prodIdle'],
@@ -1195,8 +1192,6 @@ export const GM_RULES = [
     act: 'staff/recruit', args: 'crewHire', cost: 'arg', valueOf: 'arg', reason: 'crewHire' },
   { key: 'fieldBuy', group: 'capital', licence: 'land', zone: 'farm', each: 'fieldSpot', metric: 'ok', op: '==', value: true, urgency: 'growth', kind: 'land',
     act: 'build/place', args: 'fieldNeed', cost: 'arg', valueOf: 'arg', reason: 'fieldBuy' },
-  { key: 'herdBuy', group: 'capital', licence: 'hr', zone: 'farm', metric: 'herdNeed', op: '==', value: true, urgency: 'cosmetic', kind: 'land',
-    act: 'build/place', args: 'herdNeed', cost: 'arg', valueOf: 'arg', reason: 'herdBuy' },
   { key: 'richUp', group: 'capital', licence: 'hr', zone: 'farm', each: 'unit', metric: 'richUp', op: '>', value: 0, urgency: 'growth',
     act: 'staff/upgradeStat', args: 'richUp', cost: 'arg', valueOf: 'arg', reason: 'richUp' },
   { key: 'replaceWeak', group: 'capital', licence: 'hr', zone: 'farm', each: 'worker', metric: 'weak', op: '==', value: true, urgency: 'morale', kind: 'staffGrowth',
@@ -1220,3 +1215,30 @@ export const GM_RULES = [
   { key: 'topUp', group: 'capital', licence: 'topUp', zone: 'any', metric: 'topUpDue', op: '==', value: true, urgency: 'cosmetic', kind: 'topUp',
     act: 'gm/topUpSeen', args: 'none', cost: 'none', valueOf: 'none', reason: 'topUp' },
 ];
+
+// ---------- Wallets (docs/design/wallet-economy.md) ----------
+// USD: one account wallet, in integer cents. Gold: one wallet per owned city (region).
+// goldPerUsd: $1 = 100 Gold, approved by the founder on 2026-11-09. A new rate must set `rateApproved` back to false until it is signed off.
+// demoDeposit: the demo top-up gate (founder 2026-11-09): tapping a pack adds that USD, no real payment exists. Off: the gate closes.
+// sandboxPackCents: the packs it offers.
+// newFarmStarterGold: working capital for the second and later farms (always below the cheapest city, so opening farms
+// can never make money). runwayMinutes / lowGoldSeeds: when the dashboard warns that a farm is running out.
+export const WALLET = {
+  version: 1,
+  goldPerUsd: 100,
+  rateApproved: true,
+  minConvertCents: 100,
+  quickConvertCents: [100, 500, 2000],
+  demoDeposit: true,
+  sandboxPackCents: [500, 2000, 10000],
+  newFarmStarterGold: START.coins,
+  maxUsdCents: 1e12,
+  maxGold: 1e15,
+  ledgerKeep: 300,
+  requestKeep: 256,
+  bookDays: 35,
+  periods: [1, 7, 30],
+  defaultPeriod: 7,
+  runwayMinutes: 10,
+  lossMinSpent: 20,
+};

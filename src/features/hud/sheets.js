@@ -4,13 +4,14 @@ import { BUILD_MENU, BUILD_MENU_FARM, BUILD_MENU_CAFE, BUILDINGS, CATEGORY_ORDER
 import { goodCount, sellQuote, sellAllQuote, beanMix, climateFit, buildError, buildingLevel, defOf, useOf, countOf, maxCount, nextLimitLevel, buildCost, fieldAllowance, parcelError, estateOwned, nextEstate, stored, cropUnlocked, drinkUnlocked, drinkPrice, brewMs, seedCost, growMs, level, region, capacity, beanBuyQuote, upgradeError, upgradeCost, loanOf, loanError, loanTerm, loanMinLeft, creditLimit, loanTotal, loansOf } from '../../core/derive.js';
 import { PARCELS, terrainOfLot, ESTATES, ESTATE_ORDER, ESTATE_FIELDS } from '../../core/config/layout.js';
 import { newTxId } from '../../core/store.js';
+import { questList, questCount } from '../../core/quests.js';
 import { h } from './dom.js';
 import { localItemsOf } from '../../ui/local-menu.js';
 import { INGREDIENTS, INGREDIENT_ORDER, RESEARCH } from '../../core/config/research.js';
 import { countryNow, recipeKnown, recipeFound, ingredientUnlocked, testCost, testError, benchBusyIn, suppliersFound, scoutOf, contractOf, supplyOf, contractFee, buyerNow, regionGame, dayKey, methodOf, trialsHere, trialSlots, trialResults, trialError, trialField, plotState } from '../../core/derive.js';
 import { SUPPLY, supplierOf, buyerOf, FARMLAB, methodEffect, methodKey } from '../../core/config/research.js';
 import { GOODS, GOOD_ORDER } from '../../core/config/economy.js';
-import { T, fmt, duration, has } from './text.js';
+import { T, fmt, duration, has, clock } from './text.js';
 import { modelIcon } from './model-icons.js';
 import { buildingEffect } from './effects.js';
 import { actionButton, coinAmount, lockTag, needMore } from './widgets.js';
@@ -21,11 +22,11 @@ import { actionButton, coinAmount, lockTag, needMore } from './widgets.js';
 // are missing) · locked by level ("Lv N") · maxed ("More at Lv N" / "Max built"). An available card closes the sheet
 // and starts placing (data-hud-id="build-<type>" is the tutorial's target). The last tab per screen is remembered
 // (memory only). Never BUILDINGS[type] for a menu entry: 'field' lives in FIELD (D.defOf).
-export const CAT_ICON = { plant: '🌱', garden: '🌿', farming: '🌱', processing: '🏭', storage: '📦', infrastructure: '💧', decoration: '🌼', livestock: '🐄', cafe: '☕', land: '🏷️' };
+export const CAT_ICON = { plant: '🌱', garden: '🌿', farming: '🌱', processing: '🏭', storage: '📦', infrastructure: '💧', decoration: '🌼', cafe: '☕', land: '🏷️' };
 export const TERRAIN_ICON = { meadow: '🌾', garden: '🌷', pasture: '🐄', orchard: '🍎', pond: '🦆', hill: '⛰️', shop: '☕', road: '🛤️', plaza: '⛩️', wild: '🌿' };
 export const buildView = ctx => (ctx.realm?.view === 'cafe' ? 'cafe' : 'farm');
 // Farm menu = what a real coffee farm needs, in 4 tabs: sow · process & store · garden & infrastructure · land.
-export const buildTabs = view => (view === 'farm' ? ['plant', 'processing', 'garden', 'livestock', 'land'] : [...(CATEGORY_ORDER[view] || [])]);
+export const buildTabs = view => (view === 'farm' ? ['plant', 'processing', 'garden', 'land'] : [...(CATEGORY_ORDER[view] || [])]);
 const catOf = (view, cat) => (view !== 'farm' ? cat : cat === 'storage' ? 'processing' : cat === 'infrastructure' || cat === 'decoration' ? 'garden' : cat);
 const buildMenu = view => (view === 'cafe' ? BUILD_MENU_CAFE : BUILD_MENU_FARM);
 /** The catalog tab shown for the current screen (last one picked, else the first). */
@@ -475,6 +476,85 @@ export function startAuto(ctx) {
   if (r.ok && !r.noop) ctx.toast(T('hud.toast.autoStart'), 'good');
   return r;
 }
+/** Pauses the run: its time stays for the next start. */
+export function pauseAuto(ctx) {
+  const r = ctx.act('auto/stop', { reason: 'user' });
+  if (r.ok && !r.noop) ctx.toast(T('hud.toast.autoStopped', { time: clock(ctx.store.state.autoplay.saved) }), 'info');
+}
+let autoSeen = { left: null, at: 0 };
+/** Time left of the run on screen: the save only moves every AUTO.everySec, so the HUD counts down in between. */
+export function autoLeftMs(a) {
+  const left = a?.active?.leftMs ?? 0, t = performance.now();
+  if (left !== autoSeen.left) autoSeen = { left, at: t };
+  return Math.max(0, left - Math.min(AUTO.everySec * 1000, t - autoSeen.at));
+}
+/** Which of the four faces the Auto controls show. */
+const autoFace = a => (a.active ? 'on' : a.saved > 0 ? 'paused' : (a.runs || 0) > 0 ? 'ready' : 'empty');
+/** The numbers of the run on screen: the one going, the paused one, or the last finished one. */
+function autoRunBook(s) {
+  const a = s.autoplay || {};
+  return a.active ? s.gm?.unit?.book || null : a.saved > 0 ? a.tally : a.last;
+}
+/** Auto: state and time left, what the run did, what it may do, and the one action that fits. Used by the sheet and the Auto tab. */
+export function autoPanel(ctx, s, { link = false } = {}) {
+  const a = s.autoplay || {}, face = autoFace(a), runs = a.runs || 0, min = Math.round(AUTO.runSeconds / 60), total = AUTO.runSeconds * 1000;
+  const price = autoPrice(a.bought || 0), broke = s.player.coins < price, timed = face === 'on' || face === 'paused';
+  const left = face === 'on' ? autoLeftMs(a) : a.saved || 0, book = autoRunBook(s);
+  const buy = async () => { if (await buyAuto(ctx) && face === 'empty') startAuto(ctx); };
+  const main = {
+    on: { id: 'autoPause', label: T('hud.auto.stopBtn'), icon: '⏸', tone: 'plain', onClick: () => pauseAuto(ctx) },
+    paused: { id: 'autoResume', label: T('hud.auto.resumeBtn'), icon: '▶', tone: 'go', onClick: () => startAuto(ctx) },
+    ready: { id: 'autoStart', label: T('hud.auto.startBtn', { min }), icon: '▶', tone: 'go', onClick: () => startAuto(ctx) },
+    empty: { id: 'autoBuyStart', label: T('hud.auto.buyStart'), cost: price, tone: 'gold', disabled: broke, note: broke ? needMore(price - s.player.coins) : null, onClick: buy },
+  }[face];
+  const stat = (key, label, value) => h('div', { class: 'hud-auto-stat' }, h('strong', { dataset: { autoStat: key } }, value), h('small', null, label));
+  return h('div', { class: 'hud-auto-panel' },
+    h('section', { class: `hud-auto-state is-${face}` },
+      h('span', { class: 'hud-auto-state-ico', attrs: { 'aria-hidden': 'true' } }, '🤖'),
+      h('div', { class: 'hud-auto-state-text' }, h('strong', null, T(`hud.auto.state.${face}`)), h('small', null, T(`hud.auto.sub.${face}`, { min, n: runs }))),
+      h('span', { class: 'hud-auto-state-time', dataset: timed ? { autoClock: '' } : undefined }, timed ? clock(left) : `×${runs}`),
+      timed ? h('div', { class: 'hud-auto-meter', attrs: { 'aria-hidden': 'true' } }, h('i', { dataset: { autoMeter: '' }, style: { width: `${Math.min(100, left / total * 100)}%` } })) : null),
+    h('div', { class: 'hud-auto-actions' },
+      actionButton(main),
+      face === 'empty' ? null : actionButton({ id: 'autoBuy', label: T('hud.auto.buyMore'), cost: price, tone: 'plain', disabled: broke, onClick: buy })),
+    book ? h('section', { class: 'hud-auto-report' },
+      h('h3', null, T(face === 'ready' || face === 'empty' ? 'hud.auto.lastRun' : 'hud.auto.thisRun')),
+      h('div', { class: 'hud-auto-stats' },
+        stat('jobs', T('hud.auto.stat.jobs'), fmt(book.jobs || 0)), stat('earned', T('hud.auto.stat.earned'), fmt(Math.round(book.earned || 0))), stat('spent', T('hud.auto.stat.spent'), fmt(Math.round(book.spent || 0))))) : null,
+    link && face === 'on' ? actionButton({ id: 'autoReport', label: T('hud.auto.report'), tone: 'plain', onClick: () => { ctx.sheet.close(); ctx.staffModal.open({ tab: 'gm' }); } }) : null,
+    h('details', { class: 'hud-auto-does' },
+      h('summary', null, T('hud.auto.doesTitle')),
+      h('ul', null, ...['field', 'sell', 'crew', 'grow', 'quests'].map(k => h('li', null, T(`hud.auto.does.${k}`))), h('li', { class: 'is-no' }, T('hud.auto.does.noLoan'))),
+      h('p', { class: 'hud-auto-note' }, T('hud.auto.note'))));
+}
+/** The bottom sheet behind the rail's AUTO button. The clock and the numbers repaint in place (HUD updateAuto), so a button is never swapped under a finger. */
+export function autoSheet(ctx) {
+  const render = s => autoPanel(ctx, s, { link: true });
+  render.sig = s => { const a = s.autoplay || {}, book = autoRunBook(s); return `${autoFace(a)}|${a.runs || 0}|${autoPrice(a.bought || 0)}|${s.player.coins < autoPrice(a.bought || 0)}|${book ? 1 : 0}|${a.last?.at || 0}`; };
+  return render;
+}
+
+/** The text of a quest: 'Harvest 10 trees'. */
+export const questText = q => T(q.kind === 'stat' || q.kind === 'building' ? `hud.quest.${q.key}` : `hud.quest.${q.kind}`, { n: fmt(q.n) });
+/** Nhiệm vụ: the Auto status on top, then the next quests with their progress; a finished one has its Claim button. */
+export function questsSheet(ctx) {
+  return s => {
+    const a = s.autoplay || {}, list = questList(s), c = questCount(s);
+    const head = h('div', { class: 'hud-quest-head' },
+      h('p', { class: 'hud-line' }, a.active ? T('hud.quest.autoOn') : T('hud.quest.autoOff')),
+      a.active ? null : actionButton({ id: 'questAuto', label: T('hud.quest.start'), icon: '🤖', onClick: () => ctx.onTool('auto') }),
+      h('p', { class: 'hud-line hud-line--muted' }, T('hud.quest.count', { n: c.claimed, total: c.total })));
+    const rows = list.slice(0, 10).map(q => h('div', { class: `hud-quest${q.done ? ' is-done' : ''}` },
+      h('div', { class: 'hud-quest-main' },
+        h('span', { class: 'hud-quest-text' }, questText(q)),
+        h('span', { class: 'hud-quest-prize' }, `🪙${fmt(q.coins)} · ${q.xp} XP`),
+        h('div', { class: 'hud-quest-bar', attrs: { role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': String(q.n), 'aria-valuenow': String(Math.min(q.n, Math.floor(q.value))) } },
+          h('i', { style: { width: `${Math.min(100, Math.floor(q.value / q.n * 100))}%` } })),
+        h('span', { class: 'hud-quest-num' }, `${fmt(Math.min(q.n, Math.floor(q.value)))}/${fmt(q.n)}`)),
+      q.done ? actionButton({ id: `questClaim-${q.id}`, label: T('hud.quest.claim'), onClick: () => ctx.act('quest/claim', { id: q.id }) }) : null));
+    return h('div', { class: 'hud-quests' }, head, ...rows);
+  };
+}
 
 export function progressSheet(ctx) {
   return s => {
@@ -592,4 +672,11 @@ export function loanSheet(ctx) {
     out.append(packs);
     return out;
   };
+}
+
+// Manage: everything used less often, one tap away. Tiles only; each opens its own sheet.
+export function manageSheet(ctx) {
+  const tiles = [['finance', '📒'], ['upgrades', '⬆️'], ['loan', '💰'], ['quests', '📜'], ['journal', '📓'], ['world', '🌍']];
+  return () => h('div', { class: 'gu-tiles' }, tiles.map(([id, icon]) => h('button', { type: 'button', class: 'gu-tile', dataset: { hudId: `manage-${id}` },
+    on: { click: () => ctx.onTool(id) } }, h('span', { class: 'gu-tile-ico', attrs: { 'aria-hidden': 'true' } }, icon), h('span', { class: 'gu-tile-label' }, T(`hud.manage.${id}`)))));
 }

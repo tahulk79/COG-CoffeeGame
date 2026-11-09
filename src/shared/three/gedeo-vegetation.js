@@ -162,7 +162,7 @@ export async function createPlantInstances(key, transforms, { lod = 1, shadows =
   tpl.traverse(o => {
     if (!o.isMesh) return;
     const im = new THREE.InstancedMesh(o.geometry, o.material, transforms.length);
-    im.name = o.name; im.castShadow = shadows; im.receiveShadow = true; im.userData.local = o.matrixWorld.clone();
+    im.name = o.name; im.castShadow = shadows; im.receiveShadow = true; im.userData.local = o.matrixWorld.clone(); im.userData.cullable = true;
     meshes.push(im); group.add(im);
   });
   const m = new THREE.Matrix4(), w = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0);
@@ -173,6 +173,7 @@ export async function createPlantInstances(key, transforms, { lod = 1, shadows =
     for (const im of meshes) {
       im.setMatrixAt(i, OPTIONAL.has(im.name) && !shown.has(im.name) ? ZERO : w.multiplyMatrices(m, im.userData.local));
       im.instanceMatrix.needsUpdate = true;
+      im.userData.cullDirty = true;
     }
   };
   transforms.forEach((t, i) => setTransform(i, t));

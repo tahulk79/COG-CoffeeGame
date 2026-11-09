@@ -5,9 +5,9 @@
 // upland / highland rows get a shade tree (cây che bóng) at their end. A grown tree stays after a harvest: it flowers,
 // sets green cherries and ripens again each season. Trees are instanced too: one InstancedMesh per mesh part of the
 // tree / green-fruit / ripe-fruit templates (part matrices baked once), so every tree on the farm costs the same few
-// draw calls. Each tree of a row owns one instance slot in every part mesh; hidden fruit = zero-scale instance. Growth is
-// computed per frame from cached plantedAt/growMs (no allocation, no derive calls) and a tree's matrices are only
-// rewritten when its scale / bob / fruit / position changed.
+// draw calls. Each tree of a row owns one slot in every part's CPU store; a part's GPU list holds only the slots that show
+// that part and stand near the camera view (flushTrees). Growth is computed per frame from cached plantedAt/growMs (no
+// allocation, no derive calls) and a tree's matrices are only rewritten when its scale / bob / fruit / position changed.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { PLOT_SIZE, PARCELS, tierZoneAt, climateOfLot, farmGroundY } from '../../core/config/layout.js';
@@ -29,7 +29,9 @@ function gedeoInst(group, key, lod, cap, fallback = []) {
       im.count = count; im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere();
     }
   };
+  let gone = false;
   loadPlant(key).then(t => {
+    if (gone) return;
     const tpl = t[lod]; tpl.updateMatrixWorld(true);
     tpl.traverse(o => {
       if (!o.isMesh) return;
@@ -39,7 +41,7 @@ function gedeoInst(group, key, lod, cap, fallback = []) {
     });
     ready = true; for (const m of fallback) m.visible = false; flush();
   }, e => console.warn(`Gedeo ${key} not loaded, keeping the procedural stand-in.`, e));
-  return { set(i, m) { if (i < cap) m.toArray(store, i * 16); }, commit(n) { count = Math.min(n, cap); if (ready) flush(); } };
+  return { set(i, m) { if (i < cap) m.toArray(store, i * 16); }, commit(n) { count = Math.min(n, cap); if (ready) flush(); }, dispose() { gone = true; for (const im of meshes) im.dispose(); } }; // the plant GLB itself stays cached
 }
 
 const SCALE_MIN = .22, SCALE_MAX = .65;
@@ -86,6 +88,7 @@ const WHITE = new THREE.Color(1, 1, 1);
 const gardenStyle = gardenStyleOf; // config/economy.js GARDEN (the same style drives grow time / yield / quality)
 const ENSET = new THREE.Color(0x6aa83f), BANANA = new THREE.Color(0x8cc04e), CANOPY = new THREE.Color(0x4e7f34), FRUIT = new THREE.Color(0x2f6b2c);
 const POP_TIME = .35;
+const RIPE_BOB_HZ = 12; // written scales are quantized anyway, so each tree already moved in about this many steps a second
 const BED_CAP = 256, TREE_CAP = 64;
 const BED_HALF = .5; // one tree = a 1 m square (plants may stand 1 m apart)
 const UP = new THREE.Vector3(0, 1, 0);
@@ -124,6 +127,35 @@ function templateParts(root, kind) {
   const inv = root.parent ? root.parent.matrixWorld.clone().invert() : new THREE.Matrix4();
   root.traverse(o => { if (o.isMesh && !o.isSkinnedMesh) out.push({ kind, geometry: FRUIT_K[kind] ? bigBerries(o.geometry, FRUIT_K[kind]) : o.geometry, material: o.material, local: new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld), mesh: null }); });
   return out;
+}
+
+// Low graphics: coffee trees are about 80% of the triangles on screen (docs/performance/HEAT-REPORT.md). Foliage and fruit are many
+// loose pieces (leaf cards, cherries), so Low draws every second piece and makes it wider, which keeps the crown full.
+const LOW_GROW = 1.4, LOW_MIN_ISLANDS = 12;
+const lowCache = new WeakMap();
+function lowGeometry(geo) {
+  if (lowCache.has(geo)) return lowCache.get(geo);
+  let result = geo;
+  const index = geo.index?.array, pos = geo.attributes.position;
+  if (index && index.length >= 600) {
+    const parent = Int32Array.from({ length: pos.count }, (_, i) => i);
+    const find = a => { while (parent[a] !== a) { parent[a] = parent[parent[a]]; a = parent[a]; } return a; };
+    for (let i = 0; i < index.length; i += 3) { const a = find(index[i]); parent[find(index[i + 1])] = a; parent[find(index[i + 2])] = a; }
+    const order = new Map();
+    for (let i = 0; i < pos.count; i++) { const r = find(i); if (!order.has(r)) order.set(r, order.size); }
+    if (order.size >= LOW_MIN_ISLANDS) {
+      const kept = [], sum = new Map(), p = new THREE.Vector3();
+      for (let i = 0; i < index.length; i += 3) if (order.get(find(index[i])) % 2 === 0) kept.push(index[i], index[i + 1], index[i + 2]);
+      for (let i = 0; i < pos.count; i++) { const r = find(i), c = sum.get(r) || [0, 0, 0, 0]; p.fromBufferAttribute(pos, i); c[0] += p.x; c[1] += p.y; c[2] += p.z; c[3]++; sum.set(r, c); }
+      const wider = pos.clone();
+      for (let i = 0; i < pos.count; i++) { const c = sum.get(find(i)); p.fromBufferAttribute(pos, i); wider.setXYZ(i, c[0] / c[3] + (p.x - c[0] / c[3]) * LOW_GROW, c[1] / c[3] + (p.y - c[1] / c[3]) * LOW_GROW, c[2] / c[3] + (p.z - c[2] / c[3]) * LOW_GROW); }
+      result = geo.clone();
+      result.setAttribute('position', wider);
+      result.setIndex(kept);
+    }
+  }
+  lowCache.set(geo, result);
+  return result;
 }
 
 export function createPlots({ scene, templates, vfx, getActiveCrop = () => null }) {
@@ -363,6 +395,7 @@ export function createPlots({ scene, templates, vfx, getActiveCrop = () => null 
     treeTpl = [{ kind: KIND_TREE, geometry: fallback.geometry, material: fallback.material, local: new THREE.Matrix4(), mesh: null }];
   }
   const ringPart = { kind: KIND_RING, geometry: partGeo('mulchBasin', () => new THREE.RingGeometry(.12, .95, 20).rotateX(-Math.PI / 2)).translate(0, .1, 0), material: farmMaterial('soil', { color: 0x8a6a52, roughness: 1, transparent: true, opacity: .85, depthWrite: false }), local: new THREE.Matrix4(), mesh: null }; // mulched earth ring (đất mùn), soft-edged
+  ringPart.low = ringPart.geometry.clone(); ringPart.low.setIndex([0, 0, 0]); // Low: no mulch basin, the soil bed under the tree already reads as the planted spot
   // Mature trees per variety (gedeo_heroes.py export_game_tree --species): arabica compact, robusta a wide umbrella,
   // liberica a tall tree. A variety without its own model falls back to the arabica one.
   const tag = (list, species) => list.map(p => Object.assign(p, { species }));
@@ -378,22 +411,22 @@ export function createPlots({ scene, templates, vfx, getActiveCrop = () => null 
     parts.push(...tag(own, sp), ...tag(templateParts(templates[`fruitGreen_${sp}`], KIND_GREEN), sp), ...tag(templateParts(templates[`fruitRipe_${sp}`], KIND_RIPE), sp));
   }
   const speciesOf = crop => (speciesOwn.has(crop) ? crop : 'arabica');
-  let treeCap = 0, slotHigh = 0, treesDirty = false;
+  let treeCap = 0, slotHigh = 0;
+  let inView = new Uint8Array(0); // per slot: within the padded camera view (cullTrees)
   const freeSlots = [];
   function growTrees(cap) {
     for (const part of parts) {
-      const mesh = new THREE.InstancedMesh(part.geometry, part.material, cap);
+      const mesh = new THREE.InstancedMesh(getQuality() === 'low' ? part.low ??= lowGeometry(part.geometry) : part.geometry, part.material, cap);
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-      const arr = mesh.instanceMatrix.array;
-      for (let i = treeCap; i < cap; i++) ZERO.toArray(arr, i * 16);
-      mesh.setColorAt(0, WHITE); // creates instanceColor (variety tints)
-      for (let i = 1; i < cap; i++) mesh.setColorAt(i, WHITE);
+      mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3); // variety tints
+      mesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
+      const store = new Float32Array(cap * 16), colors = new Float32Array(cap * 3).fill(1), shown = new Uint8Array(cap); // per slot; the mesh's own arrays are the dense list
       if (part.mesh) {
-        arr.set(part.mesh.instanceMatrix.array.subarray(0, treeCap * 16));
-        if (part.mesh.instanceColor) mesh.instanceColor.array.set(part.mesh.instanceColor.array.subarray(0, treeCap * 3));
+        store.set(part.store); colors.set(part.colors); shown.set(part.shown);
         part.mesh.removeFromParent(); part.mesh.dispose();
       }
-      mesh.count = slotHigh;
+      Object.assign(part, { store, colors, shown, dirty: true });
+      mesh.count = 0; mesh.visible = false;
       // shadows from the foliage only: cherries / flowers and the thin trunk add triangles but no visible shade
       part.shadow = part.kind !== KIND_RING && part.kind !== KIND_GREEN && part.kind !== KIND_RIPE && !/bark/i.test(part.material?.name || '');
       mesh.castShadow = part.shadow && getQuality() === 'high'; mesh.receiveShadow = true; // medium: the bushes skip the shadow pass
@@ -402,29 +435,81 @@ export function createPlots({ scene, templates, vfx, getActiveCrop = () => null 
       group.add(mesh);
       part.mesh = mesh;
     }
+    const view = new Uint8Array(cap); view.set(inView); inView = view;
     treeCap = cap;
-    treesDirty = true;
   }
   growTrees(TREE_CAP);
+  const paintSlot = (part, i, c) => { c.toArray(part.colors, i * 3); if (part.shown[i]) part.dirty = true; };
   function tintSlot(i, crop) {
     const L = lookOf(crop);
-    for (const part of parts) { part.mesh.setColorAt(i, part.kind === KIND_TREE || part.kind === KIND_SEED || part.kind === KIND_YOUNG ? L.leaf : part.kind === KIND_RIPE ? L.ripe : WHITE); part.mesh.instanceColor.needsUpdate = true; }
+    for (const part of parts) paintSlot(part, i, part.kind === KIND_TREE || part.kind === KIND_SEED || part.kind === KIND_YOUNG ? L.leaf : part.kind === KIND_RIPE ? L.ripe : WHITE);
   }
   function tintRipe(i, c) {
-    for (const part of parts) if (part.kind === KIND_RIPE) { part.mesh.setColorAt(i, c); part.mesh.instanceColor.needsUpdate = true; }
+    for (const part of parts) if (part.kind === KIND_RIPE) paintSlot(part, i, c);
+  }
+  function hideSlot(i) {
+    for (const part of parts) if (part.shown[i]) { part.shown[i] = 0; part.dirty = true; }
   }
   function allocSlot() {
+    cullStale = true;
     if (freeSlots.length) return freeSlots.pop();
     if (slotHigh >= treeCap) growTrees(treeCap * 2);
-    const i = slotHigh++;
-    for (const part of parts) part.mesh.count = slotHigh;
-    return i;
+    return slotHigh++;
   }
   function freeSlot(i) {
     if (i < 0) return;
-    for (const part of parts) part.mesh.setMatrixAt(i, ZERO);
+    hideSlot(i);
     freeSlots.push(i);
-    treesDirty = true;
+  }
+  // Rebuilds the GPU list of every part that changed: only the slots that show this part and are near the view.
+  function flushTrees() {
+    for (const part of parts) {
+      if (!part.dirty) continue;
+      part.dirty = false;
+      const { mesh, store, colors, shown } = part, m = mesh.instanceMatrix.array, c = mesh.instanceColor.array;
+      let n = 0;
+      for (let s = 0; s < slotHigh; s++) {
+        if (!shown[s] || !inView[s]) continue;
+        const a = s * 16, b = n * 16;
+        for (let k = 0; k < 16; k++) m[b + k] = store[a + k];
+        c[n * 3] = colors[s * 3]; c[n * 3 + 1] = colors[s * 3 + 1]; c[n * 3 + 2] = colors[s * 3 + 2];
+        n++;
+      }
+      mesh.count = n; mesh.visible = n > 0 || warming;
+      mesh.instanceMatrix.needsUpdate = true; mesh.instanceColor.needsUpdate = true;
+    }
+  }
+  // Which trees are near the view. CULL_PAD = crown radius + how far a tree's shadow reaches + the camera slack below, so a tree
+  // just off screen still casts into view and the test only reruns after the camera has really moved (CULL_MOVE m / CULL_TURN).
+  const CULL_PAD = 10, CULL_MOVE = 2, CULL_TURN = .9998;
+  const frustum = new THREE.Frustum(), viewProj = new THREE.Matrix4(), cullPos = new THREE.Vector3(), cullDir = new THREE.Vector3(), camDir = new THREE.Vector3();
+  let cullStale = true, cullAspect = 0, cullFov = 0, warming = false;
+  function testTrees(list) {
+    let changed = false;
+    for (let i = 0; i < list.length; i++) {
+      const e = list[i], cy = (e.h || 0) + 2;
+      let on = 1;
+      for (let p = 0; p < 6 && on; p++) { const pl = frustum.planes[p]; if (pl.normal.x * e.x + pl.normal.y * cy + pl.normal.z * e.z + pl.constant < -CULL_PAD) on = 0; }
+      for (const s of e.slots) if (inView[s] !== on) { inView[s] = on; changed = true; }
+    }
+    return changed;
+  }
+  /** Updates the trees' GPU lists for this camera. Returns true when trees came into or left the list. */
+  function cullTrees(cam, force = false) {
+    if (!group.visible) return false;
+    cam.updateMatrixWorld();
+    cam.getWorldDirection(camDir);
+    let changed = false;
+    if (force || cullStale || cam.aspect !== cullAspect || cam.fov !== cullFov || cullPos.distanceToSquared(cam.position) > CULL_MOVE * CULL_MOVE || cullDir.dot(camDir) < CULL_TURN) {
+      cullStale = false; cullAspect = cam.aspect; cullFov = cam.fov;
+      cullPos.copy(cam.position); cullDir.copy(camDir);
+      frustum.setFromProjectionMatrix(viewProj.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
+      changed = testTrees(live);
+      if (testTrees(dying)) changed = true;
+      if (changed) for (const part of parts) part.dirty = true;
+    }
+    flushTrees();
+    return changed;
   }
   // Writes one tree's matrices (only when something visible changed since the last write).
   const hidden = new Set(); // field ids hidden while their ghost is being moved (setHidden)
@@ -432,7 +517,7 @@ export function createPlots({ scene, templates, vfx, getActiveCrop = () => null 
   function writeTree(e, sx, sy, green, ripe, stage = KIND_TREE, k = 1) {
     if (e.wx === sx && e.wy === sy && e.wg === green && e.wr === ripe && e.ws === stage && e.wk === k && !e.moved) return;
     e.wx = sx; e.wy = sy; e.wg = green; e.wr = ripe; e.ws = stage; e.wk = k; e.moved = false;
-    if (hidden.has(e.id)) { for (const i of e.slots) for (const part of parts) part.mesh.setMatrixAt(i, ZERO); treesDirty = true; return; }
+    if (hidden.has(e.id)) { for (const i of e.slots) hideSlot(i); return; }
     const L = lookOf(e.crop), R = rowOf(e.crop), sp = speciesOf(e.crop);
     e.slots.forEach((slot, i) => {
       const layer = i < R.n ? 0 : 1, col = i % R.n; // front layer (south), then the back layer, staggered
@@ -445,60 +530,70 @@ export function createPlots({ scene, templates, vfx, getActiveCrop = () => null 
       } else base.compose(pos.set(e.x + dx, .2 + e.h, e.z + dz), quat, scl.set(sx * L.w * R.k * v, sy * L.h * R.k * v, sx * L.w * R.k * v));
       for (const part of parts) {
         const show = part.kind === KIND_RING || (stage === KIND_TREE ? part.species === sp && (part.kind === KIND_TREE || (part.kind === KIND_GREEN ? green : part.kind === KIND_RIPE && ripe)) : part.kind === stage);
-        part.mesh.setMatrixAt(slot, show ? m4.multiplyMatrices(base, part.local) : ZERO);
+        if (show) { m4.multiplyMatrices(base, part.local).toArray(part.store, slot * 16); part.shown[slot] = 1; part.dirty = true; }
+        else if (part.shown[slot]) { part.shown[slot] = 0; part.dirty = true; }
       }
     });
-    treesDirty = true;
   }
 
   const entities = new Map(); // plotId → entity (planted)
   const live = []; // entities as an array (per-frame loop without iterators)
   const dying = [];
   const treeRot = (x, z) => (x * 7 + z * 13) % 6.28;
-  const setPos = (e, x, z) => { e.x = x; e.z = z; e.rot = treeRot(x, z); e.pos.set(x, .2 + (e.h || 0), z); e.moved = true; };
+  const setPos = (e, x, z) => { e.x = x; e.z = z; e.rot = treeRot(x, z); e.pos.set(x, .2 + (e.h || 0), z); e.moved = true; cullStale = true; };
 
   function dropEntity(e) {
     for (const i of e.slots) freeSlot(i);
     e.slots = [];
   }
 
+  let bedLayout = null;
   function sync(state) {
     const r = regionOf(state);
     const plots = r?.plots || {};
     const list = ownedPlots(state);
     style = gardenStyle(String(state.world?.currentRegion || '').slice(0, 2));
-    computeTerraces(list); // before the beds: they stand on their row's terrace
-    // Beds + pickers for every field of the region.
-    ensureBeds(list.length);
-    plotList.length = 0;
-    bedIndex = new Map();
-    for (let i = 0; i < list.length; i++) {
-      const plot = list[i];
-      plotList.push(plot);
-      bedIndex.set(plot.id, i);
-      beds.setMatrixAt(i, hidden.has(plot.id) ? ZERO : m4.compose(pos.set(plot.x, .01 + hOf(plot.id), plot.z), quat.identity(), scl.set(.34, 1, .34)));
-      plot.zone ||= tierZoneAt(plot.x, plot.z);
-      beds.setColorAt(i, zoneSoil(plot.zone, !!plots[plot.id]));
-      let pick = pickers.get(plot.id);
-      if (!pick) {
-        pick = new THREE.Mesh(pickGeo, pickMat);
-        pick.visible = false;
-        pick.userData.target = { kind: 'plot', id: plot.id };
-        group.add(pick);
-        pickers.set(plot.id, pick);
+    // Most actions change no field: the beds, pick boxes and rows are only redone (and re-uploaded) when the layout changed.
+    let layout = `${style}|${[...hidden].join()}`;
+    for (let i = 0; i < list.length; i++) { const f = list[i]; layout += `|${f.id}:${f.x}:${f.z}:${plots[f.id] ? 1 : 0}`; }
+    const relayout = layout !== bedLayout;
+    bedLayout = layout;
+    if (relayout) {
+      computeTerraces(list); // before the beds: they stand on their row's terrace
+      // Beds + pickers for every field of the region.
+      ensureBeds(list.length);
+      plotList.length = 0;
+      bedIndex = new Map();
+      for (let i = 0; i < list.length; i++) {
+        const plot = list[i];
+        plotList.push(plot);
+        bedIndex.set(plot.id, i);
+        // A tree of a long row: its bed lies along the row and reaches the next one, so the row reads as one strip of soil.
+        const inRow = plot.row != null, bedX = inRow ? (plot.row % 2 ? 1.556 : 1.5) * 1.05 / 3.34 : .34;
+        beds.setMatrixAt(i, hidden.has(plot.id) ? ZERO : m4.compose(pos.set(plot.x, .01 + hOf(plot.id), plot.z), inRow ? quat.setFromAxisAngle(UP, -plot.row * Math.PI / 4) : quat.identity(), scl.set(bedX, 1, .34)));
+        plot.zone ||= tierZoneAt(plot.x, plot.z);
+        beds.setColorAt(i, zoneSoil(plot.zone, !!plots[plot.id]));
+        let pick = pickers.get(plot.id);
+        if (!pick) {
+          pick = new THREE.Mesh(pickGeo, pickMat);
+          pick.visible = false;
+          pick.userData.target = { kind: 'plot', id: plot.id };
+          group.add(pick);
+          pickers.set(plot.id, pick);
+        }
+        if (pick.position.x !== plot.x || pick.position.z !== plot.z || !pick.userData.placed) {
+          pick.position.set(plot.x, hOf(plot.id), plot.z);
+          pick.userData.placed = true;
+          pick.updateMatrixWorld(true);
+        }
       }
-      if (pick.position.x !== plot.x || pick.position.z !== plot.z || !pick.userData.placed) {
-        pick.position.set(plot.x, hOf(plot.id), plot.z);
-        pick.userData.placed = true;
-        pick.updateMatrixWorld(true);
-      }
+      beds.count = list.length;
+      queueMicrotask(syncHalos);
+      beds.instanceMatrix.needsUpdate = true;
+      if (beds.instanceColor) beds.instanceColor.needsUpdate = true;
+      beds.computeBoundingSphere();
+      for (const [id, pick] of pickers) if (!bedIndex.has(id)) { pick.removeFromParent(); pickers.delete(id); }
     }
-    beds.count = list.length;
-    queueMicrotask(syncHalos);
-    beds.instanceMatrix.needsUpdate = true;
-    if (beds.instanceColor) beds.instanceColor.needsUpdate = true;
-    beds.computeBoundingSphere();
-    for (const [id, pick] of pickers) if (!bedIndex.has(id)) { pick.removeFromParent(); pickers.delete(id); }
 
     // Trees: drop the ones whose field / crop is gone or replanted, move the ones whose field moved.
     for (const [id, e] of entities) {
@@ -538,7 +633,7 @@ export function createPlots({ scene, templates, vfx, getActiveCrop = () => null 
     }
     live.length = 0;
     for (const e of entities.values()) live.push(e);
-    layRows(list);
+    if (relayout) layRows(list);
     if (highlight) paintBeds(lastTime);
   }
 
@@ -590,11 +685,12 @@ export function createPlots({ scene, templates, vfx, getActiveCrop = () => null 
 
   // Written scales are quantized (1/200) so writeTree's equality check really skips settled trees.
   const q = v => Math.round(v * 200) / 200;
-  onQuality(level => { for (const part of parts) if (part.mesh) part.mesh.castShadow = !!part.shadow && level === 'high'; });
+  let lowQuality = getQuality() === 'low';
+  const offQuality = onQuality(level => { lowQuality = level === 'low'; for (const part of parts) if (part.mesh) { part.mesh.castShadow = !!part.shadow && level === 'high'; part.mesh.geometry = lowQuality ? part.low ??= lowGeometry(part.geometry) : part.geometry; } });
   function update(dt, time, now) {
     lastTime = time;
     const vis = group.visible; // café view: keep the clocks running but skip matrix writes, uploads and sparkles
-    let seeds = 0, youngs = 0, greens = 0, ripes = 0; // stage / fruit meshes draw only while some tree shows them (they cover every slot)
+    const bobTime = Math.floor(time * RIPE_BOB_HZ) / RIPE_BOB_HZ; // the ripe bob steps together: the tree lists re-upload this often instead of every frame
     for (let i = 0; i < live.length; i++) {
       const e = live[i];
       const ratio = Math.min(1, (now - e.plantedAt) / e.total);
@@ -604,7 +700,7 @@ export function createPlots({ scene, templates, vfx, getActiveCrop = () => null 
       if (e.popAt >= 0 && time - e.popAt < .45) e.scale = SCALE_MIN * easeOutBack((time - e.popAt) / .45);
       else e.scale = e.scale < .01 ? goal : damp(e.scale, goal, 4, dt);
       const shake = e.shakeAt >= 0 && time - e.shakeAt < .4 ? 1 + .06 * Math.sin((time - e.shakeAt) * 40) * (1 - (time - e.shakeAt) / .4) : 1;
-      const bob = (ready ? 1 + .04 * Math.sin(time * 3 + e.x) : 1) * shake;
+      const bob = (ready && !lowQuality ? 1 + .04 * Math.sin(bobTime * 3 + e.x) : 1) * shake; // the ripe bob re-uploads every tree list, Low goes without
       // season: rest → white flowers → green cherries → ripe (a sapling flowers late in its first crop)
       const fl0 = grown ? .12 : .5, gr0 = grown ? .42 : .72;
       const flower = !ready && !e.wave && ratio > fl0 && ratio <= gr0;
@@ -614,7 +710,6 @@ export function createPlots({ scene, templates, vfx, getActiveCrop = () => null 
       // first crop: seedling → young → mature (the mature model takes over at STAGE_AT[1] and grows on as before)
       const stage = grown || ratio >= STAGE_AT[1] ? KIND_TREE : ratio < STAGE_AT[0] ? KIND_SEED : KIND_YOUNG;
       const sk = stage === KIND_SEED ? ratio / STAGE_AT[0] : stage === KIND_YOUNG ? (ratio - STAGE_AT[0]) / (STAGE_AT[1] - STAGE_AT[0]) : 1;
-      if (stage === KIND_SEED) seeds++; else if (stage === KIND_YOUNG) youngs++; else { if (e.green) greens++; if (e.ripe) ripes++; }
       if (vis) writeTree(e, q(e.scale), q(e.scale * bob), e.green && stage === KIND_TREE, e.ripe && stage === KIND_TREE, stage, q(sk));
       if (ready !== e.ready) {
         e.ready = ready;
@@ -634,9 +729,6 @@ export function createPlots({ scene, templates, vfx, getActiveCrop = () => null 
       const s = Math.max(.001, k < .35 ? e.dieScale * (1 + .5 * k / .35) : e.dieScale * 1.175 * (1 - (k - .35) / .65));
       if (vis) writeTree(e, s, s, e.green, e.ripe, e.ws ?? KIND_TREE, e.wk ?? 1);
     }
-    const used = { [KIND_SEED]: seeds, [KIND_YOUNG]: youngs, [KIND_GREEN]: greens, [KIND_RIPE]: ripes };
-    for (const part of parts) if (part.mesh && part.kind in used) part.mesh.visible = used[part.kind] > 0;
-    if (treesDirty) { treesDirty = false; for (const part of parts) part.mesh.instanceMatrix.needsUpdate = true; }
     if (highlight && group.visible) paintBeds(time);
   }
 
@@ -665,6 +757,7 @@ export function createPlots({ scene, templates, vfx, getActiveCrop = () => null 
   }
 
   function clear() {
+    bedLayout = null;
     hidden.clear();
     for (const e of entities.values()) dropEntity(e);
     entities.clear();
@@ -673,13 +766,15 @@ export function createPlots({ scene, templates, vfx, getActiveCrop = () => null 
     live.length = 0;
     freeSlots.length = 0;
     slotHigh = 0;
-    for (const part of parts) part.mesh.count = 0;
-    treesDirty = true;
+    for (const part of parts) { part.shown.fill(0); part.dirty = true; }
+    flushTrees();
     strips.count = edges.count = benches.count = shadeTrunks.count = shadeCrowns.count = 0;
   }
 
   return {
-    group, sync, update, stage, remainingMs, onPlanted, onHarvested, first, clear, setHighlight, setHidden,
+    group, sync, update, stage, remainingMs, onPlanted, onHarvested, first, clear, setHighlight, setHidden, cull: cullTrees,
+    /** Loading only: true draws every tree part once (even empty) so its buffers and shader are ready before it first appears. */
+    warm(on) { warming = !!on; for (const part of parts) part.mesh.visible = warming || part.mesh.count > 0; },
     pickers: () => pickers.values(),
     /**
      * The planting preview's bed: the very same soil mound and worn red-earth halo a planted field gets (same geometry, scale
@@ -705,6 +800,7 @@ export function createPlots({ scene, templates, vfx, getActiveCrop = () => null 
       return [p.x - BED_HALF, p.z - BED_HALF, p.x + BED_HALF, p.z + BED_HALF];
     },
     dispose() {
+      offQuality(); // this listener is what kept every earlier realm alive after a region change
       clear();
       for (const part of parts) { part.mesh.removeFromParent(); part.mesh.dispose(); } // template geometry / materials are shared (GLB cache)
       if (fallback) { fallback.geometry.dispose(); fallback.material.dispose(); }
@@ -712,6 +808,10 @@ export function createPlots({ scene, templates, vfx, getActiveCrop = () => null 
       bedGeo.dispose(); bedMat.dispose(); earthDiscGeo.dispose(); earthDiscMat.map?.dispose(); earthDiscMat.dispose(); pickGeo.dispose(); pickMat.dispose();
       for (const m of [strips, edges, benches, shadeTrunks, shadeCrowns]) { m.removeFromParent(); m.dispose(); }
       unitBox.dispose(); rowMat.dispose(); trunkGeo.dispose(); crownGeo.dispose(); shadeTrunks.material.dispose(); shadeCrowns.material.dispose();
+      for (const g of [gEnset, gShade, gTall, gFruit]) g.dispose();
+      for (const m of [ensets, tallTrunks, tallCrowns, fruitTrees]) { m.dispose(); m.geometry.dispose(); m.material.dispose(); }
+      fruitTrunks.dispose(); halos?.dispose(); haloGeo.dispose(); haloMat.alphaMap?.dispose(); haloMat.dispose();
+      wallGeo.dispose(); bankGeo.dispose(); wallMat.dispose(); ringPart.geometry.dispose(); ringPart.material.dispose();
       group.removeFromParent();
     },
   };

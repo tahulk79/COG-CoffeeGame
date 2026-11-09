@@ -10,7 +10,7 @@
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { farmGroundY, TIER_EDGES, tierEdgeZ, ESTATES, ESTATE_ORDER } from '../../core/config/layout.js';
-import { GEDEO_MODELS, createPlant, tuneGedeoMaterials } from '../../shared/three/gedeo-vegetation.js';
+import { GEDEO_MODELS, createPlant, createPlantInstances, tuneGedeoMaterials } from '../../shared/three/gedeo-vegetation.js';
 import { gltfLoader } from '../../shared/three/models.js';
 import { getQuality } from '../../shared/vfx/index.js';
 
@@ -82,8 +82,16 @@ export function createMountainDressing({ parent, farmName = 'GODBEAN · Gedeo Co
     o.traverse(c => { c.raycast = () => {}; if (c.isMesh && x * x + z * z > 3600) c.castShadow = false; }); // far props: no shadow pass
     group.add(o); return o;
   };
+  // A model placed many times (stream tiles, cliffs) is one instanced set per material instead of one draw per part per copy.
+  // Far copies still skip the shadow pass, so they form a set of their own. World culling (instance-cull.js) keeps per-copy culling.
+  const placeCopies = (file, copies) => [copies.filter(c => c.position.x ** 2 + c.position.z ** 2 <= 3600), copies.filter(c => c.position.x ** 2 + c.position.z ** 2 > 3600)]
+    .map((list, far) => (list.length ? createPlantInstances(keyOf(file), list, { lod: 0, shadows: !far }).then(g => { g.traverse(o => { o.raycast = () => {}; }); group.add(g); }).catch(() => null) : null));
   const pickers = [], signObjs = {};
-  const props = [...PROPS, ...STREAM, ...ROAD].filter(([file]) => !WILD_START || WILD_KEEP.has(file));
+  const placed = [...PROPS, ...STREAM, ...ROAD].filter(([file]) => !WILD_START || WILD_KEEP.has(file));
+  const copiesOf = {};
+  for (const p of placed) (copiesOf[p[0]] ||= []).push(p);
+  const repeated = file => copiesOf[file].length >= 3 && file !== 'farm-gate-sign'; // (the gate sign gets its own label)
+  const props = placed.filter(([file]) => !repeated(file));
   // a name sign at the foot of each tier, beside the spine ramp (tier 1 by the plaza)
   const signs = [[4.4, 19, 0]]; // a little off the ramp: the signs are bigger now
   for (const e of TIER_EDGES) signs.push([4.4, Math.max(e.z, e.zE ?? e.z) + 1.9, 0]);
@@ -100,7 +108,8 @@ export function createMountainDressing({ parent, farmName = 'GODBEAN · Gedeo Co
       const pick = new THREE.Mesh(new THREE.BoxGeometry(1.5, 2.2, 0.9), new THREE.MeshBasicMaterial({ visible: false }));
       pick.position.y = 1.6; pick.userData.target = { kind: 'parcel', id: ESTATES[ESTATE_ORDER[i]].seed, sign: true, x, z }; o.add(pick); pickers.push(pick);
     }).catch(() => null)),
-    ...cliffs.map(([x, z, base, step]) => createPlant(keyOf('cliff-face')).then(o => { place(o, x, z, Math.PI, [1, step / 4.5, 1]); o.position.y = base - .1; }).catch(() => null)),
+    ...Object.keys(copiesOf).filter(repeated).flatMap(file => placeCopies(file, copiesOf[file].map(([, x, z, yaw = 0, s = 1]) => ({ position: new THREE.Vector3(x, farmGroundY(x, z), z), rotationY: yaw, scale: s })))),
+    ...placeCopies('cliff-face', cliffs.map(([x, z, base, step]) => ({ position: new THREE.Vector3(x, base - .1, z), rotationY: Math.PI, scale: [1, step / 4.5, 1] }))),
   ];
   if (rich) {
     for (const [x, z, s] of [[0, -125, 2.4], [-75, -60, 1.8], [75, -45, 1.8], [-60, -105, 1.5], [55, -100, 1.6]]) {
@@ -128,5 +137,10 @@ export function createMountainDressing({ parent, farmName = 'GODBEAN · Gedeo Co
     return true;
   }
   const hideSign = (seed, b) => { if (signObjs[seed]) signObjs[seed].visible = !b; };
-  return { group, ready, pickers: () => pickers, moveSign, hideSign, dispose() { group.removeFromParent(); } };
+  function dispose() {
+    group.traverse(o => { if (o.isMesh && o.material?.map?.isCanvasTexture) { o.material.map.dispose(); o.material.dispose(); } }); // the labelled signs' own clones
+    for (const p of pickers) { p.geometry.dispose(); p.material.dispose(); }
+    group.removeFromParent();
+  }
+  return { group, ready, pickers: () => pickers, moveSign, hideSign, dispose };
 }

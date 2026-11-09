@@ -42,7 +42,7 @@
 /* Level-10 incident heads-up (top-bar.js): quiet chip, louder in the last 3 levels */
 .hud-lv10{align-self:flex-start;padding:3px 9px;border:1.5px solid #e6c46d;border-radius:999px;background:#fff7dcee;color:#7a4a12;font:800 11px/1.2 var(--h-font);white-space:nowrap;cursor:pointer;pointer-events:auto;box-shadow:0 2px 0 #0002}
 .hud-lv10.is-soon{background:#ffe1c7;border-color:#e0782f;color:#8a3410;animation:hud-lv10-pulse 1.8s ease-in-out infinite}
-@keyframes hud-lv10-pulse{50%{box-shadow:0 0 0 4px #e0782f40,0 2px 0 #0002}}
+@keyframes hud-lv10-pulse{50%{opacity:.72}}
 @media (prefers-reduced-motion:reduce){.hud-lv10.is-soon{animation:none}}
 .hud-banner-warn{margin-top:6px;padding:5px 9px;border-radius:10px;background:#ffe1c7;color:#8a3410;font:800 12px/1.3 var(--h-font)}
 .hud-xp{display:block;width:84px;height:7px;border-radius:99px;background:#e8dcc2;overflow:hidden;box-shadow:inset 0 1px 1px #0002}
@@ -60,7 +60,7 @@ button.hud-pill:active{transform:translateY(1px)}
 /* `#hud-root button{color:inherit}` would make the pill text dark on dark brown: force the pill colors. */
 #hud-root .hud-pill{color:#fff}
 #hud-root .hud-pill--bean.is-full{color:#5a3510;animation:hud-full-blink 1s ease-in-out infinite}
-@keyframes hud-full-blink{0%,100%{transform:scale(1);box-shadow:0 3px 0 #b5741b,0 0 0 0 #ff7a1a00}50%{transform:scale(1.06);box-shadow:0 3px 0 #b5741b,0 0 0 6px #ff7a1acc}}
+@keyframes hud-full-blink{50%{opacity:.72}}
 @media(prefers-reduced-motion:reduce){#hud-root .hud-pill--bean.is-full{animation:none}}
 .hud-pill-tag{margin-left:4px;padding:3px 6px;border-radius:999px;background:#ffffff26;font:800 10px/1 var(--h-font);letter-spacing:.3px;text-transform:uppercase}
 .hud-pill--bean.is-full .hud-pill-tag{background:#c2410c;color:#fff;animation:hud-pulse 1s ease-in-out infinite}
@@ -103,7 +103,7 @@ button.hud-pill:active{transform:translateY(1px)}
 .hud-rail-stop.is-locked .hud-rail-card:active{transform:scale(.98)}
 .hud-rail-stop.is-locked .hud-rail-art{overflow:hidden;background:radial-gradient(circle at 50% 45%,#7c63c9,#3a2a6a 70%);box-shadow:inset 0 0 0 2px #8f78e0}
 .hud-rail-stop.is-locked .hud-rail-art::before{content:'';position:absolute;inset:0;border-radius:inherit;background:radial-gradient(1.5px 1.5px at 18% 22%,#fff,#0000),radial-gradient(1.5px 1.5px at 78% 30%,#fff,#0000),radial-gradient(2px 2px at 30% 80%,#ffe9a8,#0000),radial-gradient(1.5px 1.5px at 85% 78%,#fff,#0000),radial-gradient(1px 1px at 55% 12%,#fff,#0000);animation:hud-twinkle 2.4s ease-in-out infinite}
-.hud-rail-ghost{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:2px;font-size:26px;filter:blur(5px) brightness(1.4);opacity:.55}
+.hud-rail-ghost{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:2px;font-size:26px;opacity:.4}
 .hud-rail-q{position:relative;font:900 38px/1 var(--h-font);color:#ffe27a;text-shadow:0 0 10px #ffd24dcc,0 0 22px #ffb34d88,0 2px 0 #7a4a12;animation:hud-q-glow 2s ease-in-out infinite}
 .hud-rail-lock{position:absolute;right:4px;bottom:4px;display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:linear-gradient(#ffe07a,#f4b63c);border:2px solid #fff;font-size:13px;line-height:1;box-shadow:0 2px 0 #0004}
 .hud-rail-lock .ui-icon,.hud-rail-dot .ui-icon{vertical-align:0}
@@ -125,7 +125,7 @@ button.hud-pill:active{transform:translateY(1px)}
 .hud-loan-label{position:relative;z-index:1;margin-top:-8px;padding:2px 8px;border-radius:99px;background:#4a2f1b;border:2px solid #fff;color:#fff;font:800 11px/1.1 var(--h-font);white-space:nowrap}
 .hud-loan-btn.is-debt .hud-loan-label{background:var(--h-red)}
 .hud-loan-btn.is-late .hud-loan-bag{animation:hud-pulse 1.2s ease-in-out infinite}
-@keyframes hud-loan-glow{0%,100%{box-shadow:0 4px 0 #b97a17,0 0 0 0 #ffd24d00;transform:rotate(0)}40%{box-shadow:0 4px 0 #b97a17,0 0 0 8px #ffd24d66}50%{transform:rotate(-6deg)}60%{transform:rotate(6deg)}70%{transform:rotate(0)}}
+@keyframes hud-loan-glow{50%{opacity:.72}}
 /* Loan sheet */
 .hud-loan{display:grid;gap:10px}
 /* Borrow / Repay tabs and the repay amount picker */
@@ -356,7 +356,7 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
 #hud-root[data-placing] .hud-switch,#hud-root[data-sheet] .hud-switch,#hud-root:not([data-phase="play"]) .hud-switch{display:none}
 .hud-edge{position:fixed;z-index:calc(var(--z-hud,5) + 2);left:0;top:0;width:52px;height:52px;margin:-26px 0 0 -26px;display:grid;place-items:center;border:0;border-radius:50%;background:#fff;box-shadow:0 4px 0 #a2763a55,0 0 0 3px var(--h-mark);color:var(--h-mark);will-change:transform;animation:hud-edge-pulse 1.1s ease-in-out infinite}
 .hud-edge-ico{display:block;font:900 26px/1 var(--h-font)}
-@keyframes hud-edge-pulse{50%{box-shadow:0 4px 0 #a2763a55,0 0 0 7px #e8691c55}}
+@keyframes hud-edge-pulse{50%{opacity:.72}}
 .hud-hand{position:fixed;z-index:calc(var(--z-hud,5) + 3);left:0;top:0;width:0;height:0;pointer-events:none;will-change:transform}
 .hud-hand::before{content:'';position:absolute;left:-18px;top:-18px;width:36px;height:36px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px #e8691c55;animation:hud-ripple 1.1s ease-out infinite}
 .hud-hand-inner{position:absolute;left:-21px;top:-4px;filter:drop-shadow(0 4px 3px #0004);animation:hud-tap 1.1s ease-in-out infinite;transform-origin:21px 4px}
@@ -424,7 +424,7 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
 .hud-confirm{animation-name:hud-pop-plain}
 @keyframes hud-tap{0%,100%{transform:translateY(10px) scale(1)}45%{transform:translateY(0) scale(.92)}55%{transform:translateY(0) scale(.92)}}
 @keyframes hud-ripple{0%{transform:scale(.4);opacity:0}45%{opacity:.95}100%{transform:scale(1.4);opacity:0}}
-@keyframes hud-pulse{0%,100%{box-shadow:0 0 0 0 #ffd23f00,0 2px 0 #a2763a55}50%{box-shadow:0 0 0 7px #ffd23fcc,0 2px 0 #a2763a55}}
+@keyframes hud-pulse{50%{opacity:.72}}
 @keyframes hud-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(3px)}}
 
 /* ---------- Landscape phone: toolbar on the right edge ---------- */
@@ -1188,7 +1188,6 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
 #hud-root[data-plotcard] .hud-toolbar{display:none} /* the field card owns the bottom of the screen while it is open */
 .hud-player{cursor:pointer;pointer-events:auto}
 .hud-near{flex-wrap:wrap;gap:6px;align-items:center}.hud-near-tree{min-width:40px;height:40px;border-radius:12px;border:2px solid #d9b77a;background:#fff8e6;font-size:20px}.hud-near-tree.is-ready{border-color:#e8a317}
-.hud-headseed{position:fixed;transform:translate(-50%,-100%);z-index:30;display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:999px;border:2px solid #a2763a;background:#fff8e6;box-shadow:0 3px 8px rgba(0,0,0,.3);font-size:22px;line-height:1;cursor:pointer;pointer-events:auto}.hud-headseed b{font-size:14px;color:#c0392b}.hud-headseed[hidden]{display:none}
 .hud-seedgrid{display:grid;gap:10px;padding:4px 2px 8px}
 .hud-seedcard{display:flex;align-items:center;gap:14px;width:100%;padding:12px 14px;border-radius:18px;border:3px solid #e3cfa3;background:#fffdf6;text-align:left;cursor:pointer;font:inherit;color:inherit}
 .hud-seedcard.is-active{border-color:#78b84a;background:#f1fae6}
@@ -1443,27 +1442,6 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
 .hud-gift-item{justify-content:center;min-height:44px}
 .hud-gift-item strong{display:inline-flex;align-items:center;gap:6px}
 
-/* Barn card: animals for sale */
-.hud-livestock{display:grid;gap:6px;margin:6px 0}
-.hud-livestock-row{display:grid;grid-template-columns:36px 1fr auto;align-items:center;gap:8px;padding:6px 8px;border-radius:14px;background:#fff;box-shadow:inset 0 0 0 2px var(--h-line)}
-.hud-livestock-ico{font-size:24px;text-align:center}
-.hud-livestock-name{display:grid;text-align:left;min-width:0}
-.hud-livestock-name small{color:var(--h-ink-soft)}
-.hud-animal-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.hud-animal-row small{color:var(--h-ink-soft);font:700 13px/1.2 var(--h-font)}
-.hud-animal-row .hud-btn{flex:none;min-height:40px;padding:0 12px}
-/* Barn: animals as small tiles */
-#hud-root .hud-livestock-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-#hud-root .hud-livestock-tile{position:relative;display:grid;justify-items:center;gap:3px;padding:8px 4px 6px;border-radius:14px;background:#fff;box-shadow:inset 0 0 0 2px var(--h-line);text-align:center}
-#hud-root .hud-livestock-tile .hud-livestock-ico{font-size:26px;line-height:1}
-#hud-root .hud-livestock-tile strong{font:800 12px/1.1 var(--h-font);white-space:nowrap}
-#hud-root .hud-livestock-tile .hud-btn{min-height:32px;padding:0 8px;font-size:12px;width:100%}
-#hud-root .hud-livestock-n{position:absolute;top:4px;right:6px;font:800 11px/1 var(--h-font);color:var(--h-ink-soft)}
-#hud-root .hud-livestock-ico{display:grid;place-items:center;width:44px;height:44px}
-#hud-root .hud-livestock-img{width:100%;height:100%;object-fit:contain}
-#hud-root .hud-livestock-tile{padding:10px;gap:6px;align-content:center}
-#hud-root .hud-livestock-n{top:8px;right:10px}
-#hud-root .hud-livestock-tile .hud-btn{margin:0}
 
 /* Building / storage cards open near the middle of the screen, like the other modals */
 #hud-root .hud-action.is-wide{top:46%;bottom:auto;transform:translate(-50%,-50%);max-height:calc(100dvh - 120px);overflow-y:auto}
@@ -1612,10 +1590,41 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
 .hud-al.is-closed .hud-al-head{min-height:34px;padding:0 12px;border-radius:99px;font-size:13px;gap:6px;justify-content:center}
 
 /* Auto nông trại (2026-11-09): the rail button turns green while a run works the farm; its tag shows the time left. */
-.hud-top-right .hud-auto-btn.is-on{background:linear-gradient(#d9ffd9,#7fd88f);border-color:#2f8f4e;color:#1d5a30;animation:hud-auto-on 2s ease-in-out infinite}
+.hud-top-right .hud-auto-btn.is-on{background:linear-gradient(#d9ffd9,#7fd88f);border-color:#2f8f4e;color:#1d5a30}
 .hud-top-right .hud-auto-btn.is-on .hud-auto-tag{background:#2f8f4e;font-variant-numeric:tabular-nums}
-@keyframes hud-auto-on{0%,100%{box-shadow:0 0 0 0 #3fbf6a88}50%{box-shadow:0 0 0 6px #3fbf6a00}}
-@media (prefers-reduced-motion:reduce){.hud-top-right .hud-auto-btn.is-on{animation:none}}
+/* the ring empties as the run's time runs out (--auto-pct, HUD updateAuto) */
+.hud-top-right .hud-auto-btn.is-on::before{content:"";position:absolute;inset:-7px;border-radius:50%;background:conic-gradient(#3fbf6a var(--auto-pct,100%),#ffffff66 0);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3.5px));mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3.5px));pointer-events:none}
+.hud-top-right .hud-auto-btn.is-paused{background:linear-gradient(#fff7dc,#ffe6a8);border-color:#d9a441}
+.hud-top-right .hud-auto-btn.is-paused .hud-auto-tag{background:#a8741a;font-variant-numeric:tabular-nums}
+/* Auto panel (sheet behind the rail button + the farm's Auto tab) */
+.hud-auto-panel{display:grid;gap:10px}
+.hud-auto-state{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:6px 10px;padding:12px;border-radius:14px;background:var(--h-cream-2);box-shadow:inset 0 0 0 2px var(--h-edge)}
+.hud-auto-state.is-on{background:#e4f7dd;box-shadow:inset 0 0 0 2px #7fcb6a}
+.hud-auto-state.is-empty{background:#f3e9d5}
+.hud-auto-state-ico{font-size:30px;line-height:1}
+.hud-auto-state-text{display:grid;gap:1px;min-width:0}
+.hud-auto-state-text strong{font:800 16px/1.2 var(--h-font)}
+.hud-auto-state-text small{font:600 12.5px/1.3 var(--h-font);color:var(--h-ink-soft)}
+.hud-auto-state-time{font:800 28px/1 var(--h-font);font-variant-numeric:tabular-nums;white-space:nowrap}
+.hud-auto-state.is-on .hud-auto-state-time{color:#2f7d3c}
+.hud-auto-state.is-paused .hud-auto-state-time{color:#a8741a}
+.hud-auto-meter{grid-column:1/-1;height:8px;border-radius:4px;background:rgba(0,0,0,.12);overflow:hidden}
+.hud-auto-meter>i{display:block;height:100%;background:#5aab35}
+.hud-auto-state.is-paused .hud-auto-meter>i{background:#d9a441}
+.hud-auto-actions{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+.hud-auto-actions .hud-btn:only-child{grid-column:1/-1}
+.hud-auto-actions .hud-btn{width:100%}
+.hud-auto-report h3{margin:0 0 6px;font:800 13px/1.2 var(--h-font);color:var(--h-ink-soft)}
+.hud-auto-does summary{min-height:44px;display:flex;align-items:center;font:800 14px/1.2 var(--h-font);color:var(--h-ink-soft);cursor:pointer}
+.hud-auto-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.hud-auto-stat{display:grid;gap:1px;padding:8px 6px;border-radius:12px;background:rgba(120,84,40,.1);text-align:center}
+.hud-auto-stat strong{font:800 18px/1.1 var(--h-font);font-variant-numeric:tabular-nums}
+.hud-auto-stat small{font:600 11.5px/1.2 var(--h-font)}
+.hud-auto-does ul{display:grid;gap:3px;margin:0;padding:0;list-style:none}
+.hud-auto-does li{position:relative;padding-left:22px;font:600 13.5px/1.35 var(--h-font)}
+.hud-auto-does li::before{content:"✓";position:absolute;left:4px;color:var(--h-good);font-weight:900}
+.hud-auto-does li.is-no::before{content:"✕";color:var(--h-bad)}
+.hud-auto-note{margin:8px 0 0;font:600 12.5px/1.35 var(--h-font);color:var(--h-ink-soft)}
 .hud-top-right .hud-auto-btn.is-buy{background:linear-gradient(#fff2b0,#f2b53a);border-color:#b97a17}
 .hud-top-right .hud-auto-btn.is-buy .hud-auto-tag{background:#8a5a0c}
 .hud-top-right .hud-auto-btn .hud-auto-tag{letter-spacing:.2px}
@@ -1632,3 +1641,106 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
 /* "⚡ Cấp 10: có biến cố" chip (back with the Level-10 incident, 2026-11-09): under the left tool column (Phát triển ·
    Nhân viên, top 64 px + ~130 px), not under the badge where the Phát triển button covered it */
 #hud-root .hud-lv10{position:fixed;left:calc(env(safe-area-inset-left, 0px) + 8px);top:calc(var(--h-st, 0px) + 202px);z-index:var(--z-hud,5)}
+
+/* Nhiệm vụ (quest sheet) */
+.hud-quests{display:grid;gap:8px}
+.hud-quest-head{display:grid;gap:6px}
+.hud-quest{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:12px;background:rgba(120,84,40,.1)}
+.hud-quest.is-done{background:rgba(92,170,70,.2)}
+.hud-quest-main{flex:1;min-width:0;display:grid;grid-template-columns:1fr auto;gap:4px 8px;align-items:center}
+.hud-quest-text{font-weight:800;font-size:14px;min-width:0}
+.hud-quest-prize{font-size:12px;font-weight:700;white-space:nowrap}
+.hud-quest-bar{height:8px;border-radius:4px;background:rgba(0,0,0,.14);overflow:hidden}
+.hud-quest-bar>i{display:block;height:100%;background:#6fbf4a}
+.hud-quest-num{font-size:12px;font-weight:700;white-space:nowrap}
+.hud-quest .hud-btn{flex:none;width:auto;min-height:44px}
+/* Staff board: checkboxes, filters, one order for many (docs/design/staff-manager.md §10.1) */
+.hud-sb-foot:empty{display:none}
+.hud-sb-foot{flex:none;position:relative;z-index:1;background:var(--h-cream);box-shadow:0 -2px 0 var(--h-line);padding:8px calc(12px + var(--h-sr)) calc(var(--h-sb) + 8px) calc(12px + var(--h-sl))}
+.hud-sb-box{flex:none;display:grid;place-items:center;width:24px;height:24px;border-radius:8px;background:#fff;box-shadow:inset 0 0 0 2px #cdb68c;color:#fff;font:900 15px/1 var(--h-font)}
+.hud-sb-box.is-on{background:#55a630;box-shadow:inset 0 0 0 2px #3f8421}
+.hud-rs-row{display:flex;align-items:stretch}
+.hud-rs-row .hud-rs-main{flex:1;min-width:0;width:auto}
+.hud-rs-row.is-picked{background:#f0f8e4;box-shadow:inset 0 0 0 2px #7fbf4f}
+.hud-sb-all{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;margin:2px 0 6px;padding:0 10px;border:0;border-radius:12px;background:#f1e3c4;color:#7a5a3a;font:800 13.5px/1.2 var(--h-font);text-align:left}
+.hud-sb-filters{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}
+.hud-sb-chip{min-height:36px;padding:0 11px;border:0;border-radius:99px;background:#fff;box-shadow:inset 0 0 0 2px var(--h-line);color:#6b4e2e;font:800 12.5px/1 var(--h-font);white-space:nowrap}
+.hud-sb-chip[aria-pressed="true"]{background:#55a630;box-shadow:none;color:#fff}
+.hud-sb-dock{display:grid;gap:6px}
+.hud-sb-count{display:flex;align-items:center;justify-content:space-between;gap:8px;font:800 13.5px/1.2 var(--h-font)}
+.hud-sb-clear{min-height:32px;padding:0 10px;border:0;border-radius:10px;background:none;color:#8a6a43;font:800 12.5px/1 var(--h-font);text-decoration:underline}
+.hud-sb-acts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}
+.hud-sb-act{display:grid;justify-items:center;gap:2px;min-height:52px;padding:6px 2px;border:0;border-radius:14px;background:#fff;box-shadow:inset 0 0 0 2px var(--h-line);font-size:19px;line-height:1;color:#6b4e2e}
+.hud-sb-act small{font:800 11.5px/1.1 var(--h-font);white-space:nowrap}
+.hud-sb-act[aria-pressed="true"]{background:#ffe9b3;box-shadow:inset 0 0 0 2px #e8b23e}
+.hud-sb-act:disabled{opacity:.45}
+.hud-sb-act[data-hud-id="staffBulk-fire"] small{color:#b5523a}
+.hud-sb-panel{max-height:44vh;overflow-y:auto;padding:8px 10px 10px;border-radius:16px;background:#fff;box-shadow:inset 0 0 0 2px var(--h-line)}
+.hud-sb-phead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:-2px 0 6px;font:800 14px/1.2 var(--h-font)}
+.hud-sb-pclose{width:36px;height:36px;margin:-4px -6px -4px 0;border:0;background:none;color:#8a6a43;font:800 22px/1 var(--h-font)}
+.hud-sb-plabel{margin:4px 0 5px;font:800 12px/1.2 var(--h-font);color:var(--h-ink-soft)}
+.hud-sb-opts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.hud-sb-opt{display:grid;align-content:center;gap:3px;min-height:54px;padding:6px 9px;border:0;border-radius:12px;background:#fbf3df;text-align:left;color:#4c3620}
+.hud-sb-opt:first-child:nth-last-child(odd){grid-column:1/-1}
+.hud-sb-opt:disabled{opacity:.5}
+.hud-sb-opt-name{font:800 13px/1.2 var(--h-font);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hud-sb-opt small{display:flex;align-items:center;gap:3px;flex-wrap:wrap;font:700 11.5px/1.2 var(--h-font);color:var(--h-ink-soft)}
+.hud-sb-hand{margin:2px 0 0}
+.hud-sb-hand.is-on{padding:10px 12px 12px;border-radius:18px;background:#f3eefb;box-shadow:inset 0 0 0 2px #cdbbe8}
+.hud-sb-hand-text{display:grid;gap:2px;margin:0 0 8px}
+.hud-sb-hand-text strong{font:800 14.5px/1.25 var(--h-font);color:#4d3478}
+.hud-sb-hand-text small{font:700 12.5px/1.3 var(--h-font);color:#6a5a84}
+.hud-sb-hand>.hud-btn{width:100%}
+.hud-sb-hand-btns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:8px}
+.hud-sb-hand-btns .hud-btn{min-width:0;padding:8px 6px}
+.hud-sb-kpi3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.hud-sb-hand>.hud-btn{min-height:48px;color:#4d3478}
+.hud-ny-sec .hud-ny-text strong{white-space:normal}
+/* Phân công: touch people, then where they go */
+.hud-as-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 0 10px}
+.hud-as-top small{font:700 12.5px/1.3 var(--h-font);color:var(--h-ink-soft)}
+.hud-as-top .hud-btn{flex:none;min-width:0;padding:8px 12px}
+.hud-as-group{margin:8px 0 0;padding:8px 10px 10px;border-radius:16px;background:#fff;box-shadow:inset 0 0 0 2px var(--h-line)}
+.hud-as-head{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;min-height:36px}
+.hud-as-head strong{font:800 15px/1.2 var(--h-font)}
+.hud-as-head small{font:700 12px/1.2 var(--h-font);color:var(--h-ink-soft)}
+.hud-as-head .hud-as-miss{color:#b5523a}
+.hud-as-all{margin-left:auto;min-height:36px;padding:0 8px;border:0;background:none;color:#8a6a43;font:800 12.5px/1 var(--h-font);text-decoration:underline}
+.hud-as-chips{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:4px}
+.hud-as-chip{display:flex;align-items:center;gap:6px;min-width:0;min-height:44px;padding:0 10px;border:0;border-radius:12px;background:#fbf3df;color:#4c3620;font:800 13px/1.1 var(--h-font);text-align:left}
+.hud-as-chip[aria-pressed="true"]{background:#55a630;color:#fff}
+.hud-as-chip:disabled{opacity:.7}
+.hud-as-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hud-as-targets{display:grid;grid-template-columns:repeat(auto-fit,minmax(70px,1fr));gap:6px}
+.hud-as-target{min-height:50px;padding:4px;border:0;border-radius:14px;background:#55a630;box-shadow:0 2px 0 var(--h-go-drop);color:#fff;font:800 14px/1.1 var(--h-font)}
+/* Overview: the dashboard and one row per trade */
+.hud-db-tile{border:0;text-align:left;font:inherit;color:inherit}
+.hud-db-title{margin-top:12px!important}
+.hud-db-bars{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;height:108px;margin-top:4px}
+.hud-db-col{display:grid;grid-template-rows:16px minmax(0,1fr) 16px;justify-items:center;min-width:0;position:relative}
+.hud-db-col i{align-self:end;width:min(70%,26px);border-radius:4px 4px 0 0;background:#cfe3b8}
+.hud-db-col.is-today i{background:#55a630}
+.hud-db-val{font:800 10.5px/16px var(--h-font);color:#4c3620;white-space:nowrap}
+.hud-db-col small{font:700 11px/16px var(--h-font);color:var(--h-ink-soft)}
+.hud-db-ico{flex:none;display:grid;place-items:center;width:42px;height:42px;border-radius:14px;background:#fbf3df;font-size:22px}
+.hud-db-sub{font:700 12px/1.25 var(--h-font);color:var(--h-ink-soft)}
+.hud-db-bad{flex:none;font:800 12.5px/1 var(--h-font);color:#b5523a}
+/* four tabs on a phone: the count sits on the corner so the label keeps its full width */
+.hud-sm-tabs .hud-tab{position:relative}
+.hud-sm-tabs .hud-sm-badge{position:absolute;top:-3px;right:2px;margin:0}
+
+/* Planting bar (seed in hand): the three varieties, what the row being drawn costs, ✕ to stop */
+.hud-plantbar{position:fixed;z-index:var(--z-hud,5);bottom:calc(var(--h-sb, 0px) + 14px);left:50%;transform:translateX(-50%);display:grid;justify-items:center;gap:6px;width:max-content;max-width:calc(100vw - 16px);pointer-events:none}
+.hud-plantbar[hidden]{display:none}
+.hud-plantbar>*{pointer-events:auto}
+#hud-root:not([data-phase="play"]) .hud-plantbar{display:none}
+.hud-plantbar-crops{display:flex;align-items:center;gap:6px}
+.hud-plantbar-crop{display:inline-flex;align-items:center;gap:4px;min-height:44px;padding:0 10px;border:0;border-radius:14px;background:#fff8e6ee;box-shadow:var(--h-shadow);font:800 13px/1 var(--h-font);color:inherit;cursor:pointer}
+.hud-plantbar-crop.is-active{background:#7cc35a;color:#fff;box-shadow:var(--h-shadow),0 0 0 3px #fff}
+.hud-plantbar-crop:disabled{opacity:.45;cursor:default}
+.hud-plantbar .hud-round-btn{width:44px;height:44px;font-size:19px;flex:none}
+.hud-plantbar-info{display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:calc(100vw - 32px);min-height:28px;padding:4px 12px;border-radius:14px;background:#fff8e6ee;box-shadow:var(--h-shadow);text-align:center}
+.hud-plantbar-line{font:700 12px/1.25 var(--h-font);color:var(--h-good)}
+.hud-plantbar-line.is-bad{color:var(--h-bad)}
+.hud-plantbar-price:empty{display:none}
+.hud-plantbar-price .hud-cost{padding:2px 8px 2px 2px;border-radius:99px;background:#fff1cf}

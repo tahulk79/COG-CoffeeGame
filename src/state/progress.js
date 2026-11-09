@@ -88,7 +88,8 @@ export function resetProgress(withMemory = false) {
   } catch { return false; }
 }
 
-const DEFAULT_SETTINGS = { version: 1, master: 0.8, music: 0.6, ambience: 0.7, sfx: 0.8, ui: 0.6, muted: false, quality: 'high', lang: DEFAULT_LANG, analytics: true, autoFocus: true };
+const IS_PHONE = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches; // a first run on a phone starts cooler than on a computer
+const DEFAULT_SETTINGS = { version: 1, master: 0.8, music: 0.6, ambience: 0.7, sfx: 0.8, ui: 0.6, muted: false, quality: IS_PHONE ? 'medium' : 'high', lang: DEFAULT_LANG, analytics: true, autoFocus: true };
 const QUALITIES = ['low', 'medium', 'high'];
 
 export function normalizeSettings(raw) {

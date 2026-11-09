@@ -1,9 +1,9 @@
 // Bottom toolbar (thumb zone). Each screen has its own menu (founder's rule "mỗi màn hình có menu phù hợp"):
-//  · farm: Seeds, Build (farm menu: dryer + decor), [🫘 Sell beans], Staff (farm), Progress
-//  · café: Build (café menu), Menu (drinks), [🫘 Buy beans], Staff (café), Progress
+//  · farm: Plant, Build, Staff, Storage, Manage
+//  · café: Build (café menu), Menu (drinks), [🫘 Buy beans], Staff (café), Manage
 // Each region is ONE game (farm or café, picked on the world map), so there is no farm ⇄ café switch any more: the big
 // middle button is the beans link of that game — the farm sells its beans, the café imports beans.
-// The World map is in the Progress sheet (and the World Gate on the farm). Exactly 4 menus per screen (founder).
+// The World map is in Manage (and the top rail). Five menus per screen; everything used less often is inside Manage.
 // Red dot when something is new or affordable. Buttons of the other screen are hidden (never removed: the tutorial and
 // tests can still find them by id).
 import { BUILD_MENU_FARM, BUILD_MENU_CAFE, BUILDINGS, CROPS, CROP_ORDER, DRINK_ORDER, STAFF, STAFF_ORDER, BEANS, ITEM_GOODS } from '../../core/config/economy.js';
@@ -12,13 +12,15 @@ import { h, setText } from './dom.js';
 import { T } from './text.js';
 import { drinkSeenKey } from './sheets.js';
 import { useFarmArt } from './farm-assets.js';
+import { farmAlerts } from '../../core/finance.js';
 
 export const TOOLS = [
-  { id: 'seeds', icon: '🌱', views: [] },          // merged into the Develop menu (🌱 Plant tab); id kept for the seed sheet
-  { id: 'storage', icon: '📦', views: [] },          // opened from the bean pill (kept for ids/tutorial)
+  { id: 'seeds', icon: '🌱', views: ['farm'] },
   { id: 'build', icon: '🔨', views: ['farm', 'cafe'] },
   { id: 'menu', icon: '📋', views: ['cafe'] },
   { id: 'staff', icon: '👥', views: ['farm', 'cafe'] },
+  { id: 'storage', icon: '📦', views: ['farm'] },
+  { id: 'manage', icon: '📒', views: ['farm', 'cafe'] }, // finance, upgrades, loans, quests, journal, map
   { id: 'world', icon: '🌍', views: [] },             // World map: button in the Progress sheet
   { id: 'progress', icon: '⭐', views: [] }, // the Progress menu is gone (founder 2026-11-08)
 ];
@@ -46,6 +48,7 @@ export function toolDots(s, view = 'farm') {
   const firstHire = !!r && !zoneUnits(s, zone).length && STAFF_ORDER.some(type => STAFF[type].zone === zone && !staffError(s, type));
   dots.staff = tasksOpen(s).length > 0 || !!s.gm?.chaos || !!s.gm?.unit?.strike || here.some(u => unitBlocked(u, now) || upgradableStats(s, u).length > 0) || idle || firstHire;
   dots.world = false;
+  dots.manage = !!r && farmAlerts(s, s.world.currentRegion, now).some(a => a.severity === 'high');
   // Beans link: farm → storehouse full (sell!); café → almost out of beans and a pack can be bought.
   const cap = r ? capacity(s) : 0;
   dots.trade = !!r && (view === 'cafe' ? s.inventory.beans < 2 && !beanBuyQuote(s).error : cap > 0 && stored(s) >= cap);

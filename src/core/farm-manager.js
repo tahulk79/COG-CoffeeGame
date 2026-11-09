@@ -152,7 +152,6 @@ function labourShare(s, k) {
 }
 
 // ---------- forecast: one investment ----------
-const VEHICLES = ['motorbike', 'tillerCart', 'farmTruck'];
 function storageFlow(s, x) {
   const cap = capacity(s), pct = cap > 0 ? stored(s) / cap : 1;
   return x.farmFlow * clamp01((pct - .5) / .5);
@@ -199,7 +198,7 @@ function flowOf(s, c, x) {
     if (type === 'dripLine') { const n = ownedPlots(s).filter(q => Math.hypot(q.x - p.x, q.z - p.z) <= def.effect.radius[0] && region(s).plots[q.id] && !dripCovers(s, q.id)).length; return { cat: 'water', flow: n * (x.k[t]?.flow || 0) * TEND.speedup * .5, known: true, tier: t }; }
     if (def.effect?.capacity) return { cat: 'storage', flow: storageFlow(s, x), known: true, tier: t };
     if (def.recipe) return { cat: 'process', flow: stationFlow(s, x, def.recipe, 1, 1), known: true, tier: t };
-    return { cat: VEHICLES.includes(type) ? 'logistics' : 'building', flow: c.value, known: false, tier: t };
+    return { cat: 'building', flow: c.value, known: false, tier: t };
   }
   if (a.type === 'build/upgrade') {
     const b = (region(s)?.buildings || []).find(q => q.uid === p.uid), def = b && BUILDINGS[b.type];
@@ -294,7 +293,7 @@ export function gate(s, c, x, perm) {
   const win = s.gm.window, spent = win && x.now - win.start < GM.windowMinutes * 60000 ? win.spent : 0;
   if (f.spendLimit > 0 && spent + x.committed + c.cost > f.spendLimit) return 'limit';
   if (!c.essential && e.known && (e.payback > paybackLimit(x, e) || e.net <= 0)) return 'payback';
-  // No formula for what it earns (animals, vehicles, shade, extra team upgrades): only with real profit and no debt.
+  // No formula for what it earns (shade, extra team upgrades): only with real profit and no debt.
   if (!c.essential && !e.known && e.cat !== 'other' && (x.net <= 0 || x.owed > 0)) return 'noProfit';
   if (landAct(c)) { const why = landBlock(x, c); if (why) return why; }
   if (!c.essential && x.saving && x.saving.key !== c.key && (!e.known || e.flow / e.invest < x.saving.econ.flow / x.saving.econ.invest)) return 'saving';

@@ -40,7 +40,7 @@
 dialog.ui-modal{color:var(--ui-ink);font-family:var(--game-font)}
 dialog.ui-modal:not([open]){display:none}
 dialog.ui-modal:not(.ui-modal__window){width:100%;height:100%;max-width:none;max-height:none;margin:0;border:0;background:none}
-dialog.ui-modal::backdrop,:where(.farm-dismiss-dialog,.farm-trade-dialog,#cafe-dialog)::backdrop{background:var(--ui-backdrop);backdrop-filter:blur(2px)}
+dialog.ui-modal::backdrop,:where(.farm-dismiss-dialog,.farm-trade-dialog,#cafe-dialog)::backdrop{background:var(--ui-backdrop)}
 /* <dialog> cũ (#cafe-dialog, .farm-dismiss-dialog) không làm bí danh ở đây: display/position tác giả sẽ đè UA và làm hiện dialog đang đóng. */
 .ui-modal__window,:where(.farm-modal-window,.ending-card){position:relative;display:flex;flex-direction:column;width:min(560px,100%);max-height:calc(100dvh - 82px);padding:28px 16px 14px;border:3px solid var(--ui-wood);border-radius:25px;background:var(--ui-window-image),var(--ui-plank);box-shadow:inset 0 0 0 3px var(--ui-wood-trim),0 6px var(--ui-wood-dark),0 16px 50px var(--ui-shadow);color:var(--ui-ink);font-family:var(--game-font);overflow:visible}
 dialog.ui-modal__window{position:fixed;inset:0;height:fit-content;margin:auto;width:min(560px,calc(100vw - 32px));max-height:calc(100dvh - 82px)}

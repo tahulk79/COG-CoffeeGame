@@ -15,6 +15,8 @@ import worldCities from './locales/world-cities.js';
 import farmWorld from './locales/farm-world.js';
 import farmFunny from './locales/farm-funny.js';
 import farmManager from './locales/farm-manager.js';
+import staffBoard from './locales/staff-board.js';
+import wallet from './locales/wallet.js';
 
 export const LANGS = ['en', 'vi'];
 export const DEFAULT_LANG = 'en';
@@ -23,7 +25,7 @@ const LOCALES = { en: 'en-US', vi: 'vi-VN' };
 import { PROGRESS_KEY as SETTINGS_KEY } from '../state/storage-keys.js';
 
 const dict = { en: {}, vi: {} };
-for (const pack of [html, common, selection, intro, worldMap, v3Realm, v3Hud, v3Story, worldCities, farmWorld, farmFunny, farmManager]) {
+for (const pack of [html, common, selection, intro, worldMap, v3Realm, v3Hud, v3Story, worldCities, farmWorld, farmFunny, farmManager, staffBoard, wallet]) {
   for (const lang of LANGS) Object.assign(dict[lang], pack?.[lang]);
 }
 

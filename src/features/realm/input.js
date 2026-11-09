@@ -17,6 +17,7 @@ export function createInput(canvas, handlers, isLocked) {
   const pointers = new Map();
   const start = { x: 0, y: 0 }, last = { x: 0, y: 0 }, p = { x: 0, y: 0 }, mid = { x: 0, y: 0 };
   let dragging = false, pinching = false, spoiled = false, pinchDist = 0, slop = 10, downAt = 0;
+  let midSet = false, altPan = null; // two-finger / other-mouse-button map pan (only when handlers.altPan() says so: while planting)
   const prevTouchAction = canvas.style.touchAction;
   canvas.style.touchAction = 'none';
 
@@ -28,7 +29,11 @@ export function createInput(canvas, handlers, isLocked) {
   }
 
   canvas.addEventListener('pointerdown', e => {
-    if (e.target !== canvas || isLocked() || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    if (e.target !== canvas || isLocked()) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) {
+      if (handlers.altPan?.()) { altPan = { id: e.pointerId, x: e.clientX, y: e.clientY }; try { canvas.setPointerCapture(e.pointerId); } catch { /* synthetic events */ } }
+      return;
+    }
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     try { canvas.setPointerCapture(e.pointerId); } catch { /* synthetic events */ }
     if (pointers.size === 1) {
@@ -40,11 +45,17 @@ export function createInput(canvas, handlers, isLocked) {
     } else if (pointers.size === 2) {
       if (dragging) handlers.cancel?.();
       dragging = false; pinching = true; spoiled = true;
-      pinchDist = spread();
+      pinchDist = spread(); midSet = false;
     }
   }, opts);
 
   canvas.addEventListener('pointermove', e => {
+    if (altPan?.id === e.pointerId) {
+      if (e.buttons === 0 || isLocked()) { altPan = null; return; }
+      handlers.pan2?.(e.clientX - altPan.x, e.clientY - altPan.y);
+      altPan.x = e.clientX; altPan.y = e.clientY;
+      return;
+    }
     const pt = pointers.get(e.pointerId);
     if (!pt) return;
     // A mouse that moves with no button held has let go without us hearing (a context menu, a window switch swallowed the
@@ -55,7 +66,12 @@ export function createInput(canvas, handlers, isLocked) {
     if (pinching) {
       if (pointers.size >= 2) {
         const d = spread();
-        if (d > 0 && pinchDist > 0) { const [a, b] = [...pointers.values()]; mid.x = (a.x + b.x) / 2; mid.y = (a.y + b.y) / 2; handlers.zoom?.(pinchDist / d, mid); }
+        if (d > 0 && pinchDist > 0) {
+          const [a, b] = [...pointers.values()], mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+          if (midSet) handlers.pan2?.(mx - mid.x, my - mid.y);
+          mid.x = mx; mid.y = my; midSet = true;
+          handlers.zoom?.(pinchDist / d, mid);
+        }
         pinchDist = d;
       }
       return;
@@ -73,6 +89,7 @@ export function createInput(canvas, handlers, isLocked) {
   }, opts);
 
   const up = e => {
+    if (altPan?.id === e.pointerId) { altPan = null; return; }
     if (!pointers.has(e.pointerId)) return;
     pointers.delete(e.pointerId);
     p.x = e.clientX; p.y = e.clientY;

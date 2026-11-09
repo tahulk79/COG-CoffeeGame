@@ -3,6 +3,7 @@
 import { BUILD_MENU_FARM } from '../../core/config/economy.js';
 import { countOf, buildError, levelProgress, capacity, stored, region, loanOf, tasksOpen, pendingGifts, upgradeError } from '../../core/derive.js';
 import { EXPIRY_LEVEL, EXPIRY_ENABLED, GM, BUILDINGS } from '../../core/config/economy.js';
+import { questsReady } from '../../core/quests.js';
 
 /** Buildings of the current region the player can upgrade right now (land-ui-simplify §4: the HUD ⬆ counter). */
 // Only the game being played: the farm lists farm buildings, the café lists café ones (never both)
@@ -14,6 +15,8 @@ export const upgradableBuildings = (s, view = 'farm') => (region(s)?.buildings |
 export const affordableUpgrades = (s, view = 'farm') => (region(s)?.buildings || []).filter(b => !BUILDINGS[b.type]?.decor && inThisGame(b, view) && upgradeError(s, b) === null);
 import { farmHasGoods } from './toolbar.js';
 import { h, setText, bump } from './dom.js';
+import { farmAlerts } from '../../core/finance.js';
+import { usdOf } from '../../core/wallet.js';
 import { T, fmt } from './text.js';
 
 // Animated number: eases the shown value towards the target; writes the DOM only when the rounded value changes.
@@ -41,7 +44,13 @@ export function createTopBar(ctx) {
   const xpBar = h('span', { class: 'hud-xp' }, xpFill);
   const coinsVal = h('span', { class: 'hud-pill-val' });
   // tapping the coins opens the loan sheet, like the loan action (founder 2026-11-08)
-  const coins = h('button', { id: 'hud-coins', class: 'hud-pill hud-pill--coin', type: 'button', attrs: { 'aria-label': T('hud.loan.openBtn') }, on: { click: () => ctx.onTool?.('loan') } }, h('span', { class: 'hud-coin-ico', attrs: { 'aria-hidden': 'true' } }), coinsVal);
+  const coins = h('button', { id: 'hud-coins', class: 'hud-pill hud-pill--coin', type: 'button', attrs: { 'aria-label': T('fin.title') }, on: { click: () => ctx.onOpenFinance?.('fund', ctx.store.state.world.currentRegion) } }, h('span', { class: 'hud-coin-ico', attrs: { 'aria-hidden': 'true' } }), coinsVal);
+  // USD is the account's: small, beside the farm's Gold; opens the capital book.
+  const usdVal = h('span', null, '$0');
+  const usdPill = h('button', { id: 'hud-usd', class: 'hud-usd', type: 'button', attrs: { 'aria-label': T('fin.usdWallet') }, on: { click: () => ctx.onOpenFinance?.('home') } }, usdVal);
+  // The farm's most urgent money problem, one line; a tap goes straight to the fix.
+  const alertChip = h('button', { id: 'hud-alert', class: 'hud-alert-chip', type: 'button', hidden: true, on: { click: () => { const a = shownAlert; if (a) ctx.onOpenFinance?.(a.go === 'fund' ? 'fund' : 'farm', ctx.store.state.world.currentRegion); } } });
+  let shownAlert = null, alertKey = '', alertAt = 0;
   const beansVal = h('span', { class: 'hud-pill-val' });
   const beansCap = h('span', { class: 'hud-pill-cap' });
   const beansTag = h('span', { class: 'hud-pill-tag' }, T('hud.storage.tag'));
@@ -63,6 +72,9 @@ export function createTopBar(ctx) {
   const giftNum = h('span', { class: 'hud-roundmap-num' });
   const giftBtn = h('button', { id: 'hud-btn-gifts', class: 'hud-roundmap', type: 'button', hidden: true, attrs: { 'aria-label': T('hud.sheet.gifts') },
     on: { click: () => ctx.onTool?.('gifts') } }, h('span', { attrs: { 'aria-hidden': 'true' } }, '🎁'), giftNum);
+  const questNum = h('span', { class: 'hud-roundmap-num' });
+  const questBtn = h('button', { id: 'hud-btn-quests', class: 'hud-roundmap', type: 'button', hidden: true, dataset: { hudId: 'quests' }, attrs: { 'aria-label': T('hud.quest.aria') },
+    on: { click: () => ctx.onTool?.('quests') } }, h('span', { attrs: { 'aria-hidden': 'true' } }, '📜'), questNum);
   const inboxNum = h('span', { class: 'hud-roundmap-num' });
   const inboxBtn = h('button', { id: 'hud-btn-inbox', class: 'hud-roundmap', type: 'button', hidden: true, attrs: { 'aria-label': T('hud.inbox.openAria') },
     on: { click: () => ctx.onTool?.('inbox') } }, h('span', { attrs: { 'aria-hidden': 'true' } }, '📋'), inboxNum);
@@ -94,8 +106,9 @@ export function createTopBar(ctx) {
   const el = h('div', { class: 'hud-top' },
     h('div', { class: 'hud-top-left' },
       h('div', { class: 'hud-player', attrs: { role: 'button' }, on: { click: () => ctx.realm?.focusAvatar?.() } }, badge, h('div', { class: 'hud-player-text' }, name, xpBar)),
-      h('div', { class: 'hud-pills' }, coins, beans), lv10),
-    h('div', { class: 'hud-top-right' }, h('div', { class: 'hud-gear-col' }, gear), loanBtn, worldBtn, upgradesBtn, rotateBtn, giftBtn, inboxBtn)); // right rail, top to bottom: settings · loan · map · upgrades · compass // the ⋯ menu is gone: journal and rounds removed, the loan button sits straight in the rail
+      h('div', { class: 'hud-pills' }, coins, usdPill, beans), alertChip, lv10),
+    h('div', { class: 'hud-top-right' }, h('div', { class: 'hud-gear-col' }, gear), rotateBtn, giftBtn, inboxBtn)); // quests, upgrades and loans live in the Manage menu: the rail keeps only what is needed at a glance
+  morePop.append(upgradesBtn, questBtn, worldBtn); // right rail, top to bottom: settings · loan · map · upgrades · compass // the ⋯ menu is gone: journal and rounds removed, the loan button sits straight in the rail
 
   const coinCounter = counter(coinsVal), beanCounter = counter(beansVal);
   let last = {};
@@ -124,6 +137,10 @@ export function createTopBar(ctx) {
     inboxBtn.hidden = !waiting;
     const gifts = s.story.phase === 'play' && region(s) ? pendingGifts(s).length : 0;
     giftBtn.hidden = !gifts;
+    questBtn.hidden = !(s.story.phase === 'play' && region(s) && region(s).mode !== 'cafe');
+    const questsDone = questBtn.hidden ? 0 : questsReady(s);
+    questNum.hidden = !questsDone;
+    if (questsDone) setText(questNum, String(questsDone));
     if (gifts) setText(giftNum, T('hud.gifts.btn', { n: gifts }));
     if (waiting) setText(inboxNum, T('hud.inbox.btn', { n: waiting }));
     // red while a task has < GM.look.ringLifeShare of its life left (the red ring under the manager in the world)
@@ -149,6 +166,15 @@ export function createTopBar(ctx) {
       else setText(beansTag, T('hud.storage.tag'));
     }
     coinCounter.set(s.player.coins);
+    setText(usdVal, `$${(usdOf(s) / 100).toFixed(2)}`);
+    // Warnings cost a few rule checks: only when the Gold moved, or every few seconds.
+    const key = `${Math.round(s.player.coins)}|${s.world.currentRegion}`, t0 = Date.now();
+    if (s.story.phase === 'play' && region(s) && (key !== alertKey || t0 - alertAt > 5000)) {
+      alertKey = key; alertAt = t0;
+      shownAlert = farmAlerts(s, s.world.currentRegion, t0).find(a => a.severity === 'high') || null; // only what needs you now; the rest is in Manage
+      alertChip.hidden = !shownAlert;
+      if (shownAlert) setText(alertChip, T(`fin.alert.${shownAlert.kind}${shownAlert.what ? `.${shownAlert.what}` : ''}`, { farm: T('fin.thisFarm'), n: shownAlert.minutes ?? fmt(shownAlert.missing ?? shownAlert.loss ?? 0) }));
+    }
     if (next.goods !== last.goods) setText(beansIco, next.goods ? '📦' : '🫘');
     beanCounter.set(used);
     last = next;

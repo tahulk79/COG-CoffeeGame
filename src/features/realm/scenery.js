@@ -91,7 +91,7 @@ export function createScenery({ parent }) {
     const m = new THREE.InstancedMesh(geo, material, Math.max(1, list.length));
     const o = new THREE.Object3D();
     list.forEach((s, i) => { fn(o, s); o.updateMatrix(); m.setMatrixAt(i, o.matrix); });
-    m.count = list.length; m.castShadow = true; m.receiveShadow = true; m.raycast = () => {};
+    m.count = list.length; m.castShadow = true; m.receiveShadow = true; m.raycast = () => {}; m.userData.cullable = true;
     belt.add(m); geos.push(geo); mats.push(material);
     return m;
   };

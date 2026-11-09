@@ -1,0 +1,19 @@
+/* The account bar on the world map and the money line on an owned farm. */
+.atlas-account{position:absolute;left:max(10px,env(safe-area-inset-left));right:max(10px,env(safe-area-inset-right));top:max(8px,env(safe-area-inset-top));z-index:2;display:flex;align-items:center;gap:6px;pointer-events:none}
+.atlas-account>*{pointer-events:auto}
+.atlas-account[hidden]{display:none}
+.atlas-account-lv{display:grid;place-items:center;width:44px;height:44px;border:2px solid var(--gu-brass-edge);border-radius:var(--gu-r-md);background:var(--gu-brass);color:var(--gu-ink);font:800 18px/1 var(--gu-font)}
+.atlas-account-btn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:5px;min-width:44px;height:44px;padding:0 9px;border:2px solid var(--gu-wood-dark);border-radius:var(--gu-r-md);background:var(--gu-wood);color:var(--gu-ink-light);font:800 15px/1 var(--gu-font);cursor:pointer}
+.atlas-account-btn svg{width:20px;height:20px}
+.atlas-account-btn i{position:absolute;right:-5px;top:-5px;min-width:18px;height:18px;padding:0 3px;border-radius:9px;background:var(--gu-clay);color:#fff;font:800 11px/18px var(--gu-font);font-style:normal}
+.atlas-account-gap{flex:1}
+.atlas:has(.atlas-account:not([hidden])) .atlas-header{top:calc(max(8px,env(safe-area-inset-top)) + 52px)}
+.atlas:has(.atlas-account:not([hidden])) .atlas-close{top:auto;bottom:auto;position:static;min-width:44px;height:44px;background:var(--gu-wood);border:2px solid var(--gu-wood-dark);box-shadow:none;border-radius:var(--gu-r-md)}
+.atlas-pin-alert{position:absolute;right:-4px;top:-5px;width:13px;height:13px;border:2px solid #fff;border-radius:50%;background:var(--gu-clay)}
+.atlas-farm-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:2px;font:800 13px/1.3 var(--gu-font)}
+.atlas-farm-line .fin-ico{width:1.1em;height:1.1em}.atlas-farm-gold{display:inline-flex;align-items:center;gap:3px}
+.atlas-farm-profit.is-bad{color:var(--gu-bad)}.atlas-farm-profit.is-good{color:var(--gu-good)}
+.atlas-farm-status{padding:0 6px;border-radius:6px;background:var(--gu-paper-2);font-size:11px}
+.atlas-farm-status.is-running{background:var(--gu-good-bg);color:var(--gu-good)}.atlas-farm-status.is-trouble{background:var(--gu-bad-bg);color:var(--gu-bad)}
+.atlas-farm-alert{display:block;width:100%;margin-top:3px;padding:3px 6px;border:0;border-radius:6px;background:var(--gu-bad-bg);color:var(--gu-bad);font:800 12px/1.25 var(--gu-font);text-align:left;cursor:pointer;min-height:32px}
+.atlas-farm-actions{display:flex;flex-direction:column;gap:4px}

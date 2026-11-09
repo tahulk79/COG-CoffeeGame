@@ -20,6 +20,7 @@ export function setQuality(level) {
 export function onQuality(fn) { qualityListeners.add(fn); return () => qualityListeners.delete(fn); }
 export function applyRendererQuality(renderer, ...scenes) {
   const q = QUALITY[quality];
+  document.documentElement.dataset.quality = quality; // CSS: Low stops the HUD's endless animations
   const ratio = Math.min(window.devicePixelRatio || 1, q.pixelRatio);
   if (renderer.getPixelRatio() !== ratio) renderer.setPixelRatio(ratio);
   if (renderer.shadowMap.enabled === q.shadows) return;

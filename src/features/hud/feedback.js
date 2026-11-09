@@ -15,7 +15,7 @@ import { sfx } from '../../shared/audio/index.js';
 import { localItemsOf } from '../../ui/local-menu.js';
 import { h } from './dom.js';
 import { T, has, fmt, errorText, gmReasonText } from './text.js';
-import { levelUnlocks } from './sheets.js';
+import { levelUnlocks, questText } from './sheets.js';
 
 const TOAST_MS = 2400, MAX_TOASTS = 3;
 // What the toast / banner column must stay clear of. TOP: HUD sitting above it (its bottoms are the candidate tops);
@@ -195,8 +195,9 @@ export function createFeedback(ctx) {
       // poaching, leaving and money trouble below.
       if (ev.byGm || ev.byAuto) continue; // Auto nông trại works quietly too: the green rail button shows it is on
       switch (ev.type) {
-        case 'autoStopped': if (ev.reason === 'timeout') { toast(T('hud.toast.autoEnd', { n: ev.jobs || 0 }), 'warn'); sfx('reward.quest'); } break;
+        case 'autoStopped': if (ev.reason === 'timeout') { toast(T('hud.toast.autoEnd', { n: fmt(ev.jobs || 0), earned: fmt(ev.earned || 0), spent: fmt(ev.spent || 0) }), 'warn'); sfx('reward.quest'); } break;
         case 'autoSold': toast(T('hud.toast.autoSold', { coins: fmt(ev.coins) }), 'good'); break;
+        case 'autoQuest': case 'questClaimed': toast(T(ev.type === 'autoQuest' ? 'hud.toast.autoQuest' : 'hud.toast.questClaimed', { text: questText(ev), coins: fmt(ev.coins) }), 'good'); sfx('reward.quest'); break;
         case 'levelUp': levelBanner(s, ev.from, ev.to); break;
         case 'gmHired': toast(T(ev.calmed ? 'hud.gm.toast.hiredCalm' : 'hud.gm.toast.hired', { name: ev.name }), 'good'); sfx('reward.quest'); break;
         case 'gmRequest': toast(T('hud.gm.toast.request', { name: ev.name, what: gmReasonText(ev.reason), coins: fmt(ev.cost) }), 'warn'); sfx('ui.deny'); break;
@@ -249,6 +250,7 @@ export function createFeedback(ctx) {
         case 'gmFailed': toast(T('hud.gm.toast.failed', { what: gmReasonText(ev.reason) }), 'warn'); break;
         // served / harvested: the realm flies the coins/beans from the world spot to #hud-coins / #hud-beans.
         case 'built': toast(T('hud.toast.built', { name: T(`building.${ev.building}`), icon: defOf(ev.building)?.icon || '' }), 'good'); break;
+        case 'rowPlanted': toast(T('hud.plantRow.done', { n: ev.n, coins: ev.cost }), 'good'); break;
         case 'fieldPlaced': break; // (planting places a bed and sows it in one go: no "new field ready" notice)
         case 'moved': toast(T('hud.toast.moved'), 'info'); break;
         case 'removed': toast(T('fw.toast.removed', { refund: ev.refund > 0 ? fmt(ev.refund) : 0 }), 'info'); if (ev.refund > 0) sfx('coin.gain'); break;
