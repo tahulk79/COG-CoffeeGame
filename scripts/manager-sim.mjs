@@ -69,6 +69,9 @@ function nextBuildSpot(s, type, tier) {
 class Builder {
   constructor() {
     this.now = T0 - 3600_000; this.state = createSave(this.now, { gender: 'female', name: 'Bot' }); this.cursor = [0, 0, 0, 0];
+    // The profiles are farms past the Level-10 incident (it is on again, 2026-11-09): levels ≥ 10 and no wipe inside a run —
+    // the harness compares who runs the farm, not the restart.
+    this.state.story.level10Done = true;
     this.act('story/introDone'); this.act('story/teacherDone'); this.act('world/unlockRegion', { regionId: 'vn-1' }); this.act('world/enterRegion', { regionId: 'vn-1', game: 'farm' });
   }
   act(type, payload = {}) { simNow = this.now; const r = apply(this.state, { type, payload }, { now: this.now, dev: true }); if (!r.ok) throw new Error(`profile: ${type} ${JSON.stringify(payload)} failed: ${r.error} ${JSON.stringify(r.data ?? '')}`); if (r.state) this.state = r.state; return r; }

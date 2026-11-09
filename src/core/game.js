@@ -1328,6 +1328,7 @@ const handlers = {
     spend(s, cost);
     if (type === 'field') {
       const f = { id: uid(s, 'fd'), x: pos.x, z: pos.z };
+      if (cost > 0) f.spent = cost; // a cleared extra bed: what it cost (net worth, refund basis)
       r.fields.push(f);
       if (firstBuildXp(r, 'field')) grantXp(s, FIELD.xp, ev);
       ev.push({ type: 'fieldPlaced', plotId: f.id, cost });
@@ -1679,10 +1680,10 @@ const handlers = {
     const unit = D.unitOf(s, id);
     const err = D.statError(s, unit, stat);
     if (err) {
-      const c = unit && STAT_ORDER.includes(stat) ? statCostOf(unit, statOf(unit, stat)) : null;
+      const c = unit && STAT_ORDER.includes(stat) ? statCostOf(unit, statOf(unit, stat), stat) : null;
       return fail(err, err === 'coins' ? { missing: c.coins - s.player.coins } : err === 'points' ? { need: c.points, have: unit.points || 0 } : undefined);
     }
-    const n = statOf(unit, stat), c = statCostOf(unit, n);
+    const n = statOf(unit, stat), c = statCostOf(unit, n, stat);
     spend(s, c.coins);
     unit.points -= c.points;
     unit.stats = { ...Object.fromEntries(STAT_ORDER.map(k => [k, statOf(unit, k)])), [stat]: n + 1 };
@@ -2135,6 +2136,67 @@ const handlers = {
       ev.push({ type: 'gmHands', plotId: at, n: did });
     }
   },
+  // ---------- Auto nông trại (lượt auto, AUTO in economy.js) ----------
+  // Start a run: the time Stop kept first (no run spent), else one run. The player keeps playing meanwhile.
+  'auto/start'(s, _p, ev) {
+    const a = s.autoplay;
+    if (a.active) return { noop: true };
+    if (!D.region(s)) return fail('unknown');
+    if (otherGame(D.region(s), 'farm')) return fail('gameLocked');
+    if (!D.ownedPlots(s).length) return fail('noFields'); // nothing to work yet: the run (the free one too) is kept
+    let leftMs = a.saved > 0 ? a.saved : 0;
+    if (!leftMs) { if (a.runs <= 0) return fail('noRuns'); a.runs--; leftMs = AUTO.runSeconds * 1000; }
+    a.saved = 0;
+    a.active = { leftMs, jobs: 0 };
+    ev.push({ type: 'autoStarted', runs: a.runs, leftMs });
+  },
+  // Stop: control was never taken away, this only ends the background work. The time left is kept for the next Start.
+  'auto/stop'(s, { reason = 'user' } = {}, ev) {
+    const a = s.autoplay;
+    if (!a.active) return { noop: true };
+    const { leftMs, jobs } = a.active;
+    a.active = null;
+    if (reason !== 'timeout') a.saved = Math.max(0, Math.round(leftMs));
+    ev.push({ type: 'autoStopped', reason, jobs, savedMs: a.saved });
+  },
+  // Buy one run with coins (in-game currency only); one txId per confirm card.
+  'auto/buy'(s, _p, ev) {
+    const a = s.autoplay, price = autoPrice(a.bought);
+    if (s.player.coins < price) return fail('coins', { missing: price - s.player.coins });
+    spend(s, price);
+    a.runs++;
+    a.bought++;
+    ev.push({ type: 'autoBought', price, runs: a.runs });
+  },
+  // A round of the run (realm timer, AUTO.everySec): `ms` = played time since the last round (a hidden tab / pause does
+  // not burn the run). Up to AUTO.perRound field jobs like a quick hand — the manager's own job list (FM.handsJobs), minus
+  // uprooting (the player's trees are never pulled out) — then a sale when the storehouse is AUTO.sellAt full.
+  // `skip` = plots the crew is already on. The player's taps go on in between; a plot they just took simply fails here.
+  'auto/tick'(s, { ms = 0, skip = [] } = {}, ev, ctx) {
+    const a = s.autoplay;
+    if (!a.active) return { noop: true };
+    a.active.leftMs -= Math.max(0, Math.min(AUTO.maxTickMs, Number(ms) || 0));
+    if (a.active.leftMs <= 0) return handlers['auto/stop'](s, { reason: 'timeout' }, ev, ctx);
+    const r = D.region(s);
+    if (!r || otherGame(r, 'farm')) return;
+    const busy = new Set(skip), from = ev.length, plots = D.ownedPlots(s).filter(p => !busy.has(p.id));
+    let did = 0, at = null;
+    for (const j of FM.handsJobs(s, ctx.now, plots, AUTO.perRound)) {
+      if (j.act === 'farm/uproot') continue;
+      const res = handlers[j.act](s, j.payload, ev, ctx) || {};
+      if (res.ok === false || res.noop) continue;
+      did++; at ||= j.plotId;
+    }
+    const cap = D.capacity(s);
+    let sold = 0;
+    if (cap > 0 && D.stored(s) / cap >= AUTO.sellAt) {
+      const before = s.player.coins, res = handlers['farm/sellAll'](s, {}, ev, ctx) || {};
+      if (res.ok !== false) sold = Math.round(s.player.coins - before);
+    }
+    for (let i = from; i < ev.length; i++) if (!GM_LOUD.has(ev[i].type)) ev[i].byAuto = true;
+    if (did) { a.active.jobs += did; ev.push({ type: 'autoWork', plotId: at, n: did, byAuto: true }); }
+    if (sold) ev.push({ type: 'autoSold', coins: sold });
+  },
   'gm/setBigLimit'(s, { limit }, ev) {
     if (!GM.bigLimits.includes(limit)) return fail('unknown');
     if (s.gm.bigLimit === limit) return { noop: true };
@@ -2581,6 +2643,8 @@ const handlers = {
     // A full copy of the save is written to `<key>-pre-expiry` by the store just before this runs.
     ex.snapshot = { coins: s.player.coins, xp: s.player.xp, round: s.player.round, beans: s.inventory.beans, beanMix: { ...s.inventory.beanMix }, items: { ...s.inventory.items },
       regions: Object.keys(s.world.regions), units: s.staff.units.length };
+    // A running Auto run pauses with its time kept (autoplay.saved): the new region starts with no field to work.
+    if (s.autoplay?.active) { s.autoplay.saved = Math.max(0, Math.round(s.autoplay.active.leftMs)); s.autoplay.active = null; }
     s.player.coins = startCoins();
     s.player.xp = 0;
     s.player.round = 1;

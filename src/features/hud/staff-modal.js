@@ -13,7 +13,7 @@
 import { maxStatOf, maxTierOf, gmStatOf } from '../../core/config/economy.js';
 import { GOOF, SKILL_GATE } from '../../core/config/economy.js';
 import { CREW } from '../../core/config/economy.js';
-import { CROP_ORDER } from '../../core/config/economy.js';
+import { CROP_ORDER, EXPIRY_LEVEL, EXPIRY_ENABLED } from '../../core/config/economy.js';
 import { countryRecipes, SUPPLY, FARMLAB, methodKey } from '../../core/config/research.js';
 import { TASKS, PENALTY, HISTORY, GM, gmCandidatesFor, gmSalary, GEAR, gearTier, SOFTWARE, softwarePrice, hasSoftware, WARRANTY, PROFILE, CRAFT, craftLevel, STAFF, STAFF_ORDER, TRAITS, RECRUIT, ROBOT_TASKS, ROBOT_PARTS, PART_ORDER, PART_COST, WORKER_TASKS, TASK_LIMIT, SMART_RULES, QUALITY, TEND, MISTAKES, STAFF_BREAKS, SKILL, RARE, STAT_ORDER, LEVEL_STEP, VITALS, UPKEEP, RIVAL, BOOKS, ROBOT_WEAR, CARE, statOf, statCap, taskLimit, energyMax, unitLevel, mistakeChance, hasRule, batteryMinutes, slackMul, partTier, robotTask, heatPerMin, jamChance, isHardDrink, UPGRADE_GATE } from '../../core/config/economy.js';
 import { region, regionGame, level, hireCap, hireCapReached, slots, activeCount, freeSlots, zoneUnits, staffError, freeHire, applicants, recruitError, poolRefreshIn, unitStars, unitOf, statError, statPrice, partError, partPrice, unitState, careCost, careError, quickFix, upkeepOf, upkeepPer, fireRefund, ledgerWindow, unitProfit, poachOf, canBrew, dayKey, lastDays, dayRow, dayKpis, daysSince, unitGrade, teamKpi, robotPayback, REPORT_PERIODS, SPEND_CATS, periodKeys, teamMoney, teamRanking, tenureDays, tenureShiftDays, tenureMinLeft, robotRoom, wageArrears, gmQuitArrears, warrantyLeft, gearPrice, gearError, softwareError, gearStockOf, gmUnlocked, gmOf, gmBoard, gmBoardRefreshIn, gmPay, gmBudgetLeft, gmPlan, gmPermission, gmAdvisorOf, chaosOf, calmCost, chaosSlackMul, gmMood, followerWage, countryNow, recipeFound, contractOf, cropUnlocked, methodOf, trialsHere, buyerNow, gmPoachOf, gmRequests, gmLog, unitLog, teamJournal, gmCareWallet, gmCareWalletLeft, gmBacklog, gmWaiting, gmStrike, apologiseCost, gmBudgetCap, gmLicensed, licenceError, licencePrice, gmTrainCost, gmTrainError, gmHighValue, histRows, upgradeOptions, throughputShare, tasksOpen } from '../../core/derive.js';
@@ -148,6 +148,10 @@ export function createStaffModal(ctx) {
     return 'ok';
   }
   const toneOf = key => (BLOCKING.has(key) ? 'bad' : SLOW.has(key) ? 'warn' : 'ok');
+  // A working unit stuck on something the player must fix (no well for the waterer, no coins for seeds, a full storehouse…)
+  // reads amber, not the same green as "đang làm" (QA 2026-11-09: "Chưa có bể nước" was shown in green).
+  const STUCK = new Set(['noWell', 'noSeeds', 'storageFull', 'cantDo', 'noStore', 'noPlots', 'noBatch', 'noPile']);
+  const lineTone = (key, info) => (key === 'ok' && !info?.job && STUCK.has(info?.reason) ? 'warn' : toneOf(key));
   const isProblem = key => BLOCKING.has(key) || SLOW.has(key);
   /** The paid fix of a unit's problem: { kind, cost } or null. */
   function fixOf(u, key, now) {
@@ -351,7 +355,7 @@ export function createStaffModal(ctx) {
         avatarOf(s, u, key),
         h('span', { class: 'hud-rs-text' },
           h('strong', { class: 'hud-rs-name' }, nameOf(u), u.perk ? ' ⭐' : '', poached ? ' 💼' : '', u.name && STAFF[u.type].jobs ? h('span', { class: 'hud-rs-trade' }, T(`staff.${u.type}`)) : null, tierTag(s, u), ' ', gradePill(unitGrade(s, u, dayKey(now)))),
-          h('small', { class: `hud-report hud-report--${toneOf(key)}` }, nowLine(s, u, key, now, info))),
+          h('small', { class: `hud-report hud-report--${lineTone(key, info)}` }, nowLine(s, u, key, now, info))),
         cond != null ? h('span', { class: `hud-rs-meter is-${cond < 25 ? 'bad' : cond < 50 ? 'warn' : 'ok'}`, attrs: { role: 'img', 'aria-label': T('hud.sm.condition', { n: cond }) } },
           h('i', { style: { height: `${Math.max(4, cond)}%` } })) : null,
         h('span', { class: 'hud-sm-chev', attrs: { 'aria-hidden': 'true' } }, '›')));
@@ -516,7 +520,7 @@ export function createStaffModal(ctx) {
   }
   // Ignored requests pile up (management-rules §4.3): Chờ lệnh / dễ bị dụ / Đình công, and the apology that clears it.
   // Why the manager's spirits are sinking now (idle: you did everything; absent: nobody touched the game).
-  const segOf = (label, values, cur, fmtV, onPick, id) => h('div', { class: 'hud-tabs hud-sm-seg', attrs: { role: 'group', 'aria-label': label } },
+  const segOf = (label, values, cur, fmtV, onPick, id) => h('div', { class: `hud-tabs hud-sm-seg${values.length > 4 ? ' hud-sm-seg--wrap' : ''}`, attrs: { role: 'group', 'aria-label': label } },
     ...values.map(v => h('button', { type: 'button', class: 'hud-tab', dataset: { hudId: `${id}-${v}` }, attrs: { 'aria-pressed': String(cur === v) }, on: { click: () => { if (cur !== v) onPick(v); } } }, fmtV(v))));
   // Giấy phép (§2.5): the player's licences — what the manager may do; Đào tạo: his next skill step.
   // Is the GM worth it: today's team profit (this game) against the GM's pay today, jobs done.
@@ -553,7 +557,10 @@ export function createStaffModal(ctx) {
         h('small', null, T('hud.gm.salary', { coins: fmt(gmSalary(c, 'full')), min: GM.payMinutes }))),
       h('div', { class: 'hud-hire-act' }, actionButton({ id: `gmHire-${i}`, label: T('hud.hire'), cost: c.fee, tone: 'gold', disabled: s.player.coins < c.fee,
         onClick: () => { const r = act('gm/hire', { index: i }); if (r.ok) sfx('reward.levelup'); } }))));
-    return h('div', null, h('p', { class: 'hud-sub' }, T('hud.gm.what')), h('ul', { class: 'hud-hire' }, ...rows),
+    // Close to the Level-10 incident the region (and the manager with it) is wiped: say so before 500+ coins go on a hire.
+    const lvLeft = EXPIRY_ENABLED && !s.story.level10Done ? EXPIRY_LEVEL - level(s) : 99;
+    const soon = lvLeft > 0 && lvLeft <= 2 ? h('p', { class: 'hud-sm-note is-warn' }, T('hud.gm.lv10Soon', { n: lvLeft, level: EXPIRY_LEVEL })) : null;
+    return h('div', null, h('p', { class: 'hud-sub' }, T('hud.gm.what')), soon, h('ul', { class: 'hud-hire' }, ...rows),
       h('div', { class: 'hud-hire-refresh' }, h('span', { class: 'hud-sub' }, wait > 0 ? T('hud.gm.refreshIn', { t: mmss(wait) }) : ''),
         actionButton({ label: T('hud.gm.refresh'), icon: '🔄', cost: wait > 0 ? GM.board.refreshCost : undefined, tone: 'plain', onClick: () => act('gm/refreshBoard', { roll: Math.random(), paid: wait > 0 }) })));
   }
@@ -747,7 +754,7 @@ export function createStaffModal(ctx) {
         h('strong', { class: 'hud-sm-dname' }, nameOf(u)),
         h('small', { class: 'hud-pf-who' }, who),
         h('span', { class: 'hud-pf-tags' }, ...tags, perkBadge(u.perk), u.follower ? tag(T('hud.follow.tag', { coins: followerWage(u), min: UPKEEP.perMinutes }), 'gold') : null),
-        h('small', { class: `hud-report hud-report--${toneOf(key)}` }, nowLine(s, u, key, now, infoOf(s, u)))));
+        h('small', { class: `hud-report hud-report--${lineTone(key, infoOf(s, u))}` }, nowLine(s, u, key, now, infoOf(s, u)))));
   }
   /** List avatar: the unit's photo when it is drawn here (cached by the realm), else its icon on a per-unit tint. */
   function avatarOf(s, u, key) {
@@ -1171,12 +1178,14 @@ export function createStaffModal(ctx) {
         h('p', { class: 'hud-hire-top' }, h('strong', null, title), sub ? h('span', null, sub) : null),
         h('small', null, detail)),
       h('div', { class: 'hud-hire-act' }, foot));
+    // A waterer / water robot fetches water at a well: with none built it would only stand there (QA 2026-11-09).
+    const needsWell = type => /^water/.test(type) && !(region(s)?.buildings || []).some(b => b.type === 'well');
     const cards = h('ul', { class: 'hud-hire' });
     applicants(s, zone).forEach((a, index) => {
       const def = STAFF[a.type], tr = TRAITS[a.trait];
       const stats = STAT_ORDER.map(k => `${STAT_ICON[k]}${a.stats?.[k] ?? 1}`).join('  ');
       const perk = a.perk ? `  ·  ${PERK_ICON[a.perk] || '⭐'} ${T(`hud.sm.perk.${a.perk}`)}` : '';
-      cards.append(row(def.icon, !!a.perk, a.name, `${T(`staff.${a.type}`)} · ${tr.icon} ${T(`staff.trait.${a.trait}`)}`, stats + perk,
+      cards.append(row(def.icon, !!a.perk, a.name, `${T(`staff.${a.type}`)} · ${tr.icon} ${T(`staff.trait.${a.trait}`)}`, needsWell(a.type) ? T('hud.sm.needWell') : stats + perk,
         hireFoot(s, recruitError(s, zone, index), def, a.cost, () => act('staff/recruit', { zone, index })),
         `${T(`hud.staffJob.${a.type}`)}. ${T(`staff.traitFx.${a.trait}.${zone}`)}`));
     });
@@ -1187,7 +1196,7 @@ export function createStaffModal(ctx) {
     const robots = h('ul', { class: 'hud-hire' });
     for (const type of STAFF_ORDER.filter(id => STAFF[id].zone === zone && STAFF[id].kind === 'robot')) {
       const def = STAFF[type], owned = zoneUnits(s, zone).filter(u => u.type === type).length;
-      robots.append(row(def.icon, false, T(`staff.${type}`), owned ? T('hud.sm.owned', { n: owned }) : '', T(`hud.staffJob.${type}`),
+      robots.append(row(def.icon, false, T(`staff.${type}`), owned ? T('hud.sm.owned', { n: owned }) : '', needsWell(type) ? T('hud.sm.needWell') : T(`hud.staffJob.${type}`),
         hireFoot(s, staffError(s, type), def, def.cost, () => act('staff/hire', { type }))));
     }
     return h('div', null, note,

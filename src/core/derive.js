@@ -4,7 +4,7 @@ import { tierIndexAt } from './config/layout.js';
 import { maxStatOf, maxTierOf, FUNNY, gmThinkOf, gmActionsOf, gmMoneyMul, gmHaggleMul, gmCalmMul, gmStatOf } from './config/economy.js';
 import { doesJob, haulLoadOf, bucketOf } from './config/economy.js';
 import { CREW, workerJobs, FARM_MANAGER, gmHandsPerMin } from './config/economy.js';
-import { STORAGE_BASE, GARDEN, gardenStyleOf, FOLLOW, GM, gmCandidatesFor, gmSalary, SHIFT, TEND, PROFILE, CAREER, GEAR, gearTier, WARRANTY, SOFTWARE, softwarePrice, hasSoftware, TUTORIAL, BUILDINGS, CROPS, CROP_ORDER, DRINKS, DRINK_ORDER, STAFF, hireLimit, STAFF_CAP, RECRUIT, applicantsFor, traitEffect, MISTAKES, QUALITY, isHardDrink, unitLevel, levelSpeed, statOf, statCap, statCost, STAT_ORDER, SKILL, ROBOT_TASKS, PART_COST, PART_ORDER, partTier, partCost, UPKEEP, VITALS, CARE, ROBOT_WEAR, WORKER_TASKS, taskLimit, energyMax, unitFee, staffFee, unitSpeed, batteryMinutes, heatPerMin, jamChance, slackMul, ROBOT_PARTS, STAFF_BREAKS, STAFF_ORDER, GM_RULES, UPGRADE_GATE, LAND, FIRE, BOOKS, CHEST_LEVELS, LOAN, loanOwed, ROUND_LEVEL_CAP, REBIRTH, CELL, levelForXp, xpForLevel, GRACE, SHOP, BEANS, VENUES, VENUE_ORDER, VENUE_ITEMS, RATING, FIELD, fieldExtraCost, fieldExtraCap, GOODS, GOOD_ORDER, ITEM_GOODS, RECIPES, CLIMATE_EFFECT, CLIMATE_PICK, PERENNIAL, INCOME, INCOME_FLOOR, incomeRef, loanTermMin, robotCap, DEBT, TASKS, PENALTY, HISTORY } from './config/economy.js';
+import { STORAGE_BASE, GARDEN, gardenStyleOf, FOLLOW, GM, gmCandidatesFor, gmSalary, SHIFT, TEND, PROFILE, CAREER, GEAR, gearTier, WARRANTY, SOFTWARE, softwarePrice, hasSoftware, TUTORIAL, BUILDINGS, CROPS, CROP_ORDER, DRINKS, DRINK_ORDER, STAFF, hireLimit, STAFF_CAP, RECRUIT, applicantsFor, traitEffect, MISTAKES, QUALITY, isHardDrink, unitLevel, levelSpeed, statOf, statCap, statCost, STAT_ORDER, SKILL, ROBOT_TASKS, PART_COST, PART_ORDER, partTier, partCost, UPKEEP, VITALS, CARE, ROBOT_WEAR, WORKER_TASKS, taskLimit, energyMax, unitFee, staffFee, unitSpeed, batteryMinutes, heatPerMin, jamChance, slackMul, ROBOT_PARTS, STAFF_BREAKS, STAFF_ORDER, GM_RULES, UPGRADE_GATE, LAND, FIRE, BOOKS, CHEST_LEVELS, tradeCostMul, LOAN, loanOwed, ROUND_LEVEL_CAP, REBIRTH, CELL, levelForXp, xpForLevel, GRACE, SHOP, BEANS, VENUES, VENUE_ORDER, VENUE_ITEMS, RATING, FIELD, fieldExtraCost, fieldExtraCap, GOODS, GOOD_ORDER, ITEM_GOODS, RECIPES, CLIMATE_EFFECT, CLIMATE_PICK, PERENNIAL, INCOME, INCOME_FLOOR, incomeRef, loanTermMin, robotCap, DEBT, TASKS, PENALTY, HISTORY } from './config/economy.js';
 import { TIER_EDGES, tierZoneAt, farmGroundY, PARCELS, ROADS, RESERVED, BOUNDS, GATE, areaOfParcel, areaAt, rectsOverlap, rectsTouch, inRect, terrainOfLot, lotAllows, climateOfLot, TERRAIN_USES, PRE_TILLED, SNAP, lotContaining, ESTATES, ESTATE_ORDER, ESTATE_FIELDS, estateOfLot, farmLotsOf, plotsOf } from './config/layout.js';
 import { countryRecipes, INGREDIENTS, INGREDIENT_ORDER, RESEARCH, SUPPLY, supplierOf, buyerOf, FARMLAB, methodEffect, methodKey } from './config/research.js';
 import { parseRegionId, citiesOf, COUNTRY_ORDER, regionCost, regionGames } from './config/world.js';
@@ -134,7 +134,9 @@ export function treeHealth(s, plotId) {
   const ageLoss = Math.min(45, Math.max(0, age / life - .6) * 110);
   const survival = Math.max(15, Math.round(100 - climate - ageLoss + (pl.pruned ? 5 : 0)));
   const base = yieldOf(s, pl.crop) * (treeOld(pl) ? PERENNIAL.oldYield : 1);
-  return { survival: Math.min(100, survival), beans: Math.max(1, Math.round(base * Math.min(100, survival) / 100)), fit };
+  // beans: a 1★ pick … a fresh 3★ pick (the player's own pick is 3★ when fresh: QUALITY.yield), so the card matches a real harvest
+  const beans = Math.max(1, Math.round(base * Math.min(100, survival) / 100)), beansMax = Math.max(beans, Math.round(base * QUALITY.yield[3]));
+  return { survival: Math.min(100, survival), beans, beansMax, fit };
 }
 export const treeOld = p => !!p && !!CROPS[p.crop]?.life && treeAge(p) >= CROPS[p.crop].life;
 export const pruneCost = crop => Math.round(CROPS[crop].seedCost * PERENNIAL.pruneCost);
@@ -292,9 +294,13 @@ export const fieldAllowance = s => {
 };
 export const fieldExtras = s => Math.max(0, fieldsOf(s).length - fieldAllowance(s));
 /** Price of the next field: free inside the allowance, else the escalating extra price. */
-export const fieldCost = () => 0; // free planting: a bed costs nothing, only the seed does
+// Balance 2026-11-09 (QA: free beds had no cap, the land filled with beds and nothing else got built): the tilled rows
+// (fieldAllowance) stay free; a bed beyond them is new ground to clear (khai hoang, làm đất) and costs the escalating
+// FIELD.extra price (no count cap: the price is the brake; every level-up tills 6 more free rows).
+export const fieldCost = s => (fieldsOf(s).length < fieldAllowance(s) ? 0 : fieldExtraCost(fieldExtras(s)));
 /** Coins back when one field is cleared: half the last extra's price, nothing inside the allowance. */
-export const fieldRefund = () => 0;
+/** Coins back for removing field `f`: FIELD.refund × what clearing it cost (a free tilled row: 0). */
+export const fieldRefund = (s, f) => Math.floor((FIELD.refund || 0) * (f?.spent || 0));
 /** A drip line reaches this field (farm-crew.md §3): it is watered without anyone. */
 export function dripCovers(s, plotId) {
   const r = region(s);
@@ -541,7 +547,7 @@ const limitAt = (limit, lvl) => {
 export function maxCount(s, type) {
   const def = defOf(type);
   if (!def) return 0;
-  if (type === 'field') return 9999; // no cap on beds
+  if (type === 'field') return 9999; // no cap on beds (founder: no count gates) — the extras' escalating price is the brake
   return 9999;
 }
 /** The next player level that raises the max count of `type` (null when it never grows again). */
@@ -602,7 +608,8 @@ export function removeError(s, id) {
 export function removeRefund(s, id) {
   const r = region(s);
   if (!r) return 0;
-  if ((r.fields || []).some(f => f.id === id)) return fieldRefund(s);
+  const fd = (r.fields || []).find(f => f.id === id);
+  if (fd) return fieldRefund(s, fd);
   const b = r.buildings.find(x => x.uid === id);
   const def = b && own(BUILDINGS, b.type);
   return def ? Math.floor((def.refund || 0) * spentOn(b)) : 0;
@@ -831,13 +838,13 @@ export function statError(s, u, stat) {
   const n = statOf(u, stat);
   if (n >= maxStatOf(u)) return 'maxLevel';
   if (n >= statCap(u, stat)) return 'cap';
-  const c = statCostOf(u, n);
+  const c = statCostOf(u, n, stat);
   if ((u.points || 0) < c.points) return 'points';
   if (s.player.coins < c.coins) return 'coins';
   return null;
 }
 /** Price of the next step of `stat`: { points, coins } (null at the top). */
-export const statPrice = (u, stat) => (statOf(u, stat) >= maxStatOf(u) ? null : statCostOf(u, statOf(u, stat)));
+export const statPrice = (u, stat) => (statOf(u, stat) >= maxStatOf(u) ? null : statCostOf(u, statOf(u, stat), stat));
 /** Stats of `u` that can be raised right now. */
 export const upgradableStats = (s, u) => STAT_ORDER.filter(k => !statError(s, u, k));
 // Compatibility with the old single-level training (HUD sheet / toolbar dot): "trainable" = some stat can be raised.
@@ -1059,7 +1066,7 @@ export function robotPayback(u, now) {
 /** Free jam repairs left under warranty (robots; 0 otherwise). */
 export const warrantyLeft = u => (isRobot(u) ? Math.max(0, WARRANTY.repairs - (u.warrantyUsed | 0)) : 0);
 /** Price of the next gear tier, or null at the top. */
-export const gearPrice = (u, item) => { const t = gearTier(u, item); return t >= GEAR.maxTier ? null : GEAR.cost[t]; };
+export const gearPrice = (u, item) => { const t = gearTier(u, item); return t >= GEAR.maxTier ? null : Math.max(5, Math.round(GEAR.cost[t] * tradeCostMul(u) / 5) * 5); };
 /** Why a worker cannot get the next tier of `item`: 'unknown' | 'maxLevel' | 'coins' | null. */
 export function gearError(s, u, item) {
   if (!u || !isWorkerUnit(u) || !(GEAR.zone[STAFF[u.type].zone] || []).includes(item)) return 'unknown';
@@ -1223,7 +1230,8 @@ export function upgradeOptions(s, u, pj = perJob(s, zoneOfUnit(u)), mistakes = 0
       if (!okOrCoins(statError(s, u, stat))) continue;
       const p = statPrice(u, stat), quality = Q.includes(stat);
       const value = quality ? qualityValue : stat === 'speed' ? V.speedStep * c : stat === 'stamina' ? V.slackStep * runCostPerMin(u) + V.staminaDowntime * c : 0;
-      push('staff/upgradeStat', { uid: id, stat }, p.coins, value, quality, statOf(u, stat) >= 3, { stat });
+      // late: tier ≥ 3, and every stamina step (reliability, like a robot's cooler: management-rules §2.5 table)
+      push('staff/upgradeStat', { uid: id, stat }, p.coins, value, quality, statOf(u, stat) >= 3 || stat === 'stamina', { stat });
     }
     for (const item of GEAR.zone[zoneOfUnit(u)] || []) {
       const price = gearPrice(u, item), def = GEAR.items[item];
@@ -1464,7 +1472,7 @@ function richUpOf(s, u, pj = perJob(s, 'farm')) {
   }
   const stat = ['smart', 'stamina', 'accuracy', 'speed'].filter(k => !statError(s, u, k)).sort((a, b) => statOf(u, a) - statOf(u, b))[0];
   if (!stat) return null;
-  const cost = statCostOf(u, statOf(u, stat)).coins;
+  const cost = statCostOf(u, statOf(u, stat), stat).coins;
   return avail >= cost * 3 && worth(cost) ? { cost, act: { type: 'staff/upgradeStat', payload: { uid: u.uid, stat } } } : null;
 }
 function unitSnap(s, u, now, pj, today) {

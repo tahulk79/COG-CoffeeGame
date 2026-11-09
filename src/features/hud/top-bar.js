@@ -133,7 +133,10 @@ export function createTopBar(ctx) {
     loanBtn.classList.toggle('is-debt', !!debt);
     loanBtn.classList.toggle('is-late', !!debt?.late);
     moreDot.hidden = !debt?.late;
-    const ups = s.story.phase === 'play' ? affordableUpgrades(s, ctx.realm?.view).length : 0;
+    // The badge counts what the sheet lists as doable now: affordable upgrades + (farm) workshops not built yet that you can pay —
+    // it said 0 while the sheet offered 5 workshops "đủ tiền nâng ngay".
+    const newBuilds = ctx.realm?.view === 'cafe' ? 0 : BUILD_MENU_FARM.filter(type => !BUILDINGS[type]?.decor && countOf(s, type) === 0 && buildError(s, type) === null).length;
+    const ups = s.story.phase === 'play' ? affordableUpgrades(s, ctx.realm?.view).length + newBuilds : 0;
     upgradesBtn.hidden = s.story.phase !== 'play';
     worldBtn.hidden = s.story.phase !== 'play';
     upgradesBtn.classList.toggle('is-ready', ups > 0);

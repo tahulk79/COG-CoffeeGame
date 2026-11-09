@@ -291,9 +291,11 @@ export const BUILDINGS = {
 // Every owned field lot (kind 'farm') comes with 6 fields and adds 6 to the free allowance; extra fields cost
 // fieldExtraCost(k) (k = extras already placed) up to fieldExtraCap(level) extras. Removing refunds `refund` × the
 // last extra's price (0 inside the allowance: you can put it back for free). 3 × 3 m footprint, bed mesh 2.4 m.
+// Fields (balance 2026-11-09): a tilled row (fieldAllowance) is free; a bed beyond them is new ground to clear and costs
+// extraBase × extraGrowth^k (k = extras already placed): 20, 20, 25 … 45 at the 11th, 95 at the 21st, then at most 300 — every level-up tills 6 more free rows.
 export const FIELD = { id: 'field', zone: 'farm', use: 'field', category: 'farming', size: [.5, .5], cost: 0, round: 1, level: 1,
-  upgrade: [], icon: '🟫', xp: 2, refund: 0.5, extraBase: 60, extraGrowth: 1.3, extraPerLevel: 2, extraMax: 40 };
-export const fieldExtraCost = k => Math.round(FIELD.extraBase * FIELD.extraGrowth ** Math.max(0, k | 0) / 5) * 5;
+  upgrade: [], icon: '🟫', xp: 2, refund: 0.5, extraBase: 20, extraGrowth: 1.08, extraMaxCost: 300, extraPerLevel: 2, extraMax: 40 };
+export const fieldExtraCost = k => Math.min(FIELD.extraMaxCost, Math.round(FIELD.extraBase * FIELD.extraGrowth ** Math.max(0, k | 0) / 5) * 5); // clearing one bed never costs more than extraMaxCost
 export const fieldExtraCap = level => Math.min(FIELD.extraMax, FIELD.extraPerLevel * Math.max(1, level | 0));
 // Catalogue tabs per screen (HUD construction catalogue) and the build menu per screen.
 export const CATEGORY_ORDER = { farm: ['farming', 'processing', 'storage', 'infrastructure', 'decoration'], cafe: ['cafe', 'decoration'] };
@@ -637,6 +639,8 @@ export const FARM_MANAGER = {
   jobValue: { harvest: 1, plant: 0.6, water: 0.25, process: 0.3, haul: 0.25, prune: 0.15, spray: 0.15, openField: 0.2, expand: 0.1, build: 0.1, livestock: 0.05 },
   water: { extraUncovered: 0.5, extraMinFields: 6, walkMps: 2.2, tripWorkM: 12 },
   // The manager's own hands (he taps like you do): everySec between rounds, perMin jobs at ⚡1, +perSpeed per ⚡ step, harvestShare of a round goes to picking first.
+  // incidentLoanLevels: no borrowing this many levels (or fewer) before the first region's Lv10 incident (farm-manager incidentNear).
+  incidentLoanLevels: 5,
   hands: { everySec: 2, perMin: 60, perSpeed: 0.2, harvestShare: 0.7, sellAt: 0.5, jobsPerPicker: 8 },
   // Big teams: only the units nearest the camera get shadows, full-rate animation, or are drawn at all (the rest keep working).
   lod: { everySec: 0.5, shadows: 8, fullAnim: 10, halfAnim: 18, drawn: 22 }, idleThink: 1,
@@ -686,11 +690,22 @@ export const profileOfUid = uid => profileFrom(rng((parseInt(String(uid).replace
 export const robotSerial = (type, uid) => `${PROFILE.serial[type] || 'RB'}-${String(((parseInt(String(uid).replace(/\D+/g, ''), 10) || 0) * 389 + 101) % 10000).padStart(4, '0')}`;
 // Per-stat upgrades (§5): every finished job gives the worker XP (× trait xpMul); every xpPerPoint XP = 1 skill point.
 // Stat n → n+1 costs n points + coinPerLevel × n coins. Stats 1..maxStat. Unit level (display) = sum of stats − 3.
-export const SKILL = { xpPerPoint: 20, coinPerLevel: 100, maxStat: 5 };
+export const SKILL = { xpPerPoint: 20, coinPerLevel: 100, maxStat: 5, staminaCostMul: 0.5,
+  // tradeCostMul: training and gear for an unskilled trade cost this share (QA 2026-11-09: a waterer only speeds growth by
+  // 15 %, so speed / boots at full price paid back in 47–60 min, past the 40-min gate; carrying buckets needs little training).
+  tradeCostMul: { waterer: 0.5 } };
 export const STAT_ORDER = ['speed', 'smart', 'accuracy', 'stamina'];
 export const MAX_STAFF_LEVEL = STAT_ORDER.length * SKILL.maxStat - (STAT_ORDER.length - 1); // 17
 /** Price of the next step for this unit: on the farm coins only (founder: money decides), the café keeps its skill points. */
-export const statCostOf = (u, n) => (STAFF[u?.type]?.zone === 'farm' ? { points: 0, coins: statCost(n).coins } : statCost(n));
+// Stamina (energy + less slack) is worth about half a speed step, so it costs half (balance 2026-11-09: its payback
+// was 60–177 played minutes against ≤ 40 for the other stats). `stat` optional: without it, the full price.
+/** Price share of a unit's training / gear (SKILL.tradeCostMul; 1 for the other trades). */
+export const tradeCostMul = u => SKILL.tradeCostMul[u?.type] ?? 1;
+export const statCostOf = (u, n, stat) => {
+  const c = STAFF[u?.type]?.zone === 'farm' ? { points: 0, coins: statCost(n).coins } : statCost(n);
+  const mul = (stat === 'stamina' ? SKILL.staminaCostMul : 1) * tradeCostMul(u);
+  return mul !== 1 ? { ...c, coins: Math.max(5, Math.round(c.coins * mul / 5) * 5) } : c;
+};
 export const statCost = n => ({ points: Math.max(1, n | 0), coins: SKILL.coinPerLevel * Math.max(1, n | 0) });
 /** Starting stats of a new worker: all 1, diligent stamina 2, swift speed 3. */
 export function startStats(trait, perk) {
@@ -875,10 +890,13 @@ export const BOOKS = { ledgerKeep: 30, journalKeep: 30, mvpMinutes: 10, mvpMoral
 
 /** Extra effect a unit's trait adds in its zone (e.g. funny barista: +5% drink price). */
 export const traitEffect = (unit, key) => TRAITS[unit?.trait]?.bonus?.[STAFF[unit.type]?.zone]?.[key] || 0;
-// Auto play ("lượt auto"): the game plays itself as a live demo while the player watches (camera only, no actions).
-// One free run is granted when the Teacher sends you through the gate. A run lasts runSeconds or until stopped.
-// More runs can be bought with in-game coins (never real money): price grows a little with each purchase.
-export const AUTO = { freeRuns: 1, runSeconds: 180, price: 150, priceStep: 50, maxPrice: 600 };
+// Auto nông trại ("lượt auto", founder 2026-11-09): a run is AUTO.runSeconds (10 min) of PLAYED time during which the farm
+// works itself in the background — pick ripe trees (most urgent first), plant empty fields with the best affordable variety,
+// cut back worn-out trees, water, and sell everything when the storehouse is `sellAt` full. The player keeps full control
+// and can act at the same time. A round every `everySec` does up to `perRound` jobs (≈ a quick hand: 60 jobs/min).
+// Stop keeps the time left (resume later, no new run spent). It never buys land, buildings, staff or upgrades.
+// One free run for every save; more cost in-game coins (never real money): price grows with each purchase.
+export const AUTO = { freeRuns: 1, runSeconds: 600, everySec: 2, perRound: 2, sellAt: 0.8, maxTickMs: 10000, price: 300, priceStep: 100, maxPrice: 1500 };
 export const autoPrice = bought => Math.min(AUTO.maxPrice, AUTO.price + AUTO.priceStep * (bought | 0));
 
 // Breaks: workers sometimes slack off (stand still on their phone); robots run out of battery after a while of work.
@@ -908,8 +926,9 @@ export function levelForXp(xp) {
   return level;
 }
 export const EXPIRY_LEVEL = 10;
-// TEMPORARY (founder 2026-11-09, while testing): false = reaching level 10 no longer ends the region. Set back to true to restore it.
-export const EXPIRY_ENABLED = false;
+// The Level-10 incident (sự cố Lv10) is ON again (founder 2026-11-09, after testing): reaching level 10 ends the region —
+// full restart in a new one, one follower comes along. false = play on past level 10 (QA only).
+export const EXPIRY_ENABLED = true;
 
 export const XP = { build: 10, upgrade: 8, buyLand: 6, openRoad: 4, hire: 5 };
 

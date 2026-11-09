@@ -129,7 +129,8 @@ export function createPlacementBar(ctx) {
     const hp = crop ? ctx.realm?.avatarPoint?.() : null;
     head.hidden = true; // no seed badge over the player's head any more (founder 2026-11-08)
     if (crop && hp?.visible) { head.style.left = `${Math.round(hp.x)}px`; head.style.top = `${Math.round(hp.y)}px`; }
-    const cost = p ? (crop ? seedCost(ctx.store.state, crop) : placeCost(p, ctx.store.state)) : null;
+    // planting = a new bed + its sapling: the bed is free on a tilled row, an extra one adds its clearing price
+    const cost = p ? (crop ? seedCost(ctx.store.state, crop) + buildCost(ctx.store.state, 'field') : placeCost(p, ctx.store.state)) : null;
     const next = p ? `${el.classList.contains('is-docked') ? 'D' : ''}|${p.type}|${p.uid || ''}|${p.valid ? 1 : 0}|${p.error || ''}|${p.noRoom || ''}|${p.warn || ''}|${p.fieldsUnder || 0}|${cost}|${crop || ''}` : '';
     if (next === sig) return;
     sig = next;

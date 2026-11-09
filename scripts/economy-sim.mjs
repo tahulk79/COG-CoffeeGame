@@ -39,8 +39,9 @@ import { apply } from '../src/core/game.js';
 import { createSave } from '../src/core/state.js';
 import * as D from '../src/core/derive.js';
 import { BUILDINGS, STAFF, PLAYTEST, RECIPES, GM, LOAN, CLOCK, RIVAL, BOOKS, STAFF_BREAKS, STAFF_SIM, DRINKS, EXPIRY_LEVEL, UPGRADE_GATE, GEAR,
-  slackMul, batteryMinutes, jamChance, incomeRef, unitSpeed, hasRule } from '../src/core/config/economy.js';
+  slackMul, batteryMinutes, jamChance, incomeRef, unitSpeed, hasRule, TASKS } from '../src/core/config/economy.js';
 import { PARCEL_ORDER, PARCELS, areaOfParcel } from '../src/core/config/layout.js';
+import { CAFE_ENABLED } from '../src/core/config/world.js';
 
 PLAYTEST.coins = 0;
 // Crop the scripted player plants on a field: SIM_CROP=<id> forces one variety (when unlocked), else the best for the
@@ -54,13 +55,16 @@ const pickCrop = (s, plotId) => {
 // owned lots, every unit's hire price + parts / software / gear + stat steps (100·n each). Licences and the manager's
 // fee are not assets (the 'sink' control loses the same coins), so neither side gets credit for them.
 // A player who reinvests everything keeps few coins; the manager's value is the worth he adds, not the cash left.
-const builtValue = b => { const def = BUILDINGS[b.type]; if (!def) return 0; return def.cost + (def.upgrade || []).slice(0, Math.max(0, (b.level | 0) - 1)).reduce((a, c) => a + c, 0); };
 const statValue = u => Object.values(u.stats || {}).reduce((n, v) => n + 50 * Math.max(0, (v | 0) - 1) * (v | 0), 0); // Σ 100·n for n = 1..v−1
-export function netWorth(s) {
+export function netWorth(s, paid = {}) {
+  // Only the region you stand in: an expired region's land and buildings are gone (Level-10 incident). Land at what was
+  // paid for it (paid: `${regionId}:${lotId}` → coins), so the free starter lots of a new region add nothing.
   let w = s.player.coins - D.loanTotal(s);
-  for (const r of Object.values(s.world.regions || {})) {
-    for (const b of r.buildings || []) w += builtValue(b);
-    for (const id of r.parcels || []) w += PARCELS[id]?.cost || 0;
+  const rid = s.world.currentRegion, r = s.world.regions?.[rid];
+  if (r) {
+    for (const b of r.buildings || []) w += D.spentOn(b); // what was really paid (the k-th copy costs more than def.cost)
+    for (const f of r.fields || []) w += f.spent || 0; // cleared extra beds (FIELD.extraBase …), free rows 0
+    for (const id of r.parcels || []) w += paid[`${rid}:${id}`] || 0;
   }
   for (const u of s.staff.units) w += (u.paid || 0) + (u.partsSpent || 0) + (u.softwareSpent || 0) + (u.gearSpent || 0) + statValue(u);
   return w;
@@ -110,6 +114,8 @@ export function runSim(minutes = 60, { game = 'both', process = true, tap, perso
   const care = {};        // care kind → coins
   const gmStats = { acts: 0, filed: 0, approvedOk: 0, approvedFailedEvent: 0, hires: [], fines: [] };
   const fines = [];       // [playedMs, coins]
+  const parcelPaid = {}; // parcelId → coins paid (netWorth)
+  const filedPenal = [];  // playedMs of every manager task that can be fined (not TASKS.noPenaltyKinds)
   const answers = { approved: 0, denied: 0, failed: 0 };
   let minCoins = s.player.coins;
   let lastEvents = [];
@@ -142,7 +148,8 @@ export function runSim(minutes = 60, { game = 'both', process = true, tap, perso
         if (e.type === 'poachKept') sp.poach += e.fee || 0;
         if (e.type === 'taskExpired' && e.fine > 0) { sp.fines += e.fine; fines.push([P(), e.fine]); }
         if (e.type === 'gmActed') { gmStats.acts++; gmStats.byKey ||= {}; const k = String(e.key).split(':')[0]; gmStats.byKey[k] = (gmStats.byKey[k] || 0) + 1; }
-        if (e.type === 'taskFiled' && e.by === 'g1') gmStats.filed++;
+        if (e.type === 'taskFiled' && e.by === 'g1') { gmStats.filed++; if (!TASKS.noPenaltyKinds.includes(e.kind)) filedPenal.push(P()); }
+        if (e.type === 'parcelBought') { const k = `${s.world.currentRegion}:${e.parcelId}`; parcelPaid[k] = (parcelPaid[k] || 0) + (e.cost || 0); } // an estate: one price, booked on its seed lot
         if (e.type === 'gmHired') gmStats.hires.push({ played: P(), region: regionNo, level: D.level(s) });
       }
     } else if (!r.ok) failures[`${type}:${r.error}`] = (failures[`${type}:${r.error}`] || 0) + 1;
@@ -547,6 +554,14 @@ export function runSim(minutes = 60, { game = 'both', process = true, tap, perso
         if (crop && act('farm/plant', { plotId: p.id, crop })) { did = true; break; }
       }
     }
+    // 3b. fields are placeables now (a new region starts with none): with every field planted, place one more on free
+    // ground when the coins cover the field and its sapling (the player's "Gieo trồng" tap on the grass) — an extra bed
+    // beyond the tilled rows only with the reserve kept.
+    if (!did && playsFarm) {
+      const rg = D.region(s), allPlanted = D.ownedPlots(s).every(p => rg.plots[p.id]);
+      const fc = D.buildCost(s, 'field'); // free on a tilled row; a cleared extra costs, so the player keeps a reserve first
+      if (allPlanted && !D.buildError(s, 'field') && s.player.coins >= fc + D.seedCost(s, 'robusta') + (fc > 0 ? reserve() : 0)) did = build('field');
+    }
     // 4. start batches (downstream first)
     if (!did && playsFarm && process) {
       outer: for (const stage of STAGES) for (const b of D.region(s).buildings) {
@@ -572,7 +587,7 @@ export function runSim(minutes = 60, { game = 'both', process = true, tap, perso
     if (minute > lastMinute) {
       perMinute.push({ minute, coins: Math.round(s.player.coins), earned: Math.round(s.stats.earned), earnedThisMinute: Math.round(s.stats.earned - earnedAtLastMinute),
         level: D.level(s), round: s.player.round, beans: s.inventory.beans, stored: D.stored(s), capacity: D.capacity(s), served: s.stats.served,
-        batches: s.stats.produced || 0, region: s.world.currentRegion, phase: s.story.phase, worth: Math.round(netWorth(s)),
+        batches: s.stats.produced || 0, region: s.world.currentRegion, phase: s.story.phase, worth: Math.round(netWorth(s, parcelPaid)),
         ...(managed ? { played: P(), cost: Math.round(runCost()), units: s.staff.units.length, gm: !!D.gmOf(s), regionNo, i10: Math.round(D.I10(s)), i30: Math.round(D.I30(s)), loanOwed: D.loanTotal(s) } : {}) });
       if (managed) i30.push([P(), D.I30(s), D.I10(s)]);
       earnedAtLastMinute = s.stats.earned;
@@ -581,7 +596,7 @@ export function runSim(minutes = 60, { game = 'both', process = true, tap, perso
     if (stopAfterLoan && loanRec && (loanRec.repaidP != null || loanRec.late || loanRec.error)) break;
   }
   return { start, end: now, state: s, log, perMinute, minCoins, failures, coinDelta, income, counts, game, process, persona,
-    spans, care, gmStats, fines, answers, bugs, paybacks, pjByLevel, rates, loan: loanRec, i30, neglectFrom, useGm, maxUnits, teamSize };
+    spans, care, gmStats, fines, answers, bugs, paybacks, pjByLevel, rates, loan: loanRec, i30, filedPenal, neglectFrom, useGm, maxUnits, teamSize };
 }
 
 function printReport({ start, state: s, log, perMinute, income, counts, game, process, persona, spans, care, gmStats, bugs }) {
@@ -630,7 +645,9 @@ export function runGates({ runs = 10, gmSeeds = 10, quiet = false } = {}) {
   const rows = [];
   // pass: true | false | null (null = SKIP: not measurable in this run, e.g. a unit type the delegate never owned)
   const add = (gate, subject, value, target, pass, note = '') => rows.push({ gate, subject, value, target, pass, note });
-  const games = ['farm', 'cafe'];
+  // the café is switched off on main (world.js CAFE_ENABLED: the map shows it as «updating», play/chooseGame fails with
+  // gameLocked): its runs would play a region with no game at all, so its gates only run while it is on
+  const games = CAFE_ENABLED ? ['farm', 'cafe'] : ['farm'];
   const long = {};
   // 1. Level 10 per persona, 2. running cost, 3. payback — long runs.
   for (const game of games) for (const persona of ['tapper', 'delegate']) {
@@ -659,7 +676,7 @@ export function runGates({ runs = 10, gmSeeds = 10, quiet = false } = {}) {
       const m = (sp.mandatory + sp.gm) / sp.earned, o = sp.optional / sp.earned;
       // vacuous: nothing to pay for (no unit on the roster, or no manager from his unlock level) is not a pass
       const vac = !sp.units ? 'no unit on the roster' : L >= GM.unlockLevel && !sp.gmMs ? 'no manager at this level' : '';
-      add('mandatory cost % earned (≤ 25 %)', `delegate:${game} R${rk.split(':')[0]} Lv${L}`, vac ? `vacuous ${pct(m)}` : pct(m), '≤ 25 %', !vac && m <= 0.25,
+      add('mandatory cost % earned (≤ 25 %)', `delegate:${game} R${rk.split(':')[0]} Lv${L}`, vac ? `vacuous ${pct(m)}` : pct(m), '≤ 25 %', vac ? null : m <= 0.25, // vacuous = nothing to measure (SKIP), not a pass and not a game fault
         `${vac ? `VACUOUS (${vac}); ` : ''}roster ≤ ${sp.units}, GM ${(sp.gmMs / 60000).toFixed(1)} min; mand ${Math.round(sp.mandatory)} + gm ${Math.round(sp.gm)} / earned ${Math.round(sp.earned)} over ${(sp.ms / 60000).toFixed(1)} min; +care ${pct(o)}; I(L) ref ${incomeRef(game, L)}/min, measured ${Math.round(sp.earned / (sp.ms / 60000))}/min`);
     }
     // The planner prices contrib(u) with GM.value.jobsPerMin; the realm loop's measured jobs per minute on shift
@@ -710,9 +727,13 @@ export function runGates({ runs = 10, gmSeeds = 10, quiet = false } = {}) {
     const I30m = mean(iw), I30end = iw.at(-1);
     const hire = r.gmStats.hires.find(h => h.region >= 2);
     const ref = 30 * incomeRef(game, hire?.level || 6);
-    const share = f / I30m, atUnlock = hire?.level === GM.unlockLevel;
-    add('neglect 45 min fines % I30 (8–12 %)', `neglect:${game} from Lv${hire?.level}`, pct(share), '8–12 %', atUnlock && share >= 0.08 && share <= 0.12,
-      `${atUnlock ? '' : `WRONG WINDOW: the region-2 manager came at Lv${hire?.level}, not Lv${GM.unlockLevel}; `}fines ${Math.round(f)} (${r.fines.filter(([p]) => p >= r.neglectFrom && p < to).length} expiries); I30 mean ${Math.round(I30m)}, end ${Math.round(I30end)}; vs ref I30(Lv${hire?.level}) ${ref}: ${pct(f / ref)}; window ${((Math.min(to, r.i30.at(-1)?.[0] ?? to) - r.neglectFrom) / 60000).toFixed(0)} min`);
+    // GM.unlockLevel is 1 (founder: no level gate, the delegate hires once he can pay), so the window starts at whatever
+    // level that is. Since D.gmPermission lets the manager do every job himself and only files top-ups / bean sales
+    // (TASKS.noPenaltyKinds), an ignored inbox may carry no fine at all: then there is nothing to neglect (SKIP).
+    const penal = r.filedPenal ? r.filedPenal.filter(p => p >= r.neglectFrom && p < to).length : null;
+    const share = f / I30m;
+    add('neglect 45 min fines % I30 (8–12 %)', `neglect:${game} from Lv${hire?.level}`, pct(share), '8–12 %', penal === 0 ? null : share >= 0.08 && share <= 0.12,
+      `${penal === 0 ? 'NOTHING TO NEGLECT: the manager filed no task that can be fined in the window; ' : ''}fines ${Math.round(f)} (${r.fines.filter(([p]) => p >= r.neglectFrom && p < to).length} expiries); I30 mean ${Math.round(I30m)}, end ${Math.round(I30end)}; vs ref I30(Lv${hire?.level}) ${ref}: ${pct(f / ref)}; window ${((Math.min(to, r.i30.at(-1)?.[0] ?? to) - r.neglectFrom) / 60000).toFixed(0)} min`);
     add('neglect: coins never < 0', `neglect:${game}`, String(Math.round(r.minCoins * 100) / 100), '≥ 0', r.minCoins >= 0);
   }
   for (const key of Object.keys(long)) add('coins never < 0, no NaN, no throw', key, String(Math.round(long[key].minCoins * 100) / 100), '≥ 0, 0 bugs', long[key].minCoins >= 0 && !long[key].bugs.length, long[key].bugs.length ? JSON.stringify(long[key].bugs[0]) : '');

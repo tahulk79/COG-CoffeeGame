@@ -1,5 +1,5 @@
 // Save schema v3 (Farm & Café V3). Stored under its own localStorage key, so the old v1 save is never overwritten.
-import { maxStatOf, maxTierOf, EXPIRY_ENABLED } from './config/economy.js';
+import { maxStatOf, maxTierOf, EXPIRY_ENABLED, AUTO } from './config/economy.js';
 import { STAFF_CAP, FARM_MANAGER } from './config/economy.js';
 import { crewTypeOf, workerJobs } from './config/economy.js';
 import { TASKS, PENALTY, HISTORY, CROPS, GM, GEAR, INCOME, LOAN, loanOwed, loanTermMin, incomeRef, SOFTWARE, WARRANTY, PROFILE, CAREER, CRAFT, profileOfUid, robotSerial, START, BUILDINGS, STAFF, TRAITS, RECRUIT, ROBOT_TASKS, PLAYTEST, SKILL, STAT_ORDER, VITALS, RARE, WORKER_TASKS, BOOKS, energyMax, levelForXp, startCoins, VENUES, RATING, CELL } from './config/economy.js';
@@ -57,7 +57,7 @@ export function createSave(now = Date.now(), character = null) {
     // region's country has). Coins / XP / level / beans are shared by both games.
     mode: null,
     tutorial: { step: 0, done: true, farmDone: true, cafeDone: true }, // the opening tutorial is removed
-    autoplay: { runs: 0, granted: false, active: null },   // active = { startedAt, endsAt } while a run plays
+    autoplay: { runs: AUTO.freeRuns, granted: true, bought: 0, saved: 0, active: null }, // active = { leftMs } while a run plays; saved = ms kept by Stop
     stats: { harvested: 0, planted: 0, served: 0, built: 0, upgraded: 0, parcels: 0, earned: 0, sold: 0, bought: 0, venueSold: 0, reviews: 0, fights: 0 },
     tx: [],
     nextUid: 1,
@@ -208,9 +208,13 @@ export function normalizeSave(raw, now = Date.now()) {
   if (out.tutorial.done) { out.tutorial.farmDone = true; out.tutorial.cafeDone = true; } // skipped before the split
   out.autoplay = { ...base.autoplay, ...obj(s.autoplay) };
   out.autoplay.runs = num(out.autoplay.runs, 0, 0, 99) | 0;
-  if (!obj(out.autoplay.active)) out.autoplay.active = null;
-  // Saves from before auto play existed get their free run once.
-  if (!obj(s.autoplay) && s.story?.teacherMet) { out.autoplay.runs = 1; out.autoplay.granted = true; }
+  out.autoplay.bought = num(out.autoplay.bought, 0, 0, 999) | 0;
+  out.autoplay.saved = num(out.autoplay.saved, 0, 0, AUTO.runSeconds * 1000);
+  // A run counts played time down (leftMs); the old wall-clock runs ({ startedAt, endsAt }) are over.
+  const act = obj(out.autoplay.active);
+  out.autoplay.active = act && Number.isFinite(act.leftMs) && act.leftMs > 0 ? { leftMs: Math.min(act.leftMs, AUTO.runSeconds * 1000), jobs: num(act.jobs, 0, 0) | 0 } : null;
+  // Every save gets its free run(s) once.
+  if (!out.autoplay.granted) { out.autoplay.runs += AUTO.freeRuns; out.autoplay.granted = true; }
   out.stats = { ...base.stats, ...obj(s.stats) };
   out.tx = Array.isArray(s.tx) ? s.tx.slice(-64) : [];
   out.nextUid = num(s.nextUid, 1, 1) | 0;
@@ -748,7 +752,7 @@ export function normalizeRegion(r) {
 function normalizeFields(raw) {
   const seen = new Set();
   return (Array.isArray(raw) ? raw : []).filter(f => obj(f) && typeof f.id === 'string' && f.id.length <= 40 && Number.isFinite(f.x) && Number.isFinite(f.z)
-    && !seen.has(f.id) && seen.add(f.id)).map(f => ({ id: f.id, x: f.x, z: f.z }));
+    && !seen.has(f.id) && seen.add(f.id)).map(f => ({ id: f.id, x: f.x, z: f.z, ...(Number.isFinite(f.spent) && f.spent > 0 ? { spent: Math.min(1e6, f.spent) } : {}) }));
 }
 // A building: integer level within its upgrade list, rotation 0..3, a valid production batch or none.
 function normalizeBuilding(b) {

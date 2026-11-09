@@ -47,7 +47,7 @@
 import * as THREE from 'three';
 import { STAFF, CROPS, CROP_ORDER, DRINKS, STAFF_BREAKS, ROBOT_TASKS, ROBOT_AUTO, unitSpeed, batteryMinutes, slackMul, hasRule, robotTask, mistakeChance, partTier, isHardDrink, BEANS, BUILDINGS, CREW, FUNNY, goofFee, funnyRoll, gmCalmMul, goofRoll, goofHold, knows, isHardCrop, jamChance, energyMax, RIVAL, BOOKS, GM, craftSpeed, gearWalk, gearJob, hasSoftware, SOFTWARE, STAFF_SIM, CLOCK } from '../../core/config/economy.js';
 import { PARCELS, FIXED, FARM_WELL, farmGroundY, farmRouteDist, tierIndexAt } from '../../core/config/layout.js';
-import { FARM_MANAGER } from '../../core/config/economy.js';
+import { FARM_MANAGER, AUTO } from '../../core/config/economy.js';
 import { managerCropFor } from '../../core/farm-manager.js';
 import { fmOf, easyCropFor, pickCropFor, harvestUrgency, assignedUnits, ownedPlots, plotState as readPlotState, cropUnlocked, seedCost, capacity, stored, plotOf, tileAt, seatCount, seatsUsed, brewSlots, seatPatienceRatio, beanBuyQuote, plotGrowMs, canBrew, region as regionOf, unitState, unitBlocked, unitWorking, stateSpeedMul, quickFix, upgradableStats, buildingsOf, footprint, needs, careError, chaosSlackMul, gmOf, gmThinkSeconds, workerPoach, planCropFor, recipeOf, orderSpot, prodError, collectError, treeOld, pruneCost, dripCovers, haulCapacity, pileCount, cargoCount, storeBuildings, bucketPlots } from '../../core/derive.js';
 import { assignPosts, pickShopJob, orderBlock, waitsForBrew, secondCup, nearestFirst, urgencyK, facing, yieldsTo, isReady, POST_JOBS, autoTask, ROBOT_POST, allows, ctxTakes, TICKS, vitalsInterval, vitalsNoop, timerDue, poseOf, stateIconKey, showsFix, knockStep, KNOCK } from './staff-brain.js';
@@ -1284,7 +1284,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
   }
 
   // Team timers (seconds of play): bench upkeep, rival visits per zone, MVP; rival/resolve once the poach time is up.
-  const timers = { upkeep: 0, rival: { farm: 0, shop: 0 }, mvp: 0, resolved: null, started: false, boss: 0, gmThink: 0, gmPay: 0, gmRival: 0, clock: 0, loan: 0 };
+  const timers = { upkeep: 0, rival: { farm: 0, shop: 0 }, mvp: 0, resolved: null, started: false, boss: 0, gmThink: 0, gmPay: 0, gmRival: 0, clock: 0, loan: 0, auto: 0 };
   const workersIn = { farm: 0, shop: 0 };
   const ZONES = ['farm', 'shop'];
   function teamTimers(dt, state, now) {
@@ -1294,6 +1294,9 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     if ((timers.clock += dt) >= CLOCK.tickSeconds) { const ms = Math.round(timers.clock * 1000); timers.clock = 0; act('clock/tick', { ms }); }
     if ((timers.loan += dt) >= CLOCK.loanTickSeconds) { timers.loan = 0; if (state.loans?.length) act('loan/tick', {}); }
     gmTimers(dt, state);
+    // Auto nông trại: a round every AUTO.everySec of played time while a run is on (the player keeps playing).
+    if (state.autoplay?.active) { if ((timers.auto += dt) >= AUTO.everySec) { const ms = Math.round(timers.auto * 1000); timers.auto = 0; act('auto/tick', { ms, skip: [...claims.keys()].filter(k => k.startsWith('plot:')).map(k => k.slice(5)) }); } }
+    else timers.auto = 0;
     if (!units.size) return;
     // The first call only starts the reducer's clock (once per session, so a failed call cannot repeat every frame).
     if ((timers.upkeep += dt) >= TICKS.upkeepSeconds || (!state.staff.upkeepAt && !timers.started)) { timers.upkeep = 0; timers.started = true; act('staff/upkeep', {}); }

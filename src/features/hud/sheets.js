@@ -101,15 +101,16 @@ function catalogCard(ctx, m) {
 // Estates (land-ui-simplify §2A): the 4 climate estates in order — owned ✓, the next one with its price, later ones locked.
 function landTab(ctx, s) {
   const out = h('div', { class: 'hud-land' }, h('p', { class: 'hud-hint' }, T('estate.hint', { fields: ESTATE_FIELDS })));
-  const list = h('ul', { class: 'hud-land-list' }), next = nextEstate(s);
+  const list = h('ul', { class: 'hud-land-list' });
   for (const id of ESTATE_ORDER) {
     const e = ESTATES[id], owned = estateOwned(s, id), err = owned ? 'owned' : parcelError(s, e.seed);
     let right;
     if (owned) right = h('span', { class: 'hud-land-state is-owned' }, '✓ ', T('estate.ownedShort'));
-    else if (err === 'order') right = h('span', { class: 'hud-land-state' }, '🔒 ', T('estate.after', { name: T(`estate.${next?.id}`) }));
+    // locked behind the tier just below it (it read "Sau Tầng 2" on Tầng 4 too) — short, so the tier's name keeps its width
+    else if (err === 'order') right = h('span', { class: 'hud-land-state' }, '🔒 ', T('estate.afterTier', { n: ESTATE_ORDER.indexOf(id) }));
     else if (err === 'level') right = h('span', { class: 'hud-land-state' }, '🔒 ', T('estate.level', { level: e.level }));
     else {
-      right = actionButton({ id: `buyEstate-${id}`, label: T('estate.buy'), cost: e.cost, tone: 'gold', onClick: () => ctx.act('land/buyParcel', { parcelId: e.seed }) });
+      right = actionButton({ id: `buyEstate-${id}`, label: T('estate.buy'), cost: e.cost, tone: 'gold', onClick: () => buyLand(ctx, e.seed, e.cost, T(`estate.${id}`)) });
       if (err === 'coins') right.classList.add('is-short');
     }
     list.append(h('li', { class: 'hud-land-row' },
@@ -138,11 +139,11 @@ export function upgradesSheet(ctx) {
     const rows = items.map(b => h('li', { class: 'hud-land-row' },
       rowIcon(BUILDINGS[b.type]),
       h('span', { class: 'hud-land-text' }, h('strong', null, `${T(`building.${b.type}`)} · Lv ${b.level} → ${b.level + 1}`), h('small', null, buildingEffect(b.type, b.level, true))),
-      actionButton({ id: `up-${b.uid}`, label: T('hud.upgrade'), cost: upgradeCost(b.type, b.level), tone: 'gold', disabled: upgradeError(s, b) === 'coins', note: upgradeError(s, b) === 'coins' ? needMore(upgradeCost(b.type, b.level) - Math.floor(s.player.coins)) : null, onClick: () => ctx.act('build/upgrade', { uid: b.uid }) })));
+      actionButton({ id: `up-${b.uid}`, label: T('hud.upgrade'), icon: '⬆️', cost: upgradeCost(b.type, b.level), tone: 'gold', disabled: upgradeError(s, b) === 'coins', note: upgradeError(s, b) === 'coins' ? needMore(upgradeCost(b.type, b.level) - Math.floor(s.player.coins)) : null, onClick: () => ctx.act('build/upgrade', { uid: b.uid }) })));
     const newRows = news.map(type => { const err = buildError(s, type), cost = buildCost(s, type); return h('li', { class: 'hud-land-row' },
       rowIcon(BUILDINGS[type]),
       h('span', { class: 'hud-land-text' }, h('strong', null, `${T(`building.${type}`)} · ${T('hud.upgrades.new')}`), h('small', null, has(`fw.desc.${type}`) ? T(`fw.desc.${type}`) : '')),
-      actionButton({ id: `new-${type}`, label: T('hud.tool.build'), icon: '🔨', cost, tone: 'gold', disabled: err === 'coins', note: err === 'coins' ? needMore(cost - Math.floor(s.player.coins)) : null,
+      actionButton({ id: `new-${type}`, label: T('hud.upgrades.buildBtn'), icon: '🔨', cost, tone: 'gold', disabled: err === 'coins', note: err === 'coins' ? needMore(cost - Math.floor(s.player.coins)) : null,
         onClick: () => { ctx.sheet.close(); ctx.clearSelection?.(); ctx.realm?.startPlacement?.(type); } })); });
     return h('div', { class: 'hud-land' }, h('p', { class: 'hud-hint' }, T('hud.upgrades.hint')), h('ul', { class: 'hud-land-list' }, ...rows, ...newRows));
   };
@@ -151,7 +152,7 @@ export function upgradesSheet(ctx) {
 }
 
 // Plant tab: the seeds as compact tiles — the variety's own tree (rendered from its model), name, price, one line on where it thrives.
-const TREE_FILE = { arabica: 'gedeo', robusta: 'robusta', liberica: 'liberica' };
+const TREE_FILE = { arabica: 'gedeo', robusta: 'gedeo', liberica: 'liberica' };
 function plantTab(ctx, s) {
   const active = ctx.realm?.activeCrop;
   return h('div', { class: 'hud-seedgrid' }, ...CROP_ORDER.filter(id => cropUnlocked(s, id)).map(id => {
@@ -443,6 +444,37 @@ export function sellSheet(ctx) {
 
 // ---------- Staff ----------
 // The staff manager is a full modal now (staff-modal.js, docs/design/staff-manager.md §10).
+
+/** Buys land after a small confirm card (QA 2026-11-09: 1 500+ coins went on one stray tap). One txId per confirm. */
+export async function buyLand(ctx, parcelId, cost, name) {
+  if (ctx.buyingLand) return false;
+  ctx.buyingLand = true;
+  try {
+    const txId = newTxId('land');
+    const yes = await ctx.confirm({ title: T('hud.land.confirmTitle', { name }), body: T('hud.land.confirmBody'), cost, confirmLabel: T('hud.land.confirmGo') });
+    if (!yes) return false;
+    return ctx.act('land/buyParcel', { parcelId }, { txId }).ok;
+  } finally { ctx.buyingLand = false; }
+}
+/** Buys one auto run after a small confirm card; one txId per confirm, so a double tap can never charge twice. */
+export async function buyAuto(ctx) {
+  if (ctx.buyingAuto) return false;
+  ctx.buyingAuto = true;
+  try {
+    const price = autoPrice(ctx.store.state.autoplay?.bought || 0), txId = newTxId('auto');
+    const yes = await ctx.confirm({ title: T('hud.auto.buyTitle'), body: T('hud.auto.buyBody', { min: Math.round(AUTO.runSeconds / 60) }), cost: price, confirmLabel: T('hud.auto.buyGo') });
+    if (!yes) return false;
+    const r = ctx.act('auto/buy', {}, { txId });
+    if (r.ok && !r.duplicate) ctx.toast(T('hud.toast.autoBought'), 'good');
+    return r.ok;
+  } finally { ctx.buyingAuto = false; ctx.sheet?.rerender?.(); }
+}
+/** Starts the run (the kept time first, else one run). */
+export function startAuto(ctx) {
+  const r = ctx.act('auto/start');
+  if (r.ok && !r.noop) ctx.toast(T('hud.toast.autoStart'), 'good');
+  return r;
+}
 
 export function progressSheet(ctx) {
   return s => {

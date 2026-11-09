@@ -102,6 +102,15 @@ export function createTutorial(ctx) {
       setWorld(ctx.sheet.openId ? null : auto.target || null);
       return;
     }
+    // First field (the opening tutorial is gone): a farm with no field at all shows one tip on the Phát triển button,
+    // until the first sapling is placed — a new player otherwise lands on empty grass with nothing to tap.
+    const fr = region(s);
+    if (ctx.isPlaying() && fr && fr.mode !== 'cafe' && !(fr.fields || []).length && !ctx.modals.open && !ctx.sheet.openId && !ctx.realm?.placement) {
+      skip.hidden = true; // a one-line hint, not the tutorial: nothing to skip (it goes once the first field is placed)
+      setTip(T('hud.hint.firstField')); setWorld(null);
+      setUi(document.querySelector('#hud-btn-build'));
+      return;
+    }
     const cur = ctx.isPlaying() && !ctx.realm?.switching ? currentStep(s, track()) : null;
     if (!cur || ctx.modals.open || ctx.staffModal?.covering) { hide(); return; } // the staff manager covers the world
     const r = region(s);

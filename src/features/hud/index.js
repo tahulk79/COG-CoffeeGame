@@ -1,7 +1,7 @@
 // V3 HUD (DOM only): minimal top HUD, bottom toolbar, contextual action bar, sheets, placement controls,
 // confirm modal, Teacher dialogue, toasts and the tutorial overlay. API per docs/design/v3-architecture.md §HUD API.
 import '../../ui/styles/v3.css';
-import { GM, CROP_ORDER, DRINK_ORDER } from '../../core/config/economy.js';
+import { GM, CROP_ORDER, DRINK_ORDER, autoPrice } from '../../core/config/economy.js';
 import { sellAllQuote, cropUnlocked, drinkUnlocked, region, bothGames, regionGame, currentGames, pendingGifts, isChestLevel, tasksOpen } from '../../core/derive.js';
 import { openTierModal } from './tier-modal.js';
 import { sfx } from '../../shared/audio/index.js';
@@ -13,7 +13,7 @@ import { createFieldPop } from './field-pop.js';
 import { createActionBar } from './action-bar.js';
 import { createShopStrip } from './shop-strip.js';
 import { createSheetHost } from './sheet.js';
-import { sellSheet, upgradesSheet, buildSheet, seedsSheet, menuSheet, progressSheet, drinkSeenKey, beansSheet, loanSheet, setBuildTab, supplySheet } from './sheets.js';
+import { sellSheet, upgradesSheet, buildSheet, seedsSheet, menuSheet, progressSheet, buyAuto, startAuto, drinkSeenKey, beansSheet, loanSheet, setBuildTab, supplySheet } from './sheets.js';
 import { inboxSheet, journalSheet } from './inbox.js';
 import { roundsSheet } from './rounds.js';
 import { createStaffModal } from './staff-modal.js';
@@ -40,7 +40,7 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
   const ctx = { store, realm, dev, root, onOpenAtlas, onOpenSettings, selection: null };
 
   ctx.isPlaying = () => store.state.story.phase === 'play' && !!store.state.world.currentRegion;
-  // (auto play is gone: nothing blocks the player's actions any more)
+  // Auto nông trại runs in the background: it never blocks the player's actions (founder 2026-11-09).
   ctx.isAuto = () => false;
   ctx.blockedByAuto = () => false;
   ctx.act = (type, payload = {}, opts = {}) => {
@@ -245,6 +245,42 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
     notices.textContent = lines.join('. ');
   }
 
+  // ---------- Auto nông trại: one round button in the right rail ----------
+  // 🤖 always. Off: "AUTO ×N" (or "AUTO 7:12" kept) · none left: gold + price → buy card · on: green + time left → pause card.
+  const autoIco = h('span', { class: 'hud-auto-ico', attrs: { 'aria-hidden': 'true' } });
+  const autoTag = h('span', { class: 'hud-auto-tag' });
+  const autoFull = h('span', { class: 'hud-auto-full' });
+  const autoBtn = h('button', { type: 'button', class: 'hud-auto-btn', hidden: true, dataset: { hudId: 'auto' }, attrs: { 'aria-label': T('hud.auto.aria') },
+    on: { click: () => onAutoTap() } }, autoIco, autoTag, autoFull);
+  let autoSig = '';
+  async function onAutoTap() {
+    const a = store.state.autoplay || {};
+    if (a.active) {
+      const yes = await ctx.confirm({ title: T('hud.auto.stopTitle'), body: T('hud.auto.stopBody', { time: clock(a.active.leftMs) }), confirmLabel: T('hud.auto.stopBtn'), cancelLabel: T('hud.auto.keepBtn') });
+      if (yes && store.state.autoplay?.active) { const r = ctx.act('auto/stop', { reason: 'user' }); if (r.ok && !r.noop) ctx.toast(T('hud.toast.autoStopped', { time: clock(store.state.autoplay.saved) }), 'info'); }
+      return;
+    }
+    if ((a.runs || 0) <= 0 && !(a.saved > 0)) { if (await buyAuto(ctx)) startAuto(ctx); return; } // none left: buy one, then it starts
+    startAuto(ctx);
+  }
+  function updateAuto() {
+    const s = store.state, a = s.autoplay || {}, show = ctx.isPlaying() && !!region(s) && regionGame(s) !== 'cafe';
+    const runs = a.runs || 0, price = autoPrice(a.bought || 0), on = !!a.active;
+    // The tag always says AUTO (a bare ▶ read as a generic play button on phones); the price when none is left.
+    const tag = on ? clock(a.active.leftMs) : a.saved > 0 ? `AUTO ${clock(a.saved)}` : runs > 0 ? `AUTO ×${runs}` : `🪙${fmt(price)}`;
+    const sig = `${show}|${on}|${tag}`;
+    if (sig === autoSig) return;
+    autoSig = sig;
+    autoBtn.hidden = !show;
+    autoIco.textContent = '🤖';
+    autoTag.textContent = tag;
+    autoFull.textContent = on ? T('hud.auto.chip', { time: tag }) : a.saved > 0 ? `▶ ${T('hud.auto.resumeBtn')} ${clock(a.saved)}` : runs > 0 ? T('hud.auto.button', { n: runs }) : T('hud.auto.buy', { price });
+    autoBtn.classList.toggle('is-on', on);
+    autoBtn.classList.toggle('is-buy', !on && runs <= 0 && !(a.saved > 0));
+    autoBtn.setAttribute('aria-label', on || a.saved > 0 || runs <= 0 ? autoFull.textContent : T('hud.auto.aria'));
+  }
+  top.el.querySelector('.hud-top-right')?.append(autoBtn);
+
   root.append(...[top.el, todoBar, staffAlerts.el, shops.el, actionBar.el, landChip, toolbar.el, placement.el, sheet.el, staffModal.el, tutorial.el, feedback.el, modals.el, notices, devPanel?.el].filter(Boolean)); // no dev panel → nothing (not the text "undefined")
   document.body.append(root);
 
@@ -380,6 +416,7 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
       updateFirstGame();
       updateGifts(dt);
       updateSwitch();
+      updateAuto();
       syncLandChip();
       tutorial.update(dt);
       updateNotices(dt);

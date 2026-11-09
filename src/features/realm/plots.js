@@ -55,7 +55,7 @@ const FIT_GLOW = { good: new THREE.Color(0x8fd16a), ok: SOIL_GLOW, bad: new THRE
 // Arabica: low, small glossy dark leaves. Robusta: medium, the GLB as is. Liberica: tall tree, big leathery leaves, dark red fruit.
 const LOOK = {
   // each variety has its own Blender model at true relative size now, so w / h only fine-tune (same scale for all)
-  robusta: { w: .82, h: .72, leaf: new THREE.Color(1, 1, 1), ripe: new THREE.Color(1, 1, 1) },
+  robusta: { w: 1.05, h: .86, leaf: new THREE.Color(1, 1, 1), ripe: new THREE.Color(1, 1, 1) }, // arabica crown, bigger and lighter green
   arabica: { w: .82, h: .72, leaf: new THREE.Color(.78, .92, .74), ripe: new THREE.Color(1, .85, .85) },
   liberica: { w: .86, h: .8, leaf: new THREE.Color(.9, .95, .85), ripe: new THREE.Color(.8, .55, .5) },
 };
@@ -369,7 +369,9 @@ export function createPlots({ scene, templates, vfx, getActiveCrop = () => null 
   const parts = [...tag(treeTpl, 'arabica'), ringPart, ...tag(templateParts(templates.fruitGreen, KIND_GREEN), 'arabica'), ...tag(templateParts(templates.fruitRipe, KIND_RIPE), 'arabica'),
     ...templateParts(templates.seedling, KIND_SEED), ...templateParts(templates.young, KIND_YOUNG)];
   const speciesOwn = new Set(['arabica']);
-  for (const sp of ['robusta', 'liberica']) {
+  // Robusta's own export is a sparse twiggy shrub (984 leaf verts over a 3 m crown — it read as a dead tree on fields and
+  // the seed card): it uses the dense arabica crown, scaled up (LOOK.robusta — robusta is the bigger, bushier tree).
+  for (const sp of ['liberica']) {
     const own = templateParts(templates[`tree_${sp}`], KIND_TREE);
     if (!own.length) continue;
     speciesOwn.add(sp);

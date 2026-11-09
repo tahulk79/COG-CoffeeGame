@@ -85,7 +85,7 @@ export function createPlacement({ scene, prefabs, bedGhost = null }) {
   }
   // The plant being sown / moved: its real model, translucent, following the ring (a seedling, a young tree or a full tree).
   let plantGhost = null, plantSpec = null, plantToken = 0;
-  const PLANT_FILE = { arabica: 'gedeo', robusta: 'robusta', liberica: 'liberica' };
+  const PLANT_FILE = { arabica: 'gedeo', robusta: 'gedeo', liberica: 'liberica' };
   function setPlantGhost(spec) {
     plantToken++;
     if (plantGhost) { plantGhost.removeFromParent(); plantGhost = null; }

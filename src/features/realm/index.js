@@ -61,7 +61,6 @@ import { groundPoint, unionRect, fmtTimer, clamp } from './util.js';
 const SKY = 0xb4e2f7; // fog uses the same color so the horizon melts into the sky
 // Gedeo Coffea arabica (scripts/blender/gedeo_heroes.py export_game_tree): same node names + height as the old coffee-tree.glb.
 const TREE_PARTS = { tree: 'farm/coffee-tree-gedeo.glb#tree', fruitGreen: 'farm/coffee-tree-gedeo.glb#fruit_green', fruitRipe: 'farm/coffee-tree-gedeo.glb#fruit_ripe',
-  tree_robusta: 'farm/coffee-tree-robusta.glb#tree', fruitGreen_robusta: 'farm/coffee-tree-robusta.glb#fruit_green', fruitRipe_robusta: 'farm/coffee-tree-robusta.glb#fruit_ripe',
   tree_liberica: 'farm/coffee-tree-liberica.glb#tree', fruitGreen_liberica: 'farm/coffee-tree-liberica.glb#fruit_green', fruitRipe_liberica: 'farm/coffee-tree-liberica.glb#fruit_ripe',
   seedling: 'farm/coffee-stages-gedeo.glb#seedling', young: 'farm/coffee-stages-gedeo.glb#young', // first-crop growth stages (real metres)
   plantingRow: 'farm/landscape-parts.glb#planting_row', mulchBasin: 'farm/landscape-parts.glb#mulch_basin', wallUnit: 'farm/landscape-parts.glb#wall_unit', bankUnit: 'farm/landscape-parts.glb#bank_unit' };

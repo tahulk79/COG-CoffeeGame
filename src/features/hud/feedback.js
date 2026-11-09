@@ -193,8 +193,10 @@ export function createFeedback(ctx) {
     for (const ev of events) {
       // The general manager's own jobs stay quiet (its log in the Quản lý tab tells them); it speaks for requests,
       // poaching, leaving and money trouble below.
-      if (ev.byGm) continue;
+      if (ev.byGm || ev.byAuto) continue; // Auto nông trại works quietly too: the green rail button shows it is on
       switch (ev.type) {
+        case 'autoStopped': if (ev.reason === 'timeout') { toast(T('hud.toast.autoEnd', { n: ev.jobs || 0 }), 'warn'); sfx('reward.quest'); } break;
+        case 'autoSold': toast(T('hud.toast.autoSold', { coins: fmt(ev.coins) }), 'good'); break;
         case 'levelUp': levelBanner(s, ev.from, ev.to); break;
         case 'gmHired': toast(T(ev.calmed ? 'hud.gm.toast.hiredCalm' : 'hud.gm.toast.hired', { name: ev.name }), 'good'); sfx('reward.quest'); break;
         case 'gmRequest': toast(T('hud.gm.toast.request', { name: ev.name, what: gmReasonText(ev.reason), coins: fmt(ev.cost) }), 'warn'); sfx('ui.deny'); break;

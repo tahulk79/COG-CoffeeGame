@@ -135,6 +135,15 @@ export function createBadges({ scene, camera }) {
   const pool = [];      // { sprite, small, chip, phase }
   const ndc = new THREE.Vector3();
   const EDGE = .04, EDGE_TOP = .22; // NDC margins (the top HUD covers the upper ~11 % of a portrait screen)
+  // The HUD's right rail (⚙ · Vay · 🌍 · ⬆ · 🧭 · 🤖) covers the right edge down to its bottom: a pin slid in from the right
+  // edge must stop left of it, or it hides under the round buttons (the storehouse 🫘 pin peeking behind "Vay").
+  // Read from the DOM twice a second (NDC: { left, bottom } of the rail, null when there is none).
+  let rail = null, railT = 0;
+  function readRail() {
+    const el = typeof document !== 'undefined' && document.querySelector('#hud-root .hud-top-right');
+    const r = el && el.getClientRects().length ? el.getBoundingClientRect() : null;
+    rail = r && r.width > 0 ? { left: r.left / innerWidth * 2 - 1 - .02, bottom: 1 - r.bottom / innerHeight * 2 - .02 } : null;
+  }
   let used = 0;
   let scale = .05, smallScale = .03;
   let sig = '';
@@ -198,6 +207,7 @@ export function createBadges({ scene, camera }) {
     },
     update(time) {
       const P = camera.projectionMatrix.elements, wN = scale * P[0], hN = scale * P[5]; // badge size in NDC
+      if ((railT -= 1) <= 0) { railT = 30; readRail(); }
       for (let i = 0; i < used; i++) {
         const s = pool[i];
         if (s.sprite.scale.x !== scale * s.k) { s.sprite.scale.set(scale * s.k, scale * s.k, 1); s.small.scale.set(smallScale, smallScale, 1); s.chip.scale.set(smallScale * CHIP_K, smallScale, 1); }
@@ -207,7 +217,9 @@ export function createBadges({ scene, camera }) {
         // Keep the whole pin (and its small ▲) inside the viewport margins: slide it in from the edges.
         ndc.copy(s.sprite.position).project(camera);
         let cx = .5;
-        const maxX = 1 - wN * (s.small.visible ? 1.3 : .5) - EDGE, minX = -1 + wN * .5 + EDGE, maxY = 1 - hN * 1.25 - EDGE_TOP;
+        let maxX = 1 - wN * (s.small.visible ? 1.3 : .5) - EDGE;
+        const minX = -1 + wN * .5 + EDGE, maxY = 1 - hN * 1.25 - EDGE_TOP;
+        if (rail && ndc.y + hN * 1.25 > rail.bottom) maxX = Math.min(maxX, rail.left - wN * (s.small.visible ? 1.3 : .5)); // beside the rail
         if (ndc.z < 1) {
           if (ndc.x > maxX) cx += (ndc.x - maxX) / wN; else if (ndc.x < minX) cx -= (minX - ndc.x) / wN;
           if (ndc.y > maxY) cy += (ndc.y - maxY) / hN;

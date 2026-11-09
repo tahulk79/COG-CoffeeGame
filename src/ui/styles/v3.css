@@ -1610,3 +1610,25 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
 /* Problems list folded: a small pill with the count, tap to open. */
 .hud-al.is-closed{width:auto;min-width:0;padding:3px;border-radius:99px;overflow:visible}
 .hud-al.is-closed .hud-al-head{min-height:34px;padding:0 12px;border-radius:99px;font-size:13px;gap:6px;justify-content:center}
+
+/* Auto nông trại (2026-11-09): the rail button turns green while a run works the farm; its tag shows the time left. */
+.hud-top-right .hud-auto-btn.is-on{background:linear-gradient(#d9ffd9,#7fd88f);border-color:#2f8f4e;color:#1d5a30;animation:hud-auto-on 2s ease-in-out infinite}
+.hud-top-right .hud-auto-btn.is-on .hud-auto-tag{background:#2f8f4e;font-variant-numeric:tabular-nums}
+@keyframes hud-auto-on{0%,100%{box-shadow:0 0 0 0 #3fbf6a88}50%{box-shadow:0 0 0 6px #3fbf6a00}}
+@media (prefers-reduced-motion:reduce){.hud-top-right .hud-auto-btn.is-on{animation:none}}
+.hud-top-right .hud-auto-btn.is-buy{background:linear-gradient(#fff2b0,#f2b53a);border-color:#b97a17}
+.hud-top-right .hud-auto-btn.is-buy .hud-auto-tag{background:#8a5a0c}
+.hud-top-right .hud-auto-btn .hud-auto-tag{letter-spacing:.2px}
+/* Upgrades list on phones (QA 2026-11-09): the name wrapped to 3 lines and the effect was cut — two lines of effect, a tighter button */
+.hud-land-list .hud-land-text small{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+@media (max-width:480px){.hud-land-list .hud-land-row{gap:8px;padding:8px}.hud-land-list .hud-land-row .hud-btn{padding-left:10px;padding-right:10px}
+  /* phones: the action is clear from the icon (🔨 build / ⬆️ upgrade) — the word goes, the price stays */
+  .hud-land-list .hud-btn-ico + span{display:none}}
+/* Hire lists: a grid column may shrink — the robots' long one-line job text pushed their rows 13 px past the modal gutter */
+.hud-hire{grid-template-columns:minmax(0,1fr)}
+/* 5-way choices (the manager's mode) wrap to two rows on phones instead of cutting "Lợi nhu…" / "Thận tr…" */
+.hud-tabs.hud-sm-seg--wrap{grid-auto-flow:row;grid-template-columns:repeat(3,minmax(0,1fr))}
+.hud-sm-seg--wrap>.hud-tab{min-width:0;white-space:nowrap}
+/* "⚡ Cấp 10: có biến cố" chip (back with the Level-10 incident, 2026-11-09): under the left tool column (Phát triển ·
+   Nhân viên, top 64 px + ~130 px), not under the badge where the Phát triển button covered it */
+#hud-root .hud-lv10{position:fixed;left:calc(env(safe-area-inset-left, 0px) + 8px);top:calc(var(--h-st, 0px) + 202px);z-index:var(--z-hud,5)}

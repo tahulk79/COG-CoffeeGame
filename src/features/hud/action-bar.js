@@ -12,7 +12,7 @@ import { modelIcon } from './model-icons.js';
 import { T, clock, fmt, has, duration, errorText } from './text.js';
 import { buildingEffect } from './effects.js';
 import { actionButton, coinAmount, lockTag, needMore } from './widgets.js';
-import { TERRAIN_ICON } from './sheets.js';
+import { TERRAIN_ICON, buyLand } from './sheets.js';
 import { stars1 } from './shop-strip.js';
 
 // Optional key (not in the locale packs yet): "Sold {n} today" — falls back to "🧾 ×n" until it exists.
@@ -222,12 +222,12 @@ export function createActionBar(ctx) {
       const life = crop.life || 0;
       body.append(h('p', { class: `hud-line${m.old ? ' hud-line--bad' : ' hud-line--muted'}` },
         m.old ? T('hud.tree.old', { n: m.age, pct: Math.round(PERENNIAL.oldYield * 100) })
-          : m.age === 0 ? T(m.pruned ? 'hud.tree.regrow' : 'hud.tree.young') : T('hud.tree.age', { n: m.age, left: Math.max(0, life - m.age) })));
+          : m.age === 0 ? T(m.stage === 'ready' ? 'hud.tree.firstRipe' : m.pruned ? 'hud.tree.regrow' : 'hud.tree.young') : T('hud.tree.age', { n: m.age, left: Math.max(0, life - m.age) })));
       if (m.health) { // how the tree is really doing: survival share and what one harvest gives
         body.append(h('div', { class: 'hud-treehealth' },
           h('p', { class: 'hud-line' }, `🌿 ${T('hud.tree.survival', { pct: m.health.survival })}`),
           h('div', { class: 'hud-xpbar hud-health-bar', attrs: { role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(m.health.survival) } }, h('span', { style: { width: `${m.health.survival}%` } })),
-          h('p', { class: 'hud-line' }, `🫘 ${T('hud.tree.yield', { n: m.health.beans })}`)));
+          h('p', { class: 'hud-line' }, `🫘 ${T('hud.tree.yield', { n: m.health.beansMax > m.health.beans ? `${m.health.beans}–${m.health.beansMax}` : m.health.beans })}`)));
       }
       const tools = [];
       if (m.old) tools.push(actionButton({ id: 'treePrune', label: T('hud.tree.prune'), icon: '🪚', cost: m.prune, tone: 'gold', disabled: !m.coinsOk || m.stage === 'ready',
@@ -453,7 +453,7 @@ export function createActionBar(ctx) {
     // Far land: no open road reaches it yet → buy the land next to it first.
     if (m.err === 'road') { body.append(h('p', { class: 'hud-line hud-line--muted' }, '🔒 ', T('hud.parcel.noRoad'))); return; }
     body.append(h('div', { class: 'hud-row' }, actionButton({ id: 'buy', label: T(farmArea ? 'hud.parcel.clear' : 'hud.buy'), icon: farmArea ? '🪓' : '🏷️', cost: p.cost, disabled: m.err === 'coins',
-      note: m.err === 'coins' ? needMore(m.missing) : null, onClick: () => ctx.act('land/buyParcel', { parcelId: p.id }) })));
+      note: m.err === 'coins' ? needMore(m.missing) : null, onClick: () => buyLand(ctx, p.id, p.cost, title.textContent) })));
   }
 
   // Estates (land-ui-simplify §2A): a farm lot's card is its estate's card — one price, one level, one button.
@@ -469,7 +469,7 @@ export function createActionBar(ctx) {
     if (m.err === 'order') { body.append(h('p', { class: 'hud-line hud-line--muted' }, '🔒 ', T('estate.order', { name: T(`estate.${m.next}`) }))); return; }
     if (m.err === 'level') { body.append(h('p', { class: 'hud-line hud-line--muted' }, '🔒 ', T('estate.level', { level: est.level }))); return; }
     body.append(h('div', { class: 'hud-row' }, actionButton({ id: 'buy', label: T('estate.buy'), icon: '🪓', cost: est.cost, disabled: m.err === 'coins',
-      note: m.err === 'coins' ? needMore(m.missing) : null, onClick: () => ctx.act('land/buyParcel', { parcelId: est.seed }) })));
+      note: m.err === 'coins' ? needMore(m.missing) : null, onClick: () => buyLand(ctx, est.seed, est.cost, T(`estate.${est.id}`)) })));
   }
 
   function venueCard(m) {
