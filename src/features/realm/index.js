@@ -186,7 +186,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   const staticBlockers = [...world.blockers, ...venues.blockers, ...tierWallRects]; // city houses + venue shops + tier walls (constant)
   const plots = createPlots({ scene, templates, vfx, getActiveCrop: () => activeCrop });
   const buildings = createBuildings({ scene, prefabs, templates, vfx });
-  const ambient = createAmbient({ scene, farm: scene, vfx, sun, hemi, getTarget: () => cam.cur.target, isFarm: () => view === 'farm' });
+  const ambient = createAmbient({ scene, farm: scene, vfx, sun, hemi, getTarget: () => cam.cur.target, isFarm: () => view === 'farm', getWalkers: () => [avatar.position, ...staff.farmPositions()] });
   // Grid pathfinding, one navigator per area (nav.js): shared by the player's walks, staff and customers.
   // Agent radius .45 m keeps paths clear of the avatar's own collision margin.
   const navs = { farm: createNav(BOUNDS, { radius: .45 }), cafe: createNav(CAFE_BOUNDS, { radius: .45 }) };
@@ -441,6 +441,14 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     for (const ev of events) {
       if (ev.type === 'poachStarted' || ev.type === 'poachRefused' || ev.type === 'mvp') staff.onEvent(ev); // rival line / MVP cheer over the unit
       manager.onEvent(ev, gmEventCtx); // the manager walks / points / speaks (manager.js)
+      if (ev.type === 'staffStopped' && (ev.kind === 'overheat' || ev.kind === 'jam')) {   // machines visibly fail
+        const p = staff.posOf(ev.uid);
+        if (p) { v3.set(p.x, p.y + 1, p.z); vfx.burst('spark', v3, { count: 8 }); vfx.burst(ev.kind === 'overheat' ? 'smoke' : 'chip', v3, { count: 6 }); }
+      }
+      if ((ev.type === 'pruned' || ev.type === 'trimmed' || ev.type === 'sprayed') && view === 'farm') {
+        const f = plotOf(state, ev.plotId);
+        if (f) { v3.set(f.x, farmGroundY(f.x, f.z) + .8, f.z); if (ev.type === 'sprayed') vfx.burst('mist', v3, { count: 8 }); else { vfx.burst('leaf', v3, { count: 10 }); vfx.burst('chip', v3, { count: 3 }); } }
+      }
       if (ev.type === 'staffStopped' || ev.type === 'poachStarted') spotQueue({ kind: 'unit', uid: ev.uid, key: `unit:${ev.uid}:${ev.kind || 'poach'}` });
       if (ev.type === 'watered') { const f = plotOf(state, ev.plotId); if (f && view === 'farm') { const y = farmGroundY(f.x, f.z) + .45; vfx.burst('splash', v3.set(f.x, y, f.z), { count: 12 }); vfx.burst('mist', v3, { count: 5 }); } }
       if (ev.type === 'planted') { plots.onPlanted(ev.plotId, clock); sfx('farm.plant'); }

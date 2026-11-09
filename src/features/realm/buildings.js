@@ -23,6 +23,8 @@ const DECOR_FIT = { fill: .92, maxScale: 1.4 };
 const DECK_H = .14;
 const DECK_COVERAGE = 0; // no wooden deck under any building any more (founder 2026-11-08): the model stands on the ground
 const RISE = .7;
+// Effects while a machine runs: [particle kind, per second, spread in metres].
+const PROD_FX = { wetMill: [['splash', 5, 1.4], ['mist', 2, 1.2]], dryer: [['steam', 2.5, 2]] };
 const BAR_W = 1.5, BAR_H = .26, BAR_FILL_W = BAR_W * .92, BAR_FILL_H = BAR_H * .62; // production bar (world m)
 // Café counter signs. Label text: realm.sign.* when the locale has it, else the building name.
 const SIGNS = {
@@ -438,7 +440,7 @@ export function createBuildings({ scene, prefabs, templates, vfx }) {
   }
   function remove(uid, e) {
     e.seats?.geometry.dispose();
-    endBuild(e, false);
+    endBuild(e, false); e.prod?.fx?.forEach(x => x.stop());
     e.emitter?.stop(); e.steam?.stop(); e.prod?.smoke?.stop();
     e.badge?.dispose();
     e.sign?.dispose();
@@ -551,6 +553,9 @@ export function createBuildings({ scene, prefabs, templates, vfx }) {
     const wantSmoke = stage === 'working' && shown && !!p.smokeAt && e.root.visible;
     if (wantSmoke && !p.smoke) p.smoke = vfx.emitter('smoke', p.smokePos, { rate: 1.6 });
     else if (!wantSmoke && p.smoke) { p.smoke.stop(); p.smoke = null; }
+    const fx = PROD_FX[e.type], wantFx = stage === 'working' && shown && e.root.visible;
+    if (fx && wantFx && !p.fx) { tmp.copy(e.root.position); tmp.y += e.height * .55; p.fx = fx.map(([kind, rate, spread]) => vfx.emitter(kind, tmp, { rate, spread })); }
+    else if (!wantFx && p.fx) { p.fx.forEach(x => x.stop()); p.fx = null; }
     if (stage !== 'working' || !shown) return;
     const ratio = Math.min(1, Math.max(.03, j.ms > 0 ? (now - j.at) / j.ms : 1));
     p.fill.scale.x = BAR_FILL_W * ratio;

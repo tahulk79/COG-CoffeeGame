@@ -94,9 +94,26 @@ function tuneMaterials(root) {
 // Leaves carry baked "crown" normals (away from the canopy centre, see gedeo_heroes.py). Three flips normals on
 // back faces of double-sided materials, which turns half the cards black; keep the baked normal on both faces and
 // add a little light transmission so sunlit leaves glow instead of reading as flat paper.
+const WIND = { value: 0 };
+/** Advance the wind clock shared by every leaf material (called once per frame). */
+export function tickWind(t) { WIND.value = t; }
+
 function foliageShading(m) {
   m.userData.crownNormals = true;
   m.onBeforeCompile = shader => {
+    // Wind: leaves sway more with height; each plant has its own phase from its position.
+    shader.uniforms.uWind = WIND;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uWind;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+#ifdef USE_INSTANCING
+  vec2 windAt = instanceMatrix[3].xz;
+#else
+  vec2 windAt = modelMatrix[3].xz;
+#endif
+  float windH = clamp(position.y * .45, 0.0, 1.0);
+  transformed.x += windH * .04 * (sin(uWind * 1.3 + windAt.x * .7 + windAt.y * .5 + position.x * 1.7) + .5 * sin(uWind * 2.9 + windAt.y + position.z * 2.3));
+  transformed.z += windH * .025 * sin(uWind * 1.7 + windAt.x + position.y * 2.1);`);
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <normal_fragment_begin>', THREE.ShaderChunk.normal_fragment_begin.replace(/normal\s*\*=\s*faceDirection;/g, ''))
       .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\n  reflectedLight.indirectDiffuse += diffuseColor.rgb * 0.18;');

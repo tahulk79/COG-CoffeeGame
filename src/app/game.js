@@ -493,9 +493,8 @@ function fail(error) {
 // ---------- boot ----------
 async function initialize() {
   try {
-    // High-DPR phones already look sharp at pixel ratio 1.25–1.5, so skip MSAA there.
-    const denseTouch = matchMedia('(pointer: coarse)').matches && (window.devicePixelRatio || 1) >= 2;
-    renderer = new THREE.WebGLRenderer({ antialias: !denseTouch, powerPreference: 'high-performance' });
+    // Edge smoothing on every device (art-upgrade-plan §1): walls and roofs were visibly jagged on phones. Lower it in settings if a phone struggles.
+    renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = .95;

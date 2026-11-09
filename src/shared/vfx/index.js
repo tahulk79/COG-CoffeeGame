@@ -3,8 +3,8 @@ import * as THREE from 'three';
 // Mức chất lượng (round-1-foundation §3.2). Lưu/đọc do settings đảm nhận; ở đây chỉ giữ giá trị trong lượt.
 const QUALITY = {
   low: { pixelRatio: 1, shadows: false, particles: 120, burst: .4, emitter: 0, shake: false, pulse: false, outline: false, chips: 4 },
-  medium: { pixelRatio: 1.25, shadows: true, particles: 400, burst: .7, emitter: .5, shake: true, pulse: true, outline: false, chips: 6 },
-  high: { pixelRatio: 1.5, shadows: true, particles: 800, burst: 1, emitter: 1, shake: true, pulse: true, outline: true, chips: 8 }
+  medium: { pixelRatio: 1.5, shadows: true, particles: 400, burst: .7, emitter: .5, shake: true, pulse: true, outline: false, chips: 6 },
+  high: { pixelRatio: 2, shadows: true, particles: 800, burst: 1, emitter: 1, shake: true, pulse: true, outline: true, chips: 8 }
 };
 let quality = 'high';
 const qualityListeners = new Set();
@@ -39,13 +39,14 @@ const KINDS = {
   leaf: { color: 0x8fae6b, shape: 'leaf', count: 8, life: 1, speed: 1.4, up: 1.8, gravity: -2.2, size: .2, drag: 2 },
   granule: { color: 0x6b4428, shape: 'dot', count: 14, life: .6, speed: 1.4, up: 2.2, gravity: -8, size: .1 },
   cherry: { color: 0xc4473a, shape: 'dot', count: 10, life: .7, speed: 1.5, up: 2.6, gravity: -8, size: .16 },
-  dust: { color: 0xb89b74, shape: 'smoke', count: 8, life: 1.5, speed: .8, up: .35, gravity: .2, size: .55, grow: 1.7, drag: 1.5, alpha: .5, spin: 1, wind: .3 },
-  steam: { color: 0xf0ece4, shape: 'smoke', count: 6, life: 1.8, speed: .2, up: .8, gravity: .45, size: .34, grow: 2, drag: 1, alpha: .42, spin: 1, wind: .45 },
-  smoke: { color: 0x7a746b, shape: 'smoke', count: 6, life: 3.6, speed: .16, up: 1.05, gravity: .1, size: .6, grow: 2.8, drag: .5, alpha: .46, spin: .7, wind: .6 },
-  spark: { color: 0xffb25e, shape: 'dot', count: 4, life: .35, speed: 3, up: 3.2, gravity: -14, size: .07, additive: true },
+  dust: { color: 0xb89b74, shape: 'smoke', atlas: true, count: 8, life: 1.6, speed: .8, up: .35, gravity: .2, size: .8, grow: .9, drag: 1.5, alpha: .55, spin: .6, wind: .3 },
+  steam: { color: 0xf0ece4, shape: 'smoke', atlas: true, count: 6, life: 2, speed: .2, up: .8, gravity: .45, size: .55, grow: 1.1, drag: 1, alpha: .5, spin: .6, wind: .45 },
+  smoke: { color: 0x7a746b, shape: 'smoke', atlas: true, count: 6, life: 3.8, speed: .16, up: 1.05, gravity: .1, size: 1, grow: 1.5, drag: .5, alpha: .6, spin: .4, wind: .6 },
+  spark: { color: 0xffb25e, shape: 'streak', streak: true, count: 4, life: .35, speed: 3, up: 3.2, gravity: -14, size: .07, additive: true },
   chip: { color: 0x9a7548, shape: 'leaf', count: 4, life: .65, speed: 2, up: 3, gravity: -11, size: .13, spin: 9 },
-  splash: { color: 0xc3e2ec, shape: 'drop', count: 10, life: .45, speed: 1.4, up: 2.5, gravity: -11, size: .09 },
-  mist: { color: 0xe3eff3, shape: 'smoke', count: 5, life: .9, speed: .5, up: .25, gravity: .05, size: .36, grow: 2, drag: 2, alpha: .36, spin: 1 },
+  splash: { color: 0xc3e2ec, shape: 'streak', streak: true, count: 10, life: .45, speed: 1.4, up: 2.5, gravity: -11, size: .09 },
+  mist: { color: 0xe3eff3, shape: 'smoke', atlas: true, count: 5, life: 1, speed: .5, up: .25, gravity: .05, size: .6, grow: 1, drag: 2, alpha: .4, spin: .6 }
+  ,step: { color: 0xb49a78, shape: 'smoke', atlas: true, count: 1, life: .8, speed: .2, up: .25, gravity: .05, size: .32, grow: .9, drag: 2.5, alpha: .34, spin: .5 },
   mote: { color: 0xfff2c4, shape: 'soft', count: 1, life: 6, speed: .14, up: .05, gravity: .015, size: .07, additive: true, alpha: .75, wind: .25, sway: .25 },
   fallLeaf: { color: 0x83994a, shape: 'leaf', count: 1, life: 8, speed: .35, up: -1, gravity: 0, size: .17, alpha: .95, spin: 2.4, wind: .55, sway: 1.1 },
   sparkle: { color: 0xffe39a, shape: 'star', count: 10, life: .7, speed: 1.3, up: 1.1, gravity: 0, size: .22, drag: 2.5, additive: true },
@@ -53,6 +54,7 @@ const KINDS = {
   puff: { color: 0xc4473a, shape: 'soft', count: 8, life: .5, speed: 1.1, up: .4, gravity: .3, size: .28, grow: 1.2, drag: 3 },
   heart: { color: 0xe57a8a, shape: 'heart', count: 5, life: 1, speed: .5, up: 1, gravity: .8, size: .24, drag: 1 }
 };
+const ATLAS_GRID = 8;
 const POOL = 320; // mỗi loại; tổng số hạt sống còn bị chặn theo mức chất lượng
 
 function drawTexture(shape) {
@@ -71,6 +73,9 @@ function drawTexture(shape) {
       blob.addColorStop(0, `rgba(${v},${v},${v},.3)`); blob.addColorStop(1, `rgba(${v},${v},${v},0)`);
       c2.fillStyle = blob; c2.fillRect(-64, -64, 128, 128);
     }
+  } else if (shape === 'streak') {
+    const grad = g.createLinearGradient(0, -28, 0, 28); grad.addColorStop(0, 'rgba(255,255,255,0)'); grad.addColorStop(.7, 'rgba(255,255,255,1)'); grad.addColorStop(1, 'rgba(255,255,255,.6)');
+    g.fillStyle = grad; g.beginPath(); g.ellipse(0, 0, 5, 28, 0, 0, Math.PI * 2); g.fill();
   } else if (shape === 'drop') {
     g.beginPath(); g.moveTo(0, -26); g.bezierCurveTo(16, -4, 18, 20, 0, 24); g.bezierCurveTo(-18, 20, -16, -4, 0, -26); g.fill();
   } else if (shape === 'leaf') {
@@ -92,20 +97,23 @@ function drawTexture(shape) {
 }
 
 const VERTEX = `
-attribute float size; attribute float alpha; attribute vec3 tint; attribute float spin;
-uniform float halfHeight; varying float vAlpha; varying vec3 vTint; varying float vSpin;
+attribute float size; attribute float alpha; attribute vec3 tint; attribute float spin; attribute float frame;
+uniform float halfHeight; varying float vAlpha; varying vec3 vTint; varying float vSpin; varying float vFrame;
 void main() {
   vec4 mv = modelViewMatrix * vec4(position, 1.0);
   gl_Position = projectionMatrix * mv;
   float depth = projectionMatrix[2][3] == -1.0 ? -mv.z : 1.0; // phối cảnh chia theo độ sâu, trực giao thì không
   gl_PointSize = size * projectionMatrix[1][1] * halfHeight / depth;
-  vAlpha = alpha; vTint = tint; vSpin = spin;
+  vAlpha = alpha; vTint = tint; vSpin = spin; vFrame = frame;
 }`;
 const FRAGMENT = `
-uniform sampler2D map; varying float vAlpha; varying vec3 vTint; varying float vSpin;
+uniform sampler2D map; uniform float grid; varying float vAlpha; varying vec3 vTint; varying float vSpin; varying float vFrame;
+vec4 cellTex(vec2 uv, float f) { vec2 cell = vec2(mod(f, grid), floor(f / grid)); return texture2D(map, (cell + clamp(uv, .004, .996)) / grid); }
 void main() {
   vec2 c = gl_PointCoord - .5; float cs = cos(vSpin), sn = sin(vSpin);
-  vec4 t = texture2D(map, vec2(c.x * cs - c.y * sn, c.x * sn + c.y * cs) + .5);
+  vec2 uv = vec2(c.x * cs - c.y * sn, c.x * sn + c.y * cs) + .5; vec4 t;
+  if (grid > 1.5) { float f0 = floor(vFrame); t = mix(cellTex(uv, f0), cellTex(uv, f0 + 1.), vFrame - f0); t.a *= smoothstep(.5, .36, length(c)); }   // flipbook: blends two frames so a slow puff stays smooth
+  else t = texture2D(map, uv);
   float a = t.a * vAlpha; if (a < .02) discard;
   gl_FragColor = vec4(vTint * t.rgb, a);
 }`;
@@ -118,10 +126,10 @@ export function createVfx({ scene }) { // camera trong spec chưa cần: kích t
   for (const [kind, def] of Object.entries(KINDS)) {
     const geometry = new THREE.BufferGeometry();
     const attr = (name, n) => { const a = new THREE.BufferAttribute(new Float32Array(POOL * n), n); a.setUsage(THREE.DynamicDrawUsage); geometry.setAttribute(name, a); return a; };
-    const position = attr('position', 3), tint = attr('tint', 3), size = attr('size', 1), alpha = attr('alpha', 1), spin = attr('spin', 1);
+    const position = attr('position', 3), tint = attr('tint', 3), size = attr('size', 1), alpha = attr('alpha', 1), spin = attr('spin', 1), frame = attr('frame', 1);
     geometry.setDrawRange(0, 0);
     const material = new THREE.ShaderMaterial({
-      uniforms: { map: { value: drawTexture(def.shape) }, halfHeight: { value: 400 } },
+      uniforms: { map: { value: drawTexture(def.shape) }, halfHeight: { value: 400 }, grid: { value: 1 } },
       vertexShader: VERTEX, fragmentShader: FRAGMENT, transparent: true, depthWrite: false,
       blending: def.additive ? THREE.AdditiveBlending : THREE.NormalBlending
     });
@@ -129,9 +137,15 @@ export function createVfx({ scene }) { // camera trong spec chưa cần: kích t
     points.frustumCulled = false; points.visible = false; points.renderOrder = 10;
     points.onBeforeRender = renderer => { material.uniforms.halfHeight.value = renderer.getDrawingBufferSize(bufferSize).y / 2; };
     scene.add(points);
-    pools[kind] = { def, points, geometry, material, position, tint, size, alpha, spin, n: 0, spinRate: new Float32Array(POOL),
+    pools[kind] = { def, points, geometry, material, position, tint, size, alpha, spin, frame, n: 0, spinRate: new Float32Array(POOL),
       velocity: new Float32Array(POOL * 3), age: new Float32Array(POOL), life: new Float32Array(POOL), base: new Float32Array(POOL) };
   }
+
+  // Real smoke (scripts/blender/vfx_flipbook.py): 8 × 8 frames. Until it arrives, or if it fails, the drawn puff is used.
+  new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}assets/farm/vfx/smoke-atlas.webp`, atlas => {
+    atlas.flipY = false; atlas.colorSpace = THREE.SRGBColorSpace; atlas.generateMipmaps = false; atlas.minFilter = THREE.LinearFilter; atlas.needsUpdate = true;
+    for (const p of Object.values(pools)) if (p.def.atlas) { p.material.uniforms.map.value.dispose(); p.material.uniforms.map.value = atlas; p.material.uniforms.grid.value = ATLAS_GRID; }
+  });
 
   function spawn(kind, pos, color, burstMode, spread = .15) {
     const p = pools[kind], d = p.def;
@@ -148,7 +162,7 @@ export function createVfx({ scene }) { // camera trong spec chưa cần: kích t
     tmpColor.set(color ?? d.color).multiplyScalar(.9 + Math.random() * .2);
     p.tint.array[i3] = tmpColor.r; p.tint.array[i3 + 1] = tmpColor.g; p.tint.array[i3 + 2] = tmpColor.b;
     p.size.array[i] = p.base[i]; p.alpha.array[i] = 0;
-    p.spin.array[i] = Math.random() * Math.PI * 2; p.spinRate[i] = (d.spin || 0) * (Math.random() - .5) * 2;
+    p.spin.array[i] = Math.random() * Math.PI * 2; p.spinRate[i] = (d.spin || 0) * (Math.random() - .5) * 2; p.frame.array[i] = 0;
     return true;
   }
 
@@ -227,20 +241,21 @@ export function createVfx({ scene }) { // camera trong spec chưa cần: kích t
           // Đổi chỗ với hạt cuối để vùng sống luôn liền mạch [0, n).
           const last = --p.n, i3 = i * 3, l3 = last * 3; live--;
           for (let k = 0; k < 3; k++) { pos[i3 + k] = pos[l3 + k]; v[i3 + k] = v[l3 + k]; tint[i3 + k] = tint[l3 + k]; }
-          p.age[i] = p.age[last]; p.life[i] = p.life[last]; p.base[i] = p.base[last]; p.spin.array[i] = p.spin.array[last]; p.spinRate[i] = p.spinRate[last];
+          p.age[i] = p.age[last]; p.life[i] = p.life[last]; p.base[i] = p.base[last]; p.spin.array[i] = p.spin.array[last]; p.spinRate[i] = p.spinRate[last]; p.frame.array[i] = p.frame.array[last];
           i--; continue;
         }
         const i3 = i * 3, t = p.age[i] / p.life[i];
         v[i3] *= drag; v[i3 + 2] *= drag; v[i3 + 1] = v[i3 + 1] * drag + d.gravity * dt;
         if (d.wind) v[i3] += d.wind * dt;
         if (d.sway) pos[i3 + 2] += Math.sin(p.age[i] * 2.3 + i) * d.sway * dt;
-        p.spin.array[i] += p.spinRate[i] * dt;
+        p.spin.array[i] = d.streak ? Math.atan2(v[i3], v[i3 + 1]) : p.spin.array[i] + p.spinRate[i] * dt;   // streaks point along their flight
+        if (d.atlas) p.frame.array[i] = t * (ATLAS_GRID * ATLAS_GRID - 1.01);
         pos[i3] += v[i3] * dt; pos[i3 + 1] += v[i3 + 1] * dt; pos[i3 + 2] += v[i3 + 2] * dt;
         size[i] = p.base[i] * (1 + (d.grow || 0) * t);
         alpha[i] = Math.min(1, t * 10, d.shape === 'smoke' ? Math.pow(1 - t, 1.4) * 1.6 : (1 - t) * 2.5) * (d.alpha ?? 1);
       }
       p.geometry.setDrawRange(0, p.n); p.points.visible = p.n > 0;
-      if (p.n) for (const a of [p.position, p.tint, p.size, p.alpha, p.spin]) { a.clearUpdateRanges?.(); a.addUpdateRange?.(0, p.n * a.itemSize); a.needsUpdate = true; }
+      if (p.n) for (const a of [p.position, p.tint, p.size, p.alpha, p.spin, p.frame]) { a.clearUpdateRanges?.(); a.addUpdateRange?.(0, p.n * a.itemSize); a.needsUpdate = true; }
     }
     for (const [object, p] of pulses) {
       p.t += dt * 1000;
@@ -257,7 +272,7 @@ export function createVfx({ scene }) { // camera trong spec chưa cần: kích t
     while (outlines.length) outlines[0].remove();
     for (const material of shellMaterials.values()) material.dispose();
     shellMaterials.clear();
-    for (const p of Object.values(pools)) { p.points.removeFromParent(); p.geometry.dispose(); p.material.uniforms.map.value.dispose(); p.material.dispose(); }
+    for (const p of Object.values(pools)) { p.points.removeFromParent(); p.geometry.dispose(); if (!p.def.atlas) p.material.uniforms.map.value.dispose(); p.material.dispose(); }
     live = 0;
   }
 

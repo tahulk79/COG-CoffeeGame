@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { getQuality } from '../../shared/vfx/index.js';
+import { tickWind } from '../../shared/three/gedeo-vegetation.js';
 
 // Life in the air around the camera on the farm (docs/design/ground-pass.md): drifting pollen, falling leaves, a passing
 // shower with a dimmer sun, and water that flows. Scenery only: the shower does not water crops.
@@ -36,7 +37,9 @@ function rainLines(count) {
   return lines;
 }
 
-export function createAmbient({ scene, farm, vfx, sun, hemi, getTarget, isFarm }) {
+export function createAmbient({ scene, farm, vfx, sun, hemi, getTarget, isFarm, getWalkers }) {
+  const STEP = .75, NEAR = 34, lastStep = new WeakMap();
+  let stepClock = 0;
   const baseSun = sun.intensity, baseHemi = hemi.intensity;
   const pos = new THREE.Vector3();
   const motes = vfx.emitter('mote', pos, { rate: 7, spread: 26 });
@@ -56,7 +59,19 @@ export function createAmbient({ scene, farm, vfx, sun, hemi, getTarget, isFarm }
   }
 
   function update(dt) {
-    clock += dt;
+    clock += dt; tickWind(clock);
+    stepClock += dt;
+    if (stepClock > .1 && isFarm() && getQuality() !== 'low') {        // a little dust at each stride
+      stepClock = 0;
+      const c = getTarget();
+      for (const p of getWalkers()) {
+        const l = lastStep.get(p);
+        if (!l) { lastStep.set(p, p.clone()); continue; }
+        if ((p.x - l.x) ** 2 + (p.z - l.z) ** 2 < STEP * STEP) continue;
+        l.copy(p);
+        if ((p.x - c.x) ** 2 + (p.z - c.z) ** 2 < NEAR * NEAR) vfx.burst('step', { x: p.x, y: p.y + .06, z: p.z }, { count: 1 });
+      }
+    }
     const target = getTarget(), on = isFarm();
     pos.set(target.x, target.y + 7, target.z);
     motes.move(on ? pos : { x: 0, y: -999, z: 0 });
