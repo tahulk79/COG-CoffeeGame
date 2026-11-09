@@ -55,7 +55,7 @@ Dùng thêm ảnh CC0: `reed_roof_04`, `thatch_roof_angled`, ván gỗ, thạch 
 | Bệ, bể | water-tank, hill-cistern, stone-pond, drying-yard | Bệ vuông thô, bãi cỏ tròn vô lý quanh ao và bể | Bỏ đĩa cỏ, viền đá hợp với nền mới |
 | Máy móc, xe | pulper, tiller, truck, motorbike | Khá ổn, vật liệu phẳng | Vát mép, kim loại PBR, bụi đất ở bánh và gầm |
 | Đồ vật | tarp, sacks, basket, wheelbarrow, gate-sign, lamp-post | Bạt xanh gắt, cổng tối | Hạ độ gắt, thêm nếp gấp, sáng cổng |
-| Nhà cũ | `farm/market-tier-1`, roaster, dryer, well, `grounds`, `surroundings`, `props`, `decor` | Thế hệ cũ, 5 file không có texture | Rà xem còn dùng không: còn thì làm lại, không thì xóa |
+| Nhà cũ | `farm/roaster-tier-1` | Thế hệ cũ | Làm lại. Các model cũ không dùng đã xóa ngày 2026-11-09 |
 | Đá, gốc cây | rock, rocks, stump | Đá đen vân ô, gốc cây phẳng màu | Dùng ảnh đá thật như tường, gốc cây có vòng gỗ và vỏ thật |
 | Cây lớn | albizia, cordia, avocado, durian, ensete, banana, bamboo | Tán tối, thành cục | Làm lại thẻ lá sáng hơn, chỉnh pháp tuyến cho ánh sáng mềm, giảm mặt cordia |
 | Cà phê | coffea-* 3 loại × 3 giai đoạn | Tối, quá nặng | Giảm mặt xuống ngân sách, sáng lá, quả đỏ dễ thấy, giữ node hoa và quả |
