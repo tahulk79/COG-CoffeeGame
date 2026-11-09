@@ -5,24 +5,29 @@
 // the player, else inside an owned lot that allows the use (meadow first). Confirm dispatches build/place|build/move.
 import * as THREE from 'three';
 import { BUILDINGS, FIELD, CELL } from '../../core/config/economy.js';
-import { PARCELS, TUTORIAL_BUILD, areaOfParcel, rectCenter, lotAllows } from '../../core/config/layout.js';
-import { region as regionOf, placementError, snapPosition, footprint, defOf, useOf, buildCost } from '../../core/derive.js';
+import { PARCELS, TUTORIAL_BUILD, areaOfParcel, rectCenter, lotAllows, farmGroundY, tierZoneAt } from '../../core/config/layout.js';
+import { region as regionOf, placementError, placementWarning, snapPosition, footprint, defOf, useOf, buildCost } from '../../core/derive.js';
 import { t, hasKey } from '../../i18n/index.js';
 import { makeLabel } from './util.js';
 import { makePrefab } from './buildings.js';
+import { loadModel } from '../../shared/three/models.js';
+import { plantScale } from './plots.js';
 
 const GREEN = new THREE.Color(0x58d06a), RED = new THREE.Color(0xe5533f);
 const TILE = 1; // footprint tiles: 1 m squares
 // Enough 1 m tiles for the largest footprint of any placeable (never fewer than 128; no silent cap).
 const TILE_CAP = Math.max(128, ...[...Object.values(BUILDINGS), FIELD].map(d => Math.ceil(d.size[0] * CELL / TILE) * Math.ceil(d.size[1] * CELL / TILE)));
 
-export function createPlacement({ scene, prefabs }) {
+export function createPlacement({ scene, prefabs, bedGhost = null }) {
   const group = new THREE.Group();
   group.name = 'realm-placement';
   group.visible = false;
   scene.add(group);
 
-  const tileGeo = new THREE.PlaneGeometry(TILE - .08, TILE - .08).rotateX(-Math.PI / 2);
+  // The footprint is ONE round patch (founder 2026-11-08): a green / red disc over a disc of bare earth, stretched to the
+  // footprint (an ellipse for long things like the drying rack), so you can see where it will stand.
+  const tileGeo = new THREE.RingGeometry(.93, 1, 64).rotateX(-Math.PI / 2); // one thin ring, shared look with the selection / alert rings
+  const earth = { visible: false, position: { set() {} }, scale: { set() {} }, material: { dispose() {} } }; // (the extra earth disc is gone: one ring only)
   const tileMat = new THREE.MeshBasicMaterial({ color: GREEN, transparent: true, opacity: .55, depthWrite: false });
   const tiles = new THREE.InstancedMesh(tileGeo, tileMat, TILE_CAP);
   tiles.count = 0;
@@ -43,6 +48,63 @@ export function createPlacement({ scene, prefabs }) {
   hint.sprite.visible = false;
   group.add(hint.sprite);
   let ghost = null;
+  // A building's frame: a thin rounded rectangle hugging the model's REAL extent with the same padding on all four sides (the
+  // model is centred in it). Plants keep the small round ring; real-size trees use the footprint ring.
+  let ringRect = null;
+  const RING_PAD = .4;
+  const rr = (s, x, z, r) => { s.moveTo(-x + r, -z); s.lineTo(x - r, -z); s.quadraticCurveTo(x, -z, x, -z + r); s.lineTo(x, z - r); s.quadraticCurveTo(x, z, x - r, z); s.lineTo(-x + r, z); s.quadraticCurveTo(-x, z, -x, z - r); s.lineTo(-x, -z + r); s.quadraticCurveTo(-x, -z, -x + r, -z); };
+  function rectRingGeo(hx, hz, r = .4) {
+    const shape = new THREE.Shape(); rr(shape, hx + .06, hz + .06, r);
+    const hole = new THREE.Path(); rr(hole, hx, hz, Math.max(.05, r - .06)); shape.holes.push(hole);
+    return new THREE.ShapeGeometry(shape).rotateX(-Math.PI / 2);
+  }
+  // What a plant is sown on: the real bed (soil mound + worn red earth, plots.makeBedGhost) shown faded, so the preview is the
+  // field as it will look. Its materials join ghostMats, which fades them with the pulse and frees them on cancel.
+  let bed = null;
+  function setBed(on) {
+    if (bed) { for (const m of bed.mats) { ghostMats.delete(m); m.dispose(); } bed.group.removeFromParent(); bed = null; }
+    if (!on || !bedGhost) return;
+    bed = bedGhost('lowland');
+    group.add(bed.group);
+    for (const m of bed.mats) ghostMats.set(m, m);
+  }
+  function measureRing(type) {
+    ringRect?.geo.dispose(); ringRect = null;
+    setBed(type === 'field');
+    if (type === 'field') { // a plant: a rounded frame round its faded bed (it shows whether the spot is free)
+      ringRect = { hx: .84, hz: .7, ox: 0, oz: 0, geo: rectRingGeo(.84, .7, .32) };
+      return;
+    }
+    if (!ghost) return;
+    ghost.position.set(0, 0, 0); ghost.rotation.set(0, 0, 0); ghost.updateMatrixWorld(true);
+    const b = new THREE.Box3().setFromObject(ghost);
+    if (!Number.isFinite(b.min.x)) return;
+    const cap = defOf(type)?.trueScale ? 2.2 : Infinity; // big crowns (trees): the frame stays a sane size
+    const hx = Math.min(cap, (b.max.x - b.min.x) / 2) + RING_PAD, hz = Math.min(cap, (b.max.z - b.min.z) / 2) + RING_PAD;
+    ringRect = { hx, hz, ox: (b.max.x + b.min.x) / 2, oz: (b.max.z + b.min.z) / 2, geo: rectRingGeo(hx, hz) };
+  }
+  // The plant being sown / moved: its real model, translucent, following the ring (a seedling, a young tree or a full tree).
+  let plantGhost = null, plantSpec = null, plantToken = 0;
+  const PLANT_FILE = { arabica: 'gedeo', robusta: 'robusta', liberica: 'liberica' };
+  function setPlantGhost(spec) {
+    plantToken++;
+    if (plantGhost) { plantGhost.removeFromParent(); plantGhost = null; }
+    plantSpec = spec || null;
+    if (!spec) return;
+    const token = plantToken, sp = PLANT_FILE[spec.crop] ? spec.crop : 'arabica';
+    const path = spec.stage === 'seedling' ? 'farm/coffee-stages-gedeo.glb#seedling' : spec.stage === 'young' ? 'farm/coffee-stages-gedeo.glb#young' : `farm/coffee-tree-${PLANT_FILE[sp]}.glb#tree`;
+    loadModel(path).then(m => {
+      if (!m || token !== plantToken || !info) return;
+      // size the translucent plant by its real height (the raw model's units vary): seedling .6 m, young 1.4 m, tree ~2.6 m
+      const { w, h } = plantScale(spec.crop, spec.stage), box0 = new THREE.Box3().setFromObject(m), h0 = box0.max.y - box0.min.y || 1;
+      const want = spec.stage === 'seedling' ? .6 : spec.stage === 'young' ? 1.4 : 2.6 * (h / Math.max(.01, w) || 1) * .45;
+      const k = Math.min(want / h0, 6);
+      m.scale.multiplyScalar(k);
+      m.traverse(o => { if (!o.isMesh) return; o.castShadow = false; o.raycast = () => {}; o.material = [o.material].flat().map(mat => { const c = mat.clone(); c.transparent = true; c.opacity = .65; c.depthWrite = false; ghostMats.set(c, c); return c; }); if (o.material.length === 1) o.material = o.material[0]; });
+      plantGhost = new THREE.Group(); plantGhost.add(m); group.add(plantGhost);
+      plantGhost.position.set(info.x, farmGroundY(info.x, info.z), info.z);
+    });
+  }
   let info = null; // { type, uid, x, z, rot, valid, error }
   let getState = () => null;
   const m4 = new THREE.Matrix4();
@@ -72,6 +134,7 @@ export function createPlacement({ scene, prefabs }) {
     const pos = snapPosition(info.type, info.x, info.z, info.rot);
     info.x = pos.x; info.z = pos.z;
     info.error = state ? placementError(state, info.type, info.x, info.z, info.rot, info.uid) : 'unknown';
+    info.warn = state && !info.error ? placementWarning(state, info.type, info.x, info.z, info.rot) : null;
     info.valid = info.error === null;
     // On fields: how many fields sit under the ghost (a 4×4 m building needs several 3×3 m fields cleared).
     info.fieldsUnder = 0;
@@ -83,24 +146,27 @@ export function createPlacement({ scene, prefabs }) {
         if (r[0] < q[2] - 1e-6 && r[2] > q[0] + 1e-6 && r[1] < q[3] - 1e-6 && r[3] > q[1] + 1e-6) info.fieldsUnder++;
       }
     }
-    ghost.position.set(info.x, 0, info.z);
+    ghost.position.set(info.x, farmGroundY(info.x, info.z), info.z);
     ghost.rotation.y = -info.rot * Math.PI / 2;
-    // One 1 m tile per footprint square (TILE_CAP covers the largest footprint).
     const fp = footprint(info.type, info.x, info.z, info.rot);
-    let n = 0;
-    for (let x = fp[0] + TILE / 2; x < fp[2] - 1e-6; x += TILE) for (let z = fp[1] + TILE / 2; z < fp[3] - 1e-6; z += TILE) {
-      if (n >= TILE_CAP) break;
-      m4.makeTranslation(x, .05, z);
-      tiles.setMatrixAt(n++, m4);
-    }
-    tiles.count = n;
+    const cx = (fp[0] + fp[2]) / 2, cz = (fp[1] + fp[3]) / 2, one = info.type === 'field'; // a plant uses the plain small ring
+    const rx = one ? .47 : (fp[2] - fp[0]) / 2, rz = one ? .47 : (fp[3] - fp[1]) / 2;
+    const gy = farmGroundY(cx, cz);
+    if (ringRect) { tiles.geometry = ringRect.geo; m4.compose(new THREE.Vector3(info.x + ringRect.ox, farmGroundY(info.x, info.z) + .06, info.z + ringRect.oz), new THREE.Quaternion(), new THREE.Vector3(1, 1, 1)); }
+    else { tiles.geometry = tileGeo; m4.compose(new THREE.Vector3(cx, gy + .06, cz), new THREE.Quaternion(), new THREE.Vector3(rx * 1.02, 1, rz * 1.02)); }
+    if (bed) { bed.setZone(tierZoneAt(info.x, info.z)); bed.group.position.set(info.x, farmGroundY(info.x, info.z) + .01, info.z); }
+    tiles.setMatrixAt(0, m4);
+    tiles.count = 1;
     tiles.instanceMatrix.needsUpdate = true;
-    tiles.computeBoundingSphere(); // three computes it lazily only once: keep it on the ghost or the tiles get culled
+    tiles.computeBoundingSphere(); // three computes it lazily only once: keep it on the ghost or the disc gets culled
+    earth.position.set(cx, gy + .045, cz); earth.scale.set(rx * 1.18, 1, rz * 1.18); earth.visible = true;
+    ghost.visible = info.type !== 'field'; // a plant shows its own translucent tree (plantGhost), not the old bed
+    if (plantGhost) plantGhost.position.set(info.x, farmGroundY(info.x, info.z), info.z);
     tileMat.color.copy(info.valid ? GREEN : RED);
     const why = info.valid ? t('realm.place.hint') : info.noRoom ? t(info.noRoom) : hasKey(`err.${info.error}`) ? t(`err.${info.error}`) : '';
     hint.set(why);
     hint.sprite.visible = false; // the HUD's ✓ ↻ ✕ buttons + reason follow the ghost now (hud/placement.js)
-    hint.sprite.position.set(info.x, .35, fp[3] + .7);
+    hint.sprite.position.set(info.x, .35 + farmGroundY(info.x, info.z), fp[3] + .7);
   }
 
   // area: 'farm' | 'cafe' — the view the preview runs in; the start spot is an owned parcel of that area.
@@ -180,7 +246,7 @@ export function createPlacement({ scene, prefabs }) {
       const [x0, z0, x1, z1] = pr.rect;
       mesh.material = lotAllows(id, use) ? zoneOk : zoneNo;
       mesh.scale.set(x1 - x0, 1, z1 - z0);
-      mesh.position.set((x0 + x1) / 2, .03, (z0 + z1) / 2);
+      mesh.position.set((x0 + x1) / 2, .03 + farmGroundY((x0 + x1) / 2, (z0 + z1) / 2), (z0 + z1) / 2);
       mesh.visible = true;
     }
     for (let i = n; i < zones.length; i++) zones[i].visible = false;
@@ -200,7 +266,8 @@ export function createPlacement({ scene, prefabs }) {
       info = { type, uid, x: p.x, z: p.z, rot: type === 'field' ? 0 : p.rot, valid: false, error: null, noRoom: p.noRoom || null, cost };
       ghost = ghostOf(type);
       group.add(ghost);
-      showZones(state, type, area);
+      measureRing(type);
+      // no lot zones any more: you can build anywhere on your land
       group.visible = true;
       refresh();
       return info;
@@ -208,6 +275,7 @@ export function createPlacement({ scene, prefabs }) {
     moveTo(x, z) { if (!info) return; info.x = x; info.z = z; info.noRoom = null; refresh(); },
     rotate() { if (!info || info.type === 'field') return; info.rot = (info.rot + 1) % 4; refresh(); }, // fields never rotate
     refresh,
+    setPlantGhost,
     /** Dispatches the placement; ends the preview on success. */
     confirm(dispatch) {
       if (!info) return { ok: false, error: 'unknown' };
@@ -219,24 +287,26 @@ export function createPlacement({ scene, prefabs }) {
       return result;
     },
     cancel() {
+      setBed(false);
       if (ghost) { ghost.removeFromParent(); ghost = null; }
       for (const m of ghostMats.values()) m.dispose();
       ghostMats.clear();
       clearZones();
-      tiles.count = 0;
+      tiles.count = 0; earth.visible = false; ringRect?.geo.dispose(); ringRect = null;
+      setPlantGhost(null);
       hint.sprite.visible = false;
       group.visible = false;
       info = null;
     },
     update(time) {
       if (!info) return;
-      const a = .45 + .1 * Math.sin(time * 4); // translucent ghost (~45 %) with a slight pulse
+      const a = .7 + .08 * Math.sin(time * 4); // translucent ghost (~70 %, easier to read) with a slight pulse
       for (const m of ghostMats.values()) m.opacity = a;
       tileMat.opacity = a + .1;
     },
     dispose() {
       this.cancel();
-      hint.dispose(); tileGeo.dispose(); tileMat.dispose(); tiles.dispose();
+      hint.dispose(); tileGeo.dispose(); tileMat.dispose(); tiles.dispose(); earth.material.dispose();
       for (const z of zones) z.removeFromParent();
       zones.length = 0;
       zoneGeo.dispose(); zoneOk.dispose(); zoneNo.dispose();

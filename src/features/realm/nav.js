@@ -53,7 +53,7 @@ export function createNav(bounds, { cell = .5, radius = .35, margin = 2 } = {}) 
 
   const inside = (r, pad) => r[2] + pad >= x0 && r[0] - pad <= x0 + W * cell && r[3] + pad >= z0 && r[1] - pad <= z0 + H * cell;
   /** rects: [x0, z0, x1, z1] obstacles (world meters), inflated by the agent radius; clear: rects forced walkable. */
-  function rebuild(rects, clear = NAV_CLEAR) {
+  function rebuild(rects, clear = NAV_CLEAR, hard = []) {
     blocked.fill(0);
     for (const r of rects) {
       if (!inside(r, radius)) continue; // another area's rect must not paint this grid's edge
@@ -65,6 +65,12 @@ export function createNav(bounds, { cell = .5, radius = .35, margin = 2 } = {}) 
       // Cells whose centre lies inside the lane / street.
       const a = ix(r[0] + cell / 2), b = ix(r[2] - cell / 2), c = iz(r[1] + cell / 2), d = iz(r[3] - cell / 2);
       for (let z = c; z <= d; z++) for (let x = a; x <= b; x++) blocked[z * W + x] = 0;
+    }
+    // hard walls (the tier retaining walls) stay blocked even where a lane / road rect touches them
+    for (const r of hard) {
+      if (!inside(r, radius)) continue;
+      const a = ix(r[0] - radius), b = ix(r[2] + radius - 1e-3), c = iz(r[1] - radius), d = iz(r[3] + radius - 1e-3);
+      for (let z = c; z <= d; z++) for (let x = a; x <= b; x++) blocked[z * W + x] = 1;
     }
   }
 

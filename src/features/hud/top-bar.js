@@ -1,7 +1,17 @@
 // Top HUD: level badge with XP ring + name (top-left), coin pill, bean pill (= the storehouse: tap it), gear (top-right).
 // 🚂 next to the gear opens the Rounds roadmap (Round 1 now, 2–3 locked); 💰 under the gear opens the loan packs.
-import { levelProgress, capacity, stored, region, loanOf, tasksOpen } from '../../core/derive.js';
-import { EXPIRY_LEVEL, GM } from '../../core/config/economy.js';
+import { BUILD_MENU_FARM } from '../../core/config/economy.js';
+import { countOf, buildError, levelProgress, capacity, stored, region, loanOf, tasksOpen, pendingGifts, upgradeError } from '../../core/derive.js';
+import { EXPIRY_LEVEL, EXPIRY_ENABLED, GM, BUILDINGS } from '../../core/config/economy.js';
+
+/** Buildings of the current region the player can upgrade right now (land-ui-simplify §4: the HUD ⬆ counter). */
+// Only the game being played: the farm lists farm buildings, the café lists café ones (never both)
+export const inThisGame = (b, view) => { const z = BUILDINGS[b.type]?.zone; return view === 'cafe' ? z !== 'farm' : z !== 'shop'; };
+// Farm buildings you have not built yet (the sheet offers them with a Build button): workshops / storage only, no decor
+export const buildableNew = (s, view = 'farm') => (view === 'cafe' ? [] : BUILD_MENU_FARM.filter(type => !BUILDINGS[type]?.decor && countOf(s, type) === 0 && ['coins', null].includes(buildError(s, type))));
+// Everything that can still be upgraded (affordable or not): what the ⬆ sheet lists
+export const upgradableBuildings = (s, view = 'farm') => (region(s)?.buildings || []).filter(b => !BUILDINGS[b.type]?.decor && inThisGame(b, view) && ['coins', null].includes(upgradeError(s, b)));
+export const affordableUpgrades = (s, view = 'farm') => (region(s)?.buildings || []).filter(b => !BUILDINGS[b.type]?.decor && inThisGame(b, view) && upgradeError(s, b) === null);
 import { farmHasGoods } from './toolbar.js';
 import { h, setText, bump } from './dom.js';
 import { T, fmt } from './text.js';
@@ -30,7 +40,8 @@ export function createTopBar(ctx) {
   const xpFill = h('span', { class: 'hud-xp-fill' });
   const xpBar = h('span', { class: 'hud-xp' }, xpFill);
   const coinsVal = h('span', { class: 'hud-pill-val' });
-  const coins = h('div', { id: 'hud-coins', class: 'hud-pill hud-pill--coin' }, h('span', { class: 'hud-coin-ico', attrs: { 'aria-hidden': 'true' } }), coinsVal);
+  // tapping the coins opens the loan sheet, like the loan action (founder 2026-11-08)
+  const coins = h('button', { id: 'hud-coins', class: 'hud-pill hud-pill--coin', type: 'button', attrs: { 'aria-label': T('hud.loan.openBtn') }, on: { click: () => ctx.onTool?.('loan') } }, h('span', { class: 'hud-coin-ico', attrs: { 'aria-hidden': 'true' } }), coinsVal);
   const beansVal = h('span', { class: 'hud-pill-val' });
   const beansCap = h('span', { class: 'hud-pill-cap' });
   const beansTag = h('span', { class: 'hud-pill-tag' }, T('hud.storage.tag'));
@@ -49,18 +60,42 @@ export function createTopBar(ctx) {
   const lv10 = h('button', { id: 'hud-lv10', class: 'hud-lv10', type: 'button', attrs: { 'aria-label': T('hud.lv10.aria', { level: EXPIRY_LEVEL }) },
     on: { click: () => ctx.onTool?.('rounds') } });
   // Inbox «Duyệt (n)» in the manager's colour (management-rules §4.1 / §6): shown while any task waits for you.
-  const inboxBtn = h('button', { id: 'hud-btn-inbox', class: 'hud-inbox-btn', type: 'button', hidden: true, attrs: { 'aria-label': T('hud.inbox.openAria') },
-    on: { click: () => ctx.onTool?.('inbox') } });
+  const giftNum = h('span', { class: 'hud-roundmap-num' });
+  const giftBtn = h('button', { id: 'hud-btn-gifts', class: 'hud-roundmap', type: 'button', hidden: true, attrs: { 'aria-label': T('hud.sheet.gifts') },
+    on: { click: () => ctx.onTool?.('gifts') } }, h('span', { attrs: { 'aria-hidden': 'true' } }, '🎁'), giftNum);
+  const inboxNum = h('span', { class: 'hud-roundmap-num' });
+  const inboxBtn = h('button', { id: 'hud-btn-inbox', class: 'hud-roundmap', type: 'button', hidden: true, attrs: { 'aria-label': T('hud.inbox.openAria') },
+    on: { click: () => ctx.onTool?.('inbox') } }, h('span', { attrs: { 'aria-hidden': 'true' } }, '📋'), inboxNum);
   // 📒 Nhật ký: the unified history (§5).
   const journalBtn = h('button', { id: 'hud-btn-journal', class: 'hud-roundmap hud-journal-btn', type: 'button', attrs: { 'aria-label': T('hud.hist.openBtn') },
     on: { click: () => ctx.onTool?.('journal') } }, h('span', { attrs: { 'aria-hidden': 'true' } }, '📒'));
   const gear = h('button', { class: 'hud-gear', type: 'button', attrs: { 'aria-label': T('hud.settings') }, on: { click: () => ctx.onOpenSettings?.() } }, '⚙️');
+  // land-ui-simplify §4: ⬆ Upgrades (count of what is affordable now) and ⋯ More (journal, rounds, loan) replace three
+  // separate round buttons on the right rail. The old buttons live on inside the ⋯ menu (same ids, same handlers).
+  const upNum = h('span', { class: 'hud-roundmap-num' });
+  const upgradesBtn = h('button', { id: 'hud-btn-upgrades', class: 'hud-roundmap hud-upgrades-btn', type: 'button', attrs: { 'aria-label': T('hud.upgrades') },
+    on: { click: () => { // nothing to upgrade → just a notice, no empty sheet
+      if (!upgradableBuildings(ctx.store.state, ctx.realm?.view).length && !buildableNew(ctx.store.state, ctx.realm?.view).length) { ctx.toast?.(T('hud.upgrades.none'), 'info'); return; }
+      ctx.onTool?.('upgrades'); } } }, h('span', { attrs: { 'aria-hidden': 'true' } }, '⬆️'), upNum);
+  // 🌍 World map (founder 2026-11-08): replaces the World Gate on the map — one tap opens the atlas.
+  const worldBtn = h('button', { id: 'hud-btn-worldmap', class: 'hud-roundmap hud-world-btn', type: 'button', attrs: { 'aria-label': T('hud.worldMap') },
+    on: { click: () => { morePop.hidden = true; ctx.onTool?.('world'); } } }, h('span', { attrs: { 'aria-hidden': 'true' } }, '🌍'));
+  // 🧭 Rotate the view: a quarter turn per tap, so every side of the farm can be looked at (four directions)
+  const rotateBtn = h('button', { id: 'hud-btn-rotate', class: 'hud-roundmap hud-rotate-btn', type: 'button', attrs: { 'aria-label': T('hud.rotate') },
+    on: { click: () => ctx.realm?.rotateView?.(1) } }, h('span', { attrs: { 'aria-hidden': 'true' } }, '🧭'));
+  const moreDot = h('span', { class: 'hud-dot', hidden: true, attrs: { 'aria-hidden': 'true' } });
+  const morePop = h('div', { class: 'hud-more-pop', hidden: true, attrs: { role: 'menu' } }, journalBtn, roundBtn, loanBtn);
+  const moreBtn = h('button', { id: 'hud-btn-more', class: 'hud-roundmap hud-more-btn', type: 'button', attrs: { 'aria-label': T('hud.more'), 'aria-haspopup': 'menu' },
+    on: { click: () => { morePop.hidden = !morePop.hidden; } } }, h('span', { attrs: { 'aria-hidden': 'true' } }, '⋯'), moreDot);
+  morePop.addEventListener('click', e => { if (e.target.closest('button')) morePop.hidden = true; });
 
+  // Layout (founder 2026-11-08, standard mobile-game HUD): top-left = player + coins + storehouse (+ the Lv-10 chip);
+  // top-right = ⚙ in the corner, then ONE rail of same-size round buttons: 🌍 world · ⬆ upgrades · 📋 inbox · ▶ auto · ⋯ more.
   const el = h('div', { class: 'hud-top' },
     h('div', { class: 'hud-top-left' },
-      h('div', { class: 'hud-player' }, badge, h('div', { class: 'hud-player-text' }, name, xpBar)),
-      h('div', { class: 'hud-pills' }, coins, beans), lv10, inboxBtn),
-    h('div', { class: 'hud-top-right' }, journalBtn, roundBtn, h('div', { class: 'hud-gear-col' }, gear, loanBtn)));
+      h('div', { class: 'hud-player', attrs: { role: 'button' }, on: { click: () => ctx.realm?.focusAvatar?.() } }, badge, h('div', { class: 'hud-player-text' }, name, xpBar)),
+      h('div', { class: 'hud-pills' }, coins, beans), lv10),
+    h('div', { class: 'hud-top-right' }, h('div', { class: 'hud-gear-col' }, gear), loanBtn, worldBtn, upgradesBtn, rotateBtn, giftBtn, inboxBtn)); // right rail, top to bottom: settings · loan · map · upgrades · compass // the ⋯ menu is gone: journal and rounds removed, the loan button sits straight in the rail
 
   const coinCounter = counter(coinsVal), beanCounter = counter(beansVal);
   let last = {};
@@ -79,7 +114,7 @@ export function createTopBar(ctx) {
       badge.setAttribute('aria-label', T('hud.levelAria', { level: lp.level, xp: fmt(lp.xp - lp.from), need: fmt(lp.to - lp.from) }));
     }
     setText(name, next.name || T('hud.farmer'));
-    const left = EXPIRY_LEVEL - lp.level, warn = !s.story.level10Done && s.story.phase === 'play' && left > 0;
+    const left = EXPIRY_LEVEL - lp.level, warn = EXPIRY_ENABLED && !s.story.level10Done && s.story.phase === 'play' && left > 0;
     lv10.hidden = !warn;
     if (warn) { lv10.classList.toggle('is-soon', left <= 3); setText(lv10, left <= 3 ? T('hud.lv10.soon', { n: left, level: EXPIRY_LEVEL }) : T('hud.lv10.chip', { level: EXPIRY_LEVEL })); }
     setText(roundNum, T('hud.rounds.badge', { round: next.round }));
@@ -87,13 +122,22 @@ export function createTopBar(ctx) {
     journalBtn.hidden = s.story.phase !== 'play';
     const waiting = s.story.phase === 'play' ? tasksOpen(s).length : 0;
     inboxBtn.hidden = !waiting;
-    if (waiting) setText(inboxBtn, `📋 ${T('hud.inbox.btn', { n: waiting })}`);
+    const gifts = s.story.phase === 'play' && region(s) ? pendingGifts(s).length : 0;
+    giftBtn.hidden = !gifts;
+    if (gifts) setText(giftNum, T('hud.gifts.btn', { n: gifts }));
+    if (waiting) setText(inboxNum, T('hud.inbox.btn', { n: waiting }));
     // red while a task has < GM.look.ringLifeShare of its life left (the red ring under the manager in the world)
     const P = s.clock?.played || 0;
     inboxBtn.classList.toggle('is-urgent', waiting > 0 && tasksOpen(s).some(t => t.untilPlayed - P < (t.untilPlayed - t.atPlayed) * GM.look.ringLifeShare));
     const debt = loanOf(s);
     loanBtn.classList.toggle('is-debt', !!debt);
     loanBtn.classList.toggle('is-late', !!debt?.late);
+    moreDot.hidden = !debt?.late;
+    const ups = s.story.phase === 'play' ? affordableUpgrades(s, ctx.realm?.view).length : 0;
+    upgradesBtn.hidden = s.story.phase !== 'play';
+    worldBtn.hidden = s.story.phase !== 'play';
+    upgradesBtn.classList.toggle('is-ready', ups > 0);
+    setText(upNum, String(ups));
     setText(beansCap, cap ? `/${fmt(cap)}` : '');
     if (next.full !== last.full) {
       beans.classList.toggle('is-full', next.full);

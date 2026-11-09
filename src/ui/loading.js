@@ -23,6 +23,7 @@ let beans = null;
 
 function ensureBeans() {
   if (beans) return beans;
+  return (beans = []); // (no beans on the simple loading screen)
   const host = $('load-beans');
   beans = [];
   if (!host) return beans;
@@ -72,7 +73,6 @@ export function loading(value, label) {
   $('load-track')?.setAttribute('aria-valuenow', v);
   const status = $('load-status');
   if (status && label != null) status.textContent = label;
-  if (v <= 45) $('load-tip').textContent = TIPS[Math.floor(Math.random() * TIPS.length)]; // new tip when a scene starts loading
   render();
   run();
 }

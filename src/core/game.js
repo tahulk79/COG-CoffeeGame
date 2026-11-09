@@ -1,13 +1,19 @@
 // Pure reducer for Farm & Café V3. `apply(state, action, ctx)` → { ok, state, events, error }.
 // The input state is never mutated: a successful action returns a new state object. All timing comes from ctx.now,
 // randomness from action payloads, so every transition is deterministic and testable (tests/core/*.test.mjs).
-import { TASKS, PENALTY, HISTORY, GM, gmCandidatesFor, gmSalary, gearDrain, GEAR, softwarePrice, gearTier, craftLevel, PROFILE, CAREER, rankOf, autoRank, robotSerial, profileOfUid, AUTO, autoPrice, BEANS, startCoins, xpForLevel, STAFF_BREAKS, staffFee, unitFee, RECRUIT, TRAITS, PART_COST, QUALITY, TEND, UPKEEP, SHIFT, VITALS, CARE, RARE, ROBOT_WEAR, ROBOT_PARTS, SKILL, STAT_ORDER, statOf, statCost, startStats, unitLevel, energyMax, heatPerMin, partTier, taskLimit, MISTAKES, RIVAL, BOOKS, BUILDINGS, CROPS, DRINKS, STAFF, XP, REBIRTH, START, EXPIRY_LEVEL, levelForXp, MAX_LEVEL, levelGift, chestPrize, LOAN, loanOwed, INCOME, CLOCK, VENUES, VENUE_ITEMS, RATING, REVIEW_REASONS, LEAVE_REASONS, FIELD, GOODS, ITEM_GOODS } from './config/economy.js';
-import { PARCELS, ROADS, FIXED, PRE_TILLED, plotById, plotsOf } from './config/layout.js';
+import { statCostOf } from './config/economy.js';
+import { goofFee } from './config/economy.js';
+import { funnyLevel, funnyFee, gmActionsOf, gmMoneyMul, gmHaggleMul, gmStatOf } from './config/economy.js';
+import { waterSpeedupOf, trimBeansOf, premiumMulOf } from './config/economy.js';
+import { CREW, doesJob, FARM_MANAGER, gmHandsPerRound } from './config/economy.js';
+import { TASKS, PENALTY, HISTORY, GM, gmCandidatesFor, gmSalary, gearDrain, GEAR, softwarePrice, gearTier, craftLevel, PROFILE, CAREER, robotSerial, profileOfUid, AUTO, autoPrice, BEANS, startCoins, xpForLevel, STAFF_BREAKS, staffFee, unitFee, RECRUIT, TRAITS, PART_COST, QUALITY, TEND, UPKEEP, SHIFT, VITALS, CARE, RARE, ROBOT_WEAR, ROBOT_PARTS, SKILL, STAT_ORDER, statOf, statCost, startStats, unitLevel, energyMax, heatPerMin, partTier, taskLimit, MISTAKES, RIVAL, BOOKS, BUILDINGS, CROPS, DRINKS, STAFF, XP, REBIRTH, START, EXPIRY_LEVEL, EXPIRY_ENABLED, levelForXp, MAX_LEVEL, levelGift, chestPrize, LOAN, loanOwed, INCOME, CLOCK, VENUES, VENUE_ITEMS, RATING, REVIEW_REASONS, LEAVE_REASONS, FIELD, GOODS, ITEM_GOODS, RECIPES, PERENNIAL } from './config/economy.js';
+import { PARCELS, ROADS, FIXED, PRE_TILLED, plotById, plotsOf, estateOfLot, ESTATES, ESTATE_ORDER, farmLotsOf, ESTATE_FIELDS } from './config/layout.js';
 import { parseRegionId } from './config/world.js';
 import { menuItemsOf } from './config/menus.js';
-import { clone, normalizeRegion, normalizeStreet, newGmState } from './state.js';
+import { clone, normalizeRegion, normalizeStreet, newGmState, newFmState, withEstates } from './state.js';
 import { RESEARCH, INGREDIENTS, countryRecipes, SUPPLY, supplierOf, buyerOf, FARMLAB, methodEffect, methodKey } from './config/research.js';
 import * as D from './derive.js';
+import * as FM from './farm-manager.js';
 
 const TX_KEEP = 64;
 // While the Level-10 expiration is pending, nothing that changes the economy may run.
@@ -22,19 +28,33 @@ function sellGood(s, good, amount, ev) {
   if (!own(GOODS, good)) return fail('unknown');
   const q = D.sellQuote(s, good, amount ?? Infinity);
   if (q.amount <= 0) return fail('noBeans');
-  addGood(s, good, -q.amount);
+  addGood(s, good, -q.amount, { order: D.BEAN_SELL_ORDER });
   earn(s, q.coins, ev);
   s.stats.sold = (s.stats.sold || 0) + q.amount;
   if (good === 'beans') ev.push({ type: 'beansSold', amount: q.amount, coins: q.coins });
   ev.push({ type: 'goodsSold', parts: [q], amount: q.amount, coins: q.coins });
 }
 
+// Sell some (or all) of ONE variety of beans: the player picks which variety and how many (founder 2026-11-08).
+function sellVariety(s, { crop, amount }, ev) {
+  if (otherGame(D.region(s), 'farm')) return fail('gameLocked');
+  if (!own(CROPS, crop)) return fail('unknown');
+  const have = Math.floor(D.beanMix(s)[crop] || 0), n = Math.max(0, Math.min(have, Math.floor(Number.isFinite(Number(amount)) ? Number(amount) : have)));
+  if (n <= 0) return fail('noBeans');
+  const coins = Math.round(n * D.beanPrice(crop) * (D.buyerNow(s).mul.beans ?? 1) * 100) / 100;
+  addGood(s, 'beans', -n, { order: [crop] });
+  earn(s, coins, ev);
+  s.stats.sold = (s.stats.sold || 0) + n;
+  ev.push({ type: 'beansSold', amount: n, coins });
+  ev.push({ type: 'goodsSold', parts: [{ good: 'beans', amount: n, kinds: { [crop]: n }, coins }], amount: n, coins });
+}
+
 function grantXp(s, amount, events) {
   const before = levelForXp(s.player.xp);
   s.player.xp += Math.round(amount * D.xpMultiplier(s));
   const after = levelForXp(s.player.xp);
-  if (after > before) events.push({ type: 'levelUp', from: before, to: after });
-  if (after >= EXPIRY_LEVEL && !s.story.level10Done && !s.story.expiry && s.world.currentRegion && s.story.phase === 'play') {
+  if (after > before) { events.push({ type: 'levelUp', from: before, to: after }); if (s.world?.currentRegion && D.region(s)) autoTill(s, events); }
+  if (EXPIRY_ENABLED && after >= EXPIRY_LEVEL && !s.story.level10Done && !s.story.expiry && s.world.currentRegion && s.story.phase === 'play') {
     s.story.expiry = { status: 'pending', regionId: s.world.currentRegion, at: 0 };
     s.story.phase = 'expiry';
     events.push({ type: 'expiryTriggered', regionId: s.world.currentRegion });
@@ -125,17 +145,33 @@ function payArrears(s, budget, ev) {
 function grantItems(s, items) {
   for (const it of items) {
     if (it.kind === 'coins') s.player.coins = Math.round((s.player.coins + it.amount) * 100) / 100;
-    else if (it.kind === 'beans') s.inventory.beans += it.amount;
+    else if (it.kind === 'beans') addBeans(s, 'robusta', it.amount);
     else if (ITEM_GOODS.includes(it.kind)) addGood(s, it.kind, it.amount);
     else if (it.kind === 'hireTicket') s.rewards.tickets += it.amount;
-    else if (it.kind === 'autoRun') s.autoplay.runs += it.amount;
   }
 }
 const uid = (s, prefix) => `${prefix}${s.nextUid++}`;
 const own = D.own;
 // Goods in storage: beans stay in inventory.beans (the café brews from them), the farm's processed goods in items.
-function addGood(s, good, n) {
-  if (good === 'beans') { s.inventory.beans = Math.max(0, (s.inventory.beans || 0) + n); return; }
+// Beans are stored per variety (inventory.beanMix, docs/design/coffee-varieties.md); inventory.beans stays the total.
+// addBeans: + n of one variety. takeBeans: − n, cheapest variety first (`skipRaw`: never Arabica, for processing);
+// `order` overrides the order (a sale takes the dearest first). Returns the beans taken per variety.
+function addBeans(s, crop, n) {
+  const m = D.beanMix(s), c = Object.hasOwn(CROPS, crop) ? crop : 'robusta';
+  m[c] = Math.max(0, m[c] + Math.floor(n));
+  s.inventory.beanMix = m;
+  s.inventory.beans = Object.values(m).reduce((a, b) => a + b, 0);
+}
+function takeBeans(s, n, { skipRaw = false, order = D.BEAN_TAKE_ORDER } = {}) {
+  const m = D.beanMix(s), took = {};
+  let left = Math.floor(n);
+  for (const c of order) { if (left <= 0) break; if (skipRaw && CROPS[c].rawOnly) continue; const k = Math.min(left, m[c]); if (k > 0) { m[c] -= k; took[c] = k; left -= k; } }
+  s.inventory.beanMix = m;
+  s.inventory.beans = Object.values(m).reduce((a, b) => a + b, 0);
+  return took;
+}
+function addGood(s, good, n, opt) {
+  if (good === 'beans') { if (n >= 0) { addBeans(s, 'robusta', n); return null; } return takeBeans(s, -n, opt); }
   s.inventory.items ||= {};
   s.inventory.items[good] = Math.max(0, (s.inventory.items[good] || 0) + n);
 }
@@ -154,7 +190,7 @@ function settleSupply(s, now, ev) {
   if (due.length) {
     s.supply.pending = s.supply.pending.filter(p => now < p.at);
     const n = due.reduce((a, p) => a + p.amount, 0);
-    s.inventory.beans += n;
+    addBeans(s, 'robusta', n);
     ev?.push({ type: 'beansArrived', amount: n });
   }
 }
@@ -193,6 +229,13 @@ function gmRun(s, item, ctx, ev, { roll = 0.5, budget = true, approved = false, 
   let res;
   try { res = handler(s, payload, ev, ctx) || {}; } finally { ACTOR = was; }
   if (res.ok === false || res.noop) { ev.length = from; return false; }
+  // Beans he sells (once you signed) fetch more the smarter he is.
+  if (/^farm\/sell/.test(item.act.type) && s.gm.unit) { const gain = s.player.coins - before; if (gain > 0) earn(s, r2(gain * (gmMoneyMul(s.gm.unit) - 1)), ev); }
+  // The more he does, the smarter he gets.
+  if (s.gm.unit) {
+    const gm = s.gm.unit; gm.worked = (gm.worked | 0) + 1;
+    if (gm.worked % GM.smartEveryJobs === 0 && gmStatOf(gm, 'smart') < GM.maxStat) { gm.stats = { ...Object.fromEntries(GM.stats.map(k => [k, gmStatOf(gm, k)])), smart: gmStatOf(gm, 'smart') + 1 }; ev.push({ type: 'gmSmarter', name: gm.name, to: gm.stats.smart }); }
+  }
   // The GM's own jobs stay quiet in the HUD; jobs you approved or handed over speak as usual. Level-ups (and the
   // Level-10 incident) always show, whoever earned the XP.
   if (!approved) for (let i = from; i < ev.length; i++) if (!GM_LOUD.has(ev[i].type)) ev[i].byGm = true;
@@ -269,6 +312,7 @@ function gmAwayPay(s, now, ev, closedFrom) {
   const net2 = r2(earned - salary), short = r2(salary - paid);
   const day = gmDay(s, now); day.salary = r2(day.salary + paid);
   gmLog(s, now, 'away', { min: Math.round(mins), earned, salary });
+  if (s.gm.fm) { const r = D.region(s), ps = D.ownedPlots(s); s.gm.fm.away = { at: now, minutes: Math.round(mins), awayMinutes: Math.round(awayMin), earned, salary, net: net2, ripe: r ? ps.filter(p => r.plots[p.id] && D.plotState(s, p.id, now).stage === 'ready').length : 0, empty: r ? ps.filter(p => !r.plots[p.id]).length : 0, orders: (s.gm.orders || []).length }; }
   ev.push({ type: 'gmAway', name: gm.name, minutes: Math.round(mins), awayMinutes: Math.round(awayMin), earned, salary, net: net2 });
   if (short <= 0) return;
   const w = ((s.debt ||= { wages: { gm: 0, follower: 0 } }).wages ||= { gm: 0, follower: 0 });
@@ -305,19 +349,9 @@ function gmBack(s, ev, now) {
   returnGrace(s, ev);
   gmAwayPay(s, now, ev, closedFrom);
   if (s.gm.payAt) s.gm.payAt = now; // the away time is settled, never again by gm/payroll
-  const gm = D.gmOf(s), M = GM.mood, hours = (now - closedFrom) / 3600000;
-  if (!gm || hours <= M.awayGraceHours) return true; // (he may have quit over unpaid salary)
-  let drop = Math.min(M.awayMax, Math.round((hours - M.awayGraceHours) * M.awayPerHour));
-  const rc = s.gm.returnCap;
-  if (rc) { drop = Math.max(0, Math.min(drop, PENALTY.returnLoyaltyCap - rc.lost)); rc.lost = r2(rc.lost + drop); }
-  gm.loyalty = r2(Math.max(0, gm.loyalty - drop));
-  s.gm.lastJobAt = now; // the time away is counted here, not again as "idle"
-  gmLog(s, now, 'missedYou', { hours: Math.round(hours), drop });
-  ev.push({ type: 'gmMissedYou', name: gm.name, hours: Math.round(hours), drop });
-  if (gm.loyalty < GM.loyalty.refuse && !D.gmPoachOf(s)) gmPoachStart(s, gm, ev);
   return true;
 }
-// The GM leaves (poached / fired). Poached → chaos: worker job lists are wiped back to auto, requests cancelled.
+// The GM leaves (fired, or quits over unpaid salary): the team simply goes on without him.
 function gmLeave(s, now, why, ev) {
   const name = s.gm.unit?.name || null;
   gmLog(s, now, 'left', { name, why });
@@ -328,15 +362,13 @@ function gmLeave(s, now, why, ev) {
   for (const t of D.tasksDone(s)) if (t.by === 'g1') t.lateOff = true; // nor approved late once he is gone
   delete s.gm.returnCap;
   if (s.debt?.wages) s.debt.wages.gm = 0; // unpaid salary leaves with the manager
-  if (why === 'poached') {
-    s.gm.chaos = { since: now };
-    for (const u of D.assignedUnits(s, s.world.currentRegion)) { if (STAFF[u.type].kind === 'worker') u.tasks = []; else u.task = 'auto'; } // the team it ran
-  }
-  ev.push({ type: 'gmLeft', name, why, chaos: why === 'poached' });
+  delete s.gm.orders;
+  ev.push({ type: 'gmLeft', name, why });
+  // The replacement you picked while he was being lured starts at once.
+  if (why === 'poached' && Number.isInteger(s.gm.reserve)) { const index = s.gm.reserve; delete s.gm.reserve; handlers['gm/hire'](s, { index }, ev, { now }); }
 }
-
-// A rival's offer to the manager: an inbox task (kind gmPoach, TASKS.life.gmPoach played minutes). Keep him with a
-// bonus (GM.keepBonusSalaries × salary) or a raise, or let him go. False when the inbox is full.
+// A rival's offer to the manager: an inbox task (kind gmPoach, TASKS.life.gmPoach played minutes). Keep him for a bonus,
+// or let him go; meanwhile you can pick who replaces him.
 function gmPoachStart(s, gm, ev) {
   const fee = gmSalary(gm, s.gm.mode) * GM.keepBonusSalaries;
   const t = fileTask(s, ev, { kind: 'gmPoach', key: 'keep:g1', by: 'system', act: { type: 'gm/keep', payload: {} }, cost: fee, reason: ['gmPoach', { name: gm.name, rival: GM.poach.rival }], zone: D.gmZone(s) });
@@ -345,6 +377,7 @@ function gmPoachStart(s, gm, ev) {
   ev.push({ type: 'gmPoach', name: gm.name, rival: GM.poach.rival, fee, id: t.id, seconds: TASKS.life.gmPoach * 60 });
   return true;
 }
+
 
 // ---------- planner v2 helpers (management-rules §3.4–§3.7) ----------
 // Land use, sampled once per played minute into s.gm.util.rows (GM.land.windowMin kept): the zone's and every lot's
@@ -391,7 +424,7 @@ function wishLicence(s, groups, now) {
 }
 // The day plan (Kế hoạch ngày, §3.4): per farm lot the crop to plant (hysteresis: a lot with something growing keeps
 // its crop), every worker's jobs by need × fit, every robot's task by need, and the target for the next 20 minutes.
-// One 'dayPlan' history row (the assignments' own setTasks / robotTask rows are written as the manager's).
+// Runs silently: the player sees the result, not a plan (the assignments' own setTasks / robotTask rows are written as the manager's).
 function planDay(s, ev, ctx) {
   const g = s.gm, r = D.region(s), P = D.playedMs(s);
   if (!g?.unit || !r) return;
@@ -401,11 +434,13 @@ function planDay(s, ev, ctx) {
   if (zones.includes('farm') && crop) {
     const byLot = {};
     for (const p of D.ownedPlots(s)) if (p.parcel) (byLot[p.parcel] ||= []).push(p.id);
+    // Each lot gets the best crop for its growing zone (coffee-varieties.md): a crop the zone penalises is never kept.
     for (const [lot, ids] of Object.entries(byLot)) {
+      const best = D.bestCropFor(s, ids[0]) || crop, zone = D.climateOfPlot(s, ids[0]), fits = c => D.climateFit(c, zone) !== 'bad';
       const growing = ids.map(id => r.plots[id]?.crop).filter(Boolean);
-      if (!growing.length) { crops[lot] = crop; continue; }
+      if (!growing.length) { crops[lot] = best; continue; }
       const most = Object.entries(growing.reduce((n, c) => ({ ...n, [c]: (n[c] || 0) + 1 }), {})).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0];
-      crops[lot] = prev[lot] && D.cropUnlocked(s, prev[lot]) ? prev[lot] : most;
+      crops[lot] = prev[lot] && D.cropUnlocked(s, prev[lot]) && fits(prev[lot]) ? prev[lot] : fits(most) ? most : best;
     }
   }
   const was = ACTOR;
@@ -426,7 +461,6 @@ function planDay(s, ev, ctx) {
   const fields = D.ownedPlots(s).length || 1, share = {};
   for (const p of D.ownedPlots(s)) if (crops[p.parcel]) share[crops[p.parcel]] = (share[crops[p.parcel]] || 0) + 1;
   const mix = Object.entries(share).sort((a, b) => b[1] - a[1]).map(([c, n]) => ({ crop: c, pct: Math.round(n / fields * 100) }));
-  hist(s, { type: 'dayPlan', actor: 'g1', zone: on, gm: 1, extra: { mix, target, assignments } });
   ev.push({ type: 'gmDayPlan', name: g.unit.name, mix, target });
 }
 
@@ -782,7 +816,6 @@ function makeUnit(s, { type, trait, name, gender, perk, age, home, paid = 0 }, n
     unit.gear = {};
     unit.gearSpent = 0;
     Object.assign(unit, { stats: startStats(trait, perk), points: 0, xp: 0, tasks: [], water: 0, ...VITALS.start });
-    unit.rank = autoRank(unit);
   }
   s.staff.units.push(unit);
   if (D.region(s)) { unit.assigned = { regionId: s.world.currentRegion, zone: def.zone }; unit.active = D.freeSlots(s, def.zone) > 0; }
@@ -796,6 +829,28 @@ function removeUnit(s, u, now, reason, ev, extra = {}) {
   tombstone(s, u.uid, u.name || u.serial || null, STAFF[u.type]?.kind || 'worker', now);
   ev.push({ type: 'staffLeft', uid: u.uid, name: u.name || null, staff: u.type, reason, ...extra });
 }
+// Estates (founder 2026-11-08): bought land is planted freely — no rows are laid out for the player. Each estate bought
+// and each level-up add one free-field credit of ESTATE_FIELDS (derive.fieldAllowance = credits × ESTATE_FIELDS); the
+// player places those fields anywhere on land they own. r.tilled = { estateId: credits } (name kept for saves).
+function tilledOf(r) {
+  if (!r.tilled) {
+    r.tilled = {};
+    for (const e of Object.values(ESTATES)) r.tilled[e.id] = farmLotsOf(e).filter(id => plotsOf(id).some(p => (r.fields || []).some(f => f.id === p.id))).length;
+  }
+  return r.tilled;
+}
+function autoTill(s, ev) {
+  return; // retired: no pre-tilled rows any more, fields are placed freely and cost nothing
+  const r = D.region(s);
+  if (!r) return;
+  const t = tilledOf(r), owned = ESTATE_ORDER.filter(id => D.estateOwned(s, id));
+  const want = D.level(s) + owned.length - 1, newest = owned[owned.length - 1];
+  let have = Object.values(t).reduce((a, b) => a + b, 0);
+  if (have >= want || !newest) return;
+  t[newest] = (t[newest] || 0) + (want - have);
+  ev?.push({ type: 'fieldsGranted', estate: newest, fields: (want - have) * ESTATE_FIELDS });
+}
+
 function addPreTilled(r, lotId) {
   if (!PRE_TILLED[PARCELS[lotId]?.kind]) return 0;
   r.fields ||= [];
@@ -821,11 +876,12 @@ function streetOf(r) {
 
 export function freshRegion(s, now) {
   const r = normalizeRegion({ status: 'active', enteredAt: now });
-  r.parcels = Object.values(PARCELS).filter(p => p.starter).map(p => p.id);
+  const starters = Object.values(PARCELS).filter(p => p.starter).map(p => p.id);
+  r.parcels = withEstates(starters); // the home estate is owned from the start
   r.roads = Object.values(ROADS).filter(x => x.open).map(x => x.id);
   r.buildings = starterBuildings(s);
   r.fields = [];
-  for (const id of r.parcels) addPreTilled(r, id); // the starter field F1 comes with its 6 fields
+  r.tilled = {}; // tier 1 starts empty: the player plants and builds anywhere (founder 2026-11-08)
   return r;
 }
 function starterBuildings(s) {
@@ -860,7 +916,6 @@ const handlers = {
   },
   // Teacher talk done (or skipped): the World Gate opens. Grants the free auto runs once (no rebirth credits any more).
   'story/teacherDone'(s) {
-    if (!s.autoplay.granted) { s.autoplay.runs += AUTO.freeRuns; s.autoplay.granted = true; }
     s.story.teacherMet = true;
     if (s.story.phase === 'teacher' || s.story.phase === 'intro' || s.story.phase === 'select') s.story.phase = 'gate';
   },
@@ -913,7 +968,7 @@ const handlers = {
     const cost = D.seedCost(s, crop);
     if (s.player.coins < cost) return fail('coins', { missing: cost - s.player.coins });
     spend(s, cost);
-    r.plots[plotId] = { crop, plantedAt: ctx.now };
+    r.plots[plotId] = { crop, plantedAt: ctx.now, born: ctx.now, n: 0 }; // a sapling: the tree stays after each harvest
     // The way you adopted (research step 3). The default way is the old, neutral farming: no method on the plot.
     const way = D.methodOf(s, crop);
     if (methodKey(way) !== methodKey(FARMLAB.defaultMethod)) r.plots[plotId].method = [...way];
@@ -923,6 +978,20 @@ const handlers = {
     if (!s.stats.harvested && !s.tutorial.done && !s.tutorial.farmDone) r.plots[plotId].fast = true;
     s.stats.planted++;
     ev.push({ type: 'planted', plotId, crop, cost, free: cost === 0, crooked: crooked === true });
+  },
+  // Free planting: put a field exactly where the player tapped (no rows / no pre-made bed) and sow it in one step.
+  'farm/plantAt'(s, { x, z, crop = 'robusta' }, ev, ctx) {
+    const r = D.region(s);
+    if (!r) return fail('unknown');
+    if (!D.cropUnlocked(s, crop)) return fail('locked');
+    const need = D.buildCost(s, 'field') + D.seedCost(s, crop);
+    if (s.player.coins < need) return fail('coins', { missing: need - s.player.coins });
+    const coins = s.player.coins, n = r.fields.length;
+    const p = handlers['build/place'](s, { type: 'field', x, z }, ev, ctx);
+    if (p?.ok === false) return p;
+    const f = r.fields[r.fields.length - 1];
+    const q = handlers['farm/plant'](s, { plotId: f.id, crop }, ev, ctx);
+    if (q?.ok === false) { r.fields.length = n; s.player.coins = coins; return q; }
   },
   // unripe: a staff mistake (picked a bit early) — one bean less (never below 1).
   // uid: a staff unit harvested it (its stars, unitStars); none = the player: 3★ when fresh (QUALITY.freshSeconds).
@@ -935,12 +1004,21 @@ const handlers = {
     if (D.stored(s) >= cap) return fail('storageFull', { capacity: cap }); // every good shares the storehouse
     const unit = by != null ? D.unitOf(s, by) : null;
     const pl = r.plots[plotId];
-    const fresh = ctx.now - pl.plantedAt - D.plotGrowMs(s, pl, plotId) <= QUALITY.freshSeconds * 1000;
+    const crop = CROPS[st.crop], overMs = ctx.now - pl.plantedAt - D.plotGrowMs(s, pl, plotId);
+    const garden = D.gardenOf(s); // garden layers: shade keeps ripe cherries good longer, adds a chance of +1★, bears a little less
+    const fresh = overMs <= (crop.freshSeconds ?? QUALITY.freshSeconds) * 1000 * garden.freshMul;
+    const zoneStars = (D.climateEffect(st.crop, D.climateOfPlot(s, plotId))?.stars || 0) + D.shadeStars(s, plotId, st.crop); // growing zone (vùng trồng) + shade tree
     const way = Array.isArray(pl.method) ? methodEffect(s.world.currentRegion, st.crop, pl.method) : null;
     // The way it was grown: its quality is the chance this harvest comes out one star better (deterministic per plot).
     const luck = ((Math.sin((pl.plantedAt % 1e7) * 0.0137 + plotId.length * 7.31) * 43758.5453) % 1 + 1) % 1;
-    const stars = Math.min(3, (unit ? D.unitStars(unit) : fresh ? 3 : 1) + (way && luck < way.quality ? 1 : 0));
-    const beans = Math.max(1, Math.round(D.starYield(s, st.crop, stars) * (way?.yieldMul || 1)) - (unripe === true ? 1 : 0));
+    const stars = Math.max(1, Math.min(3, (unit ? D.unitStars(unit) : fresh ? 3 : 1) + (luck < Math.min(1, (way?.quality || 0) + garden.quality) ? 1 : 0) + zoneStars));
+    let beans = Math.max(1, Math.round(D.starYield(s, st.crop, stars) * (way?.yieldMul || 1) * garden.yieldMul) - (unripe === true ? 1 : 0));
+    const dropped = crop.drop && overMs > crop.drop.after * 1000 ? 1 + Math.floor((overMs - crop.drop.after * 1000) / (crop.drop.every * 1000)) : 0;
+    const lonely = crop.pollinate && !D.pollinated(s, plotId) ? crop.pollinate.loss : 0;
+    beans = Math.max(1, beans - dropped - lonely) + (pl.trimmed === true ? CREW.trimBeans : pl.trimmed || 0) + (pl.sprayed ? CREW.sprayBeans : 0); // the crew's care of this season
+    if (D.treeOld(pl)) beans = Math.max(1, Math.round(beans * PERENNIAL.oldYield)); // an old tree: cut it back or replant
+    let wave = 0; // Liberica: the first pick takes `first` of the beans, the plant stays for the rest
+    if (crop.waves && !pl.wave) { const all = beans; beans = Math.max(1, Math.round(all * crop.waves.first)); wave = Math.max(1, all - beans); }
     if (pl.trial) { // a trial field: its numbers go into the comparison table
       const rid = s.world.currentRegion, key = methodKey(pl.method);
       s.farmLab ||= { methods: {}, trials: {}, results: {} };
@@ -949,23 +1027,108 @@ const handlers = {
       if (!s.farmLab.trials[rid].length) delete s.farmLab.trials[rid];
       ev.push({ type: 'trialDone', crop: st.crop, method: pl.method, beans });
     }
-    s.inventory.beans += beans; // soft cap: one harvest may overflow; next one is refused
-    if (unit) { unitEarned(s, unit, beans * BEANS.sellPrice, ctx.now); practice(unit, 'harvest', ctx.now); if (unripe === true) tally(unit, ctx.now, 'mistakes', 1); } // book: beans valued at the sell price
-    delete r.plots[plotId];
+    if (D.dripCovers(s, plotId) && s.player.coins >= BUILDINGS.dripLine.effect.fee) spend(s, BUILDINGS.dripLine.effect.fee); // the drip line's water bill
+    // A hauler carries a staff harvest to the storehouse; the player's own pick (or no hauler) goes in at once. Soft cap as before.
+    if (unit && D.haulActive(s)) pl.pile = { ...pl.pile, [st.crop]: (pl.pile?.[st.crop] || 0) + beans };
+    else addBeans(s, st.crop, beans);
+    if (unit) { unitEarned(s, unit, beans * D.beanPrice(st.crop), ctx.now); practice(unit, 'harvest', ctx.now); if (unripe === true) tally(unit, ctx.now, 'mistakes', 1); } // book: beans valued at the sell price
+    // Perennial: the tree stays. Liberica's first pick leaves the rest of the season on it; otherwise the next season
+    // starts now (one-off flags of the planting — tutorial speed, a crooked planting, a trial, watering — end here).
+    pl.born ??= pl.plantedAt;
+    pl.plantedAt = ctx.now;
+    delete pl.fast; delete pl.watered;
+    if (wave) pl.wave = wave;
+    else { delete pl.wave; delete pl.slow; delete pl.trial; delete pl.pruned; delete pl.trimmed; delete pl.sprayed; pl.n = (pl.n | 0) + 1; }
     s.stats.harvested++;
-    grantXp(s, CROPS[st.crop].xp, ev);
-    ev.push({ type: 'harvested', plotId, crop: st.crop, beans, stars, xp: CROPS[st.crop].xp, unripe: unripe === true });
+    const xp = wave ? 0 : crop.xp; // a season's XP comes once, with its last pick
+    grantXp(s, xp, ev);
+    ev.push({ type: 'harvested', plotId, crop: st.crop, beans, stars, xp, by, age: pl.n | 0, old: D.treeOld(pl), unripe: unripe === true, dropped, lonely: lonely > 0, wave: wave ? 1 : pl.wave ? 2 : 0 });
+  },
+
+  // Cưa đốn phục hồi: an old tree is cut back to the stump; it re-grows (PERENNIAL.pruneGrow × its first crop) and is
+  // young again. Only an old tree, not while its cherries are ripe.
+  'farm/prune'(s, { plotId, uid: by = null } = {}, ev, ctx) {
+    const r = D.region(s), pl = r && D.own(r.plots, plotId) ? r.plots[plotId] : null;
+    if (!pl) return fail('empty');
+    if (otherGame(r, 'farm')) return fail('gameLocked');
+    if (!D.treeOld(pl)) return fail('notOld');
+    if (D.plotState(s, plotId, ctx.now).stage === 'ready') return fail('ripe');
+    const cost = D.pruneCost(pl.crop);
+    if (s.player.coins < cost) return fail('coins', { missing: cost - s.player.coins });
+    spend(s, cost);
+    pl.born ??= pl.plantedAt;
+    pl.n = 0; pl.pruned = true; pl.plantedAt = ctx.now;
+    delete pl.wave; delete pl.watered;
+    if (by != null) practice(D.unitOf(s, by), 'prune', ctx.now);
+    ev.push({ type: 'pruned', plotId, crop: pl.crop, cost });
+  },
+  // Light pruning by a pruner / TrimBot: this season's harvest gives CREW.trimBeans more. Once per season.
+  'farm/trim'(s, { plotId, uid: id } = {}, ev, ctx) {
+    const r = D.region(s), pl = r && D.own(r.plots, plotId) ? r.plots[plotId] : null, unit = D.unitOf(s, id);
+    if (!pl || !doesJob(unit, 'prune')) return fail('unknown');
+    if (pl.trimmed || D.plotState(s, plotId, ctx.now).stage === 'ready') return { noop: true };
+    pl.trimmed = trimBeansOf(unit); // beans it adds at harvest
+    practice(unit, 'prune', ctx.now);
+    ev.push({ type: 'trimmed', plotId, uid: id });
+  },
+  // Leaf spray by the drone: CREW.sprayFee coins, this season's harvest gives CREW.sprayBeans more. Once per season.
+  'farm/spray'(s, { plotId, uid: id } = {}, ev, ctx) {
+    const r = D.region(s), pl = r && D.own(r.plots, plotId) ? r.plots[plotId] : null, unit = D.unitOf(s, id);
+    if (!pl || !doesJob(unit, 'spray')) return fail('unknown');
+    if (pl.sprayed || D.plotState(s, plotId, ctx.now).stage === 'ready') return { noop: true };
+    if (s.player.coins < CREW.sprayFee) return fail('coins', { missing: CREW.sprayFee - s.player.coins });
+    spend(s, CREW.sprayFee);
+    unitSpent(s, unit, CREW.sprayFee, ctx.now);
+    pl.sprayed = true;
+    ev.push({ type: 'sprayed', plotId, uid: id });
+  },
+  // A hauler picks up what waits on a field, up to what it can carry.
+  'farm/pickUp'(s, { plotId, uid: id } = {}, ev) {
+    const r = D.region(s), pl = r && D.own(r.plots, plotId) ? r.plots[plotId] : null, unit = D.unitOf(s, id);
+    if (!pl || !doesJob(unit, 'haul')) return fail('unknown');
+    let room = D.haulCapacity(s, unit) - D.cargoCount(unit);
+    if (room <= 0 || !D.pileCount(pl)) return { noop: true };
+    const cargo = { ...unit.cargo }, pile = { ...pl.pile };
+    for (const c of Object.keys(pile)) { const n = Math.min(room, pile[c]); if (n <= 0) continue; cargo[c] = (cargo[c] || 0) + n; pile[c] -= n; room -= n; if (!pile[c]) delete pile[c]; }
+    unit.cargo = cargo;
+    if (Object.keys(pile).length) pl.pile = pile; else delete pl.pile;
+    ev.push({ type: 'pickedUp', plotId, uid: id });
+  },
+  // The load goes into the storehouse (refused only when it is already full). drop: a mistake on the way, 1 unit lost.
+  'farm/deposit'(s, { uid: id, drop = false } = {}, ev, ctx) {
+    const unit = D.unitOf(s, id);
+    if (!doesJob(unit, 'haul')) return fail('unknown');
+    if (!D.cargoCount(unit)) return { noop: true };
+    if (D.stored(s) >= D.capacity(s)) return fail('storageFull', { capacity: D.capacity(s) });
+    const cargo = { ...unit.cargo };
+    if (drop === true) { const c = Object.keys(cargo).sort((a, b) => cargo[b] - cargo[a])[0]; cargo[c]--; tally(unit, ctx.now, 'mistakes', 1); }
+    for (const [c, n] of Object.entries(cargo)) if (n > 0) addBeans(s, c, n);
+    delete unit.cargo;
+    const v = D.haulVehicle(s), fee = v ? BUILDINGS[v.type].effect.tripFee : 0;
+    if (fee > 0 && s.player.coins >= fee) { spend(s, fee); unitSpent(s, unit, fee, ctx.now); }
+    practice(unit, 'haul', ctx.now);
+    ev.push({ type: 'deposited', uid: id, fee });
+  },
+  // Chặt bỏ: the tree is removed (no refund) so the field can take another variety.
+  'farm/uproot'(s, { plotId } = {}, ev) {
+    const r = D.region(s), pl = r && D.own(r.plots, plotId) ? r.plots[plotId] : null;
+    if (!pl) return fail('empty');
+    if (otherGame(r, 'farm')) return fail('gameLocked');
+    for (const [c, n] of Object.entries(pl.pile || {})) addBeans(s, c, n); // what was picked is not lost with the tree
+    delete r.plots[plotId];
+    ev.push({ type: 'uprooted', plotId, crop: pl.crop });
   },
 
   // Farm game: sell a good at the storehouse (all of it by default) → coins. farm/sellBeans = beans (older HUD).
   'farm/sell'(s, { good = 'beans', item, amount } = {}, ev) { return sellGood(s, item ?? good, amount, ev); },
+  'farm/sellVariety'(s, p, ev) { return sellVariety(s, p || {}, ev); },
   'farm/sellBeans'(s, { amount } = {}, ev) { return sellGood(s, 'beans', amount, ev); },
   // One tap: sell everything stored (each good at its price).
   'farm/sellAll'(s, _p, ev) {
     if (otherGame(D.region(s), 'farm')) return fail('gameLocked');
     const q = D.sellAllQuote(s);
     if (q.amount <= 0) return fail('noBeans');
-    for (const part of q.parts) { addGood(s, part.good, -part.amount); if (part.good === 'beans') ev.push({ type: 'beansSold', amount: part.amount, coins: part.coins }); }
+    for (const part of q.parts) { addGood(s, part.good, -part.amount, { order: D.BEAN_SELL_ORDER }); if (part.good === 'beans') ev.push({ type: 'beansSold', amount: part.amount, coins: part.coins }); }
     earn(s, q.coins, ev);
     s.stats.sold = (s.stats.sold || 0) + q.amount;
     ev.push({ type: 'goodsSold', parts: q.parts, amount: q.amount, coins: q.coins });
@@ -985,7 +1148,7 @@ const handlers = {
       ev.push({ type: 'beansLate', amount: q.amount, seconds: SUPPLY.lateSeconds });
       return;
     }
-    s.inventory.beans += q.amount;
+    addBeans(s, 'robusta', q.amount);
     s.stats.bought = (s.stats.bought || 0) + q.amount;
     ev.push({ type: 'beansBought', amount: q.amount, cost: q.cost, free: q.free });
   },
@@ -1067,7 +1230,7 @@ const handlers = {
     if (!D.canBrew(unit, o.drink)) return fail('hard');
     const need = DRINKS[o.drink].beans;
     if (s.inventory.beans < need) return fail('beans', { need, have: s.inventory.beans });
-    s.inventory.beans -= need;
+    takeBeans(s, need);
     o.stage = 'brewing'; o.brewStart = ctx.now; o.brewMs = D.brewMs(s, o.drink); o.stars = unit ? D.unitStars(unit) : 3;
     if (unit) practice(unit, 'brew', ctx.now);
     ev.push({ type: 'brewStarted', orderId: o.id, drink: o.drink, ms: o.brewMs, stars: o.stars });
@@ -1227,17 +1390,24 @@ const handlers = {
   // ---------- production (Farm World 2.0, docs/farm-world-2.0/FARM-ECONOMY-BALANCE.md) ----------
   // Starts one batch: takes the inputs and the fuel fee now; the duration, outputs and XP are fixed at the start
   // (an upgrade later never changes a running batch). One batch per building; duplicates run in parallel.
-  'prod/start'(s, { uid: id } = {}, ev, ctx) {
+  'prod/start'(s, { uid: id, by = null } = {}, ev, ctx) {
     const b = D.region(s)?.buildings.find(v => v.uid === id);
     const err = D.prodError(s, b);
     if (err) {
       const miss = err === 'noInput' ? D.missingInput(s, b) : null;
       return fail(err, miss ? { need: miss.good, amount: miss.need, have: miss.have } : err === 'coins' ? { missing: D.recipeIO(b).fee - s.player.coins } : undefined);
     }
-    const io = D.recipeIO(b);
-    for (const [good, n] of Object.entries(io.in)) addGood(s, good, -n);
+    const io = D.recipeIOFor(s, b); // with the pulper's speed and fee
+    let premium = 0; // specialty batch: dearer varieties in it pay their premium on collect (RECIPES[].premium)
+    for (const [good, n] of Object.entries(io.in)) {
+      const took = addGood(s, good, -n, { skipRaw: true });
+      if (took && RECIPES[io.recipe]?.premium) for (const [c, k] of Object.entries(took)) premium += k * Math.max(0, D.beanPrice(c) - GOODS.beans.price) * RECIPES[io.recipe].premium;
+    }
     if (io.fee > 0) spend(s, io.fee);
     b.job = { recipe: io.recipe, at: ctx.now, ms: io.ms, out: io.out, xp: io.xp };
+    if (by != null) practice(D.unitOf(s, by), 'process', ctx.now);
+    premium *= by != null ? premiumMulOf(D.unitOf(s, by)) : 1; // a careful processor keeps more of the specialty value
+    if (premium > 0) b.job.premium = Math.round(premium * 100) / 100;
     s.stats.batches = (s.stats.batches || 0) + 1;
     ev.push({ type: 'prodStarted', uid: b.uid, building: b.type, recipe: io.recipe, in: io.in, fee: io.fee, ms: io.ms });
   },
@@ -1246,8 +1416,9 @@ const handlers = {
     const b = D.region(s)?.buildings.find(v => v.uid === id);
     const err = D.collectError(s, b, ctx.now);
     if (err) return fail(err, err === 'notDone' ? { remainingMs: b.job.at + b.job.ms - ctx.now } : err === 'storageFull' ? { capacity: D.capacity(s) } : undefined);
-    const { out, xp, recipe } = b.job;
+    const { out, xp, recipe, premium } = b.job;
     for (const [good, n] of Object.entries(out || {})) if (own(GOODS, good)) addGood(s, good, n);
+    if (premium > 0) { earn(s, premium, ev); ev.push({ type: 'specialtyBonus', uid: b.uid, coins: premium }); }
     delete b.job;
     s.stats.produced = (s.stats.produced || 0) + 1;
     grantXp(s, xp || 0, ev);
@@ -1255,17 +1426,22 @@ const handlers = {
   },
 
   // ---------- land ----------
+  // Estates (land-ui-simplify §2A): any lot id buys its whole estate (UI, manager and sim keep sending a lot id).
   'land/buyParcel'(s, { parcelId }, ev) {
     const err = D.parcelError(s, parcelId);
     if (err === 'owned') return { noop: true };
-    if (err) return fail(err, err === 'coins' ? { missing: PARCELS[parcelId].cost - s.player.coins } : { road: PARCELS[parcelId]?.road });
-    const before = new Set(D.openRoads(s));
-    spend(s, PARCELS[parcelId].cost);
-    D.region(s).parcels.push(parcelId);
-    const fields = addPreTilled(D.region(s), parcelId); // a field lot arrives ready-tilled with its 6 fields
+    const est = estateOfLot(parcelId), cost = D.parcelCost(parcelId);
+    if (err) return fail(err, err === 'coins' ? { missing: cost - s.player.coins } : err === 'level' ? { level: est?.level } : undefined);
+    const before = new Set(D.openRoads(s)), r = D.region(s);
+    spend(s, cost);
+    for (const id of est ? est.lots : [parcelId]) if (!r.parcels.includes(id)) r.parcels.push(id);
+    const seed = est?.seed || parcelId;
+    const before0 = (r.fields || []).length;
+    if (est) autoTill(s, ev); else addPreTilled(r, seed); // estate: free-field credits, placed anywhere by the player
+    const fields = (r.fields || []).length - before0;
     s.stats.parcels++;
     grantXp(s, XP.buyLand, ev);
-    ev.push({ type: 'parcelBought', parcelId, cost: PARCELS[parcelId].cost, fields });
+    ev.push({ type: 'parcelBought', parcelId: seed, estate: est?.id || null, cost, fields });
     const opened = D.openRoads(s).filter(id => !before.has(id));
     if (opened.length) ev.push({ type: 'roadsOpened', parcelId, roads: opened }); // the farm paths grow with the land
   },
@@ -1425,14 +1601,7 @@ const handlers = {
       if (u.energy <= 0) morale -= w / 60 * VITALS.moraleOverworkPerMin; // working while exhausted sours the mood
       if (u.trait === 'funny') morale += (w + r) / 60 * VITALS.funnyMoraleRegenPerMin;
       // Chaos after a poached GM: spirits sink (half as fast with a Manager-rank worker in the zone).
-      if (onShift && s.gm?.chaos) morale -= (w + r) / 60 * GM.chaos.moralePerMin * (D.chaosSlackMul(s, STAFF[u.type].zone) < GM.chaos.slackMul ? GM.chaos.managerHalves : 1);
-      // A lead / manager working in the zone keeps the others' spirits up (CAREER.lead).
-      if (onShift && D.zoneLeaders(s, STAFF[u.type].zone, ctx.now).some(x => x.uid !== u.uid)) morale += (w + r) / 60 * CAREER.lead.moraleRegenPerMin;
-      // Could be promoted but the player waits: after CAREER.waitMinutes of play the mood slowly sours.
-      if (D.canPromote(s, u, ctx.now)) {
-        u.eligibleAt ??= ctx.now;
-        if (ctx.now - u.eligibleAt > CAREER.waitMinutes * 60000) morale -= (w + r) / 60 * CAREER.waitMoralePerMin;
-      } else delete u.eligibleAt;
+      if (onShift && s.gm?.chaos) morale -= (w + r) / 60 * GM.chaos.moralePerMin;
       u.morale = r2(clampN(morale, 0, 100));
     } else {
       u.heat = r2(clampN((u.heat || 0) + w / 60 * heatPerMin(u) - r / 60 * ROBOT_WEAR.coolPerMin, 0, 100));
@@ -1473,7 +1642,7 @@ const handlers = {
         if (ok) unstop();
         u.morale = r2(clampN((u.morale ?? VITALS.start.morale) - CARE.nagMorale, 0, 100)); // nagging always stings
         break;
-      case 'bonusSmall': case 'recharge': case 'knock': case 'repair': unstop(); break;
+      case 'settle': case 'bonusSmall': case 'recharge': case 'knock': case 'repair': unstop(); break;
       case 'coffee': u.energy = r2(Math.min(energyMax(u), (u.energy ?? 0) + CARE.coffeeEnergy)); break;
       case 'food': u.fullness = 100; break;
       case 'lunch': u.breakUntil = ctx.now + CARE.lunchSeconds * 1000; u.fullness = 100; break;
@@ -1483,8 +1652,7 @@ const handlers = {
       case 'service': u.wear = 100; break;
     }
     const boss = by != null ? D.unitOf(s, by) : null;
-    if (boss && rankOf(boss) === 'manager') journal(s, ctx.now, 'managerCare', u, { kind, by: boss.name || null });
-    else if (boss && boss.uid === u.uid && STAFF[u.type].kind === 'robot') journal(s, ctx.now, 'autoCare', u, kind); // a software pack did it
+    if (boss && boss.uid === u.uid && STAFF[u.type].kind === 'robot') journal(s, ctx.now, 'autoCare', u, kind); // a software pack did it
     else journal(s, ctx.now, kind === 'nag' ? 'nagged' : 'cared', u, kind === 'nag' ? { ok } : kind);
     ev.push({ type: 'staffCared', uid: id, kind, cost, ok });
   },
@@ -1511,17 +1679,16 @@ const handlers = {
     const unit = D.unitOf(s, id);
     const err = D.statError(s, unit, stat);
     if (err) {
-      const c = unit && STAT_ORDER.includes(stat) ? statCost(statOf(unit, stat)) : null;
+      const c = unit && STAT_ORDER.includes(stat) ? statCostOf(unit, statOf(unit, stat)) : null;
       return fail(err, err === 'coins' ? { missing: c.coins - s.player.coins } : err === 'points' ? { need: c.points, have: unit.points || 0 } : undefined);
     }
-    const n = statOf(unit, stat), c = statCost(n);
+    const n = statOf(unit, stat), c = statCostOf(unit, n);
     spend(s, c.coins);
     unit.points -= c.points;
     unit.stats = { ...Object.fromEntries(STAT_ORDER.map(k => [k, statOf(unit, k)])), [stat]: n + 1 };
     delete unit.level;
     unitSpent(s, unit, c.coins, ctx.now, 'upgrade');
     journal(s, ctx.now, 'upgraded', unit, { stat, to: n + 1 });
-    if (rankOf(unit) === 'apprentice' && autoRank(unit) === 'staff') { unit.rank = 'staff'; journal(s, ctx.now, 'promoted', unit, { rank: 'staff' }); ev.push({ type: 'promoted', uid: id, rank: 'staff', name: unit.name || null }); }
     ev.push({ type: 'statUpgraded', uid: id, stat, to: n + 1, coins: c.coins, points: c.points, name: unit.name || null, staff: unit.type });
   },
   // Old single-level training, kept for older callers: raises `stat` (default: the lowest stat that can go up now).
@@ -1533,28 +1700,16 @@ const handlers = {
     const pick = stat ?? [...STAT_ORDER].sort((a, b) => statOf(unit, a) - statOf(unit, b)).find(k => !D.statError(s, unit, k));
     return handlers['staff/upgradeStat'](s, { uid: id, stat: pick }, ev, ctx);
   },
-  // Tending: pay TEND.fee, a farm worker (working, not on a break) then waters up to TEND.plots growing plots.
-  'staff/tend'(s, { uid: id }, ev, ctx) {
-    const unit = D.unitOf(s, id);
-    if (!unit || STAFF[unit.type]?.kind !== 'worker' || STAFF[unit.type].zone !== 'farm' || unit.stopped) return fail('unknown');
-    if ((unit.water || 0) > 0) return { noop: true };
-    if (s.player.coins < TEND.fee) return fail('coins', { missing: TEND.fee - s.player.coins });
-    spend(s, TEND.fee);
-    unitSpent(s, unit, TEND.fee, ctx.now);
-    unit.water = D.tendPlots(unit); // + the watering can
-    ev.push({ type: 'tendStarted', uid: id, fee: TEND.fee, plots: unit.water });
-  },
-  // One watered plot (by a tending worker): it ripens TEND.speedup × its grow time sooner; once per planting.
+  // One watered plot (by a waterer / RainBot): it ripens TEND.speedup × its grow time sooner; once per planting.
   'farm/water'(s, { plotId, uid: id }, ev, ctx) {
-    const unit = D.unitOf(s, id), r = D.region(s);
+    const unit = id != null ? D.unitOf(s, id) : null, r = D.region(s); // no uid = the player waters it by hand
     const pl = r && D.own(r.plots, plotId);
-    if (!unit || !(unit.water > 0) || !pl) return fail('unknown');
-    if (pl.watered || D.plotState(s, plotId, ctx.now).stage === 'ready') return { noop: true };
-    pl.plantedAt -= Math.round(D.plotGrowMs(s, pl) * TEND.speedup);
+    if (!pl || (id != null && !doesJob(unit, 'water'))) return fail('unknown');
+    if (pl.watered || D.dripCovers(s, plotId) || D.plotState(s, plotId, ctx.now).stage === 'ready') return { noop: true };
+    pl.plantedAt -= Math.round(D.plotGrowMs(s, pl) * waterSpeedupOf(unit));
     pl.watered = true;
-    unit.water--;
-    practice(unit, 'water', ctx.now);
-    ev.push({ type: 'watered', plotId, uid: id, left: unit.water });
+    if (unit) practice(unit, 'water', ctx.now);
+    ev.push({ type: 'watered', plotId, uid: id });
   },
   // A robot's one task: 'auto' or one of ROBOT_TASKS[type]. Free, any time. A worker given one task here = setTasks.
   'staff/setTask'(s, { uid: id, task }, ev, ctx) {
@@ -1616,6 +1771,26 @@ const handlers = {
     ev.push({ type: 'staffStopped', uid: id, kind, fee: unit.stopped.fee });
   },
   // Player taps the coin bubble: pay the fee, the unit works again (robot recharged / worker back to work).
+  // A funny incident (FUNNY): work stops until someone pays staff/care settle or fires the unit.
+  'staff/funny'(s, { uid: id, incident } = {}, ev, ctx) {
+    const unit = D.unitOf(s, id), level = unit ? funnyLevel(unit, incident) : null;
+    if (level == null) return fail('unknown');
+    if (unit.stopped) return { noop: true };
+    const fee = Math.max(1, Math.round(funnyFee(unit, level) * gmHaggleMul(D.gmOf(s))));
+    unit.stopped = { kind: 'funny', id: incident, level, at: ctx.now, fee };
+    journal(s, ctx.now, 'funny', unit, { id: incident, level });
+    ev.push({ type: 'staffStopped', uid: id, kind: 'funny', fee });
+  },
+  // Call a unit that wandered off straight back to work (the realm ends its walk).
+  'staff/recall'(s, { uid: id } = {}, ev, ctx) {
+    const unit = D.unitOf(s, id);
+    if (!unit) return fail('unknown');
+    const fee = goofFee(unit, D.gmOf(s));
+    if (s.player.coins < fee) return fail('coins', { missing: fee - s.player.coins });
+    spend(s, fee);
+    unitSpent(s, unit, fee, ctx.now);
+    ev.push({ type: 'staffRecalled', uid: id, fee });
+  },
   'staff/resume'(s, { uid: id }, ev, ctx) {
     const unit = s.staff.units.find(u => u.uid === id);
     if (!unit) return fail('unknown');
@@ -1699,38 +1874,6 @@ const handlers = {
     note(u, ctx.now, 'software', { pack, coins: price });
     ev.push({ type: 'softwareBought', uid: id, pack, coins: price });
   },
-  // Career (step 3): the player promotes a worker one rank (D.promoteError). Morale up; lead / manager start their
-  // allowance and team effects at once.
-  'staff/promote'(s, { uid: id }, ev, ctx) {
-    const u = D.unitOf(s, id);
-    const err = D.promoteError(s, u, ctx.now);
-    if (err) return fail(err, err === 'level' || err === 'days' ? { need: CAREER.need[D.nextRank(u)] } : err === 'taken' ? { name: D.rankHolder(s, STAFF[u.type].zone, D.nextRank(u))?.name || null } : undefined);
-    const rank = D.nextRank(u);
-    u.rank = rank;
-    delete u.eligibleAt;
-    u.morale = r2(Math.min(100, (u.morale ?? VITALS.start.morale) + CAREER.promoteMorale));
-    journal(s, ctx.now, 'promoted', u, { rank });
-    ev.push({ type: 'promoted', uid: id, rank, name: u.name || null });
-  },
-  // A lead / manager steps down one rank (frees the seat for someone else). It stings.
-  'staff/stepDown'(s, { uid: id }, ev, ctx) {
-    const u = D.unitOf(s, id);
-    if (!u || !CAREER.onePerZone.includes(rankOf(u))) return fail('unknown');
-    const rank = CAREER.ranks[CAREER.ranks.indexOf(rankOf(u)) - 1];
-    u.rank = rank;
-    u.morale = r2(Math.max(0, (u.morale ?? VITALS.start.morale) - CAREER.stepDownMorale));
-    journal(s, ctx.now, 'steppedDown', u, { rank });
-    ev.push({ type: 'steppedDown', uid: id, rank });
-  },
-  // A working lead / manager sends a phone slacker of its zone back to work (free), CAREER.lead.nudgeSeconds in.
-  'staff/nudge'(s, { uid: id }, ev, ctx) {
-    const u = D.unitOf(s, id);
-    if (!D.nudgeDue(s, u, ctx.now)) return { noop: true };
-    const boss = D.zoneLeaders(s, STAFF[u.type].zone, ctx.now).find(x => x.uid !== u.uid);
-    delete u.stopped;
-    journal(s, ctx.now, 'nudged', u, { by: boss?.name || null });
-    ev.push({ type: 'staffResumed', uid: id, kind: 'phone', fee: 0, by: boss?.uid || null });
-  },
   // MVP (§8, realm timer every BOOKS.mvpMinutes): the worker who earned the most since the last call; everyone cheers.
   'staff/mvp'(s, _p, ev, ctx) {
     let best = null, gain = 0;
@@ -1756,9 +1899,8 @@ const handlers = {
     if (D.workerPoach(s) || !((Number(roll) || 0) < RIVAL.chance) || D.tasksOpen(s).length >= TASKS.cap) return { noop: true };
     const pool = D.assignedUnits(s, s.world.currentRegion, zone).filter(u => STAFF[u.type].kind === 'worker');
     const best = list => [...list].sort((a, b) => unitLevel(b) - unitLevel(a) || uidNum(a) - uidNum(b))[0];
-    // Low morale first, then a worker the player keeps waiting for a promotion (CAREER.waitMinutes), then a rare one.
-    const waiting = u => Number.isFinite(u.eligibleAt) && ctx.now - u.eligibleAt > CAREER.waitMinutes * 60000;
-    const target = best(pool.filter(u => (u.morale ?? VITALS.start.morale) < RIVAL.targetMorale)) || best(pool.filter(waiting)) || best(pool.filter(u => u.perk));
+    // Low morale first, then a rare one.
+    const target = best(pool.filter(u => (u.morale ?? VITALS.start.morale) < RIVAL.targetMorale)) || best(pool.filter(u => u.perk));
     if (!target) return { noop: true };
     const rival = RIVAL.names[zone];
     if ((target.morale ?? VITALS.start.morale) >= RIVAL.refuseMorale) {
@@ -1802,7 +1944,7 @@ const handlers = {
     const cost = D.testCost(list, s);
     spend(s, cost);
     ledger(s, ctx.now, 'spent', cost, 'research', 'shop');
-    s.inventory.beans -= DRINKS[base].beans;
+    takeBeans(s, DRINKS[base].beans);
     s.research ||= { known: {}, tests: {}, busyUntil: 0 };
     s.research.busyUntil = ctx.now + RESEARCH.testSeconds * 1000;
     const v = D.judgeTest(s, cc, base, list);
@@ -1904,7 +2046,7 @@ const handlers = {
     spend(s, c.fee);
     ledger(s, ctx.now, 'spent', c.fee, 'hire', D.gmZone(s));
     // The shared Unit interface (management-rules §1.1): uid 'g1', kind 'manager', book / days / recent, backlog.
-    s.gm.unit = { uid: 'g1', kind: 'manager', name: c.name, gender: c.gender, skill: c.skill, style: c.style, loyalty: c.loyalty, raises: 0, hiredAt: ctx.now, paid: c.fee,
+    s.gm.unit = { uid: 'g1', kind: 'manager', name: c.name, gender: c.gender, skill: c.skill, stats: Object.fromEntries(GM.stats.map(k => [k, c.skill])), worked: 0, style: c.style, loyalty: c.loyalty, raises: 0, hiredAt: ctx.now, paid: c.fee,
       tenurePlayedMin: 0, backlog: 0, book: { jobs: 0, earned: 0, spent: 0, mistakes: 0, since: ctx.now }, days: [], recent: [] };
     Object.assign(s.gm, D.gmDefaultLimits(s)); // limits from the reference income I(L), snapped to the options
     s.gm.shareFrom = D.playedMinute(s);       // its profit share counts its own jobs from now on
@@ -1917,11 +2059,13 @@ const handlers = {
     s.gm.careWin = null;
     const calmed = !!s.gm.chaos;
     s.gm.chaos = null;
+    delete s.gm.reserve;
     gmLog(s, ctx.now, 'hired', { name: c.name, fee: c.fee });
     ev.push({ type: 'gmHired', name: c.name, fee: c.fee, calmed });
     if (s.gm.mode !== 'advisor') planDay(s, ev, ctx); // the first day plan comes with him (§3.4)
   },
   'gm/refreshBoard'(s, { roll = 0, paid = false }, ev, ctx) {
+    delete s.gm.reserve; // that board place is gone
     const due = D.gmBoardRefreshIn(s, ctx.now) <= 0;
     if (!due && !paid) return fail('tooSoon');
     if (!due) { if (s.player.coins < GM.board.refreshCost) return fail('coins', { missing: GM.board.refreshCost - s.player.coins }); spend(s, GM.board.refreshCost); }
@@ -1940,6 +2084,56 @@ const handlers = {
     if (!GM.budgets.includes(budget)) return fail('unknown');
     if (s.gm.budget === budget) return { noop: true };
     s.gm.budget = budget;
+  },
+  // Farm Manager V2 settings (docs/design/farm-manager-v2.md). Stopping him, or a kind of work, drops the orders nobody has started.
+  'gm/fmSet'(s, { key, value } = {}) {
+    const f = (s.gm.fm ||= newFmState()), C = FARM_MANAGER;
+    const ok = key === 'mode' ? !!C.modes[value] : key === 'minReserve' ? C.reservePicks.includes(value) : key === 'spendLimit' ? C.limitPicks.includes(value) : ['auto', 'build', 'land', 'hire', 'autoSell'].includes(key) && typeof value === 'boolean';
+    if (!ok) return fail('unknown');
+    if (f[key] === value) return { noop: true };
+    f[key] = value;
+    if (key === 'autoSell') f.sellChosen = true;
+    f.plan = null; // the objective is re-read at once
+    if (value === false && s.gm.orders?.length) s.gm.orders = s.gm.orders.filter(o => key !== 'auto' && (key !== 'build' || !o.act.type.startsWith('build/')) && (key !== 'land' || o.act.type !== 'land/buyParcel'));
+    if (key === 'mode' && C.modes[value].ask) s.gm.orders = [];
+  },
+  // The player fixes (tier 0..3) or frees (null) where a farm unit works. The manager never overrides a pin.
+  'gm/fmPin'(s, { uid: id, tier } = {}) {
+    const f = (s.gm.fm ||= newFmState());
+    if (!D.unitOf(s, id) || (tier !== null && !(Number.isInteger(tier) && tier >= 0 && tier <= 3))) return fail('unknown');
+    if ((f.pins[id] ?? null) === tier) return { noop: true };
+    if (tier === null) delete f.pins[id]; else f.pins[id] = tier;
+    if (s.gm.tiers) { if (tier === null) delete s.gm.tiers[id]; else s.gm.tiers[id] = tier; }
+  },
+  // His own hands (realm timer): a round of picking, sowing, cutting back and watering, like you tapping. `skip` = plots the crew is on.
+  'gm/hands'(s, { skip = [] } = {}, ev, ctx) {
+    const gm = D.gmOf(s), f = D.fmOf(s), g = s.gm;
+    if (!gm || !f.auto || D.gmZone(s) !== 'farm' || D.gmStrike(s)) return { noop: true };
+    const busy = new Set(skip), from = ev.length, plots = D.ownedPlots(s).filter(p => !busy.has(p.id));
+    let did = 0, at = null;
+    const was = ACTOR;
+    ACTOR = 'g1';
+    try {
+      for (const j of FM.handsJobs(s, ctx.now, plots, gmHandsPerRound(gm))) {
+        const res = handlers[j.act](s, j.payload, ev, ctx) || {};
+        if (res.ok === false || res.noop) continue;
+        did++; at ||= j.plotId;
+      }
+    } finally { ACTOR = was; }
+    for (let i = from; i < ev.length; i++) ev[i].byGm = true;
+    const cap = D.capacity(s);
+    let sold = false;
+    if (f.autoSell && cap > 0 && D.stored(s) / cap >= FARM_MANAGER.hands.sellAt) {
+      const q = D.sellAllQuote(s);
+      sold = gmRun(s, { key: 'handsSell', act: { type: 'farm/sellAll', payload: {} }, cost: 0, group: 'trade', zone: 'farm', reason: ['storageFull', { pct: Math.round(D.stored(s) / cap * 100), coins: Math.round(q.coins || 0) }] }, ctx, ev, { budget: false });
+    }
+    if (!did && !sold) return { noop: true };
+    if (did) {
+      g.lastJobAt = ctx.now;
+      const b = (g.unit.book ||= { jobs: 0, earned: 0, spent: 0, mistakes: 0, since: ctx.now });
+      b.jobs += did;
+      ev.push({ type: 'gmHands', plotId: at, n: did });
+    }
   },
   'gm/setBigLimit'(s, { limit }, ev) {
     if (!GM.bigLimits.includes(limit)) return fail('unknown');
@@ -1960,30 +2154,62 @@ const handlers = {
     if (!g.unit || D.gmStrike(s) || g.mode === 'advisor') return changed ? undefined : { noop: true };
     changed = sampleUtil(s) || changed;
     changed = sampleLoad(s, ctx.now) || changed;
+    g.fm ||= newFmState();
+    if (!g.fm.auto && D.gmZone(s) === 'farm') { if (g.orders?.length) { g.orders = []; changed = true; } return changed ? undefined : { noop: true }; } // auto-management off: he only watches
     if (!g.plan || D.playedMs(s) - g.plan.atPlayed >= GM.plan.everyMin * 60000) { planDay(s, ev, ctx); changed = true; }
     const turn = Math.floor(D.playedMs(s) / 1000 / D.gmThinkSeconds(g.unit)); // played-time turn number (half cadence off screen)
     const { list, hits } = D.gmCandidates(s, ctx.now, { offscreen: turn % GM.plan.offscreenEvery === 0 });
     const ticks = Object.fromEntries(Object.entries(hits).filter(([, v]) => v).map(([key]) => [key, (g.ticks?.[key] || 0) + 1]));
     if (JSON.stringify(ticks) !== JSON.stringify(g.ticks || {})) { g.ticks = ticks; changed = true; }
     const waiting = D.gmWaiting(s), M = TASKS.maxFiledPerThink, slow = (g.unit.backlog || 0) >= PENALTY.backlog.waitAt;
-    const max = waiting || slow ? 1 : GM.actionsPerThink[Math.max(0, Math.min(4, g.unit.skill - 1))];
+    const max = waiting || slow ? 1 : gmActionsOf(g.unit);
+    const rich = Math.min(5, Math.floor(D.gmSpendable(s) / 2000)); // money waiting to be invested: more growth moves per round
+    if (g.orders?.length) { const open = g.orders.filter(o => D.crewFor(s, o.job)); if (open.length !== g.orders.length) { g.orders = open; changed = true; } } // nobody left for it: he decides again
+    const isSale = t => /^farm\/sell/.test(t.act?.type || ''); // one bean sale waits for your signature at a time
+    for (const t of D.gmRequests(s).filter(isSale).slice(g.fm.autoSell ? 0 : 1)) { closeTask(s, t, 'cancelled'); changed = true; }
+    const tiers = D.planTiers(s); // each unit's tier, split evenly (the player's pins stay)
+    if (JSON.stringify(tiers) !== JSON.stringify(g.tiers || {})) { g.tiers = tiers; changed = true; }
+    const fmx = FM.thinkContext(s, ctx.now, list); // Farm Manager V2: budget, ranking, modes
+    if (D.gmZone(s) === 'farm') changed = FM.refreshPlan(s, ctx.now, fmx) || changed;
     const careOps = c => c.group === 'care' || c.group === 'ops';
+    const incident = c => careOps(c) || c.rule === 'funnyFireW' || c.rule === 'funnyFireR'; // trouble comes first and never waits for a free slot
+    const free = c => incident(c) || c.rule === 'fieldBuy'; // opening a field costs no attention: he does as many as the round found
     const wished = new Set();
     let done = 0, filed = 0, k = 0;
     for (const c of list) {
       if (c.group === 'advice') continue;
+      if (g.fm.autoSell && isSale(c)) continue; // you let him sell: gm/hands does it, nothing to sign
       if (!D.gmLicensed(s, c.licence)) { wished.add(c.licence); continue; } // self-upgrade: counted below
-      if (done >= max && (filed >= M || waiting)) continue;
+      if (done >= max + rich && (filed >= M || waiting) && !free(c)) continue;
       // already asked (his own request) or cooling down; a rival's offer (system task) he may still settle himself
       // below the big-job limit, but never files a second task for it (noFile)
       if (D.taskCooling(s, c.key) || D.gmRequests(s).some(t => t.key === c.key)) continue;
-      const perm = D.gmPermission(s, c, ctx.now);
+      let perm = D.gmPermission(s, c, ctx.now);
+      if (c.zone === 'farm' && c.group === 'capital' && c.cost > 0 && perm === 'suggest') { changed = FM.note(s, ctx.now, c, 'cash', fmx) || changed; continue; }
+      const blocked = FM.gate(s, c, fmx, perm);
+      if (blocked === 'sellAsk') perm = 'file'; // land is sold only with your signature
+      else if (blocked) { changed = FM.note(s, ctx.now, c, blocked, fmx) || changed; continue; }
+      else if (fmx.ask && c.group === 'capital' && c.cost > 0 && perm === 'do') perm = 'file'; // Manual Approval
       const r = ((Number(roll) || 0) + 0.6180339887 * k++) % 1; // one independent-looking roll per job of this think
       if (perm === 'do') {
-        if (done >= max || (waiting && !careOps(c))) continue;
+        if ((done >= max + rich && !free(c)) || (waiting && !careOps(c))) continue;
+        // Growth is paid out of what the farm earns, except what the farm cannot run without; land has its own payback test.
+        if (c.group === 'capital' && c.cost > 0 && !c.essential && c.rule !== 'landBuy' && c.cost > D.gmBudgetLeft(s, ctx.now)) continue;
+        // A specialist on the crew carries it out on foot; with nobody for it he does it himself.
+        const job = c.rule === 'fieldBuy' ? null : D.orderJob(c.act); // fields he opens himself, at once, like you tapping
+        if (job && D.crewFor(s, job)) {
+          if (!(g.orders ||= []).some(o => o.key === c.key)) { g.orders.push({ id: uid(s, 'o'), key: c.key, job, act: c.act, cost: c.cost, reason: c.reason }); done++; changed = true; FM.reserveBudget(fmx, c); FM.note(s, ctx.now, c, 'queued', fmx, 'queued'); }
+          continue;
+        }
         const wallet = careOps(c) && c.cost <= D.gmCareWalletLeft(s) ? 'care' : true;
-        if (gmRun(s, c, ctx, ev, { roll: r, budget: wallet })) { done++; changed = true; cool(s, c.key, 'done'); }
+        if (gmRun(s, c, ctx, ev, { roll: r, budget: wallet })) { if (c.rule !== 'fieldBuy') done++; changed = true; cool(s, c.key, 'done'); FM.reserveBudget(fmx, c); if (c.group === 'capital' && c.cost > 0) FM.note(s, ctx.now, c, 'done', fmx, 'done'); if (c.rule === 'replaceWeak') cool(s, 'replace', null, GM.growth.replaceEveryMin); }
+        else if (c.group === 'capital' && c.cost > 0) changed = FM.note(s, ctx.now, c, 'failed', fmx, 'failed') || changed;
+      } else if (perm === 'loan') { // the coins are short and a loan pays it back: he borrows by himself
+        const need = D.gmLoanFor(s, c);
+        if (!need || done >= max || D.taskCooling(s, 'loan')) continue;
+        if (gmRun(s, { ...c, key: `loan:${c.key}`, act: { type: 'loan/take', payload: { amount: need.amount } }, cost: 0 }, ctx, ev, { roll: r })) { done++; changed = true; cool(s, 'loan', null, GM.loanRule.everyMin); }
       } else if (perm === 'file' || perm === 'loan') {
+        if (isSale(c) && D.gmRequests(s).some(isSale)) continue;
         if (c.noFile || waiting || filed >= M || done + filed >= max + M || D.taskPending(s, c.key)) continue;
         const loan = perm === 'loan' ? D.gmLoanFor(s, c) : null;
         if (perm === 'loan' && (!loan || D.taskCooling(s, 'loan') || D.tasksOpen(s).some(t => t.kind === 'loan'))) continue;
@@ -2138,16 +2364,6 @@ const handlers = {
     const pay = r2(gmSalary(gm, s.gm.mode) * mins / GM.payMinutes + Math.max(0, profit) * (GM.modes[s.gm.mode]?.share || 0));
     s.gm.payAt = ctx.now;
     if (pay <= 0) return;
-    // Mood (GM.mood): idle (you did everything) and absent (nobody touched the game) both drain loyalty.
-    const mood = D.gmMood(s, ctx.now), M = GM.mood;
-    const idleDrain = mood.idle ? M.idlePerMin * Math.min(mins, mood.idleMin - M.idleGraceMin) : 0;
-    const absentDrain = mood.absent ? M.absentPerMin * Math.min(mins, mood.absentMin - M.absentGraceMin) : 0;
-    const drain = Math.max(idleDrain, absentDrain); // never both
-    if (drain > 0) {
-      gm.loyalty = r2(Math.max(0, gm.loyalty - drain));
-      const why = mood.absent ? 'absent' : 'idle';
-      if (s.gm.moodNote !== why) { s.gm.moodNote = why; gmLog(s, ctx.now, why, { min: Math.round(why === 'absent' ? mood.absentMin : mood.idleMin) }); ev.push({ type: 'gmMood', why, name: gm.name }); }
-    } else delete s.gm.moodNote;
     const day = gmDay(s, ctx.now);
     // Partial pay (management-rules §2.6): pay what the coins allow, the rest becomes wage arrears (s.debt.wages.gm),
     // paid first out of the next income. Loyalty −unpaidPerMin per minute left unpaid; arrears of
@@ -2172,14 +2388,38 @@ const handlers = {
     }
   },
   // A rival tries to lure the GM (realm timer GM.poach.everyMinutes): loyal ones (≥ GM.loyalty.refuse) say no.
-  'gm/rivalVisit'(s, { roll = 1 }, ev, ctx) {
+  // A crew member reached the spot of one of the manager's orders: it happens now, on his account.
+  'gm/execute'(s, { id, uid: by } = {}, ev, ctx) {
+    const g = s.gm, o = g?.orders?.find(x => x.id === id), unit = D.unitOf(s, by);
+    if (!o || !doesJob(unit, o.job) || !g.unit) return fail('unknown');
+    g.orders = g.orders.filter(x => x !== o);
+    if (!FM.orderAllowed(s, o)) { FM.note(s, ctx.now, { key: o.key, act: o.act, cost: o.cost, reason: o.reason }, 'orderOff', null, 'cancelled'); return; } // settings changed while it walked over
+    if (!gmRun(s, { key: o.key, act: o.act, cost: o.cost, reason: o.reason, group: 'capital' }, ctx, ev, {})) { cool(s, o.key, 'failed'); return { noop: true }; }
+    practice(unit, o.job, ctx.now);
+  },
+  // A rival tries to lure him. The smarter he has become, the more they want him.
+  'gm/rivalVisit'(s, { roll = 1 } = {}, ev) {
     const gm = D.gmOf(s);
-    const chance = Math.min(0.9, GM.poach.chance * (D.gmMood(s, ctx.now)?.absent ? GM.mood.absentPoachMul : 1)); // the boss is away: easier to lure
-    // backlog ≥ PENALTY.backlog.poachAt (ignored too long): the rival always gets to talk to him, loyal or not.
-    const easy = D.gmPoachable(s);
-    if (!gm || D.gmPoachOf(s) || (!easy && !((Number(roll) || 0) < chance))) return { noop: true };
-    if (!easy && gm.loyalty >= GM.loyalty.refuse) { gmLog(s, ctx.now, 'refused', { rival: GM.poach.rival }); ev.push({ type: 'gmRefused', name: gm.name, rival: GM.poach.rival }); return; }
+    if (!gm || D.gmPoachOf(s) || (Number(roll) || 0) >= Math.min(0.9, GM.poach.chance * gmStatOf(gm, 'smart') / 3)) return { noop: true };
     if (!gmPoachStart(s, gm, ev)) return { noop: true };
+  },
+  // The replacement to start if he goes (a place on the board; paid when he starts). Same pick again clears it.
+  'gm/pickReserve'(s, { index } = {}, ev) {
+    if (!D.gmBoard(s)[index]) return fail('unknown');
+    if (s.gm.reserve === index) delete s.gm.reserve; else s.gm.reserve = index;
+    ev.push({ type: 'gmReserve', index: s.gm.reserve ?? null });
+  },
+  // His four numbers: coins, one step at a time.
+  'gm/upgradeStat'(s, { stat } = {}, ev) {
+    const gm = D.gmOf(s);
+    if (!gm || !GM.stats.includes(stat)) return fail('unknown');
+    const n = gmStatOf(gm, stat);
+    if (n >= GM.maxStat) return { noop: true };
+    const cost = GM.statCost * n;
+    if (s.player.coins < cost) return fail('coins', { missing: cost - s.player.coins });
+    spend(s, cost);
+    gm.stats = { ...Object.fromEntries(GM.stats.map(k => [k, gmStatOf(gm, k)])), [stat]: n + 1 };
+    ev.push({ type: 'gmUpgraded', stat, to: n + 1 });
   },
   // Keep the GM: a one-off bonus (loyalty +GM.keepLoyalty) or a lasting raise (+GM.raiseStep salary, loyalty
   // +GM.raiseLoyalty). Aliases over the inbox's gmPoach task.
@@ -2271,6 +2511,7 @@ const handlers = {
   // A loan past its term (management-rules §4.5; the realm sends it every CLOCK.loanTickSeconds of play): owed ×
   // (1 + LOAN.lateFee) once and no new loan until every late loan is paid ("không thể vay").
   'loan/tick'(s, _p, ev) {
+    return { noop: true }; // founder 2026-11-08: loans have no term — nothing goes overdue, no late fee
     let n = 0;
     for (const ln of D.loansOf(s)) {
       if (ln.late || D.playedMs(s) < ln.takenAtPlayed + ln.termMin * 60000) continue;
@@ -2292,6 +2533,8 @@ const handlers = {
     if (s.story.phase !== 'play' || !s.world.currentRegion) return { noop: true };
     const d = clampN(Math.floor(Number(ms) || 0), 0, CLOCK.maxTickMs);
     if (!d) return { noop: true };
+    // The last hauler left: nobody will come for the piles, so they go in by themselves.
+    if (!D.haulActive(s)) for (const pl of Object.values(D.region(s)?.plots || {})) if (pl.pile) { for (const [c, n] of Object.entries(pl.pile)) addBeans(s, c, n); delete pl.pile; }
     const now = ctx?.now ?? NOW;
     // the first tick after the game was not running (tab hidden / closed / paused) for TASKS.returnAwayMin or more:
     // the return grace before this tick can run anything out (with or without a manager, §4.1 / §8 Q10)
@@ -2336,12 +2579,13 @@ const handlers = {
     // Founder rule: the incident is a FULL restart. Nothing is kept except who you are (character, story, rebirth
     // credits/blessings, auto runs, tutorial done). The new region starts with exactly 1 empty field and an empty café.
     // A full copy of the save is written to `<key>-pre-expiry` by the store just before this runs.
-    ex.snapshot = { coins: s.player.coins, xp: s.player.xp, round: s.player.round, beans: s.inventory.beans, items: { ...s.inventory.items },
+    ex.snapshot = { coins: s.player.coins, xp: s.player.xp, round: s.player.round, beans: s.inventory.beans, beanMix: { ...s.inventory.beanMix }, items: { ...s.inventory.items },
       regions: Object.keys(s.world.regions), units: s.staff.units.length };
     s.player.coins = startCoins();
     s.player.xp = 0;
     s.player.round = 1;
     s.inventory.beans = 0;
+    s.inventory.beanMix = {};
     s.inventory.items = Object.fromEntries(ITEM_GOODS.map(g => [g, 0])); // processed goods go too (full restart)
     // The one who follows you keeps who it is (stats, rank, gear, craft) and starts unassigned, wage-paid (FOLLOW).
     const keep = follower != null ? s.staff.units.find(u => u.uid === follower) : null;
@@ -2409,30 +2653,6 @@ const handlers = {
     ev.push({ type: 'creditsAdded', amount: n, source });
   },
 
-  // ---------- auto play ----------
-  'auto/start'(s, _p, ev, ctx) {
-    if (s.autoplay.active && ctx.now < s.autoplay.active.endsAt) return { noop: true };
-    if (s.autoplay.runs <= 0) return fail('noRuns');
-    if (s.story.phase !== 'play' || !s.world.currentRegion) return fail('notPlaying');
-    s.autoplay.runs--;
-    s.autoplay.active = { startedAt: ctx.now, endsAt: ctx.now + AUTO.runSeconds * 1000 };
-    ev.push({ type: 'autoStarted', runs: s.autoplay.runs, endsAt: s.autoplay.active.endsAt });
-  },
-  // Buy one more auto run with coins (in-game currency only).
-  'auto/buy'(s, _p, ev) {
-    const price = autoPrice(s.autoplay.bought || 0);
-    if (s.player.coins < price) return fail('coins', { missing: price - s.player.coins });
-    spend(s, price);
-    s.autoplay.runs++;
-    s.autoplay.bought = (s.autoplay.bought || 0) + 1;
-    ev.push({ type: 'autoBought', price, runs: s.autoplay.runs });
-  },
-  'auto/stop'(s, { reason = 'user' } = {}, ev) {
-    if (!s.autoplay.active) return { noop: true };
-    s.autoplay.active = null;
-    ev.push({ type: 'autoStopped', reason });
-  },
-
   // ---------- tutorial ----------
   // done + track ('farm' | 'cafe'): skip that game's tutorial; done alone: skip both.
   'tutorial/set'(s, { step, done, track }) {
@@ -2470,7 +2690,7 @@ const handlers = {
     const fin = v => (Number.isFinite(Number(v)) ? Number(v) : 0);
     coins = fin(coins); xp = fin(xp);
     if (coins > 0) earn(s, coins, ev);
-    if (beans) s.inventory.beans += beans | 0;
+    if (beans) addBeans(s, 'robusta', beans | 0);
     if (xp > 0) grantXp(s, xp / D.xpMultiplier(s), ev);
   },
   // QA URL params (?profile=test&coins=…&beans=…&level=…): set exact values (test profile only).
@@ -2481,7 +2701,7 @@ const handlers = {
     if (n(beans) != null) s.inventory.beans = Math.max(0, Math.min(1e9, Math.floor(n(beans))));
     if (n(level) != null) {
       // Below the Level-10 incident unless it already happened (setting XP never triggers it here).
-      const cap = s.story.level10Done ? MAX_LEVEL : EXPIRY_LEVEL - 1;
+      const cap = s.story.level10Done || !EXPIRY_ENABLED ? MAX_LEVEL : EXPIRY_LEVEL - 1;
       s.player.xp = xpForLevel(Math.max(1, Math.min(cap, Math.floor(n(level)))));
     }
   },

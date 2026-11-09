@@ -12,14 +12,23 @@
 // Each area gets its own instanced decor. Rebuilt only on store changes (sync), never per frame except the gate glow.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { BOUNDS, CAFE_BOUNDS, ROADS, ROAD_ORDER, PARCELS, GATE, RESERVED, rectCenter, inRect, areaOfParcel, rectsTouch, lotAllows, terrainOfLot } from '../../core/config/layout.js';
+import { BOUNDS, CAFE_BOUNDS, ROADS, ROAD_ORDER, PARCELS, GATE, RESERVED, rectCenter, inRect, areaOfParcel, rectsTouch, lotAllows, terrainOfLot, climateOfLot, estateOfLot, farmGroundY, TIER_EDGES, TIER_CUTS, tierEdgeZ, WALL_T, RAMP, SPINE_HALF } from '../../core/config/layout.js';
 import { COUNTRIES, parseRegionId } from '../../core/config/world.js';
 import { region as regionOf, openRoads, frontierParcels, useOf, footprint } from '../../core/derive.js';
 import { t, formatNumber } from '../../i18n/index.js';
 import { makeLabel, mulberry32, normalizeModel, paint, valueNoise, tone } from './util.js';
 import { buildCity } from './city.js';
+import { createBackdrop } from './backdrop.js';
+import { createScenery } from './scenery.js';
+import { createMapFence } from './map-fence.js';
+import { createMountainDressing } from './mountain-dressing.js';
+import { gardenStyleOf } from '../../core/config/economy.js';
+import { loadPlant, createPlant, createPlantInstances } from '../../shared/three/gedeo-vegetation.js';
+import { farmTex, farmMaterial, blendSoil } from '../../shared/three/farm-textures.js';
+import { getQuality } from '../../shared/vfx/index.js';
 
-const ROAD_COLOR = 0xe6a462; // warm orange-tan dirt
+const ROAD_COLOR = 0xe6a462;
+const WHITE = new THREE.Color(1, 1, 1); // warm orange-tan dirt
 const ROAD_FADE_OUT = .35, ROAD_FADE_IN = .45; // soft road shoulders (m outside / inside the rect)
 const PLAZA_R = GATE.radius + 1.4;
 const SHOP_RECT = PARCELS.S.rect;
@@ -113,42 +122,111 @@ function stoneTexture() {
   tex.repeat.set(.5, .5);
   return tex;
 }
-// Flat ground-plane rectangle; UVs in world units / uvScale so shared repeat textures line up.
-function rectGeometry(rect, y, uvScale = 2) {
-  const w = rect[2] - rect[0], d = rect[3] - rect[1];
-  const geo = new THREE.PlaneGeometry(w, d);
-  geo.rotateX(-Math.PI / 2);
-  geo.translate((rect[0] + rect[2]) / 2, y, (rect[1] + rect[3]) / 2);
-  const uv = geo.attributes.uv;
-  for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * w / uvScale, uv.getY(i) * d / uvScale);
+// ---- mountain tiers (layout farmGroundY): every ground-hugging sheet is a grid draped on the terrain ----
+// Grid lines from a to b about `step` apart, plus the lines where the tier walls / spine ramps bend the ground (so a wall
+// is a crisp 0.5 m face, not a 2.5 m smear).
+const TIER_Z = TIER_EDGES.flatMap(e => [e.z, e.zE].filter(v => v != null).flatMap(z => [z + .32, z + .3, z + .05, z - .2, z - 2.1, z - 4.2, z - RAMP * .5, z - RAMP]));
+const TIER_X = [-.01, .01, ...TIER_CUTS.flatMap(c => [c.x - c.half - .5, c.x - c.half, c.x + c.half, c.x + c.half + .5])];
+function gridLines(a, b, step, specials = []) {
+  const n = Math.max(1, Math.round((b - a) / step)), out = [];
+  for (let i = 0; i <= n; i++) out.push(a + (b - a) * i / n);
+  for (const v of specials) if (v > a + .05 && v < b - .05) out.push(v);
+  return [...new Set(out.map(v => Math.round(v * 1000) / 1000))].sort((p, q) => p - q);
+}
+/** Draped grid over rect: positions on the terrain + y, normals from the surface, UVs in world units / uvScale. */
+function drapedGrid(rect, y, uvScale = 2, step = 2.5) {
+  const xs = gridLines(rect[0], rect[2], step, TIER_X), zs = gridLines(rect[1], rect[3], step, TIER_Z);
+  const nx = xs.length, pos = new Float32Array(nx * zs.length * 3), uv = new Float32Array(nx * zs.length * 2), idx = [];
+  zs.forEach((z, j) => xs.forEach((x, i) => { const k = j * nx + i, h = farmGroundY(x, z); pos.set([x, h + y, z], k * 3); uv.set([(x - rect[0]) / uvScale, (rect[3] - z + h) / uvScale], k * 2); })); // v climbs with height: no stretch up the tier faces
+  for (let j = 0; j < zs.length - 1; j++) for (let i = 0; i < nx - 1; i++) { const a = j * nx + i, b2 = a + 1, c = a + nx, d = c + 1; idx.push(a, c, b2, b2, c, d); }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
   return geo;
 }
+// Ground-plane rectangle (lot overlays): draped on the tiers; UVs in world units / uvScale so shared repeat textures line up.
+function rectGeometry(rect, y, uvScale = 2) {
+  return drapedGrid(rect, y, uvScale, 2.5);
+}
 // Ground with large-scale brightness (lush / sunlit patches) and warm/cool hue variation baked in vertex colors.
+// Worn red earth beside the tracks (real farm ground): 1 on the track edge, fading to grass ~1.4 m out (0.9 m for the
+// footpaths, which are drawn 1.6 m wide). Rects match the drawn road widths (roadMeshGeometry).
+// The side roads stop a little short of the map edge (founder 2026-11-08): east / west ends pulled back by SIDE_BACK m.
+const SIDE_BACK = 3, SPINE_GAP = 2.4;
+const NO_DRAW = new Set(['mainEW', 'mainEW_W', 'mainEW_E', 'gateRoad']); // the wide east-west road across the middle is not drawn (founder 2026-11-08)
+const isMainRoad = id => /^(spine\d|gateRoad|mainEW)/.test(id);
+// The rect a road is really DRAWN with: footpath lanes are 1.6 m wide, east / west ends stop short of the map edge, and a
+// footpath stops SPINE_GAP m before the spine (it comes near, never touches or crosses it — founder 2026-11-08).
+function drawnRect(id) {
+  const q = ROADS[id].rect, alongX = q[2] - q[0] >= q[3] - q[1], main = isMainRoad(id);
+  const o = main ? [...q] : alongX ? [q[0], (q[1] + q[3]) / 2 - .8, q[2], (q[1] + q[3]) / 2 + .8] : [(q[0] + q[2]) / 2 - .8, q[1], (q[0] + q[2]) / 2 + .8, q[3]];
+  if (alongX) {
+    if (o[0] <= -27.9) o[0] += SIDE_BACK;
+    if (o[2] >= 27.9) o[2] -= SIDE_BACK;
+    if (!main) { if (Math.abs(o[2] + 1.5) < .1) o[2] -= SPINE_GAP; if (Math.abs(o[0] - 1.5) < .1) o[0] += SPINE_GAP; }
+  }
+  return o;
+}
+const VERGE_RECTS = Object.keys(ROADS).filter(id => !NO_DRAW.has(id)).map(id => ({ r: drawnRect(id), w: 1.0 }));
+function vergeSoil(x, z) {
+  let best = 0;
+  for (const { r, w } of VERGE_RECTS) {
+    const dx = Math.max(r[0] - x, 0, x - r[2]), dz = Math.max(r[1] - z, 0, z - r[3]), d = Math.hypot(dx, dz);
+    if (d < w) best = Math.max(best, 1 - d / w);
+  }
+  return best * .8;
+}
 function groundGeometry(rect, bounds = BOUNDS) {
-  const w = rect[2] - rect[0], d = rect[3] - rect[1];
-  const geo = new THREE.PlaneGeometry(w, d, Math.round(w / 2.5), Math.round(d / 2.5));
-  geo.rotateX(-Math.PI / 2);
-  geo.translate((rect[0] + rect[2]) / 2, 0, (rect[1] + rect[3]) / 2);
+  const geo = drapedGrid(rect, 0, 4, 1.25); // 1.25 m grid: the tiers, walls, ramps and the worn track verges (layout farmGroundY)
   const pos = geo.attributes.position, uv = geo.attributes.uv;
-  const colors = new Float32Array(pos.count * 3);
+  const colors = new Float32Array(pos.count * 3), soilW = new Float32Array(pos.count);
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), z = pos.getZ(i);
-    uv.setXY(i, x / 6, -z / 6);
+    uv.setXY(i, x / 4, -z / 4);
     const n = valueNoise(x / 15, z / 15, 1) * .65 + valueNoise(x / 6, z / 6, 2) * .35;
     const warm = (valueNoise(x / 11 + 40, z / 11, 3) - .5) * 2;
     // Slightly deeper green outside the playable area (forest floor) so the map reads as a clearing.
     const out = Math.max(bounds.minX - x, x - bounds.maxX, bounds.minZ - z, z - bounds.maxZ, 0);
     const b = (.9 + n * .2) * (1 - Math.min(.14, out * .012));
-    colors[i * 3] = b * (1 + .07 * warm);
-    colors[i * 3 + 1] = b * (1 + .02 * warm);
-    colors[i * 3 + 2] = b * (1 - .14 * warm);
+    // Coffee country by altitude (coffee-varieties.md §3): the farm climbs north — lowland stays sunny green, the upland
+    // shows red basalt soil through the grass (đất đỏ bazan), the highland is a deep cool green. Smooth bands in z.
+    const band = (z0, z1) => Math.max(0, Math.min(1, (z0 - z) / (z0 - z1)));
+    const up = band(1, -9) * (1 - band(-27, -37)), high = band(-27, -37);
+    // upland: patches where the grass is thin and the red basalt shows (noise-shaped, strongest mid-band)
+    const patch = Math.max(0, Math.min(1, (valueNoise(x / 4.5 + 9, z / 4.5, 5) - .38) * 3.2));
+    const soil = up * (.35 + .65 * patch);
+    // Realistic pass: textures carry the colour; vertex colours only shade (sunlit / lush patches, cooler highland),
+    // and `soil` blends the red-earth texture in (upland patches, worn ground outside the farm, a little everywhere).
+    const worn = Math.max(0, Math.min(1, (valueNoise(x / 7 + 3, z / 7, 7) - .62) * 2.5));
+    soilW[i] = Math.min(1, Math.max(Math.min(.3, out * .015), vergeSoil(x, z))) + 0 * (soil + worn); // red earth: worn verges along the tracks (fields add their own ring, plots.js)
+    colors[i * 3] = b * (1 + .04 * warm) * (1 - .05 * high);
+    colors[i * 3 + 1] = b * (1 + .01 * warm);
+    colors[i * 3 + 2] = b * (1 - .06 * warm) * (1 - .02 * high);
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geo.setAttribute('soil', new THREE.BufferAttribute(soilW, 1));
   return geo;
 }
 // Road rectangle with soft shoulders: alpha (RGBA vertex color) fades to 0 outside the long sides and at map-edge
 // ends; inner ends (junctions) stay hard so crossings are seamless. UVs in world meters so all roads share the dirt.
 // ends: optional { lo, hi } — fade the road's start / end along its length (dead ends); default: fade at map edges.
+// Dead ends of a track break up into grains of dirt and grass instead of fading in a smooth gradient: the vertex
+// attribute `endf` (0 at the end … 1 inside) is compared with a cheap hash noise in the fragment shader.
+function speckleEnds(material) {
+  material.onBeforeCompile = shader => {
+    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nattribute float endf;\nvarying float vEndF;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvEndF = endf;');
+    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vEndF;\nfloat h21(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }\nfloat vnz(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), f.x), mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), f.x), f.y); }')
+      .replace('#include <color_fragment>', `#include <color_fragment>
+      {
+        vec2 g = gl_FragCoord.xy * 0.0; // (unused: the grain is in world space through the map uv)
+        float n = vnz(vMapUv * 13.0) * 0.6 + vnz(vMapUv * 29.0 + 7.3) * 0.4; // smooth blobby grains, no square pixels
+        diffuseColor.a *= smoothstep(0.0, 0.3, vEndF * 1.2 - n * (1.0 - vEndF) * 0.95);
+      }`);
+  };
+  return material;
+}
 function roadGeometry(rect, y, bounds = BOUNDS, fadeEnds = false, ends = null) {
   const alongX = rect[2] - rect[0] >= rect[3] - rect[1];
   const atEdgeX = v => fadeEnds || v <= bounds.minX + .01 || v >= bounds.maxX - .01;
@@ -162,21 +240,39 @@ function roadGeometry(rect, y, bounds = BOUNDS, fadeEnds = false, ends = null) {
     [b - (fb ? ROAD_FADE_IN : 0), 1],
     [b + (fb ? ROAD_FADE_OUT : 0), fb ? 0 : 1],
   ];
-  const xs = lines(rect[0], rect[2], fade.x0, fade.x1), zs = lines(rect[1], rect[3], fade.z0, fade.z1);
-  const pos = [], col = [], uv = [], idx = [];
-  for (const [z, az] of zs) for (const [x, ax] of xs) { pos.push(x, y, z); uv.push(x / 2, -z / 2); col.push(1, 1, 1, Math.min(ax, az)); }
-  for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) {
-    const a = j * 4 + i, b = a + 1, c = a + 4, d = c + 1;
+  // the long axis gets a line every ~1 m (+ the wall / ramp lines) so the road follows the spine ramps up the tiers
+  const fill = (ls, specials) => { const out = [ls[0], ls[1]]; for (const v of gridLines(ls[1][0], ls[2][0], 1, specials).slice(1, -1)) out.push([v, 1]); out.push(ls[2], ls[3]); return out; };
+  let xs = lines(rect[0], rect[2], fade.x0, fade.x1), zs = lines(rect[1], rect[3], fade.z0, fade.z1);
+  if (alongX) xs = fill(xs, TIER_X); else zs = fill(zs, TIER_Z);
+  const nx = xs.length, pos = [], col = [], uv = [], idx = [], endf = [];
+  const END_L = 3.2; // metres over which a dead end dissolves into the grass
+  // natural track edges (founder 2026-11-08: "đường đi giống đời thật"): the edge lines wander ±0.45 m along the road
+  // (independent per side, so the width breathes too); the long axis stays straight for navigation.
+  const cross = alongX ? zs.length : xs.length;
+  zs.forEach(([z, az], j) => xs.forEach(([x, ax], i) => {
+    const ci = alongX ? j : i, t = alongX ? x : z;
+    const edge = ci === 0 || ci === cross - 1 ? 1 : ci === 1 || ci === cross - 2 ? .7 : 0;
+    // the wander is keyed by world position (side + the edge line's own coordinate), not by this segment: road segments that
+    // abut (the three parts of the main road, the spine pieces) then share the same edge, so no seam shows at the joints
+    const lo = ci <= 1, base = alongX ? (lo ? rect[1] : rect[3]) : (lo ? rect[0] : rect[2]);
+    const wob = (valueNoise(t * .33 + (lo ? 7.3 : 14.6), base * .37 + (lo ? 3.1 : 6.2), 9) - .5) * .9 * edge;
+    const px = alongX ? x : x + wob, pz = alongX ? z + wob : z;
+    pos.push(px, farmGroundY(px, pz) + y, pz); uv.push(x / 3.5, -z / 3.5); col.push(1, 1, 1, Math.min(ax, az)); // UV from the un-wobbled grid: where two roads overlap their dirt textures line up exactly
+    // 0 at a dead end → 1 a few metres in: the road dissolves into speckles there (the shader below), like a worn track
+    const along = alongX ? x : z, a0 = alongX ? rect[0] : rect[1], a1 = alongX ? rect[2] : rect[3], f0 = alongX ? fade.x0 : fade.z0, f1 = alongX ? fade.x1 : fade.z1;
+    endf.push(Math.min(f0 ? Math.max(0, Math.min(1, (along - a0) / END_L)) : 1, f1 ? Math.max(0, Math.min(1, (a1 - along) / END_L)) : 1));
+  }));
+  for (let j = 0; j < zs.length - 1; j++) for (let i = 0; i < nx - 1; i++) {
+    const a = j * nx + i, b = a + 1, c = a + nx, d = c + 1;
     idx.push(a, c, b, b, c, d);
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  const normals = new Float32Array(pos.length);
-  for (let i = 1; i < normals.length; i += 3) normals[i] = 1;
-  geo.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
   geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 4));
+  geo.setAttribute('endf', new THREE.Float32BufferAttribute(endf, 1));
   geo.setIndex(idx);
+  geo.computeVertexNormals();
   return geo;
 }
 // Farm roads no longer cross a main north-south road (farm-map layout): each road is one segment.
@@ -211,9 +307,11 @@ function dynamicInstances(geometry, material, statics, groups) {
   const mesh = new THREE.InstancedMesh(geometry, material, Math.max(1, cap));
   mesh.raycast = () => {};
   let key = null;
+  const mirrors = []; let last = [[], null, ''];
   // skip(it) → true leaves that instance out (e.g. an orchard tree under a field); skipKey = its signature.
   const write = (list, i, skip) => { for (const it of list) { if (skip && skip(it)) continue; mesh.setMatrixAt(i, it.m); mesh.setColorAt(i, it.c); i++; } return i; };
   function show(keys, skip = null, skipKey = '') {
+    last = [keys, skip, skipKey]; for (const m of mirrors) m.show(keys, skip, skipKey);
     const k = `${keys.join(',')}#${skipKey}`;
     if (k === key) return;
     key = k;
@@ -225,7 +323,7 @@ function dynamicInstances(geometry, material, statics, groups) {
     mesh.computeBoundingSphere();
   }
   show([]);
-  return { mesh, show };
+  return { mesh, show, statics, groups, mirrors, get last() { return last; } };
 }
 
 /** Sets UVs of a flat (XZ) geometry to world meters / scale, so shared repeat textures line up across meshes. */
@@ -244,6 +342,9 @@ export function createWorld({ scene, templates }) {
   areas.farm.name = 'realm-world-farm'; areas.cafe.name = 'realm-world-cafe';
   group.add(areas.farm, areas.cafe);
   const farm = areas.farm, cafe = areas.cafe;
+  const backdrop = createBackdrop({ parent: farm });
+  const scenery = createScenery({ parent: farm });
+  const tierFence = createMapFence({ parent: farm }); // tall farm fence round the whole map + closed gates
   const disposables = [];
   const keep = x => (disposables.push(x), x);
   const labels = [];
@@ -254,29 +355,31 @@ export function createWorld({ scene, templates }) {
   const tileTex = keep(tileTexture());
   const stoneTex = keep(stoneTexture());
   const mats = {
-    ground: keep(new THREE.MeshStandardMaterial({ color: 0x7fae5a, map: grassTex, roughness: 1, vertexColors: true })),
-    road: keep(new THREE.MeshStandardMaterial({ color: ROAD_COLOR, map: dirtTex, roughness: 1, vertexColors: true, transparent: true, depthWrite: false })),
-    tilled: keep(new THREE.MeshStandardMaterial({ color: 0xb07e4c, map: dirtTex, roughness: 1 })),
+    // Farm ground: realistic texture sets (public/assets/farm/env, farm-textures.js). Café keeps its city materials.
+    ground: keep(blendSoil(farmMaterial('grass', { roughness: 1, vertexColors: true, normalScale: .9 }))),
+    road: keep(speckleEnds(farmMaterial('road', { roughness: 1, vertexColors: true, transparent: true, depthWrite: false, normalScale: 1 }))),
+    tilled: keep(farmMaterial('soil')),
     paved: keep(new THREE.MeshStandardMaterial({ color: 0xffffff, map: tileTex, roughness: .85 })),
     pavement: keep(new THREE.MeshStandardMaterial({ color: 0xe2dccf, map: stoneTex, roughness: .92 })),
     vacant: keep(new THREE.MeshStandardMaterial({ color: 0xb59a74, map: dirtTex, roughness: 1 })),
-    meadow: keep(new THREE.MeshStandardMaterial({ color: 0x8dbb5e, map: grassTex, roughness: 1 })),
-    pasture: keep(new THREE.MeshStandardMaterial({ color: 0x9ccc6a, map: grassTex, roughness: 1 })),
-    gravel: keep(new THREE.MeshStandardMaterial({ color: 0xd9c29a, map: dirtTex, roughness: 1 })),
-    water: keep(new THREE.MeshStandardMaterial({ color: 0x5cb2d9, roughness: .25, metalness: .05 })),
+    meadow: keep(farmMaterial('grass', { color: 0xf2f6ea })),
+    pasture: keep(farmMaterial('grass', { color: 0xfff6dc })),
+    gravel: keep(farmMaterial('road')),
+    water: keep(new THREE.MeshStandardMaterial({ color: 0x3d5f5a, roughness: .08, metalness: .1 })),
     thicket: keep(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .95, flatShading: true })),
     wood: keep(new THREE.MeshStandardMaterial({ color: 0xb07a43, roughness: .9 })),
-    plaza: keep(new THREE.MeshStandardMaterial({ color: 0xb8916a, map: dirtTex, roughness: 1 })),
+    plaza: keep(farmMaterial('road', { color: 0xe8ddd0 })),
     tuft: keep(new THREE.MeshStandardMaterial({ color: 0x7cc04f, roughness: 1, vertexColors: true })),
     flower: keep(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .8 })),
-    rock: keep(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .95, flatShading: true })),
+    rock: keep(farmMaterial('stone', { roughness: .9, normalScale: 1.2 })),
     props: keep(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .85, vertexColors: true, flatShading: true })),
   };
 
   // ---------- ground: farm grass (country tint), café pavement (city sidewalks) ----------
   {
     const b = BOUNDS;
-    const ground = new THREE.Mesh(keep(groundGeometry([b.minX - 60, b.minZ - 55, b.maxX + 60, b.maxZ + 60], b)), mats.ground);
+    // The play ground covers the farm + a 30 m apron; the Blender hill country (terrain-*.glb) starts under its edge.
+    const ground = new THREE.Mesh(keep(groundGeometry([b.minX - 30, b.minZ - 30, b.maxX + 30, b.maxZ + 30], b)), mats.ground);
     ground.receiveShadow = true;
     ground.name = 'ground';
     farm.add(ground);
@@ -287,14 +390,55 @@ export function createWorld({ scene, templates }) {
     cafe.add(pavement);
   }
 
+  let proceduralHills = null;
+  // ---------- coffee hills around the farm (scenery only, outside BOUNDS): rows of coffee on the slopes, misty ----------
+  // Low-poly mounds north and on both sides, higher to the north (the highland), each with dark-green row stripes so
+  // the horizon reads as a coffee plantation, not a forest. One instanced draw call for the hills, one for the rows.
+  {
+    const rnd = mulberry32(404), b = BOUNDS;
+    const hillGeo = keep(new THREE.SphereGeometry(1, 40, 16, 0, Math.PI * 2, 0, Math.PI / 2));
+    const hillTex = farmTex('grass').clone(); hillTex.repeat.set(14, 5); hillTex.needsUpdate = true;
+    const hillMat = keep(new THREE.MeshStandardMaterial({ color: 0xc8d0b4, map: hillTex, roughness: 1 }));
+    const rowGeo = keep(new THREE.TorusGeometry(1, .018, 4, 40, Math.PI).rotateX(-Math.PI / 2));
+    const rowMat = keep(new THREE.MeshStandardMaterial({ color: 0x2f5a2a, roughness: 1 }));
+    const hills = [];
+    // north (the highland's backdrop) and east (the camera looks north-east), close enough to show at full zoom-out
+    for (let i = 0; i < 9; i++) hills.push({ x: b.minX - 16 + i * (b.maxX - b.minX + 32) / 8 + (rnd() - .5) * 6, z: b.minZ - 30 - rnd() * 14, r: 20 + rnd() * 10, h: 10 + rnd() * 8 });
+    for (let i = 0; i < 6; i++) hills.push({ x: b.maxX + 20 + rnd() * 8, z: b.minZ + 4 + i * (b.maxZ - b.minZ) / 5.5, r: 14 + rnd() * 6, h: 6 + rnd() * 4 + 6 * (1 - i / 5) });
+    for (let i = 0; i < 4; i++) hills.push({ x: b.minX - 22 - rnd() * 6, z: b.minZ + 2 + i * 16, r: 14 + rnd() * 6, h: 8 + rnd() * 6 });
+    const hillMesh = keep(new THREE.InstancedMesh(hillGeo, hillMat, hills.length));
+    const rows = [];
+    hills.forEach(hl => { for (let k = 1; k <= 5; k++) rows.push({ ...hl, k }); });
+    const rowMesh = keep(new THREE.InstancedMesh(rowGeo, rowMat, rows.length));
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), col = new THREE.Color();
+    hills.forEach((hl, i) => {
+      hillMesh.setMatrixAt(i, m.compose(p.set(hl.x, -1, hl.z), q.identity(), s.set(hl.r, hl.h, hl.r * .8)));
+      hillMesh.setColorAt(i, col.setHSL(.22 + rnd() * .05, .18, .62 + rnd() * .08, THREE.SRGBColorSpace));
+    });
+    // contour rows: the hill's ring at height fraction k/6, facing the farm (half torus turned toward +z)
+    rows.forEach((rw, i) => {
+      const f = rw.k / 6, rr = Math.cos(Math.asin(f)) * 1.002;
+      const face = Math.atan2(0 - rw.x, 0 - rw.z) - Math.PI / 2;
+      rowMesh.setMatrixAt(i, m.compose(p.set(rw.x, -1 + f * rw.h + .05, rw.z), q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, face), s.set(rw.r * rr, 1, rw.r * .8 * rr)));
+    });
+    // the contour rows read as dark scratches at the phone's camera distance: only the hills are drawn
+    rowMesh.count = 0;
+    for (const mesh of [hillMesh]) { mesh.raycast = () => {}; mesh.receiveShadow = true; farm.add(mesh); }
+    proceduralHills = hillMesh;
+  }
+
   // ---------- shared small geometries ----------
   const geo = {
     bush: keep(new THREE.IcosahedronGeometry(.7, 0)),
+    wildTrunk: keep(new THREE.CylinderGeometry(.13, .2, 2.6, 6).translate(0, 1.3, 0)),
+    wildCrown: keep(new THREE.IcosahedronGeometry(1.15, 0).scale(1, 1.25, 1).translate(0, 3.1, 0)),
+    stump: keep(new THREE.CylinderGeometry(.22, .27, .32, 7).translate(0, .16, 0)),
     rock: keep(new THREE.DodecahedronGeometry(.5, 0)),
     sign: keep(signGeometry()),
   };
 
   // ---------- gate plaza: sandy mortar disc + instanced cobblestones with a raised stone border ----------
+  let plazaCobbles = null, dressing = null;
   const plaza = new THREE.Mesh(keep(new THREE.CircleGeometry(PLAZA_R + .25, 40).rotateX(-Math.PI / 2)), mats.plaza);
   plaza.position.set(GATE.x, .03, GATE.z);
   plaza.receiveShadow = true;
@@ -310,7 +454,7 @@ export function createWorld({ scene, templates }) {
     }
     const nb = Math.floor(Math.PI * 2 * PLAZA_R / .52);
     for (let i = 0; i < nb; i++) stones.push({ r: PLAZA_R, a: i / nb * Math.PI * 2, s: 1.25 + rnd() * .2, h: 2.4, c: rnd(), border: true });
-    const mesh = keep(new THREE.InstancedMesh(cobbleGeo, mats.rock, stones.length));
+    const mesh = plazaCobbles = keep(new THREE.InstancedMesh(cobbleGeo, keep(farmMaterial('road', { color: 0xf4ece2, roughness: .85, normalScale: 1.2 })), stones.length)); // pale laid stones
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), col = new THREE.Color();
     stones.forEach((it, i) => {
       p.set(GATE.x + Math.cos(it.a) * it.r, .02, GATE.z + Math.sin(it.a) * it.r);
@@ -328,14 +472,19 @@ export function createWorld({ scene, templates }) {
   const roadMesh = new THREE.Mesh(new THREE.BufferGeometry(), mats.road);
   const trailMesh = new THREE.Mesh(new THREE.BufferGeometry(), trailMat);
   for (const m of [roadMesh, trailMesh]) { m.receiveShadow = true; m.renderOrder = -1; m.raycast = () => {}; farm.add(m); } // ground decals first
+  trailMesh.visible = false; // no faint 'future road' strips over land not bought yet
+  // the farm access track: from the farmyard south across the stream bridge to the map edge (scenery, not a lot road)
+  // (the access track south of the farm is not drawn any more, founder 2026-11-08)
   let roadKey = '';
   // A road end fades out unless another road of the same set continues from it (dead ends look soft, junctions hard).
   function roadMeshGeometry(ids, all) {
+    ids = ids.filter(id => !NO_DRAW.has(id)); all = all.filter(id => !NO_DRAW.has(id));
     if (!ids.length) return new THREE.BufferGeometry();
     const parts = ids.map(id => {
-      const r = ROADS[id].rect, alongX = r[2] - r[0] >= r[3] - r[1];
+      const r = drawnRect(id), alongX = r[2] - r[0] >= r[3] - r[1];
       const lo = alongX ? [r[0], r[1], r[0], r[3]] : [r[0], r[1], r[2], r[1]], hi = alongX ? [r[2], r[1], r[2], r[3]] : [r[0], r[3], r[2], r[3]];
-      const joined = edge => all.some(o => o !== id && rectsTouch(edge, ROADS[o].rect)) || inRect((edge[0] + edge[2]) / 2, (edge[1] + edge[3]) / 2, RESERVED.find(x => x.id === 'gatePlaza').rect, .1);
+      // a hard end only where another drawn road really continues from it (dead ends dissolve into speckles)
+      const joined = edge => all.some(o => o !== id && rectsTouch(edge, drawnRect(o)));
       return roadGeometry(r, .02, BOUNDS, false, { lo: !joined(lo), hi: !joined(hi) });
     });
     const merged = mergeGeometries(parts);
@@ -358,12 +507,12 @@ export function createWorld({ scene, templates }) {
   const parcels = {};
   for (const p of Object.values(PARCELS)) {
     const target = areas[areaOfParcel(p.id)];
-    const overlay = new THREE.Mesh(keep(rectGeometry(p.rect, .012, 2)), mats.meadow);
+    const overlay = new THREE.Mesh(keep(rectGeometry(p.rect, .012, 4)), mats.meadow);
     overlay.receiveShadow = true;
     target.add(overlay);
     const c = parcelSignPoint(p.id);
     const sign = new THREE.Mesh(geo.sign, mats.props);
-    sign.position.set(c.x, 0, c.z);
+    sign.position.set(c.x, farmGroundY(c.x, c.z), c.z);
     sign.castShadow = true;
     sign.raycast = () => {};
     const label = makeLabel('', { bg: '#fff6e2', border: '#a8743f', height: .8 });
@@ -374,24 +523,25 @@ export function createWorld({ scene, templates }) {
   }
 
   // ---------- fences (merged, rebuilt when farm ownership changes) ----------
-  const fence = new THREE.Mesh(new THREE.BufferGeometry(), mats.wood);
+  // Pasture fence: round eucalyptus posts and rails (weathered grey-brown, soil-grain normal)
+  const fence = new THREE.Mesh(new THREE.BufferGeometry(), keep(farmMaterial('soil', { color: 0xb3a089, roughness: .9, normalScale: 1.5 })));
   fence.castShadow = true; fence.receiveShadow = true;
   farm.add(fence);
   let fenceKey = '';
   function rebuildFences(owned) {
-    const farms = owned.filter(id => PARCELS[id] && terrainOfLot(id) === 'pasture' && areaOfParcel(id) === 'farm').sort(); // pastures only (no field fences in Farm World 2.0)
+    const farms = []; // founder 2026-11-08: bought land is plantable anywhere — no fenced pasture squares
     const key = farms.join(',');
     if (key === fenceKey) return;
     fenceKey = key;
     const parts = [];
-    const post = new THREE.BoxGeometry(.16, .7, .16), rail = new THREE.BoxGeometry(1, .09, .07);
-    const addPost = (x, z) => parts.push(post.clone().translate(x, .35, z));
+    const post = new THREE.CylinderGeometry(.065, .08, .95, 7), rail = new THREE.CylinderGeometry(.035, .035, 1, 6).rotateZ(Math.PI / 2);
+    const addPost = (x, z) => parts.push(post.clone().rotateZ((Math.sin(x * 7 + z) * .04)).translate(x, .45 + farmGroundY(x, z), z));
     const addRail = (x0, z0, x1, z1) => {
       const len = Math.hypot(x1 - x0, z1 - z0);
-      for (const y of [.28, .55]) {
+      for (const y of [.35, .72]) {
         const g = rail.clone().scale(len, 1, 1);
         if (z0 !== z1) g.rotateY(Math.PI / 2);
-        parts.push(g.translate((x0 + x1) / 2, y, (z0 + z1) / 2));
+        parts.push(g.translate((x0 + x1) / 2, y + farmGroundY((x0 + x1) / 2, (z0 + z1) / 2), (z0 + z1) / 2));
       }
     };
     for (const id of farms) {
@@ -433,11 +583,11 @@ export function createWorld({ scene, templates }) {
     const rnd = mulberry32(cfg.seed);
     const up = THREE.Object3D.DEFAULT_UP;
     const q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
-    const item = (x, y, z, sx, sy, sz, rot, color) => ({ m: new THREE.Matrix4().compose(p.set(x, y, z), q.setFromAxisAngle(up, rot), s.set(sx, sy, sz)), c: color });
+    const item = (x, y, z, sx, sy, sz, rot, color) => ({ m: new THREE.Matrix4().compose(p.set(x, y + farmGroundY(x, z), z), q.setFromAxisAngle(up, rot), s.set(sx, sy, sz)), c: color });
     const tuftColor = () => new THREE.Color().setRGB(.85 + rnd() * .3, .9 + rnd() * .22, .8 + rnd() * .25);
     const wildColor = () => new THREE.Color().setRGB(1.05 + rnd() * .2, 1.02 + rnd() * .15, .72 + rnd() * .2);
     const tufts = [], flowers = [], rocks = [];
-    const wildTufts = {}, wildFlowers = {}, borderStones = {}, thickets = {};
+    const wildTufts = {}, wildFlowers = {}, borderStones = {}, thickets = {}, wildTrunks = {}, wildCrowns = {}, stumps = {};
     const b = cfg.bounds;
     const area = [b.minX - 8, b.minZ - 8, b.maxX + 8, b.maxZ + 8];
     const free = cfg.isFree;
@@ -491,7 +641,25 @@ export function createWorld({ scene, templates }) {
       // Overgrown land (farm lots not bought yet): thick bushes and a few rocks, clear of the sign.
       if (cfg.overgrow) {
         const bl = thickets[id] = [], rl = borderStones[id] = [];
-        const nb = Math.round((x1 - x0) * (z1 - z0) / 7);
+        // Wild forest still to be cleared (khai hoang): a few tall trees and cut stumps among the scrub
+        const tl2 = wildTrunks[id] = [], cl2 = wildCrowns[id] = [], sl = stumps[id] = [];
+        // founder 2026-11-08: the land starts wild but tree-less — trees only come from planting (scrub, rocks, stumps stay)
+        const nt = 0;
+        for (let i = 0, tries = 0; i < nt && tries < 30; tries++) {
+          const x = x0 + 1.2 + rnd() * (x1 - x0 - 2.4), z = z0 + 1.2 + rnd() * (z1 - z0 - 2.4);
+          if (!ok(x, z) || Math.hypot(x - sp.x, z - sp.z) < 2.6) continue;
+          const k = .8 + rnd() * .5, rot = rnd() * 6.28;
+          tl2.push(item(x, 0, z, k, k * (1 + rnd() * .3), k, rot, new THREE.Color().setHSL(.07, .35, .3 + rnd() * .08, THREE.SRGBColorSpace)));
+          cl2.push(item(x, 0, z, k, k * (1 + rnd() * .3), k, rot, new THREE.Color().setHSL(.27 + rnd() * .06, .42, .26 + rnd() * .1, THREE.SRGBColorSpace)));
+          i++;
+        }
+        for (let i = 0; i < 3; i++) {
+          const x = x0 + .8 + rnd() * (x1 - x0 - 1.6), z = z0 + .8 + rnd() * (z1 - z0 - 1.6);
+          if (!ok(x, z)) continue;
+          const k = .8 + rnd() * .5;
+          sl.push(item(x, 0, z, k, k * (.7 + rnd() * .6), k, rnd() * 6.28, new THREE.Color().setHSL(.08, .3, .52 + rnd() * .1, THREE.SRGBColorSpace)));
+        }
+        const nb = Math.round((x1 - x0) * (z1 - z0) / 10);
         for (let i = 0; i < nb; i++) {
           const x = x0 + .6 + rnd() * (x1 - x0 - 1.2), z = z0 + .6 + rnd() * (z1 - z0 - 1.2);
           if (!ok(x, z)) continue;
@@ -528,8 +696,13 @@ export function createWorld({ scene, templates }) {
       flowers: dynamicInstances(flowerGeo, mats.flower, flowers, wildFlowers),
       rocks: dynamicInstances(geo.rock, mats.rock, rocks, borderStones),
       thickets: dynamicInstances(geo.bush, mats.thicket, [], thickets),
+      wildTrunks: dynamicInstances(geo.wildTrunk, mats.thicket, [], wildTrunks),
+      wildCrowns: dynamicInstances(geo.wildCrown, mats.thicket, [], wildCrowns),
+      stumps: dynamicInstances(geo.stump, mats.thicket, [], stumps),
     };
     for (const d of Object.values(out)) { d.mesh.receiveShadow = true; keep(d.mesh); target.add(d.mesh); }
+    Object.defineProperty(out, 'wildItems', { value: wildTrunks });
+    Object.defineProperty(out, 'thicketItems', { value: thickets }); // tree spots of the overgrown lots (the Gedeo forest reuses them); not enumerable
     return out;
   }
   const decor = {
@@ -546,6 +719,7 @@ export function createWorld({ scene, templates }) {
     }),
   };
 
+  let plazaProps = null;
   // ---------- merged static props (one draw per area) ----------
   const propMesh = (target, parts) => {
     const merged = keep(mergeGeometries(parts));
@@ -582,7 +756,7 @@ export function createWorld({ scene, templates }) {
       add(new THREE.IcosahedronGeometry(.36, 0).scale(1, .75, 1), '#5fae46', px, .72, pz);
       bloom(px, .92, pz, .45, 5);
     }
-    propMesh(farm, parts);
+    plazaProps = propMesh(farm, parts);
   }
   // Café block S: low wooden curb (open on the west side where customers come in), boardwalk over the customer lanes,
   // planters between the block and the C2 lot.
@@ -661,7 +835,7 @@ export function createWorld({ scene, templates }) {
       const mesh = keep(new THREE.InstancedMesh(geometry, material, Math.max(1, list.length)));
       mesh.count = list.length;
       list.forEach((it, i) => {
-        place(it, p, s);
+        place(it, p, s); p.y += farmGroundY(p.x, p.z); // on the mountain tier
         m.compose(p, q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, it.r), s);
         mesh.setMatrixAt(i, m);
         if (color) mesh.setColorAt(i, color(it, col));
@@ -671,16 +845,174 @@ export function createWorld({ scene, templates }) {
       target.add(mesh);
       return mesh;
     };
-    inst(trunkGeo, trunkMat, treeList, (it, pp, ss) => { pp.set(it.x, 0, it.z); ss.setScalar(it.s); });
+    const procTrees = [inst(trunkGeo, trunkMat, treeList, (it, pp, ss) => { pp.set(it.x, 0, it.z); ss.setScalar(it.s); })];
     const round = treeList.filter(it => it.c < .6), pine = treeList.filter(it => it.c >= .6);
-    inst(crownGeo, white, round, (it, pp, ss) => { pp.set(it.x, 0, it.z); ss.setScalar(it.s); }, (it, c) => c.setHSL(.25 + it.c * .08, .58, .42 + it.c * .1, SRGB));
-    inst(coneGeo, white, pine, (it, pp, ss) => { pp.set(it.x, 0, it.z); ss.setScalar(it.s); }, (it, c) => c.setHSL(.34, .5, .3 + (it.c - .6) * .2, SRGB));
-    inst(geo.bush, white, bushList, (it, pp, ss) => { pp.set(it.x, .3 * it.s, it.z); ss.set(it.s, it.s * .75, it.s); }, (it, c) => c.setHSL(.24 + it.c * .1, .6, .4 + it.c * .08, SRGB));
-    inst(geo.rock, white, rockList, (it, pp, ss) => { pp.set(it.x, .15, it.z); ss.set(it.s * 1.1, it.s * .66, it.s); }, (it, c) => c.setHSL(.08, .08, .6 + it.c * .15, SRGB));
+    procTrees.push(inst(crownGeo, white, round, (it, pp, ss) => { pp.set(it.x, 0, it.z); ss.setScalar(it.s); }, (it, c) => c.setHSL(.25 + it.c * .08, .58, .42 + it.c * .1, SRGB)));
+    procTrees.push(inst(coneGeo, white, pine, (it, pp, ss) => { pp.set(it.x, 0, it.z); ss.setScalar(it.s); }, (it, c) => c.setHSL(.34, .5, .3 + (it.c - .6) * .2, SRGB)));
+    const bushMesh = inst(geo.bush, white, bushList, (it, pp, ss) => { pp.set(it.x, .3 * it.s, it.z); ss.set(it.s, it.s * .75, it.s); }, (it, c) => c.setHSL(.24 + it.c * .1, .6, .4 + it.c * .08, SRGB));
+    const rockMesh = inst(geo.rock, white, rockList, (it, pp, ss) => { pp.set(it.x, .15, it.z); ss.set(it.s * 1.1, it.s * .66, it.s); }, (it, c) => c.setHSL(.08, .08, .6 + it.c * .15, SRGB));
+    return { round, pine, procTrees, bushList, rockList, bushMesh, rockMesh };
   }
   // Farm: empty grass corners inside the map also get a few trees.
-  border(farm, BOUNDS, { seed: 42, margin: [22, 20, 22], trees: [300, 16], bushes: [150, 14], rocks: 80,
-    pockets: [[20, 20, 30, 26.5], [-29, 19, -6, 25.5]] });
+  const farmBorder = border(farm, BOUNDS, { seed: 42, margin: [22, 20, 22], trees: [300, 16], bushes: [150, 14], rocks: 80,
+    pockets: [] }); // (no trees in the empty corners inside the map: the farm starts bare, founder 2026-11-08)
+
+  // ---------- Gedeo garden-forest (Ethiopia & co.): the border forest and the overgrown lots use the real shade trees ----------
+  // (Cordia / Albizia far LOD2, instanced). Loaded on the first garden-forest country; the low-poly trees stay the fallback.
+  const gedeoForest = { on: false, group: new THREE.Group(), wild: null, loading: null, wildKeys: [] };
+  gedeoForest.group.name = 'gedeo-forest'; gedeoForest.group.visible = false; farm.add(gedeoForest.group);
+  function loadGedeoForest() {
+    if (gedeoForest.loading) return gedeoForest.loading;
+    // near sides (west / south, the camera's side) and the pockets inside the map stay low so they never hide the farm
+    const near = it => it.x < BOUNDS.minX || it.z > BOUNDS.maxZ - 8;
+    // Mobile: the border forest is far LOD3 without shadows; medium keeps every 2nd tree, low every 3rd (fog hides the gaps).
+    const keepEvery = { high: 1, medium: 2, low: 3 }[getQuality()] || 1;
+    const T = (list, k) => list.filter((it, i) => near(it) || i % keepEvery === 0).map(it => ({ position: new THREE.Vector3(it.x, farmGroundY(it.x, it.z), it.z), rotationY: it.r, scale: it.s * k * (near(it) ? .55 : 1) }));
+    gedeoForest.loading = Promise.all([
+      createPlantInstances('cordia', T(farmBorder.round, .42), { lod: 3, shadows: false }),
+      createPlantInstances('albizia', T(farmBorder.pine, .36), { lod: 3, shadows: false }),
+      loadPlant('cordia'), loadPlant('shrub'),
+    ]).then(([a, b, t, sh]) => {
+      for (const g of [a, b]) { g.traverse(o => { o.raycast = () => {}; }); gedeoForest.group.add(g); }
+      const tpl = t[3]; tpl.updateMatrixWorld(true); // overgrown lots: far LOD3 (mobile), still casting shadows
+      const S = new THREE.Matrix4().makeScale(.3, .3, .3), white = new THREE.Color(1, 1, 1), parts = [];
+      tpl.traverse(o => { if (o.isMesh) parts.push(o); });
+      gedeoForest.wild = parts.map(o => {
+        const lists = Object.fromEntries(Object.entries(decor.farm.wildItems).map(([id, l]) => [id, l.map(it => ({ m: it.m.clone().multiply(S).multiply(o.matrixWorld), c: white }))]));
+        const d = dynamicInstances(o.geometry, o.material, [], lists);
+        d.mesh.castShadow = d.mesh.receiveShadow = true; gedeoForest.group.add(d.mesh);
+        d.show(gedeoForest.wildKeys); return d;
+      });
+      // scrub on overgrown land: the Gedeo understory shrub, standing on the ground (the blob was lifted by .28 k)
+      const shTpl = sh[0]; shTpl.updateMatrixWorld(true);
+      const dp = new THREE.Vector3(), dq = new THREE.Quaternion(), ds = new THREE.Vector3(), shParts = [];
+      shTpl.traverse(o => { if (o.isMesh) shParts.push(o); });
+      for (const o of shParts) {
+        const lists = Object.fromEntries(Object.entries(decor.farm.thicketItems).map(([id, l]) => [id, l.map(it => {
+          it.m.decompose(dp, dq, ds); dp.y = farmGroundY(dp.x, dp.z);
+          return { m: new THREE.Matrix4().compose(dp, dq, ds.setScalar(ds.x * .8)).multiply(o.matrixWorld), c: white };
+        })]));
+        const d = dynamicInstances(o.geometry, o.material, [], lists);
+        d.mesh.castShadow = false; d.mesh.receiveShadow = true; gedeoForest.group.add(d.mesh);
+        d.show(gedeoForest.wildKeys); gedeoForest.wild.push(d);
+      }
+    }).catch(e => console.warn('Gedeo forest not loaded, keeping the low-poly trees.', e));
+    return gedeoForest.loading;
+  }
+  // ---------- realistic land pass: every procedural prop on the farm gets its Gedeo model ----------
+  const MP = new THREE.Vector3(), MQ = new THREE.Quaternion(), MS = new THREE.Vector3();
+  const onGround = k => m => { m.decompose(MP, MQ, MS); MP.y = farmGroundY(MP.x, MP.z); return m.compose(MP, MQ, MS.setScalar(MS.x * k)); };
+  function mirrorGedeo(d, key, place, lod = 0, shadows = false) {
+    return loadPlant(key).then(t => {
+      const tpl = t[lod]; tpl.updateMatrixWorld(true);
+      const parts = [], white = new THREE.Color(1, 1, 1);
+      tpl.traverse(o => { if (o.isMesh) parts.push(o); });
+      for (const o of parts) {
+        const conv = l => l.map(it => ({ ...it, m: place(it.m.clone()).multiply(o.matrixWorld), c: white }));
+        const md = dynamicInstances(o.geometry, o.material, conv(d.statics), Object.fromEntries(Object.entries(d.groups).map(([k, l]) => [k, conv(l)])));
+        md.mesh.castShadow = shadows; md.mesh.receiveShadow = true; d.mesh.parent?.add(md.mesh);
+        md.show(...d.last); d.mirrors.push(md);
+      }
+      d.mesh.visible = false;
+    }).catch(e => console.warn(`Gedeo ${key} not loaded, keeping the stand-in.`, e));
+  }
+  let landLoading = null;
+  function loadLand() {
+    if (landLoading) return landLoading;
+    const f = decor.farm, T = (list, k, y = 0) => list.map(it => ({ position: new THREE.Vector3(it.x, y + farmGroundY(it.x, it.z), it.z), rotationY: it.r, scale: it.s * k }));
+    landLoading = Promise.all([
+      mirrorGedeo(f.tufts, 'grass', onGround(1.1)),
+      mirrorGedeo(f.flowers, 'daisyClump', onGround(.6)),
+      mirrorGedeo(f.rocks, 'rock', onGround(.6)),
+      mirrorGedeo(f.stumps, 'stump', onGround(.95)),
+      mirrorGedeo(orchard.parts.trunks, 'cordia', onGround(.32), 2, true).then(() => { orchard.parts.crowns.mesh.visible = false; orchard.parts.fruits.mesh.visible = false; }),
+      createPlantInstances('shrub', T(farmBorder.bushList, 1.1), { lod: 0, shadows: false }).then(g => { g.traverse(o => { o.raycast = () => {}; }); farm.add(g); farmBorder.bushMesh.visible = false; }),
+      createPlantInstances('rock', T(farmBorder.rockList, .7), { lod: 0, shadows: false }).then(g => { g.traverse(o => { o.raycast = () => {}; }); farm.add(g); farmBorder.rockMesh.visible = false; }),
+      // the pond lot (PD1): a natural stone-edged pond (Blender stone-pond.glb) instead of a blue rectangle
+      createPlant('stonePond').then(o => { const r = PARCELS.PD1.rect, x = (r[0] + r[2]) / 2, z = (r[1] + r[3]) / 2; o.position.set(x, farmGroundY(x, z), z); o.scale.set(1.3, 1, 1.45); o.traverse(c => { c.raycast = () => {}; }); farm.add(o); }),
+      // where the gate stood: only wild daisies now (no lamps, no planted enset — founder 2026-11-08)
+      ...[-1, 1].map(side => createPlant('daisyClump').then(o => { o.position.set(GATE.x + side * (PLAZA_R + 1.3), 0, GATE.z + 1.1); farm.add(o); })),
+      // gate plaza: Blender flagstones + border stones replace the disc and the cylinder cobbles
+      // no gate on the map any more (founder 2026-11-08): no plaza either — the gate ground is plain land
+      Promise.resolve().then(() => { plaza.visible = false; if (plazaCobbles) plazaCobbles.visible = false; }),
+      loadHills(),
+      loadTierWorks(),
+    ]).then(() => {
+      if (plazaProps) plazaProps.visible = false;
+      // the village / stream / people dressing is built DURING the loading screen too (founder 2026-11-08): when the farm
+      // appears everything is already there, nothing streams in and hitches afterwards
+      dressing ??= createMountainDressing({ parent: farm });
+      return dressing.ready;
+    });
+    return landLoading;
+  }
+  // Tier works (founder 2026-11-08, mountain farm): Blender dry-stone retaining walls along every tier edge (4 m modules,
+  // scaled to the step), the dirt ramp where the spine road climbs each tier and stone stair flights at x ±15.
+  // Models are authored facing / climbing Blender +Y = three −z… rotated π so walls face south and ramps climb north.
+  function loadTierWorks() {
+    const walls = [], ramps = [], steps = [];
+    let prev = 0;
+    for (const e of TIER_EDGES) {
+      const step = e.h - prev, base = prev; prev = e.h;
+      // wall runs between the cuttings, west and east halves (the slope → highland edge jogs at the spine)
+      const stops = [-30, ...TIER_CUTS.flatMap(c => [c.x - c.half - .25, c.x + c.half + .25]).sort((a, b) => a - b), 30];
+      for (let i = 0; i < stops.length - 1; i += 2) {
+        const x0 = stops[i], x1 = stops[i + 1], L = x1 - x0;
+        if (L < .5) continue;
+        const n = Math.max(1, Math.round(L / 4)), w = L / n;
+        for (let k = 0; k < n; k++) {
+          const x = x0 + w * (k + .5);
+          const rows = Math.ceil(step / 3.2), h = (step + .15) / rows; // stacked courses keep the stones' proportions
+          for (let r = 0; r < rows; r++) walls.push({ position: new THREE.Vector3(x, base - .05 + r * h, tierEdgeZ(e, x) + .78 - r * .45 * h / 3.1), rotationY: Math.PI, scale: [w / 4 * 1.01, h / 3.1, 1] });
+        }
+      }
+      for (const c of TIER_CUTS) {
+        const ez = c.x === 0 ? Math.max(e.z, e.zE ?? e.z) : tierEdgeZ(e, c.x);
+        (c.kind === 'ramp' ? ramps : steps).push({ position: new THREE.Vector3(c.x, base, ez), rotationY: Math.PI, scale: c.kind === 'ramp' ? [.82, step / 3, RAMP / 8.5] : [.9, step / 3.3, c.len / 4.2] });
+      }
+    }
+    return Promise.all([
+      createPlantInstances('tierWall', walls, { lod: 0 }).then(g => { g.traverse(o => { o.raycast = () => {}; }); farm.add(g); }),
+      // (no dirt-ramp model: the draped ground + spine road already form the ramp; the model read as loose planks)
+      createPlantInstances('stoneSteps', steps, { lod: 0 }).then(g => { g.traverse(o => { o.raycast = () => {}; }); farm.add(g); }),
+    ]).catch(e => console.warn('Tier walls not loaded.', e));
+  }
+  // Slope forest: each Blender tree spot seeds a small clump (3 trees, jittered on the terrain grid's height), half the
+  // spots albizia (odd = cordia). Trees per spot follow quality: high 2, medium 1, low none (bare hills; fog hides them in the play camera).
+  function slopeTrees(meta, odd, k) {
+    const per = { high: 2, medium: 1, low: 0 }[getQuality()] ?? 1, out = [];
+    const hAt = (x, z) => {
+      const i = Math.max(0, Math.min(meta.nx, Math.round((x - meta.x0) / meta.step))), j = Math.max(0, Math.min(meta.nz, Math.round((z - meta.z0) / meta.step)));
+      return meta.heights[i]?.[j] ?? null; // heights[x index][z index]
+    };
+    meta.trees.forEach(([x, y, z, s], n) => {
+      if (n % 2 !== odd) return;
+      for (let c = 0; c < per; c++) {
+        const a = n * 2.39 + c * 2.1, r = c ? 5 + (n * 7 + c * 3) % 6 : 0;
+        const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r, py = c ? hAt(px, pz) ?? y : y;
+        out.push({ position: new THREE.Vector3(px, py - .3, pz), rotationY: a, scale: s * k * (c ? .75 : 1) });
+      }
+    });
+    return out;
+  }
+  // Hill country (gedeo_landscape.py): 4 terrain chunks round the farm + shade trees on the slopes from terrain-meta.json.
+  // Replaces the sphere hills and the icosahedron mountain ring (kept as the fallback if a file is missing).
+  function loadHills() {
+    const base = `${import.meta.env.BASE_URL}models/gedeo/`;
+    return fetch(`${base}terrain-meta.json`).then(r => r.json()).then(meta => Promise.all([
+      ...meta.chunks.map(k => createPlant(`terrain${k[0].toUpperCase()}${k.slice(1)}`).then(o => { o.traverse(c => { c.raycast = () => {}; if (c.isMesh) { c.castShadow = false; c.receiveShadow = true; } }); farm.add(o); })),
+      createPlantInstances('albizia', slopeTrees(meta, 0, .95), { lod: 3, shadows: false }).then(g => farm.add(g)),
+      createPlantInstances('cordia', slopeTrees(meta, 1, 1.05), { lod: 3, shadows: false }).then(g => farm.add(g)),
+    ])).then(() => { if (proceduralHills) proceduralHills.visible = false; backdrop.group.visible = false; })
+      .catch(e => console.warn('Hill country not loaded, keeping the procedural hills.', e));
+  }
+
+  function applyForest() {
+    const on = gedeoForest.on && gedeoForest.group.children.length > 0;
+    gedeoForest.group.visible = on;
+    for (const m of farmBorder.procTrees) m.visible = !on;
+    decor.farm.wildTrunks.mesh.visible = decor.farm.wildCrowns.mesh.visible = decor.farm.thickets.mesh.visible = !on;
+  }
 
   // ---------- orchard trees (shown on owned orchard lots) ----------
   const orchard = (() => {
@@ -688,7 +1020,7 @@ export function createWorld({ scene, templates }) {
     const trunks = {}, crowns = {}, fruits = {};
     // tx/tz: the tree the instance belongs to (a field or building over that tree hides the whole tree).
     let tx = 0, tz = 0;
-    const m = (x, y, z, sx, sy, sz, color) => ({ m: new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromAxisAngle(THREE.Object3D.DEFAULT_UP, rnd() * 6), new THREE.Vector3(sx, sy, sz)), c: color, tx, tz });
+    const m = (x, y, z, sx, sy, sz, color) => ({ m: new THREE.Matrix4().compose(new THREE.Vector3(x, y + farmGroundY(x, z), z), new THREE.Quaternion().setFromAxisAngle(THREE.Object3D.DEFAULT_UP, rnd() * 6), new THREE.Vector3(sx, sy, sz)), c: color, tx, tz });
     for (const p of Object.values(PARCELS).filter(q => q.kind === 'orchard')) {
       const [x0, z0, x1, z1] = p.rect;
       const tl = trunks[p.id] = [], cl = crowns[p.id] = [], fl = fruits[p.id] = [];
@@ -706,7 +1038,9 @@ export function createWorld({ scene, templates }) {
     // trunk is inside (or within a crown radius of) a footprint are left out.
     const CROWN = .9;
     return {
+      parts,
       show(ids, state) {
+        ids = []; // founder 2026-11-08: no ready-made orchard — trees only from planting (orchard lots are plain land)
         const r = ids.length && state ? regionOf(state) : null;
         const rects = [];
         if (r) {
@@ -722,8 +1056,11 @@ export function createWorld({ scene, templates }) {
   })();
 
   // ---------- World Gate (farm) ----------
+  // founder 2026-11-08: no gate on the map — the world map opens from the HUD 🌍 icon. Kept built (hidden) for the story
+  // cinematics that may still reference it.
   const gate = new THREE.Group();
   gate.position.set(GATE.x, 0, GATE.z);
+  gate.visible = false;
   farm.add(gate);
   {
     const frame = templates.gateFrame, left = templates.gateLeft, right = templates.gateRight;
@@ -754,7 +1091,9 @@ export function createWorld({ scene, templates }) {
   gatePicker.visible = false;
   gatePicker.position.copy(gate.position);
   gatePicker.userData.target = { kind: 'gate' };
-  farm.add(gatePicker);
+  gatePicker.raycast = () => {}; // not tappable: no gate on the map
+
+  loadLand(); // after the orchard (its trunks get the Gedeo mirror)
 
   // ---------- sync from the save ----------
   let paletteKey = null;
@@ -764,10 +1103,17 @@ export function createWorld({ scene, templates }) {
     if (paletteKey !== pal) {
       paletteKey = pal;
       // Country tint, pushed brighter / more saturated for a cheerful read under ACES tone mapping.
-      tone(mats.ground.color, pal.ground, 0, .24, .02);
+      tone(mats.ground.color, pal.ground, 0, .24, .02); mats.ground.color.lerp(WHITE, .78);
       tone(mats.tuft.color, pal.ground, .01, .3, .04);
-      tone(mats.meadow.color, pal.ground, .015, .2, .12);
+      tone(mats.meadow.color, pal.ground, .015, .2, .12); mats.meadow.color.lerp(WHITE, .8);
+      backdrop.sync(pal);
+      const countryId = parseRegionId(state.world.currentRegion || '')?.countryId || 'vn';
+      scenery.sync(countryId);
+      gedeoForest.on = true; // realistic land everywhere (Gedeo shade trees, shrubs, rocks, grass); species by country later
+      loadGedeoForest().then(applyForest);
+      applyForest();
     }
+    tierFence.sync(state);
     const owned = ownedParcels(state);
     activeWild.length = 0;
     // Farm: roads open with the land; a lot is owned, for sale (frontier: touches an open road → sign + price) or
@@ -778,7 +1124,7 @@ export function createWorld({ scene, templates }) {
     const trail = ROAD_ORDER.filter(id => !open.includes(id) && open.some(o => rectsTouch(ROADS[o].rect, ROADS[id].rect)));
     rebuildRoads(open, trail);
     // Owned land by terrain (Farm World 2.0): meadow = no overlay (the plain farm ground, one continuous farm).
-    const OWNED_MAT = { meadow: null, garden: mats.pasture, hill: mats.pasture, pasture: mats.pasture, pond: mats.water, orchard: mats.meadow, shop: mats.paved };
+    const OWNED_MAT = { meadow: null, garden: mats.pasture, hill: mats.pasture, pasture: mats.pasture, pond: null, orchard: mats.meadow, shop: mats.paved }; // pond: a natural Blender pond, not a blue square
     const wildFarm = [], orchards = [];
     for (const p of Object.values(PARCELS)) {
       const e = parcels[p.id];
@@ -787,20 +1133,25 @@ export function createWorld({ scene, templates }) {
       if (e.state !== st) {
         e.state = st;
         const terrain = terrainOfLot(p.id);
-        const mat = st === 'owned' ? (Object.hasOwn(OWNED_MAT, terrain) ? OWNED_MAT[terrain] : mats.meadow) : farmLot ? mats.meadow : mats.vacant;
+        // Farm game-feel pass: land not owned yet is plain grass (no pale squares = no grid-map look); only café lots keep the vacant overlay.
+        const mat = st === 'owned' ? (Object.hasOwn(OWNED_MAT, terrain) ? OWNED_MAT[terrain] : mats.meadow) : farmLot ? null : mats.vacant;
         e.overlay.visible = !!mat;
         if (mat) e.overlay.material = mat;
         e.overlay.position.y = st === 'owned' && terrain === 'pond' ? .01 : 0;
       }
-      e.sign.visible = st === 'sale'; // every for-sale lot (expand mode relies on this: all signs, not only near ones)
+      e.sign.visible = signShown(p.id, st); // farm: price signs only in expand mode (the "+" badge near the farmer shows the next lot)
       if (st !== 'owned') { activeWild.push(p.id); if (farmLot) wildFarm.push(p.id); }
-      if (st === 'sale') e.label.set(t('realm.forSale', { price: formatNumber(p.cost) }));
+      const est = estateOfLot(p.id);
+      if (st === 'sale' || (est && est.seed === p.id && st !== 'owned')) e.label.set(est ? t('estate.sign', { icon: est.icon, name: t(`estate.${est.id}`), price: formatNumber(est.cost) }) : t('realm.forSale', { price: formatNumber(p.cost) }));
+      else if (est && est.seed === p.id) e.label.set(`${est.icon} ${t(`estate.${est.id}`)} ✅`); // an owned tier keeps its sign: tap it for the tier info
       if (st === 'owned' && p.kind === 'orchard') orchards.push(p.id);
     }
     for (const d of Object.values(decor)) { d.tufts.show(activeWild); d.flowers.show(activeWild); }
     decor.farm.thickets.show(wildFarm);
+    decor.farm.wildTrunks.show(wildFarm); decor.farm.wildCrowns.show(wildFarm); decor.farm.stumps.show(wildFarm);
+    gedeoForest.wildKeys = wildFarm; gedeoForest.wild?.forEach(d => d.show(wildFarm));
     decor.farm.rocks.show([...open, ...wildFarm]); // border stones of open roads + rocks on overgrown land
-    orchard.show(orchards, state);
+    orchard.show([], state); // (orchard lots grow no ready-made trees either: you plant them)
     rebuildFences(owned);
     lastState = state;
     if (land.mode) applyLand(state); // ownership changed while building / expanding: rebuilt only when the key changes
@@ -814,6 +1165,9 @@ export function createWorld({ scene, templates }) {
   const saleTint = new THREE.Mesh(new THREE.BufferGeometry(), saleMat);
   for (const m of [gridLines, saleTint]) { m.visible = false; m.raycast = () => {}; m.renderOrder = 1; m.frustumCulled = false; farm.add(m); }
   const land = { mode: null, type: null, key: '' };
+  // Estates: one sign per estate (on its seed lot), always up — the whole next estate is the land for sale.
+  // the farm's lot signs (the small light-wood price boards) are gone (founder 2026-11-08); café lots keep theirs while for sale
+  const signShown = (id, st) => areaOfParcel(id) !== 'farm' && st === 'sale';
   let lastState = null;
   // Owned farm lots the grid covers: lots that allow `type`'s use, else lots that take fields or buildings.
   function gridLots(state, type) {
@@ -851,6 +1205,7 @@ export function createWorld({ scene, templates }) {
   function setLandMode(mode, { state, type } = {}) {
     land.mode = mode === 'build' || mode === 'expand' ? mode : null;
     land.type = land.mode === 'build' ? type || null : null;
+    for (const id of Object.keys(parcels)) parcels[id].sign.visible = signShown(id, parcels[id].state);
     applyLand(state || lastState);
   }
 
@@ -860,14 +1215,17 @@ export function createWorld({ scene, templates }) {
   }
 
   return {
-    group, areas, mats, gate, gatePicker, sync, update,
+    group, areas, mats, gate, gatePicker, tierPickers: () => dressing?.pickers?.() || [], moveTierSign: (seed, x, z) => dressing?.moveSign?.(seed, x, z) || false, hideTierSign: (seed, b) => dressing?.hideSign?.(seed, b), sync, update,
     /** Static decor the player cannot walk through (the city's houses). */
     blockers: city.blockers,
     /** Shows only one area: 'farm' | 'cafe' (null → both, used while shaders compile). */
     setView(v) { farm.visible = !v || v === 'farm'; cafe.visible = !v || v === 'cafe'; },
     parcelState: id => parcels[id]?.state || null,
     setLandMode,
+    /** Resolves when every model of the farm (land, forest, tier works, hills, scenery, dressing) is in the scene. */
+    whenLoaded: () => Promise.all([landLoading, gedeoForest.loading, scenery.loading?.()].filter(Boolean)).catch(() => {}),
     dispose() {
+      backdrop.dispose(); scenery.dispose(); tierFence.dispose();
       for (const e of Object.values(parcels)) e.label.dispose();
       for (const l of labels) l.dispose();
       fence.geometry.dispose(); roadMesh.geometry.dispose(); trailMesh.geometry.dispose();

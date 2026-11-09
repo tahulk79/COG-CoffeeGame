@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { loadPlayer, playerModel } from '../../characters/load-player.js';
 import { createPlayerMotion } from '../../characters/motion.js';
 import { createPerson } from '../../characters/player.js';
-import { BOUNDS, PLAYER_SPAWN } from '../../core/config/layout.js';
+import { BOUNDS, PLAYER_SPAWN, farmGroundY } from '../../core/config/layout.js';
 import { clamp, dampK } from './util.js';
 
 const SPEED = 5.2;
@@ -55,7 +55,8 @@ export async function createAvatar({ scene, gender }) {
   function plan(x, z) {
     path.length = 0;
     const list = navigate ? navigate(root.position.x, root.position.z, x, z) : null;
-    if (list?.length) { for (const p of list) path.push(p); goal = path[path.length - 1]; } else path.push(goal);
+    // waypoints always stay inside the walkable map (a spot past the edge ends at the edge)
+    if (list?.length) { for (const p of list) path.push({ x: clamp(p.x, bounds.minX, bounds.maxX), z: clamp(p.z, bounds.minZ, bounds.maxZ) }); goal = path[path.length - 1]; } else path.push(goal);
   }
 
   function update(dt, time) {
@@ -80,7 +81,7 @@ export async function createAvatar({ scene, gender }) {
         watch = 0; watchX = root.position.x; watchZ = root.position.z;
         if (moved < .1) {
           if (++repaths <= 3) plan(goal.x, goal.z);
-          else if (path.length) { const n = path.shift(); root.position.x = n.x; root.position.z = n.z; repaths = 0; if (!path.length) { goal = null; const fn = onArrive; onArrive = null; fn?.(); } }
+          else { goal = null; onArrive = null; path.length = 0; } // cannot get any closer (map edge / obstacle): stand still, never warp through
         }
       }
     }
@@ -90,9 +91,18 @@ export async function createAvatar({ scene, gender }) {
       const ok = tryMove(mx, mz);
       yawGoal = Math.atan2(mx, mz);
       // Without a navigator: give up on a tap target we cannot reach (e.g. inside a building).
-      if (!navigate && goal && (!ok || Math.abs(root.position.x + root.position.z - before) < 1e-4)) { if ((stuck += dt) > .35) { goal = null; onArrive = null; path.length = 0; } }
-      else stuck = 0;
+      // Blocked while walking (map edge / obstacle the grid did not know): re-plan once, then simply stop there.
+      if (goal && (!ok || Math.abs(root.position.x + root.position.z - before) < 1e-4)) {
+        if ((stuck += dt) > .3) {
+          stuck = 0;
+          if (navigate && ++repaths <= 1) plan(goal.x, goal.z);
+          else { goal = null; onArrive = null; path.length = 0; }
+        }
+      } else stuck = 0;
     }
+    // ride the mountain tiers: ease onto the land height (a wall crossing reads as climbing the stone steps)
+    const gy = farmGroundY(root.position.x, root.position.z);
+    root.position.y += (gy - root.position.y) * Math.min(1, dampK(10, dt) * (Math.abs(gy - root.position.y) > 4 ? 10 : 1));
     let d = yawGoal - root.rotation.y;
     d = Math.atan2(Math.sin(d), Math.cos(d));
     root.rotation.y += d * dampK(12, dt);
@@ -117,7 +127,7 @@ export async function createAvatar({ scene, gender }) {
     setKeyDir(x, z) { keyDir.set(x, z); if (keyDir.lengthSq() > 1) keyDir.normalize(); },
     setBlockers(list) { blockers = list; },
     setBounds(b) { bounds = b || BOUNDS; },
-    teleport(x, z, yaw = null) { root.position.set(x, 0, z); goal = null; onArrive = null; path.length = 0; if (yaw !== null) root.rotation.y = yawGoal = yaw; },
+    teleport(x, z, yaw = null) { root.position.set(x, farmGroundY(x, z), z); goal = null; onArrive = null; path.length = 0; if (yaw !== null) root.rotation.y = yawGoal = yaw; },
     update,
     dispose() { motion?.dispose(); root.removeFromParent(); },
   };

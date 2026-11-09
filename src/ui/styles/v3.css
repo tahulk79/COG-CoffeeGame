@@ -295,6 +295,16 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
 .hud-drink-local{grid-column:2;font:700 12px/1.35 var(--h-font);color:#7a4a10}
 .hud-tool[hidden]{display:none}
 .hud-seed-meta{display:flex;flex-wrap:wrap;gap:10px;font:700 13px/1.2 var(--h-font);color:var(--h-ink-soft)}
+.hud-seed:has(.hud-seed-where){grid-template-rows:auto auto auto}.hud-seed:has(.hud-seed-where) .hud-seed-ico{grid-row:1/4}
+.hud-seed-where{font:700 12px/1.25 var(--h-font);color:#5f8a3c}
+.hud-variety{margin:12px 0 4px;padding:10px 12px;border-radius:16px;background:#fff;box-shadow:inset 0 0 0 2px var(--h-line)}
+.hud-variety .hud-sm-h{margin:0 0 6px}
+.hud-variety-stats{list-style:none;margin:0 0 6px;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:4px 12px}
+.hud-variety-stats li{display:flex;justify-content:space-between;gap:6px;font:700 13px/1.3 var(--h-font);color:var(--h-ink-soft)}
+.hud-variety-stats strong{color:var(--h-ink,#4a3420)}
+.hud-variety-stats strong{text-align:right}
+@media (max-width:520px){.hud-variety-stats{grid-template-columns:1fr}}
+.hud-variety .hud-line{margin:4px 0 0}
 .hud-slots{margin:0 0 8px;padding:6px 12px;border-radius:12px;background:#fff;font:800 14px/1.2 var(--h-font);box-shadow:inset 0 0 0 2px var(--h-line)}
 .hud-units{list-style:none;margin:0;padding:0;display:grid;gap:8px}
 .hud-unit{display:flex;align-items:center;gap:10px;padding:6px 8px 6px 10px;border-radius:16px;background:#fff;box-shadow:inset 0 0 0 2px var(--h-line)}
@@ -604,7 +614,7 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
 .hud-sm-host{position:fixed;inset:0;z-index:20}
 .hud-sm-host[data-collapsed="1"]{pointer-events:none}
 .hud-sm-scrim{position:absolute;inset:0;background:#2a1d0e55}
-.hud-sm{position:absolute;left:50%;top:calc(var(--h-st) + 10px);bottom:0;transform:translateX(-50%);display:flex;flex-direction:column;width:min(600px,100vw);border-radius:24px 24px 0 0;background:var(--h-cream);box-shadow:0 -6px 24px #4a32102e,inset 0 2px 0 #fff;overflow:hidden;animation:hud-sheet-in .22s ease-out}
+.hud-sm{position:absolute;left:50%;top:calc(var(--h-st) + 10px);bottom:0;transform:translateX(-50%);display:flex;flex-direction:column;width:min(460px,100vw);border-radius:24px 24px 0 0;background:var(--h-cream);box-shadow:0 -6px 24px #4a32102e,inset 0 2px 0 #fff;overflow:hidden;animation:hud-sheet-in .22s ease-out}
 .hud-sm-head{flex:none;padding:8px calc(16px + var(--h-sr)) 6px calc(16px + var(--h-sl));background:var(--h-cream);box-shadow:0 2px 0 var(--h-line);position:relative;z-index:1}
 .hud-sm-titlebar{display:flex;align-items:center;gap:6px}
 .hud-sm-title{flex:1;min-width:0;margin:0;font:800 19px/1.2 var(--h-font);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -652,6 +662,47 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
 .hud-sm-bar--warn .hud-sm-bar-track>span{background:linear-gradient(90deg,#ffd25a,#f0a429)}
 .hud-sm-bar--bad .hud-sm-bar-track>span{background:linear-gradient(90deg,#ff9a6b,var(--h-red))}
 .hud-sm-bar-num{text-align:right;font-variant-numeric:tabular-nums}
+/* ---- staff modal, mobile-first redesign (2026-11-08): header numbers, «Cần bạn», roster, folds ---- */
+.hud-sm-kpis{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.hud-sm-kpi{display:inline-flex;align-items:center;gap:4px;min-height:26px;white-space:nowrap;padding:2px 10px;border-radius:99px;background:#fff;box-shadow:inset 0 0 0 2px var(--h-line);font:800 12.5px/1.2 var(--h-font);color:var(--h-ink,#4a3420)}
+.hud-sm-kpi.is-warn{background:#fff1d6;box-shadow:inset 0 0 0 2px #f4cf7a;color:#7a4a12}
+.hud-sm-kpi.is-good{color:#3f6b1f}
+.hud-rs-trade{margin-left:5px;font:700 11.5px/1 var(--h-font);color:var(--h-ink-soft)}
+.hud-sm-job{margin:0 0 8px;font:700 13px/1.35 var(--h-font);color:var(--h-ink-soft)}
+.hud-ny-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:2px 0 8px}
+.hud-ny-head .hud-sm-h{margin:0}
+.hud-ny-head .hud-btn{min-width:0;padding:6px 10px}
+.hud-ny-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.hud-ny{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;padding:6px 8px 6px 6px;border-radius:16px;background:#fff;box-shadow:inset 0 0 0 2px var(--h-line)}
+.hud-ny.is-p0{background:#fff1e8;box-shadow:inset 0 0 0 2px #f2a27a}
+.hud-ny.is-p1,.hud-ny.is-p2{box-shadow:inset 0 0 0 2px #f4cf7a}
+.hud-ny.is-p6{opacity:.85}
+.hud-ny--task{display:block;padding:0;background:none;box-shadow:none}
+.hud-ny--task>.hud-gm-req{margin:0}
+.hud-ny-main{display:flex;align-items:center;gap:8px;min-width:0;min-height:44px;padding:0;border:0;background:none;text-align:left;font:inherit;color:inherit}
+.hud-ny-ico{flex:none;display:grid;place-items:center;width:36px;height:36px;border-radius:12px;background:#fdf3dc;font-size:20px}
+.hud-ny-text{min-width:0;display:grid;gap:1px}
+.hud-ny-text strong{font:800 14px/1.2 var(--h-font);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hud-ny-text small{font:700 12px/1.25 var(--h-font);color:var(--h-ink-soft)}
+.hud-ny-act .hud-btn{min-width:0;max-width:44vw;padding:6px 10px}
+.hud-ny-more{display:block;width:100%;min-height:40px;margin-top:6px;border:0;border-radius:12px;background:#f1e3c4;color:#7a5a3a;font:800 13px/1.2 var(--h-font)}
+.hud-rs{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.hud-rs-row{border-radius:16px;background:#fff;box-shadow:inset 0 0 0 2px var(--h-line)}
+.hud-rs-row.is-bad{box-shadow:inset 0 0 0 2px #f2a27a}.hud-rs-row.is-warn{box-shadow:inset 0 0 0 2px #f4cf7a}
+.hud-rs-main{display:flex;align-items:center;gap:10px;width:100%;min-height:60px;padding:6px 8px;border:0;background:none;text-align:left;font:inherit;color:inherit}
+.hud-rs-main .hud-sm-avatar{width:42px;height:42px;border-radius:14px;font-size:24px}
+.hud-rs-main .hud-sm-avatar-state{width:22px;height:22px;font-size:12px}
+.hud-rs-text{flex:1;min-width:0;display:grid;gap:1px}
+.hud-rs-name{font:800 14.5px/1.2 var(--h-font);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hud-rs-text .hud-report{font:700 12px/1.25 var(--h-font);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hud-rs-meter{flex:none;position:relative;width:8px;height:34px;border-radius:99px;background:#f1e3c4;overflow:hidden}
+.hud-rs-meter>i{position:absolute;left:0;right:0;bottom:0;border-radius:inherit;background:#6cc041;transition:height .4s ease-out}
+.hud-rs-meter.is-warn>i{background:#f0a429}.hud-rs-meter.is-bad>i{background:var(--h-red)}
+.hud-fold{padding:0}
+.hud-fold-head{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:48px;margin:0;padding:0 12px;border:0;border-radius:14px;background:#fff;box-shadow:inset 0 0 0 2px var(--h-line);font:800 15px/1.2 var(--h-font);color:inherit;text-align:left}
+.hud-fold.is-open>.hud-fold-head{background:#fdf3dc}
+.hud-fold-chev{color:#c8ab78;font-size:18px}
+.hud-fold-body{padding-top:8px}
 .hud-sm-empty{display:grid;justify-items:start;gap:10px;padding:8px 0}
 /* Detail */
 .hud-sm-dhead{display:flex;align-items:center;gap:14px;margin:2px 0 6px}
@@ -718,7 +769,7 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
 .hud-sm-strip .hud-btn{min-width:0;padding:6px 10px;font-size:13px}
 .hud-sm-strip .hud-x{margin:0}
 @media (orientation:landscape) and (max-height:560px){
-  .hud-sm{top:calc(var(--h-st) + 6px);width:min(640px,100vw)}
+  .hud-sm{top:calc(var(--h-st) + 6px);width:min(460px,100vw)}
   .hud-sm-strip{bottom:calc(var(--h-sb) + 10px)}
 }
 @media (min-width:760px) and (min-height:561px){
@@ -1020,3 +1071,542 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
   .hud-inbox-btn{position:absolute;left:0;top:calc(100% + 34px);font-size:11px;padding:3px 9px}
   .hud-journal-btn{order:2;width:40px;height:40px;font-size:20px}
 }
+
+.hud-fit{white-space:nowrap;font-weight:800}.hud-fit.is-good{color:#3f6b1f}.hud-fit.is-bad{color:#a2621a;opacity:.85}
+
+/* ---------- Farm big-update (docs/design/farm-ui-bigupdate.md): reference-style HUD ---------- */
+/* Art slot: a PNG from public/assets/farm/ui replaces the emoji (farm-assets.js). */
+.hud-tool-ico.has-art{background:none;box-shadow:none;font-size:0}
+.hud-art{width:100%;height:100%;object-fit:contain;pointer-events:none;-webkit-user-drag:none}
+/* Minimap: square map under the top-left HUD, farm only. */
+.hud-minimap{position:fixed;z-index:var(--z-hud,5);left:calc(var(--h-sl) + 10px);top:calc(var(--h-st, 0px) + 96px);width:96px;height:96px;border-radius:14px;overflow:hidden;background:#9ccf6a;border:3px solid #fff8e6;box-shadow:var(--h-shadow),0 0 0 2px #a2763a;pointer-events:none}
+.hud-minimap canvas{position:static;inset:auto;display:block;width:100%;height:100%} /* game.css pins every canvas fixed full-screen */
+#hud-root[data-view="cafe"] .hud-minimap,#hud-root:not([data-phase="play"]) .hud-minimap,#hud-root[data-placing] .hud-minimap{display:none}
+/* Farm bottom bar: two clusters of square wooden slots at the corners (Seeds, Build left · Staff, Progress right), the beans
+   button above the right cluster, the world stays visible in the middle. */
+.hud-toolbar[data-view="farm"]{left:calc(var(--h-sl) + 10px);right:calc(var(--h-sr) + 10px);transform:none;justify-content:flex-start;gap:8px;padding:0;background:none;box-shadow:none;pointer-events:none}
+.hud-toolbar[data-view="farm"] .hud-tool{pointer-events:auto;order:0;width:60px;min-height:0;padding:0;gap:0}
+.hud-toolbar[data-view="farm"] #hud-btn-staff{order:3;margin-left:auto}
+.hud-toolbar[data-view="farm"] #hud-btn-progress{order:4}
+.hud-toolbar[data-view="farm"] .hud-view{order:5;position:absolute;right:0;bottom:82px;width:64px}
+.hud-toolbar[data-view="farm"] .hud-tool-ico{width:60px;height:60px;border-radius:16px;border:3px solid #a2763a;background:linear-gradient(#fff6dc,#f3d79a);box-shadow:inset 0 -4px 0 #d9ae62,0 3px 0 #6e4a2288,0 6px 12px #3a2a1030;font-size:28px}
+.hud-toolbar[data-view="farm"] .hud-view .hud-tool-ico{width:64px;height:64px;border-radius:50%;border:3px solid #fff;background:linear-gradient(#ffb36b,#e8673c)}
+.hud-toolbar[data-view="farm"] .hud-tool-label{position:absolute;left:50%;bottom:-13px;transform:translateX(-50%);max-width:none;padding:0 5px;border-radius:8px;background:#fff8e6e6;font-size:10px}
+.hud-toolbar[data-view="farm"] .hud-view .hud-tool-label{bottom:-14px}
+#hud-root[data-sheet="build"] .hud-toolbar[data-view="farm"] #hud-btn-build .hud-tool-ico,#hud-root[data-sheet="seeds"] .hud-toolbar[data-view="farm"] #hud-btn-seeds .hud-tool-ico,#hud-root[data-sheet="staff"] .hud-toolbar[data-view="farm"] #hud-btn-staff .hud-tool-ico,#hud-root[data-sheet="progress"] .hud-toolbar[data-view="farm"] #hud-btn-progress .hud-tool-ico{background:linear-gradient(#b8ee86,#5fbf3a);border-color:#3e7f22;box-shadow:inset 0 -4px 0 #3e8f22,0 3px 0 #2e5f1a88}
+
+/* Field tool popup (field-pop.js): round tools floating next to the tapped field; hold one and sweep it over the beds. */
+.hud-fieldpop{position:fixed;left:0;top:0;z-index:var(--z-hud,5);display:flex;gap:8px;padding:6px 8px;border-radius:999px;background:#fff8e6f0;box-shadow:var(--h-shadow),0 0 0 2px #a2763a;animation:hud-pop .18s ease-out;will-change:transform;touch-action:none}
+.hud-fieldpop[hidden],.hud-fieldpop-ghost[hidden],.hud-fieldpop-hint[hidden]{display:none}
+.hud-fieldpop.is-dragging{opacity:.35!important}
+.hud-fieldpop-btn{position:relative;display:grid;place-items:center;width:52px;height:52px;padding:0;border:0;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fffdf4,#f6dca0);box-shadow:inset 0 -4px 0 #d9ae62,0 3px 0 #6e4a2266;touch-action:none;cursor:grab;transition:transform .1s}
+.hud-fieldpop-btn.is-harvest{background:radial-gradient(circle at 35% 30%,#e9ffd6,#9fd86a);box-shadow:inset 0 -4px 0 #5aab35,0 3px 0 #2e5f1a66}
+.hud-fieldpop-btn.is-held{transform:scale(1.12)}
+.hud-fieldpop-ico{display:grid;place-items:center;width:40px;height:40px;font-size:28px;line-height:1;pointer-events:none}
+.hud-fieldpop-price{position:absolute;left:50%;bottom:-9px;transform:translateX(-50%);padding:0 5px;border-radius:8px;background:#5a3a22;color:#fff;font:800 10px/15px var(--h-font);white-space:nowrap;pointer-events:none}
+.hud-fieldpop-ghost{position:fixed;left:0;top:0;z-index:calc(var(--z-hud,5) + 2);width:60px;height:60px;display:grid;place-items:center;border-radius:50%;background:#fff8e6cc;box-shadow:0 8px 18px #3a2a1055;pointer-events:none;font-size:36px}
+.hud-fieldpop-ghost .hud-fieldpop-ico{width:48px;height:48px;font-size:36px}
+.hud-fieldpop-hint{position:fixed;left:0;top:0;z-index:var(--z-hud,5);width:220px;padding:6px 10px;border-radius:12px;background:#3a2a1ee6;color:#fff;font:700 12px/1.3 var(--h-font);text-align:center;pointer-events:none;animation:hud-pop .18s ease-out}
+#hud-root:not([data-phase="play"]) .hud-fieldpop,#hud-root[data-placing] .hud-fieldpop,#hud-root[data-view="cafe"] .hud-fieldpop{display:none}
+/* Farm field: the long card stays closed until ⋯ in the field bubble (field-pop.js) opens it. */
+#hud-root[data-view="farm"][data-selection="plot"]:not([data-plotcard]) .hud-action{display:none}
+.hud-fieldpop{align-items:center}
+.hud-fieldpop-chip{padding:0 8px;font:800 13px/1 var(--h-font);color:var(--h-ink);white-space:nowrap}
+.hud-fieldpop-chip.is-ready{color:#3e8f22}
+.hud-fieldpop-more{display:grid;place-items:center;width:32px;height:32px;padding:0;border:0;border-radius:50%;background:#f3e3bd;color:var(--h-ink);font:900 18px/1 var(--h-font);box-shadow:inset 0 -2px 0 #d9ae62}
+#hud-root[data-plotcard] .hud-fieldpop-more{background:#8cd45a;color:#fff}
+
+/* ---- land-ui-simplify §4 (2026-11-08): ⬆ upgrades counter, ⋯ more menu, labelled build tabs, shorter cards ---- */
+.hud-more-wrap{position:relative;z-index:30;display:flex;flex-direction:column;align-items:center}
+.hud-more-btn{font:900 26px/1 var(--h-font);color:#4a2f1b}
+.hud-more-btn .hud-dot{position:absolute;top:2px;right:2px;width:11px;height:11px}
+.hud-more-pop{position:absolute;top:calc(100% + 8px);right:0;z-index:2;display:flex;flex-direction:column;align-items:center;gap:14px;padding:12px 10px 16px;border-radius:18px;background:var(--h-cream);box-shadow:var(--h-shadow),inset 0 0 0 2px var(--h-edge)}
+.hud-more-pop[hidden]{display:none}
+.hud-more-pop .hud-loan-btn,.hud-more-pop .hud-roundmap{position:relative;order:0;margin:0}
+.hud-upgrades-btn{font-size:22px}
+.hud-upgrades-btn:not(.is-ready){filter:saturate(.35) brightness(.95)}
+.hud-upgrades-btn.is-ready .hud-roundmap-num{background:var(--h-green,#3f9a3a)}
+.hud-upgrades-btn[hidden]{display:none}
+/* Build tabs: always show the label (icons alone had to be guessed) — the tab row scrolls sideways on phones */
+.hud-cat-tab:not([aria-selected="true"]) .hud-cat-tab-label{position:static;width:auto;height:auto;overflow:visible;clip:auto;clip-path:none}
+.hud-cat-tabs{overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+/* Building / storehouse card: at most ~40% of the screen, the rest stays visible */
+@media (orientation:portrait){
+  .hud-action{max-height:42dvh}
+  .hud-goods{max-height:22dvh}
+}
+
+/* ===== HUD layout v4 (founder 2026-11-08: "menu lộn xộn, không chuẩn UX") =====
+   Standard mobile-game layout, all screen sizes:
+   · top-left: player badge + XP, coins, storehouse pill, Lv-10 chip; minimap small under it
+   · top-right: ⚙ in the corner, then one rail of identical round buttons 🌍 ⬆ 📋 ▶ ⋯ (same size, same cream skin)
+   · bottom: one full-width dock, 5 equal slots — Seeds · Build · [Storehouse, raised] · Staff · Progress */
+.hud-top-right{flex-direction:column;align-items:center;gap:10px}
+.hud-gear-col{display:contents}
+.hud-top-right>.hud-gear-col .hud-gear,.hud-top-right .hud-roundmap,.hud-top-right .hud-auto-btn,.hud-top-right .hud-inbox-btn{position:relative;top:auto;right:auto;display:grid;place-items:center;width:46px;height:46px;min-height:0;margin:0;padding:0;border:3px solid #a2763a;border-radius:50%;background:linear-gradient(#fff6dc,#f3d79a);box-shadow:inset 0 -3px 0 #d9ae62,0 3px 0 #6e4a2288;color:#4a2f1b;font:800 20px/1 var(--h-font);animation:none}
+.hud-top-right .hud-roundmap .ui-icon{width:24px;height:24px}
+.hud-top-right .hud-upgrades-btn.is-ready{background:linear-gradient(#fff7c2,#ffd24d);border-color:#b97a17}
+.hud-top-right .hud-auto-btn{order:0;color:#1f5d96}
+.hud-top-right .hud-auto-full{display:none}
+.hud-top-right .hud-inbox-btn{width:auto;min-width:46px;padding:0 8px;border-radius:23px;font-size:12px}
+.hud-top-right .hud-inbox-btn[hidden],.hud-top-right [hidden]{display:none}
+.hud-top-right .hud-roundmap-num,.hud-top-right .hud-auto-tag{bottom:-9px;padding:1px 6px;border-width:1.5px;font-size:9.5px}
+.hud-more-wrap{position:relative}
+.hud-minimap{width:68px;height:68px;border-radius:12px;top:max(calc(var(--h-st,0px) + 96px),calc(var(--hud-tl-bottom,0px) + 8px))}
+/* bottom dock */
+.hud-toolbar[data-view="farm"]{left:calc(var(--h-sl) + 8px);right:calc(var(--h-sr) + 8px);bottom:calc(var(--h-sb) + 6px);transform:none;display:flex;justify-content:space-between;align-items:flex-end;gap:0;padding:6px 6px 16px;border-radius:22px;background:#fff8e6f2;box-shadow:var(--h-shadow),inset 0 0 0 2px #e7c98e;pointer-events:auto}
+.hud-toolbar[data-view="farm"] .hud-tool{flex:1 1 0;width:auto;margin:0}
+.hud-toolbar[data-view="farm"] #hud-btn-seeds{order:1}
+.hud-toolbar[data-view="farm"] #hud-btn-build{order:2}
+.hud-toolbar[data-view="farm"] .hud-view{order:3;position:relative;right:auto;bottom:auto;width:auto;margin-top:-26px}
+.hud-toolbar[data-view="farm"] #hud-btn-staff{order:4;margin-left:0}
+.hud-toolbar[data-view="farm"] #hud-btn-progress{order:5}
+.hud-toolbar[data-view="farm"] .hud-tool-ico{width:52px;height:52px;font-size:25px}
+.hud-toolbar[data-view="farm"] .hud-view .hud-tool-ico{width:64px;height:64px}
+.hud-toolbar[data-view="farm"] .hud-tool-label{bottom:-14px;background:none;font-size:10.5px}
+.hud-top-right>.hud-gear-col .hud-gear{order:1}
+.hud-top-right>.hud-world-btn{order:2}
+.hud-top-right>.hud-upgrades-btn{order:3}
+.hud-top-right>.hud-inbox-btn{order:4}
+.hud-top-right>.hud-auto-btn{order:5}
+.hud-top-right>.hud-more-wrap{order:6}
+/* v4 fixes (founder screenshot 2026-11-08, desktop): the rail's ▶ Auto keeps its icon + run tag at every size (the
+   desktop "full text" pill is hidden in the rail); the dock stays a compact centred bar on wide screens. */
+.hud-top-right .hud-auto-btn .hud-auto-ico{display:grid;place-items:center}
+.hud-top-right .hud-auto-btn .hud-auto-tag{display:block;position:absolute;left:50%;transform:translateX(-50%)}
+.hud-minimap{left:calc(var(--h-sl) + 10px)}
+@media (min-width:760px){
+  .hud-toolbar[data-view="farm"]{left:50%;right:auto;width:min(480px,calc(100vw - 32px));transform:translateX(-50%)}
+}
+/* the farm dock is one horizontal bar on every screen (the old landscape rule turned the toolbar into a side column) */
+#hud-root .hud-toolbar[data-view="farm"]{flex-direction:row;top:auto;bottom:calc(var(--h-sb) + 6px);height:auto;align-items:flex-end}
+@media (max-height:560px){
+  #hud-root .hud-toolbar[data-view="farm"]{padding:4px 6px 12px}
+  #hud-root .hud-toolbar[data-view="farm"] .hud-tool-ico{width:42px;height:42px;font-size:21px}
+  #hud-root .hud-toolbar[data-view="farm"] .hud-view .hud-tool-ico{width:52px;height:52px}
+}
+#hud-root[data-plotcard] .hud-toolbar{display:none} /* the field card owns the bottom of the screen while it is open */
+.hud-player{cursor:pointer;pointer-events:auto}
+.hud-near{flex-wrap:wrap;gap:6px;align-items:center}.hud-near-tree{min-width:40px;height:40px;border-radius:12px;border:2px solid #d9b77a;background:#fff8e6;font-size:20px}.hud-near-tree.is-ready{border-color:#e8a317}
+.hud-headseed{position:fixed;transform:translate(-50%,-100%);z-index:30;display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:999px;border:2px solid #a2763a;background:#fff8e6;box-shadow:0 3px 8px rgba(0,0,0,.3);font-size:22px;line-height:1;cursor:pointer;pointer-events:auto}.hud-headseed b{font-size:14px;color:#c0392b}.hud-headseed[hidden]{display:none}
+.hud-seedgrid{display:grid;gap:10px;padding:4px 2px 8px}
+.hud-seedcard{display:flex;align-items:center;gap:14px;width:100%;padding:12px 14px;border-radius:18px;border:3px solid #e3cfa3;background:#fffdf6;text-align:left;cursor:pointer;font:inherit;color:inherit}
+.hud-seedcard.is-active{border-color:#78b84a;background:#f1fae6}
+.hud-seedcard-ico{font-size:34px;line-height:1;width:44px;text-align:center}
+.hud-seedcard-text{flex:1;display:grid;gap:2px;min-width:0}
+.hud-seedcard-text strong{font-size:18px}
+.hud-seedcard-text small{font-size:13px;opacity:.75}
+/* No scrolling in the Develop menu (founder 2026-11-08): tabs wrap, scrollbars hidden, the seed cards stay compact */
+.hud-cat-tabs{flex-wrap:wrap;overflow:visible}
+.hud-sheet-body{scrollbar-width:none}
+.hud-sheet-body::-webkit-scrollbar{display:none}
+.hud-seedgrid{gap:6px;padding:0 0 4px}
+.hud-seedcard{padding:8px 12px;gap:10px;border-width:2px}
+.hud-seedcard-ico{font-size:26px;width:34px}
+.hud-seedcard-text strong{font-size:16px}
+.hud-seedcard-text small{font-size:12px}
+.hud-plotdot{position:fixed;transform:translate(-50%,-50%);z-index:30;width:38px;height:38px;border-radius:50%;border:3px solid #fff;background:linear-gradient(#5fcf67,#2e9c3a);color:#fff;font:900 16px/1 var(--h-font,inherit);box-shadow:0 2px 6px rgba(0,0,0,.35);cursor:pointer;pointer-events:auto;padding:0}
+.hud-plotdot[hidden]{display:none}
+.hud-health-bar{height:8px;margin:2px 0 6px}.hud-health-bar span{display:block;height:100%;border-radius:inherit;background:#6bbf3b}
+.hud-plotdot{display:grid;place-items:center}
+.hud-treeview{position:fixed;inset:0;z-index:60;display:grid;place-items:center;background:rgba(30,20,10,.45);pointer-events:auto}
+.hud-treeview-card{width:min(360px,calc(100vw - 32px));padding:12px 14px 14px;border-radius:22px;background:#fffaf0;border:3px solid #d9b77a;box-shadow:0 10px 30px rgba(0,0,0,.4);display:grid;gap:6px;justify-items:center}
+.hud-treeview-head{width:100%;display:flex;align-items:center;justify-content:space-between;font-size:18px}
+.hud-treeview-x{width:34px;height:34px;border-radius:50%;border:0;background:#f1e3c4;font-size:16px;cursor:pointer}
+.hud-treeview-canvas{border-radius:16px;background:radial-gradient(circle at 50% 40%,#e9f5d8,#c9e3a8);touch-action:none;cursor:grab}
+.hud-treeview-manage{margin-top:4px;padding:8px 18px;border-radius:999px;border:2px solid #a2763a;background:#fff8e6;font:800 14px var(--h-font,inherit);cursor:pointer}
+.hud-treeview-canvas{position:static;inset:auto;display:block}
+.hud-treeview-tools{width:100%;display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:4px}
+.hud-treeview-status{width:100%;margin:2px 0;padding:8px 10px;border-radius:12px;text-align:center;font:800 15px var(--h-font,inherit);background:#eef6e3;color:#3d6b2a}
+.hud-treeview-status.is-ready{background:#ffe9a8;color:#7a4b00;border:2px solid #ffc21a}
+.hud-treeview-status.is-thirst{background:#dcecff;color:#13509a;border:2px solid #2f8cff}
+.hud-treeview-status.is-prune{background:#e1f5d8;color:#2d6b1c;border:2px solid #4fc23a}
+.hud-treeview-timer{width:100%;display:grid;gap:3px;justify-items:center}
+.hud-treeview-bar{width:100%;height:10px}
+.hud-treeview-bar span{display:block;height:100%;border-radius:inherit;background:#ffc21a;transition:width .3s}
+.hud-treeview-timer.is-thirst .hud-treeview-bar span{background:#2f8cff}
+.hud-treeview-timer.is-prune .hud-treeview-bar span{background:#4fc23a}
+.hud-treeview-timer small,.hud-treeview-warn{font:700 12px var(--h-font,inherit);opacity:.85}
+.hud-warndot{position:fixed;transform:translate(-50%,-50%);z-index:29;width:26px;height:26px;border-radius:50%;border:3px solid #fff;background:#e5533f;color:#fff;font:900 15px/1 var(--h-font,inherit);box-shadow:0 2px 6px rgba(0,0,0,.35);cursor:pointer;pointer-events:auto;padding:0}
+.hud-warndot[hidden]{display:none}
+.hud-alertchip{--c:#ffc21a;--p:100;position:fixed;transform:translate(-50%,-50%);z-index:29;width:38px;height:38px;border-radius:50%;border:0;padding:0;cursor:pointer;pointer-events:auto;
+  background:conic-gradient(var(--c) calc(var(--p) * 1%),rgba(255,255,255,.28) 0);-webkit-mask:radial-gradient(circle,transparent 56%,#000 59%);mask:radial-gradient(circle,transparent 56%,#000 59%);
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.5));animation:hud-ring-blink 2.4s ease-in-out infinite}
+.hud-alertchip[hidden]{display:none}
+.hud-alertchip.is-thirst{--c:#2f8cff}
+.hud-alertchip.is-prune{--c:#4fc23a}
+.hud-alertchip.is-warn{--c:#e5533f;--p:100}
+@keyframes hud-ring-blink{0%,100%{opacity:1}50%{opacity:.5}}
+.hud-treeview-head>div{display:grid;gap:1px}.hud-treeview-head small{font:700 12px var(--h-font,inherit);opacity:.65}
+.hud-treeview-stage{position:relative;width:100%;display:grid;place-items:center}
+.hud-treeview-chip{position:absolute;left:8px;bottom:8px;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.9);font:800 12px var(--h-font,inherit);color:#4a6b2c;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.hud-treeview-growth{width:100%;height:8px;margin:2px 0}.hud-treeview-growth span{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#8fd16a,#4caf50)}
+.hud-tv-grid{width:100%;display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.hud-tv-tile{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:12px;background:#f5ecd7;min-width:0}
+.hud-tv-tile.is-bad{background:#fde3dc}
+.hud-tv-ico{font-size:20px;line-height:1}
+.hud-tv-tile small{display:block;font:700 11px var(--h-font,inherit);opacity:.6}.hud-tv-tile strong{display:block;font:800 13px/1.2 var(--h-font,inherit);overflow-wrap:anywhere}
+.hud-treeview-card{width:min(400px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow:auto;scrollbar-width:none}
+.hud-plotact{font-size:18px;background:#fff8e6;border-color:#fff}
+.hud-plotact.is-thirst{background:linear-gradient(#6db4ff,#2f8cff)}
+.hud-plotact.is-prune{background:linear-gradient(#7fd66a,#4fc23a)}
+
+/* The plant quick bar: three identical round buttons (water · prune · details) */
+.hud-plotbar{position:fixed;transform:translate(-50%,-50%);z-index:30;display:flex;gap:8px;pointer-events:none}
+.hud-plotbar[hidden]{display:none}
+.hud-qbtn{pointer-events:auto;width:40px;height:40px;border-radius:50%;border:3px solid #fff;padding:0;display:grid;place-items:center;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.35);color:#2e9c3a;opacity:.5;filter:saturate(.35)}
+.hud-qbtn.is-water{background:linear-gradient(#6db4ff,#2f8cff);color:#1f6fd1}
+.hud-qbtn.is-prune{background:linear-gradient(#7fd66a,#4fc23a);color:#2f8a1f}
+.hud-qbtn.is-eye{background:linear-gradient(#5fcf67,#2e9c3a);color:#2e9c3a;opacity:1;filter:none}
+.hud-qbtn.is-need{opacity:1;filter:none;animation:hud-ring-blink 2.4s ease-in-out infinite}
+.hud-qbtn:disabled{cursor:default}
+/* Placement ✕ / ✓: smaller, lighter rings */
+.hud-place-btns{gap:10px}
+.hud-place .hud-round-btn{width:38px;height:38px;font-size:19px}
+.hud-place .hud-round-btn.is-ok,.hud-place .hud-round-btn.is-cancel{box-shadow:0 3px 0 rgba(0,0,0,.18),0 0 0 3px #fff}
+.hud-place{gap:3px}
+.hud-place-info{transform:scale(.82);transform-origin:top center}
+.hud-place .hud-round-btn{width:34px;height:34px;font-size:17px}
+.hud-tiercard{width:min(420px,calc(100vw - 24px))}
+.hud-tm-best{width:100%;margin:0;padding:8px 10px;border-radius:12px;background:#e3f4d6;color:#2d6b1c;font:800 14px var(--h-font,inherit);text-align:center}
+.hud-tm-rows{width:100%;display:grid;gap:6px}
+.hud-tm-row{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border-radius:12px;background:#f5ecd7;border-left:5px solid #c9b88c}
+.hud-tm-row.is-good{border-left-color:#4fc23a;background:#eef8e6}.hud-tm-row.is-bad{border-left-color:#e5533f;background:#fdebe6}
+.hud-tm-ico{font-size:24px;line-height:1.1}.hud-tm-text{display:grid;gap:1px;min-width:0}
+.hud-tm-text strong{font:800 14px var(--h-font,inherit)}.hud-tm-text em{font:800 11px var(--h-font,inherit);font-style:normal;opacity:.7}
+.hud-tm-text small{font:600 12px/1.25 var(--h-font,inherit)}.hud-tm-likes{opacity:.65}
+/* Top-left HUD, wide layout: the player block is styled like the coin / storage pills — same 34 px height, same dark capsule,
+   same centre line — and nothing is bigger than them (founder 2026-11-08) */
+@media (min-width:760px) and (min-height:561px){
+  .hud-top-left{flex-direction:row;align-items:center;flex-wrap:wrap;gap:6px 8px}
+  .hud-player{box-sizing:border-box;height:34px;align-items:center;gap:7px;padding:0 14px 0 3px;background:#4a2f1bd9;box-shadow:0 3px 0 #2a1a0e66;color:#fff}
+  /* the level badge: a round gem like the coin icon (blue, white rim, soft highlight), not a flat hexagon */
+  .hud-level,.hud-level-hex{width:28px;height:28px}
+  .hud-level-hex{clip-path:none;border-radius:50%;background:radial-gradient(circle at 34% 28%,#a6e4ff 0,#4aa6ee 38%,#2369bd 100%);box-shadow:inset 0 0 0 2px #fff,inset 0 -3px 4px #0b3f8a66,0 2px 0 #12407a}
+  .hud-level-num{font-size:14px;font-weight:900;text-shadow:0 1px 0 #12407a,0 0 3px #12407a99}
+  .hud-player-text{align-content:center;justify-items:stretch;gap:4px;min-width:84px}
+  .hud-name{font-size:12.5px;line-height:1;text-align:left;color:#fff}
+  .hud-xp{width:100%;min-width:84px;height:5px;margin:0;background:#ffffff33;box-shadow:none}
+  .hud-pills{flex-wrap:nowrap;align-items:center;gap:8px}
+  .hud-pill,button.hud-pill{box-sizing:border-box;height:34px;min-width:80px;padding:0 12px 0 4px;gap:4px}
+  .hud-lv10{align-self:center}
+}
+/* Main menu (Develop · Sell · Staff · Progress): a column of round buttons down the LEFT edge, the same look as ⚙ / 🌍 on the
+   right (founder 2026-11-08) — no bar across the middle of the screen */
+.hud-toolbar,.hud-toolbar[data-view]{left:calc(var(--h-sl) + 10px);right:auto;top:50%;bottom:auto;transform:translateY(-50%);width:auto;flex-direction:column;align-items:center;justify-content:flex-start;gap:12px;padding:0;border-radius:0;background:none;box-shadow:none;pointer-events:none}
+.hud-toolbar .hud-tool,.hud-toolbar[data-view] .hud-tool{pointer-events:auto;order:0;flex:none;width:52px;min-height:0;margin:0;padding:0;gap:2px;position:relative;display:flex;flex-direction:column;align-items:center}
+.hud-toolbar .hud-tool-ico,.hud-toolbar[data-view] .hud-tool-ico{width:48px;height:48px;border:0;border-radius:50%;background:#fff8e6ee;box-shadow:var(--h-shadow);font-size:24px;line-height:1}
+.hud-toolbar[data-view] .hud-view,.hud-toolbar .hud-view{position:relative;right:auto;bottom:auto;width:52px;margin:0}
+.hud-toolbar[data-view] .hud-view .hud-tool-ico,.hud-toolbar .hud-view .hud-tool-ico{width:48px;height:48px;border:3px solid #fff;background:linear-gradient(#ffb36b,#e8673c);box-shadow:var(--h-shadow)}
+.hud-toolbar .hud-tool-label,.hud-toolbar[data-view] .hud-tool-label,.hud-toolbar[data-view] .hud-view .hud-tool-label{position:static;transform:none;max-width:60px;padding:1px 6px;border-radius:99px;background:#fff8e6e6;font:800 10px/1.2 var(--h-font);color:var(--h-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* …and the column starts right under the top-left HUD (level · coins · storage), not in the middle of the edge */
+.hud-toolbar,.hud-toolbar[data-view]{top:calc(var(--hud-tl-bottom, 56px) + 14px);transform:none}
+/* The same left-top column again with #hud-root specificity: the farm view rules above (#hud-root .hud-toolbar[data-view="farm"]) kept the bar across the bottom */
+#hud-root .hud-toolbar,#hud-root .hud-toolbar[data-view]{left:calc(var(--h-sl) + 10px);right:auto;top:calc(var(--hud-tl-bottom, 56px) + 14px);bottom:auto;transform:none;width:auto;height:auto;flex-direction:column;align-items:center;justify-content:flex-start;gap:12px;padding:0;border-radius:0;background:none;box-shadow:none}
+#hud-root .hud-toolbar .hud-tool,#hud-root .hud-toolbar[data-view] .hud-tool{flex:none;width:52px;margin:0;padding:0;order:0}
+#hud-root .hud-toolbar .hud-tool-ico,#hud-root .hud-toolbar[data-view] .hud-tool-ico,#hud-root .hud-toolbar[data-view] .hud-view .hud-tool-ico{width:48px;height:48px;font-size:24px}
+#hud-root .hud-toolbar[data-view] .hud-view{position:relative;right:auto;bottom:auto;width:52px;margin:0}
+#hud-root .hud-toolbar .hud-tool-label,#hud-root .hud-toolbar[data-view] .hud-tool-label{position:static;transform:none;bottom:auto;padding:1px 6px;background:#fff8e6e6}
+/* smaller menu buttons, the size of ⚙ / 🌍 / ⬆ on the right */
+#hud-root .hud-toolbar,#hud-root .hud-toolbar[data-view]{gap:8px}
+#hud-root .hud-toolbar .hud-tool,#hud-root .hud-toolbar[data-view] .hud-tool,#hud-root .hud-toolbar[data-view] .hud-view{width:44px}
+#hud-root .hud-toolbar .hud-tool-ico,#hud-root .hud-toolbar[data-view] .hud-tool-ico,#hud-root .hud-toolbar[data-view] .hud-view .hud-tool-ico{width:40px;height:40px;font-size:20px}
+#hud-root .hud-toolbar .hud-tool-label,#hud-root .hud-toolbar[data-view] .hud-tool-label{font-size:9px;padding:0 5px;max-width:52px}
+/* Menu buttons: ONE look for all four — cream disc, thin white rim, soft shadow; the open one gets a green ring only. Labels breathe. */
+#hud-root .hud-toolbar .hud-tool-ico,#hud-root .hud-toolbar[data-view] .hud-tool-ico,#hud-root .hud-toolbar[data-view] .hud-view .hud-tool-ico{border:2px solid #fff;background:linear-gradient(#fffdf6,#ffeec2);box-shadow:0 2px 0 #a2763a66,0 3px 8px #3a2a1030;color:inherit}
+#hud-root[data-sheet] .hud-toolbar[data-view] .hud-tool-ico{background:linear-gradient(#fffdf6,#ffeec2);border-color:#fff}
+#hud-root[data-sheet="build"] .hud-toolbar #hud-btn-build .hud-tool-ico,#hud-root[data-sheet="staff"] .hud-toolbar #hud-btn-staff .hud-tool-ico,#hud-root[data-sheet="progress"] .hud-toolbar #hud-btn-progress .hud-tool-ico,#hud-root[data-sheet="seeds"] .hud-toolbar #hud-btn-seeds .hud-tool-ico{border-color:#5fbf3a;box-shadow:0 0 0 2px #5fbf3a66,0 2px 0 #3e7f2288}
+#hud-root .hud-toolbar .hud-tool-label,#hud-root .hud-toolbar[data-view] .hud-tool-label,#hud-root .hud-toolbar[data-view] .hud-view .hud-tool-label{margin-top:3px;padding:2px 8px;line-height:1.25;font-size:9.5px;max-width:none;min-width:34px;text-align:center;box-sizing:border-box;border-radius:99px;background:#fff8e6f2;box-shadow:0 1px 2px #3a2a1022}
+/* active menu button: the old green-gradient rule layered with mine — one clean state now (cream disc + a single green rim) */
+#hud-root[data-sheet="build"] .hud-toolbar #hud-btn-build .hud-tool-ico,#hud-root[data-sheet="staff"] .hud-toolbar #hud-btn-staff .hud-tool-ico,#hud-root[data-sheet="progress"] .hud-toolbar #hud-btn-progress .hud-tool-ico,#hud-root[data-sheet="seeds"] .hud-toolbar #hud-btn-seeds .hud-tool-ico{background:linear-gradient(#fffdf6,#ffeec2)!important;border:2px solid #5fbf3a!important;box-shadow:0 2px 0 #a2763a66,0 3px 8px #3a2a1030!important}
+/* label padding: a touch more on top, less at the bottom, so the text sits optically centred */
+#hud-root .hud-toolbar .hud-tool-label,#hud-root .hud-toolbar[data-view] .hud-tool-label,#hud-root .hud-toolbar[data-view] .hud-view .hud-tool-label{padding:3px 8px 1px;line-height:1.2}
+/* active menu button: GREEN again (one clean layer — green disc, white rim, the same shadow as the others) */
+#hud-root[data-sheet="build"] .hud-toolbar #hud-btn-build .hud-tool-ico,#hud-root[data-sheet="staff"] .hud-toolbar #hud-btn-staff .hud-tool-ico,#hud-root[data-sheet="progress"] .hud-toolbar #hud-btn-progress .hud-tool-ico,#hud-root[data-sheet="seeds"] .hud-toolbar #hud-btn-seeds .hud-tool-ico{background:linear-gradient(#b8ee86,#5fbf3a)!important;border:2px solid #fff!important;box-shadow:0 2px 0 #3e7f2288,0 3px 8px #3a2a1030!important}
+/* The menu column has a FIXED top (no --hud-tl-bottom): that variable is re-measured when sheets open / close, which made
+   the column jump down and then back up */
+#hud-root .hud-toolbar,#hud-root .hud-toolbar[data-view]{top:calc(var(--h-st, 0px) + 64px)}
+.hud-sell-list{list-style:none;margin:6px 0;padding:0;display:grid;gap:6px}
+.hud-sell-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:14px;background:#f5ecd7}
+.hud-sell-ico{font-size:26px;line-height:1;width:34px;text-align:center}
+.hud-sell-text{flex:1;display:grid;gap:2px;min-width:0}
+.hud-sell-text strong{font:800 14px var(--h-font,inherit)}.hud-sell-text em{font-style:normal;opacity:.7}
+.hud-sell-text small{font:600 12px var(--h-font,inherit);opacity:.65}
+/* Notices (toasts) sit in the footer, at the bottom of the screen */
+#hud-root .hud-feedback-col,.hud-feedback-col{top:auto;bottom:calc(var(--h-sb, 0px) + 14px);flex-direction:column-reverse}
+.hud-toast{animation-name:hud-toast-in-up}.hud-toast.is-out{transform:translateY(6px)}
+@keyframes hud-toast-in-up{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+/* the notice layer must span the screen for `bottom` to mean the screen's bottom (it was a 0-height strip at the top, so the footer notices were off-screen) */
+#hud-root .hud-feedback,.hud-feedback{top:0;bottom:0;height:auto}
+.hud-card-ico.has-model{background:none;box-shadow:none;padding:0}
+.hud-card-model{width:100%;height:100%;object-fit:contain;display:block;filter:drop-shadow(0 2px 2px rgba(60,40,20,.25))}
+/* ✕ ✓ bar for placing / planting: fixed at the top-centre of the screen */
+#hud-root .hud-place,#hud-root .hud-place.is-anchored{top:calc(var(--h-st, 0px) + 58px);bottom:auto;left:50%;transform:translateX(-50%)}
+/* a little air between the ✕ ✓ buttons and the hint box under them */
+#hud-root .hud-place{gap:10px}
+.hud-place-info.is-handle{pointer-events:auto;touch-action:none;cursor:grab}
+/* work animation over a plant: water drops pour down, scissors snip */
+.hud-plantfx{position:fixed;z-index:31;transform:translate(-50%,-50%);pointer-events:none;display:flex;gap:2px;font-size:22px;line-height:1}
+.hud-plantfx.is-water i{font-style:normal;animation:hud-pour .9s ease-in infinite;opacity:0}
+.hud-plantfx.is-water i:nth-child(2){animation-delay:.15s}.hud-plantfx.is-water i:nth-child(3){animation-delay:.3s}
+@keyframes hud-pour{0%{transform:translateY(-22px) scale(.7);opacity:0}25%{opacity:1}100%{transform:translateY(26px) scale(1);opacity:0}}
+.hud-plantfx.is-prune b{font-size:30px;animation:hud-snip .22s ease-in-out 4}
+@keyframes hud-snip{0%,100%{transform:rotate(-18deg) scale(1)}50%{transform:rotate(14deg) scale(1.2)}}
+/* the button of the job being done lights up and pulses (💧 watering · ✂️ pruning) */
+#hud-root[data-working="water"] .hud-qbtn.is-water,#hud-root[data-working="prune"] .hud-qbtn.is-prune{opacity:1!important;filter:none!important;animation:hud-working .45s ease-in-out infinite!important;box-shadow:0 0 0 4px #fff8,0 0 14px 4px #ffe36b,0 2px 6px rgba(0,0,0,.35)}
+@keyframes hud-working{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}
+/* ✕ ✓ + hint: rides above the ghost; docks in the bottom-left corner while the ghost is off screen (map swiped far away) */
+#hud-root .hud-place.is-docked{top:auto;bottom:calc(var(--h-sb, 0px) + 14px);left:calc(var(--h-sl, 0px) + 12px);transform:none;justify-items:start}
+.hud-place-info.is-handle{pointer-events:auto;touch-action:none;cursor:grab}
+/* docked in the corner: ✕ ✓ centred over the hint box, the whole set aligned on one centre line */
+#hud-root .hud-place.is-docked{justify-items:center;align-items:center;width:max-content}
+#hud-root .hud-place.is-docked .hud-place-btns{justify-content:center;width:100%}
+#hud-root .hud-place.is-docked .hud-place-info{margin:0;transform:none}
+/* Develop menu, compact: seed tiles in a row, smaller tabs, tighter cards */
+.hud-seedgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:2px 0 6px}
+.hud-seedtile{display:grid;justify-items:center;align-content:start;gap:3px;padding:8px 6px 9px;border-radius:16px;border:2px solid #e3cfa3;background:#fffdf6;text-align:center;cursor:pointer;font:inherit;color:inherit;min-width:0}
+.hud-seedtile.is-active{border-color:#78b84a;background:#f1fae6}
+.hud-seedtile-ico{display:grid;place-items:center;width:58px;height:58px;font-size:30px;line-height:1}
+.hud-seedtile-ico .hud-card-model{width:100%;height:100%}
+.hud-seedtile strong{font:800 14px/1.1 var(--h-font)}
+.hud-seedtile small{font:600 10.5px/1.25 var(--h-font);opacity:.7;max-width:100%}
+.hud-cat-tabs{gap:5px;margin:0 -2px 8px}
+.hud-cat-tab{min-height:34px;padding:0 10px 0 5px;gap:4px;font-size:12.5px}
+.hud-cat-tab-ico{width:24px;height:24px}
+.hud-cat-grid .hud-card,.hud-cat-card{padding:7px 5px 8px;gap:2px}
+.hud-cat-card .hud-card-ico{width:46px;height:46px}
+.hud-cat-card .hud-card-name{font-size:12.5px}
+.hud-cat-card .hud-card-fx{font-size:10px;line-height:1.2}
+/* Develop menu cards: exactly 3 per row, bigger readable text, descriptions shown in full */
+#hud-root .hud-cat-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+#hud-root .hud-cat-card{min-height:0;padding:10px 8px 12px;gap:4px;align-items:center;text-align:center}
+#hud-root .hud-cat-card .hud-card-ico{width:60px;height:60px}
+#hud-root .hud-cat-card .hud-card-name{font:800 15px/1.2 var(--h-font);white-space:normal}
+#hud-root .hud-cat-card .hud-card-fx{font:600 12.5px/1.35 var(--h-font);display:block;-webkit-line-clamp:unset;overflow:visible;color:#6a4b2a}
+#hud-root .hud-cat-card .hud-cost,#hud-root .hud-cat-card .hud-coin{font-size:15px}
+#hud-root .hud-cat-tab{font-size:13px}
+.hud-land-ico.has-model{background:none;box-shadow:none;padding:0}
+.hud-land-ico .hud-card-model{width:100%;height:100%}
+#hud-root .hud-land-ico{width:52px;height:52px}
+/* Notices: middle of the screen, nudged up a little so they clear the ground and the HUD */
+#hud-root .hud-feedback-col,.hud-feedback-col{top:36%;bottom:auto;transform:translate(-50%,-50%);flex-direction:column}
+.hud-toast{animation-name:hud-toast-in}.hud-toast.is-out{transform:translateY(-6px)}
+/* sell rows with a quantity box */
+.hud-good--sell{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center}
+.hud-good--sell .hud-qty-box{grid-column:1 / -1;display:flex;align-items:center;gap:6px}
+.hud-good--sell .hud-qty-act{grid-column:1 / -1;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.hud-qty{width:72px;height:36px;text-align:center;border:2px solid #d9b77a;border-radius:10px;background:#fff;font:800 16px var(--h-font);color:inherit}
+.hud-qty-step,.hud-qty-all{height:36px;min-width:36px;padding:0 10px;border:2px solid #d9b77a;border-radius:10px;background:#fff8e6;font:800 16px var(--h-font);color:inherit;cursor:pointer}
+.hud-qty-price{font:800 15px var(--h-font)}
+/* To-do chips: how many plants wait for harvest / water / pruning — tap to fly to the next one (replaces the rings on every plant) */
+.hud-todo{position:fixed;z-index:var(--z-hud,5);left:calc(var(--h-sl, 0px) + 64px);top:calc(var(--h-st, 0px) + 62px);display:flex;flex-direction:column;gap:6px;pointer-events:none}
+.hud-todo-chip{pointer-events:auto;display:flex;align-items:center;gap:6px;padding:4px 12px 4px 8px;border:2px solid #fff;border-radius:999px;background:#fff8e6;box-shadow:0 2px 0 #a2763a66,0 3px 8px #3a2a1030;font:800 15px/1 var(--h-font);color:#4a2f1c;cursor:pointer}
+.hud-todo-chip[hidden]{display:none}
+.hud-todo-chip span{font-size:18px}
+.hud-todo-chip.is-ready{border-color:#ffc21a;background:#fff4c9}.hud-todo-chip.is-thirst{border-color:#2f8cff;background:#e2f0ff}.hud-todo-chip.is-prune{border-color:#4fc23a;background:#e6f7dc}
+/* right rail keeps the DOM order: settings · loan · map · upgrades · compass (no per-button `order` shuffling on phones) */
+#hud-root .hud-top-right > *{order:0}
+/* settings FIRST: its old `order:1` put it after the other buttons */
+#hud-root .hud-top-right .hud-roundmap,#hud-root .hud-top-right .hud-loan-btn,#hud-root .hud-top-right .hud-inbox-btn,#hud-root .hud-top-right > *{order:0}
+#hud-root .hud-top-right .hud-gear,#hud-root .hud-top-right > .hud-gear-col .hud-gear{order:-1}
+/* Storehouse card: wide, no scrollbar, barn layout (capacity + upgrade box on top, stock rows below) */
+.hud-action.is-wide{width:min(660px,calc(100vw - 24px));max-height:none;overflow:visible}
+.hud-action.is-wide .hud-card-body{max-height:none;overflow:visible}
+.hud-silo-top{display:grid;grid-template-columns:1.15fr 1fr;gap:12px;margin-bottom:10px}
+.hud-silo-left{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:16px;background:#f5ecd7}
+.hud-silo-ico{display:grid;place-items:center;width:64px;height:64px;font-size:34px;flex:none}
+.hud-silo-ico .hud-card-model{width:100%;height:100%}
+.hud-silo-fill{flex:1;display:grid;gap:5px;min-width:0}.hud-silo-fill strong{font:800 18px var(--h-font)}.hud-silo-fill strong.is-bad{color:var(--h-bad,#c0392b)}.hud-silo-fill small{font:600 12px var(--h-font);opacity:.7}
+.hud-silo-up{display:grid;gap:8px;align-content:center;padding:10px 12px;border-radius:16px;background:#fff1cd;border:2px solid #e3c987}
+.hud-silo-up strong{font:800 14px/1.25 var(--h-font)}
+.hud-action.is-wide .hud-good--sell{display:grid;grid-template-columns:auto minmax(110px,1fr) auto auto;gap:10px;align-items:center;padding:8px 12px}
+.hud-action.is-wide .hud-good--sell .hud-qty-box,.hud-action.is-wide .hud-good--sell .hud-qty-act{grid-column:auto}
+.hud-action.is-wide .hud-good--sell .hud-qty-act{gap:12px}
+.hud-action.is-wide .hud-qty{width:64px}
+@media (max-width:560px){.hud-silo-top{grid-template-columns:1fr}.hud-action.is-wide .hud-good--sell{grid-template-columns:auto 1fr}.hud-action.is-wide .hud-good--sell .hud-qty-box,.hud-action.is-wide .hud-good--sell .hud-qty-act{grid-column:1 / -1}}
+.hud-silo-top.is-solo{grid-template-columns:1fr}
+.hud-silo-up small{font:600 12px/1.3 var(--h-font);opacity:.75}
+/* plant quick bar (💧 ✂️ 👁): smaller buttons */
+#hud-root .hud-plotbar{gap:5px}
+#hud-root .hud-qbtn{width:28px;height:28px;border-width:2px;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+#hud-root .hud-qbtn svg{width:17px;height:17px}
+.hud-prod-flow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:2px 0 4px}
+.hud-prod-flow .hud-prod-goods{padding:6px 12px;border-radius:12px;background:#f5ecd7;font:800 15px var(--h-font)}
+.hud-prod-flow .hud-prod-goods.is-out{background:#e4f5d9}
+.hud-prod-value{color:#2d6b1c;font-weight:700}
+
+/* Level gift: the opened lid must not cover the title / subtitle; the box keeps its own space */
+.hud-gift .hud-gift-box{margin:22px auto 14px;flex:none}
+.hud-gift.is-open .hud-gift-lid{transform:translate(8px,-20px) rotate(-14deg)}
+.hud-gift-sub{position:relative;z-index:2;margin:0 0 4px}
+.hud-gift h2{position:relative;z-index:2}
+.hud-gift-item{justify-content:center;min-height:44px}
+.hud-gift-item strong{display:inline-flex;align-items:center;gap:6px}
+
+/* Barn card: animals for sale */
+.hud-livestock{display:grid;gap:6px;margin:6px 0}
+.hud-livestock-row{display:grid;grid-template-columns:36px 1fr auto;align-items:center;gap:8px;padding:6px 8px;border-radius:14px;background:#fff;box-shadow:inset 0 0 0 2px var(--h-line)}
+.hud-livestock-ico{font-size:24px;text-align:center}
+.hud-livestock-name{display:grid;text-align:left;min-width:0}
+.hud-livestock-name small{color:var(--h-ink-soft)}
+.hud-animal-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.hud-animal-row small{color:var(--h-ink-soft);font:700 13px/1.2 var(--h-font)}
+.hud-animal-row .hud-btn{flex:none;min-height:40px;padding:0 12px}
+/* Barn: animals as small tiles */
+#hud-root .hud-livestock-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+#hud-root .hud-livestock-tile{position:relative;display:grid;justify-items:center;gap:3px;padding:8px 4px 6px;border-radius:14px;background:#fff;box-shadow:inset 0 0 0 2px var(--h-line);text-align:center}
+#hud-root .hud-livestock-tile .hud-livestock-ico{font-size:26px;line-height:1}
+#hud-root .hud-livestock-tile strong{font:800 12px/1.1 var(--h-font);white-space:nowrap}
+#hud-root .hud-livestock-tile .hud-btn{min-height:32px;padding:0 8px;font-size:12px;width:100%}
+#hud-root .hud-livestock-n{position:absolute;top:4px;right:6px;font:800 11px/1 var(--h-font);color:var(--h-ink-soft)}
+#hud-root .hud-livestock-ico{display:grid;place-items:center;width:44px;height:44px}
+#hud-root .hud-livestock-img{width:100%;height:100%;object-fit:contain}
+#hud-root .hud-livestock-tile{padding:10px;gap:6px;align-content:center}
+#hud-root .hud-livestock-n{top:8px;right:10px}
+#hud-root .hud-livestock-tile .hud-btn{margin:0}
+
+/* Building / storage cards open near the middle of the screen, like the other modals */
+#hud-root .hud-action.is-wide{top:46%;bottom:auto;transform:translate(-50%,-50%);max-height:calc(100dvh - 120px);overflow-y:auto}
+
+/* Staff manager, compact (founder 2026-11-08: "thu lại bé gọn gàng"): small header, slim hire rows. */
+.hud-sm-head{padding-top:6px;padding-bottom:4px}
+.hud-sm-title{font-size:16px}
+.hud-sm-back{width:36px;height:36px;font-size:20px}
+.hud-sm-titlebar .hud-x{width:32px;height:32px;font-size:18px}
+.hud-sm-kpis{gap:4px;margin-top:2px}
+.hud-sm-kpi{min-height:22px;padding:1px 8px;font-size:11.5px}
+.hud-sm-tabs{margin:5px 0 1px;padding:3px;border-radius:12px}
+.hud-sm-tabs .hud-tab{min-height:32px;border-radius:9px;font-size:12.5px}
+.hud-sm-body{padding-top:8px}
+.hud-sm-body>div>.hud-sm-h{margin:10px 0 4px}
+.hud-sm-body .hud-sm-h{font-size:13px}
+.hud-sm-note{margin-bottom:6px;padding:5px 8px;border-radius:10px;font-size:12px}
+.hud-hire{display:grid;gap:4px;margin:0;padding:0;list-style:none}
+.hud-hire-row{display:flex;align-items:center;gap:8px;min-height:50px;padding:4px 6px 4px 8px;border-radius:12px;background:#fff;box-shadow:inset 0 0 0 1.5px var(--h-line)}
+.hud-hire-row.is-rare{background:#fff8e2;box-shadow:inset 0 0 0 1.5px #e9bd5c}
+.hud-hire-ico{flex:none;width:26px;font-size:21px;line-height:1;text-align:center}
+.hud-hire-text{flex:1;min-width:0}
+.hud-hire-top{display:flex;align-items:baseline;gap:6px;margin:0;font:700 11.5px/1.25 var(--h-font);color:var(--h-ink-soft)}
+.hud-hire-top strong{flex:none;font:800 13.5px/1.25 var(--h-font);color:var(--h-ink)}
+.hud-hire-top span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hud-hire-text small{display:block;overflow:hidden;font:700 11px/1.3 var(--h-font);color:var(--h-ink-soft);text-overflow:ellipsis;white-space:nowrap}
+.hud-hire-act{flex:none;max-width:104px}
+.hud-hire-act .hud-btn{min-height:34px;padding:0 10px;border-radius:10px;font-size:12.5px;white-space:nowrap}
+.hud-hire-act .hud-lock{font-size:11.5px;line-height:1.2}
+.hud-hire-refresh{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:5px 0 0}
+.hud-hire-refresh .hud-btn{min-height:32px;padding:0 10px;border-radius:10px;font-size:12px}
+
+/* Staff problems list (staff-alerts.js): right edge, under the top-right buttons. */
+.hud-al{position:fixed;z-index:var(--z-hud,5);top:calc(var(--hud-tr-bottom,60px) + 8px);right:calc(var(--h-sr) + 8px);width:196px;padding:5px;border-radius:12px;background:#fff8e8f2;box-shadow:0 2px 8px #3a2a1040;display:grid;gap:4px}
+.hud-al[hidden]{display:none}
+#hud-root[data-placing] .hud-al,#hud-root[data-sheet] .hud-al,#hud-root:not([data-phase="play"]) .hud-al{display:none}
+.hud-al-head{display:flex;justify-content:space-between;align-items:center;min-height:22px;padding:0 3px;border:0;background:none;font:800 12px/1 var(--h-font);color:#b53a28}
+.hud-al-list{display:grid;gap:3px;margin:0;padding:0;list-style:none}
+.hud-al-row{display:flex;align-items:center;gap:4px;padding:2px 3px 2px 6px;border-radius:9px;background:#fff;box-shadow:inset 3px 0 0 #d9503c}
+.hud-al-row.is-p1{box-shadow:inset 3px 0 0 #e8b23e}
+.hud-al-row.is-p2{box-shadow:inset 3px 0 0 #8f8678}
+.hud-al-who{flex:1;min-width:0;padding:0;border:0;background:none;text-align:left;color:#4a2f1c}
+.hud-al-who strong,.hud-al-who small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hud-al-who strong{font:800 11.5px/1.25 var(--h-font)}
+.hud-al-who small{font:700 10.5px/1.25 var(--h-font);color:#7a5a3a}
+.hud-al .hud-btn{flex:none;min-height:28px;padding:0 6px;border-radius:8px;font-size:11px;white-space:nowrap}
+.hud-al-see{flex:none;min-height:28px;padding:0 7px;border:0;border-radius:8px;background:#f1e3c4;font:800 11px/1 var(--h-font);color:#4a2f1c}
+.hud-al-more{min-height:20px;border:0;background:none;font:800 11px/1 var(--h-font);color:#7a5a3a}
+
+
+/* Manager tab, one rule (staff-modal gmView). */
+.hud-gm-card{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:14px;background:#f4edfa;box-shadow:inset 0 0 0 1.5px #d4c2ea;margin-bottom:8px}
+.hud-gm-face{flex:none;width:44px;height:44px;display:grid;place-items:center;border-radius:12px;background:#fff;font-size:27px}
+.hud-gm-who{flex:1;min-width:0;display:grid;gap:2px}
+.hud-gm-who strong{font:800 14.5px/1.2 var(--h-font);color:#4a2f1c}
+.hud-gm-stars{font-size:11.5px}
+.hud-gm-who small{font:700 11.5px/1.3 var(--h-font);color:#5f4a78}
+.hud-fm-obj{margin:0 0 8px;padding:8px 10px;border-radius:10px;background:#f4edfa;color:#3f2466;font:800 13px/1.35 var(--h-font)}
+.hud-fm-obj.is-bad{background:#fde7e2;color:#a63422}
+.hud-fm-tiers{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+.hud-fm-tier{display:grid;gap:2px;padding:6px 10px;border-radius:10px;background:rgba(255,255,255,.55);box-shadow:inset 0 0 0 1.5px var(--h-line)}
+.hud-fm-tier strong{font:800 13px/1.2 var(--h-font)}
+.hud-fm-tier small{font:700 12px/1.3 var(--h-font);overflow-wrap:anywhere}
+.hud-fm-tier.is-locked{opacity:.7}
+.hud-fm-tier small.is-short{color:#a63422}
+.hud-fm-crew{display:grid;gap:4px;padding-bottom:6px;border-bottom:2px dashed var(--h-line)}
+.hud-fm-crew:last-child{border-bottom:0}
+.hud-fm-row{align-items:center}
+.hud-gm-none{margin:0 0 8px;padding:6px 10px;border-radius:10px;background:#e5f4d6;color:#3f6b1f;font:700 12px/1.3 var(--h-font)}
+.hud-hire-top strong.hud-gm-wrap{flex:1;font-size:12.5px;white-space:normal}
+.hud-gm-sign{flex:none;display:flex;gap:4px}
+.hud-gm-sign .hud-btn{min-height:34px;padding:0 9px;border-radius:10px;font-size:12px;white-space:nowrap}
+.hud-al-row.is-sign{box-shadow:inset 3px 0 0 #7c4dbd;background:#f7f1fd}
+.hud-gm-stats{margin-bottom:8px}
+.hud-gm-poach{margin-bottom:8px;padding:8px;border-radius:14px;background:#fff1d6;box-shadow:inset 0 0 0 1.5px #f4cf7a;display:grid;gap:6px}
+.hud-gm-poach-top{margin:0;display:grid;gap:2px}
+.hud-gm-poach-top strong{font:800 13.5px/1.25 var(--h-font);color:#7a4a12}
+.hud-gm-poach-top small{font:700 11.5px/1.2 var(--h-font);color:#8a5a12}
+.hud-gm-poach-btns{display:flex;gap:6px}
+.hud-gm-poach-btns .hud-btn{flex:1;min-height:36px;border-radius:11px;font-size:13px}
+
+/* Problems list: long lines wrap inside the card and the buttons never leave it. */
+.hud-al{grid-template-columns:minmax(0,1fr);width:min(216px,calc(100vw - 16px))}
+.hud-al-list{grid-template-columns:minmax(0,1fr)}
+.hud-al-row{min-width:0;flex-wrap:wrap;justify-content:flex-end;row-gap:3px;padding:4px 4px 4px 7px}
+.hud-al-who{flex:1 1 100px}
+.hud-al-who small{white-space:normal;overflow:visible}
+.hud-al-row .hud-btn,.hud-al-row .hud-al-see{min-height:26px}
+
+/* «Duyệt» is one of the round rail buttons; its badge is red because it waits for you. */
+#hud-btn-inbox[hidden]{display:none}
+#hud-btn-inbox .hud-roundmap-num{background:var(--h-red)}
+
+/* «Duyệt» sheet: one tidy card per decision. */
+.hud-ask-list{display:grid;gap:8px}
+.hud-ask-card{display:grid;grid-template-columns:40px minmax(0,1fr);column-gap:10px;row-gap:8px;align-items:center;padding:10px;border-radius:14px;background:#fff;box-shadow:inset 0 0 0 1.5px var(--h-line)}
+.hud-ask-card.is-urgent{box-shadow:inset 0 0 0 2px #e9a23a}
+.hud-ask-ico{display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:#f4edfa;font-size:22px}
+.hud-ask-main{min-width:0;display:grid;gap:2px}
+.hud-ask-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin:0}
+.hud-ask-head strong{font:800 14.5px/1.2 var(--h-font);color:#4a2f1c}
+.hud-ask-head small{flex:none;font:800 12px/1 var(--h-font);color:#7c4dbd}
+.hud-ask-text{margin:0;font:700 12.5px/1.35 var(--h-font);color:#6b5240}
+.hud-ask-life{grid-column:1 / -1;display:block;height:3px;border-radius:99px;overflow:hidden;background:#eee3cf}
+.hud-ask-life b{display:block;height:100%;background:#7c4dbd}
+.hud-ask-card.is-urgent .hud-ask-life b{background:#e9a23a}
+.hud-ask-acts{grid-column:1 / -1;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.hud-ask-acts .hud-btn{min-height:40px;border-radius:12px;font-size:14px}
+.hud-ask-link{grid-column:1 / -1;justify-self:center;border:0;background:none;font:800 12.5px/1.3 var(--h-font);color:#7c4dbd;text-decoration:underline}
+
+
+/* Hire rows: the button grows to fit its price ("Thuê 🪙 1.250") and never leaves the row; the name column gives way. */
+.hud-hire-act{max-width:none;min-width:0;flex:none}
+.hud-hire-act .hud-btn{width:100%;padding:0 10px;gap:0}
+.hud-hire-act .hud-btn-main{gap:4px;flex-wrap:nowrap;white-space:nowrap}
+.hud-hire-act .hud-cost{gap:3px;font-size:12.5px}
+.hud-hire-act .hud-cost .hud-coin-ico{width:15px;height:15px}
+.hud-hire-text{min-width:0;flex:1 1 0}
+.hud-hire-row{padding-right:6px}
+
+/* «Quà» round button + its sheet. */
+#hud-btn-gifts[hidden]{display:none}
+#hud-btn-gifts .hud-roundmap-num{background:#d9503c}
+.hud-gifts{display:grid;gap:8px}
+.hud-gift-row{display:grid;grid-template-columns:36px minmax(0,1fr) auto;align-items:center;gap:10px;padding:8px 10px;border-radius:14px;background:#fff;box-shadow:inset 0 0 0 1.5px var(--h-line)}
+.hud-gift-row-ico{display:grid;place-items:center;width:36px;height:36px;border-radius:11px;background:#fdecc8;font-size:20px}
+.hud-gift-row strong{font:800 14px/1.2 var(--h-font);color:#4a2f1c}
+.hud-gift-row .hud-btn{min-height:38px;padding:0 16px;border-radius:12px;font-size:13.5px}
+
+
+/* Problems list: clear of the round buttons above it (their badges hang below them) and of the screen edge. */
+.hud-al{top:calc(var(--hud-tr-bottom,60px) + 22px);right:calc(var(--h-sr) + 14px);max-height:calc(100dvh - var(--hud-tr-bottom,60px) - var(--h-toolbar,76px) - var(--h-sb,0px) - 48px);overflow-y:auto;overscroll-behavior:contain}
+
+/* Problems list, spacing pass: every problem is its own card with air around it, and the whole list clears the 🎁 badge. */
+.hud-al{top:calc(var(--hud-tr-bottom,60px) + 36px);gap:8px;padding:8px}
+.hud-al-list{gap:8px}
+.hud-al-row{padding:8px 8px 8px 10px;border-radius:12px;row-gap:6px;column-gap:8px;box-shadow:inset 3px 0 0 #d9503c,0 1px 0 #e6d6b8}
+.hud-al-row.is-p1{box-shadow:inset 3px 0 0 #e8b23e,0 1px 0 #e6d6b8}
+.hud-al-row.is-p2{box-shadow:inset 3px 0 0 #8f8678,0 1px 0 #e6d6b8}
+.hud-al-row.is-sign{box-shadow:inset 3px 0 0 #7c4dbd,0 1px 0 #e6d6b8}
+.hud-al-who small{margin-top:2px}
+.hud-al-head{margin-bottom:2px}
+
+/* Problems list folded: a small pill with the count, tap to open. */
+.hud-al.is-closed{width:auto;min-width:0;padding:3px;border-radius:99px;overflow:visible}
+.hud-al.is-closed .hud-al-head{min-height:34px;padding:0 12px;border-radius:99px;font-size:13px;gap:6px;justify-content:center}

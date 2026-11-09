@@ -178,6 +178,36 @@ Costs go to `CARE` in economy.js. Every paid care adds to the unit's book `spent
 
 ## 10. HUD modal (replaces the staff bottom sheet)
 
+> **Làm lại mobile-first (2026-11-08, founder chọn "Hàng việc thông minh").** Phần dưới mục này là bản cũ, chỉ để
+> tham khảo. Bản hiện tại (`src/features/hud/staff-modal.js`):
+> - **3 tab:** Đội · Tuyển · Quản lý. Báo cáo không còn là tab riêng, mà nằm cuối tab Đội, gập lại (`📊 Báo cáo`).
+> - **Đầu trang:** 3 ô số: `👥 4/6 đang làm` · `🪙 +420 / 10 phút` · `⚠️ 2 cần xử lý` (hoặc `✅ Đội ổn`). Chi phí nuôi
+>   đội chuyển xuống dưới danh sách Đội.
+> - **Cần bạn:** một danh sách duy nhất, mỗi dòng có 1 nút. Xếp hạng theo đúng luật Quản lý dùng (`needsYou`):
+>   - 0 = dụ dỗ của đối thủ, nhân viên bị chặn (kèm nút sửa có phí).
+>   - 1 = việc QL đang chờ duyệt (thẻ giống hộp thư, `taskCard`).
+>   - 2 = nhân viên chậm (mệt, đói, mòn).
+>   - 3 = người dự bị khi ca còn chỗ, người chưa được giao.
+>   - 4 = đủ điều kiện thăng chức.
+>   - 5 = tối đa 2 nâng cấp hoàn vốn nhanh nhất của cả đội (`D.upgradeOptions`, ≤ `UPGRADE_GATE.paybackMin`).
+>
+>   Hiện 4 dòng đầu, có nút «Xem thêm n việc». Từ 2 nút sửa trở lên thì có thêm «Xử lý tất cả». Băng báo đối thủ ở
+>   đầu trang đã bỏ, vì nó là dòng đầu của danh sách này.
+> - **Danh sách đội:** mỗi người 1 dòng gồm ảnh, tên, ⭐, điểm hôm nay, đang làm gì, và 1 cột "thể trạng" (chỉ số yếu
+>   nhất trong năng lượng / tinh thần / no, robot là pin / nhiệt / mòn). Nút «Đổi ca» ở tiêu đề. Bỏ các chip lọc.
+> - **Hồ sơ, 3 tab:**
+>   - **Hôm nay:** trạng thái, chăm sóc, ca làm, điểm hôm nay, việc được giao. Biểu đồ 7 ngày gập lại.
+>   - **Phát triển:** "Nên nâng cấp" (3 lựa chọn hoàn vốn nhanh nhất), thăng chức, chỉ số / linh kiện, đồ nghề /
+>     phần mềm. Kỹ năng nghề và «Cách làm việc» gập lại.
+>   - **Nhật ký.**
+>
+>   Id tab cũ (`overview`, `stats`, `gear`, `parts`, `service`) được tự chuyển sang tab mới (`PTAB_OF`).
+> - **Quản lý:** thẻ QL → Chờ bạn duyệt → Quyền hạn → Kế hoạch ngày. Giấy phép, Có đáng tiền, Việc nên làm và Nhật ký
+>   quản lý gập lại.
+> - **Phần gập:** `fold(key, …)` chỉ dựng nội dung khi đang mở. Trạng thái mở/đóng được nhớ trong lúc modal còn sống
+>   (`st.folds`).
+
+
 Tapping the Staff tool opens a **full modal** (portrait phone first, 16 px gutters, safe areas, scrollable body,
 sticky header + tabs). One modal per game (farm / café = zone of the current view).
 

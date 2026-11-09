@@ -42,7 +42,13 @@ import { BUILDINGS, STAFF, PLAYTEST, RECIPES, GM, LOAN, CLOCK, RIVAL, BOOKS, STA
   slackMul, batteryMinutes, jamChance, incomeRef, unitSpeed, hasRule } from '../src/core/config/economy.js';
 import { PARCEL_ORDER, PARCELS, areaOfParcel } from '../src/core/config/layout.js';
 
-PLAYTEST.coins = 0; // the sim measures the balanced economy, not the founder's playtest coins
+PLAYTEST.coins = 0;
+// Crop the scripted player plants on a field: SIM_CROP=<id> forces one variety (when unlocked), else the best for the
+// field's growing zone (D.bestCropFor); Robusta when the pick is unaffordable.
+const pickCrop = (s, plotId) => {
+  const want = process.env.SIM_CROP && D.cropUnlocked(s, process.env.SIM_CROP) ? process.env.SIM_CROP : D.bestCropFor(s, plotId);
+  return want && D.seedCost(s, want) <= s.player.coins ? want : D.seedCost(s, 'robusta') <= s.player.coins ? 'robusta' : null;
+}; // the sim measures the balanced economy, not the founder's playtest coins
 
 // Net worth (balance pass 2026-11-08): coins + what they were turned into, at cost — buildings (price + upgrades paid),
 // owned lots, every unit's hire price + parts / software / gear + stat steps (100·n each). Licences and the manager's
@@ -118,6 +124,7 @@ export function runSim(minutes = 60, { game = 'both', process = true, tap, perso
     if (r.ok && !r.noop) {
       coinDelta[type] = Math.round(((coinDelta[type] || 0) + r.state.player.coins - s.player.coins) * 100) / 100;
       counts[type] = (counts[type] || 0) + 1;
+      if (type === 'farm/plant') counts[`plant:${payload.crop}`] = (counts[`plant:${payload.crop}`] || 0) + 1; // varieties planted
       s = r.state;
       lastEvents = r.events;
       if (!Number.isFinite(s.player.coins)) bugs.push({ type, error: `coins ${s.player.coins}`, at: (now - start) / 60000 });
@@ -259,7 +266,7 @@ export function runSim(minutes = 60, { game = 'both', process = true, tap, perso
       .sort((a, b) => (!!BUILDINGS[b.type].recipe - !!BUILDINGS[a.type].recipe) || (D.upgradeCost(a.type, a.level) ?? 1e12) - (D.upgradeCost(b.type, b.level) ?? 1e12));
     for (const b of list) { const c = D.upgradeCost(b.type, b.level); if (c != null && canSpend(c) && act('build/upgrade', { uid: b.uid })) return true; }
     if (managed) return false; // the delegate hires by the §3.7 rule (hireCheck), not "whenever coins allow"
-    for (const t of ['farmhand', 'barista', 'sproutBot', 'brewBot']) {
+    for (const t of ['picker', 'barista', 'harvestBot', 'brewBot']) {
       const zone = STAFF[t].zone;
       if ((zone === 'farm' && !playsFarm) || (zone === 'shop' && !playsCafe)) continue;
       if (D.freeSlots(s, zone) > 0 && canSpend(STAFF[t].cost) && act('staff/hire', { type: t })) return true;
@@ -277,7 +284,7 @@ export function runSim(minutes = 60, { game = 'both', process = true, tap, perso
     if (managed && full && D.region(s).buildings.some(b => b.job && D.jobState(b, now).stage === 'ready') && act('farm/sellAll')) return true;
     // Raw beans: sold when nothing processes them, when storage is tight, or what the yards cannot take soon.
     const keep = has('dryer') && process ? RECIPES.dry.in.beans * Math.max(1, D.countOf(s, 'dryer')) : 0;
-    if (s.inventory.beans > keep && (full || !has('dryer') || !process) && act('farm/sell', { good: 'beans', amount: s.inventory.beans - keep })) return true;
+    if (D.processableBeans(s) > keep && (full || !has('dryer') || !process) && act('farm/sell', { good: 'beans', amount: s.inventory.beans - keep })) return true;
     if (full && act('farm/sellAll')) return true;
     return false;
   }
@@ -296,7 +303,7 @@ export function runSim(minutes = 60, { game = 'both', process = true, tap, perso
       if (may(u, 'harvest') && D.stored(s) < D.capacity(s)) for (const p of D.ownedPlots(s)) if (r.plots[p.id] && D.plotState(s, p.id, now).stage === 'ready') return { type: 'farm/harvest', payload: { plotId: p.id, uid: u.uid }, task: 'harvest' };
       if (may(u, 'plant')) for (const p of D.ownedPlots(s)) {
         if (r.plots[p.id]) continue;
-        const crop = D.planCropFor(s, p.id) || D.unlockedCrops(s).filter(c => D.seedCost(s, c) <= s.player.coins).pop();
+        const crop = D.planCropFor(s, p.id) || pickCrop(s, p.id);
         if (crop && D.seedCost(s, crop) <= s.player.coins) return { type: 'farm/plant', payload: { plotId: p.id, crop, uid: u.uid }, task: 'plant' };
         break;
       }
@@ -373,11 +380,11 @@ export function runSim(minutes = 60, { game = 'both', process = true, tap, perso
       streak[zone] = backlog >= 3 ? streak[zone] + 1 : 0;
       // teamSize: the GM-value experiment keeps the team at exactly N workers (hired first, before any saving)
       if (teamSize > 0) {
-        const wT = teamRobots && !D.staffError(s, zone === 'farm' ? 'sproutBot' : 'brewBot') ? (zone === 'farm' ? 'sproutBot' : 'brewBot') : zone === 'farm' ? 'farmhand' : 'barista';
+        const wT = teamRobots && !D.staffError(s, zone === 'farm' ? 'harvestBot' : 'brewBot') ? (zone === 'farm' ? 'harvestBot' : 'brewBot') : zone === 'farm' ? 'picker' : 'barista';
         if (D.zoneUnits(s, zone).length < teamSize && D.freeSlots(s, zone) > 0 && !D.staffError(s, wT) && s.player.coins - D.hireCost(s, wT) >= reserve()) act('staff/hire', { type: wT });
         continue;
       }
-      const [wT, rT] = zone === 'farm' ? ['farmhand', 'sproutBot'] : ['barista', 'brewBot'];
+      const [wT, rT] = zone === 'farm' ? ['picker', 'harvestBot'] : ['barista', 'brewBot'];
       // a real player hires a first helper as soon as the money allows (from Lv3), backlog or not (balance pass
       // 2026-11-08: without it the Lv3 running-cost gate had no roster to measure)
       if (!D.zoneUnits(s, zone).length && D.level(s) >= 3 && !savingForGm() && D.freeSlots(s, zone) > 0 && !D.staffError(s, wT)
@@ -531,8 +538,12 @@ export function runSim(minutes = 60, { game = 'both', process = true, tap, perso
     if (!did && playsFarm) for (const p of D.ownedPlots(s)) {
       const st = D.plotState(s, p.id, now);
       if (st.stage === 'ready' && (!managed || D.stored(s) < D.capacity(s)) && act('farm/harvest', { plotId: p.id })) { did = true; break; }
+      // perennial trees: an old tree is cut back (cưa đốn) when affordable, else uprooted and replanted
+      if (st.old && st.stage !== 'ready' && (act('farm/prune', { plotId: p.id }) || act('farm/uproot', { plotId: p.id }))) { did = true; break; }
+      // a clearly better variety for this field's zone is unlocked (e.g. Arabica on upland at Lv3): replace the tree
+      if (st.stage !== 'empty' && st.stage !== 'ready' && D.betterCropFor(s, p.id) && D.seedCost(s, D.betterCropFor(s, p.id)) <= s.player.coins && act('farm/uproot', { plotId: p.id })) { did = true; break; }
       if (st.stage === 'empty') {
-        const crop = D.unlockedCrops(s).filter(c => D.seedCost(s, c) <= s.player.coins).pop();
+        const crop = pickCrop(s, p.id);
         if (crop && act('farm/plant', { plotId: p.id, crop })) { did = true; break; }
       }
     }

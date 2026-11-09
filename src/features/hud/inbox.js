@@ -8,12 +8,12 @@
 //  · P4 polish: a manager header (avatar + name in his colour, backlog meter with the Chờ lệnh / dễ bị dụ / đình công
 //    marks), requests and rival offers in their own sections, a life bar per task (amber < 20 %, red under
 //    GM.look.ringLifeShare = the red ring under his feet in the world).
-import { TASKS, PENALTY, HISTORY, GM, STAFF } from '../../core/config/economy.js';
-import { tasksOpen, tasksDone, taskLeftMs, taskLateOk, taskById, gmOf, gmBacklog, gmWaiting, gmStrike, apologiseCost, histRows, historyDays, histName, unitOf, dayKey } from '../../core/derive.js';
+import { HISTORY, GM, STAFF, gmMoneyMul } from '../../core/config/economy.js';
+import { sellAllQuote, sellQuote, tasksOpen, taskLeftMs, taskById, gmOf, histRows, historyDays, histName, unitOf, dayKey } from '../../core/derive.js';
 import { sfx } from '../../shared/audio/index.js';
 import { h } from './dom.js';
 import { T, fmt, clock, gmReasonText, has } from './text.js';
-import { actionButton, needMore } from './widgets.js';
+import { actionButton } from './widgets.js';
 
 const KIND_ICON = { care: '💝', trade: '📦', staffGrowth: '📈', land: '🏞️', loan: '💰', poach: '💼', gmPoach: '💼', topUp: '💎' };
 const STATUS_ICON = { approved: '✅', denied: '✖️', expired: '⛔', failed: '❗', late: '🕓', cancelled: '➖' };
@@ -31,85 +31,40 @@ const chips = (label, values, cur, text, onPick) => h('div', { class: 'hud-sm-ch
 export function taskText(s, t) {
   if (t.kind === 'poach') return T('hud.inbox.poach', { name: t.reason?.[1]?.name || histName(s, t.act?.payload?.uid) || T('hud.sm.someone') });
   if (t.kind === 'gmPoach') return T('hud.inbox.gmPoach', { name: t.reason?.[1]?.name || gmOf(s)?.name || '', rival: t.reason?.[1]?.rival || GM.poach.rival });
+  if (t.kind === 'topUp') return T('hud.ask.topUpBody', { name: gmOf(s)?.name || '' });
+  if (/^farm\/sell/.test(t.act?.type || '')) { // what is being sold and for how much
+    const p = t.act.payload || {}, q = t.act.type === 'farm/sellAll' ? sellAllQuote(s) : sellQuote(s, p.item ?? p.good ?? 'beans', p.amount);
+    return T('hud.ask.saleBody', { name: gmOf(s)?.name || '', amount: fmt(q.amount || 0), coins: fmt(Math.round((q.coins || 0) * gmMoneyMul(gmOf(s)))) });
+  }
   return gmReasonText(t.reason);
 }
 
-export function inboxSheet(ctx) {
-  const act = (type, payload) => ctx.act(type, payload);
-  function openCard(s, t) {
+/** One open task as a card with its answer buttons (the inbox and the staff modal's «Cần bạn» list share it). */
+export function taskCard(ctx, s, t) {
+    const act = (type, payload) => ctx.act(type, payload);
     const left = taskLeftMs(s, t), life = Math.max(1, t.untilPlayed - t.atPlayed), share = Math.max(0, Math.min(1, left / life));
-    const urgent = share < GM.look.urgentShare, critical = share < GM.look.ringLifeShare;
+    const urgent = share < GM.look.urgentShare;
     const short = s.player.coins < t.cost;
-    const yes = (label, payload = {}, icon = '✅') => actionButton({ label, icon, cost: t.cost > 0 ? t.cost : undefined, tone: 'go', disabled: short, note: short ? needMore(t.cost - s.player.coins) : null,
-      onClick: () => { const r = act('task/approve', { id: t.id, roll: Math.random(), ...payload }); if (r.ok) sfx(t.cost > 0 ? 'coin.spend' : 'ui.click'); } });
-    const no = label => actionButton({ label, tone: 'plain', onClick: () => act('task/deny', { id: t.id }) });
-    const btns = t.kind === 'poach' ? [yes(T('hud.sm.keep'), {}, '🤝'), no(T('hud.sm.letGo'))]
-      : t.kind === 'gmPoach' ? [yes(T('hud.gm.keepBonus'), { how: 'bonus' }, '🎁'),
-        actionButton({ label: T('hud.gm.keepRaise', { pct: Math.round(GM.raiseStep * 100) }), icon: '📈', tone: 'plain', onClick: () => act('task/approve', { id: t.id, how: 'raise' }) }), no(T('hud.gm.letGo'))]
-      : t.kind === 'topUp' ? [yes(T('hud.inbox.topUpSeen'), {}, '💎'), no(T('hud.gm.deny'))] // no real-money store yet: it only logs
-      : [yes(T('hud.gm.approve')), no(T('hud.gm.deny'))];
-    const who = t.by === 'g1' ? T('hud.inbox.byGm', { name: gmOf(s)?.name || '' }) : T('hud.inbox.byRival');
-    return h('div', { class: `hud-gm-req hud-inbox-card${t.by === 'g1' ? ' is-manager' : ''}${urgent ? ' is-urgent' : ''}${critical ? ' is-critical' : ''}` },
-      h('p', { class: 'hud-gm-req-top' },
-        h('span', { class: 'hud-inbox-ico', attrs: { 'aria-hidden': 'true' } }, KIND_ICON[t.kind] || '📋'),
-        h('strong', null, taskText(s, t)), h('small', { class: 'hud-inbox-left' }, `⏳ ${clock(left)}`)),
-      h('div', { class: 'hud-inbox-life', attrs: { role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(Math.round(share * 100)), 'aria-label': T('hud.inbox.lifeAria') } },
-        h('i', { style: { width: `${(share * 100).toFixed(1)}%` } })),
-      h('p', { class: 'hud-inbox-meta' }, h('span', { class: 'hud-inbox-chip' }, T(`hud.inbox.kind.${t.kind}`)), h('span', null, who),
-        t.cost > 0 ? h('span', { class: 'hud-inbox-cost' }, T('hud.gm.reqCost', { coins: fmt(t.cost) })) : null),
-      h('div', { class: 'hud-row' }, ...btns));
-  }
-  function doneRow(s, t) {
-    const wait = Number.isFinite(t.answeredAtPlayed) ? Math.max(0, t.answeredAtPlayed - t.atPlayed) : null;
-    const meta = [wait != null ? T('hud.inbox.after', { t: clock(wait) }) : null, t.fine > 0 ? T('hud.inbox.fine', { coins: fmt(t.fine) }) : null].filter(Boolean).join(' · ');
-    const late = taskLateOk(s, t) ? actionButton({ label: T('hud.inbox.late'), icon: '🕓', cost: t.cost > 0 ? t.cost : undefined, tone: 'gold', disabled: s.player.coins < t.cost,
-      onClick: () => { const r = act('task/late', { id: t.id, roll: Math.random() }); if (r.ok) sfx('ui.click'); } }) : null;
-    return h('div', { class: `hud-sm-part${t.by === 'g1' ? ' hud-inbox-done is-manager' : ' hud-inbox-done'}` },
-      h('span', { class: 'hud-sm-part-text' }, h('strong', null, `${STATUS_ICON[t.status] || '•'} ${taskText(s, t)}`),
-        h('small', null, h('span', { class: `hud-inbox-status is-${t.status}` }, T(`hud.inbox.status.${t.status}`)), meta ? ` ${meta}` : '')), late);
-  }
-  // The manager header: his avatar and name in his colour, how many of his requests wait, and the backlog meter
-  // (PENALTY.backlog.strikeAt pips; marks at waitAt / poachAt / strikeAt).
-  function managerHead(s) {
-    const gm = gmOf(s);
-    if (!gm) return null;
-    const n = gmBacklog(s), B = PENALTY.backlog, mine = tasksOpen(s).filter(t => t.by === 'g1').length;
-    const state = gmStrike(s) ? 'strike' : n >= B.poachAt ? 'poachable' : gmWaiting(s) ? 'waiting' : n ? 'some' : 'ok';
-    const pips = Array.from({ length: B.strikeAt }, (_, i) => h('i', { class: `${i < n ? 'is-on' : ''}${i + 1 === B.waitAt || i + 1 === B.poachAt || i + 1 === B.strikeAt ? ' is-mark' : ''}` }));
-    return h('div', { class: `hud-inbox-head is-${state}` },
-      h('span', { class: 'hud-sm-avatar hud-gm-ava', attrs: { 'aria-hidden': 'true' } }, gm.gender === 'male' ? '👨‍💼' : '👩‍💼'),
-      h('span', { class: 'hud-inbox-head-text' },
-        h('strong', { class: 'hud-gm-name' }, T('hud.gm.title', { name: gm.name })),
-        h('small', null, T('hud.inbox.headAsks', { n: mine })),
-        h('span', { class: 'hud-inbox-meter', attrs: { role: 'meter', 'aria-valuemin': '0', 'aria-valuemax': String(B.strikeAt), 'aria-valuenow': String(n), 'aria-label': T('hud.inbox.meterAria', { n, max: B.strikeAt }) } }, ...pips),
-        h('small', { class: 'hud-inbox-state' }, T(`hud.inbox.state.${state}`, { n, wait: B.waitAt }))));
-  }
-  function backlogBlock(s) {
-    const gm = gmOf(s), n = gmBacklog(s), strike = gmStrike(s);
-    if (!gm || (!n && !strike)) return null;
-    const cost = apologiseCost(s), short = s.player.coins < cost;
-    const key = strike ? 'hud.inbox.backlog.strike' : n >= PENALTY.backlog.poachAt ? 'hud.inbox.backlog.poachable' : gmWaiting(s) ? 'hud.inbox.backlog.waiting' : 'hud.inbox.backlog.some';
-    return h('div', { class: `hud-report ${strike || n >= PENALTY.backlog.poachAt ? 'hud-report--bad' : 'hud-report--warn'}` },
-      h('p', null, T(key, { n, wait: PENALTY.backlog.waitAt, poach: PENALTY.backlog.poachAt, strike: PENALTY.backlog.strikeAt })),
-      actionButton({ label: T('hud.inbox.apologise'), icon: '🙏', cost, tone: 'gold', disabled: short, note: short ? needMore(cost - s.player.coins) : null,
-        onClick: () => { const r = act('gm/apologise', {}); if (r.ok) sfx('coin.spend'); } }));
-  }
+    const title = T(t.kind === 'gmPoach' ? 'hud.ask.poachTitle' : t.kind === 'poach' ? 'hud.ask.workerPoachTitle' : t.kind === 'topUp' ? 'hud.ask.topUpTitle' : 'hud.ask.saleTitle');
+    return h('article', { class: `hud-ask-card${urgent ? ' is-urgent' : ''}` },
+      h('span', { class: 'hud-ask-ico', attrs: { 'aria-hidden': 'true' } }, KIND_ICON[t.kind] || '📋'),
+      h('div', { class: 'hud-ask-main' },
+        h('p', { class: 'hud-ask-head' }, h('strong', null, title), h('small', null, `⏳ ${clock(left)}`)),
+        h('p', { class: 'hud-ask-text' }, taskText(s, t))),
+      h('i', { class: 'hud-ask-life', attrs: { role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(Math.round(share * 100)), 'aria-label': T('hud.inbox.lifeAria') } }, h('b', { style: { width: `${(share * 100).toFixed(1)}%` } })),
+      h('div', { class: 'hud-ask-acts' },
+        actionButton({ label: T('hud.ask.yes'), cost: t.cost > 0 ? t.cost : undefined, tone: 'go', disabled: short, onClick: () => { const r = act('task/approve', { id: t.id, roll: Math.random(), ...(t.kind === 'gmPoach' ? { how: 'bonus' } : {}) }); if (r.ok) sfx(t.cost > 0 ? 'coin.spend' : 'ui.click'); } }),
+        actionButton({ label: T('hud.ask.no'), tone: 'plain', onClick: () => act('task/deny', { id: t.id }) })),
+      t.kind === 'gmPoach' ? h('button', { type: 'button', class: 'hud-ask-link', on: { click: () => { ctx.sheet.close(); ctx.staffModal.open({ tab: 'gm' }); } } }, T('hud.ask.pickReplacement')) : null);
+}
+
+// «Duyệt (n)»: only what waits for your decision, each with what it is about and Duyệt / Từ chối.
+export function inboxSheet(ctx) {
   const render = s => {
-    const open = [...tasksOpen(s)].sort((a, b) => a.untilPlayed - b.untilPlayed), done = tasksDone(s).slice(0, 12);
-    const mine = open.filter(t => t.by === 'g1'), rival = open.filter(t => t.by !== 'g1');
-    return h('div', { class: 'hud-inbox' },
-      managerHead(s),
-      backlogBlock(s),
-      section(T('hud.inbox.open', { n: open.length, max: TASKS.cap }), open.length ? null : h('p', { class: 'hud-line hud-line--muted' }, T('hud.inbox.empty')),
-        rival.length ? h('h4', { class: 'hud-inbox-sub' }, T('hud.inbox.secRival')) : null,
-        rival.length ? h('div', { class: 'hud-gm-reqs' }, ...rival.map(t => openCard(s, t))) : null,
-        mine.length && rival.length ? h('h4', { class: 'hud-inbox-sub' }, T('hud.inbox.secGm')) : null,
-        mine.length ? h('div', { class: 'hud-gm-reqs' }, ...mine.map(t => openCard(s, t))) : null),
-      h('p', { class: 'hud-sub' }, T('hud.inbox.note', { grace: TASKS.graceMin, late: TASKS.lateMin })),
-      done.length ? section(T('hud.inbox.done'), ...done.map(t => doneRow(s, t))) : null);
+    const open = [...tasksOpen(s)].sort((a, b) => a.untilPlayed - b.untilPlayed);
+    return h('div', { class: 'hud-inbox' }, open.length ? h('div', { class: 'hud-ask-list' }, ...open.map(t => taskCard(ctx, s, t))) : h('p', { class: 'hud-line hud-line--muted' }, T('hud.inbox.empty')));
   };
-  // repaint when the inbox or the clock's seconds shown change
-  render.sig = s => `${Math.floor(played(s) / 1000)}|${s.player.coins}|${tasksOpen(s).map(t => t.id + t.untilPlayed).join(',')}|${tasksDone(s).slice(0, 12).map(t => t.id + t.status).join(',')}|${gmBacklog(s)}|${!!gmStrike(s)}`;
+  render.sig = s => `${Math.floor(played(s) / 1000)}|${s.player.coins}|${tasksOpen(s).map(t => t.id + t.untilPlayed).join(',')}`;
   return render;
 }
 

@@ -1,7 +1,9 @@
 // Placement controls (✓ confirm / ↻ rotate / ✕ cancel) shown while realm.placement != null. Polled in update().
 // They follow the building being placed (founder: "nút xây đi theo lò rang"): every frame the bar sits just under the
 // ghost's footprint on screen (realm.placementPoint), flipped above it near the bottom edge, clamped to the screen.
-import { defOf, buildCost } from '../../core/derive.js';
+import { openTreeViewer } from './tree-viewer.js';
+import { CROPS } from '../../core/config/economy.js';
+import { defOf, buildCost, seedCost, region, plotState, plotNeeds, treeOld } from '../../core/derive.js';
 import { sfx } from '../../shared/audio/index.js';
 import { h, setText } from './dom.js';
 import { T, errorText } from './text.js';
@@ -23,7 +25,61 @@ export function createPlacementBar(ctx) {
   const cancel = round('is-cancel', '✕', T('hud.place.cancel'), () => ctx.realm?.cancelPlacement?.());
   const rotate = round('is-rotate', '↻', T('hud.place.rotate'), () => ctx.realm?.rotatePlacement?.());
   const ok = round('is-ok', '✓', T('hud.place.confirm'), confirm, 'hud-place-ok');
-  const el = h('div', { class: 'hud-place', hidden: true }, h('div', { class: 'hud-place-btns' }, cancel, rotate, ok), h('div', { class: 'hud-place-info' }, h('span', { class: 'hud-place-head' }, name, price), reason));
+  const el = h('div', { class: 'hud-place', hidden: true }, h('div', { class: 'hud-place-btns' }, cancel, ok), h('div', { class: 'hud-place-info' }, h('span', { class: 'hud-place-head' }, name, price), reason));
+  // The seed the player holds while planting: a badge over the avatar's head with a ✕ to put it back.
+  const headIco = h('span', { class: 'hud-headseed-ico', attrs: { 'aria-hidden': 'true' } });
+  const head = h('button', { type: 'button', class: 'hud-headseed', hidden: true, attrs: { 'aria-label': T('hud.place.cancel') }, on: { click: () => ctx.realm?.cancelPlacement?.() } }, headIco, h('b', { attrs: { 'aria-hidden': 'true' } }, '✕'));
+  // The tapped plant's quick bar: 💧 water · 🪚 prune · 👁 details — one UI family (same round buttons, same line icons).
+  // A button lights up in its colour when the plant needs it, and stays dim otherwise.
+  const SVG = {
+    eye: '<path d="M2.5 14C5.2 9.2 9.3 6.6 14 6.6S22.8 9.2 25.5 14C22.8 18.8 18.7 21.4 14 21.4S5.2 18.8 2.5 14z" fill="#fff"/><circle cx="14" cy="14" r="5.3" fill="currentColor"/><circle cx="14" cy="14" r="2.6" fill="#13301a"/><circle cx="15.5" cy="12.4" r="1.1" fill="#fff"/>',
+    water: '<path d="M14 3.8C14 3.8 6.6 12 6.6 17.4a7.4 7.4 0 0 0 14.8 0C21.4 12 14 3.8 14 3.8z" fill="#fff"/><path d="M10.6 17.6a3.5 3.5 0 0 0 3 3.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+    prune: '<circle cx="7.4" cy="8" r="3" fill="none" stroke="#fff" stroke-width="2"/><circle cx="7.4" cy="20" r="3" fill="none" stroke="#fff" stroke-width="2"/><path d="M10 9.6L23 19M10 18.4L23 9" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>',
+  };
+  const qbtn = (kind, label, onClick) => { const b = h('button', { type: 'button', class: `hud-qbtn is-${kind}`, attrs: { 'aria-label': label }, on: { click: onClick } });
+    b.innerHTML = `<svg viewBox="0 0 28 28" width="24" height="24" aria-hidden="true">${SVG[kind]}</svg>`; return b; };
+  const quickAct = (type) => { const t = ctx.realm?.selection; if (t?.kind !== 'plot') return; if (!ctx.blockedByAuto?.()) ctx.act(type, { plotId: t.id }); ctx.realm?.select?.(null); };
+  const bWater = qbtn('water', T('hud.tree.water'), () => quickAct('farm/water'));
+  const bPrune = qbtn('prune', T('hud.tree.prune'), () => quickAct('farm/prune'));
+  const bEye = qbtn('eye', T('hud.plot.detail'), () => { const t = ctx.realm?.selection; if (t?.kind === 'plot') openTreeViewer(ctx, t.id); });
+  const plotBar = h('div', { class: 'hud-plotbar', hidden: true }, bWater, bPrune, bEye);
+  // The problem marker is ONE ring round the plant's foot: its border is the patience bar (it empties as time runs out,
+  // gold = ripe, sea blue = thirsty, grass green = prune) and turns solid red when the time is up. Tap it for the cause.
+  const chips = [];
+  function syncWarn() {
+    const list = ctx.realm?.alertPlots || [];
+    for (let k = 0; k < Math.max(list.length, chips.length); k++) {
+      let c = chips[k];
+      if (!c) {
+        c = chips[k] = h('button', { type: 'button', class: 'hud-alertchip', hidden: true, attrs: { 'aria-label': T('hud.plot.detail') }, on: { click: () => c.dataset.plot && openTreeViewer(ctx, c.dataset.plot) } });
+        ctx.root?.append(c);
+      }
+      const a = k < list.length && k < 40 ? list[k] : null;
+      const pt = a ? ctx.realm?.screenPoint?.({ kind: 'plot', id: a.id }) : null;
+      if (a && pt && pt.visible !== false && Number.isFinite(pt.x)) {
+        c.hidden = false; c.dataset.plot = a.id; c.className = `hud-alertchip is-${a.kind}${a.warn ? ' is-warn' : ''}`;
+        c.style.left = `${Math.round(pt.x)}px`; c.style.top = `${Math.round(pt.y + 22)}px`;
+        c.style.setProperty('--p', String(a.warn ? 100 : a.left == null ? 100 : Math.round(a.left * 100)));
+      } else c.hidden = true;
+    }
+  }
+  // The hint box is the handle of the ghost: DRAG it and the ghost follows the finger (the map pans near the screen edges);
+  // a plain TAP on it brings the view back to the spot where the thing is about to be placed.
+  const info = el.querySelector('.hud-place-info');
+  let grip = null;
+  if (info) {
+    info.classList.add('is-handle');
+    const end = e => { if (!grip || grip.id !== e.pointerId) return; const tap = !grip.moved && e.type === 'pointerup'; grip = null; ctx.realm?.endGhostDrag?.(); if (tap) ctx.realm?.centerOnGhost?.(); };
+    // Only the main button grabs it (a right click opens a menu that swallows the release).
+    info.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse' && e.button !== 0) return; grip = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false }; info.setPointerCapture?.(e.pointerId); e.preventDefault(); });
+    info.addEventListener('pointermove', e => {
+      if (!grip || grip.id !== e.pointerId) return;
+      if (e.pointerType === 'mouse' && e.buttons === 0) { end(e); return; } // let go without a pointerup: stop following the cursor
+      if (!grip.moved && Math.hypot(e.clientX - grip.x, e.clientY - grip.y) < 7) return;
+      grip.moved = true; ctx.realm?.dragGhostTo?.(e.clientX, e.clientY);
+    });
+    info.addEventListener('pointerup', end); info.addEventListener('pointercancel', end); info.addEventListener('lostpointercapture', end);
+  }
   let sig = null;
 
   function confirm() {
@@ -35,17 +91,21 @@ export function createPlacementBar(ctx) {
   }
 
   // Follow the ghost on screen. Falls back to the bottom-centre bar (CSS) when the realm cannot give a point.
-  const MARGIN = 8, TOP_SAFE = 64;
+  const MARGIN = 6;
   function follow(p) {
     const pt = p && ctx.realm?.placementPoint?.();
-    if (!pt || !pt.visible || !Number.isFinite(pt.x) || !Number.isFinite(pt.y)) { el.classList.remove('is-anchored'); el.style.left = el.style.top = ''; return; }
+    // The ghost is on screen → the set rides above it. The map was swiped so far that the ghost is off screen → the set docks in the
+    // bottom-left corner; tapping its hint box brings the view back to the ghost.
+    // (docked only when the ghost is really OFF the screen: close to an edge it still carries its own ✓ ✗)
+    const onScreen = pt && pt.visible && Number.isFinite(pt.x) && Number.isFinite(pt.y) && pt.x > 0 && pt.x < innerWidth && pt.y > 0 && pt.y < innerHeight;
+    el.classList.toggle('is-docked', !onScreen);
+    if (!onScreen) { el.classList.remove('is-anchored'); el.style.left = el.style.top = ''; return; }
     el.classList.add('is-anchored');
     const w = el.offsetWidth, hgt = el.offsetHeight, vw = innerWidth, vh = innerHeight;
     const x = Math.min(vw - w / 2 - MARGIN, Math.max(w / 2 + MARGIN, pt.x));
-    let y = pt.y + 10;                                                   // under the footprint
-    if (y + hgt > vh - MARGIN - 16) y = pt.top - hgt - 10;              // no room below: above the building
-    const hudBottom = parseFloat(getComputedStyle(ctx.root).getPropertyValue('--hud-tl-bottom')) || 0; // index.js
-    y = Math.min(vh - hgt - MARGIN, Math.max(TOP_SAFE, hudBottom + MARGIN, y));
+    // Always ABOVE the thing being placed, moving with it: it may cover the HUD, it never drops below the ghost (at the very top
+    // of the screen it stays on the top edge).
+    const y = Math.min(vh - hgt - MARGIN, Math.max(MARGIN, pt.top - hgt - 8));
     el.style.left = `${Math.round(x)}px`;
     el.style.top = `${Math.round(y)}px`;
   }
@@ -53,23 +113,41 @@ export function createPlacementBar(ctx) {
   function update() {
     const p = ctx.realm?.placement || null;
     if (p && !el.hidden) follow(p);
-    const cost = p ? placeCost(p, ctx.store.state) : null;
-    const next = p ? `${p.type}|${p.uid || ''}|${p.valid ? 1 : 0}|${p.error || ''}|${p.noRoom || ''}|${p.fieldsUnder || 0}|${cost}` : '';
+    if (!plotBar.isConnected) ctx.root?.append(plotBar);
+    const sel = ctx.realm?.selection;
+    const dp = sel?.kind === 'plot' && ctx.selection?.kind !== 'plot' && !p ? ctx.realm?.screenPoint?.(sel) : null;
+    plotBar.hidden = !(dp && dp.visible !== false);
+    if (!plotBar.hidden) {
+      plotBar.style.left = `${Math.round(dp.x)}px`; plotBar.style.top = `${Math.round(dp.y - 34)}px`;
+      const st = ctx.store.state, pl = region(st)?.plots?.[sel.id], ps = pl ? plotState(st, sel.id, Date.now()) : null;
+      const canWater = !!pl && ps.stage !== 'ready' && !pl.watered, canPrune = !!pl && treeOld(pl) && ps.stage !== 'ready', need = plotNeeds(st, sel.id, Date.now());
+      bWater.disabled = !canWater; bPrune.disabled = !canPrune;
+      bWater.classList.toggle('is-need', need === 'thirst'); bPrune.classList.toggle('is-need', need === 'prune');
+    }
+    if (!head.isConnected) ctx.root?.append(head); // outside the (transformed) bar so `fixed` means the screen
+    const crop = p && ctx.realm?.plantingCrop || null;
+    const hp = crop ? ctx.realm?.avatarPoint?.() : null;
+    head.hidden = true; // no seed badge over the player's head any more (founder 2026-11-08)
+    if (crop && hp?.visible) { head.style.left = `${Math.round(hp.x)}px`; head.style.top = `${Math.round(hp.y)}px`; }
+    const cost = p ? (crop ? seedCost(ctx.store.state, crop) : placeCost(p, ctx.store.state)) : null;
+    const next = p ? `${el.classList.contains('is-docked') ? 'D' : ''}|${p.type}|${p.uid || ''}|${p.valid ? 1 : 0}|${p.error || ''}|${p.noRoom || ''}|${p.warn || ''}|${p.fieldsUnder || 0}|${cost}|${crop || ''}` : '';
     if (next === sig) return;
     sig = next;
     el.hidden = !p;
     if (p) ctx.root.dataset.placing = '1'; else delete ctx.root.dataset.placing;
     if (!p) return;
     const def = defOf(p.type);
-    setText(name, `${def?.icon || ''} ${T(`building.${p.type}`)}`);
+    setText(name, crop ? `${CROPS[crop].icon} ${T(`crop.${crop}`)}` : `${def?.icon || ''} ${T(`building.${p.type}`)}`);
+    headIco.textContent = crop ? CROPS[crop].icon : '';
+    rotate.hidden = true; // only ✕ and ✓ (founder 2026-11-08)
     price.replaceChildren(p.uid ? T('hud.move') : coinAmount(cost || 0)); // coinAmount(0) reads 'Free'
     price.classList.toggle('is-move', !!p.uid);
-    const why = p.error === 'onField' && p.fieldsUnder > 0 ? T('fw.place.clearFields', { n: p.fieldsUnder }) : errorText(p.error || 'blocked');
-    setText(reason, p.valid ? T('hud.place.hint') : p.noRoom ? T(p.noRoom) : why);
-    reason.classList.toggle('is-bad', !p.valid);
+    const why = p.error === 'onField' && p.type === 'field' ? T('fw.place.plantHere') : p.error === 'onField' && p.fieldsUnder > 0 ? T('fw.place.clearFields', { n: p.fieldsUnder }) : errorText(p.error || 'blocked');
+    setText(reason, el.classList.contains('is-docked') ? T('hud.place.back') : p.valid && p.warn ? errorText(p.warn) : p.valid ? T(crop ? 'hud.plant.hint' : 'hud.place.hint') : p.noRoom ? T(p.noRoom) : why);
+    reason.classList.toggle('is-bad', !p.valid || !!p.warn);
     ok.disabled = !p.valid;
     ok.setAttribute('aria-disabled', String(!p.valid));
     follow(p);
   }
-  return { el, update, okButton: ok, get active() { return !!ctx.realm?.placement; }, dispose() {} };
+  return { el, update, okButton: ok, get active() { return !!ctx.realm?.placement; }, dispose() { head.remove(); plotBar.remove(); for (const c of chips) c.remove(); } };
 }

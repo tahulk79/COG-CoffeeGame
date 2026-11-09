@@ -10,13 +10,17 @@
 // Zoom range: ZOOM_MIN … zoomMax (per area, setZoomMax): the café street is long, so its overview may pull further out.
 // focusRect({ maxZoom }) caps one frame's zoom (a street shop is framed close enough to operate, even on a phone).
 import * as THREE from 'three';
-import { BOUNDS } from '../../core/config/layout.js';
+import { BOUNDS, farmGroundY } from '../../core/config/layout.js';
 import { DEG, clamp, dampK } from './util.js';
 
 export const FOV = 38;
-export const PITCH = 52 * DEG;
+export const PITCH = 52 * DEG;      // café / default
+export const PITCH_FARM = 44 * DEG; // steeper: the tiers and fields read at a glance (mobile-game view)
+export const FOV_FARM = 46;
+export const FARM_SCALE = 1.55; // mobile-game view: whole tiers of fields on a phone screen (was 1.35)        // wider lens on the farm: the top of the screen reaches the horizon (hills / sky), like the reference shots
+// (was 38°: the tiers need a low tilt) // farm big-update: lower tilt (30–45°) so the tree tiers read, like the reference shots
 export const YAW = -45 * DEG; // founder: view turned 90° left (camera south-west of the target)
-const ZOOM_MIN = .45, ZOOM_MAX = 1.9; // ZOOM_MAX = default zoomMax (farm)
+const ZOOM_MIN = .45, ZOOM_MAX = 2.4; // ZOOM_MAX = default zoomMax (farm: far enough to see the coffee hills)
 const OVERVIEW_ZOOM = 3, OVERVIEW_MAX = 3.4; // land / expand mode: a portrait phone sees much more of the farm
 const FOCUS_FILL = .9;      // explicit frames fill ~90% of the shorter screen side
 const ZOOM_IN = .62;        // founder: closer default view than the original rig
@@ -27,7 +31,7 @@ const FRICTION = 5.5;       // momentum decay per second after a flick
 const MIN_FLICK = 2.5;      // world units / s below which a release does not glide
 
 export function createCameraController(camera) {
-  camera.fov = FOV;
+  camera.fov = FOV_FARM;
   camera.near = .5;
   camera.far = 400;
   const cur = { target: new THREE.Vector3(0, 0, 14), dist: 30, yaw: YAW, pitch: PITCH };
@@ -35,10 +39,22 @@ export function createCameraController(camera) {
   let mode = 'exploration';
   let follow = null;
   let zoom = 1;
+  let yawBase = YAW; // the view direction: turned in 90° steps by the 🧭 button
   let zoomMax = ZOOM_MAX;
+  let zoomAcc = 1, zoomLock = 0; // gesture accumulator / pause between zoom steps
+  const zoomLevels = () => [.55, 1, Math.min(zoomMax, 2.2)]; // near · middle · far
+  // The view the player chose (turn + zoom level) is remembered between reloads
+  const CAM_KEY = 'godbean-camera';
+  let turns = 0, level = 1;
+  try { const sv = JSON.parse(localStorage.getItem(CAM_KEY) || 'null'); if (sv) { turns = Number.isFinite(sv.turns) ? sv.turns | 0 : 0; level = [0, 1, 2].includes(sv.level) ? sv.level : 1; } } catch { /* private mode */ }
+  yawBase = YAW + turns * Math.PI / 2; zoom = zoomLevels()[level]; cur.yaw = goal.yaw = yawBase;
+  const saveView = () => { try { localStorage.setItem(CAM_KEY, JSON.stringify({ turns, level })); } catch { /* ignore */ } };
   let aspect = 1, viewH = 800;
   let focusKey = null;
   let modeBeforeCinematic = 'exploration';
+  let fovNow = FOV_FARM;
+  let areaScale = FARM_SCALE; // farm sits further back by default: a phone sees whole rows of trees, not one bed
+  let pitchBase = PITCH_FARM; // per-area tilt (setPitch): the farm is the default view; the café sets PITCH
   let bounds = BOUNDS; // current area (farm / café), see setBounds
   // Screen bands (CSS px) covered by the HUD: the bottom action card / the top bar. ensureVisible keeps targets out of
   // them and glides them to the middle of the free band. 0 = today's behaviour (margins only).
@@ -56,15 +72,21 @@ export function createCameraController(camera) {
   const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   const ndc = new THREE.Vector2();
 
-  const tanHalf = () => Math.tan(FOV * DEG / 2);
+  const tanHalf = () => Math.tan(fovNow * DEG / 2);
   // Portrait screens see less width, so the base distance grows as the aspect shrinks.
-  const baseDist = () => (aspect < 1 ? Math.max(26, 19.5 / Math.max(aspect, .4)) : 26) * ZOOM_IN;
+  const baseDist = () => (aspect < 1 ? Math.max(26, 19.5 / Math.max(aspect, .4)) : 26) * ZOOM_IN * areaScale * Math.tan(FOV * DEG / 2) / tanHalf(); // same on-screen size at any lens
   const distNow = () => baseDist() * zoom;
 
+  // Height of the land under the look target, averaged over ±4 m so the view eases up a tier wall instead of jumping.
+  const lookY = (x, z) => {
+    let sum = farmGroundY(x, z) * 2, n = 2;
+    for (const r of [3, 6]) for (const [dx, dz] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) { sum += farmGroundY(x + dx * r, z + dz * r); n++; }
+    return sum / n;
+  };
   function clampTarget(v) {
     v.x = clamp(v.x, bounds.minX + 4, bounds.maxX - 4);
     v.z = clamp(v.z, bounds.minZ + 4, bounds.maxZ - 2);
-    v.y = 0;
+    v.y = lookY(v.x, v.z); // the look target rides the mountain tiers (smoothed so it glides over the walls)
     return v;
   }
   // Horizontal unit vector from the target towards the camera.
@@ -84,12 +106,15 @@ export function createCameraController(camera) {
   function groundAt(nx, ny, out) {
     ndc.set(nx, ny);
     ray.setFromCamera(ndc, camera);
+    ground.constant = -cur.target.y; // grab / pan on the plane of the land under the view
     return ray.ray.intersectPlane(ground, out);
   }
   function stopMomentum() { vel.set(0, 0); }
 
   const api = {
     cur, goal,
+    /** Tilt of the current area (farm lower than café); the camera eases to it. */
+    setPitch(rad, fov = FOV, scale = 1) { pitchBase = rad; fovNow = fov; areaScale = scale; camera.fov = fov; camera.updateProjectionMatrix(); goal.dist = distNow(); },
     get mode() { return mode; },
     get focusKey() { return focusKey; },
     get zoom() { return zoom; },
@@ -155,8 +180,8 @@ export function createCameraController(camera) {
       const dist = clamp(extent / (FOCUS_FILL * span) / z, 10, 75);
       zoom = clamp(dist / baseDist(), ZOOM_MIN, Math.max(ZOOM_MIN, Math.min(zoomMax, maxZoom)));
       const h = 2 * dist * tanHalf();
-      const margin = (aspect < 1 ? -.04 : .04) * h / Math.sin(PITCH);
-      towardCamera(YAW, tmp).multiplyScalar(margin);
+      const margin = (aspect < 1 ? -.04 : .04) * h / Math.sin(pitchBase);
+      towardCamera(yawBase, tmp).multiplyScalar(margin);
       goal.target.set((rect[0] + rect[2]) / 2, 0, (rect[1] + rect[3]) / 2).add(tmp);
       clampTarget(goal.target);
       stopMomentum();
@@ -176,7 +201,7 @@ export function createCameraController(camera) {
         // NDC shift that centres the point in the free band; target moved towards the camera = the point shows higher.
         const shift = (safe.bottom - safe.top) / viewH; // half of the NDC offset (2 px / viewH) = screen fraction
         const h = 2 * distNow() * tanHalf();
-        goal.target.add(towardCamera(YAW, tmp).multiplyScalar(shift * h / Math.sin(PITCH)));
+        goal.target.add(towardCamera(yawBase, tmp).multiplyScalar(shift * h / Math.sin(pitchBase)));
       }
       clampTarget(goal.target);
       focusKey = null;
@@ -240,7 +265,7 @@ export function createCameraController(camera) {
       const bx = before.x, bz = before.z;
       goal.target.x += mx; goal.target.z += mz;
       clampTarget(goal.target);
-      cur.target.copy(goal.target);
+      cur.target.x = goal.target.x; cur.target.z = goal.target.z; // height is eased in update(): a tier wall must not snap the view up
       // Momentum: velocity of the last strokes (smoothed), in world units per second.
       const now = performance.now(), dt = Math.max(1, now - lastPanAt) / 1000;
       lastPanAt = now;
@@ -268,26 +293,31 @@ export function createCameraController(camera) {
      */
     zoomBy(factor, anchor = null) {
       if (mode === 'cinematic') return;
-      const next = clamp(zoom * factor, ZOOM_MIN, zoomMax);
-      if (next === zoom) return;
-      stopMomentum();
-      const before = anchor && groundAt(anchor.x, anchor.y, new THREE.Vector3());
-      zoom = next;
-      cur.dist = goal.dist = distNow();
-      apply();
-      if (before) {
-        const after = groundAt(anchor.x, anchor.y, new THREE.Vector3());
-        if (after) {
-          goal.target.x += before.x - after.x; goal.target.z += before.z - after.z;
-          clampTarget(goal.target);
-          cur.target.copy(goal.target);
-          apply();
-        }
-      }
-      focusKey = null;
-      if (mode === 'exploration' && anchor) mode = 'free'; // zooming on a spot stops the follow
+      // Three zoom levels only — near · middle · far (founder 2026-11-08). A pinch / wheel gesture adds up until it is
+      // clearly "in" or "out", then steps ONE level (with a short pause so one swipe never skips two levels).
+      zoomAcc *= factor;
+      const now = performance.now();
+      if (now < zoomLock || (zoomAcc < 1.16 && zoomAcc > .86)) return;
+      const out = zoomAcc > 1, lv = zoomLevels();
+      let at = 0; for (let i = 1; i < lv.length; i++) if (Math.abs(lv[i] - zoom) < Math.abs(lv[at] - zoom)) at = i;
+      const next = Math.max(0, Math.min(lv.length - 1, at + (out ? 1 : -1)));
+      zoomAcc = 1; zoomLock = now + 320;
+      if (next === at && Math.abs(lv[at] - zoom) < .02) return;
+      api.setZoomLevel(next);
     },
-
+    /** Turn the view a quarter turn (+1 clockwise · -1 back): four directions around the farm. */
+    rotate(step = 1) { yawBase += step * Math.PI / 2; turns += step; saveView(); if (mode === 'exploration') mode = 'free'; },
+    get yawBase() { return yawBase; },
+    /** Jump (eased) to zoom level 0 = near, 1 = middle, 2 = far. */
+    setZoomLevel(i) {
+      const lv = zoomLevels();
+      level = Math.max(0, Math.min(lv.length - 1, i)); zoom = lv[level]; saveView();
+      stopMomentum();
+      goal.dist = distNow();
+      focusKey = null;
+      if (mode === 'exploration') mode = 'free';
+    },
+    get zoomLevel() { const lv = zoomLevels(); let at = 0; for (let i = 1; i < lv.length; i++) if (Math.abs(lv[i] - zoom) < Math.abs(lv[at] - zoom)) at = i; return at; },
     resize(w, h) {
       aspect = w / Math.max(1, h);
       viewH = Math.max(1, h);
@@ -308,7 +338,7 @@ export function createCameraController(camera) {
       const m = mode === 'cinematic' ? modeBeforeCinematic : mode;
       out.target.copy(m === 'exploration' && follow ? follow : goal.target); clampTarget(out.target);
       out.dist = distNow();
-      out.yaw = YAW; out.pitch = PITCH;
+      out.yaw = yawBase; out.pitch = pitchBase;
       return out;
     },
 
@@ -330,14 +360,15 @@ export function createCameraController(camera) {
           clampTarget(goal.target);
           if (before.x !== goal.target.x) vel.x = 0;
           if (before.z !== goal.target.z) vel.y = 0;
-          cur.target.copy(goal.target);
+          cur.target.x = goal.target.x; cur.target.z = goal.target.z;
           vel.multiplyScalar(Math.exp(-FRICTION * dt));
           if (vel.length() < .3) stopMomentum();
         }
         goal.dist = distNow();
-        goal.yaw = YAW; goal.pitch = PITCH;
+        goal.yaw = yawBase; goal.pitch = pitchBase;
         const k = dampK(5, dt);
         cur.target.lerp(goal.target, k);
+        if (held) cur.target.y += (goal.target.y - cur.target.y) * dampK(7, dt); // finger down: x / z follow it 1:1, only the height glides
         cur.dist += (goal.dist - cur.dist) * k;
         cur.yaw += (goal.yaw - cur.yaw) * k;
         cur.pitch += (goal.pitch - cur.pitch) * k;

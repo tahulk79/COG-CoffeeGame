@@ -9,7 +9,7 @@
 //     they come with nearly every quick serve), skipped right after a leave toast for the same reason; text =
 //     shop name + stars + a street quote (realm.say.<situation>.<n>);
 //   venueSale → no toast (coins fly from the vendor); counted per shop in ctx.venueSold for the venue card.
-import { STAFF, SAY_VARIANTS, GOODS, RIVAL, BOOKS, EXPIRY_LEVEL, GM, LOAN, TASKS } from '../../core/config/economy.js';
+import { STAFF, SAY_VARIANTS, GOODS, RIVAL, BOOKS, EXPIRY_LEVEL, EXPIRY_ENABLED, GM, LOAN, TASKS } from '../../core/config/economy.js';
 import { venueOpen, defOf, nextLimitLevel } from '../../core/derive.js';
 import { sfx } from '../../shared/audio/index.js';
 import { localItemsOf } from '../../ui/local-menu.js';
@@ -131,7 +131,7 @@ export function createFeedback(ctx) {
       unlocks.length ? h('div', { class: 'hud-banner-sub' }, T('hud.unlocked')) : null,
       unlocks.length ? h('ul', { class: 'hud-banner-list' }, bannerItems(unlocks)) : null,
       // The last 3 levels before the Level-10 incident: say it is coming.
-      !s.story.level10Done && to < EXPIRY_LEVEL && EXPIRY_LEVEL - to <= 3 ? h('div', { class: 'hud-banner-warn' }, T('hud.lv10.banner', { n: EXPIRY_LEVEL - to, level: EXPIRY_LEVEL })) : null].filter(Boolean));
+      EXPIRY_ENABLED && !s.story.level10Done && to < EXPIRY_LEVEL && EXPIRY_LEVEL - to <= 3 ? h('div', { class: 'hud-banner-warn' }, T('hud.lv10.banner', { n: EXPIRY_LEVEL - to, level: EXPIRY_LEVEL })) : null].filter(Boolean));
     banner.hidden = false;
     layout();
     clearTimeout(bannerTimer);
@@ -208,7 +208,16 @@ export function createFeedback(ctx) {
         case 'gmStrikeOver': toast(T('hud.inbox.toast.strikeOver', { name: ev.name || '' }), 'good'); break;
         case 'gmLater': if (now - (lastAt.gmLater || 0) > 60000) { lastAt.gmLater = now; toast(T('hud.inbox.toast.later', { name: ev.name || '' }), 'info'); } break;
         // planner v2 (management-rules §3.4–§3.7)
-        case 'gmDayPlan': toast(T('hud.gm.toast.dayPlan', { name: ev.name || '', mix: (ev.mix || []).map(m => `${T(`crop.${m.crop}`)} ${m.pct}%`).join(' · ') || '—', coins: fmt(ev.target) }), 'info'); break;
+        // coffee varieties: what the player's own pick lost or left on the plant (staff picks stay quiet)
+        case 'harvested':
+          if (ev.by != null) break;
+          if (ev.dropped) toast(T('hud.toast.dropped', { crop: T(`crop.${ev.crop}`), n: ev.dropped }), 'warn');
+          else if (ev.lonely && now - (lastAt.lonely || 0) > 60000) { lastAt.lonely = now; toast(T('hud.toast.lonely'), 'info'); }
+          else if (ev.wave === 1) toast(T('hud.toast.wave1', { crop: T(`crop.${ev.crop}`) }), 'info');
+          break;
+        case 'pruned': toast(T('hud.toast.pruned'), 'good'); break;
+        case 'uprooted': toast(T('hud.toast.uprooted'), 'info'); break;
+        case 'specialtyBonus': if (now - (lastAt.specialty || 0) > 30000) { lastAt.specialty = now; toast(T('hud.toast.specialty', { coins: fmt(ev.coins) }), 'good'); } break;
         case 'licenceBought': toast(T('hud.gm.toast.licence', { lic: T(`hud.gm.lic.${ev.group}`) }), 'good'); break;
         case 'gmTraining': toast(T('hud.gm.toast.training', { name: ev.name || '', skill: ev.to, min: ev.minutes }), 'info'); break;
         case 'gmTrained': toast(T('hud.gm.toast.trained', { name: ev.name || '', skill: ev.skill }), 'good'); sfx('reward.quest'); break;
@@ -238,7 +247,7 @@ export function createFeedback(ctx) {
         case 'gmFailed': toast(T('hud.gm.toast.failed', { what: gmReasonText(ev.reason) }), 'warn'); break;
         // served / harvested: the realm flies the coins/beans from the world spot to #hud-coins / #hud-beans.
         case 'built': toast(T('hud.toast.built', { name: T(`building.${ev.building}`), icon: defOf(ev.building)?.icon || '' }), 'good'); break;
-        case 'fieldPlaced': toast(`🟫 ${T('fw.toast.fieldPlaced')}`, 'good'); break;
+        case 'fieldPlaced': break; // (planting places a bed and sows it in one go: no "new field ready" notice)
         case 'moved': toast(T('hud.toast.moved'), 'info'); break;
         case 'removed': toast(T('fw.toast.removed', { refund: ev.refund > 0 ? fmt(ev.refund) : 0 }), 'info'); if (ev.refund > 0) sfx('coin.gain'); break;
         case 'prodCollected': {
@@ -255,7 +264,7 @@ export function createFeedback(ctx) {
         case 'hired': toast(T(!ev.assigned ? 'hud.toast.hiredIdle' : ev.active === false ? 'hud.toast.hiredBench' : 'hud.toast.hired', { name: ev.name ? `${ev.name} (${T(`staff.${ev.staff}`)})` : T(`staff.${ev.staff}`), icon: STAFF[ev.staff]?.icon || '' }), 'good'); break;
         case 'reborn': toast(T('hud.toast.reborn', { blessing: T(`blessing.${ev.blessing}`) }), 'good'); break;
         case 'creditsGranted': case 'creditsAdded': toast(T('hud.toast.credits', { n: ev.amount }), 'good'); break;
-        case 'staffStopped': toast(T(STOP_TOAST[ev.kind] || 'hud.toast.staffPhone', { name: unitName(s, ev.uid), fee: ev.fee }), 'warn'); break;
+        case 'staffStopped': if (ev.kind === 'funny') break; toast(T(STOP_TOAST[ev.kind] || 'hud.toast.staffPhone', { name: unitName(s, ev.uid), fee: ev.fee }), 'warn'); break;
         case 'loanRepaid': toast(T('hud.toast.loanDone'), 'good'); break;
         case 'staffReady': toast(T('hud.toast.staffReady', { name: ev.name || T(`staff.${ev.staff}`) }), 'info'); break;
         case 'statUpgraded': toast(T('hud.toast.statUp', { name: ev.name || T(`staff.${ev.staff}`), stat: T(`hud.stat.${ev.stat}`), to: ev.to }), 'good'); break;
@@ -271,7 +280,6 @@ export function createFeedback(ctx) {
         case 'shiftSwapped': toast(T('hud.toast.shift', { out: ev.out?.length || 0, in: ev.in?.length || 0 }), 'info'); break;
         case 'upkeepPaid': if (ev.unpaid?.length) toast(T('hud.toast.unpaid', { n: ev.unpaid.length }), 'warn'); break;
         case 'partUpgraded': toast(T('hud.toast.partUpgraded', { part: T(`hud.staff.part.${ev.part}`), tier: ev.tier }), 'good'); break;
-        case 'tendStarted': toast(T('hud.toast.tend', { n: ev.plots }), 'good'); break;
         case 'staffResumed': if (!(ev.kind === 'overheat' && !ev.fee)) toast(T('hud.toast.staffBack'), 'good'); break; // a cool-down that ends by itself is no news
         case 'customerLeft': left(s, ev, now); break;
         case 'venueOpened': toast(`🎉 ${T('hud.venue.opened', { name: venueName(ev.venue) })}`, 'good'); sfx('reward.levelup'); break;

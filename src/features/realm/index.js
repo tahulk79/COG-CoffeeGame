@@ -22,25 +22,29 @@
  */
 import * as THREE from 'three';
 import { BUILDINGS, CROPS, CROP_ORDER, DRINKS, GOODS, VENUES, VENUE_ORDER } from '../../core/config/economy.js';
-import { PARCELS, ROADS, inRect, GATE, FIXED, CUSTOMER, CAFE_SEATS, AREAS, BOUNDS, CAFE_BOUNDS, RESERVED, VENUE_LOTS, SHOP_FRAMES, STREET_FRAME, SHOP_ORDER, shopAt, parcelAt, areaAt, areaOfParcel } from '../../core/config/layout.js';
+import { TIER_EDGES, TIER_CUTS, tierEdgeZ, estateOfLot, PARCELS, ROADS, inRect, GATE, FIXED, CUSTOMER, CAFE_SEATS, AREAS, BOUNDS, CAFE_BOUNDS, RESERVED, VENUE_LOTS, SHOP_FRAMES, STREET_FRAME, SHOP_ORDER, shopAt, parcelAt, areaAt, areaOfParcel, farmGroundY } from '../../core/config/layout.js';
 import { readSettings } from '../../state/progress.js';
-import { region as regionOf, footprint, upgradeError, parcelError, seatCount, seatsUsed, brewSlots, seatPatienceRatio, ownedPlots, plotOf, capacity, stored, cropUnlocked, seedCost, canPlay, cafeStaffed, regionGame, venueOpen, venueError, farmViewBounds, roadOpen, defOf, tileAt, jobState, prodError, collectError, sellAllQuote, unitOf, unitState, unitBlocked, quickFix, workerPoach } from '../../core/derive.js';
+import { plotAlert, plotNeeds, snapPosition, placementError, pickCropFor, climateOfPlot, climateFit, region as regionOf, footprint, upgradeError, parcelError, seatCount, seatsUsed, brewSlots, seatPatienceRatio, ownedPlots, plotOf, capacity, stored, cropUnlocked, seedCost, canPlay, cafeStaffed, regionGame, venueOpen, venueError, farmViewBounds, roadOpen, defOf, tileAt, jobState, prodError, collectError, sellAllQuote, unitOf, unitState, unitBlocked, quickFix, workerPoach } from '../../core/derive.js';
 import { currentStep } from '../../core/tutorial.js';
 import { t as tr } from '../../i18n/index.js';
 import { loadModel } from '../../shared/three/models.js';
+import { getQuality } from '../../shared/vfx/index.js';
+import { tuneGedeoMaterials } from '../../shared/three/gedeo-vegetation.js';
 import { disposeScene, keepOnGPU } from '../../shared/three/dispose-scene.js';
 import { createVfx, flyTo, popNumber } from '../../shared/vfx/index.js';
 import { sfx } from '../../shared/audio/index.js';
-import { createCameraController } from './camera.js';
+import { createCameraController, PITCH, PITCH_FARM, FOV_FARM, FARM_SCALE } from './camera.js';
 import { createWorld, parcelSignPoint } from './world.js';
 import { createPlots } from './plots.js';
 import { createBuildings, makePrefab } from './buildings.js';
+import { createAmbient } from './ambient-vfx.js';
 import { createCafe } from './cafe.js';
 import { createStaff } from './staff.js';
 import { createManager } from './manager.js';
 import { gmReasonText } from '../hud/text.js';
 import { createAvatar } from './avatar.js';
 import { createPlacement } from './placement.js';
+import { createAnimals } from './animals.js';
 import { createMarkers, FRAME_LAND } from './markers.js';
 import { createCinematics } from './cinematics.js';
 import { createBadges } from './badges.js';
@@ -55,7 +59,12 @@ import { createIncidents } from './incidents.js';
 import { groundPoint, unionRect, fmtTimer, clamp } from './util.js';
 
 const SKY = 0xb4e2f7; // fog uses the same color so the horizon melts into the sky
-const TREE_PARTS = { tree: 'farm/coffee-tree.glb#tree', fruitGreen: 'farm/coffee-tree.glb#fruit_green', fruitRipe: 'farm/coffee-tree.glb#fruit_ripe' };
+// Gedeo Coffea arabica (scripts/blender/gedeo_heroes.py export_game_tree): same node names + height as the old coffee-tree.glb.
+const TREE_PARTS = { tree: 'farm/coffee-tree-gedeo.glb#tree', fruitGreen: 'farm/coffee-tree-gedeo.glb#fruit_green', fruitRipe: 'farm/coffee-tree-gedeo.glb#fruit_ripe',
+  tree_robusta: 'farm/coffee-tree-robusta.glb#tree', fruitGreen_robusta: 'farm/coffee-tree-robusta.glb#fruit_green', fruitRipe_robusta: 'farm/coffee-tree-robusta.glb#fruit_ripe',
+  tree_liberica: 'farm/coffee-tree-liberica.glb#tree', fruitGreen_liberica: 'farm/coffee-tree-liberica.glb#fruit_green', fruitRipe_liberica: 'farm/coffee-tree-liberica.glb#fruit_ripe',
+  seedling: 'farm/coffee-stages-gedeo.glb#seedling', young: 'farm/coffee-stages-gedeo.glb#young', // first-crop growth stages (real metres)
+  plantingRow: 'farm/landscape-parts.glb#planting_row', mulchBasin: 'farm/landscape-parts.glb#mulch_basin', wallUnit: 'farm/landscape-parts.glb#wall_unit', bankUnit: 'farm/landscape-parts.glb#bank_unit' };
 const GATE_PARTS = { gateFrame: 'heaven/portal.glb#portal_frame', gateLeft: 'heaven/portal.glb#portal_left_leaf', gateRight: 'heaven/portal.glb#portal_right_leaf' };
 const EXTRA_MODELS = ['cafe/espresso-machine.glb#machine', 'cafe/table.glb#chairs_pair', 'cafe/props.glb#cup'];
 const FADE_OUT = .2, FADE_IN = .32; // view switch fade (seconds)
@@ -98,6 +107,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   const shotAt = new THREE.Vector3(), shotDir = new THREE.Vector3(), shotQ = new THREE.Quaternion(), shotVp = new THREE.Vector4(), shotSc = new THREE.Vector4();
   const portraits = new Map();
   scene.name = 'realm';
+  if (import.meta.env?.DEV) { globalThis.__realmScene = scene; globalThis.__realmRenderer = renderer; } // dev QA: inspect the scene / renderer.info from the console
   const camera = new THREE.PerspectiveCamera(38, 1, .5, 400);
   scene.add(camera); // the cinematic flash plane is parented to the camera
   scene.background = new THREE.Color(SKY);
@@ -105,10 +115,23 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
 
   // ---------- lights: soft sky/ground hemisphere + one warm shadow-casting key light that follows the camera target ----------
   // (renderer tone mapping / exposure are owned by the app; the brighter look comes from light intensity only)
-  const hemi = new THREE.HemisphereLight(0xdcefff, 0x9c8a55, 1.75);
-  const sun = new THREE.DirectionalLight(0xffe3b8, 2.85);
+  // mobile-game look (founder 2026-11-08): bright, warm and clean — a strong warm key, a light blue sky fill
+  const hemi = new THREE.HemisphereLight(0xdcecff, 0xa08a5c, 1.5);
+  const sun = new THREE.DirectionalLight(0xffe9c8, 3.7);
+  // Image-based sky light (no download, built once): gives real materials and water something to reflect.
+  {
+    const sky = new THREE.Scene(), g = new THREE.SphereGeometry(10, 24, 16), c = new Float32Array(g.attributes.position.count * 3), top = new THREE.Color(0x8fbdf0), rim = new THREE.Color(0xf6ead8), low = new THREE.Color(0x6f7a4a), mix = new THREE.Color();
+    for (let i = 0; i < g.attributes.position.count; i++) { const y = g.attributes.position.getY(i) / 10; mix.copy(rim).lerp(y > 0 ? top : low, Math.pow(Math.abs(y), .55)); c.set([mix.r, mix.g, mix.b], i * 3); }
+    g.setAttribute('color', new THREE.BufferAttribute(c, 3));
+    const dome = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide })); sky.add(dome);
+    const pm = new THREE.PMREMGenerator(renderer); scene.environment = pm.fromScene(sky, .03).texture; scene.environmentIntensity = .55;
+    pm.dispose(); g.dispose(); dome.material.dispose();
+  }
+  renderer.localClippingEnabled = true; // buildings rise out of their scaffolding (buildings.js)
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
+  // Phones / lower quality: a 1024 shadow map (¼ the fill cost and memory of 2048).
+  const smallShadows = (typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches) || getQuality() !== 'high';
+  sun.shadow.mapSize.set(smallShadows ? 1024 : 2048, smallShadows ? 1024 : 2048);
   sun.shadow.bias = -.0004;
   sun.shadow.normalBias = .03;
   sun.shadow.camera.near = 1;
@@ -130,6 +153,8 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   ]);
   const templates = Object.fromEntries(paths.map((p, i) => [p, loaded[i]]));
   for (const [k, p] of Object.entries({ ...TREE_PARTS, ...GATE_PARTS })) templates[k] = templates[p];
+  for (const p of paths) if (p.includes('gedeo') || p.includes('coffee-tree-')) tuneGedeoMaterials(templates[p]); // alpha cards, crown-normal foliage shading
+  // Beehive: its bee / plain materials carry no colour (they render white): amber bees, brown wood, a darker straw roof
   keepOnGPU(templates['cafe/props.glb#cup']); // shared by staff / café / street / hand cups: disposing a worker must not free it
   const prefabs = Object.fromEntries(Object.keys(BUILDINGS).map(type => [type, makePrefab(type, templates)]));
   setTableInfo(prefabs.tables?.userData.tableInfo); // customers sit on the Tables prefab's real chairs
@@ -137,6 +162,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   // ---------- sub-modules ----------
   const vfx = createVfx({ scene });
   const cam = createCameraController(camera);
+  if (import.meta.env?.DEV) globalThis.__realmCam = cam; // dev QA: drive the camera (zoom / setZoomMax / setOverview)
   const speech = createSpeech({ scene, camera }); // street talk bubbles, reviews, fight cloud (café view)
   // What the café / street / staff / director use: talk only while the café is on screen (a staffed café keeps running
   // from the farm view, but its bubbles must not float over the farm). Same API as speech.js.
@@ -148,9 +174,19 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   };
   const world = createWorld({ scene, templates });
   const venues = createVenueScene({ scene, templates }); // the 3 street shops (shopfronts, counters, stools)
-  const staticBlockers = [...world.blockers, ...venues.blockers]; // city houses + venue shops (constant)
-  const plots = createPlots({ scene, templates, vfx });
+  // The tier retaining walls are solid (founder 2026-11-08: the player walked into the stones): a band along every tier
+  // edge, open only at the spine ramp and the two stair flights.
+  const tierWallRects = [];
+  { for (const e of TIER_EDGES) {
+      const gaps = TIER_CUTS.map(c => [c.x - c.half - .45, c.x + c.half + .45]).sort((p, q) => p[0] - q[0]), stops = [BOUNDS.minX - 2];
+      for (const [a, b] of gaps) stops.push(a, b);
+      stops.push(BOUNDS.maxX + 2);
+      for (let k = 0; k < stops.length; k += 2) { const x0 = stops[k], x1 = stops[k + 1], ez = tierEdgeZ(e, (x0 + x1) / 2); if (x1 - x0 > .3) tierWallRects.push([x0, ez - .15, x1, ez + .8]); }
+    } }
+  const staticBlockers = [...world.blockers, ...venues.blockers, ...tierWallRects]; // city houses + venue shops + tier walls (constant)
+  const plots = createPlots({ scene, templates, vfx, getActiveCrop: () => activeCrop });
   const buildings = createBuildings({ scene, prefabs, templates, vfx });
+  const ambient = createAmbient({ scene, farm: scene, vfx, sun, hemi, getTarget: () => cam.cur.target, isFarm: () => view === 'farm', getWalkers: () => [avatar.position, ...staff.farmPositions()] });
   // Grid pathfinding, one navigator per area (nav.js): shared by the player's walks, staff and customers.
   // Agent radius .45 m keeps paths clear of the avatar's own collision margin.
   const navs = { farm: createNav(BOUNDS, { radius: .45 }), cafe: createNav(CAFE_BOUNDS, { radius: .45 }) };
@@ -160,6 +196,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   // Staff work for real (staff.js): they read the player's crop / carried cup and dispatch straight to the store.
   const staff = createStaff({
     scene, store, vfx, templates, pads: PADS, navigate,
+    getFocus: () => cam.cur.target,
     getActiveCrop: () => activeCrop,
     getCarrying: () => carry?.orderId ?? null,
     getSeat: id => cafe.walker(id)?.seat || null,
@@ -168,12 +205,14 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     isPaused: () => inputLocked || !!cinematics.active || disposed,
     say: (o, text, opts) => talk.say(o, text, opts),
     getPlayerPos: () => avatar.position,
+    getManagerPos: () => manager.positionOf(),
     isWalkable: (zone, x, z) => !navs[zone === 'farm' ? 'farm' : 'cafe'].blockedAt(x, z),
   });
   // The manager in the world (manager.js, management-rules §6): desk by the zone gate, walks to what he acts on, 📋 bubble.
   // His lines speak in either area, but only while his own area is on screen (manager.js checks the view).
-  const manager = createManager({ scene, navigate, isPaused: () => inputLocked || !!cinematics.active || disposed, say: (o, text, opts) => !switching && !disposed && speech.say(o, text, opts) });
-  const placement = createPlacement({ scene, prefabs });
+  const manager = createManager({ scene, navigate, getPlayerPos: () => avatar.position, getCrew: () => staff.farmPositions(), isWalkable: (x, z) => !navs.farm.blockedAt(x, z), isPaused: () => inputLocked || !!cinematics.active || disposed, say: (o, text, opts) => !switching && !disposed && speech.say(o, text, opts) });
+  const placement = createPlacement({ scene, bedGhost: z => plots.makeBedGhost(z), prefabs });
+  const animals = createAnimals({ getEntity: uid => buildings.get(uid), isWalkable: (x, z) => { const b = farmViewBounds(store.state); return x > b.minX && x < b.maxX && z > b.minZ && z < b.maxZ && !navs.farm.blockedAt(x, z); } });
   const markers = createMarkers({ scene, camera });
   const cafe = createCafe({ scene, vfx, dispatch, templates, navigate, speech: talk });
   const street = createStreet({ scene, vfx, dispatch, navigate, speech: talk, templates });
@@ -267,7 +306,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   function syncAll(state, instant = false) {
     const id = state.world.currentRegion || null;
     if (id !== regionId) {
-      if (regionId !== undefined) { setCarry(null); plots.clear(); buildings.clear(); cafe.reset(); street.clear(); incidents.clear(); speech.clear(); staff.clear(); manager.clear(); leaveModes(); setSelection(null); needArrive = !!id; cancelSwitch(); swapView(modeView(state)); }
+      if (regionId !== undefined) { setCarry(null); plots.clear(); buildings.clear(); animals.clear(); cafe.reset(); street.clear(); incidents.clear(); speech.clear(); staff.clear(); manager.clear(); leaveModes(); setSelection(null); needArrive = !!id; cancelSwitch(); swapView(modeView(state)); }
       regionId = id;
       instant = true;
       avatar.teleport(avatar.position.x, avatar.position.z);
@@ -275,6 +314,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     world.sync(state);
     plots.sync(state);
     buildings.sync(state);
+    animals.sync(regionOf(state)?.buildings || []);
     cafe.sync(state, instant);
     venues.sync(state);
     street.sync(state);
@@ -293,7 +333,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     const key = `${id}|${ownedLots.join(',')}|${solidBuildings.map(b => `${b.uid}:${b.x},${b.z},${b.rot}`).join(';')}`;
     if (key !== navKey) {
       navKey = key;
-      for (const area of ['farm', 'cafe']) navs[area].rebuild(blockRects.filter(r => rectArea(r) === area));
+      for (const area of ['farm', 'cafe']) navs[area].rebuild(blockRects.filter(r => rectArea(r) === area), undefined, area === 'farm' ? tierWallRects : []);
     }
     if (selection?.kind === 'building' && !buildings.get(selection.uid)) setSelection(null);
     if (selection?.kind === 'plot' && !plotOf(state, selection.id)) setSelection(null); // field removed / moved away
@@ -322,6 +362,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   const hudBusy = () => { const r = document.getElementById('hud-root'); return !!(r?.dataset.sheet || r?.querySelector('.hud-modal, .hud-talk')); };
   let siloFull = false;
   function updateSpot(dt, state) {
+    return; // the idle auto-zoom onto a full storehouse / a stuck worker is gone: the camera only moves when YOU move it (founder 2026-11-08)
     const t = performance.now();
     // Farm storehouse full: one spotlight each time it fills.
     const full = view === 'farm' && capacity(state) > 0 && stored(state) >= capacity(state);
@@ -363,7 +404,11 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     },
     reasonText: r => gmReasonText(r),
   };
+  // Frequent background updates with nothing to show: the world is re-read at most twice a second, not on each of them.
+  const QUIET = new Set(['staff/vitals', 'clock/tick', 'gm/payroll', 'gm/think']);
+  let quietDue = false, quietT = 0;
   const unsubscribe = store.subscribe((state, events, type) => {
+    if (QUIET.has(type) && !events.length) { quietDue = true; prevState = state; return; }
     if (type === 'reset' || type === 'reload') { regionId = regionId === undefined ? undefined : '__reset__'; }
     // Before the sync: effects that need the old visuals (tree pop, customer mood, where a removed object stood).
     let removedAt = null;
@@ -396,7 +441,16 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     for (const ev of events) {
       if (ev.type === 'poachStarted' || ev.type === 'poachRefused' || ev.type === 'mvp') staff.onEvent(ev); // rival line / MVP cheer over the unit
       manager.onEvent(ev, gmEventCtx); // the manager walks / points / speaks (manager.js)
+      if (ev.type === 'staffStopped' && (ev.kind === 'overheat' || ev.kind === 'jam')) {   // machines visibly fail
+        const p = staff.posOf(ev.uid);
+        if (p) { v3.set(p.x, p.y + 1, p.z); vfx.burst('spark', v3, { count: 8 }); vfx.burst(ev.kind === 'overheat' ? 'smoke' : 'chip', v3, { count: 6 }); }
+      }
+      if ((ev.type === 'pruned' || ev.type === 'trimmed' || ev.type === 'sprayed') && view === 'farm') {
+        const f = plotOf(state, ev.plotId);
+        if (f) { v3.set(f.x, farmGroundY(f.x, f.z) + .8, f.z); if (ev.type === 'sprayed') vfx.burst('mist', v3, { count: 8 }); else { vfx.burst('leaf', v3, { count: 10 }); vfx.burst('chip', v3, { count: 3 }); } }
+      }
       if (ev.type === 'staffStopped' || ev.type === 'poachStarted') spotQueue({ kind: 'unit', uid: ev.uid, key: `unit:${ev.uid}:${ev.kind || 'poach'}` });
+      if (ev.type === 'watered') { const f = plotOf(state, ev.plotId); if (f && view === 'farm') { const y = farmGroundY(f.x, f.z) + .45; vfx.burst('splash', v3.set(f.x, y, f.z), { count: 12 }); vfx.burst('mist', v3, { count: 5 }); } }
       if (ev.type === 'planted') { plots.onPlanted(ev.plotId, clock); sfx('farm.plant'); }
       else if (ev.type === 'built') { buildings.onBuilt(ev.uid, clock); sfx('farm.build'); }
       else if (ev.type === 'moved') {
@@ -421,7 +475,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       }
       else if (ev.type === 'prodCollected') {
         const e = buildings.get(ev.uid), good = firstGood(ev.out);
-        if (e && good) reward({ x: e.x, y: e.height + .5, z: e.z }, 'hud-beans', GOODS[good].icon, sumOut(ev.out));
+        if (e && good) reward({ x: e.x, y: e.height + .5 + farmGroundY(e.x, e.z), z: e.z }, 'hud-beans', GOODS[good].icon, sumOut(ev.out));
         if (e && areaAt(e.x, e.z) === view) vfx.burst('sparkle', v3.set(e.x, e.height + .4, e.z), { count: 10 });
         sfx('farm.harvest');
       }
@@ -435,8 +489,8 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       else if (ev.type === 'brewStarted') sfx('cafe.cup');
       else if (ev.type === 'parcelBought') {
         const c = parcelSignPoint(ev.parcelId); vfx.burst('sparkle', v3.set(c.x, 1, c.z), { count: 20 }); vfx.burst('leaf', v3);
-        // Founder rule (farm-map.md): after buying land the camera glides to the new lot (zoom kept).
-        if (areaOfParcel(ev.parcelId) === 'farm' && view === 'farm') cam.glideTo(c.x, c.z);
+        // Founder rule (farm-map.md): after YOU buy land the camera glides to the new lot (zoom kept).
+        if (areaOfParcel(ev.parcelId) === 'farm' && view === 'farm' && !ev.byGm) cam.glideTo(c.x, c.z); // not when the manager bought it: the camera stays where the player put it
         if (landMode) world.setLandMode?.(landMode, { state }); // the expand overlay redraws the lots for sale
       }
       else if (ev.type === 'hired' || ev.type === 'assigned') vfx.burst('sparkle', avatar.position, { count: 10 });
@@ -503,10 +557,11 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     return null;
   }
   // Highlight rect drawn on the ground for the selection.
+  const animalFrame = an => { const h = { cow: .75, goat: .5, farmDog: .42, rooster: .3 }[an.type] ?? .28; return [an.x - h, an.z - h, an.x + h, an.z + h]; }; // hugs the animal
   function frameRect(t) {
     if (t.kind === 'plot') { const p = plotOf(store.state, t.id); return p ? footprint('field', p.x, p.z) : null; }
     if (t.kind === 'land') return Number.isFinite(t.x) && Number.isFinite(t.z) ? [t.x - LAND_HALF, t.z - LAND_HALF, t.x + LAND_HALF, t.z + LAND_HALF] : null;
-    if (t.kind === 'building') { const e = buildingOf(t); return e ? footprint(e.type, e.x, e.z, e.rot) : null; }
+    if (t.kind === 'building') { const an = t.uid ? animals.posOf(t.uid) : null; if (an) return animalFrame(an); const e = buildingOf(t); return e ? footprint(e.type, e.x, e.z, e.rot) : null; }
     if (t.kind === 'parcel') return PARCELS[t.id]?.rect || null;
     if (t.kind === 'gate') return [GATE.x - GATE.radius, GATE.z - 1, GATE.x + GATE.radius, GATE.z + 1];
     if (t.kind === 'venue') { const lot = Object.hasOwn(VENUE_LOTS, t.venue) ? VENUE_LOTS[t.venue] : null; return lot ? [lot.rect[0], lot.counter.z - 1.2, lot.rect[2], lot.rect[3]] : null; }
@@ -531,10 +586,11 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     selection = t || null;
     timerSeconds = -1;
     markers.setTimer(null);
+    if (t?.kind !== 'plot' && plotPeek) { cam.restore(plotPeek); plotPeek = null; } // leaving a field look: back to the farm view
     if (!t) {
-      markers.setFrame(null); // Hay Day rule: deselecting never moves the camera
+      markers.setFrame(null); // Hay Day rule: deselecting never moves the camera (except undoing a field close-up)
     } else {
-      markers.setFrame(frameRect(t), t.kind === 'land' ? { color: FRAME_LAND } : undefined);
+      markers.setFrame(t.kind === 'parcel' ? null : frameRect(t), t.kind === 'land' ? { color: FRAME_LAND } : t.kind === 'plot' ? { round: true } : undefined); // a tapped plant gets a ring at its foot
       if (t.kind === 'building') { const e = buildingOf(t); if (e) outline = vfx.outline(e.model); }
       // The target was tapped (so it is on screen) or picked from the HUD: glide only when it is off-screen.
       // Never while a finger is down (swipe planting): the ground must not slide under the finger.
@@ -569,7 +625,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       if (hits.length) return hits[0].object.userData.target;
     }
     const list = farm ? [...plots.pickers()] : []; // plots + gate: farm only; buildings: current area only
-    if (includeBuildings) { list.push(...buildings.pickers()); if (farm) list.push(world.gatePicker); }
+    if (includeBuildings) { list.push(...buildings.pickers()); if (farm) list.push(world.gatePicker, ...world.tierPickers()); }
     const hits = raycaster.intersectObjects(list, false);
     return hits.length ? hits[0].object.userData.target : null;
   }
@@ -584,16 +640,27 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     const k = (half + .5) / d;
     gateWalk = false;
     if (carry) carry.walking = false;
-    if (cam.sees(p.x, p.z, .05)) cam.explore({ tap: true });
+    // Farm: the camera belongs to the player (Hay Day): the farmer walks to the job, the view does not chase him.
+    if (view !== 'farm' && cam.sees(p.x, p.z, .05)) cam.explore({ tap: true });
     avatar.walkTo(x + dx * k, z + dz * k);
   }
+  // Field tap (founder 2026-11-08, mobile): an empty bed is planted at once; a growing / ripe one is shown up close —
+  // the camera zooms onto it (peek, restored when the field is let go) and the HUD opens its card (variety, cherries,
+  // time left, tree age, Harvest button). Tapping the same ripe field again harvests it.
+  let plotPeek = null;
   function tapPlot(id) {
     const now = Date.now();
     const stage = plots.stage(id, now);
-    setSelection({ kind: 'plot', id }, { glide: false });
-    const pl = plotOf(store.state, id); if (pl) walkBeside(pl.x, pl.z, FIELD_HALF);
-    if (stage === 'empty') dispatch('farm/plant', { plotId: id, crop: activeCrop });
-    else if (stage === 'ready') dispatch('farm/harvest', { plotId: id });
+    // No card above a plant any more (founder 2026-11-08): a small ring marks it (the HUD is not told), a ripe one is
+    // harvested on the tap, an empty bed is sown with the seed in hand.
+    setSelection({ kind: 'plot', id }, { glide: false, notify: false });
+    const pl = plotOf(store.state, id); if (pl && view !== 'farm') walkBeside(pl.x, pl.z, FIELD_HALF); // on the farm the player stays where they are and works from there (founder 2026-11-09)
+    if (stage === 'empty') { dispatch('farm/plant', { plotId: id, crop: activeCrop }); return; }
+    if (stage === 'ready') { dispatch('farm/harvest', { plotId: id }); return; }
+    // A thirsty or old plant is dealt with on the tap, one after another (no icon to press); an animation over it shows the work
+    const need = plotNeeds(store.state, id, now);
+    if (need === 'thirst') { if (dispatch('farm/water', { plotId: id }).ok) hooks.onPlantFx?.('water', id); }
+    else if (need === 'prune') { if (dispatch('farm/prune', { plotId: id }).ok) hooks.onPlantFx?.('prune', id); }
   }
   // Body taps. The two counters only ACT (no card): order counter → take the order; brewing counter → pick up a ready
   // cup and carry it to its customer, else brew the next taken order, else resume a delivery, else a hint toast.
@@ -685,6 +752,8 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   let nearTimer = 0, nearCooldown = 0;
   const BADGE_NEAR = 9; // m: upgrade ▲ and buy-land "+" badges show only within this range of the farmer
   const distTo = (x, z) => Math.hypot(avatar.position.x - x, avatar.position.z - z);
+  // Farm badges (+ land, ▲ upgrade) follow what the player looks at (the camera is free on the farm), not the farmer.
+  const badgeDist = (x, z) => (view === 'farm' ? Math.hypot(cam.cur.target.x - x, cam.cur.target.z - z) / 1.6 : distTo(x, z));
   function autoNear(dt, state, orders, now) {
     nearCooldown = Math.max(0, nearCooldown - dt);
     nearTimer += dt;
@@ -754,129 +823,38 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     return true;
   }
 
-  // ---------- auto play (state.autoplay.active): the game plays itself, right where you are ----------
-  // Works in the CURRENT view from the first frame: café → take order / brew / carry & serve (else stand ready at the
-  // order pad); farm → harvest / plant. The player may switch view; the autopilot follows. It switches view itself
-  // only after > 3 s with nothing to do here (announced in the caption). Same functions / pathfinding as the player,
-  // ~0.35 s beat between actions. Captions say what it is doing now: { key, params } (HUD translates).
-  // Never buys anything: only seeds (affordable), harvests, café orders / brewing / serving.
-  const BEAT = .35, IDLE_SWITCH = 3, IDLE_CAPTION = 2;
+  // (auto play is removed — founder 2026-11-08; `auto` stays as an inert flag so the few guards below are harmless)
   const auto = { on: false, phase: 'pause', wait: 0, timer: 0, step: null, caption: null, target: null, idleT: 0 };
-  const autoNearest = list => { let best = null, bd = Infinity; for (const p of list) { const d = Math.hypot(p.x - avatar.position.x, p.z - avatar.position.z); if (d < bd) { bd = d; best = p; } } return best; };
-  function autoCrop(state) {
-    if (cropUnlocked(state, activeCrop) && seedCost(state, activeCrop) <= state.player.coins) return activeCrop;
-    for (let i = CROP_ORDER.length - 1; i >= 0; i--) if (cropUnlocked(state, CROP_ORDER[i]) && seedCost(state, CROP_ORDER[i]) <= state.player.coins) return CROP_ORDER[i];
-    return null;
-  }
-  const say = (key, params = null, target = null) => { auto.caption = key ? { key, params } : null; auto.target = target; };
-  function autoGo(x, z, key, params, target, act) {
-    say(key, params, target); auto.step = act; auto.timer = 0; auto.phase = 'walk'; auto.idleT = 0;
-    avatar.walkTo(x, z);
-  }
-  // Nothing to do right now: keep checking every beat; caption only after a short while; switch area after a longer one.
-  function autoIdle(dt, waitKey, switchTo, switchKey) {
-    auto.idleT += dt;
-    auto.phase = 'pause'; auto.wait = BEAT;
-    if (switchTo && auto.idleT > IDLE_SWITCH) { say(switchKey); auto.idleT = 0; auto.wait = 1; setView(switchTo); return; }
-    say(auto.idleT > IDLE_CAPTION ? waitKey : null);
-  }
-  function autoDecide(state, now, dt) {
-    const r = regionOf(state);
-    if (!r) return;
-    const orders = r.shop.orders, beans = state.inventory.beans;
-    if (view === 'farm') {
-      const mine = ownedPlots(state);
-      const room = stored(state) < capacity(state);
-      const ready = room && autoNearest(mine.filter(p => plots.stage(p.id, now) === 'ready'));
-      if (ready) return autoGo(ready.x, ready.z + 1.25, 'auto.harvest', { id: ready.id }, { kind: 'plot', id: ready.id }, () => {
-        const s = store.state;
-        if (plots.stage(ready.id, Date.now()) === 'ready' && stored(s) < capacity(s)) dispatch('farm/harvest', { plotId: ready.id });
-      });
-      // Finished production batches: collect them (never starts a batch, never builds or buys).
-      const done = room && autoNearest(r.buildings.filter(b => b.job && areaAt(b.x, b.z) === 'farm' && collectError(state, b, now) === null));
-      if (done) {
-        const fp = footprint(done.type, done.x, done.z, done.rot);
-        return autoGo(done.x, fp[3] + .8, 'auto.collect', { building: done.type }, { kind: 'building', uid: done.uid, type: done.type }, () => {
-          const s = store.state, b = regionOf(s)?.buildings.find(x => x.uid === done.uid);
-          if (b && collectError(s, b, Date.now()) === null) dispatch('prod/collect', { uid: b.uid });
-        });
-      }
-      const crop = autoCrop(state);
-      const empty = crop && autoNearest(mine.filter(p => plots.stage(p.id, now) === 'empty'));
-      if (empty) return autoGo(empty.x, empty.z + 1.25, 'auto.plant', { crop }, { kind: 'plot', id: empty.id }, () => {
-        const c = autoCrop(store.state);
-        if (c && plots.stage(empty.id, Date.now()) === 'empty') dispatch('farm/plant', { plotId: empty.id, crop: c });
-      });
-      // Farm game: the storehouse is full → sell the beans there (never leaves for the café on its own).
-      const quote = room ? null : sellAllQuote(state); // every good counts toward the cap, not only raw beans
-      if (quote && quote.coins > 0) return autoGo(FIXED.silo.x, FIXED.silo.z + 2.4, 'auto.sell', { n: Math.floor(quote.amount) }, { kind: 'building', type: 'silo' }, () => {
-        if (sellAllQuote(store.state).coins > 0) dispatch('farm/sellAll');
-      });
-      return autoIdle(dt, 'auto.waitGrow', null, 'auto.goCafe');
-    }
-    // café
-    if (carry) { say('auto.serve', null, { kind: 'customer', orderId: carry.orderId }); deliver(); auto.step = null; auto.timer = 0; auto.phase = 'walk'; auto.idleT = 0; return; }
-    const ready = mostUrgent(orders, o => o.stage === 'brewing' && now - o.brewStart >= o.brewMs && !staff.isClaimed(o.id), now);
-    if (ready) return autoGo(PADS.brew.x, PADS.brew.z, 'auto.pickup', { drink: ready.drink, item: ready.item }, { kind: 'building', type: 'brewCounter' }, () => {
-      const o = regionOf(store.state)?.shop.orders.find(x => x.id === ready.id);
-      if (!carry && o?.stage === 'brewing' && Date.now() - o.brewStart >= o.brewMs && !staff.isClaimed(o.id)) { pads.pop('brew', clock); pickUp(o.id); auto.phase = 'pause'; auto.wait = 0; }
-    });
-    const brewing = orders.filter(o => o.stage === 'brewing').length;
-    const taken = mostUrgent(orders, o => o.stage === 'taken', now);
-    if (taken && brewing < brewSlots(state) && beans >= (DRINKS[taken.drink]?.beans || 1)) return autoGo(PADS.brew.x, PADS.brew.z, 'auto.brew', { drink: taken.drink, item: taken.item }, { kind: 'building', type: 'brewCounter' }, () => {
-      const s = store.state, o = regionOf(s)?.shop.orders.find(x => x.id === taken.id);
-      if (o?.stage === 'taken' && s.inventory.beans >= (DRINKS[o.drink]?.beans || 1)) { pads.pop('brew', clock); dispatch('shop/brew', { orderId: o.id }); }
-    });
-    if (cafe.queuedOrder(state) != null && seatsUsed(state) < seatCount(state)) return autoGo(PADS.order.x, PADS.order.z, 'auto.takeOrder', null, { kind: 'building', type: 'orderCounter' }, () => {
-      const s = store.state, q = cafe.queuedOrder(s);
-      if (q != null && seatsUsed(s) < seatCount(s)) { pads.pop('order', clock); dispatch('shop/takeOrder', { orderId: q }); }
-    });
-    // Nothing to do: stand ready at the order pad (customers walking in / cups brewing).
-    if (distTo(PADS.order.x, PADS.order.z) > .6 && !avatar.moving) avatar.walkTo(PADS.order.x, PADS.order.z);
-    if (brewing) { const o = orders.find(x => x.stage === 'brewing'); say('auto.brewing', { drink: o.drink, item: o.item }, { kind: 'building', type: 'brewCounter' }); auto.phase = 'pause'; auto.wait = BEAT; auto.idleT = 0; return; }
-    // Café game: stays in the café (out of beans → the caption says so; buying is the player's call).
-    const stuckBeans = taken && beans < (DRINKS[taken.drink]?.beans || 1);
-    return autoIdle(dt, stuckBeans ? 'auto.needBeans' : 'auto.waitCustomer', null, 'auto.goFarm');
-  }
-  function updateAuto(dt, state, now) {
-    const a = state.autoplay?.active;
-    const on = !!a && now < a.endsAt && state.story.phase === 'play' && !!state.world.currentRegion;
-    if (on !== auto.on) {
-      auto.on = on;
-      avatar.stop();
-      if (carry) carry.walking = false;
-      Object.assign(auto, { phase: 'pause', wait: 0, step: null, caption: null, target: null, idleT: 0 }); // act on the very next frame
-      if (on) { leaveModes(); setSelection(null); input.cancel(); endDrag(); keys.clear(); avatar.setKeyDir(0, 0); cam.explore(); }
-    }
-    if (!on || cinematics.active || inputLocked) return;
-    if (switching) { avatar.stop(); auto.phase = 'pause'; auto.wait = .1; auto.step = null; return; } // view changed: re-decide there
-    if (auto.phase === 'walk') {
-      auto.timer += dt;
-      if ((avatar.moving || carry?.walking) && auto.timer < 12) return;
-      auto.step?.(); auto.step = null;
-      auto.phase = 'pause'; auto.wait = BEAT;
-      return;
-    }
-    if ((auto.wait -= dt) > 0) return;
-    autoDecide(state, now, BEAT);
-  }
+  const say = () => {};
 
+  // "Move the signboard": after the tier modal's button the next tap on the ground puts the sign there
+  let signMove = null;
   function onTap(p) {
     if (locked() || auto.on) return; // auto play: the player watches (camera pan / zoom only)
     rayFrom(p);
     if (placement.info) {
-      if (groundPoint(raycaster, hit)) placement.moveTo(hit.x, hit.z);
+      // A tap ON the ghost must not shift it: its roof maps to the ground behind it, so the whole building would jump. Only a
+      // tap clearly away from it sets it down there; dragging moves it.
+      if (groundPoint(raycaster, hit)) {
+        const g = placement.info, fp = footprint(g.type, g.x, g.z, g.rot), reach = Math.max(fp[2] - fp[0], fp[3] - fp[1]) / 2 + (g.type === 'field' ? .6 : 2.5);
+        if (Math.hypot(hit.x - g.x, hit.z - g.z) > reach) placement.moveTo(hit.x, hit.z);
+      }
       return;
     }
     const target = pick();
     if (target?.kind === 'plot') return tapPlot(target.id);
     if (target?.kind === 'building') return tapBuilding(target);
     if (target?.kind === 'customer') return tapCustomer(target);
+    if (target?.kind === 'staffFix') { // the coin on a red tag: pay right here
+      const u = unitOf(store.state, target.uid), fix = u && quickFix(u, Date.now());
+      if (u && !staff.recall(u.uid) && fix) dispatch('staff/care', { uid: u.uid, kind: fix.kind, roll: Math.random() });
+      return;
+    }
     if (target?.kind === 'staff') return tapStaff(target);
     if (target?.kind === 'manager') { hooks.onManagerTap?.(); return; } // the manager → the HUD opens his inbox
     if (target?.kind === 'staffUp') { hooks.onStaffTap?.(target.uid); return; } // ⬆️ ready to train → the HUD opens its card
     if (target?.kind === 'field') return harvestField(target.id);
-    if (target?.kind === 'parcel') return tapParcel(target.id);
+    if (target?.kind === 'parcel') return tapParcel(target.id, target.sign);
     if (target?.kind === 'gate') {
       setSelection({ kind: 'gate' });
       gateWalk = true;
@@ -911,10 +889,9 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     const parcel = parcelAt(hit.x, hit.z);
     if (parcel && areaOfParcel(parcel.id) === view && world.parcelState(parcel.id) !== 'owned') return tapParcel(parcel.id);
     // Empty OWNED farm land: the player still walks there, and the HUD gets a small land card (field / build here).
-    const tile = view === 'farm' ? tileAt(store.state, hit.x, hit.z) : null;
-    const land = tile?.owned && !tile.occupant && tile.terrain !== 'road' && tile.terrain !== 'plaza' && tile.lot;
-    if (land) setSelection({ kind: 'land', x: tile.x, z: tile.z, lot: tile.lot }, { glide: false });
-    else setSelection(null);
+    // Planting is its own mode (seed menu → ghost you drag → ✓): a plain tap on the ground only walks.
+    setSelection(null);
+    // Tap on the ground → the player walks there (farm included); the camera follows, a pan stops it.
     gateWalk = false;
     if (carry) carry.walking = false; // the cup stays in hand; tap the customer / counter to resume
     if (!stayFramed) cam.explore({ tap: true }); // walking: the camera follows the player (dead zone), a pan stops it again
@@ -922,7 +899,15 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     vfx.burst('dust', hit, { count: 4 });
   }
 
-  function tapParcel(id) {
+  function tapParcel(id, noWalk = false) {
+    const est = estateOfLot(id); // a farm tier: always the new tier modal (tapping its land, its sign, anywhere), never the old bottom card
+    if (est) { // a ring at the foot of the sign shows what was tapped, then the modal opens
+      if (selection) setSelection(null);
+      const tp = world.tierPickers().find(p => p.userData.target.id === est.seed)?.userData.target;
+      if (tp && noWalk) { markers.setFrame([tp.x - .5, tp.z - .5, tp.x + .5, tp.z + .5], { round: true, radius: 1.5, color: 0xffe066 }); clearTimeout(tierRingTimer); tierRingTimer = setTimeout(() => { if (!selection) markers.setFrame(null); }, 1600); }
+      hooks.onTierTap?.(est.seed); return;
+    }
+    if (noWalk) { if (selection) setSelection(null); hooks.onTierTap?.(id); return; } // a tier signboard: its info modal opens right there, the player stays put
     setSelection({ kind: 'parcel', id }, { glide: false });
     const c = parcelSignPoint(id);
     walkBeside(c.x, c.z, .8); // stop in front of its price sign
@@ -930,15 +915,13 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
 
   // Staff tap (staff-manager.md §9): a jammed robot's body counts knocks (the 3rd → free staff/care knock); a unit that
   // cannot work → its paid fix (D.quickFix: bonusSmall for the phone, recharge, cool, repair, coffee, food, bonus);
-  // an idle farm worker's 🪙 water bubble → staff/tend. Not enough coins → the usual error toast (hooks.onResult).
+  // Not enough coins → the usual error toast (hooks.onResult).
   function tapStaff(target) {
     const s = store.state, u = unitOf(s, target.uid), now = Date.now();
     if (!u) return;
-    if (target.body && unitState(u, now) === 'jam') { if (staff.knock(u.uid)) dispatch('staff/care', { uid: u.uid, kind: 'knock' }); return; }
-    const fix = unitBlocked(u, now) ? quickFix(u, now) : null;
-    if (fix) { dispatch('staff/care', { uid: u.uid, kind: fix.kind }); return; }
-    if (u.stopped) { dispatch('staff/resume', { uid: u.uid }); return; } // older stop kinds
-    if (!target.body) dispatch('staff/tend', { uid: u.uid });
+    if (target.body && unitState(u, now) === 'jam' && staff.knock(u.uid)) dispatch('staff/care', { uid: u.uid, kind: 'knock' });
+    else if (u.stopped && !quickFix(u, now)) dispatch('staff/resume', { uid: u.uid }); // older stop kinds
+    hooks.onStaffTap?.(u.uid); // opens the full profile; paid fixes are buttons there, a tap never spends coins by itself
   }
 
   // ---------- café street: shops, camera focus ----------
@@ -1026,15 +1009,16 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       if (!def || areaAt(b.x, b.z) !== view) continue;
       const e = buildings.get(b.uid);
       if (!e || !e.root.visible) continue;
-      // ▲ whenever an upgrade exists within the Round cap: 'ok' (affordable, green) or 'muted' (needs coins, grey).
-      const err = def.decor ? 'maxLevel' : upgradeError(state, b);
+      // land-ui-simplify §4: one status pin per building, only when it needs the player (collect / café jobs). Upgrades
+      // live in the building card and the HUD ⬆ counter; the ▲ only comes back while the tutorial points at it.
+      const tut = isTutorialTarget('building', b.uid);
+      const err = def.decor || !tut ? 'maxLevel' : upgradeError(state, b);
       const up = err === null ? 'ok' : err === 'coins' ? 'muted' : null;
       let kind = null, icon = null;
       // Production (Farm World 2.0): a ready batch → collect (always shown); idle and able to start → produce (near).
       if (def.recipe) {
         const js = jobState(b, now);
         if (js.stage === 'ready') { kind = 'collect'; icon = GOODS[firstGood(js.out)]?.icon || null; }
-        else if (js.stage === 'idle' && prodError(state, b) === null) kind = 'produce';
         if (kind && !badgeKind(kind)) kind = null; // badges.js without that pin yet: keep the ▲ only
       }
       if (b.type === 'orderCounter' && waiting && cafe.queuedOrder(state) != null) kind = seatsUsed(state) < seatCount(state) ? 'order' : 'noSeat';
@@ -1046,7 +1030,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       // Upgrade-only ▲ (and 'produce') shows when the farmer walks up to it (or the tutorial points at it); interaction
       // badges always. The SELECTED building shows its ▲ at any distance (upgrades are reached only through the ▲).
       const selected = selection?.kind === 'building' && selection.uid === b.uid;
-      if ((!kind || kind === 'produce') && !selected && !isTutorialTarget('building', b.uid) && distTo(b.x, b.z) > BADGE_NEAR) continue;
+      if ((!kind || kind === 'produce') && !selected && !isTutorialTarget('building', b.uid) && badgeDist(b.x, b.z) > BADGE_NEAR) continue;
       const target = { kind: 'building', uid: b.uid, type: b.type }, upTarget = { ...target, upgrade: true };
       badgeItems.push({ key: b.uid, kind: kind || (up === 'ok' ? 'up' : 'upMuted'), up: kind ? up : null, upTarget, x: b.x, y: e.height + BADGE_Y, z: b.z, target: kind ? target : upTarget, icon });
     }
@@ -1069,11 +1053,11 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       if (areaOfParcel(p.id) !== view) continue;
       if (r.parcels.includes(p.id)) {
         const m = ripe.get(p.id);
-        if (m) badgeItems.push({ key: p.id, kind: 'harvest', x: m.x / m.n, y: 1.7, z: m.z / m.n, target: { kind: 'field', id: p.id } });
-      } else if (!parcelError(state, p.id)) {
-        // "+" only on for-sale signs the farmer is standing near (not a field of + all over the map).
+        // founder 2026-11-08: no sickle badges over ripe fields — the red cherries and the field card say it
+      } else if (!parcelError(state, p.id) && areaOfParcel(p.id) !== 'farm') { // (no "+" over the farm's tiers any more: buy a tier from its signboard)
+        // "+" only on for-sale signs the farmer is standing near (estates: one sign per estate, on its seed lot).
         const c = parcelSignPoint(p.id);
-        if (!isTutorialTarget('parcel', p.id) && distTo(c.x, c.z) > BADGE_NEAR) continue;
+        if (!isTutorialTarget('parcel', p.id) && badgeDist(c.x, c.z) > BADGE_NEAR) continue;
         badgeItems.push({ key: p.id, kind: 'buy', x: c.x, y: 2.75, z: c.z, target: { kind: 'parcel', id: p.id } });
       }
     }
@@ -1096,7 +1080,6 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     const stage = plots.stage(id, Date.now());
     let result = null;
     if (drag.mode === 'plant' && stage === 'empty') result = dispatch('farm/plant', { plotId: id, crop: activeCrop });
-    else if (drag.mode === 'harvest' && stage === 'ready') result = dispatch('farm/harvest', { plotId: id });
     if (result && !result.ok) drag.stopped = true; // one toast per drag (coins, storageFull…)
   }
 
@@ -1109,18 +1092,16 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       if (auto.on) { drag.mode = 'pan'; return; }
       rayFrom(start);
       if (placement.info) {
-        drag.mode = 'place';
-        drag.ghostX = placement.info.x; drag.ghostZ = placement.info.z;
-        if (groundPoint(raycaster, hit)) { drag.startX = hit.x; drag.startZ = hit.z; }
+        // a drag that STARTS on the ghost carries it; anywhere else the finger pans the map
+        const fp = footprint(placement.info.type, placement.info.x, placement.info.z, placement.info.rot);
+        const grab = Math.max(1.5, Math.max(fp[2] - fp[0], fp[3] - fp[1]) / 2 + 1);
+        if (groundPoint(raycaster, hit) && Math.hypot(hit.x - placement.info.x, hit.z - placement.info.z) <= grab) {
+          drag.mode = 'place'; drag.ghostX = placement.info.x; drag.ghostZ = placement.info.z; drag.startX = hit.x; drag.startZ = hit.z;
+        } else drag.mode = 'pan';
         return;
       }
       const target = pick(false);
-      if (target?.kind === 'plot') {
-        drag.mode = plots.stage(target.id, Date.now()) === 'empty' ? 'plant' : 'harvest';
-        drag.visited.clear(); drag.stopped = false;
-        setSelection({ kind: 'plot', id: target.id }, { glide: false });
-        dragPlot(target.id);
-      } else drag.mode = 'pan';
+      drag.mode = 'pan'; // no sweep-harvest with a sickle any more: dragging over plants just moves the view
     },
     dragMove(p, dx, dy) {
       if (locked()) return;
@@ -1147,6 +1128,30 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       cam.zoomBy(f, anchor);
     },
   }, locked);
+  // Dragging the ghost by its hint box: the ghost eases towards the point under the finger (smooth, not stepped), and near a
+  // screen edge the camera pans that way so you can carry it to the corners.
+  const grip = { on: false, x: 0, y: 0, tx: null, tz: null, sx: null, sz: null };
+  function aimGhost() {
+    rayFrom({ x: grip.x, y: grip.y + 86 });
+    if (groundPoint(raycaster, hit)) { grip.tx = hit.x; grip.tz = hit.z; }
+  }
+  function updateGhostDrag(dt) {
+    if (!placement.info) { grip.on = false; grip.tx = grip.sx = null; return; }
+    if (grip.on) {
+      const w = canvasRect.width, hgt = canvasRect.height, x = grip.x - canvasRect.left, y = grip.y - canvasRect.top, EDGE_G = 70;
+      const push = d => (d < EDGE_G ? (1 - d / EDGE_G) : 0);
+      const sx = push(w - x) - push(x), sy = push(hgt - y) - push(y);
+      if (sx || sy) { cam.pan(-sx * 560 * dt, -sy * 560 * dt); cam.stopGlide(); }
+      aimGhost();
+    }
+    if (grip.tx == null) return;
+    const info = placement.info;
+    if (grip.sx == null) { grip.sx = info.x; grip.sz = info.z; }
+    const k = 1 - Math.exp(-dt * 22);
+    grip.sx += (grip.tx - grip.sx) * k; grip.sz += (grip.tz - grip.sz) * k;
+    if (Math.hypot(grip.sx - info.x, grip.sz - info.z) > .02) placement.moveTo(grip.sx, grip.sz);
+    if (!grip.on && Math.hypot(grip.tx - grip.sx, grip.tz - grip.sz) < .01) { grip.tx = grip.sx = null; }
+  }
   function endDrag() { drag.mode = null; drag.visited.clear(); markers.setCursor(null); }
   // Dragging a building near a screen edge scrolls the view that way (Hay Day), the ghost stays under the finger.
   const EDGE = 48, EDGE_SPEED = 520; // px from the edge, px/s at the very edge
@@ -1164,10 +1169,9 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   }
 
   // Placement start: keep the player's zoom, slide only if the ghost would be off-screen.
-  function focusPlacement() {
-    const info = placement.info;
-    if (info) cam.ensureVisible(info.x, info.z, .2);
-  }
+  // Starting to plant / build never moves the camera (founder 2026-11-08): the ghost appears near the player, the view stays put.
+  function focusPlacement() {}
+
 
   // ---------- modes: placement ghost ('build' land overlay) + land mode ('expand' = buy-land overview) ----------
   let landMode = null; // null | 'expand'
@@ -1176,7 +1180,31 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     if (!uid) return;
     if (type === 'field') plots.setHidden?.(uid, hidden); else buildings.setHidden(uid, hidden);
   }
+  let alertAcc = 0, warnIds = [], alertInfo = [], tierRingTimer = 0, alertAll = [], hilite = null, hiliteUntil = 0, hiliteShown = false, focusIdx = {};
+  function collectAlerts(state, now) {
+    const r = regionOf(state), out = [];
+    warnIds = []; alertInfo = [];
+    for (const f of r?.fields || []) {
+      const al = r.plots[f.id] ? plotAlert(state, f.id, now) : null;
+      if (!al) continue;
+      out.push({ kind: al.kind, x: f.x, z: f.z, left: al.left, warn: al.warn, big: (r.plots[f.id].n | 0) > 0 || plots.stage(f.id, now) === 'ready' });
+      alertInfo.push({ id: f.id, kind: al.kind, left: al.left, warn: al.warn });
+      if (al.warn) warnIds.push(f.id); // the patience bar ran out: a red warning dot over it
+    }
+    // Rings only for the plants near the player; the rest are folded into one badge per cluster (same kind, ~5 m cell)
+    const NEAR = 10, ax = avatar.position.x, az = avatar.position.z, near = [], cells = new Map();
+    for (const o of out) {
+      if (Math.hypot(o.x - ax, o.z - az) <= NEAR) { near.push(o); continue; }
+      const key = `${o.kind}|${Math.floor(o.x / 5)}|${Math.floor(o.z / 5)}`, c = cells.get(key) || { kind: o.kind, x: 0, z: 0, n: 0, warn: false };
+      c.x += o.x; c.z += o.z; c.n++; c.warn ||= o.warn; cells.set(key, c);
+    }
+    return { all: out, near, clusters: [...cells.values()].map(c => ({ ...c, x: c.x / c.n, z: c.z / c.n })) };
+  }
+  let plantDir = [1, 0]; // direction of the last planting step
+  let plantCrop = null; // seed in hand while planting (a field ghost + farm/plantAt on ✓)
   function endPlacement() {
+    if (signMove) { world.hideTierSign(signMove, false); signMove = null; }
+    plantCrop = null;
     const info = placement.info;
     if (!info) return false;
     setMovingHidden(info.type, info.uid, false);
@@ -1228,6 +1256,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     const bounds = v === 'farm' ? farmViewBounds(store.state) : area.bounds; // farm: only the land opened so far
     avatar.setBounds(bounds);
     cam.setBounds(bounds);
+    if (v === 'cafe') cam.setPitch(PITCH); else cam.setPitch(PITCH_FARM, FOV_FARM, FARM_SCALE);
     cam.setZoomMax(v === 'cafe' ? CAFE_ZOOM_MAX : undefined); // the café street overview may pull out further
     if (changed) { cam.explore(); cam.snapTo(avatar.position); speech.clear(); }
     // Opening the café frames both counters (Area Focus, = the 'cafe' shop) so the player sees where to work right away.
@@ -1295,26 +1324,38 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     // started right after a reload in the 'expiry' phase) and only plays during normal play.
     if (needArrive && state.world.currentRegion && !cinematics.active) {
       needArrive = false;
-      if (state.story.phase === 'play') cinematics.play('arrive');
+      // No arrival swoop any more (it flew a high wide-angle camera over the whole map, which was heavy and laggy): the map is simply
+      // there, framed on the player, from the first frame.
+      if (state.story.phase === 'play') { cam.explore(); cam.snapTo(avatar.position); }
     }
     syncArea(state);
     avatar.update(dt, clock);
     const orders = regionOf(state)?.shop.orders || [];
     plots.update(dt, clock, now);
     updateCarry(orders);
-    updateAuto(dt, state, now);
     autoNear(dt, state, orders, now);
     updateSpot(dt, state);
+    animals.update(dt);
     buildings.update(dt, clock, orders, now, id => id === carry?.orderId || staff.isClaimed(id));
     const playing = state.story.phase === 'play';
     cafe.update(dt, clock, state, now, playing);
     street.update(dt, clock, state, now, playing);
     incidents.update(dt, clock, state, now, playing);
     speech.update(dt, clock);
+    if (quietDue && (quietT += dt) >= .5) { quietDue = false; quietT = 0; syncAll(store.state); }
     staff.update(dt, clock, state, now);
     manager.update(dt, clock, state);
     world.update(clock);
     placement.update(clock);
+    // A selected animal: its small frame follows it around
+    if (selection?.kind === 'building' && selection.uid) { const an = animals.posOf(selection.uid); if (an) markers.setFrame(animalFrame(an), { round: true }); }
+    // Plants that need you (ripe / thirsty): blinking rings, refreshed a few times a second.
+    alertAcc += dt;
+    if (alertAcc > .35) { alertAcc = 0; const al = view === 'farm' ? collectAlerts(state, now) : { near: [], clusters: [] }; alertAll = al.all; markers.setClusters([]); markers.setAlerts([]);
+      // the plant picked by a to-do chip gets the same rounded-rectangle frame as a tapped plant (no ring any more)
+      if (hilite && hiliteUntil > performance.now()) { markers.setFrame([hilite.x - .5, hilite.z - .5, hilite.x + .5, hilite.z + .5], { round: true, color: hilite.kind === 'thirst' ? 0x2f8cff : hilite.kind === 'prune' ? 0x4fc23a : 0xffc21a }); hiliteShown = true; }
+      else if (hiliteShown) { hiliteShown = false; if (!selection) markers.setFrame(null); }
+    }
     // Tutorial arrow + selected plot timer.
     // (no 3D arrow over a ▲ badge target: the tap hand points at the badge itself)
     if (tutorialTarget && !tutorialTarget.upgrade && targetPoint(tutorialTarget, arrowPos, now)) markers.setArrow(arrowPos); else markers.setArrow(null);
@@ -1341,6 +1382,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       pads.update(clock, { order: waiting && seatsUsed(state) < seatCount(state) && cafe.queuedOrder(state) != null, brew: (ready && !carry) || (brewable && brewing < brewSlots(state)) });
     }
     edgeScroll(dt);
+    updateGhostDrag(dt);
     cinematics.update(dt);
     cam.update(dt);
     updateFocus(dt);
@@ -1359,14 +1401,22 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     sunAt.copy(target).addScaledVector(SUN_RIGHT, Math.round(a / texel) * texel - a).addScaledVector(SUN_UP, Math.round(b / texel) * texel - b);
     sun.position.copy(sunAt).add(SUN_OFFSET);
     sun.target.position.copy(sunAt);
-    scene.fog.near = cam.cur.dist * 1.7;
-    scene.fog.far = cam.cur.dist * 3.6 + 45;
+    scene.fog.near = cam.cur.dist * 2.4; // light haze only far off: the farm stays crisp
+    scene.fog.far = cam.cur.dist * 5 + 60;
+    ambient.update(dt);
     vfx.update(dt);
   }
 
   const realm = {
     scene, camera,
     update,
+    /** Loading only: true widens the shadow box over the whole map (so the draw also builds every caster's depth shader / buffers), false restores it. */
+    warmShadows(on) {
+      const sc = sun.shadow.camera;
+      if (on) { sc.left = sc.bottom = -110; sc.right = sc.top = 110; sc.far = 400; sun.position.set(0, 0, -24).add(SUN_OFFSET); sun.target.position.set(0, 0, -24); }
+      else { sc.far = 90; shadowHalf = 0; }
+      sc.updateProjectionMatrix(); sun.updateMatrixWorld(true); sun.target.updateMatrixWorld(true);
+    },
     resize(w, h) { cam.resize(w, h); canvasRect = canvas.getBoundingClientRect(); badges.resize(canvasRect.height || h); },
     handleKeyDown(e) {
       if (locked() || auto.on || e.repeat || !KEYS[e.code] || e.target?.closest?.('input, textarea, select, [contenteditable]')) return;
@@ -1394,17 +1444,32 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     },
     get selection() { return selection; },
     /** Focuses a target; a target in the other area switches the view first. Returns a Promise. */
-    focus(t, { force = false } = {}) {
+    focus(t, { force = false, center = false } = {}) {
       const area = areaOf(t);
       if (area && !openArea(store.state, area)) return Promise.resolve();
-      if (area && (area !== view || switching)) return setView(area).then(() => realm.focus(t, { force }));
+      if (area && (area !== view || switching)) return setView(area).then(() => realm.focus(t, { force, center }));
       // Hay Day rule: keep the player's zoom, only slide the view (and only when the target is not already in view).
-      if (targetPoint(t, v3, Date.now())) { if (force) cam.glideTo(v3.x, v3.z, { safe: true }); else cam.ensureVisible(v3.x, v3.z, .15); } // both keep it clear of the HUD bands
+      if (targetPoint(t, v3, Date.now())) { if (center) cam.glideTo(v3.x, v3.z, { safe: false }); else if (force) cam.glideTo(v3.x, v3.z, { safe: true }); else cam.ensureVisible(v3.x, v3.z, .15); } // `center`: the tapped thing goes to the middle of the view
       return Promise.resolve();
     },
     /** True while a finger is down or within `ms` of the last touch / zoom (automatic camera moves wait for calm). */
     busy(ms = 1500) { return cam.held || performance.now() - lastInputAt < ms; },
-    resetCamera() { cam.zoomBy(1 / cam.zoom); cam.explore(); },
+    /** HUD player badge tap → the camera jumps to the player. */
+    focusAvatar() { cam.explore(); cam.snapTo(avatar.position); },
+    /** Tier modal → Move: the next ground tap sets the signboard of tier `seed` down there (Esc cancels). */
+    beginSignMove(seed) {
+      const t = world.tierPickers().find(p => p.userData.target.id === seed)?.userData.target;
+      if (!t) return;
+      signMove = seed; world.hideTierSign(seed, true);
+      realm.startPlacement('tierSign', { near: { x: t.x, z: t.z } });
+    },
+    cancelSignMove() { if (signMove) world.hideTierSign(signMove, false); signMove = null; leaveModes(); },
+    get signMoving() { return !!signMove; },
+    /** Resolves once the world's models are all loaded (the loading screen waits for it). */
+    whenLoaded: () => world.whenLoaded(),
+    /** 🧭 menu button: turn the view a quarter turn. */
+    rotateView(step = 1) { cam.rotate(step); },
+    resetCamera() { cam.setZoomLevel(1); cam.explore(); },
     /** Café street: frame shop `id` ('tea' | 'cafe' | 'lemon' | 'bar') or the whole street (null). Returns a Promise. */
     focusShop,
     /** Shop the camera frames in the café view (null = street overview, or the farm view). */
@@ -1412,6 +1477,30 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     cinematic(name) { leaveModes(); return cinematics.play(name); },
 
     setActiveCrop(cropId) { if (CROPS[cropId]) activeCrop = cropId; },
+    /**
+     * Field tool drag from the HUD popup (Hay Day: hold the seed / basket next to the field, sweep it over the beds).
+     * start('plant' | 'harvest', crop?) → move(clientX, clientY) per pointer move → end(). Every plot under the finger
+     * is planted / harvested once; the first refusal (coins, storage full…) stops the sweep (one toast).
+     */
+    toolDrag: {
+      start(mode, crop) {
+        if (locked() || view !== 'farm') return false;
+        if (crop && CROPS[crop]) activeCrop = crop;
+        if (mode === 'harvest') return false; // the quick sweep-harvest is gone
+        drag.mode = 'plant';
+        drag.visited.clear(); drag.stopped = false;
+        return true;
+      },
+      move(x, y) {
+        if (drag.mode !== 'plant' && drag.mode !== 'harvest') return null;
+        rayFrom({ x, y });
+        if (groundPoint(raycaster, hit)) markers.setCursor(drag.mode, hit);
+        const target = pick(false);
+        if (target?.kind === 'plot') { dragPlot(target.id); return target.id; }
+        return null;
+      },
+      end() { endDrag(); },
+    },
     get activeCrop() { return activeCrop; },
 
     /**
@@ -1429,19 +1518,98 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       if (area !== view || switching) return setView(area).then(() => realm.startPlacement(type, { uid, near }));
       if (landMode) setLandMode(null);
       endPlacement();
-      // Start near the player (the camera follows them) or the given spot: the placement searches the nearest valid spot.
-      const from = near && Number.isFinite(near.x) && Number.isFinite(near.z) ? { x: near.x, z: near.z } : { x: avatar.position.x, z: avatar.position.z };
+      // A new thing starts where the player is LOOKING: the centre of the screen (the camera target), so after dragging the map
+      // elsewhere it appears there, not next to the avatar. The placement searches the nearest valid spot from that point.
+      // Moving an existing thing keeps the old rule (near the player / the given spot).
+      const ahead = 0, yaw = avatar.root.rotation.y, look = cam.cur?.target;
+      const from = near && Number.isFinite(near.x) && Number.isFinite(near.z) ? { x: near.x, z: near.z }
+        : !uid && look && Number.isFinite(look.x) && Number.isFinite(look.z) ? { x: look.x, z: look.z }
+        : { x: avatar.position.x + Math.sin(yaw) * ahead, z: avatar.position.z + Math.cos(yaw) * ahead };
       const info = placement.start(type, { uid, area: view, near: from }, () => store.state);
       if (!info) { world.setLandMode?.(null, { state: store.state }); return null; }
+      if (def.animal && !uid) { // livestock is not built: it just arrives where the player stands and starts wandering
+        const r = placement.confirm(dispatch);
+        leaveModes();
+        return r.ok ? info : null;
+      }
       setMovingHidden(type, uid, true);
+      if (type === 'field' && uid) { // moving a plant: its own tree (same stage) follows the ring
+        const pp = regionOf(store.state)?.plots?.[uid];
+        if (pp) { const st = plots.stage(uid, Date.now()); placement.setPlantGhost?.({ crop: pp.crop, stage: (pp.n | 0) > 0 ? 'tree' : st === 'planted' ? 'seedling' : 'young' }); }
+      }
       setSelection(null, { notify: false });
-      world.setLandMode?.('build', { state: store.state, type });
+      // no land grid while placing (build anywhere)
       focusPlacement();
       return info;
     },
+    /** Barn card → buy an animal: it appears next to the barn and starts wandering (no placing step). */
+    buyAnimal(type, barnUid) {
+      const barn = regionOf(store.state)?.buildings.find(b => b.uid === barnUid);
+      if (!barn || !defOf(type)?.animal) return { ok: false, error: 'unknown' };
+      for (let r = 2.2; r < 7; r += .8) for (let k = 0; k < 12; k++) {
+        const a = Math.random() * 6.28, x = barn.x + Math.cos(a) * r, z = barn.z + Math.sin(a) * r;
+        if (!placementError(store.state, type, x, z, 0)) return dispatch('build/place', { type, x, z, rot: 0 });
+      }
+      return { ok: false, error: 'noRoom' };
+    },
+    /** Planting mode: the player holds `crop`'s seed; drag the ghost, ✓ sows it, ✕ drops the seed. */
+    startPlanting(crop) {
+      if (!CROPS[crop]) return null;
+      activeCrop = crop;
+      const info = realm.startPlacement('field');
+      if (info && !info.then) { plantCrop = crop; placement.setPlantGhost?.({ crop, stage: 'seedling' }); }
+      else if (info?.then) return info.then(r => { if (r) { plantCrop = crop; placement.setPlantGhost?.({ crop, stage: 'seedling' }); } return r; });
+      return info;
+    },
+    get plantingCrop() { return plantCrop; },
+    /** To-do chip tap: glide to the next plant that needs `kind` (nearest first, then the next one on each tap) and ring ONLY that one. */
+    focusAlert(kind) {
+      const list = alertAll.filter(a => a.kind === kind), t = cam.cur.target;
+      if (!list.length) return false;
+      list.sort((a, b) => Math.hypot(a.x - t.x, a.z - t.z) - Math.hypot(b.x - t.x, b.z - t.z));
+      const k = focusIdx[kind] = ((focusIdx[kind] ?? -1) + 1) % list.length, a = list[k];
+      cam.glideTo(a.x, a.z, { safe: false });
+      hilite = { ...a, warn: false }; hiliteUntil = performance.now() + 3200; alertAcc = 1;
+      return true;
+    },
+    /** Plot ids whose problem timer ran out (they get a red warning dot). */
+    get warnPlots() { return warnIds; },
+    /** Every plant with a problem: { id, kind, left (patience bar 0–1 | null), warn }. */
+    get alertPlots() { return alertInfo; },
+    /** Screen point above the player's head (CSS px) for the held-seed badge. */
+    avatarPoint() {
+      if (switching) return null;
+      v3.set(avatar.position.x, avatar.position.y + 2.7, avatar.position.z).project(camera);
+      return { x: canvasRect.left + (v3.x + 1) / 2 * canvasRect.width, y: canvasRect.top + (1 - v3.y) / 2 * canvasRect.height, visible: v3.z > -1 && v3.z < 1 };
+    },
+    /** Drag handle (the hint box over the ✕ ✓): the ghost goes under the finger, a little below it where the box hangs. */
+    dragGhostTo(clientX, clientY) {
+      if (!placement.info || locked()) return;
+      grip.on = true; grip.x = clientX; grip.y = clientY;
+      aimGhost();
+    },
+    endGhostDrag() { grip.on = false; },
+    /** Tap on the hint box: bring the view back to where the thing is about to be placed. */
+    centerOnGhost() { const g = placement.info; if (g) cam.glideTo(g.x, g.z, { safe: false }); },
     rotatePlacement() { placement.rotate(); },
     confirmPlacement() {
       const { uid = null, type = null } = placement.info || {};
+      if (signMove && type === 'tierSign') { // dragging a tier signboard: ✓ sets it down where the ghost is (no building is made)
+        const g = placement.info; world.moveTierSign(signMove, g.x, g.z); world.hideTierSign(signMove, false); signMove = null; leaveModes(); return { ok: true };
+      }
+      if (plantCrop && type === 'field' && !uid) { // sow here and keep the seed in hand: drag on to the next spot
+        const { x, z } = placement.info;
+        const r = dispatch('farm/plantAt', { x, z, crop: plantCrop });
+        if (r.ok) { // the next seed goes to the neighbouring spot (same direction first), not on the one just sown
+          const STEP = 1, dirs = [plantDir, [STEP, 0], [0, STEP], [-STEP, 0], [0, -STEP], [STEP, STEP], [-STEP, STEP], [STEP, -STEP], [-STEP, -STEP]];
+          for (const d of dirs) {
+            const p = snapPosition('field', x + d[0], z + d[1], 0);
+            if (!placementError(store.state, 'field', p.x, p.z, 0)) { placement.moveTo(p.x, p.z); plantDir = d; break; }
+          }
+        }
+        placement.refresh();
+        return r;
+      }
       const result = placement.confirm(dispatch);
       if (result.ok) { setMovingHidden(type, uid, false); world.setLandMode?.(null, { state: store.state }); }
       return result;
@@ -1469,7 +1637,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       const c = toScreen(info.x, 0, info.z);
       let bottom = -Infinity;
       for (const [x, z] of [[fp[0], fp[1]], [fp[2], fp[1]], [fp[0], fp[3]], [fp[2], fp[3]]]) bottom = Math.max(bottom, toScreen(x, 0, z).y);
-      const top = toScreen(info.x, info.type === 'field' ? 1 : defOf(info.type)?.size?.[0] > 1 ? 3.2 : 2, info.z).y;
+      const top = toScreen(info.x, info.type === 'field' ? 1.5 : defOf(info.type)?.size?.[0] > 1 ? 3.2 : 2, info.z).y;
       return { x: c.x, y: bottom, top, visible: c.z > -1 && c.z < 1 };
     },
 
@@ -1583,6 +1751,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
 
   syncAll(store.state, true);
   if (modeView(store.state) !== view) swapView(modeView(store.state));
+  cam.explore(); cam.snapTo(avatar.position); // the first frame is already framed on the player: no camera travel at all
   if (import.meta.env.DEV) window.__realm = realm;
   return realm;
 }

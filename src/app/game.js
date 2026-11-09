@@ -14,6 +14,7 @@ import { getLang, hasKey, t } from '../i18n/index.js';
 import { sfx } from '../shared/audio/index.js';
 import { detectPlatform, initAnalytics, track } from '../shared/analytics/wire.js';
 import { createStore } from '../core/store.js';
+import { CAFE_ENABLED } from '../core/config/world.js';
 import { START, STAFF } from '../core/config/economy.js';
 import { followerCandidate, followerWage } from '../core/derive.js';
 import { loadPlayer, playerModel } from '../characters/load-player.js';
@@ -39,7 +40,8 @@ const $ = id => document.getElementById(id);
 const vignette = document.querySelector('.vignette');
 
 // ---------- store (created once) + analytics ----------
-const store = createStore({ key: V3_KEY, legacyKeys: { progress: PROGRESS_KEY, player: PLAYER_KEY }, dev: DEV_PROFILE });
+const store = createStore({ key: V3_KEY, legacyKeys: { progress: PROGRESS_KEY, player: PLAYER_KEY }, dev: DEV_PROFILE, saveEveryMs: 1500 });
+window.addEventListener('pagehide', () => store.flush());
 const legacyPlayer = readPlayer();
 // The character in the V3 save wins; the v1 player key is only a default for the selection screen.
 const profile = { gender: store.state.character?.gender ?? legacyPlayer.gender, name: store.state.character?.name || legacyPlayer.name || DEFAULT_NAME };
@@ -282,6 +284,7 @@ function closeAtlas() {
   realm.setInputLocked(false);
   showGear(false); present('story.title.play', 'story.label.play');
   mode = 'play'; previous = null;
+  leaveCafe();
   if (store.state.story.phase === 'expiry') runExpiry().catch(fail); // triggered while the map was open
 }
 function enteredRegion(regionId, result) {
@@ -306,6 +309,8 @@ async function enterPlay() {
   renderer.toneMappingExposure = .95;
   const hooks = {
     onSelect: target => hud?.setSelection(target),
+    onTierTap: id => hud?.openTier?.(id), // a tier signboard → its info modal
+    onPlantFx: (kind, id) => hud?.plantFx?.(kind, id), // water / prune animation over a plant
     onStaffTap: uid => hud?.openStaff?.(uid),
     onManagerTap: () => hud?.openManager?.(), // the manager in the world → his inbox (or his tab)
     // Customer spawn / patience run on a timer: their failures are not the player's doing, so stay silent.
@@ -319,15 +324,44 @@ async function enterPlay() {
   };
   realm = await createRealm({ renderer, store, gender: profile.gender, hooks });
   realm.resize(window.innerWidth, window.innerHeight);
-  loading(85, t('story.loading.realm'));
+  loading(80, t('story.loading.realm'));
+  // wait until every model of the farm is loaded (hills, forest, scenery, village), THEN compile the shaders: the farm appears
+  // complete and smooth instead of loading in pieces while you play
+  await Promise.race([realm.whenLoaded?.(), new Promise(r => setTimeout(r, 30000))]);
+  loading(92, t('story.loading.realm'));
   await renderer.compileAsync(realm.scene, realm.camera);
+  warmUpGPU(realm.scene, realm.camera, realm); // upload every texture / buffer now: panning to another tier must not hitch
   createPlayHud();
   hideLoading(); bootDone(); showGear(false); vignette.style.opacity = '0';
   present('story.title.play', 'story.label.play');
   mode = 'play';
   $('game').focus({ preventScroll: true });
   startLoop();
+  leaveCafe();
   if (store.state.story.phase === 'expiry') runExpiry().catch(fail);
+}
+// The café game is off for now (world.js CAFE_ENABLED): a save that stands in a café city says so and goes back to the map.
+function leaveCafe() {
+  if (CAFE_ENABLED || mode !== 'play') return;
+  const r = store.state.world.regions[store.state.world.currentRegion];
+  if (r?.mode !== 'cafe') return;
+  hud?.toast?.(`☕ ${t('atlas.cafeUpdating')}`, 'info');
+  openAtlas('play').catch(fail);
+}
+
+/** One hidden draw with culling off + every texture initialised: the GPU already holds the far tiers' data (no first-sight upload hitch). */
+function warmUpGPU(scene, camera, realmApi) {
+  try {
+    realmApi?.warmShadows?.(true);
+    const culled = [];
+    scene.traverse(o => {
+      if (o.isMesh || o.isPoints || o.isLine) { if (o.frustumCulled) { culled.push(o); o.frustumCulled = false; } }
+      for (const m of o.material ? [o.material].flat() : []) for (const v of Object.values(m)) if (v?.isTexture && v.image) renderer.initTexture(v);
+    });
+    renderer.render(scene, camera); // colour pass + the shadow pass over the whole map
+    for (const o of culled) o.frustumCulled = true;
+    realmApi?.warmShadows?.(false);
+  } catch (err) { console.warn('GPU warm-up skipped', err); }
 }
 
 // ---------- Level 10 expiry (safe at any reload point: pending → cinematic + execute; reset → atlas) ----------
@@ -437,6 +471,20 @@ function fail(error) {
       if (!resetProgress()) { button.textContent = t('app.error.restartFailed'); return; }
       resetV3(); location.reload();
     }));
+  // Copy: the message and stack, ready to paste into a bug report (clipboard API needs https or localhost, else a hidden text box).
+  const report = [String(error?.message ?? error), error?.stack].filter(Boolean).join('\n');
+  const copyReport = async event => {
+    const button = event.currentTarget;
+    let ok = false;
+    try { await navigator.clipboard.writeText(report); ok = true; } catch {
+      const box = document.createElement('textarea'); box.value = report; box.style.position = 'fixed'; box.style.opacity = '0';
+      document.body.append(box); box.select();
+      try { ok = document.execCommand('copy'); } catch { ok = false; }
+      box.remove();
+    }
+    button.textContent = t(ok ? 'app.error.copied' : 'app.error.copyFailed');
+  };
+  actions.append(action(t('app.error.copy'), 'ui-btn--plain', copyReport));
   const details = document.createElement('details'), summary = document.createElement('summary'), code = document.createElement('code');
   summary.textContent = t('app.error.details'); code.textContent = String(error?.message ?? error); details.append(summary, code);
   $('error').replaceChildren(title, text, actions, details);
@@ -445,9 +493,8 @@ function fail(error) {
 // ---------- boot ----------
 async function initialize() {
   try {
-    // High-DPR phones already look sharp at pixel ratio 1.25–1.5, so skip MSAA there.
-    const denseTouch = matchMedia('(pointer: coarse)').matches && (window.devicePixelRatio || 1) >= 2;
-    renderer = new THREE.WebGLRenderer({ antialias: !denseTouch, powerPreference: 'high-performance' });
+    // Edge smoothing on every device (art-upgrade-plan §1): walls and roofs were visibly jagged on phones. Lower it in settings if a phone struggles.
+    renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = .95;
@@ -509,7 +556,7 @@ document.addEventListener('click', event => {
 window.addEventListener('resize', () => { if (renderer) resize(); }, listenerOptions);
 document.addEventListener('visibilitychange', () => {
   previous = null;
-  if (document.hidden) { realm?.clearInput?.(); atlas?.clearInput(); }
+  if (document.hidden) { store.flush(); realm?.clearInput?.(); atlas?.clearInput(); }
   renderer?.setAnimationLoop(document.hidden || ['error', 'loading'].includes(mode) ? null : frame);
 }, listenerOptions);
 window.addEventListener('keydown', event => {

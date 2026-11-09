@@ -13,6 +13,8 @@ import v3Story from './locales/v3-story.js';
 import worldCities from './locales/world-cities.js';
 // Farm World 2.0 (docs/farm-world-2.0/): loaded last, so its keys also replace older wording of the same key.
 import farmWorld from './locales/farm-world.js';
+import farmFunny from './locales/farm-funny.js';
+import farmManager from './locales/farm-manager.js';
 
 export const LANGS = ['en', 'vi'];
 export const DEFAULT_LANG = 'en';
@@ -21,7 +23,7 @@ const LOCALES = { en: 'en-US', vi: 'vi-VN' };
 import { PROGRESS_KEY as SETTINGS_KEY } from '../state/storage-keys.js';
 
 const dict = { en: {}, vi: {} };
-for (const pack of [html, common, selection, intro, worldMap, v3Realm, v3Hud, v3Story, worldCities, farmWorld]) {
+for (const pack of [html, common, selection, intro, worldMap, v3Realm, v3Hud, v3Story, worldCities, farmWorld, farmFunny, farmManager]) {
   for (const lang of LANGS) Object.assign(dict[lang], pack?.[lang]);
 }
 

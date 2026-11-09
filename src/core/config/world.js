@@ -114,6 +114,10 @@ export const countryGames = countryId => {
   const all = new Set(def.cities.flatMap(c => c.games || def.games));
   return ['farm', 'cafe'].filter(g => all.has(g));
 };
-/** Games ('farm' | 'cafe') a region (city) offers. */
-export const regionGames = regionId => cityOf(regionId)?.games || [];
+// TEMPORARY (founder 2026-11-09): the café game is switched off while the farm is being finished. Set true to bring it back.
+export const CAFE_ENABLED = false;
+/** Games ('farm' | 'cafe') a region (city) offers. The café is hidden from choices while CAFE_ENABLED is false. */
+export const regionGames = regionId => (cityOf(regionId)?.games || []).filter(g => CAFE_ENABLED || g !== 'cafe');
+/** Games the city is meant to offer, switched-off ones included (the map shows the café as «updating»). */
+export const plannedGames = regionId => cityOf(regionId)?.games || [];
 export const isRegionId = id => parseRegionId(id) !== null;

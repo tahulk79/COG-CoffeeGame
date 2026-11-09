@@ -7,11 +7,12 @@
 import { region } from './derive.js';
 
 export const FARM_STEPS = [
-  { id: 'plant', target: { kind: 'plot', want: 'empty' }, done: s => s.stats.planted > 0 },
+  { id: 'plant', target: { kind: 'ui', id: 'build' }, done: s => s.stats.planted > 0 },
   { id: 'harvest', target: { kind: 'plot', want: 'planted' }, done: s => s.stats.harvested > 0 },
   { id: 'sell', target: { kind: 'building', type: 'silo' }, done: s => (s.stats.sold || 0) > 0 || s.stats.served > 0 },
-  { id: 'upgrade', target: { kind: 'building', type: 'silo' }, done: s => s.stats.upgraded > 0 },
-  { id: 'buyLand', target: { kind: 'parcel', id: 'F2' }, done: s => s.stats.parcels > 0 },
+  { id: 'upgrade', target: { kind: 'building', type: 'silo' }, done: s => s.stats.upgraded > 0 || !region(s)?.buildings.some(b => b.type === 'silo') }, // nothing is given: no Storehouse → nothing to upgrade
+  // Estates (land-ui-simplify §2A): the home estate is owned from the start, so the last step grows the farm with a field.
+  { id: 'build', target: { kind: 'ui', id: 'build' }, buildType: 'flowers', done: s => (region(s)?.fields?.length || 0) > 1 || s.stats.built > 0 || s.stats.parcels > 0 },
 ];
 export const CAFE_STEPS = [
   { id: 'takeOrder', target: { kind: 'building', type: 'orderCounter' }, done: s => s.stats.served > 0 || orders(s).some(o => o.stage !== 'waiting') },
@@ -32,11 +33,12 @@ const trackDone = (s, track) => !!(s.tutorial.done || s.tutorial[`${track}Done`]
  * @returns {null | {index:number, step:object, track:string}} null when that track is over or not applicable
  */
 export function currentStep(s, track = s.mode || 'farm') {
+  return null; // the opening tutorial is removed (founder 2026-11-08, the gameplay is being redone): no steps, no hints
   const steps = TRACKS[track];
   if (!steps || trackDone(s, track) || s.story.phase !== 'play' || !s.world.currentRegion) return null;
   const index = steps.findIndex(step => !step.done(s));
   if (index < 0) return null;
   return { index, step: steps[index], track };
 }
-export const tutorialFinished = (s, track) => (track ? trackDone(s, track) || TRACKS[track].every(step => step.done(s))
+export const tutorialFinished = (s, track) => true || (track ? trackDone(s, track) || TRACKS[track].every(step => step.done(s))
   : Object.keys(TRACKS).every(t => tutorialFinished(s, t)));

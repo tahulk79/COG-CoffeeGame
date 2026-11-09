@@ -1,0 +1,97 @@
+# npm test failing test names, captured 2026-11-09 on the working tree before any planner work (95 of 174 fail).
+# Compare with: node scripts/manager-sim.mjs --check-tests
+GM salary: 20 × skill × modeMul (advisor .5, operator 1, full 1.6) × (1 + .2 × raises); share 5 % in operator and full
+Level-10 wipe keeps days, plan / approval rows, the follower's recent + tenure; trims the rest to 50
+apologise: 2 × salary → backlog 0, loyalty +10, strike over
+books, ledger, history: harvest / serve with uid earn, mistakes counted; ledger per minute, last 30; u.recent 30, journal view 30
+build: valid placement, red/invalid cases, upgrade to max in Round 1
+buying land: a field lot arrives with its 6 classic fields; other lots arrive empty
+caps: loyalty ≤ 15 a day, fines ≤ 25 % of I10 per 30 played minutes, morale ≤ 30 per zone a day
+care: nag / bonusSmall / coffee / food / lunch / bonus / rest for workers
+conversion: clearing ONE field frees exactly one building slot (workshops are 3 × 3 m like a field)
+creditLimit = 1.5 × 10 × I(L) × (1 + 0.1 × L): farm Lv4 3 850, Lv6 6 000, Lv8 7 560; binds on the total owed
+day plan: a crop per parcel; every job family keeps ≥ 1 unit; a team smaller than the families keeps everything
+dev/set (QA URL params): exact coins / beans / level, test profile only
+economy sim (farm only): Level 10 between 10 and 35 minutes, with and without processing
+economy sim (farm only): coins never negative, no café actions, no stall after the reset
+economy sim (farm only): the production chain is built and pays more per minute once it runs
+economy sim: Level 10 is reached between 10 and 35 simulated minutes
+economy sim: expiry executes once and play continues in a new region
+economy sim: income after the reset never stalls at 0 for more than 2 consecutive minutes (no softlock)
+edge: auto play — 1 free run from the Teacher, start consumes it, stop ends it
+edge: auto runs can be bought with coins, price grows, never charged twice for one tx
+edge: dev actions are forbidden without dev and allowed with it
+edge: every action with junk payloads returns a result, never throws, never corrupts coins
+edge: every building upgrades to level 8 already in Round 1, then maxLevel
+edge: normalizeSave rejects schema ≠ 3 and repairs bad numbers
+edge: staff assigned in region A stays assigned there when travelling to B; bonus only applies in A
+edge: staff breaks — worker on the phone / robot out of battery stop the bonus until the fee is paid
+expiry penalties: loyalty −3, backlog +1, fine min(0.03 × I30, 0.25 × I10 − fines30, coins), zone morale −3
+farm loop: EMPTY → PLANT → ESTABLISH → READY → HARVEST → the tree stays → next season → old → prune / uproot
+farm map: every lot is for sale from the start; roads open with the land; the whole map is open
+farm tutorial: seeds planted before the first harvest ripen in a few seconds, later ones take the real time
+farm: cannot plant unowned plots or locked crops; storage full blocks harvest
+fields: free inside the allowance, extras cost more each, capped by level; move keeps the crop
+fire / sell: workers refund 30 % of the hire price, robots 50 % + 50 % of their parts; tickets refund nothing
+grace: broke player with nothing in progress plants robusta for free, never gets coins
+history: shared ring 400; u.recent 30 incl. the GM (uid g1); tombstones for units that leave
+incident: goods and running batches are wiped with the region (full restart)
+keep fee on a rival offer = 6 × salary; loyalty bands careful 75–95 / balanced 55–75 / bold 45–60
+land: every field and café lot is bought with coins only (no Rounds, no roads), idempotent
+land: sell refund 0.6 × price; never a starter / the last lot; a freshly bought lot is never proposed
+late: +5 % once at the term, then blocked; cleared → unblocked (played time only)
+layout migration 1→3: café buildings move to the café area, farm build lots/buildings refunded, nothing lost
+layout v4 migration: production buildings keep their spot even with lots of decor; junk ids never crash
+layout v5 migration: a v4 region keeps every crop on the same field ids; idempotent; junk-safe
+level 10 incident: pauses, then a FULL restart — only 1 empty field and an empty café in the new region
+level 10 recovery: reload while pending still resets exactly once
+level gifts: one per level, fixed gifts, surprise chest at Lv5, reset by the incident
+licences: all from Lv6, prices 0 / 0 / 300 / 1000 / 1500, the player's, kept by the Level-10 wipe
+limits: data-driven per type and level, each duplicate costs more; café buildings stay single
+loan: borrow a pack, part of every income repays it, pay the rest, loans stack, the debt survives the incident
+loans: pack level gates 1000 Lv4 / 2000 Lv6 / 5000 Lv8, max 2 open, unknown pack
+migration: old level → 4 stats, charger → battery, active by slot, vitals filled; normalizeSave round-trip
+no access: a building may not wall a field off from the road
+old saves: regions of removed countries move to a city of a kept country
+one game per region: a farm region refuses café builds and bean imports; a café region refuses farm work
+payroll: base + 5 % of the profit of jobs the GM ran (by g1) only
+permission: full mode never bypasses alwaysApprove, bigLimit or highValue
+permission: unlicensed → suggest; unpayable capital → loan proposal (credit licence, pays back in time) or suggest
+planner: inbox cap 8 → «Để sau», logged at most once per 10 played min, never dropped into the inbox
+planner: same state + roll → same result; ≤ 2 tasks filed per think
+production: start takes inputs + fee, the batch runs on a fixed timer, collect adds goods + XP
+quality stars: player 3★ (fresh harvest), workers 1–2★ by level, robots 1★; hard drinks need a Lv5 worker
+recruitment: each game has its own board of 3 applicants with traits; hire, refresh, trait effects
+region game: picked once per region, only the games its country offers
+remove: refund = share of coins spent, never starters, no XP loop from build → remove → build
+return: +2 played min grace for every open task; the loyalty lost on one return ≤ 40
+rivals: visit picks the low-morale best worker, refuses when happy, keep / let go / resolve
+robot share (management-rules §2.1): robots ≤ ceil(slots / 2) per zone, so a robot never takes the last worker slot
+robot standby is charged by staff/upkeep (36 per 10 wall-clock min for an unassigned sproutBot; offline gap capped)
+robots: battery [6, 9, 13, 18]; recharge max(15, 0.03 × price) × [1, .8, .6, .4]; parts × [.15, .3, .5]
+robots: heat → overheat (auto-clears / cool), jam (knock / repair), wear (service), recharge
+robots: standby 3 % of price per 10 min while off shift; share ≤ ceil(slots / 2); precision → 2★
+rounds: only Round 1 is playable; no unlock action; old saves go back to Round 1
+s.income rows: earn / spend write one row per played minute with by player | g1 | staff
+slots: per zone = level; setActive needs a free slot; unassigned units are never active
+snapping: footprints land on the 0.5 m lattice so a yard lot holds 4 drying yards
+staff mistakes: rates fall with level, robots never; unripe / crooked / spill effects
+staff stats: XP → skill points, per-stat upgrades with points + coins; robot task and hardware
+staff: team per zone = player level (hireLimit), every hire works, robots from Lv4, free-hire tickets
+storage: the storehouse and every barn add up; harvest and collect share it
+story flow: select → intro → teacher (no rebirth credits) → gate → play
+swapShift: tired / hungry / sulking workers go to the bench, the best rested bench workers come in; robots stay
+task kinds: life and reminders (played minutes)
+tending: pay a farm worker to water growing plots — each ripens sooner, once per planting
+tenure in shift-days of played time: skilled Lv7 / 2 sd, lead Lv9 / 4 sd, manager Lv13 / 12 sd
+throttle: backlog 3 → Chờ lệnh (10 min), 6 → poachable, 8 → strike; decay −1 / 10 min (−2 with no task of his open)
+tiles: terrain, ownership, occupancy and allowed uses are derived from layout + save
+tutorial: farm and café are separate tracks, one step at a time, survive reload
+tutorial: skipping one game keeps the other; an old full skip covers both
+unified land: buildings, fields and decor share owned meadow; terrain rules stay readable
+upkeep: an unassigned robot pays standby, management-rules §2.2 (3 % of its price per 10 wall-clock minutes while playing: 36 / 45)
+upkeep: only bench workers cost coins, prorated, capped catch-up; unpaid → morale drops, then the worker leaves
+vitals: energy / hunger / morale per minute, bench rests ×2, stamina + perks, states and their priority
+wells: fields in reach grow faster, the best well counts (no stacking), others unchanged
+§4.4 worked session (farm Lv6, I10 2 500, I30 7 500): fines 225 / 225 / 225 / 175 = 850, loyalty −3 each
+§4.4 worked session: backlog 3 at 74:00 → Chờ lệnh; late approve at 78:00 (+1, backlog 2, waiting ends)

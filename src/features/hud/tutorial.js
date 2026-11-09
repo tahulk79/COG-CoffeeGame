@@ -197,14 +197,8 @@ export function createTutorial(ctx) {
           // Not enough coins: grow and sell more beans (the farm earns its own coins).
           text = T('tut.upgradeCoinsFarm', { n: fmt(cost - s.player.coins), name: T('building.silo') });
           target = building('silo');
-        } else if (selected?.kind === 'building' && selected.type === 'silo' && selected.upgrade) { text = T('tut.upgradeBtn'); node = ctx.actionBar.el.querySelector('[data-hud-id="upgrade"]'); }
+        } else if (selected?.kind === 'building' && selected.type === 'silo') { text = T('tut.upgradeBtn'); node = ctx.actionBar.el.querySelector('[data-hud-id="upgrade"]'); }
         else { text = T('tut.upgrade'); target = silo && { ...silo, upgrade: true }; }
-        break;
-      }
-      case 'buyLand': {
-        const id = cur.step.target.id;
-        if (selected?.kind === 'parcel' && selected.id === id) { text = T('tut.buyBtn'); node = ctx.actionBar.el.querySelector('[data-hud-id="buy"]'); }
-        else { text = T('tut.buyLand'); target = { kind: 'parcel', id }; }
         break;
       }
       default: text = '';

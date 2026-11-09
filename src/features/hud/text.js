@@ -46,6 +46,7 @@ export function gmReasonText(reason) {
   const [key, params = {}] = Array.isArray(reason) ? reason : [reason];
   const p = { ...params, name: params.name || params.serial || '' };
   if (p.stat) p.stat = T(`hud.stat.${p.stat}`);
+  if (p.staffType) p.name = T(`staff.${p.staffType}`);
   if (p.rank) p.rank = T(`hud.cr.rank.${p.rank}`);
   if (p.group) p.group = T(`hud.sup.g.${p.group}`);
   if (p.crop) p.crop = T(`crop.${p.crop}`);

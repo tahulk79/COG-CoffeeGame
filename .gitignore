@@ -2,3 +2,11 @@ node_modules/
 dist/
 .DS_Store
 assets-src/
+
+# Meshy pipeline: the key, raw downloads and task state stay local
+.env.local
+scripts/meshy/raw/
+scripts/meshy/state.json
+
+# Local backups of replaced art (kept out of public/ and out of git)
+art-backup/

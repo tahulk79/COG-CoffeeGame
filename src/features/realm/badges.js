@@ -12,6 +12,7 @@
 // item.chip (short text, e.g. "🪙 400" / "Cấp 6") draws a small price chip under the pin (same constant screen size);
 // chip materials are cached per text (a handful of prices) and freed on dispose.
 import * as THREE from 'three';
+import { farmGroundY } from '../../core/config/layout.js';
 import { drawEmoji, measureCoinText, fillCoinText } from './util.js';
 import { drawSickle } from './markers.js';
 
@@ -167,7 +168,7 @@ export function createBadges({ scene, camera }) {
       const s = slot(i);
       s.sprite.material = matOf(it);
       s.k = SMALL_KINDS[it.kind] || 1;
-      s.sprite.position.set(it.x, it.y, it.z);
+      s.sprite.position.set(it.x, it.y + farmGroundY(it.x, it.z), it.z); // y is above the land; the land climbs the tiers
       s.sprite.userData.target = it.target;
       s.sprite.visible = true;
       s.still = it.kind === 'upMuted' || it.kind === 'lock';
