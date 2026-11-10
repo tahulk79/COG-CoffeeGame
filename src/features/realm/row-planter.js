@@ -13,7 +13,7 @@ export function createRowPlanter({ scene }) {
   group.name = 'realm-row-planter';
   group.visible = false;
   scene.add(group);
-  const cap = PLANT_ROW.maxTrees;
+  const cap = PLANT_ROW.maxSpots;
   const stripGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
   const stripMat = new THREE.MeshBasicMaterial({ color: 0x8a5a36, transparent: true, opacity: .42, depthWrite: false });
   const strip = new THREE.Mesh(stripGeo, stripMat);
@@ -44,10 +44,10 @@ export function createRowPlanter({ scene }) {
     discs.count = Math.min(cap, spots.length); sprouts.count = n;
     discs.instanceMatrix.needsUpdate = sprouts.instanceMatrix.needsUpdate = true;
     if (discs.instanceColor) discs.instanceColor.needsUpdate = true;
-    const a = spots[0], b = spots[spots.length - 1], len = Math.hypot(b.x - a.x, b.z - a.z);
+    const rows = plan.rows || 1, a = spots[0], b = spots[Math.max(0, (plan.count || spots.length) - 1)], len = Math.hypot(b.x - a.x, b.z - a.z);
     strip.position.set((a.x + b.x) / 2, farmGroundY(a.x, a.z) + .05, (a.z + b.z) / 2);
     strip.rotation.y = -Math.atan2(b.z - a.z, b.x - a.x);
-    strip.scale.set(len + 1.5, 1, 1.5);
+    strip.scale.set(len + 1.5, 1, 1.5 * rows);
     group.visible = true;
   }
   return {

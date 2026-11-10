@@ -1,0 +1,101 @@
+/* World map in the sunny game look. Loaded after atlas.css. */
+.atlas .atlas-title,.atlas[data-mode=chooseRegion] .atlas-title{padding:6px 28px 11px;border:4px solid var(--line);border-radius:14px;background:linear-gradient(var(--go1),var(--go2) 62%,var(--go3));box-shadow:inset 0 -7px 0 var(--go3),inset 0 2px 0 #fffc,0 5px 0 var(--line);color:#fff;font:400 20px/26px var(--disp);text-shadow:-2px 0 var(--go3),2px 0 var(--go3),0 -2px var(--go3),0 2px var(--go3),-2px -2px var(--go3),2px -2px var(--go3),-2px 2px var(--go3),2px 2px var(--go3)}
+.atlas .atlas-hint{border:3px solid var(--line);background:linear-gradient(#fff,#fff8dc);color:var(--line);box-shadow:0 3px 0 var(--line);font:400 14px/20px var(--disp)}
+.atlas .atlas-pin{border:4px solid var(--line);border-radius:999px;background:linear-gradient(#fffdf4,#ffeec6);box-shadow:0 4px 0 var(--line);color:var(--line);font:400 14px/1 var(--disp)}
+.atlas .atlas-pin[data-status=locked]{background:linear-gradient(#fffdf4,#ffeec6);color:var(--line)}
+.atlas .atlas-pin.is-selected{background:linear-gradient(var(--au1),var(--au2));color:var(--line)}
+.atlas .atlas-sheet{border:5px solid var(--line)!important;border-bottom:0!important;border-radius:34px 34px 0 0;background:linear-gradient(var(--cr1),var(--cr2) 55%,var(--cr3))!important;box-shadow:inset 0 8px 0 var(--fr1),inset 0 10px 0 var(--fr2),inset 0 12px 0 var(--cr1)!important;color:var(--line)}
+.atlas .atlas-sheet-head{margin:12px -12px 10px;background:none;border-bottom:0}
+.atlas .atlas-sheet-title{color:var(--line);font:400 22px/28px var(--disp);text-shadow:none}
+.atlas .atlas-region{border:3px solid var(--line);border-radius:20px;background:linear-gradient(#fffdf4,#ffeec6);box-shadow:inset 0 0 0 2px #fff,0 4px 0 var(--line);color:var(--line)}
+.atlas .atlas-confirm{border:3px solid var(--line);border-radius:18px}
+
+/* Country sheet: a shelf of city cards */
+.atlas .atlas-sheet>.atlas-howto{display:flex;align-items:center;gap:8px;margin:0 14px 18px;padding:0;border:0;background:none;box-shadow:none}
+.atlas .atlas-howto>:not(.atlas-howto-warn){display:none}
+.atlas .atlas-howto::before{content:"";flex:none;width:40px;height:40px;background:url(../../game-art/ico/warning.svg) center/contain no-repeat}
+.atlas .atlas-howto-warn{flex:1;margin:0;padding:0;border:0;background:none;color:var(--line);font:400 14px/19px var(--disp)}
+.atlas .atlas-sheet{max-height:none;height:auto;overflow:visible;padding:0 0 env(safe-area-inset-bottom,0px)}
+.atlas .atlas-sheet-head{justify-content:center;margin:0;padding:0;position:relative}
+.atlas .atlas-sheet-title{position:absolute;left:50%;top:-26px;transform:translateX(-50%);box-sizing:border-box;min-height:48px;margin:0;padding:4px 24px 10px;border:4px solid var(--line);border-radius:14px;background:linear-gradient(var(--go1),var(--go2) 62%,var(--go3));box-shadow:inset 0 -7px 0 var(--go3),inset 0 2px 0 #fffc,0 5px 0 var(--line);color:#fff;font:400 20px/26px var(--disp);white-space:nowrap;text-shadow:-2px 0 var(--go3),2px 0 var(--go3),0 -2px var(--go3),0 2px var(--go3),-2px -2px var(--go3),2px -2px var(--go3),-2px 2px var(--go3),2px 2px var(--go3)}
+.atlas .atlas-sheet-head button{position:absolute;right:10px;top:-24px;z-index:4;width:52px;height:52px;padding:0;border:4px solid var(--line);border-radius:50%;background:linear-gradient(var(--re1),var(--re2) 60%,var(--re3));box-shadow:inset 0 -5px 0 var(--re3),inset 0 2px 0 #fff9,0 4px 0 var(--line);color:#fff;font:400 26px/1 var(--disp)}
+.atlas .atlas-regions-h,.atlas .atlas-sheet>p,.atlas .atlas-sheet h4,.atlas .atlas-sheet-flag{display:none}
+.atlas .atlas-regions{display:flex;gap:12px;margin:0;padding:56px 14px 26px;list-style:none;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+.atlas .atlas-region{position:relative;flex:none;display:block;box-sizing:border-box;width:142px;height:170px;padding:0;border:4px solid var(--line);border-radius:26px;background:radial-gradient(circle at 50% 40%,#ffffffe6 0,#ffffff80 34%,#fff0 68%),linear-gradient(#ddfba6,#86e043);box-shadow:inset 0 0 0 3px #ffffffe0,0 6px 0 var(--line)}
+.atlas .atlas-region:nth-child(4n+2){background:radial-gradient(circle at 50% 40%,#ffffffe6 0,#ffffff80 34%,#fff0 68%),linear-gradient(#fff3b0,#ffc942)}
+.atlas .atlas-region:nth-child(4n+3){background:radial-gradient(circle at 50% 40%,#ffffffe6 0,#ffffff80 34%,#fff0 68%),linear-gradient(#cff3ff,#66ccf8)}
+.atlas .atlas-region:nth-child(4n){background:radial-gradient(circle at 50% 40%,#ffffffe6 0,#ffffff80 34%,#fff0 68%),linear-gradient(#ffdbe8,#ff9cc2)}
+.atlas .atlas-region-info{position:absolute;left:0;right:0;top:124px;text-align:center}
+.atlas .atlas-region-name{display:block;text-align:center;font:400 15px/19px var(--disp);color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:-2px 0 var(--line),2px 0 var(--line),0 -2px var(--line),0 2px var(--line),-2px -2px var(--line),2px -2px var(--line),-2px 2px var(--line),2px 2px var(--line)}
+.atlas .atlas-region-vibe,.atlas .atlas-region-note{display:none}
+.atlas .atlas-region button{position:absolute;left:9px;right:9px;bottom:-15px;width:auto;z-index:2}
+
+/* tile face: art, name and one button, like the shelf in the design */
+.atlas .atlas-region-info{z-index:3;pointer-events:none}
+.atlas .atlas-region-info>:not(.atlas-region-name,.is-price){display:none}
+.atlas .atlas-actions{position:absolute;left:9px;right:9px;bottom:-15px;z-index:2;display:flex;flex-direction:row;gap:4px;margin:0}
+.atlas .atlas-actions button{position:relative;left:auto;right:auto;bottom:auto;flex:1 1 0;min-width:0;min-height:42px;padding:0 2px 5px;border-width:3px;border-radius:15px;font:400 15px/1 var(--disp);white-space:nowrap}
+.atlas .atlas-pin-games{display:none}
+.atlas .atlas-pin{height:38px;box-sizing:border-box;gap:4px;padding:0 10px 0 4px}
+.atlas .atlas-pin.is-dot{justify-content:center;width:38px;padding:0}
+/* your own country: solid gold, no fading pulse */
+.atlas .atlas-pin[data-status=current]{--chip:var(--line);animation:none;background:linear-gradient(var(--au1),var(--au2));opacity:1}
+.atlas .atlas-hint{gap:6px}
+/* the X takes the corner while the map is open */
+body:has(.atlas) #game-settings-toggle{display:none}
+/* title block sits clear of the top bar, and its two parts keep one gap */
+.atlas:has(.atlas-account:not([hidden])) .atlas-header{top:calc(max(8px,env(safe-area-inset-top)) + 68px);gap:12px}
+.atlas .atlas-hint{display:inline-flex;align-items:center;height:34px;box-sizing:border-box;padding:0 13px}
+/* top bar */
+.atlas .atlas-account{gap:10px}
+.atlas .atlas-account-lv{display:grid;place-items:center;width:56px;height:56px;padding:0;border:0;border-radius:0;background:url(../../game-art/ico/star.svg) center/contain no-repeat;box-shadow:none;color:#fff;font:400 20px/1 var(--disp);text-shadow:-2px 0 var(--line),2px 0 var(--line),0 -2px var(--line),0 2px var(--line)}
+.atlas .atlas-account-btn{box-sizing:border-box;height:52px;min-width:52px;border:4px solid var(--line);border-radius:999px;background:linear-gradient(#fffdf4,#ffeec6);box-shadow:0 3px 0 var(--line);color:var(--line)}
+.atlas .atlas-account-lv+.atlas-account-btn{height:38px;min-width:0;padding:0 12px 0 6px;border-width:3px;background:linear-gradient(#7fe03a,#3fb51c);box-shadow:inset 0 3px 0 #2f9d1466,0 3px 0 var(--line);color:#fff;font:400 14px/1 var(--disp);text-shadow:-1px 0 var(--line),1px 0 var(--line),0 -1px var(--line),0 1px var(--line)}
+.atlas .atlas-account-lv+.atlas-account-btn b{font:inherit}
+.atlas:has(.atlas-account:not([hidden])) .atlas-account button.atlas-close{width:52px;height:52px;border:4px solid var(--line);border-radius:50%;background:linear-gradient(var(--re1),var(--re2) 60%,var(--re3));box-shadow:inset 0 -5px 0 var(--re3),inset 0 2px 0 #fff9,0 3px 0 var(--line);color:#fff}
+
+/* Open a city: a centred window */
+.atlas .atlas-region-confirm{position:static;width:auto;height:0;flex:none;padding:0;border:0;background:none;box-shadow:none}
+.atlas .atlas-confirm{position:fixed;left:14px;right:14px;top:220px;z-index:30;box-sizing:border-box;margin:0;padding:48px 16px 22px;border:5px solid var(--line);border-radius:36px;background:var(--window-bg);box-shadow:inset 0 0 0 8px var(--fr1),inset 0 0 0 10px var(--fr2),inset 0 0 0 12px var(--cr1),0 8px 0 var(--line),0 18px 26px #7a451559}
+.atlas .atlas-confirm-title{position:absolute;left:50%;top:-26px;margin:0;transform:translateX(-50%);box-sizing:border-box;min-height:48px;padding:4px 24px 10px;border:4px solid var(--line);border-radius:14px;background:linear-gradient(var(--go1),var(--go2) 62%,var(--go3));box-shadow:inset 0 -7px 0 var(--go3),inset 0 2px 0 #fffc,0 5px 0 var(--line);color:#fff;font:400 20px/26px var(--disp);white-space:nowrap;text-shadow:-2px 0 var(--go3),2px 0 var(--go3),0 -2px var(--go3),0 2px var(--go3)}
+.atlas .atlas-confirm-cost{position:absolute;left:16px;right:16px;bottom:36px;z-index:2;margin:0;color:var(--line);font:400 27px/1 var(--disp);text-align:center;pointer-events:none}
+.atlas .atlas-confirm-actions{display:block;margin-top:0}
+.atlas .atlas-confirm-go{width:100%;min-height:60px;color:transparent;border-radius:20px}
+.atlas .atlas-confirm-actions .ui-btn--plain{position:absolute;right:-10px;top:-24px;z-index:4;width:52px;height:52px;min-height:0;padding:0;border:4px solid var(--line);border-radius:50%;background:linear-gradient(var(--re1),var(--re2) 60%,var(--re3));box-shadow:inset 0 -6px 0 var(--re3),inset 0 2px 0 #fff9,0 4px 0 var(--line);color:transparent;font-size:0}
+.atlas .atlas-confirm-actions .ui-btn--plain::after{content:"×";color:#fff;font:400 30px/1 var(--disp)}
+/* locked cities (cafés still updating): greyed picture, a timer on top */
+.atlas .atlas-region[data-state=locked],.atlas .atlas-region[data-state=updating]{filter:saturate(.75)}
+.atlas .atlas-pin .farm-gold-coin,.atlas .atlas-chip .farm-gold-coin,.atlas .atlas-confirm-cost .farm-gold-coin{display:inline-block;width:1.25em;height:1.25em;vertical-align:-.3em;font-size:inherit;color:transparent;background:url(../../game-art/ico/coin.svg) center/contain no-repeat}
+.atlas .atlas-pin .farm-gold-coin,.atlas .atlas-chip .farm-gold-coin,.atlas .atlas-confirm-cost .farm-gold-coin{width:1.25em!important;height:1.25em!important;font-size:inherit!important;background:url(../../game-art/ico/coin.svg) center/contain no-repeat!important}
+@media (min-width:600px){
+  .atlas .atlas-sheet{left:50%!important;right:auto!important;bottom:0;width:min(720px,100vw);max-width:none;transform:translateX(-50%)}
+  .atlas .atlas-regions{justify-content:safe center}
+  .atlas .atlas-confirm{left:50%;right:auto;width:min(460px,calc(100vw - 28px));transform:translateX(-50%)}
+  .atlas .atlas-sheet>.atlas-howto{justify-content:center}
+}
+
+/* The open-a-city window keeps its overlay price and its corner X */
+.atlas .atlas-confirm .atlas-confirm-go,.atlas .atlas-confirm .atlas-confirm-go *{color:transparent!important;text-shadow:none!important}
+.atlas .atlas-confirm .atlas-confirm-go{min-height:60px!important}
+.atlas .atlas-confirm .atlas-confirm-actions .ui-btn--plain{min-height:0!important;padding:0!important;font-size:0!important;color:transparent!important;text-shadow:none!important}
+.atlas .atlas-confirm .atlas-confirm-cost{display:flex;align-items:center;justify-content:center;gap:6px;bottom:38px;color:#fff;font-size:22px;text-shadow:-2px 0 #c46f0b,2px 0 #c46f0b,0 -2px #c46f0b,0 2px #c46f0b}
+.atlas .atlas-confirm .atlas-confirm-cost .farm-gold-coin{vertical-align:0}
+/* name and price sit on the card's centre line, coin level with the number */
+.atlas .atlas-region-info{display:block}
+.atlas .atlas-region-name{width:100%;box-sizing:border-box;padding:0 2px}
+
+/* City card: name, price, and the game choice. Every card is tall enough for both choices, so a row stays even */
+.atlas .atlas-region{--info:16px}
+.atlas .atlas-region-info{top:var(--info)}
+.atlas .atlas-actions{flex-direction:column;gap:8px}
+.atlas .atlas-actions button{flex:none;display:flex;align-items:center;justify-content:center;gap:4px;min-height:42px!important;font-size:15px!important;line-height:18px!important;padding:0 2px 5px!important;border-width:3px!important;border-radius:15px!important}
+.atlas .atlas-game-ico{display:inline-flex;font-size:20px}
+.atlas .atlas-state{display:flex;align-items:center;justify-content:center;height:42px;box-sizing:border-box;padding-bottom:5px;border:3px solid var(--line);border-radius:15px;background:linear-gradient(var(--go1),var(--go2) 62%,var(--go3));box-shadow:inset 0 -5px 0 var(--go3),0 4px 0 var(--line);color:#fff;font:400 15px/18px var(--disp);text-shadow:-2px 0 var(--go3),2px 0 var(--go3),0 -2px var(--go3),0 2px var(--go3)}
+.atlas .atlas-state.is-expired{background:linear-gradient(#e9edf2,#c3ccd6 62%,#8d99a8);box-shadow:inset 0 -5px 0 #8d99a8,0 4px 0 var(--line);text-shadow:-2px 0 #7b8695,2px 0 #7b8695,0 -2px #7b8695,0 2px #7b8695}
+/* price: a small tag under the name */
+.atlas .atlas-region-info .atlas-chip.is-price{position:absolute;left:50%;right:auto;top:calc(44px - var(--info));transform:translateX(-50%);display:inline-flex;align-items:center;gap:3px;height:30px;box-sizing:border-box;margin:0;padding:0 8px 0 5px;border:3px solid var(--line);border-radius:999px;background:linear-gradient(#fff,#fff8dc);box-shadow:0 2px 0 var(--line);color:var(--line);font:400 14px/1 var(--disp);white-space:nowrap}
+.atlas .atlas-region-info .atlas-chip.is-price .farm-gold-coin{vertical-align:0}
+/* icon and label on one line, the same size as every small button; a locked choice stays solid grey */
+.atlas .atlas-actions .atlas-game{flex-direction:row;opacity:1}
+.atlas .atlas-actions .atlas-game .atlas-game-title{font:inherit}
+.atlas .atlas-actions .atlas-game:disabled{opacity:1;filter:none}

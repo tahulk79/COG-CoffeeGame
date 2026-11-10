@@ -44,14 +44,14 @@ function gedeoInst(group, key, lod, cap, fallback = []) {
   return { set(i, m) { if (i < cap) m.toArray(store, i * 16); }, commit(n) { count = Math.min(n, cap); if (ready) flush(); }, dispose() { gone = true; for (const im of meshes) im.dispose(); } }; // the plant GLB itself stays cached
 }
 
-const SCALE_MIN = .22, SCALE_MAX = .65;
+const SCALE_MIN = .22, SCALE_MAX = .65, POP_IN = .38; // POP_IN: seconds a new seedling takes to spring up
 const FLOWER = new THREE.Color(2.2, 2.2, 2.1); // ripe-cherry part tinted white = the flowering stage (colour × GLB red)
 const BANK = new THREE.Color(0x8a5a3a), MULCH = new THREE.Color(0x6e5233), TERRACE = new THREE.Color(0x9a8f7c), SHADE_LEAF = new THREE.Color(0x3f7a34), SHADE_TRUNK = new THREE.Color(0x6b4a2e);
 const SOIL_DRY = new THREE.Color(0x9b6a43), SOIL_WET = new THREE.Color(0x6e4529), SOIL_GLOW = new THREE.Color(0xe2b47a);
 // Soil per growing zone (docs/design/coffee-varieties.md): lowland alluvial brown, upland red basalt (đất đỏ bazan),
 // highland dark humus, wetland grey-brown mud. Planted beds are the same colour, darker (watered).
 const ZONE_SOIL = { lowland: SOIL_DRY, upland: new THREE.Color(0xa8553a), slope: new THREE.Color(0x8a5236), highland: new THREE.Color(0x6f5038) };
-const zoneSoil = (zone, wet) => (wet ? ZONE_SOIL[zone].clone().multiplyScalar(.7) : ZONE_SOIL[zone]) || SOIL_DRY;
+const zoneSoil = (zone, wet) => (wet ? ZONE_SOIL[zone].clone().multiplyScalar(1.35) : ZONE_SOIL[zone]) || SOIL_DRY;
 const FIT_GLOW = { good: new THREE.Color(0x8fd16a), ok: SOIL_GLOW, bad: new THREE.Color(0xf0c34a) }; // seed in hand: fits / neutral / penalised
 // Variety looks (instanced, so: scale + tint per tree). w = width, h = height; leaf / ripe tints multiply the GLB colours.
 // Arabica: low, small glossy dark leaves. Robusta: medium, the GLB as is. Liberica: tall tree, big leathery leaves, dark red fruit.
@@ -96,7 +96,7 @@ const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 const KIND_TREE = 0, KIND_GREEN = 1, KIND_RIPE = 2, KIND_RING = 3, KIND_SEED = 4, KIND_YOUNG = 5;
 // First crop of a new planting (coffee-varieties §2b): nursery seedling → young plant → the mature tree. Real-metre models
 // (gedeo_heroes.py export_game_stages); STAGE_AT = growth ratio where the next form takes over, STAGE_SIZE = scale at that form's end.
-const STAGE_AT = [.3, .62], STAGE_SIZE = { [KIND_SEED]: 2.6, [KIND_YOUNG]: 1.4 }; // RING = the mulched earth ring round each trunk (vòng đất gốc)
+const STAGE_AT = [.3, .62], STAGE_SIZE = { [KIND_SEED]: 5.2, [KIND_YOUNG]: 1.7 }; // a seedling must read as a plant at the farm's zoom, not a speck; // RING = the mulched earth ring round each trunk (vòng đất gốc)
 
 // Mesh parts of a template with their matrix relative to the template's parent (= what a clone added to a group at
 // the tree position would render: the template's own transform included).
@@ -648,11 +648,12 @@ export function createPlots({ scene, templates, vfx, getActiveCrop = () => null 
   }
   const remainingMs = (id, now) => { const e = entities.get(id); return e ? Math.max(0, e.total - (now - e.plantedAt)) : 0; };
 
-  function onPlanted(id, time) {
+  // A new seedling springs out of the ground. Planted in numbers they follow each other in a quick wave (delay), with a small puff each.
+  function onPlanted(id, time, delay = 0, puff = 12) {
     const e = entities.get(id);
     if (!e) return;
-    e.popAt = time;
-    vfx.burst('soil', e.pos);
+    e.popAt = time + delay;
+    e.popPuff = puff;
   }
   // Harvest: the tree stays (perennial); cherries burst out and the tree gives a little shake.
   function onHarvested(id, time) {
@@ -699,10 +700,16 @@ export function createPlots({ scene, templates, vfx, getActiveCrop = () => null 
       const ready = ratio >= 1, grown = e.age > 0 || e.wave;
       // a sapling grows to full size over its first crop; a grown tree keeps its size, only its fruit changes
       const goal = grown ? SCALE_MAX : ratio < .08 ? SCALE_MIN : SCALE_MIN + (SCALE_MAX - SCALE_MIN) * ratio;
-      if (e.popAt >= 0 && time - e.popAt < .45) e.scale = SCALE_MIN * easeOutBack((time - e.popAt) / .45);
-      else e.scale = e.scale < .01 ? goal : damp(e.scale, goal, 4, dt);
+      const popping = e.popAt >= 0 && time - e.popAt < POP_IN;
+      let pop = 1;
+      if (popping) {
+        const k = (time - e.popAt) / POP_IN;
+        pop = k < 0 ? .001 : Math.max(.001, easeOutBack(k));
+        if (k >= 0 && e.popPuff) { if (vis) vfx.burst('soil', e.pos, { count: e.popPuff }); e.popPuff = 0; }
+        e.scale = SCALE_MIN;
+      } else e.scale = e.scale < .01 ? goal : damp(e.scale, goal, 4, dt);
       const shake = e.shakeAt >= 0 && time - e.shakeAt < .4 ? 1 + .06 * Math.sin((time - e.shakeAt) * 40) * (1 - (time - e.shakeAt) / .4) : 1;
-      const bob = (ready && !lowQuality ? 1 + .04 * Math.sin(bobTime * 3 + e.x) : 1) * shake; // the ripe bob re-uploads every tree list, Low goes without
+      const bob = (ready && !lowQuality ? 1 + .04 * Math.sin(bobTime * 3 + e.x) : 1) * shake * pop; // the ripe bob re-uploads every tree list, Low goes without
       // season: rest → white flowers → green cherries → ripe (a sapling flowers late in its first crop)
       const fl0 = grown ? .12 : .5, gr0 = grown ? .42 : .72;
       const flower = !ready && !e.wave && ratio > fl0 && ratio <= gr0;

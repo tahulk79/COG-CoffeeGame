@@ -286,7 +286,7 @@ export const FIELD = { id: 'field', zone: 'farm', use: 'field', category: 'farmi
   upgrade: [], icon: '🟫', xp: 2, refund: 0.5, extraBase: 20, extraGrowth: 1.08, extraMaxCost: 300, extraPerLevel: 2, extraMax: 40 };
 // Planting a long row in one stroke (founder 2026-11-09): the trees stand `spacing` m apart, at most `maxTrees` per stroke. A row costs exactly
 // what its trees would cost one by one; each tree is still one field, so staff, the manager, Auto and old saves see nothing new.
-export const PLANT_ROW = { spacing: 1.5, maxTrees: 30 };
+export const PLANT_ROW = { spacing: 1.5, maxTrees: 30, maxRows: 5, maxSpots: 60, fillTrees: 24, fillRings: 12 }; // one stroke: up to maxRows side by side, maxSpots in all; Fill: the fillTrees nearest free spots
 export const fieldExtraCost = k => Math.min(FIELD.extraMaxCost, Math.round(FIELD.extraBase * FIELD.extraGrowth ** Math.max(0, k | 0) / 5) * 5); // clearing one bed never costs more than extraMaxCost
 export const fieldExtraCap = level => Math.min(FIELD.extraMax, FIELD.extraPerLevel * Math.max(1, level | 0));
 // Catalogue tabs per screen (HUD construction catalogue) and the build menu per screen.

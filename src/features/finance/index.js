@@ -13,6 +13,7 @@ import { overview, farmCard } from '../../core/finance.js';
 import { newTxId } from '../../core/store.js';
 import { thumbOf } from './thumbs.js';
 import './finance.css';
+import '../../ui/styles/skin/finance.css';
 
 const usd = cents => `$${(cents / 100).toLocaleString(getLang(), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const signed = n => `${n > 0 ? '+' : n < 0 ? '−' : ''}${fmt(Math.abs(n))}`;

@@ -4,6 +4,7 @@
 import { t } from '../../i18n/index.js';
 import { sfx } from '../../shared/audio/index.js';
 import './teacher.css';
+import '../../ui/styles/skin/story.css';
 
 /** Writes `text` into `el`, turning **keyword** into a highlighted <mark> (no innerHTML: text is never parsed as markup). */
 export function richText(el, text) {

@@ -32,7 +32,7 @@ export function openTierModal(ctx, parcelId) {
       onClick: () => { const r = ctx.act('land/buyParcel', { parcelId: est.seed }); if (r.ok) close(); } });
   }
   const overlay = h('div', { class: 'hud-treeview', on: { click: e => { if (e.target === overlay) close(); } } },
-    h('div', { class: 'hud-treeview-card hud-tiercard' },
+    h('div', { class: 'hud-treeview-card hud-tiercard', dataset: { tier: est.id } },
       h('div', { class: 'hud-treeview-head' }, h('div', null, h('strong', null, T(`estate.${est.id}`)), h('small', null, owned ? T('estate.owned') : `🪙 ${fmt(est.cost)}`)),
         h('button', { type: 'button', class: 'hud-treeview-x', attrs: { 'aria-label': T('hud.place.cancel') }, on: { click: close } }, '✕')),
       h('p', { class: 'hud-line hud-line--muted' }, `${T(`zone.${zone}.icon`)} ${T(`zone.${zone}`)} · `, T(`hud.zone.soil.${zone}`)),

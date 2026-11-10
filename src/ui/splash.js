@@ -3,6 +3,7 @@
 // showSplash() → { shown: Promise (screen fully covered), close(): Promise (faded out and removed) }
 import { t } from '../i18n/index.js';
 import './styles/splash.css';
+import './styles/skin/story.css';
 
 const FADE_IN_MS = 520, FADE_OUT_MS = 650;
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;

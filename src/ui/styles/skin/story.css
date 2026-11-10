@@ -1,0 +1,14 @@
+/* The Deity scene and the GodBean splash in the sunny game look. */
+.tch .tch-bubble,.tch .tch-bubble.is-hero{border:5px solid var(--line);border-radius:26px;background:linear-gradient(#fff,#fff8dc);box-shadow:0 6px 0 var(--line),0 14px 20px #7a451559;color:var(--line);font-weight:800}
+.tch .tch-speaker,.tch .tch-bubble.is-hero .tch-speaker{padding:3px 20px 8px;border:4px solid var(--line);border-radius:14px;background:linear-gradient(var(--au1),var(--au2) 62%,var(--au3));box-shadow:inset 0 -5px 0 var(--au3);color:#fff;font:400 18px/22px var(--disp);text-shadow:-2px 0 var(--au3),2px 0 var(--au3),0 -2px var(--au3),0 2px var(--au3)}
+.tch .tch-key,.tch .tch-bubble.is-hero .tch-key{color:#2f9d14}
+.gb-splash.gb-splash{background:#6fd8ff url(../../game-art/sky.svg) center/cover no-repeat}
+.gb-splash .gb-splash__glow{background:radial-gradient(circle,#fffde0 0,#fff3a8d9 22%,#ffe98a59 44%,#ffe98a00 68%)}
+.gb-splash .gb-splash__title{color:#fff;font-family:var(--disp);font-weight:400;text-shadow:-3px 0 #d9620a,3px 0 #d9620a,0 -3px #d9620a,0 3px #d9620a,-2px -2px #d9620a,2px -2px #d9620a,-2px 2px #d9620a,2px 2px #d9620a,0 5px 0 var(--line)}
+.gb-splash .gb-splash__tag{color:#fff;text-shadow:-2px 0 var(--line),2px 0 var(--line),0 -2px var(--line),0 2px var(--line)}
+.tch .tch-bubble,.tch .tch-bubble.is-hero{padding-top:30px}
+
+.tch .tch-bubble::after{content:"";position:absolute;right:12px;top:-112px;width:108px;height:108px;box-sizing:border-box;border:5px solid var(--line);border-radius:50%;background:#fff4c2 url(../../game-art/art/p-deity.png) 61% 11%/260% no-repeat;box-shadow:inset 0 0 0 3px #fff,0 5px 0 var(--line)}
+.tch .tch-bubble.is-hero::after{background-image:url(../../game-art/art/girl-p.png);background-position:50% 0;background-size:170%}
+body[data-gender="male"] .tch .tch-bubble.is-hero::after{background-image:url(../../game-art/art/male-p.png)}
+.tch .tch-speaker,.tch .tch-bubble.is-hero .tch-speaker{left:16px;right:auto;top:-24px}

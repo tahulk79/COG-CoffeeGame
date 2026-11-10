@@ -14,6 +14,7 @@ import { buildingEffect } from './effects.js';
 import { actionButton, coinAmount, lockTag, needMore } from './widgets.js';
 import { TERRAIN_ICON, buyLand } from './sheets.js';
 import { stars1 } from './shop-strip.js';
+import { openTreeViewer } from './tree-viewer.js';
 
 // Optional key (not in the locale packs yet): "Sold {n} today" — falls back to "🧾 ×n" until it exists.
 const SOLD_KEY = 'hud.venue.sold';
@@ -79,7 +80,7 @@ export function createActionBar(ctx) {
         return { kind: 'plot', id: target.id, stage: st.stage, crop: st.crop || null, active: crop, seed: seedCost(s, crop), zone, fit: climateFit(st.crop || crop, zone), garden: gardenOf(s).style,
           dropping: !!drop && ripeFor > drop.after, dropSoon: !!drop && ripeFor >= 0 && ripeFor <= drop.after, wave: pl?.wave ? 2 : st.crop && CROPS[st.crop].waves ? 1 : 0,
           health: pl ? treeHealth(s, target.id) : null, age: pl ? treeAge(pl) : 0, old: treeOld(pl), pruned: !!pl?.pruned, prune: pl ? pruneCost(pl.crop) : 0, coinsOk: pl ? coins >= pruneCost(pl.crop) : false,
-          rmErr, refund: rmErr ? 0 : removeRefund(s, target.id), armed: isArmed(target.id), well: Math.round(wellBonus(s, target.id) * 100) };
+          watered: !!pl?.watered, rmErr, refund: rmErr ? 0 : removeRefund(s, target.id), armed: isArmed(target.id), well: Math.round(wellBonus(s, target.id) * 100) };
       }
       case 'land': {
         const x = Number(target.x), z = Number(target.z);
@@ -191,61 +192,45 @@ export function createActionBar(ctx) {
     return btn;
   }
 
+  // The field card of the design: picture, name, one bar and three big buttons. Everything else lives in the tree details.
+  const TREE_ART = { arabica: 'gedeo', robusta: 'gedeo', liberica: 'liberica' };
+  function artSquare(icon, def) {
+    const box = h('span', { class: 'ui-sq', attrs: { 'aria-hidden': 'true' } }, icon);
+    modelIcon(def).then(url => { if (!url) return; const img = Object.assign(document.createElement('img'), { src: url, alt: '', draggable: false }); box.replaceChildren(img); });
+    return box;
+  }
+  const iconAction = (id, icon, label, onClick, extra = {}) => { const b = actionButton({ id, label: '', icon, tone: 'plain', onClick, ...extra }); b.setAttribute('aria-label', label); return b; };
   function plotCard(m, s) {
     const crop = CROPS[m.crop];
-    setText(title, crop ? `${crop.icon} ${T(`crop.${crop.id}`)}` : `🟫 ${T('hud.plot.soil')}`);
-    // Growing zone (vùng trồng) and how the crop in the bed / the seed in hand fits it (coffee-varieties.md).
-    const forCrop = m.crop || m.active;
-    body.append(h('p', { class: `hud-line${m.fit === 'bad' ? ' hud-line--bad' : m.fit === 'good' ? ' hud-line--good' : ' hud-line--muted'}` },
-      `${T(`zone.${m.zone}.icon`)} ${T(`zone.${m.zone}`)} · `, T(`hud.plot.fit.${m.fit}`, { crop: T(`crop.${forCrop}`) })));
-    if (m.garden) { const g = GARDEN[m.garden]; body.append(h('p', { class: 'hud-line hud-line--muted' }, T(`hud.garden.${m.garden}`, { slow: Math.round(Math.abs(g.timeMul - 1) * 100), q: Math.round(g.quality * 100), y: Math.round(Math.abs(g.yieldMul - 1) * 100) }))); }
+    title.replaceChildren();
+    const art = crop ? artSquare(crop.icon, { model: `farm/coffee-tree-${TREE_ART[m.crop] || 'gedeo'}.glb#tree`, trueScale: 1 }) : h('span', { class: 'ui-sq', attrs: { 'aria-hidden': 'true' } }, '🟫');
+    const name = h('strong', { class: 'hud-pan-name' }, crop ? T(`crop.${crop.id}`) : T('hud.plot.soil'));
+    const details = () => { if (crop) openTreeViewer(ctx, m.id); };
+    if (m.stage === 'ready') {
+      body.append(h('div', { class: 'hud-pan-head' }, art, h('div', null, h('strong', { class: 'hud-pan-name' }, T('hud.plot.ripeShort')), h('span', { class: 'hud-pan-sub' }, m.dropping ? T('hud.plot.dropping') : crop ? T(`crop.${crop.id}`) : ''))),
+        h('div', { class: 'hud-pan-go' }, actionButton({ id: 'plotHarvest', label: T('hud.plot.harvestNow'), icon: '🧺', tone: 'gold', onClick: () => { if (ctx.blockedByAuto?.()) return; ctx.act('farm/harvest', { plotId: m.id }); } })));
+      return;
+    }
     if (m.stage === 'empty') {
       const active = CROPS[m.active];
-      body.append(h('p', { class: 'hud-line' }, T('hud.plot.empty', { crop: T(`crop.${m.active}`), icon: active.icon })),
-        h('div', { class: 'hud-row' }, actionButton({ label: T('hud.plot.changeSeed'), icon: '🌱', tone: 'plain', onClick: () => ctx.onTool('seeds') })));
-    } else if (m.stage === 'ready') {
-      body.append(h('p', { class: 'hud-line hud-line--good' }, T('hud.plot.ready')),
-        h('div', { class: 'hud-row' }, actionButton({ id: 'plotHarvest', label: T('hud.plot.harvestNow'), icon: '🧺', tone: 'gold', onClick: () => { if (ctx.blockedByAuto?.()) return; ctx.act('farm/harvest', { plotId: m.id }); } })),
-        h('p', { class: 'hud-hint' }, T('hud.plot.harvestHint')));
-      if (m.dropping) body.append(h('p', { class: 'hud-line hud-line--bad' }, T('hud.plot.dropping')));
-      else if (m.dropSoon) body.append(h('p', { class: 'hud-line hud-line--muted' }, T('hud.plot.dropSoon')));
-      if (m.wave) body.append(h('p', { class: 'hud-line hud-line--muted' }, T(`hud.plot.wave${m.wave}`)));
-    } else {
-      const time = h('strong', { class: 'hud-countdown' });
-      body.append(h('p', { class: 'hud-line' }, T('hud.plot.growing'), ' ', time));
-      countdown = { el: time, plotId: m.id };
-      updateCountdown(s);
+      body.append(h('div', { class: 'hud-pan-head' }, art, h('div', null, name, h('span', { class: 'hud-pan-sub' }, T('hud.plot.empty', { crop: T(`crop.${m.active}`), icon: active.icon })))),
+        h('div', { class: 'hud-pan-tools' }, iconAction('plotSeeds', '🌱', T('hud.plot.changeSeed'), () => ctx.onTool('seeds')),
+          iconAction('fieldMove', '✥', T('fw.field.move'), () => { if (ctx.blockedByAuto?.()) return; ctx.clearSelection(); ctx.realm?.startPlacement?.('field', { uid: m.id }); }),
+          removeButton(m.id, m, { label: T('fw.field.clear'), icon: '🧹', confirm: true, confirmText: T('fw.field.clearConfirm'), busyNote: T('fw.field.busy') })));
+      return;
     }
-    if (m.well) body.append(h('p', { class: 'hud-line hud-line--muted' }, T('fw.field.wellOn', { v: m.well })));
-    // Perennial tree (coffee-varieties.md §2b): its age in seasons; an old tree is cut back (cưa đốn) or replaced.
-    if (crop) {
-      const life = crop.life || 0;
-      body.append(h('p', { class: `hud-line${m.old ? ' hud-line--bad' : ' hud-line--muted'}` },
-        m.old ? T('hud.tree.old', { n: m.age, pct: Math.round(PERENNIAL.oldYield * 100) })
-          : m.age === 0 ? T(m.stage === 'ready' ? 'hud.tree.firstRipe' : m.pruned ? 'hud.tree.regrow' : 'hud.tree.young') : T('hud.tree.age', { n: m.age, left: Math.max(0, life - m.age) })));
-      if (m.health) { // how the tree is really doing: survival share and what one harvest gives
-        body.append(h('div', { class: 'hud-treehealth' },
-          h('p', { class: 'hud-line' }, `🌿 ${T('hud.tree.survival', { pct: m.health.survival })}`),
-          h('div', { class: 'hud-xpbar hud-health-bar', attrs: { role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(m.health.survival) } }, h('span', { style: { width: `${m.health.survival}%` } })),
-          h('p', { class: 'hud-line' }, `🫘 ${T('hud.tree.yield', { n: m.health.beansMax > m.health.beans ? `${m.health.beans}–${m.health.beansMax}` : m.health.beans })}`)));
-      }
-      const tools = [];
-      if (m.old) tools.push(actionButton({ id: 'treePrune', label: T('hud.tree.prune'), icon: '🪚', cost: m.prune, tone: 'gold', disabled: !m.coinsOk || m.stage === 'ready',
-        note: m.stage === 'ready' ? T('hud.tree.pickFirst') : !m.coinsOk ? needMore(m.prune - Math.floor(s.player.coins)) : null,
-        onClick: () => { if (ctx.blockedByAuto?.()) return; ctx.act('farm/prune', { plotId: m.id }); } }));
-      tools.push(actionButton({ id: 'treeUproot', label: T('hud.tree.uproot'), icon: '🪓', tone: 'plain',
-        onClick: async () => {
-          if (ctx.blockedByAuto?.()) return;
-          const yes = await ctx.confirm({ title: T('hud.tree.uprootTitle', { crop: T(`crop.${crop.id}`) }), body: T('hud.tree.uprootBody', { n: m.age }), confirmLabel: T('hud.tree.uproot') });
-          if (yes) ctx.act('farm/uproot', { plotId: m.id });
-        } }));
-      body.append(h('div', { class: 'hud-row' }, ...tools));
-    }
-    // Field tools: Move (keeps a growing crop) · Clear (only empty fields; always two taps, "Clear field?" first).
-    body.append(h('div', { class: 'hud-row hud-row--tools' },
-      actionButton({ id: 'fieldMove', label: T('fw.field.move'), icon: '✥', tone: 'plain',
-        onClick: () => { if (ctx.blockedByAuto?.()) return; ctx.clearSelection(); ctx.realm?.startPlacement?.('field', { uid: m.id }); } }),
-      removeButton(m.id, m, { label: T('fw.field.clear'), icon: '🧹', confirm: true, confirmText: T('fw.field.clearConfirm'), busyNote: T('fw.field.busy') })));
+    const time = h('span'), fill = h('u');
+    const bar = h('button', { type: 'button', class: 'hud-pan-info', attrs: { 'aria-label': T('hud.plot.detail') }, on: { click: details } }, art, h('div', null, name, h('div', { class: 'ui-bar is-large' }, fill, time)));
+    body.append(bar, h('div', { class: 'hud-pan-tools' },
+      iconAction('plotWater', '💧', T('hud.tree.water'), () => { if (ctx.blockedByAuto?.()) return; ctx.act('farm/water', { plotId: m.id }); }, { disabled: m.watered }),
+      iconAction('plotInfo', '🌳', T('hud.plot.detail'), details),
+      iconAction('treeUproot', '✕', T('hud.tree.uproot'), async () => {
+        if (ctx.blockedByAuto?.()) return;
+        const yes = await ctx.confirm({ title: T('hud.tree.uproot'), body: T('hud.tree.uprootBody', { n: m.age }), confirmLabel: T('hud.tree.uproot'), danger: true, art: { model: `farm/coffee-tree-${TREE_ART[m.crop] || 'gedeo'}.glb#tree`, trueScale: 1 } });
+        if (yes) ctx.act('farm/uproot', { plotId: m.id });
+      })));
+    countdown = { el: time, plotId: m.id, bar: fill };
+    updateCountdown(s);
   }
 
   // Empty owned land: Field / Build / Decor (what the terrain does not allow is greyed out).
@@ -372,39 +357,19 @@ export function createActionBar(ctx) {
   function buildingCard(m) {
     const def = BUILDINGS[m.type], st = m.store, max = def.decor ? 1 : def.upgrade.length + 1, level = m.level;
     el.classList.add('is-wide');
-    title.replaceChildren(`${def.icon} ${T(`building.${m.type}`)}`, def.decor ? '' : h('span', { class: 'hud-title-lv' }, T('fw.building.lv', { level, max: Math.min(m.cap, max) })));
-    const icon = h('span', { class: 'hud-silo-ico', attrs: { 'aria-hidden': 'true' } }, def.icon);
-    modelIcon(def).then(url => { if (!url) return; const img = Object.assign(document.createElement('img'), { src: url, alt: '', draggable: false }); img.className = 'hud-card-model'; icon.classList.add('has-model'); icon.replaceChildren(img); });
-    let info;
-    if (st) { // storage: how full it is
-      const full = st.cap > 0 && st.stored >= st.cap, pct = st.cap > 0 ? Math.min(100, Math.round(st.stored / st.cap * 100)) : 0;
-      info = h('div', { class: 'hud-silo-fill' },
-        h('strong', { class: full ? 'is-bad' : '' }, T('hud.silo.items', { n: fmt(st.stored), max: fmt(st.cap) })),
-        h('div', { class: `hud-xpbar hud-capbar${full ? ' is-full' : ''}`, attrs: { role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': String(st.cap), 'aria-valuenow': String(st.stored) } }, h('span', { style: { width: `${pct}%` } })),
-        h('small', null, full ? T('hud.storage.explainFull') : T('hud.silo.room')));
-    } else {
-      info = h('div', { class: 'hud-silo-fill' }, h('strong', null, T(`building.${m.type}`)),
-        h('small', null, def.decor ? (has(`fw.desc.${m.type}`) ? T(`fw.desc.${m.type}`) : T('fw.desc.decor')) : buildingEffect(m.type, level, false)));
-    }
-    const top = h('div', { class: 'hud-silo-top' }, h('div', { class: 'hud-silo-left' }, icon, info));
+    title.replaceChildren();
+    const tip = st ? T('hud.silo.items', { n: fmt(st.stored), max: fmt(st.cap) }) : def.decor ? (has(`fw.desc.${m.type}`) ? T(`fw.desc.${m.type}`) : T('fw.desc.decor')) : buildingEffect(m.type, level, false);
+    body.append(h('div', { class: 'hud-pan-head', attrs: { title: tip } }, artSquare(def.icon, def), h('div', null, h('strong', { class: 'hud-pan-name' }, T(`building.${m.type}`)), def.decor ? null : h('span', { class: 'ui-pill' }, `Lv ${Math.min(level, max)}`))));
     if (!def.decor) {
-      const cap = lv => (Array.isArray(def.effect?.capacity) ? def.effect.capacity[Math.min(def.effect.capacity.length, lv) - 1] : 0) || 0;
-      const upBox = h('div', { class: 'hud-silo-up' });
-      if (m.err === 'maxLevel') upBox.append(h('strong', null, T('hud.maxLevel')));
-      else {
-        const gain = st ? T('hud.silo.upTitle', { n: level + 1, add: cap(level + 1) - cap(level) }) : T('hud.bld.upTitle', { n: level + 1 });
-        upBox.append(...[h('strong', null, gain), st ? null : h('small', null, buildingEffect(m.type, level, true))].filter(Boolean),
-          actionButton({ id: 'upgrade', label: T('fw.building.upTo', { level: level + 1 }), icon: '⬆️', cost: m.cost, tone: 'go', disabled: m.err === 'coins', note: m.err === 'coins' ? needMore(m.cost - Math.floor(ctx.store.state.player.coins)) : null, onClick: () => ctx.act('build/upgrade', { uid: m.uid }) }));
-      }
-      top.append(upBox);
-    } else top.classList.add('is-solo');
-    body.append(top);
+      if (m.err === 'maxLevel' || m.err === 'roundCap') body.append(h('div', { class: 'hud-pan-go' }, h('span', { class: 'ui-pill' }, T(m.err === 'maxLevel' ? 'hud.maxLevel' : 'hud.maxForRound'))));
+      else body.append(h('div', { class: 'hud-pan-go' }, actionButton({ id: 'upgrade', label: T('hud.upgrade'), cost: m.cost, tone: 'go', disabled: m.err === 'coins', note: m.err === 'coins' ? needMore(m.cost - Math.floor(ctx.store.state.player.coins)) : null, onClick: () => ctx.act('build/upgrade', { uid: m.uid }) })));
+    }
     if (m.prod) body.append(prodBlock(m));
-    if (st) body.append(storeBlock(m, { bare: true }));
+    if (st) body.append(h('div', { class: 'hud-pan-go' }, actionButton({ id: 'sellBeans', label: T('hud.sheet.sell'), tone: 'gold', onClick: () => { ctx.clearSelection(); ctx.onTool('sell'); } })));
     if (m.seats) body.append(h('p', { class: 'hud-line' }, T('hud.seats.line', { n: m.seats.used, max: m.seats.seats })));
-    const tools = h('div', { class: 'hud-row hud-row--tools' });
-    if (!def.fixed) tools.append(actionButton({ id: 'move', label: T('hud.move'), icon: '✥', tone: 'plain', onClick: () => { if (ctx.blockedByAuto?.()) return; ctx.clearSelection(); ctx.realm?.startPlacement?.(m.type, { uid: m.uid }); } }));
-    const rm = removeButton(m.uid, m, { label: T('fw.building.remove'), icon: '🗑️', confirm: true, busyNote: T('fw.building.busy') });
+    const tools = h('div', { class: 'hud-pan-pair' });
+    if (!def.fixed) tools.append(actionButton({ id: 'move', label: T('hud.move'), tone: 'plain', onClick: () => { if (ctx.blockedByAuto?.()) return; ctx.clearSelection(); ctx.realm?.startPlacement?.(m.type, { uid: m.uid }); } }));
+    const rm = removeButton(m.uid, m, { label: T('fw.building.remove'), confirm: true, busyNote: T('fw.building.busy') });
     if (rm) tools.append(rm);
     if (tools.childNodes.length) body.append(tools);
   }
@@ -481,6 +446,7 @@ export function createActionBar(ctx) {
     if (!countdown) return;
     const st = plotState(s, countdown.plotId, Date.now());
     setText(countdown.el, clock(st.remainingMs));
+    if (countdown.bar) countdown.bar.style.width = `${Math.round((st.ratio || 0) * 100)}%`;
   }
   function updateProd(s) {
     if (!prodLive) return;

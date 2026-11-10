@@ -8,6 +8,9 @@ import { getLang, LANGS, t } from '../i18n/index.js';
 
 const BUSES = ['master', 'music', 'ambience', 'sfx', 'ui'];
 const QUALITY = ['low', 'medium', 'high'];
+const VOLUMES = [['master', 'settings.vol.master'], ['music', 'settings.vol.music'], ['sfx', 'settings.vol.sfx']];
+const volOf = id => { const v = settings[id]; return Number.isFinite(v) ? v : 1; };
+function applyVolumes() { for (const [id] of VOLUMES) setVolume(id, volOf(id)); setVolume('ambience', volOf('music')); setVolume('ui', volOf('sfx')); } // one slider drives music + ambience, one drives effects + UI
 
 let dialog = null;
 let settings = null;
@@ -29,11 +32,12 @@ function persist() {
 }
 
 function render() {
-  $('[data-mute]').setAttribute('aria-checked', String(settings.muted));
-  $('[data-autofocus]').setAttribute('aria-checked', String(settings.autoFocus !== false));
-  $('[data-lang-select]').value = getLang();
+  const focusOn = settings.autoFocus !== false;
+  $('[data-autofocus]').setAttribute('aria-checked', String(focusOn));
+  $('[data-autofocus]').textContent = t(focusOn ? 'settings.on' : 'settings.off');
+  for (const b of dialog.querySelectorAll('[data-lang]')) b.setAttribute('aria-pressed', String(b.dataset.lang === getLang()));
+  for (const input of dialog.querySelectorAll('[data-vol]')) { const v = Math.round((settings.muted ? 0 : volOf(input.dataset.vol)) * 100); input.value = String(v); input.parentElement.style.setProperty('--v', `${v}%`); }
   for (const tab of dialog.querySelectorAll('[data-quality]')) tab.setAttribute('aria-pressed', String(tab.dataset.quality === getQuality()));
-  $('[data-quality-desc]').textContent = t(`settings.quality.${getQuality()}.desc`);
   const saved = readProgress();
   $('[data-reset]').hidden = !(canResetHandler ? canResetHandler() : (saved.introCompleted || saved.farm));
 }
@@ -45,23 +49,16 @@ function template() {
       <button type="button" class="ui-close" aria-label="${t('common.close')}">×</button>
       <div class="ui-modal__body">
         <p class="ui-alert ui-alert--warn" data-warn hidden></p>
-        <h3>🌐 ${t('settings.language')}</h3>
-        <label class="ui-row ui-row--select">
-          <select class="ui-select" data-lang-select aria-label="${t('settings.language')}">
-            ${LANGS.map(id => `<option value="${id}" lang="${id}">${t(`settings.lang.${id}`)}</option>`).join('')}
-          </select>
-        </label>
-        <p class="ui-modal__subtitle">${t('settings.language.note')}</p>
-        <h3>🔊 ${t('settings.audio')}</h3>
-        <div class="ui-row"><span id="game-settings-muted">${t('settings.mute')}</span><button type="button" class="ui-switch" role="switch" data-mute aria-labelledby="game-settings-muted"></button></div>
-        <h3>🎥 ${t('settings.camera')}</h3>
-        <div class="ui-row"><span id="game-settings-autofocus">${t('settings.autoFocus')}</span><button type="button" class="ui-switch" role="switch" data-autofocus aria-labelledby="game-settings-autofocus"></button></div>
-        <p class="ui-modal__subtitle">${t('settings.autoFocus.note')}</p>
-        <h3>🖼️ ${t('settings.graphics')}</h3>
-        <div class="ui-tabs ui-tabs--segmented" role="group" aria-label="${t('settings.graphicsQuality')}">
-          ${QUALITY.map(id => `<button type="button" class="ui-tab" data-quality="${id}">${t(`settings.quality.${id}`)}</button>`).join('')}
+        <div class="set-panel">
+          <div class="set-langs" role="group" aria-label="${t('settings.language')}">
+            ${LANGS.map(id => `<button type="button" class="set-lang" lang="${id}" data-lang="${id}">${t(`settings.lang.${id}`)}</button>`).join('')}
+          </div>
+          ${VOLUMES.map(([id, label]) => `<label class="set-row"><i class="set-ico set-ico--sound" aria-hidden="true"></i><span class="set-vol"><input type="range" min="0" max="100" step="5" data-vol="${id}" aria-label="${t(label)}"><u></u><b>${t(label)}</b></span></label>`).join('')}
+          <div class="set-row"><i class="set-ico set-ico--camera" aria-hidden="true"></i><span class="set-name" id="game-settings-autofocus">${t('settings.autoFocus')}</span><button type="button" class="set-toggle" role="switch" data-autofocus aria-labelledby="game-settings-autofocus"></button></div>
+          <div class="set-row" role="group" aria-label="${t('settings.graphicsQuality')}"><i class="set-ico set-ico--screen" aria-hidden="true"></i>
+            ${QUALITY.map(id => `<button type="button" class="set-q" data-quality="${id}">${t(`settings.quality.${id}`)}</button>`).join('')}
+          </div>
         </div>
-        <p class="ui-modal__subtitle" data-quality-desc></p>
         <section class="settings-reset" data-reset hidden>
           <h3>🔄 ${t('settings.progress')}</h3>
           <!-- Founder: one tap restarts straight from the first screen (character select), no confirm step. -->
@@ -82,12 +79,17 @@ function bind() {
     persist();
     window.dispatchEvent(new CustomEvent('godbean:autofocus', { detail: settings.autoFocus })); // the realm listens
   });
-  $('[data-mute]').addEventListener('click', () => {
-    settings.muted = !settings.muted;
-    setMuted(settings.muted);
-    render();
-    persist();
-  });
+  for (const input of dialog.querySelectorAll('[data-vol]')) {
+    input.addEventListener('input', () => {
+      if (settings.muted) { settings.muted = false; setMuted(false); }
+      settings[input.dataset.vol] = Number(input.value) / 100;
+      if (input.dataset.vol === 'music') settings.ambience = settings.music;
+      if (input.dataset.vol === 'sfx') settings.ui = settings.sfx;
+      applyVolumes();
+      render();
+    });
+    input.addEventListener('change', persist);
+  }
 
   for (const tab of dialog.querySelectorAll('[data-quality]')) {
     tab.addEventListener('click', () => {
@@ -102,11 +104,11 @@ function bind() {
   }
 
   // Ngôn ngữ cố định trong một lần tải trang (docs/design/godbean-gdd.md §13.6): lưu rồi tải lại. Tiến trình đã được lưu sau mỗi thao tác.
-  $('[data-lang-select]').addEventListener('change', event => {
-    const lang = event.target.value;
+  for (const button of dialog.querySelectorAll('[data-lang]')) button.addEventListener('click', () => {
+    const lang = button.dataset.lang;
     if (lang === getLang()) return;
     // Chỉ đổi bản trong bộ nhớ khi ghi được, để persist() sau này không lén lưu ngôn ngữ chưa áp dụng.
-    if (!saveSettings({ ...settings, lang })) { event.target.value = getLang(); warn('settings.saveFailed'); return; }
+    if (!saveSettings({ ...settings, lang })) { warn('settings.saveFailed'); return; }
     settings.lang = lang;
     location.reload();
   });
@@ -129,6 +131,7 @@ export function mountSettings({ onOpen, onReset, canReset } = {}) {
   // Thanh âm lượng đã bỏ khỏi giao diện; mức đã lưu (hoặc mặc định) vẫn được áp.
   for (const bus of BUSES) setVolume(bus, settings[bus]);
   setMuted(settings.muted);
+  applyVolumes();
   setQuality(settings.quality);
 
   dialog = document.createElement('dialog');

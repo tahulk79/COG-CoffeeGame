@@ -24,7 +24,7 @@ export function createPlacementBar(ctx) {
   const cancel = round('is-cancel', '✕', T('hud.place.cancel'), () => ctx.realm?.cancelPlacement?.());
   const rotate = round('is-rotate', '↻', T('hud.place.rotate'), () => ctx.realm?.rotatePlacement?.());
   const ok = round('is-ok', '✓', T('hud.place.confirm'), confirm, 'hud-place-ok');
-  const el = h('div', { class: 'hud-place', hidden: true }, h('div', { class: 'hud-place-info' }, h('span', { class: 'hud-place-head' }, name, price), reason), h('div', { class: 'hud-place-btns' }, cancel, ok));
+  const el = h('div', { class: 'hud-place', hidden: true }, h('div', { class: 'hud-place-info' }, h('span', { class: 'hud-place-head' }, name, price), reason), h('div', { class: 'hud-place-btns' }, cancel, rotate, ok));
   // The tapped plant's quick bar: 💧 water · 🪚 prune · 👁 details — one UI family (same round buttons, same line icons).
   // A button lights up in its colour when the plant needs it, and stays dim otherwise.
   const SVG = {
@@ -131,12 +131,13 @@ export function createPlacementBar(ctx) {
     if (!p) return;
     const def = defOf(p.type);
     setText(name, `${def?.icon || ''} ${T(`building.${p.type}`)}`);
-    rotate.hidden = true; // only ✕ and ✓ (founder 2026-11-08)
+    rotate.hidden = false; // cancel, rotate, place: the three buttons of the game design
     price.replaceChildren(p.uid ? T('hud.move') : coinAmount(cost || 0)); // coinAmount(0) reads 'Free'
     price.classList.toggle('is-move', !!p.uid);
     const why = p.error === 'onField' && p.type === 'field' ? T('fw.place.plantHere') : p.error === 'onField' && p.fieldsUnder > 0 ? T('fw.place.clearFields', { n: p.fieldsUnder }) : errorText(p.error || 'blocked');
     setText(reason, el.classList.contains('is-docked') ? T('hud.place.back') : p.valid && p.warn ? errorText(p.warn) : p.valid ? T('hud.place.hint') : p.noRoom ? T(p.noRoom) : why);
     reason.classList.toggle('is-bad', !p.valid || !!p.warn);
+    reason.classList.toggle('is-quiet', p.valid && !p.warn && !el.classList.contains('is-docked')); // nothing to say: the green grid says it
     ok.disabled = !p.valid;
     ok.setAttribute('aria-disabled', String(!p.valid));
     follow(p);

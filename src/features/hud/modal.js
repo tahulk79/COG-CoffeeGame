@@ -3,6 +3,7 @@ import { h } from './dom.js';
 import { T } from './text.js';
 import { coinAmount } from './widgets.js';
 import { mascot } from './mascot.js';
+import { modelIcon } from './model-icons.js';
 
 export function createModals(ctx) {
   const layer = h('div', { class: 'hud-modal-layer', hidden: true });
@@ -32,12 +33,14 @@ export function createModals(ctx) {
   }
 
   /** @returns {Promise<boolean>} */
-  function confirm({ title = '', body = '', cost, costLabel, confirmLabel, cancelLabel } = {}) {
+  function confirm({ title = '', body = '', cost, costLabel, confirmLabel, cancelLabel, danger = false, art = null } = {}) {
     const cancel = h('button', { type: 'button', class: 'hud-btn hud-btn--plain', on: { click: () => active?.close(false) } }, h('span', { class: 'hud-btn-main' }, cancelLabel || T('hud.cancel')));
-    const ok = h('button', { type: 'button', class: 'hud-btn hud-btn--go', on: { click: () => active?.close(true) } }, h('span', { class: 'hud-btn-main' }, confirmLabel || T('hud.confirm')));
+    const ok = h('button', { type: 'button', class: `hud-btn ${danger ? 'hud-btn--danger' : 'hud-btn--go'}`, on: { click: () => active?.close(true) } }, h('span', { class: 'hud-btn-main' }, confirmLabel || T('hud.confirm')));
+    const hero = art ? h('div', { class: 'ui-hero', attrs: { 'aria-hidden': 'true' } }) : null;
+    if (art) modelIcon(art).then(url => { if (!url) return; hero.append(Object.assign(document.createElement('img'), { src: url, alt: '', draggable: false })); });
     const costLine = cost != null ? h('p', { class: 'hud-confirm-cost' }, T('hud.costLine'), ' ', coinAmount(cost)) : costLabel ? h('p', { class: 'hud-confirm-cost' }, costLabel) : null;
-    const card = h('div', { class: 'hud-confirm', attrs: { role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': 'hud-confirm-title', 'aria-describedby': 'hud-confirm-body' } },
-      h('h2', { id: 'hud-confirm-title' }, title), h('p', { id: 'hud-confirm-body' }, body), costLine, h('div', { class: 'hud-confirm-actions' }, cancel, ok));
+    const card = h('div', { class: `hud-confirm${art ? ' has-art' : ''}`, attrs: { role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': 'hud-confirm-title', 'aria-describedby': 'hud-confirm-body' } },
+      h('h2', { id: 'hud-confirm-title' }, title), hero, body ? h('p', { id: 'hud-confirm-body' }, body) : null, costLine, h('div', { class: 'hud-confirm-actions' }, cancel, ok));
     const scrim = h('div', { class: 'hud-scrim', on: { click: () => active?.close(false) } });
     const promise = open(h('div', { class: 'hud-modal' }, scrim, card), (e, done) => {
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(false); }
@@ -107,7 +110,7 @@ export function createModals(ctx) {
    * { items, prize } → the box opens and shows what was inside → "Collect" closes. Resolves true once collected.
    */
   const ITEM_ICON = { coins: '🪙', beans: '🫘', hireTicket: '🎟️', autoRun: '🤖' };
-  function gift({ level, chest = false, onOpen } = {}) {
+  function gift({ level, chest = false, onOpen, autoOpen = false } = {}) {
     const box = h('div', { class: `hud-gift-box${chest ? ' is-chest' : ''}`, attrs: { 'aria-hidden': 'true' } },
       h('span', { class: 'hud-gift-glow' }), h('span', { class: 'hud-gift-lid' }), h('span', { class: 'hud-gift-base' }), h('span', { class: 'hud-gift-ribbon' }));
     const title = h('h2', { id: 'hud-gift-title' }, T(chest ? 'hud.gift.chestTitle' : 'hud.gift.title', { level }));
@@ -135,6 +138,7 @@ export function createModals(ctx) {
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); }
     });
     btn.focus({ preventScroll: true });
+    if (autoOpen) btn.click(); // the box was already tapped in the gift list
     return promise;
   }
 

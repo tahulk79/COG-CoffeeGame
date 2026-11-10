@@ -17,12 +17,17 @@ import { createStore } from '../core/store.js';
 import { WALLET } from '../core/config/economy.js';
 import { captureThumb } from '../features/finance/thumbs.js';
 import '../ui/styles/game-ui.css';
+import '../ui/styles/skin/base.css';
+import { installDragScroll } from '../ui/drag-scroll.js';
 import { CAFE_ENABLED } from '../core/config/world.js';
 import { START, STAFF } from '../core/config/economy.js';
 import { followerCandidate, followerWage } from '../core/derive.js';
 import { loadPlayer, playerModel } from '../characters/load-player.js';
 import { V3_KEY, PROGRESS_KEY, PLAYER_KEY, DEV_PROFILE } from '../state/storage-keys.js';
 import pkg from '../../package.json';
+import '../ui/styles/skin/system.css';
+
+installDragScroll();
 
 const INTRO_MODELS = {
   'intro/reaper': 'heaven/reaper.glb',
@@ -49,6 +54,7 @@ const legacyPlayer = readPlayer();
 // The character in the V3 save wins; the v1 player key is only a default for the selection screen.
 const profile = { gender: store.state.character?.gender ?? legacyPlayer.gender, name: store.state.character?.name || legacyPlayer.name || DEFAULT_NAME };
 setLoadingRunner(profile.gender); // the loading runner looks like the player's character
+document.body.dataset.gender = profile.gender || 'female'; // speaker portraits
 const countryOf = regionId => (typeof regionId === 'string' ? regionId.slice(0, 2) : null);
 initAnalytics({
   appVersion: pkg.version, platform: detectPlatform(Math.min(window.innerWidth, window.innerHeight), usesTouch()),
@@ -186,12 +192,16 @@ async function enterSelection() {
   mode = 'selection';
   startLoop();
 }
+const previewName = {}; // the random name on the hero plate, kept when the hero is chosen
 // Male stands left, female right: only show the arrow pointing at the other one.
 function showGender(gender) {
   profile.gender = gender;
+  document.body.dataset.gender = gender;
   setLoadingRunner(gender);
-  document.querySelector('.selection-arrow--prev').hidden = gender === 'male';
-  document.querySelector('.selection-arrow--next').hidden = gender === 'female';
+  document.querySelector('.selection-arrow--prev').hidden = false;
+  document.querySelector('.selection-arrow--next').hidden = false;
+  previewName[gender] ??= randomName(gender) || DEFAULT_NAME;
+  $('sel-plate').textContent = previewName[gender];
 }
 async function enterGame(event) {
   event.preventDefault();
@@ -199,7 +209,7 @@ async function enterGame(event) {
   mode = 'transition';
   track('play_clicked');
   track('game_started', { resumed: false, screen: 'intro' });
-  profile.name = randomName(profile.gender) || DEFAULT_NAME; // no name field: a random name for the language + gender
+  profile.name = previewName[profile.gender] || randomName(profile.gender) || DEFAULT_NAME; // no name field: the name shown on the plate
   savePlayer({ gender: profile.gender, name: profile.name }); // v1 key kept for compatibility
   store.dispatch('character/set', { gender: profile.gender, name: profile.name });
   $('selection').hidden = true;

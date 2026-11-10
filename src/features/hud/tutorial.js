@@ -90,6 +90,7 @@ export function createTutorial(ctx) {
   // Decides the tip + pointer target for the current step. Runs ~5×/s (and on store changes), not every frame.
   function resolve() {
     const s = ctx.store.state;
+    tip.classList.remove('is-say');
     // Auto play: the tutorial pauses; the same tip bubble + tap hand narrate what the autopilot does.
     const auto = ctx.isAuto?.() && ctx.isPlaying() ? ctx.realm?.autoStatus : null;
     skip.hidden = !!auto;
@@ -110,6 +111,7 @@ export function createTutorial(ctx) {
     const fr = region(s);
     if (ctx.isPlaying() && fr && fr.mode !== 'cafe' && !(fr.fields || []).length && !ctx.modals.open && !ctx.sheet.openId && !ctx.realm?.placement && !ctx.realm?.planting) {
       skip.hidden = true; // a one-line hint, not the tutorial: nothing to skip (it goes once the first field is placed)
+      tip.classList.add('is-say');
       setTip(T('hud.hint.firstField')); setWorld(null);
       setUi(document.querySelector('#hud-btn-build'));
       return;

@@ -29,6 +29,7 @@ import { WALLET } from '../../core/config/economy.js';
 import { formatNumber } from '../../i18n/index.js';
 import './atlas.css';
 import './atlas-account.css';
+import '../../ui/styles/skin/atlas.css';
 
 const BOUNDS = { minX: -13, maxX: 14, minZ: -8, maxZ: 5 };
 const ZOOM = { min: 5, max: 22 };
@@ -190,7 +191,7 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
       const games = countryGames(entry.id), gameText = games.map(g => t(`hud.mode.${g}`)).join(' + ');
       pin.dataset.games = games.join(' ');
       pin.replaceChildren(el('span', 'atlas-pin-icon', icon), el('span', 'atlas-pin-name', name),
-        el('span', 'atlas-pin-games', games.map(g => GAME_ICON[g]).join('')), ...(extra ? [el('small', 'atlas-pin-extra', extra)] : []), ...(status.trouble ? [el('i', 'atlas-pin-alert')] : []));
+        ...(status.trouble ? [el('i', 'atlas-pin-alert')] : [])); // the label is only a name: prices and gold live in the tray
       pin.dataset.trouble = status.trouble ? '1' : '';
       pin.setAttribute('aria-label', [name, gameText, extra].filter(Boolean).join(' · '));
     }
@@ -200,8 +201,8 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
     title.textContent = t(`atlas.title.${mode}`);
     root.dataset.mode = mode;
     close.hidden = mode !== 'play';
-    hint.hidden = Boolean(selected);
     const s = state(), o = s.world.ownedRegions.length ? overview(s, Date.now()) : null;
+    hint.hidden = Boolean(selected) || Boolean(o);
     account.hidden = !o;
     if (o) {
       lvEl.textContent = String(levelProgress(s).level);
@@ -217,65 +218,38 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
     row.dataset.region = regionId;
     const info = el('div', 'atlas-region-info');
     info.append(el('strong', 'atlas-region-name', t(`regionName.${regionId}`)));
-    // What this city can be played as: 🌱 farm, ☕ café, or both (Kunming farms while the rest of China is café-only).
-    const games = cityOf(regionId).games; // all the city is meant to offer: the café stays visible, marked as updating
-    // Played already: show the game it was opened as (it stays that game); otherwise the games it offers.
-    if (saved?.mode) info.append(el('span', `atlas-chip is-games is-chosen is-${saved.mode}`, `${GAME_ICON[saved.mode]} ${t(`atlas.play.${saved.mode}`)}`));
-    else if (saved) info.append(el('span', 'atlas-chip is-games', games.map(g => GAME_ICON[g]).join(''))); // new cities: the buttons say it
-    let chip = null, action = null, note = null;
-    // A city with no game yet gets one button per game it offers (🌱 Farm / ☕ Café): the tap opens it as that game,
-    // so there is no "what do you want to play?" question after entering.
-    const pickGame = !saved?.mode;
-    // A brand-new player (no city yet): the first city's buttons pulse so the choice is obvious.
-    const hint = !s.world.ownedRegions.length && regionId === regionsOfCountry(countryOfRegion(regionId))[0];
+    // The card answers one question: what do you play here? A city not started yet offers its games; a started one keeps its game.
+    const games = saved?.mode ? [saved.mode] : cityOf(regionId).games;
+    const isOff = g => g === 'cafe' && !CAFE_ENABLED; // switched off for now: shown locked, cannot be pressed
+    const hint = !s.world.ownedRegions.length && regionId === regionsOfCountry(countryOfRegion(regionId))[0]; // first city pulses for a new player
     const gameButtons = (cls, onPick) => {
       const wrap = el('div', 'atlas-actions');
       for (const g of games) {
-        // Two lines: "🌱 Farm" + what you do there ("Grow & sell beans").
-        const off = g === 'cafe' && !CAFE_ENABLED;
-        const b = button('', `${cls} atlas-enter atlas-game is-${g}${hint ? ' is-hint' : ''}${off ? ' is-updating' : ''}`, () => onPick(g));
-        b.append(el('span', 'atlas-game-ico', GAME_ICON[g]), el('span', 'atlas-game-title', off ? t('atlas.updating') : t(`atlas.play.${g}`)));
-        b.setAttribute('aria-label', `${t(`atlas.play.${g}`)} · ${t(`atlas.play.${g}Sub`)} · ${t(`regionName.${regionId}`)}`);
+        const off = isOff(g);
+        const b = button('', `${off ? 'ui-btn--plain' : cls} atlas-enter atlas-game is-${g}${hint && !off ? ' is-hint' : ''}`, () => onPick(g));
+        b.append(el('span', 'atlas-game-ico', off ? '🔒' : GAME_ICON[g]), el('span', 'atlas-game-title', t(`atlas.play.${g}`)));
+        b.disabled = off;
+        b.setAttribute('aria-label', `${t(`atlas.play.${g}`)} · ${off ? t('atlas.updating') : t(`atlas.play.${g}Sub`)} · ${t(`regionName.${regionId}`)}`);
         wrap.append(b);
       }
       return wrap;
     };
+    const stateTag = (kind, text) => { const wrap = el('div', 'atlas-actions'); wrap.append(el('span', `atlas-state is-${kind}`, text)); return wrap; };
+    let chip, action;
     if (!access.ok && access.reason === 'locked') {
-      // Not opened yet: price chip + Open (disabled with "need X more" when the player cannot pay).
       chip = ['price', access.free ? `🎁 ${t('atlas.free')}` : coinText(access.cost)];
-      const cls = access.free ? 'ui-btn--go' : 'ui-btn--gold';
-      action = gameButtons(`${cls} atlas-open`, g => ask(regionId, g));
-      if (!access.affordable) { action.querySelectorAll('button').forEach(b => { b.disabled = true; }); note = t('atlas.needMore', { n: access.missing }); }
+      action = gameButtons(access.free ? 'ui-btn--go' : 'ui-btn--gold', g => ask(regionId, g));
+      if (!access.affordable) action.querySelectorAll('button').forEach(b => { b.disabled = true; });
+      if (!games.every(isOff)) info.append(el('span', 'atlas-chip is-price', chip[1])); // no price on a city nothing can be played in yet
     } else if (!access.ok) {
-      chip = ['expired', t('atlas.chip.expired')]; note = t('atlas.expiredNote');
+      chip = ['expired', t('atlas.chip.expired')]; action = stateTag('expired', chip[1]);
     } else if (access.current) {
-      chip = ['current', t('atlas.here')];
+      chip = ['current', t('atlas.here')]; action = stateTag('current', chip[1]);
     } else {
-      chip = access.expired ? ['expired', t('atlas.chip.expired')] : saved ? ['visited', t('atlas.chip.visited')] : ['new', t('atlas.chip.new')];
-      action = pickGame ? gameButtons('ui-btn--go', g => enter(regionId, g)) : button(`➜ ${t('atlas.go')}`, 'ui-btn--go atlas-enter', () => enter(regionId));
+      chip = [access.expired ? 'expired' : saved ? 'visited' : 'new'];
+      action = gameButtons('ui-btn--go', g => enter(regionId, saved?.mode ? null : g));
     }
-    info.append(el('span', `atlas-chip is-${chip[0]}`, chip[1]));
-    // An owned farm shows its money and health here; the full card opens on tap, so the map stays uncovered.
-    if (saved && ownsRegion(s, regionId) && saved.status !== 'expired') {
-      const card = farmCard(s, regionId, Date.now()), p = card.period;
-      const line = el('div', 'atlas-farm-line'), gold = el('span', 'atlas-farm-gold');
-      gold.append(svg('gold'), formatNumber(Math.round(card.gold)));
-      line.append(gold, el('span', `atlas-farm-profit ${p.profit < 0 ? 'is-bad' : p.profit > 0 ? 'is-good' : ''}`, p.hasData ? `${p.profit > 0 ? '+' : p.profit < 0 ? '−' : ''}${formatNumber(Math.abs(Math.round(p.profit)))}` : '—'), el('span', `atlas-farm-status is-${card.status}`, t(`fin.status.${card.status}`)));
-      info.append(line);
-      if (card.alerts[0]) {
-        const a = card.alerts[0], warn = el('button', 'atlas-farm-alert', t(`fin.alert.${a.kind}${a.what ? `.${a.what}` : ''}`, { farm: t(`regionName.${regionId}`), n: a.minutes ?? formatNumber(a.missing ?? a.loss ?? 0) }));
-        warn.type = 'button'; warn.addEventListener('click', event => { event.stopPropagation(); onFinance?.(a.go === 'fund' ? 'fund' : 'farm', regionId); }, { signal });
-        info.append(warn);
-      }
-      const wrap = el('div', 'atlas-farm-actions');
-      if (action) wrap.append(action);
-      wrap.append(button(t('atlas.fund'), 'ui-btn--gold ui-btn--sm', () => onFinance?.('fund', regionId)), button(t('atlas.info'), 'ui-btn--plain ui-btn--sm', () => onFinance?.('farm', regionId)));
-      action = wrap;
-    }
-    if (hasKey(`city.${regionId}.vibe`)) info.append(el('small', 'atlas-region-vibe', `☕ ${t(`city.${regionId}.vibe`)}`));
-    if (note) info.append(el('small', 'atlas-region-note', note));
-    row.append(info);
-    if (action) row.append(action);
+    row.append(info, action);
     row.dataset.state = chip[0];
     if (confirming === regionId) {
       const cost = regionAccess(s, regionId).cost;
@@ -290,7 +264,6 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
   function renderSheet() {
     renderHeader();
     if (!selected) { sheet.hidden = true; return; }
-    const status = statusOf(selected);
     sheet.hidden = false; sheet.replaceChildren();
     sheet.setAttribute('aria-label', t(`country.${selected}`));
     const head = el('div', 'atlas-sheet-head');
@@ -299,28 +272,17 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
     back.addEventListener('click', event => { event.stopPropagation(); select(null); }, { signal });
     head.append(back);
     sheet.append(head);
-    // Short and in one box (less scrolling): each city is ONE game picked on its buttons and kept; what each game is;
-    // and, until it has happened, the Level-10 incident. The coin note only for countries you already own.
-    if (status.owned) sheet.append(el('p', 'atlas-note', t('atlas.note.owned')));
-    const offered = countryGames(selected), st = state();
-    const how = el('div', 'atlas-howto');
-    if (offered.length && !status.owned) {
-      how.append(el('p', 'atlas-howto-title', t(offered.length > 1 ? 'atlas.howto.pick' : 'atlas.howto.only')));
-      how.append(el('p', 'atlas-howto-line', offered.map(g => `${GAME_ICON[g]} ${t(`atlas.play.${g}`)}: ${t(`atlas.play.${g}Sub`)}`).join(' · ')));
-    }
-    if (!st.story.level10Done) how.append(el('p', 'atlas-howto-warn', t('atlas.howto.lv10', { level: EXPIRY_LEVEL })));
-    if (how.childElementCount) sheet.append(how);
     const cities = regionsOfCountry(selected);
-    sheet.append(el('h4', 'atlas-sheet-sub', `${t('atlas.cities')} · ${t('atlas.cityCount', { n: cities.length })}`));
     const list = el('ul', 'atlas-regions');
     for (const regionId of cities) list.append(regionRow(regionId));
     sheet.append(list);
+    // Only a first-time player still needs the one warning; the rest of the tray is the choice itself.
+    const st = state();
+    if (!st.story.level10Done && !st.world.ownedRegions.length) {
+      const how = el('div', 'atlas-howto'); how.append(el('p', 'atlas-howto-warn', t('atlas.howto.lv10', { level: EXPIRY_LEVEL }))); sheet.append(how);
+    }
   }
-  // The café game is switched off for now: say so instead of opening it.
-  const cafeOff = (regionId, game) => !CAFE_ENABLED && (game === 'cafe' || (!game && state().world.regions[regionId]?.mode === 'cafe'));
-  function updating() { sfx('ui.deny'); toast(`☕ ${t('atlas.cafeUpdating')}`, 'info'); }
   function enter(regionId, game = null) {
-    if (cafeOff(regionId, game)) { updating(); return; }
     const result = store.dispatch('world/enterRegion', { regionId, game });
     if (!result.ok) { sfx('ui.deny'); toast(atlasErrorText(result), 'bad'); return; }
     sfx('ui.buy');
@@ -328,7 +290,6 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
   }
   // Free openings go straight in; paid ones ask a small confirm card (title + price) first.
   function ask(regionId, game = null) {
-    if (cafeOff(regionId, game)) { updating(); return; }
     const access = regionAccess(state(), regionId);
     if (access.reason !== 'locked') { enter(regionId, game); return; }
     if (!access.affordable) { sfx('ui.deny'); toast(atlasErrorText({ error: 'coins', data: { missing: access.missing } }), 'bad'); return; }
@@ -439,12 +400,16 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
   // country, which then wins the full label). A dot that would still sit on a full label is tucked away (the country
   // tile itself stays tappable on the map). Full sizes are measured once per label change / resize, not per frame.
   const PRIORITY = { current: 1, owned: 2, locked: 3 };
-  const DOT = 34, TAIL = 8, PAD = 3;
+  const DOT = 38, TAIL = 8, PAD = 8, EDGE = 10; // PAD: clear gap around every label, EDGE: gap to the screen side
   const fullSize = new Map();
+  let reserved = []; // top bar and title: a label never slides under them
   function measure(list) {
     const todo = list.filter(p => sizesDirty || !fullSize.has(p.pin));
     if (!todo.length) return;
-    if (sizesDirty) fullSize.clear();
+    if (sizesDirty) {
+      fullSize.clear();
+      reserved = [account, header].filter(e => !e.hidden && e.offsetWidth).map(e => { const r = e.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom }; });
+    }
     for (const { pin } of todo) pin.classList.remove('is-dot');
     for (const { pin } of todo) if (pin.offsetWidth) fullSize.set(pin, { w: pin.offsetWidth, h: pin.offsetHeight });
     sizesDirty = false;
@@ -453,14 +418,18 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
     measure(list);
     const rank = p => (p.entry.id === selected ? 0 : PRIORITY[p.entry.status?.kind] ?? 3);
     list.sort((a, b) => rank(a) - rank(b));
-    const placed = [], labels = [];
+    // The open city tray (its ribbon pokes out above it) covers the map: nothing is labelled behind it.
+    const tray = selected && !sheet.hidden ? [{ l: (innerWidth - sheet.offsetWidth) / 2, r: (innerWidth + sheet.offsetWidth) / 2, t: innerHeight - sheet.offsetHeight - 26, b: innerHeight }] : [];
+    const placed = [...reserved, ...tray], labels = [...reserved, ...tray];
     const hits = (r, set) => set.some(q => r.l < q.r + PAD && r.r > q.l - PAD && r.t < q.b + PAD && r.b > q.t - PAD);
     // Keep a label on screen (a country near the edge showed half a label): shift it in by dx; its tail still points at
-    // the country (--tail moves the arrow back). Countries whose point is off screen are left alone.
-    const shiftFor = (x, w) => (x < 0 || x > innerWidth ? 0 : Math.min(Math.max(x, w / 2 + 4), innerWidth - w / 2 - 4) - x);
+    // the country (--tail moves the arrow back).
+    const shiftFor = (x, w) => Math.min(Math.max(x, w / 2 + EDGE), innerWidth - w / 2 - EDGE) - x;
     const box = (x, w, h, y) => ({ l: x - w / 2, r: x + w / 2, t: y - h - TAIL, b: y });
     for (const p of list) {
+      if (p.x < 0 || p.x > innerWidth) { p.pin.classList.add('is-tucked'); continue; } // its country is off screen: no half label at the side
       const size = fullSize.get(p.pin) || { w: DOT, h: DOT };
+      if (rank(p) === 0 && reserved.length) p.y = Math.max(p.y, Math.max(...reserved.map(r => r.b)) + size.h + TAIL + PAD); // the chosen country always keeps a readable label
       const fx = p.x + shiftFor(p.x, size.w), sx = p.x + shiftFor(p.x, DOT);
       const full = box(fx, size.w, size.h, p.y), small = box(sx, DOT, DOT, p.y);
       const dot = rank(p) > 0 && hits(full, placed);

@@ -1,0 +1,52 @@
+/* Capital window in the sunny game look: finance.css draws from the shared --gu-* colours, this adds the frame. */
+.fin-sheet{border:5px solid var(--line);border-bottom:0;border-radius:34px 34px 0 0;background:linear-gradient(var(--cr1),var(--cr2) 55%,var(--cr3));box-shadow:inset 0 8px 0 var(--fr1),inset 0 10px 0 var(--fr2),inset 0 12px 0 var(--cr1);color:var(--line)}
+.fin-head{position:relative;padding:30px 12px 4px;background:none;border:0;box-shadow:none}
+.fin-title{position:absolute;left:50%;top:-26px;z-index:3;transform:translateX(-50%);margin:0;max-width:72%;padding:4px 24px 10px;border:4px solid var(--line);border-radius:14px;background:linear-gradient(var(--go1),var(--go2) 62%,var(--go3));box-shadow:inset 0 -7px 0 var(--go3),inset 0 2px 0 #fffc,0 5px 0 var(--line);color:#fff;font:400 20px/26px var(--disp);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:-2px 0 var(--go3),2px 0 var(--go3),0 -2px var(--go3),0 2px var(--go3),-2px -2px var(--go3),2px -2px var(--go3),-2px 2px var(--go3),2px 2px var(--go3)}
+.fin-head .fin-round:last-child{position:absolute;right:8px;top:-24px;z-index:4;width:50px;height:50px;border:4px solid var(--line);border-radius:50%;background:linear-gradient(var(--re1),var(--re2) 60%,var(--re3));box-shadow:inset 0 -5px 0 var(--re3),inset 0 2px 0 #fff9,0 4px 0 var(--line);color:#fff;font:400 26px/1 var(--disp)}
+.fin-head .fin-round:first-child:not(:only-child){position:absolute;left:8px;top:-24px;z-index:4;width:50px;height:50px;border:4px solid var(--line);border-radius:50%;background:linear-gradient(var(--sk1),var(--sk2));box-shadow:inset 0 -5px 0 var(--sk3),0 4px 0 var(--line);color:#fff}
+/* the sheet scrolls itself, so the title stays inside it */
+.fin-head{display:flex;justify-content:center;padding:20px 62px 8px}
+.fin-title{position:static;transform:none;max-width:100%}
+.fin-head .fin-round:last-child{top:18px;right:12px}
+.fin-head .fin-round:first-child:not(:only-child){top:18px;left:12px}
+
+/* Capital book: a centred window with two tiles, three pills and the farm row */
+.fin-root{display:flex;align-items:center;justify-content:center;padding:44px 14px 24px;box-sizing:border-box}
+.fin-root .fin-sheet{position:relative;left:auto;right:auto;bottom:auto;transform:none;width:100%;max-width:440px;max-height:calc(100dvh - 90px);box-sizing:border-box;border:5px solid var(--line);border-radius:36px;background:linear-gradient(#fffdf0,#fff3c0 55%,#ffe394);box-shadow:inset 0 0 0 8px var(--fr1),inset 0 0 0 10px var(--fr2),inset 0 0 0 12px var(--cr1),0 8px 0 var(--line),0 18px 26px #7a451559;overflow:visible;animation:none}
+.fin-root[data-view="home"] .fin-body{overflow:visible;padding:8px 16px 22px}
+.fin-root[data-view="home"] .fin-head{padding:0;height:18px}
+.fin-root .fin-title{position:absolute;left:50%;top:-30px;transform:translateX(-50%);white-space:nowrap}
+.fin-root .fin-head .fin-round:last-child{top:-24px;right:-10px}
+.fin-root .fin-head .fin-round:first-child:not(:only-child){top:-24px;left:-10px}
+.fin-root .fin-account{position:relative;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;height:150px;margin:0;padding:0;border:0;background:none;box-shadow:none}
+.fin-root .fin-avatar{grid-column:1;grid-row:1;width:auto;height:150px;box-sizing:border-box;border:4px solid var(--line);border-radius:24px;background:url(../../game-art/ico/ruby.svg) center 8px/96px no-repeat,radial-gradient(circle at 50% 40%,#ffffffe6 0,#ffffff80 34%,#fff0 68%),linear-gradient(#ebdcff,#bd96f5);box-shadow:inset 0 0 0 3px #ffffffe0,0 6px 0 var(--line)}
+.fin-root .fin-avatar b{display:none}
+.fin-root .fin-account-text{position:absolute;left:0;width:calc(50% - 4px);top:106px;display:block;text-align:center;pointer-events:none}
+.fin-root .fin-account-text strong{color:#fff;font:400 18px/22px var(--disp);text-shadow:-2px 0 var(--line),2px 0 var(--line),0 -2px var(--line),0 2px var(--line),-2px -2px var(--line),2px -2px var(--line),-2px 2px var(--line),2px 2px var(--line)}
+.fin-root .fin-account-text small{display:none}
+.fin-root .fin-usd{grid-column:2;grid-row:1;position:relative;display:block;height:150px;box-sizing:border-box;padding:0;border:4px solid var(--line);border-radius:24px;background:url(../../game-art/ico/cash.svg) center 8px/96px no-repeat,radial-gradient(circle at 50% 40%,#ffffffe6 0,#ffffff80 34%,#fff0 68%),linear-gradient(#ddfba6,#86e043);box-shadow:inset 0 0 0 3px #ffffffe0,0 6px 0 var(--line)}
+.fin-root .fin-usd>.fin-ico{display:none}
+.fin-root .fin-usd b{position:absolute;left:0;right:0;top:102px;color:#fff;font:400 18px/22px var(--disp);text-align:center;text-shadow:-2px 0 var(--line),2px 0 var(--line),0 -2px var(--line),0 2px var(--line),-2px -2px var(--line),2px -2px var(--line),-2px 2px var(--line),2px 2px var(--line)}
+.fin-root .fin-usd .fin-plus{position:absolute;right:6px;top:6px}
+.fin-root .fin-bell,.fin-root[data-view="home"] .fin-bar{display:none}
+.fin-root .fin-stats:not(.fin-stats--3){display:flex;justify-content:center;gap:6px;margin:18px 0 14px;padding:0;border:0;background:none;box-shadow:none}
+.fin-root .fin-stats:not(.fin-stats--3) .fin-stat{display:inline-flex;align-items:center;gap:4px;height:34px;box-sizing:border-box;padding:0 12px;border:3px solid var(--line);border-radius:999px;background:linear-gradient(#fff,#fff8dc);box-shadow:0 2px 0 var(--line);white-space:nowrap}
+.fin-root .fin-stats:not(.fin-stats--3) .fin-stat-label{display:none}
+.fin-root .fin-stats:not(.fin-stats--3) .fin-stat-val{color:var(--line);font:400 14px/1 var(--disp)}
+.fin-root .fin-stats:not(.fin-stats--3) .fin-stat:nth-child(3),.fin-root .fin-stats:not(.fin-stats--3) .fin-stat:nth-child(5){display:none}
+.fin-root .fin-stats:not(.fin-stats--3) .fin-stat:nth-child(1){order:3}
+.fin-root .fin-stats:not(.fin-stats--3) .fin-stat:nth-child(2){order:1}
+.fin-root .fin-stats:not(.fin-stats--3) .fin-stat:nth-child(4){order:2}
+.fin-root .fin-stats:not(.fin-stats--3) .fin-stat:nth-child(1)::before,.fin-root .fin-stats:not(.fin-stats--3) .fin-stat:nth-child(4)::before{content:"";width:24px;height:24px;background:url(../../game-art/ico/sprout.svg) center/contain no-repeat}
+.fin-root .fin-stats:not(.fin-stats--3) .fin-stat:nth-child(4)::before{background-image:url(../../game-art/ico/chart.svg)}
+.fin-root[data-view="home"] .fin-farms{margin:0;padding:0;list-style:none}
+.fin-root[data-view="home"] .fin-farm{position:relative;min-height:76px;box-sizing:border-box;padding:4px 8px 4px 6px;border:4px solid var(--line);border-radius:22px;background:linear-gradient(#fffdf4,#ffeec6);box-shadow:inset 0 0 0 2px #fff,0 4px 0 var(--line)}
+.fin-root[data-view="home"] .fin-farms:has(.fin-farm:only-child){padding-bottom:84px}
+.fin-root[data-view="home"] .fin-farm:only-child>.ui-btn,.fin-root[data-view="home"] .fin-farm:only-child>.fin-add{position:absolute;left:-4px;right:-4px;bottom:-88px;width:auto;min-height:66px;font-size:24px;border-radius:24px}
+.fin-root[data-view="home"] .fin-farm:only-child .ui-btn{position:absolute;left:-4px;right:-4px;bottom:-88px;width:auto;min-height:66px;font-size:24px;border-radius:24px}
+.fin-root[data-view="home"] .fin-farm:only-child .fin-farm-btns .gu-btn{position:absolute;left:-4px;right:-4px;bottom:-88px;width:auto;min-height:66px;font-size:24px;border-radius:24px}
+.fin-root[data-view="home"] .fin-farm:only-child .fin-farm-side{position:static}
+.fin-root[data-view="home"] .fin-farm-main{flex:1;min-width:0}
+.fin-root .fin-quick{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.fin-root .fin-quick .gu-btn{min-width:0;padding-left:2px;padding-right:2px}
+.fin-root .gu-btn:not(:disabled):active{transform:translateY(3px)}

@@ -19,14 +19,25 @@ export function giftsSheet(ctx) {
     ctx.toast(`🎁 ${T('hud.gifts.got', { level })}  ${text}`, 'good');
     return true;
   }
+  // One box: the whole-screen reveal of the game design. Collect-all stays quick and only says what came out.
+  function openOne(level) {
+    ctx.modals.gift({ level, chest: isChestLevel(level), autoOpen: true, onOpen: () => {
+      const r = store.dispatch('level/claim', { level, roll: Math.random() });
+      const ev = r.ok && r.events?.find(e => e.type === 'giftOpened');
+      if (!ev) return null;
+      sfx(ev.chest ? 'reward.levelup' : 'coin.gain');
+      return { items: ev.items, prize: ev.prize };
+    } }).then(() => ctx.rerenderSheet?.());
+  }
   const render = s => {
     const list = pendingGifts(s);
-    if (!list.length) return h('p', { class: 'hud-line hud-line--muted' }, T('hud.gifts.none'));
+    if (!list.length) return h('div', { class: 'ui-hero hud-empty-hero' }, h('span', { class: 'ui-ico ui-ico--gift', attrs: { 'aria-hidden': 'true' } }), h('strong', null, T('hud.gifts.none')));
     return h('div', { class: 'hud-gifts' },
-      ...list.map(l => h('div', { class: 'hud-gift-row' },
-        h('span', { class: 'hud-gift-row-ico', attrs: { 'aria-hidden': 'true' } }, isChestLevel(l) ? '🧰' : '🎁'),
-        h('strong', null, T(isChestLevel(l) ? 'hud.gift.chestTitle' : 'hud.gift.title', { level: l })),
-        actionButton({ label: T('hud.gift.collect'), tone: 'gold', onClick: () => { if (claim(l)) ctx.rerenderSheet?.(); } }))),
+      h('div', { class: 'hud-gift-grid' }, ...list.map(l => h('button', { type: 'button', class: `hud-gift-row${isChestLevel(l) ? ' is-chest' : ''}`,
+        attrs: { 'aria-label': `${T(isChestLevel(l) ? 'hud.gift.chestTitle' : 'hud.gift.title', { level: l })}: ${T('hud.gift.collect')}` },
+        on: { click: () => openOne(l) } },
+      h('span', { class: 'hud-gift-row-ico', attrs: { 'aria-hidden': 'true' } }),
+      h('strong', null, String(l))))),
       list.length > 1 ? actionButton({ label: T('hud.gifts.all', { n: list.length }), tone: 'go', onClick: () => { for (const l of [...list]) claim(l); ctx.rerenderSheet?.(); } }) : null);
   };
   render.sig = s => pendingGifts(s).join(',');

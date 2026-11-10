@@ -47,6 +47,30 @@ const ACTORS = [
 // the stream runs east–west across the lowland south of the plaza (6 m tiles), the dirt road south through the gate
 const STREAM = Array.from({ length: 13 }, (_, i) => ['stream', -36 + i * 6, 41, 0, [1, 1, 1]]);
 const ROAD = Array.from({ length: 8 }, (_, i) => ['dirt-path', 0, 26.5 + i * 4, N, [1, 1, 1.5]]);
+// Greenery of a fresh farm, placed as in the game design. It is only dressing: never tappable, never in the way, and a piece steps aside
+// as soon as a field or building stands on its spot. [file, x, z, yaw, scale]
+const START_PROPS = [
+  ['cordia-africana-lod1', 1.9, 9.2, 4.6, 0.34],
+  ['compost-house', 7.0, 15.1, 3.4, 0.6],
+  ['albizia-schimperiana-lod1', 6.3, 19.2, 3.8, 0.3],
+  ['ensete-ventricosum-lod1', -2.4, 12.9, 0.9, 0.42],
+  ['water-tank-lod0', -7.3, 17.9, 3.4, 1],
+  ['daisy-clump', -4.3, 15.3, 4.4, 3],
+  ['daisy-clump', 1.9, 23.7, 2.0, 3],
+  ['daisy-clump', -10.1, 21.8, 1.1, 3],
+  ['daisy-clump', -3.3, 28.6, 3.5, 3],
+  ['shrub', -0.2, 25.7, 3.0, 1.6],
+  ['wheelbarrow', -5.4, 29.9, 2.1, 1.3],
+  ['daisy-clump', -9.4, 26.8, 4.8, 3],
+  ['daisy-clump', -9.2, 30.3, 4.4, 3],
+  ['cordia-africana-lod1', -12.1, 29.3, 2.5, 0.34],
+  ['daisy-clump', -11.7, 24.8, 4.9, 3],
+  ['daisy-clump', -0.2, 14.2, 2.6, 3],
+  ['daisy-clump', 2.9, 19.0, 2.4, 3],
+  ['lamp-post', -8.5, 19.8, 5.5, 0.8],
+];
+const START_ACTORS = [['chicken', -2.2, 26.1, 3.0, 'peck'], ['chicken', -7.7, 20.8, 0.6, 'walk']];
+const START_CLEAR = 4.2; // metres kept free around every field and building
 const SIGN_KEY = 'godbean-sign-pos';
 const savedSigns = () => { try { return JSON.parse(localStorage.getItem(SIGN_KEY) || '{}') || {}; } catch { return {}; } };
 const TIER_NAMES = ['Tầng 1 · Đồng bằng', 'Tầng 2 · Đồi thấp', 'Tầng 3 · Sườn đồi', 'Tầng 4 · Cao nguyên'];
@@ -122,6 +146,33 @@ export function createMountainDressing({ parent, farmName = 'GODBEAN · Gedeo Co
       }).catch(e => console.warn('dressing actor not loaded', file, e)));
     }
   }
+  // The dressing of a fresh farm (see START_PROPS). syncStart() hides what a field or building now stands on.
+  const startPieces = [];
+  let startOwned = [];
+  let previewSpot = null;
+  const applyStart = piece => { piece.o.visible = !startOwned.some(p => Math.hypot(p.x - piece.x, p.z - piece.z) < START_CLEAR) && !(previewSpot && Math.hypot(previewSpot.x - piece.x, previewSpot.z - piece.z) < previewSpot.r); };
+  const addStart = (o, x, z) => { const piece = { o, x, z }; startPieces.push(piece); applyStart(piece); };
+  if (rich) {
+    for (const [file, x, z, yaw, s] of START_PROPS) jobs.push(createPlant(keyOf(file)).then(o => { place(o, x, z, yaw, s); addStart(o, x, z); }).catch(() => null));
+    for (const [file, x, z, yaw, clip] of START_ACTORS) jobs.push(loadActor(file).then(g => {
+      const model = cloneSkinned(g.scene); place(model, x, z, yaw, 2.2); addStart(model, x, z);
+      const mixer = new THREE.AnimationMixer(model), a = g.animations.find(c => c.name === clip) || g.animations[0];
+      if (a) mixer.clipAction(a).play();
+      mixer.update(Math.random() * 3);
+      let last = performance.now(), first = null;
+      model.traverse(o => { if (o.isMesh) { o.castShadow = true; first ??= o; } });
+      if (first) first.onBeforeRender = () => { const now = performance.now(); mixer.update(Math.min(.1, (now - last) / 1000)); last = now; };
+    }).catch(() => null));
+  }
+  /** The ghost of a piece being placed: greenery under it steps aside (r = 0: none). */
+  function previewStart(x, z, r) {
+    previewSpot = r > 0 ? { x, z, r } : null;
+    for (const piece of startPieces) applyStart(piece);
+  }
+  function syncStart(region) {
+    startOwned = [...(region?.fields || []), ...(region?.buildings || [])];
+    for (const piece of startPieces) applyStart(piece);
+  }
   const ready = Promise.all(jobs);
   /** Moves a tier signboard (by its seed lot id) to (x, z) and remembers the place. */
   function moveSign(seed, x, z) {
@@ -137,5 +188,5 @@ export function createMountainDressing({ parent, farmName = 'GODBEAN · Gedeo Co
     for (const p of pickers) { p.geometry.dispose(); p.material.dispose(); }
     group.removeFromParent();
   }
-  return { group, ready, pickers: () => pickers, moveSign, hideSign, dispose };
+  return { group, ready, pickers: () => pickers, moveSign, hideSign, syncStart, previewStart, dispose };
 }

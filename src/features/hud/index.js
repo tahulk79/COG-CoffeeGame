@@ -2,6 +2,8 @@
 // confirm modal, Teacher dialogue, toasts and the tutorial overlay. API per docs/design/v3-architecture.md §HUD API.
 import '../../ui/styles/v3.css';
 import '../../ui/styles/hud-skin.css';
+import '../../ui/styles/skin/hud.css';
+import '../../ui/styles/skin/staff.css';
 import { BACKGROUND_ACTIONS } from '../../core/store.js';
 import { AUTO, GM, CROP_ORDER, DRINK_ORDER, autoPrice } from '../../core/config/economy.js';
 import { sellAllQuote, cropUnlocked, drinkUnlocked, region, bothGames, regionGame, currentGames, pendingGifts, isChestLevel, tasksOpen, autoBook } from '../../core/derive.js';

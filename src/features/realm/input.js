@@ -4,7 +4,7 @@
 // switches the camera off its follow and swallows the tap, which felt like a stutter when tapping fast. Fingers wobble
 // more than a mouse. A quick press (< QUICK ms) gets an even wider slop: fast repeated taps are taps.
 const TAP_SLOP = { mouse: 10, pen: 12, touch: 18 };
-const QUICK = 180, QUICK_SLOP = 28;
+const QUICK = 180, QUICK_SLOP = 28, HOLD_MS = 320; // a press that stays put this long picks up what is under it
 
 /**
  * handlers: { down(p), up(), tap(p), dragStart(start, p), dragMove(p, dx, dy), dragEnd(p), zoom(factor, at), cancel() }
@@ -17,6 +17,8 @@ export function createInput(canvas, handlers, isLocked) {
   const pointers = new Map();
   const start = { x: 0, y: 0 }, last = { x: 0, y: 0 }, p = { x: 0, y: 0 }, mid = { x: 0, y: 0 };
   let dragging = false, pinching = false, spoiled = false, pinchDist = 0, slop = 10, downAt = 0;
+  let holdTimer = 0;
+  const stopHold = () => { clearTimeout(holdTimer); holdTimer = 0; };
   let midSet = false, altPan = null; // two-finger / other-mouse-button map pan (only when handlers.altPan() says so: while planting)
   const prevTouchAction = canvas.style.touchAction;
   canvas.style.touchAction = 'none';
@@ -24,6 +26,7 @@ export function createInput(canvas, handlers, isLocked) {
   const spread = () => { const [a, b] = [...pointers.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
 
   function cancel() {
+    stopHold();
     if (dragging) handlers.cancel?.();
     dragging = false; pinching = false; spoiled = pointers.size > 0;
   }
@@ -42,7 +45,15 @@ export function createInput(canvas, handlers, isLocked) {
       dragging = false; pinching = false; spoiled = false;
       p.x = e.clientX; p.y = e.clientY;
       handlers.down?.(p);
+      stopHold();
+      holdTimer = setTimeout(() => {
+        holdTimer = 0;
+        if (pointers.size !== 1 || dragging || spoiled || isLocked()) return;
+        p.x = last.x; p.y = last.y;
+        if (handlers.hold?.(p)) dragging = true; // from here the same finger carries it (dragMove / dragEnd)
+      }, HOLD_MS);
     } else if (pointers.size === 2) {
+      stopHold();
       if (dragging) handlers.cancel?.();
       dragging = false; pinching = true; spoiled = true;
       pinchDist = spread(); midSet = false;
@@ -81,6 +92,7 @@ export function createInput(canvas, handlers, isLocked) {
     const moved = Math.hypot(p.x - start.x, p.y - start.y);
     if (!dragging && moved > slop && (moved > QUICK_SLOP || performance.now() - downAt > QUICK)) {
       dragging = true;
+      stopHold();
       handlers.dragStart?.(start, p);
       last.x = start.x; last.y = start.y; // the first drag step catches up the slop (the map stays under the finger)
     }
@@ -92,6 +104,7 @@ export function createInput(canvas, handlers, isLocked) {
     if (altPan?.id === e.pointerId) { altPan = null; return; }
     if (!pointers.has(e.pointerId)) return;
     pointers.delete(e.pointerId);
+    stopHold();
     p.x = e.clientX; p.y = e.clientY;
     if (!pointers.size) handlers.up?.();
     if (pinching) { if (pointers.size < 2) pinching = false; spoiled = true; return; }
@@ -113,6 +126,6 @@ export function createInput(canvas, handlers, isLocked) {
 
   return {
     cancel() { cancel(); pointers.clear(); spoiled = false; },
-    dispose() { ac.abort(); pointers.clear(); canvas.style.touchAction = prevTouchAction; },
+    dispose() { stopHold(); ac.abort(); pointers.clear(); canvas.style.touchAction = prevTouchAction; },
   };
 }

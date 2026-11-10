@@ -6,7 +6,10 @@ export function createSheetHost(ctx) {
   const title = h('h2', { class: 'hud-sheet-title' });
   const body = h('div', { class: 'hud-sheet-body' });
   const close = h('button', { type: 'button', class: 'hud-x', attrs: { 'aria-label': T('hud.close') }, on: { click: () => api.close() } }, '×');
-  const panel = h('section', { class: 'hud-sheet', attrs: { role: 'dialog', 'aria-modal': 'false' } }, h('header', { class: 'hud-sheet-head' }, title, close), body);
+  // Screens reached from Manage carry a back button beside the title, as in the game design.
+  const BACK_TO = { upgrades: 'manage', quests: 'manage', journal: 'manage' };
+  const back = h('button', { type: 'button', class: 'hud-sheet-back', hidden: true, attrs: { 'aria-label': T('hud.back') }, on: { click: () => { const to = BACK_TO[current?.id]; if (to) ctx.onTool(to); } } }, h('span', { class: 'ui-chev' }));
+  const panel = h('section', { class: 'hud-sheet', attrs: { role: 'dialog', 'aria-modal': 'false' } }, h('header', { class: 'hud-sheet-head' }, back, title, close), body);
   const scrim = h('div', { class: 'hud-sheet-scrim', on: { click: () => api.close() } });
   const el = h('div', { class: 'hud-sheet-host', hidden: true }, scrim, panel);
   let current = null; // { id, render(state) → Node, sig: string | null }
@@ -39,6 +42,7 @@ export function createSheetHost(ctx) {
       panel.setAttribute('aria-label', heading);
       el.hidden = false;
       el.dataset.sheet = id;
+      back.hidden = !BACK_TO[id];
       paint(true);
       body.scrollTop = 0;
       close.focus({ preventScroll: true });

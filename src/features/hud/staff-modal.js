@@ -111,7 +111,7 @@ export function createStaffModal(ctx) {
     if (gmHanded(s, zone) && (st.tab === 'hire' || st.tab === 'assign')) st.tab = 'team'; // handed over: nothing left to do there
     if (st.tab === 'assign' && !canAssign(s, zone)) st.tab = 'team';
     back.hidden = !st.uid;
-    swap(summary, st.tab === 'team' && !st.uid ? null : summaryView(s, now, zone)); // the dashboard says it bigger
+    swap(summary, st.uid ? null : summaryView(s, now, zone));
     paintAutoStrip(s, zone); // (the rival's lure is the first row of «Cần bạn» now)
     swap(tabs, st.uid ? null : tabsView(s, now, zone));
     const key = screenKey();
@@ -195,7 +195,7 @@ export function createStaffModal(ctx) {
   function bar(icon, label, value, max, tone) {
     const v = Math.max(0, Math.min(max, Number(value) || 0)), pct = max > 0 ? Math.round(v / max * 100) : 0;
     return h('div', { class: `hud-sm-bar hud-sm-bar--${tone}` },
-      h('span', { class: 'hud-sm-bar-name' }, `${icon} ${label}`),
+      h('span', { class: 'hud-sm-bar-name' }, icon, ' ', h('span', { class: 'hud-sm-bar-label' }, label)),
       h('span', { class: 'hud-sm-bar-track', attrs: { role: 'progressbar', 'aria-label': label, 'aria-valuemin': '0', 'aria-valuemax': String(Math.round(max)), 'aria-valuenow': String(Math.round(v)) } },
         h('span', { style: { width: `${pct}%` } })),
       h('span', { class: 'hud-sm-bar-num' }, String(Math.round(v))));
@@ -241,6 +241,7 @@ export function createStaffModal(ctx) {
     const cell = (icon, text, tone = '') => h('span', { class: `hud-sm-kpi${tone ? ` is-${tone}` : ''}` }, h('span', { attrs: { 'aria-hidden': 'true' } }, icon), text);
     return h('div', { class: 'hud-sm-kpis' },
       cell('👥', T('hud.sm.sum2.active', { n: activeCount(s, zone) })),
+      cell('🪑', `${zoneUnits(s, zone).length}/${hireCap(s, zone)}`), // seats: everybody hired / most you may hire now
       cell('🪙', T('hud.sm.sum2.earned', { coins: fmt(win.earned), min: BOOKS.mvpMinutes })),
       problems ? cell('⚠️', T('hud.sm.sum2.problems', { n: problems }), 'warn') : null, // all fine = nothing to say
       tickets > 0 ? cell('🎟️', T('hud.sm.sum2.tickets', { n: tickets })) : null);
@@ -350,7 +351,7 @@ export function createStaffModal(ctx) {
   const BIG_TEAM = 12, PAGE = 20;
   function teamView(s, now, zone) {
     const units = zoneUnits(s, zone);
-    if (!units.length) return h('div', { class: 'hud-sm-empty' }, h('p', { class: 'hud-line' }, T('hud.sm.noTeam')),
+    if (!units.length) return h('div', { class: 'hud-sm-empty' }, h('div', { class: 'ui-hero hud-empty-hero' }, h('span', { class: 'ui-ico ui-ico--people', attrs: { 'aria-hidden': 'true' } }), h('strong', null, T('hud.sm.noTeam'))),
       actionButton({ label: T('hud.sm.goHire'), icon: '🧑', onClick: () => goTo({ tab: 'hire' }) }));
     const handed = gmHanded(s, zone);
     if (handed) st.picking = false;
@@ -632,7 +633,7 @@ export function createStaffModal(ctx) {
     const info = infoOf(s, u), here = hereOf(s, u), cond = here ? conditionOf(u, info) : null;
     const poached = poachOf(s)?.uid === u.uid, on = st.sel.has(u.uid), picking = st.picking;
     const fix = !picking && here && !managed(s, zoneNow()) ? fixOf(u, key, now) : null; // the paid fix, right on the line
-    return h('li', { class: `hud-rs-row is-${toneOf(key)}${on ? ' is-picked' : ''}` },
+    return h('li', { class: `hud-rs-row is-${toneOf(key)}${on ? ' is-picked' : ''}`, dataset: { art: u.type } },
       h('button', { type: 'button', class: 'hud-rs-main', dataset: { hudId: picking ? `staffSelect-${u.uid}` : `staffUnit-${u.uid}` },
         attrs: picking ? { role: 'checkbox', 'aria-checked': String(on), 'aria-label': T('hud.sb.select', { name: nameOf(u) }) } : { 'aria-label': T('hud.sm.openUnit', { name: nameOf(u) }) },
         on: { click: () => (picking ? toggleUnit(u.uid) : goTo({ uid: u.uid })) } },
@@ -640,7 +641,9 @@ export function createStaffModal(ctx) {
         avatarOf(s, u, key),
         h('span', { class: 'hud-rs-text' },
           h('strong', { class: 'hud-rs-name' }, nameOf(u), u.perk ? ' ⭐' : '', poached ? ' 💼' : '', u.name && STAFF[u.type].jobs ? h('span', { class: 'hud-rs-trade' }, T(`staff.${u.type}`)) : null),
+          h('small', { class: 'hud-rs-sub' }, `${T(`staff.${u.type}`)} · ${isRobot(u) ? T(`hud.staff.task.${robotTask(u)}`) : T('hud.staff.lv', { level: unitLevel(u) })}`),
           h('small', { class: `hud-report hud-report--${lineTone(key, info)}` }, nowLine(s, u, key, now, info))),
+        vitalBars(u, false, info),
         cond != null && cond < 50 ? h('span', { class: `hud-rs-meter is-${cond < 25 ? 'bad' : cond < 50 ? 'warn' : 'ok'}`, attrs: { role: 'img', 'aria-label': T('hud.sm.condition', { n: cond }) } },
           h('i', { style: { height: `${Math.max(4, cond)}%` } })) : null,
       ),
@@ -656,7 +659,7 @@ export function createStaffModal(ctx) {
   // ---------- 🏢 Quản lý: the general manager (docs/design/general-manager.md) ----------
   const STYLE_ICON = { careful: '🐢', balanced: '⚖️', bold: '🔥' };
   const MODE_ICON = { advisor: '💬', operator: '🧭', full: '🗝️' };
-  const stars = n => '★'.repeat(n) + '☆'.repeat(5 - n);
+  const stars = n => h('span', { class: 'ui-stars', attrs: { 'aria-label': `${n}/5` } }, ...Array.from({ length: n }, () => h('i', { class: 'ui-star' })));
   const mmss = ms => { const t = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
   // The plan is cheap per call but the tab repaints every second: reuse it for the same save for up to 3 s.
   let planMemo = { s: null, at: 0, v: [] };
@@ -1423,10 +1426,11 @@ export function createStaffModal(ctx) {
       ? (nextHireLevel(s, zone) ? T('hud.sm.hireCap', { n: zoneUnits(s, zone).length, max: hireCap(s, zone), level: nextHireLevel(s, zone) }) : T('hud.sm.hireMax', { n: zoneUnits(s, zone).length, max: hireCap(s, zone) }))
       : T('hud.sm.hireBench', { n: activeCount(s, zone), max: slots(s, zone), pct: Math.round(UPKEEP.benchRatio * 100), rpct: Math.round(UPKEEP.robotStandbyRatio * 100), min: UPKEEP.perMinutes })) : null;
     // One slim row per candidate: icon, who + what, one detail line, the hire button.
-    const row = (icon, rare, title, sub, detail, foot, tip) => h('li', { class: `hud-hire-row${rare ? ' is-rare' : ''}`, attrs: tip ? { title: tip } : undefined },
+    const row = (icon, rare, title, sub, detail, foot, tip, type, extra = null) => h('li', { class: `hud-hire-row${rare ? ' is-rare' : ''}${type && needsWell(type) ? ' needs-well' : ''}`, dataset: type ? { art: type } : undefined, attrs: tip ? { title: tip } : undefined },
       h('span', { class: 'hud-hire-ico', attrs: { 'aria-hidden': 'true' } }, icon),
       h('div', { class: 'hud-hire-text' },
         h('p', { class: 'hud-hire-top' }, h('strong', null, title), sub ? h('span', null, sub) : null),
+        extra,
         h('small', null, detail)),
       h('div', { class: 'hud-hire-act' }, foot));
     // A waterer / water robot fetches water at a well: with none built it would only stand there (QA 2026-11-09).
@@ -1434,11 +1438,14 @@ export function createStaffModal(ctx) {
     const cards = h('ul', { class: 'hud-hire' });
     applicants(s, zone).forEach((a, index) => {
       const def = STAFF[a.type], tr = TRAITS[a.trait];
-      const stats = STAT_ORDER.map(k => `${STAT_ICON[k]}${a.stats?.[k] ?? 1}`).join('  ');
-      const perk = a.perk ? `  ·  ${PERK_ICON[a.perk] || '⭐'} ${T(`hud.sm.perk.${a.perk}`)}` : '';
-      cards.append(row(def.icon, !!a.perk, a.name, `${T(`staff.${a.type}`)} · ${tr.icon} ${T(`staff.trait.${a.trait}`)}`, needsWell(a.type) ? T('hud.sm.needWell') : stats + perk,
+      // What you are buying, on the card: skills, temperament, a rare perk; then the job in one line.
+      const extra = h('div', { class: 'hud-hire-facts' },
+        h('div', { class: 'hud-hire-stats' }, ...STAT_ORDER.map(k => h('span', { attrs: { title: T(`hud.stat.${k}`) } }, STAT_ICON[k], String(a.stats?.[k] ?? 1)))),
+        h('span', { class: 'hud-hire-trait' }, `${tr.icon} ${T(`staff.trait.${a.trait}`)}`),
+        a.perk ? h('span', { class: 'hud-hire-perk' }, `${PERK_ICON[a.perk] || '⭐'} ${T(`hud.sm.perk.${a.perk}`)}`) : null);
+      cards.append(row(def.icon, !!a.perk, a.name, T(`staff.${a.type}`), needsWell(a.type) ? T('hud.sm.needWell') : T(`hud.staffJob.${a.type}`),
         hireFoot(s, recruitError(s, zone, index), def, a.cost, () => act('staff/recruit', { zone, index })),
-        `${T(`hud.staffJob.${a.type}`)}. ${T(`staff.traitFx.${a.trait}.${zone}`)}`));
+        `${T(`staff.trait.${a.trait}`)}. ${T(`hud.staffJob.${a.type}`)}. ${T(`staff.traitFx.${a.trait}.${zone}`)}`, a.type, extra));
     });
     const refresh = h('div', { class: 'hud-hire-refresh' },
       h('span', { class: 'hud-sub' }, T('hud.staff.newIn', { min: Math.max(1, Math.ceil(wait / 60000)) })),
@@ -1447,8 +1454,8 @@ export function createStaffModal(ctx) {
     const robots = h('ul', { class: 'hud-hire' });
     for (const type of STAFF_ORDER.filter(id => STAFF[id].zone === zone && STAFF[id].kind === 'robot')) {
       const def = STAFF[type], owned = zoneUnits(s, zone).filter(u => u.type === type).length;
-      robots.append(row(def.icon, false, T(`staff.${type}`), owned ? T('hud.sm.owned', { n: owned }) : '', needsWell(type) ? T('hud.sm.needWell') : T(`hud.staffJob.${type}`),
-        hireFoot(s, staffError(s, type), def, def.cost, () => act('staff/hire', { type }))));
+      robots.append(row(def.icon, false, T(`staff.short.${type}`), owned ? T('hud.sm.owned', { n: owned }) : T('staff.tag.robot'), needsWell(type) ? T('hud.sm.needWell') : T(`hud.staffJob.${type}`),
+        hireFoot(s, staffError(s, type), def, def.cost, () => act('staff/hire', { type })), undefined, type));
     }
     return h('div', null, note,
       h('h3', { class: 'hud-sm-h' }, `🧑 ${T('hud.sm.applicants')}`), cards, refresh,
