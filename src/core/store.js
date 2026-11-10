@@ -23,7 +23,7 @@ function readJson(storage, key) {
  * @param {{storage?: Storage, key: string, legacyKeys?: {progress:string, player:string}, dev?: boolean, now?: () => number}} opts
  */
 // Money must survive a closed tab: these actions are written at once, never grouped with the background saves.
-const SAVE_NOW = /^(wallet\/|world\/(unlockRegion|enterRegion)$)/;
+const SAVE_NOW = /^(wallet\/|loan\/(take|repay)$|world\/(unlockRegion|enterRegion)$)/;
 
 export function createStore({ storage = globalThis.localStorage, key, legacyKeys = null, dev = false, sandbox = false, now = () => Date.now(), saveEveryMs = 0 } = {}) {
   const listeners = new Set();

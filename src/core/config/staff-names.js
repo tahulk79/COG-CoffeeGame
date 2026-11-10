@@ -1,7 +1,7 @@
 // Staff names by country (founder 2026-11-10): applicants and managers get a name of the country being played, and no two
 // people the player employs ever share one. m / f: given names; last: family names, only used once every given name is
 // taken; familyFirst: how that country writes a full name. Romanised where the country has its own script.
-const NAMES = {
+export const NAMES = {
   vn: { familyFirst: true, m: 'Tí Tèo Minh Nam Bảo Khoa Hùng Phúc Đạt Khải Sáu Tuấn Bảy Quân Dũng Long Sơn Thắng Huy Toàn', f: 'Hoa Lan Mai Linh Vy Thảo Ngân Hằng Ngọc Thu Trang Hương Yến Nhung Oanh Hà Chi Quyên Duyên My', last: 'Nguyễn Trần Lê Phạm Hoàng Phan Vũ Đặng Bùi Đỗ' },
   jp: { familyFirst: true, m: 'Haruto Ren Sota Yuto Kaito Riku Takumi Daiki Kenji Hiroshi Akira Shota Naoki Ryo Taro Yuki', f: 'Yui Hina Sakura Aoi Mio Rin Emi Hana Natsuki Ayaka Misaki Kaori Yuna Saki Nanami Mei', last: 'Sato Suzuki Takahashi Tanaka Ito Watanabe Yamamoto Nakamura' },
   fr: { m: 'Louis Hugo Lucas Jules Arthur Léo Théo Antoine Pierre Julien Mathis Gabriel Olivier Rémi Baptiste Étienne', f: 'Emma Chloé Léa Manon Camille Inès Jade Lucie Margaux Élise Claire Amélie Juliette Louise Sophie Zoé', last: 'Martin Bernard Dubois Durand Moreau Laurent Lefebvre Roux' },

@@ -137,7 +137,7 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
   const toastEl = el('p', 'atlas-toast'); toastEl.hidden = true; toastEl.setAttribute('role', 'status');
   // Account bar: level, the USD wallet, warnings and the capital book. Shown once the player owns a farm.
   const svg = (name, tag = 'span') => { const n = el(tag, 'fin-ico'); n.innerHTML = iconSvg(name); return n; };
-  const money = cents => `$${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const money = cents => (cents / 100).toLocaleString(undefined, { maximumFractionDigits: 2 });
   const accountBtn = (label, run, ...kids) => { const b = el('button', 'atlas-account-btn'); b.type = 'button'; b.setAttribute('aria-label', label); b.append(...kids); b.addEventListener('click', event => { event.stopPropagation(); run(); }, { signal }); return b; };
   const lvEl = el('span', 'atlas-account-lv'), usdText = el('b'), bellCount = el('i'); bellCount.hidden = true;
   const account = el('div', 'atlas-account');

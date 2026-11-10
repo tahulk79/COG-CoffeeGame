@@ -375,10 +375,9 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
 
 /* ---------- Toasts & level-up banner ---------- */
 .hud-feedback{position:fixed;z-index:var(--z-toast,30);left:0;right:0;top:0;height:0;pointer-events:none}
-/* One centred column, banner first then toasts (feedback.js layout() sets --fb-top / --fb-w clear of the HUD above).
-   The fallbacks only cover the frame before the first layout. */
-.hud-feedback-col{position:absolute;left:50%;top:max(var(--fb-top,calc(var(--h-st) + 196px)),calc(var(--h-st) + 8px));transform:translateX(-50%);width:var(--fb-w,min(400px,calc(100vw - 24px)));display:flex;flex-direction:column;align-items:center;gap:8px}
-.hud-toasts{display:grid;justify-items:center;gap:6px;width:100%}
+/* Notices sit in the left corner, under the left buttons (feedback.js layout() sets --fb-top), so they never cover the middle of the farm. */
+.hud-feedback-col{position:absolute;left:calc(var(--h-sl,0px) + 8px);top:var(--fb-top,calc(var(--h-st) + 232px));width:min(260px,60vw);display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+.hud-toasts{display:grid;justify-items:start;gap:5px;width:100%}
 .hud-toast{max-width:100%;padding:8px 16px;border-radius:16px;background:#3c2716e6;color:#fff;font:700 14px/1.3 var(--h-font);text-align:center;box-shadow:0 4px 12px #0003;animation:hud-toast-in .2s ease-out;transition:opacity .3s,transform .3s}
 .hud-toast--good{background:#2f7a22eb}
 .hud-toast--bad{background:#b13c27eb}
@@ -1348,10 +1347,8 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
 .hud-sell-text{flex:1;display:grid;gap:2px;min-width:0}
 .hud-sell-text strong{font:800 14px var(--h-font,inherit)}.hud-sell-text em{font-style:normal;opacity:.7}
 .hud-sell-text small{font:600 12px var(--h-font,inherit);opacity:.65}
-/* Notices (toasts) sit in the footer, at the bottom of the screen */
-#hud-root .hud-feedback-col,.hud-feedback-col{top:auto;bottom:calc(var(--h-sb, 0px) + 14px);flex-direction:column-reverse}
-.hud-toast{animation-name:hud-toast-in-up}.hud-toast.is-out{transform:translateY(6px)}
-@keyframes hud-toast-in-up{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.hud-toast{animation-name:hud-toast-in-side}.hud-toast.is-out{transform:translateX(-10px)}
+@keyframes hud-toast-in-side{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:none}}
 /* the notice layer must span the screen for `bottom` to mean the screen's bottom (it was a 0-height strip at the top, so the footer notices were off-screen) */
 #hud-root .hud-feedback,.hud-feedback{top:0;bottom:0;height:auto}
 .hud-card-ico.has-model{background:none;box-shadow:none;padding:0}
@@ -1405,7 +1402,6 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
 .hud-land-ico .hud-card-model{width:100%;height:100%}
 #hud-root .hud-land-ico{width:52px;height:52px}
 /* Notices: middle of the screen, nudged up a little so they clear the ground and the HUD */
-#hud-root .hud-feedback-col,.hud-feedback-col{top:36%;bottom:auto;transform:translate(-50%,-50%);flex-direction:column}
 .hud-toast{animation-name:hud-toast-in}.hud-toast.is-out{transform:translateY(-6px)}
 /* sell rows with a quantity box */
 .hud-good--sell{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center}
@@ -1523,6 +1519,12 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
 .hud-gm-who small{font:700 11.5px/1.3 var(--h-font);color:#5f4a78}
 .hud-fm-obj{margin:0 0 8px;padding:8px 10px;border-radius:10px;background:#f4edfa;color:#3f2466;font:800 13px/1.35 var(--h-font)}
 .hud-fm-obj.is-bad{background:#fde7e2;color:#a63422}
+.hud-fm-ends{display:flex;justify-content:space-between;font:800 13px/1 var(--h-font)}
+.hud-fm-range{display:block;width:100%;height:32px;margin:2px 0 0;accent-color:#a0522d;touch-action:none}
+.hud-fm-marks{position:relative;height:18px;margin:0 10px 8px}
+.hud-fm-marks span{position:absolute;transform:translateX(-50%);font:700 11px/1.3 var(--h-font);white-space:nowrap}
+.hud-fm-ask{display:flex;align-items:center;gap:8px;min-height:40px;font:700 13px/1.3 var(--h-font)}
+.hud-fm-ask input{width:20px;height:20px}
 .hud-fm-tiers{display:grid;gap:6px;margin:0;padding:0;list-style:none}
 .hud-fm-tier{display:grid;gap:2px;padding:6px 10px;border-radius:10px;background:rgba(255,255,255,.55);box-shadow:inset 0 0 0 1.5px var(--h-line)}
 .hud-fm-tier strong{font:800 13px/1.2 var(--h-font)}

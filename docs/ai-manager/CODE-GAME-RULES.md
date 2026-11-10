@@ -1105,7 +1105,7 @@ All farm types have refund 0.5 unless noted. Sizes are in cells (CELL 2 m).
 **loan for capital job (perm 'loan')**
 - Where: game.js:2207 inside gm/think, gmRun loan/take (2481).
 - Conditions: coins < c.cost, gmLoanFor: smallest pack in [1000,2000,5000] >= gap with no loanError, payback < term x 0.5; FM.gate noLoan passes (`mode.loan` true, not recovery); done<max; 'loan' not cooling.
-- Consumes: debt owed = loanOwed (fee 0.1).
+- Consumes: debt owed = loanOwed (the principal; interest LOAN.interest 0.1 is paid when borrowed cash is exchanged for Gold, docs/design/wallet-economy.md).
 - Changes: `s.loans`, coins.
 - Rewards: cash; the target job is retried later.
 - Duration: one per `GM.loanRule.everyMin` = 10 played min.

@@ -135,3 +135,26 @@ Open a farm with a hired manager, go to Quản lý. Then:
 3. Turn off auto-manage while a builder walks to a site: the job is cancelled.
 4. Pin a worker to a terrace in "Ai đang làm gì": it stays there.
 5. Remove every tank with a waterer on the team: the panel reports the missing tank.
+
+## Heart–Reason slider (founder 2026-11-10)
+
+The mode buttons are replaced by one slider in the Manager tab, `fm.stance` from 0 (Heart) to 100 (Reason). A hired farm manager only: with none, or with Auto, the position counts as 50.
+
+| Position | Goal (nearest mark sets the investment mode) | Worker speed | Morale per minute |
+|---|---|---|---|
+| 0 | Heart (`conservative`: double reserve, no loans) | −10% | +3 |
+| 25 | Growth (`expansion`) | −5% | +1.5 |
+| 50 | Balance (`balanced`) | none | none |
+| 65 | Repay debt (`debt`) | +9% | −1.2 |
+| 80 | Profit (`profit`) | +18% | −3.3 |
+| 100 | Profit, full discipline | +30% | −7 |
+
+Morale drain is `drainPerMin × tilt^drainPow` with tilt = (position − 50) / 50. All numbers are in `FARM_MANAGER.stance`.
+
+- Position 50 changes nothing, so the Lv10 pacing at the default is untouched.
+- Reason side: at each MVP round the best worker gets a Gold bonus and morale, the worst loses morale. The care wallet shrinks to nothing at 100. A farm worker who starts to sulk (morale under 20) quits, reason `stress`.
+- Heart side: the care wallet grows by up to 50%, and nobody quits from pressure.
+- Repay debt: at each think, Gold above his reserve and open orders pays the loan. It needs no credit licence, because the player chose the goal. He takes no new loans.
+- "Ask me" (`fm.ask`) is a switch that works at any position. The old Careful mode is the Heart end. Old saves start on the mark of their mode.
+- Measured over 60 played minutes (delegate, 6 seeds, farm only): income 12.4k at 0, 12.0k at 25, 14.2k at 50, 13.9k at 65, 15.9k at 80, 20.3k at 100. Workers quit from pressure: 0, 0, 0, 0, 3.5, 13.2.
+

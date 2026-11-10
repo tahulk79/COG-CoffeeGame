@@ -1,0 +1,42 @@
+// Hobbies on a staff file (src/core/config/staff-people.js) and the manager's Heart–Reason slider. Loaded last.
+const hobbies = {
+  cooking: ['Cooking', 'Nấu ăn'], football: ['Football', 'Đá bóng'], fishing: ['Fishing', 'Câu cá'], reading: ['Reading', 'Đọc sách'], gardening: ['Gardening', 'Làm vườn'], music: ['Playing music', 'Chơi nhạc'],
+  singing: ['Singing', 'Ca hát'], drawing: ['Drawing', 'Vẽ tranh'], photo: ['Photography', 'Chụp ảnh'], hiking: ['Hiking', 'Leo núi'], cycling: ['Cycling', 'Đạp xe'], running: ['Running', 'Chạy bộ'],
+  chess: ['Chess', 'Cờ vua'], games: ['Video games', 'Chơi game'], movies: ['Movies', 'Xem phim'], baking: ['Baking', 'Làm bánh'], knitting: ['Knitting', 'Đan len'], dancing: ['Dancing', 'Khiêu vũ'],
+  volunteer: ['Volunteering', 'Làm thiện nguyện'], birds: ['Birdwatching', 'Ngắm chim'], camping: ['Camping', 'Cắm trại'], cupping: ['Coffee tasting', 'Nếm cà phê'], yoga: ['Yoga', 'Yoga'], swimming: ['Swimming', 'Bơi lội'],
+  xiangqi: ['Chinese chess', 'Cờ tướng'], shuttlecock: ['Shuttlecock kicking', 'Đá cầu'], songbirds: ['Keeping songbirds', 'Nuôi chim cảnh'], shogi: ['Shogi', 'Cờ shogi'], onsen: ['Hot springs', 'Tắm onsen'], karaoke: ['Karaoke', 'Karaoke'],
+  petanque: ['Pétanque', 'Chơi pétanque'], wine: ['Wine tasting', 'Nếm rượu vang'], tourcycling: ['Following the Tour de France', 'Xem Tour de France'], darts: ['Darts', 'Phi tiêu'], allotment: ['Allotment growing', 'Trồng rau ở vườn thuê'], pubquiz: ['Pub quizzes', 'Đố vui ở quán pub'],
+  baseball: ['Baseball', 'Bóng chày'], roadtrip: ['Road trips', 'Đi phượt ô tô'], bbq: ['Barbecue', 'Nướng BBQ'], surfing: ['Surfing', 'Lướt sóng'], cricket: ['Cricket', 'Cricket'], bushwalk: ['Bushwalking', 'Đi bộ trong rừng'],
+  wandern: ['Long-distance walking', 'Đi bộ đường dài'], boardgames: ['Board games', 'Board game'], handball: ['Handball', 'Bóng ném'], tavla: ['Backgammon', 'Cờ tavla'], ney: ['Playing the ney flute', 'Thổi sáo ney'], fortune: ['Reading coffee grounds', 'Xem bã cà phê'],
+  falconry: ['Falconry', 'Nuôi chim ưng'], oud: ['Playing the oud', 'Chơi đàn oud'], desert: ['Desert camping', 'Cắm trại sa mạc'], mahjong: ['Mahjong', 'Mạt chược'], taichi: ['Tai chi', 'Thái cực quyền'], calligraphy: ['Calligraphy', 'Thư pháp'],
+  nightmarket: ['Night markets', 'Đi chợ đêm'], hotspring: ['Hot springs', 'Tắm suối nóng'], baduk: ['Baduk', 'Cờ vây'], kpop: ['K-pop dance', 'Nhảy K-pop'], noraebang: ['Noraebang', 'Hát noraebang'],
+  capoeira: ['Capoeira', 'Capoeira'], samba: ['Samba', 'Samba'], futsal: ['Futsal', 'Futsal'], carrom: ['Carrom', 'Cờ carrom'], yogaAsana: ['Morning yoga', 'Yoga buổi sáng'], hockey: ['Ice hockey', 'Khúc côn cầu'], canoe: ['Canoeing', 'Chèo xuồng'], curling: ['Curling', 'Curling'],
+  batik: ['Batik', 'Vẽ batik'], badminton: ['Badminton', 'Cầu lông'], gamelan: ['Gamelan', 'Chơi gamelan'], sepaktakraw: ['Sepak takraw', 'Cầu mây'], banya: ['Banya', 'Xông hơi banya'], mushrooms: ['Mushroom picking', 'Hái nấm'], iceFishing: ['Ice fishing', 'Câu cá trên băng'],
+  buna: ['Hosting coffee ceremonies', 'Pha nghi lễ buna'], distance: ['Distance running', 'Chạy đường dài'], krar: ['Playing the krar', 'Chơi đàn krar'], rugby7: ['Rugby sevens', 'Bóng bầu dục 7 người'], beadwork: ['Beadwork', 'Xâu chuỗi hạt'], netball: ['Netball', 'Bóng lưới'], drums: ['Traditional drumming', 'Đánh trống truyền thống'],
+  bao: ['Playing bao', 'Chơi cờ bao'], taarab: ['Taarab music', 'Nhạc taarab'], safari: ['Wildlife spotting', 'Ngắm thú hoang'], imigongo: ['Imigongo art', 'Vẽ imigongo'], intore: ['Intore dancing', 'Múa intore'], basket: ['Basketry', 'Đan rổ'],
+  zouglou: ['Zouglou music', 'Nhạc zouglou'], awale: ['Awalé', 'Cờ awalé'], braai: ['Braai', 'Nướng braai'], rugby: ['Rugby', 'Bóng bầu dục'],
+};
+const pack = i => Object.fromEntries(Object.entries(hobbies).map(([k, v]) => [`hobby.${k}`, v[i]]));
+const en = { ...pack(0),
+  'hud.pf.hobbies': 'Likes {list}', 'hud.pf.code': 'Staff ID', 'hud.pf.age': 'Age', 'hud.pf.home': 'Hometown', 'hud.pf.like': 'Likes', 'hud.pf.joined': 'Joined', 'hud.pf.days': '{n} d',
+  'hud.pf.cert': 'Health certificate', 'hud.pf.grade': 'Class {g}', 'hud.pf.examined': 'Examined {date}', 'hud.pf.valid': 'valid {n} more min', 'hud.pf.expired': 'expired', 'hud.pf.recheck': 'New exam', 'hud.pf.dueGroup': '{n} health certificates expired',
+  'hud.toast.checkup': '🩺 {name} examined: class {grade}', 'hud.gm.r.checkup': 'Health exam for {name}',
+  'hud.fm.stance.title': 'How the manager runs the team', 'hud.fm.stance.aria': 'From heart to reason', 'hud.fm.stance.heart': 'Heart', 'hud.fm.stance.reason': 'Reason',
+  'hud.fm.mark.expansion': 'Growth', 'hud.fm.mark.balanced': 'Balance', 'hud.fm.mark.debt': 'Repay debt', 'hud.fm.mark.profit': 'Profit',
+  'hud.fm.goal.conservative': 'Heart: people first, double savings, no loans.', 'hud.fm.goal.expansion': 'Growth: land and infrastructure first, keeps people.', 'hud.fm.goal.balanced': 'Balance: steady team, moderate profit.', 'hud.fm.goal.debt': 'Repay debt: spare Gold goes to the loan, no new loans.', 'hud.fm.goal.profit': 'Profit: only quick paybacks, tight discipline.',
+  'hud.fm.fx.speed': 'Work speed {v}', 'hud.fm.fx.moraleDown': 'Morale −{v} a minute', 'hud.fm.fx.moraleUp': 'Morale +{v} a minute', 'hud.fm.fx.quit': 'Worn-out workers quit', 'hud.fm.fx.reward': 'Best worker +{coins} Gold, worst worker punished', 'hud.fm.fx.none': 'No extra pressure or perks.',
+  'hud.fm.ask': 'Ask me before every big purchase',
+  'hud.toast.discipline': '⚖️ {best} rewarded 🪙{coins}, {worst} reprimanded', 'hud.toast.left.stress': '😫 {name} quit: too much pressure', 'hud.sm.why.stress': 'too much pressure',
+};
+const vi = { ...pack(1),
+  'hud.pf.hobbies': 'Thích {list}', 'hud.pf.code': 'Mã NV', 'hud.pf.age': 'Tuổi', 'hud.pf.home': 'Quê quán', 'hud.pf.like': 'Sở thích', 'hud.pf.joined': 'Vào làm', 'hud.pf.days': '{n} ngày',
+  'hud.pf.cert': 'Giấy khám sức khoẻ', 'hud.pf.grade': 'Loại {g}', 'hud.pf.examined': 'Khám {date}', 'hud.pf.valid': 'còn {n} phút', 'hud.pf.expired': 'đã hết hạn', 'hud.pf.recheck': 'Khám lại', 'hud.pf.dueGroup': '{n} giấy khám đã hết hạn',
+  'hud.toast.checkup': '🩺 {name} đã khám: loại {grade}', 'hud.gm.r.checkup': 'Khám sức khoẻ cho {name}',
+  'hud.fm.stance.title': 'Phong cách quản trị', 'hud.fm.stance.aria': 'Từ Tình đến Lý', 'hud.fm.stance.heart': 'Tình', 'hud.fm.stance.reason': 'Lý',
+  'hud.fm.mark.expansion': 'Phát triển', 'hud.fm.mark.balanced': 'Cân bằng', 'hud.fm.mark.debt': 'Trả nợ', 'hud.fm.mark.profit': 'Lợi nhuận',
+  'hud.fm.goal.conservative': 'Tình: lo cho người trước, giữ gấp đôi dự phòng, không vay.', 'hud.fm.goal.expansion': 'Phát triển: ưu tiên đất và hạ tầng, giữ được người.', 'hud.fm.goal.balanced': 'Cân bằng: đội ổn định, lãi vừa.', 'hud.fm.goal.debt': 'Trả nợ: tiền dư dồn trả nợ, không vay thêm.', 'hud.fm.goal.profit': 'Lợi nhuận: chỉ đầu tư hồi vốn nhanh, kỷ luật chặt.',
+  'hud.fm.fx.speed': 'Tốc độ làm việc {v}', 'hud.fm.fx.moraleDown': 'Tinh thần −{v} mỗi phút', 'hud.fm.fx.moraleUp': 'Tinh thần +{v} mỗi phút', 'hud.fm.fx.quit': 'Người kiệt sức sẽ nghỉ việc', 'hud.fm.fx.reward': 'Người giỏi nhất +{coins} Vàng, người kém nhất bị phạt', 'hud.fm.fx.none': 'Không thêm áp lực hay phúc lợi.',
+  'hud.fm.ask': 'Hỏi tôi trước mọi khoản chi lớn',
+  'hud.toast.discipline': '⚖️ {best} được thưởng 🪙{coins}, {worst} bị phạt', 'hud.toast.left.stress': '😫 {name} nghỉ việc: áp lực quá', 'hud.sm.why.stress': 'áp lực quá',
+};
+export default { en, vi };

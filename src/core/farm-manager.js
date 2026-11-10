@@ -236,7 +236,7 @@ const paybackLimit = (x, e) => (e.cat === 'land' ? x.m.landPayback : x.m.maxPayb
 /** What this think may spend, the ranked investments, and the modes' switches. Built once per think. */
 export function thinkContext(s, now, list) {
   const f = fmOf(s), m = modeOf(f), reserve = fmReserve(s), committed = fmCommitted(s);
-  const x = { s, now, f, m, reserve, committed, off: !f.auto, ask: !!m.ask, budget: Math.max(0, s.player.coins - reserve - committed), recovery: inRecovery(s, now, reserve), calib: f.calib ?? 1, pj: perJob(s, 'farm'), k: farmKnowledge(s, now) || [], saving: null, rank: new Map(), net: cashFlow(s, now).net, owed: loanTotal(s) };
+  const x = { s, now, f, m, reserve, committed, off: !f.auto, ask: !!f.ask, budget: Math.max(0, s.player.coins - reserve - committed), recovery: inRecovery(s, now, reserve), calib: f.calib ?? 1, pj: perJob(s, 'farm'), k: farmKnowledge(s, now) || [], saving: null, rank: new Map(), net: cashFlow(s, now).net, owed: loanTotal(s) };
   x.labour = x.k.length ? labourShare(s, x.k) : 1;
   x.farmFlow = modelFlow(x.k, x.labour);
   const cap = list.filter(c => c.group === 'capital' && c.cost > 0 && c.zone === 'farm');

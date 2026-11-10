@@ -19,7 +19,7 @@ import { CREW } from '../../core/config/economy.js';
 import { CROP_ORDER, EXPIRY_LEVEL, EXPIRY_ENABLED } from '../../core/config/economy.js';
 import { countryRecipes, SUPPLY, FARMLAB, methodKey } from '../../core/config/research.js';
 import { TASKS, PENALTY, HISTORY, GM, gmCandidatesFor, gmSalary, GEAR, gearTier, SOFTWARE, softwarePrice, hasSoftware, WARRANTY, PROFILE, CRAFT, craftLevel, STAFF, STAFF_ORDER, TRAITS, RECRUIT, ROBOT_TASKS, ROBOT_PARTS, PART_ORDER, PART_COST, WORKER_TASKS, TASK_LIMIT, SMART_RULES, QUALITY, TEND, MISTAKES, STAFF_BREAKS, SKILL, RARE, STAT_ORDER, LEVEL_STEP, VITALS, UPKEEP, RIVAL, BOOKS, ROBOT_WEAR, CARE, statOf, statCap, taskLimit, energyMax, unitLevel, mistakeChance, hasRule, batteryMinutes, slackMul, partTier, robotTask, heatPerMin, jamChance, isHardDrink, UPGRADE_GATE } from '../../core/config/economy.js';
-import { nextHireLevel, gmHanded, gmStaffReport, openTiers, autoManaged } from '../../core/derive.js';
+import { employeeCode, checkupOf, nextHireLevel, gmHanded, gmStaffReport, openTiers, autoManaged } from '../../core/derive.js';
 import { region, regionGame, level, hireCap, hireCapReached, slots, activeCount, freeSlots, zoneUnits, staffError, freeHire, applicants, recruitError, poolRefreshIn, unitStars, unitOf, statError, statPrice, partError, partPrice, unitState, careCost, careError, quickFix, upkeepOf, upkeepPer, fireRefund, ledgerWindow, unitProfit, poachOf, canBrew, dayKey, lastDays, dayRow, dayKpis, daysSince, unitGrade, teamKpi, robotPayback, REPORT_PERIODS, SPEND_CATS, periodKeys, teamMoney, teamRanking, tenureDays, tenureShiftDays, tenureMinLeft, robotRoom, wageArrears, gmQuitArrears, warrantyLeft, gearPrice, gearError, softwareError, gearStockOf, gmUnlocked, gmOf, gmBoard, gmBoardRefreshIn, gmPay, gmBudgetLeft, gmPlan, gmPermission, gmAdvisorOf, chaosOf, calmCost, chaosSlackMul, gmMood, followerWage, countryNow, recipeFound, contractOf, cropUnlocked, methodOf, trialsHere, buyerNow, gmPoachOf, gmRequests, gmLog, unitLog, teamJournal, gmCareWallet, gmCareWalletLeft, gmBacklog, gmWaiting, gmStrike, apologiseCost, gmBudgetCap, gmLicensed, licenceError, licencePrice, gmTrainCost, gmTrainError, gmHighValue, histRows, upgradeOptions, throughputShare, tasksOpen } from '../../core/derive.js';
 import { sfx } from '../../shared/audio/index.js';
 import { h } from './dom.js';
@@ -30,7 +30,7 @@ import { actionButton, coinAmount, lockTag, needMore } from './widgets.js';
 import { dashboardOf } from '../../core/farm-manager.js';
 import { autoPanel, autoStrip, autoSig } from './sheets.js';
 import { rowText, taskCard } from './inbox.js';
-import { doesJob } from '../../core/config/economy.js';
+import { doesJob, FARM_MANAGER, stanceEffects, stanceMode, CHECKUP } from '../../core/config/economy.js';
 
 const REFRESH_MS = 1000;
 const isRobot = u => STAFF[u?.type]?.kind === 'robot';
@@ -327,6 +327,8 @@ export function createStaffModal(ctx) {
     const idle = idleUnits(s, now, zone);
     if (idle.length) group(3, '🪑', T('hud.sb.groupIdle', { n: idle.length }),
       actionButton({ id: 'staffIdleIn', label: T('hud.sb.idleBtn'), tone: 'go', onClick: () => putToWork() }));
+    const unchecked = zoneUnits(s, zone).filter(u => !isRobot(u) && checkupOf(u)?.expired);
+    if (unchecked.length) group(4, '🩺', T('hud.pf.dueGroup', { n: unchecked.length }), actionButton({ id: 'staffCheckup', label: T('hud.pf.recheck'), cost: CHECKUP.cost, tone: 'gold', disabled: s.player.coins < CHECKUP.cost, onClick: () => { if (act('staff/checkup', { uid: unchecked[0].uid }).ok) rerender(); } }));
     const worth = worthUnits(s, zone);
     if (worth.length) {
       const p = orderPlan(s, worth, upWorth(s));
@@ -685,7 +687,7 @@ export function createStaffModal(ctx) {
   // Rebuilt at most every 3 s (or at once when a setting changes): the modal repaints every second.
   let fmMemo = { at: 0, sig: '', v: null };
   function fmData(s, now) {
-    const f = s.gm?.fm, sig = f ? `${f.auto}${f.mode}${f.minReserve}${f.spendLimit}${f.build}${f.land}${f.hire}${JSON.stringify(f.pins)}` : '';
+    const f = s.gm?.fm, sig = f ? `${f.auto}${f.stance}${f.ask}${f.mode}${f.minReserve}${f.spendLimit}${f.build}${f.land}${f.hire}${JSON.stringify(f.pins)}` : '';
     if (!fmMemo.v || now - fmMemo.at > 3000 || sig !== fmMemo.sig) fmMemo = { at: now, sig, v: dashboardOf(s, now, planOf(s, now)) };
     return fmMemo.v;
   }
@@ -708,6 +710,27 @@ export function createStaffModal(ctx) {
     const pay = e.known && e.payback != null ? T('hud.fm.logPay', { min: Math.round(e.payback) }) : '';
     return h('li', { class: 'hud-sm-jrow hud-hist-row is-manager' }, h('span', { class: 'hud-sm-jtext' }, `${T('hud.fm.logLine', { what, code: T(`hud.fm.code.${e.code}`) })}${pay}`), h('small', { class: 'hud-sm-jago' }, whenText(e.at, now)));
   }
+  // Heart–Reason slider: the position sets discipline, its nearest mark the investment goal. Drag previews, release saves.
+  function stanceBlock(f) {
+    const S = FARM_MANAGER.stance, snap = v => { const m = [0, 100, ...S.marks.map(x => x[0])].find(x => Math.abs(x - v) <= S.snap); return m ?? v; };
+    const goal = h('p', { class: 'hud-fm-obj' }), fx = h('p', { class: 'hud-sub' });
+    const show = v => {
+      const e = stanceEffects(v), pct = Math.round((e.speed - 1) * 100), parts = [];
+      if (pct) parts.push(T('hud.fm.fx.speed', { v: `${pct > 0 ? '+' : '−'}${Math.abs(pct)}%` }));
+      if (e.moralePerMin) parts.push(T(e.moralePerMin < 0 ? 'hud.fm.fx.moraleDown' : 'hud.fm.fx.moraleUp', { v: Math.abs(e.moralePerMin).toFixed(1) }));
+      if (e.bonus) parts.push(T('hud.fm.fx.reward', { coins: fmt(e.bonus) }));
+      if (e.quits) parts.push(T('hud.fm.fx.quit'));
+      goal.textContent = T(`hud.fm.goal.${stanceMode(v)}`);
+      fx.textContent = parts.length ? parts.join(' · ') : T('hud.fm.fx.none');
+    };
+    const input = h('input', { class: 'hud-fm-range', type: 'range', attrs: { min: '0', max: '100', step: '1', 'aria-label': T('hud.fm.stance.aria') },
+      on: { input: e => { const v = snap(+e.target.value); e.target.value = v; show(v); }, change: e => fmSet('stance', snap(+e.target.value)), pointerdown: e => e.stopPropagation() } });
+    input.value = f.stance; show(f.stance);
+    const marks = h('div', { class: 'hud-fm-marks', attrs: { 'aria-hidden': 'true' } }, ...S.marks.filter(m => m[0] > 0).map(([at, mode]) => h('span', { style: { left: `${at}%` } }, T(`hud.fm.mark.${mode}`))));
+    return h('section', { class: 'hud-sm-sec hud-fm-stance' }, h('h3', { class: 'hud-h3' }, T('hud.fm.stance.title')),
+      h('div', { class: 'hud-fm-ends' }, h('b', null, T('hud.fm.stance.heart')), h('b', null, T('hud.fm.stance.reason'))), input, marks, goal, fx,
+      h('label', { class: 'hud-fm-ask' }, h('input', { type: 'checkbox', checked: !!f.ask, on: { change: e => fmSet('ask', e.target.checked) } }), h('span', null, T('hud.fm.ask'))));
+  }
   function fmBlocks(s, now) {
     const d = fmData(s, now), f = d.settings, top = d.plan?.top;
     const M = d.money, sign = v => `${v < 0 ? '−' : ''}${fmt(Math.abs(Math.round(v)))}`;
@@ -716,6 +739,7 @@ export function createStaffModal(ctx) {
     const blocks = (d.plan?.blocks || []).filter(b => b.code !== d.plan?.objective?.replace('fix.', ''));
     const next = top ? h('p', { class: 'hud-sub' }, T('hud.fm.next', { what: T(`hud.fm.cat.${top.cat}`), coins: fmt(top.cost) }), ' · ', top.known && top.payback != null ? T('hud.fm.nextPay', { min: Math.round(top.payback), net: fmt(Math.round(top.net)) }) : T('hud.fm.nextEst')) : h('p', { class: 'hud-sub' }, T('hud.fm.noNext'));
     return [
+      autoManaged(s) ? null : stanceBlock(f),
       h('section', { class: 'hud-sm-sec' },
         h('p', { class: `hud-fm-obj${d.recovery ? ' is-bad' : ''}` }, fmObjective(d.plan, !f.auto)),
         h('div', { class: 'hud-sm-grid hud-pf-kpis hud-sb-kpi3' },
@@ -996,7 +1020,7 @@ export function createStaffModal(ctx) {
     const date = Number.isFinite(since) ? dateText(since) : '—';
     const who = robot
       ? T('hud.pf.robotWho', { model: PROFILE.model[u.type] || T(`staff.${u.type}`), serial: u.serial || '—', date, days })
-      : T('hud.pf.who', { age: u.age ?? '—', home: u.home || '—', date, days });
+      : `${T('hud.pf.who', { age: u.age ?? '—', home: u.home || '—', date, days })}${u.hobbies?.length ? ` · ${T('hud.pf.hobbies', { list: u.hobbies.map(k => T(`hobby.${k}`)).join(', ') })}` : ''}`;
     const tags = robot
       ? [tag(`${JOB_ICON[robotTask(u)] || '🤖'} ${T(`hud.staff.task.${robotTask(u)}`)}`), tag(T('hud.pf.fixedStar')), warrantyLeft(u) > 0 ? tag(T('hud.g4.warrantyTag', { n: warrantyLeft(u) }), 'good') : null]
       : [tag(T('hud.staff.lv', { level: unitLevel(u) }), 'gold'), TRAITS[u.trait] ? tag(`${TRAITS[u.trait].icon} ${T(`staff.trait.${u.trait}`)}`) : null,
@@ -1007,9 +1031,22 @@ export function createStaffModal(ctx) {
         h('span', { class: 'hud-sm-avatar-state' }, STATE_ICON[key] || '🙂')),
       h('div', { class: 'hud-sm-dhead-text' },
         h('strong', { class: 'hud-sm-dname' }, nameOf(u)),
-        h('small', { class: 'hud-pf-who' }, who),
+        robot ? h('small', { class: 'hud-pf-who' }, who) : h('dl', { class: 'hud-pf-facts' },
+          h('dt', null, T('hud.pf.code')), h('dd', null, employeeCode(u)),
+          h('dt', null, T('hud.pf.age')), h('dd', null, u.age ?? '—'),
+          h('dt', null, T('hud.pf.home')), h('dd', null, u.home || '—'),
+          u.hobbies?.length ? h('dt', null, T('hud.pf.like')) : null, u.hobbies?.length ? h('dd', null, u.hobbies.map(k => T(`hobby.${k}`)).join(', ')) : null,
+          h('dt', null, T('hud.pf.joined')), h('dd', null, `${date} (${T('hud.pf.days', { n: days })})`)),
         h('span', { class: 'hud-pf-tags' }, ...tags, perkBadge(u.perk), u.follower ? tag(T('hud.follow.tag', { coins: followerWage(u), min: UPKEEP.perMinutes }), 'gold') : null),
-        h('small', { class: `hud-report hud-report--${lineTone(key, infoOf(s, u))}` }, nowLine(s, u, key, now, infoOf(s, u)))));
+        h('small', { class: `hud-report hud-report--${lineTone(key, infoOf(s, u))}` }, nowLine(s, u, key, now, infoOf(s, u)))),
+      robot ? null : h('div', { class: 'hud-pf-health' }, vitalBars(u, true, infoOf(s, u)), certRow(s, u)));
+  }
+  // Health certificate on the staff card: class, exam date, how long it lasts, and a new exam once it has run out.
+  function certRow(s, u) {
+    const c = checkupOf(u); if (!c) return null;
+    return h('div', { class: `hud-pf-cert${c.expired ? ' is-expired' : ''}` },
+      h('div', null, h('strong', null, `🩺 ${T('hud.pf.cert')}: ${T('hud.pf.grade', { g: c.grade })}`), h('small', null, `${T('hud.pf.examined', { date: dateText(c.at) })} · ${c.expired ? T('hud.pf.expired') : T('hud.pf.valid', { n: c.left })}`)),
+      c.expired ? actionButton({ id: 'checkupOne', label: T('hud.pf.recheck'), cost: CHECKUP.cost, tone: 'gold', disabled: s.player.coins < CHECKUP.cost, onClick: () => { if (act('staff/checkup', { uid: u.uid }).ok) rerender(); } }) : null);
   }
   /** List avatar: the unit's photo when it is drawn here (cached by the realm), else its icon on a per-unit tint. */
   function avatarOf(s, u, key) {
@@ -1042,7 +1079,7 @@ export function createStaffModal(ctx) {
       h('div', { class: 'hud-row' }, actionButton({ label: T('hud.staff.assign'), disabled: !region(s), onClick: () => act('staff/assign', { uid: u.uid }) })));
     parts.push(section('hud.pf.sec.now',
       h('p', { class: `hud-sm-state hud-sm-state--${toneOf(key)}` }, h('span', { class: 'hud-sm-state-ico', attrs: { 'aria-hidden': 'true' } }, STATE_ICON[key] || '🙂'), T(`hud.sm.state.${key}`)),
-      vitalBars(u, true, info),
+      isRobot(u) ? vitalBars(u, true, info) : null,
       h('p', { class: 'hud-sm-todo' }, h('strong', null, T('hud.sm.todoTitle')), ' ', todoText(s, u, key, info)),
       care.length ? h('div', { class: 'hud-sm-care' }, care) : null,
       ...shift));
