@@ -46,7 +46,7 @@ export function createTopBar(ctx) {
   // tapping the coins opens the loan sheet, like the loan action (founder 2026-11-08)
   const coins = h('button', { id: 'hud-coins', class: 'hud-pill hud-pill--coin', type: 'button', attrs: { 'aria-label': T('fin.title') }, on: { click: () => ctx.onOpenFinance?.('fund', ctx.store.state.world.currentRegion) } }, h('span', { class: 'hud-coin-ico', attrs: { 'aria-hidden': 'true' } }), coinsVal);
   // USD is the account's: small, beside the farm's Gold; opens the capital book.
-  const usdVal = h('span', null, '$0');
+  const usdVal = h('span', null, '0');
   const usdPill = h('button', { id: 'hud-usd', class: 'hud-usd', type: 'button', attrs: { 'aria-label': T('fin.usdWallet') }, on: { click: () => ctx.onOpenFinance?.('home') } }, usdVal);
   // The farm's most urgent money problem, one line; a tap goes straight to the fix.
   const alertChip = h('button', { id: 'hud-alert', class: 'hud-alert-chip', type: 'button', hidden: true, on: { click: () => { const a = shownAlert; if (a) ctx.onOpenFinance?.(a.go === 'fund' ? 'fund' : 'farm', ctx.store.state.world.currentRegion); } } });
@@ -169,7 +169,7 @@ export function createTopBar(ctx) {
       else setText(beansTag, T('hud.storage.tag'));
     }
     coinCounter.set(s.player.coins);
-    setText(usdVal, `$${(usdOf(s) / 100).toFixed(2)}`);
+    setText(usdVal, fmt(usdOf(s) / 100));
     // Warnings cost a few rule checks: only when the Gold moved, or every few seconds.
     const key = `${Math.round(s.player.coins)}|${s.world.currentRegion}`, t0 = Date.now();
     if (s.story.phase === 'play' && region(s) && (key !== alertKey || t0 - alertAt > 5000)) {

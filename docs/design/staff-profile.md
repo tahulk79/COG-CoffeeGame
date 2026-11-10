@@ -134,3 +134,14 @@ Config `GEAR`, `gearTier`, `gearWalk`, `WARRANTY`, `SOFTWARE`, `softwarePrice`, 
   after 10 s). Realm `softwareRound` every 5 s; journal `autoCare`. Shown on the robot's «Bộ phận» tab with the
   warranty line. Payback cost now includes software.
 - Not done: handing a leaver's gear to a new hire (the proposal's "if you want"); café gear and café craft.
+
+## People of each country (founder 2026-11-10)
+
+`src/core/config/staff-people.js` holds a fixed, seeded roster of 100 to 200 people for each of the 26 countries, of mixed gender and ages 18 to 58, with a real hometown of that country and two hobbies. Applicants and managers are drawn from the roster of the country played, and shown with their full name. Old saves: a worker abroad with one of the old Vietnamese hometowns gets one of their own country, and everyone gets hobbies.
+
+## Staff card and health certificate (founder 2026-11-10)
+
+The staff file opens on a card: photo, name, staff number (`NV-` plus the uid digits, never changes), age, hometown, hobbies, joining date, the three health bars and the health certificate.
+
+A worker comes with a certificate: exam date and class I, II or III (`checkupGrade`: age, stamina, current vitals). It lasts `CHECKUP.validMin` played minutes on the team. After that, the player (card or Needs-you list) or the manager (out of the Gold above his reserve, unless "ask me" is on) pays `CHECKUP.cost` for a new exam. An expired certificate is only a reminder for now: it has no penalty.
+

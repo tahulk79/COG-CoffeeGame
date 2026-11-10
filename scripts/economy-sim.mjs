@@ -70,7 +70,7 @@ export function netWorth(s, paid = {}) {
   return w;
 }
 
-const LOGGED = ['levelUp', 'expiryTriggered', 'parcelBought', 'built', 'regionExpired', 'regionEntered', 'fieldPlaced', 'gmHired', 'licenceBought', 'loanTaken', 'loanLate', 'loanRepaid', 'gmLeft', 'gmQuit'];
+const LOGGED = ['levelUp', 'expiryTriggered', 'parcelBought', 'built', 'regionExpired', 'regionEntered', 'fieldPlaced', 'gmHired', 'staffLeft', 'licenceBought', 'loanTaken', 'loanLate', 'loanRepaid', 'gmLeft', 'gmQuit'];
 const CAFE_BUILD = ['roaster', 'tables', 'kiosk', 'pastry'];
 const STAGES = ['pack', 'roast', 'dry']; // most downstream first: finish goods before starting new ones
 // Care kinds that are mandatory running costs (management-rules §2.0): slack fees, recharges, cooling, repairs, service.
@@ -97,7 +97,7 @@ const mkRng = seed => { let x = (Math.abs(seed | 0) % 2147483646) + 1; return ()
  *   seed?: number, maxUnits?: number, gm?: boolean|'sink', loan?: number|null, stopAfterLoan?: boolean, reactMin?: number,
  *   answerMin?: number, neglectMin?: number, neglectRegion?: number, teamSize?: number, teamRobots?: boolean, manualRepay?: boolean}} [opts]
  */
-export function runSim(minutes = 60, { game = 'both', process = true, tap, persona = 'tapper', seed: seed0 = 1, maxUnits = Infinity,
+export function runSim(minutes = 60, { game = 'both', process = true, tap, persona = 'tapper', stance = null, seed: seed0 = 1, maxUnits = Infinity,
   gm: useGm, loan = null, stopAfterLoan = false, reactMin = 1, answerMin = 2, neglectMin = 45, neglectRegion = 2, jobRate = 'realm', teamSize = 0, teamRobots = false, manualRepay = true } = {}) {
   const managed = persona !== 'tapper';
   tap ??= managed ? 2400 : 1200; // the delegate taps half as often
@@ -341,7 +341,7 @@ export function runSim(minutes = 60, { game = 'both', process = true, tap, perso
         if (isRobot(u)) {
           if ((e.workT += dt) >= batteryMinutes(u) * 60) { e.workT = 0; act('staff/stop', { uid: u.uid }); continue; }
         } else if (roll() < STAFF_BREAKS.worker.slackChancePerMinute * slackMul(u) * D.chaosSlackMul(s, STAFF[u.type].zone) * dt / 60) { act('staff/stop', { uid: u.uid }); continue; }
-        e.credit += dt * D.stateSpeedMul(u, now) * (jobRate === 'ref' ? D.jobsPerMin(u) / 60 : 1 / realmJobSec(u, job.task));
+        e.credit += dt * D.stateSpeedMul(u, now, s) * (jobRate === 'ref' ? D.jobsPerMin(u) / 60 : 1 / realmJobSec(u, job.task));
         if (e.credit >= 1) {
           e.credit -= 1;
           if (act(job.type, job.payload)) {
@@ -523,6 +523,7 @@ export function runSim(minutes = 60, { game = 'both', process = true, tap, perso
       if (act('loan/take', { amount: loan, gold: true })) { const ln = D.loansOf(s).at(-1); loanRec = { pack: loan, id: ln.id, takenP: P(), termMin: ln.termMin, level: D.level(s), repaidP: null, late: false }; }
       else loanRec = { pack: loan, error: Object.keys(failures).filter(k => k.startsWith('loan/take')).join(',') || 'refused', level: D.level(s) };
     }
+    if (stance != null && s.gm?.unit && !s.gm.unit.isAuto && s.gm.fm?.stance !== stance) act('gm/fmSet', { key: 'stance', value: stance });
     let did = false;
     // 0. a real player opens the build / land menus now and then even while busy (every 15 s of play)
     if (now >= nextInvest) { nextInvest = now + 15000; did = invest(); }

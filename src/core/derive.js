@@ -3,8 +3,8 @@ import { statCostOf, PLANT_ROW } from './config/economy.js';
 import { tierIndexAt } from './config/layout.js';
 import { maxStatOf, maxTierOf, FUNNY, gmThinkOf, gmActionsOf, gmMoneyMul, gmHaggleMul, gmCalmMul, gmStatOf } from './config/economy.js';
 import { doesJob, haulLoadOf, bucketOf } from './config/economy.js';
-import { CREW, workerJobs, FARM_MANAGER, gmHandsPerMin } from './config/economy.js';
-import { STORAGE_BASE, GARDEN, gardenStyleOf, FOLLOW, GM, gmCandidatesFor, gmSalary, SHIFT, TEND, PROFILE, CAREER, GEAR, gearTier, WARRANTY, SOFTWARE, softwarePrice, hasSoftware, TUTORIAL, BUILDINGS, CROPS, CROP_ORDER, DRINKS, DRINK_ORDER, STAFF, hireLimit, STAFF_CAP, RECRUIT, applicantsFor, traitEffect, MISTAKES, QUALITY, isHardDrink, unitLevel, levelSpeed, statOf, statCap, statCost, STAT_ORDER, SKILL, ROBOT_TASKS, PART_COST, PART_ORDER, partTier, partCost, UPKEEP, VITALS, CARE, ROBOT_WEAR, WORKER_TASKS, taskLimit, energyMax, unitFee, staffFee, unitSpeed, batteryMinutes, heatPerMin, jamChance, slackMul, ROBOT_PARTS, STAFF_BREAKS, STAFF_ORDER, GM_RULES, UPGRADE_GATE, LAND, FIRE, BOOKS, CHEST_LEVELS, tradeCostMul, LOAN, loanOwed, ROUND_LEVEL_CAP, REBIRTH, CELL, levelForXp, xpForLevel, GRACE, SHOP, BEANS, VENUES, VENUE_ORDER, VENUE_ITEMS, RATING, FIELD, fieldExtraCost, fieldExtraCap, GOODS, GOOD_ORDER, ITEM_GOODS, RECIPES, CLIMATE_EFFECT, CLIMATE_PICK, PERENNIAL, INCOME, INCOME_FLOOR, incomeRef, loanTermMin, robotCap, DEBT, TASKS, PENALTY, HISTORY } from './config/economy.js';
+import { CREW, workerJobs, FARM_MANAGER, gmHandsPerMin, stanceEffects, CHECKUP } from './config/economy.js';
+import { loanRate, STORAGE_BASE, GARDEN, gardenStyleOf, FOLLOW, GM, gmCandidatesFor, gmSalary, SHIFT, TEND, PROFILE, CAREER, GEAR, gearTier, WARRANTY, SOFTWARE, softwarePrice, hasSoftware, TUTORIAL, BUILDINGS, CROPS, CROP_ORDER, DRINKS, DRINK_ORDER, STAFF, hireLimit, STAFF_CAP, RECRUIT, applicantsFor, traitEffect, MISTAKES, QUALITY, isHardDrink, unitLevel, levelSpeed, statOf, statCap, statCost, STAT_ORDER, SKILL, ROBOT_TASKS, PART_COST, PART_ORDER, partTier, partCost, UPKEEP, VITALS, CARE, ROBOT_WEAR, WORKER_TASKS, taskLimit, energyMax, unitFee, staffFee, unitSpeed, batteryMinutes, heatPerMin, jamChance, slackMul, ROBOT_PARTS, STAFF_BREAKS, STAFF_ORDER, GM_RULES, UPGRADE_GATE, LAND, FIRE, BOOKS, CHEST_LEVELS, tradeCostMul, LOAN, loanOwed, ROUND_LEVEL_CAP, REBIRTH, CELL, levelForXp, xpForLevel, GRACE, SHOP, BEANS, VENUES, VENUE_ORDER, VENUE_ITEMS, RATING, FIELD, fieldExtraCost, fieldExtraCap, GOODS, GOOD_ORDER, ITEM_GOODS, RECIPES, CLIMATE_EFFECT, CLIMATE_PICK, PERENNIAL, INCOME, INCOME_FLOOR, incomeRef, loanTermMin, robotCap, DEBT, TASKS, PENALTY, HISTORY } from './config/economy.js';
 import { TIER_EDGES, tierZoneAt, farmGroundY, PARCELS, ROADS, RESERVED, BOUNDS, GATE, areaOfParcel, areaAt, rectsOverlap, rectsTouch, inRect, terrainOfLot, lotAllows, climateOfLot, TERRAIN_USES, PRE_TILLED, SNAP, lotContaining, ESTATES, ESTATE_ORDER, ESTATE_FIELDS, estateOfLot, farmLotsOf, plotsOf } from './config/layout.js';
 import { countryRecipes, INGREDIENTS, INGREDIENT_ORDER, RESEARCH, SUPPLY, supplierOf, buyerOf, FARMLAB, methodEffect, methodKey } from './config/research.js';
 import { parseRegionId, citiesOf, COUNTRY_ORDER, regionCost, regionGames } from './config/world.js';
@@ -986,7 +986,17 @@ export const unitBlocked = (u, now = null) => {
   return BLOCKING.has(st) || (isWorkerUnit(u) && ((u.fullness ?? 100) <= 0 || (u.energy ?? 100) <= 0));
 };
 /** Speed factor of the state (realm): hungry ×0.7, tired ×0.6, blocked 0. */
-export const stateSpeedMul = (u, now = null) => (unitBlocked(u, now) ? 0 : unitState(u, now) === 'hungry' ? VITALS.hungryMul : unitState(u, now) === 'tired' ? VITALS.tiredMul : 1);
+export const stateSpeedMul = (u, now = null, s = null) => (unitBlocked(u, now) ? 0 : (unitState(u, now) === 'hungry' ? VITALS.hungryMul : unitState(u, now) === 'tired' ? VITALS.tiredMul : 1) * (s && !isRobot(u) && STAFF[u.type]?.zone === 'farm' ? stanceEffects(stanceOf(s)).speed : 1));
+/** A worker's staff number, from their uid: never changes. */
+export const employeeCode = u => `NV-${String(parseInt(String(u?.uid).replace(/\D+/g, ''), 10) || 0).padStart(4, '0')}`;
+/** A worker's health certificate and how long it still lasts (played minutes on the team). */
+export function checkupOf(u) {
+  const c = u?.checkup; if (!c) return null;
+  const left = Math.ceil(CHECKUP.validMin - ((u.tenurePlayedMin || 0) - c.atTenure));
+  return { ...c, left: Math.max(0, left), expired: left <= 0 };
+}
+/** The Heart–Reason slider in force: only a hired farm manager has one, otherwise the middle, which changes nothing. */
+export const stanceOf = s => (gmOf(s) && !autoManaged(s) && gmZone(s) === 'farm' ? fmOf(s).stance ?? FARM_MANAGER.stance.start : FARM_MANAGER.stance.start);
 /** Flags behind the state (a hungry worker can also be tired: care buttons look at these, not the top state). */
 export const needs = u => ({
   tired: isWorkerUnit(u) && (u.energy ?? 100) < VITALS.tiredBelow,
@@ -1528,7 +1538,7 @@ export const landSellRefund = id => Math.floor(LAND.sellRefund * (own(PARCELS, i
 export function gmLoanFor(s, c) {
   if (autoManaged(s) || c.group !== 'capital' || !gmLicensed(s, 'credit') || c.act?.type?.startsWith('loan/')) return null; // Auto never borrows: the debt would outlive the run
   const gap = c.cost - s.player.coins;
-  const pack = LOAN.packs.filter(a => a >= gap && !loanError(s, a))[0];
+  const pack = LOAN.packs.filter(a => a * (1 - loanRate()) >= gap && !loanError(s, a))[0]; // he gets the pack less the interest
   if (!pack) return null;
   const term = loanTerm(s, pack), payback = c.cost / Math.max(0.01, c.value || 0);
   return payback < term * GM.loanRule.paybackTermShare ? { amount: pack, termMin: term, payback } : null;
@@ -2150,7 +2160,7 @@ export const isCareItem = item => item?.act?.type === 'staff/care';
 export function gmCareWallet(s) {
   const W = GM.careWallet;
   const per = assignedUnits(s).reduce((n, u) => n + (isRobot(u) ? unitFee(u) + W.robotExtra : W.workerPer10), 0);
-  return Math.round(Math.max(W.min, W.rosterMul * per));
+  return Math.round(Math.max(W.min, W.rosterMul * per) * stanceEffects(stanceOf(s)).care);
 }
 /** What is left of the care wallet in its current played window. */
 export function gmCareWalletLeft(s) {
@@ -2311,9 +2321,8 @@ export const isChestLevel = lvl => CHEST_LEVELS.includes(lvl);
 // Loans (management-rules §2.7 / §4.5): s.loans[] (oldest first, ≤ LOAN.maxOpen).
 /** Open loans, oldest first. */
 export const allLoans = s => (Array.isArray(s.loans) ? s.loans : []).filter(ln => ln && ln.owed > 0);
-/** A loan belongs to the city it was taken in: only that city's Gold repays it (null: carried over the Level-10 reset, not settled yet). */
-export const loanHere = (s, ln) => ln.regionId == null || ln.regionId === s.world?.currentRegion;
-export const loansOf = s => allLoans(s).filter(ln => loanHere(s, ln));
+/** Debt belongs to the account (founder 2026-11-10): the income of any farm repays it, so moving farm cannot leave it behind. */
+export const loansOf = allLoans;
 /** Total still owed on every open loan. */
 export const loanTotal = s => Math.round(loansOf(s).reduce((n, ln) => n + ln.owed, 0) * 100) / 100;
 /** A loan ran past its term: no new loan until every late loan is paid ("không thể vay"). */
@@ -2339,7 +2348,8 @@ export function loanOf(s) {
 export function loanError(s, amount) {
   if (!LOAN.packs.includes(amount)) return 'unknown';
   if (loanBlocked(s)) return 'loanBlocked';
-  // Founder 2026-11-08: borrowing is unlimited — no level, credit-limit or open-count lock (only an overdue loan blocks).
+  // No level or open-count lock (founder 2026-11-08), but the total owed stays within the credit limit (founder 2026-11-10).
+  if (loanTotal(s) + loanOwed(amount) > creditLimit(s)) return 'credit';
   return null;
 }
 /** Error data for the HUD / fail(): the level a pack needs, the credit left. */

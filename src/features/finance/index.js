@@ -15,7 +15,7 @@ import { thumbOf } from './thumbs.js';
 import './finance.css';
 import '../../ui/styles/skin/finance.css';
 
-const usd = cents => `$${(cents / 100).toLocaleString(getLang(), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const usd = cents => (cents / 100).toLocaleString(getLang(), { maximumFractionDigits: 2 });
 const signed = n => `${n > 0 ? '+' : n < 0 ? '−' : ''}${fmt(Math.abs(n))}`;
 const icon = (name, cls = '') => { const n = h('span', { class: `fin-ico ${cls}`, attrs: { 'aria-hidden': 'true' } }); n.innerHTML = iconSvg(name); return n; };
 const goldAmount = (n, cls = '') => h('span', { class: `fin-gold ${cls}` }, icon('gold'), fmt(n));
@@ -110,7 +110,7 @@ export function createFinance({ store, sandbox = false, onEnterFarm }) {
     if (!rows.length) return h('p', { class: 'fin-empty' }, T('fin.noHistory'));
     const when = at => new Date(at).toLocaleString(getLang(), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
     return h('ul', { class: 'fin-history' }, rows.map(r => h('li', null,
-      h('span', { class: 'fin-history-text' }, h('strong', null, T(`fin.ledger.${r.kind}`)), h('small', null, [r.regionId ? farmName(r.regionId) : null, when(r.at), r.sandbox ? T('fin.sandbox') : null].filter(Boolean).join(' · '))),
+      h('span', { class: 'fin-history-text' }, h('strong', null, T(`fin.ledger.${r.kind}`)), h('small', null, [r.regionId ? farmName(r.regionId) : null, when(r.at), r.interest ? T('fin.interestPaid', { n: usd(r.interest) }) : null, r.sandbox ? T('fin.sandbox') : null].filter(Boolean).join(' · '))),
       h('span', { class: 'fin-history-nums' }, r.usd ? h('b', { class: r.usd < 0 ? 'is-bad' : 'is-good' }, `${r.usd < 0 ? '−' : '+'}${usd(Math.abs(r.usd))}`) : null, r.gold ? h('span', { class: 'fin-gold' }, icon('gold'), signed(r.gold)) : null))));
   }
 
@@ -164,11 +164,12 @@ export function createFinance({ store, sandbox = false, onEnterFarm }) {
     const q = convertQuote(s, fund.regionId, fund.cents), have = usdOf(s);
     const preview = h('div', { class: 'fin-preview' },
       h('div', null, h('small', null, T('fin.pay')), h('b', { class: 'fin-usd-amt' }, usd(fund.cents))), h('b', { class: 'fin-arrow', attrs: { 'aria-hidden': 'true' } }, '→'),
-      h('div', null, h('small', null, T('fin.receive')), goldAmount(q.ok ? q.gold : fund.cents * q.rate / 100, 'fin-gold--big')));
+      h('div', null, h('small', null, T('fin.receive')), goldAmount(q.ok ? q.gold : (fund.cents - q.interest) * q.rate / 100, 'fin-gold--big')));
     const rate = h('p', { class: `fin-rate${q.approved ? '' : ' is-draft'}` }, T('fin.rate', { gold: fmt(q.rate) }), q.approved ? '' : ` · ${T('fin.rateDraft')}`);
+    const interest = q.interest > 0 ? h('p', { class: 'fin-rate' }, T('fin.interest', { pct: Math.round(q.interestRate * 100), n: usd(q.interest) })) : null;
     const reason = q.ok ? null : h('p', { class: 'fin-reason' }, T(`fin.err.${q.error}`, { min: usd(WALLET.minConvertCents), n: usd(q.missingCents || 0) }));
     if (fund.stage === 'confirm') {
-      return h('div', null, preview, rate,
+      return h('div', null, preview, rate, interest,
         h('dl', { class: 'fin-after' }, h('dt', null, T('fin.afterUsd')), h('dd', null, usd(q.usdAfter)), h('dt', null, T('fin.afterGold', { farm: name })), h('dd', null, goldAmount(q.goldAfter))), reason,
         h('div', { class: 'fin-actions' }, btn(T('hud.cancel'), 'gu-btn--plain', () => { fund.stage = 'pick'; paint(true); }), btn(T('fin.confirm'), 'gu-btn--go', () => confirmFund(q), { disabled: !q.ok })));
     }
@@ -177,12 +178,12 @@ export function createFinance({ store, sandbox = false, onEnterFarm }) {
       h('p', { class: 'fin-balance' }, T('fin.usdWallet'), ': ', h('b', null, usd(have)), ' ', have < WALLET.minConvertCents ? btn(T('fin.topup'), 'gu-btn--brass gu-btn--sm', () => go('topup')) : null),
       h('div', { class: 'fin-stepper' }, btn('−', 'gu-btn--plain fin-step', () => setCents(clamp(fund.cents - step)), { attrs: { 'aria-label': T('fin.less') } }), h('b', { class: 'fin-amount' }, usd(fund.cents)), btn('+', 'gu-btn--plain fin-step', () => setCents(clamp(fund.cents + step)), { attrs: { 'aria-label': T('fin.more') } })),
       h('div', { class: 'fin-quick' }, WALLET.quickConvertCents.map(c => btn(usd(c), `gu-btn--plain gu-btn--sm${c === fund.cents ? ' is-on' : ''}`, () => setCents(clamp(c)), { disabled: have < c })), btn(T('fin.all'), 'gu-btn--plain gu-btn--sm', () => setCents(clamp(have)), { disabled: have < WALLET.minConvertCents })),
-      preview, rate, reason,
+      preview, rate, interest, reason,
       h('div', { class: 'fin-actions' }, btn(T('fin.review'), 'gu-btn--go', () => { fund.stage = 'confirm'; fund.requestId = newTxId('fund'); paint(true); }, { disabled: !q.ok })));
   }
   function confirmFund(q) {
     // The id was made when this confirm card opened: a second tap repeats it and the reducer ignores the repeat.
-    const r = store.dispatch('wallet/convert', { regionId: fund.regionId, cents: fund.cents, rate: q.rate, requestId: fund.requestId }, { now: now() });
+    const r = store.dispatch('wallet/convert', { regionId: fund.regionId, cents: fund.cents, rate: q.rate, interestRate: q.interestRate, requestId: fund.requestId }, { now: now() });
     if (!r.ok) { sfx('ui.deny'); toast(T(`fin.err.${r.error}`, { min: usd(WALLET.minConvertCents), n: usd(r.data?.missingCents || 0) })); fund.stage = 'pick'; paint(true); return; }
     if (r.noop) return;
     sfx('ui.buy'); fund.stage = 'done'; fund.result = q; paint(true);

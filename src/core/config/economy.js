@@ -1,7 +1,7 @@
 // Farm & Café V3 — economy data. Single source of truth for every price, timer and reward.
 // UI and scenes must read numbers from here (never hardcode). Tuned with `node scripts/economy-sim.mjs`.
 // See docs/design/v3-gdd.md §Economy and docs/AUTONOMOUS_DECISIONS.md.
-import { drawName } from './staff-names.js';
+import { AGE, drawPerson, lifeFrom, lifeOfSeed } from './staff-people.js';
 
 // Founder playtest (2026-11-06): every game starts with PLAYTEST.coins, and an existing save is raised to it once
 // (story.seen.playtestCoins = that amount; raising PLAYTEST.coins tops up again). Set coins to 0 to go back to the balanced START.coins. Tests run with it off.
@@ -395,9 +395,9 @@ export function applicantsFor(zone, seed, trades = RECRUIT.trades[zone], country
   for (let i = 0; i < RECRUIT.size; i++) {
     const trait = traits[i % traits.length], type = jobs[i % jobs.length], looks = STAFF[type].looks;
     const drawn = r() < .5 ? 'male' : 'female', gender = !looks || looks[drawn] ? drawn : Object.keys(looks)[0]; // a trade with one model keeps its model's gender
-    const name = drawName(country, gender, r, used);
+    const who = drawPerson(country, gender, r, used), name = who.name;
     used.add(name);
-    out.push({ type, trait, name, gender, intro: 1 + Math.floor(r() * RECRUIT_INTROS),
+    out.push({ type, trait, name, gender, age: who.age, home: who.home, hobbies: who.hobbies, intro: 1 + Math.floor(r() * RECRUIT_INTROS),
       cost: Math.round(STAFF[type].cost * TRAITS[trait].costMul / 5) * 5 });
   }
   // Rarity is drawn AFTER the board above, so a seed keeps the same names / traits it always had.
@@ -405,8 +405,6 @@ export function applicantsFor(zone, seed, trades = RECRUIT.trades[zone], country
     if (r() < RARE.chance) { a.perk = RARE.perks[Math.floor(r() * RARE.perks.length)]; a.cost = Math.round(a.cost * RARE.costMul / 5) * 5; }
     a.stats = startStats(a.trait, a.perk);
   }
-  // Profile (age, hometown) is drawn last, so a seed keeps the board it always had.
-  for (const a of out) Object.assign(a, profileFrom(r));
   return out;
 }
 // Personnel file (docs/design/staff-profile.md): who a worker is, per-day numbers, a personal timeline and a grade.
@@ -414,8 +412,7 @@ export function applicantsFor(zone, seed, trades = RECRUIT.trades[zone], country
 //  grade: score 0..100 against the zone's team average of the same day (par = the team average's score per part);
 //  mistakeScale: quality score = 100 − mistakes / jobs × mistakeScale; minShiftSeconds: less time on shift = no grade.
 export const PROFILE = {
-  daysKeep: 7, logKeep: 20, teamDaysKeep: 30, age: [18, 45],
-  homes: ['Buôn Ma Thuột', 'Đà Lạt', 'Bảo Lộc', 'Di Linh', 'Pleiku', 'Kon Tum', 'Gia Nghĩa', 'Đắk Mil', 'Cầu Đất', 'Khe Sanh', 'Sơn La', 'Điện Biên'],
+  daysKeep: 7, logKeep: 20, teamDaysKeep: 30, age: [AGE.min, AGE.max], // hometowns and hobbies: config/staff-people.js
   serial: { harvestBot: 'HB', plantBot: 'PB', waterBot: 'WB', haulBot: 'LB', pruneBot: 'TB', droneBot: 'DB', brewBot: 'BB' },
   model: { harvestBot: 'HarvestBot H-1', plantBot: 'SeedBot P-1', waterBot: 'RainBot W-1', haulBot: 'CargoBot L-1', pruneBot: 'TrimBot T-1', droneBot: 'SkyDrone D-1', brewBot: 'BrewBot B-1' }, // model line on a robot's ID card (robots stay "Robot" by name)
   grade: {
@@ -424,6 +421,15 @@ export const PROFILE = {
     cuts: [['A', 85], ['B+', 78], ['B', 70], ['C', 50], ['D', 0]],
   },
 };
+// Health certificate (founder 2026-11-10): a worker comes with one; it lasts validMin played minutes on the team, then the
+// player or the manager pays `cost` for a new exam. An expired one is only a reminder for now. grades: minimum score of each class.
+export const CHECKUP = { validMin: 120, cost: 30, grades: [[85, 'I'], [70, 'II'], [0, 'III']] };
+/** Health class from age, stamina and how the worker is right now. */
+export function checkupGrade(u) {
+  const vitals = ((u.energy ?? 100) + (u.morale ?? 80) + (u.fullness ?? 100)) / 3;
+  const score = 50 + vitals / 2 - 0.8 * Math.max(0, (u.age ?? 30) - 30) + 3 * ((u.stats?.stamina ?? 1) - 1);
+  return CHECKUP.grades.find(([min]) => score >= min)[1];
+}
 // Career (docs/design/staff-profile.md step 3): a worker's rank. "staff" comes by level alone; the others need level +
 // tenure + the player's "Thăng chức" tap. Tenure is counted in SHIFT-DAYS of played time (management-rules §2.5, §8 Q5):
 // 1 shift-day (sd) = shiftDayMin played minutes on the team (u.tenurePlayedMin, advanced by clock/tick). lead / manager: one each per game zone, paid an allowance
@@ -610,13 +616,18 @@ export const GM = {
 // landPayback: the same for a new terrace (Balanced keeps farm-crew.md §15's 120 min); horizon: minutes used for expected net profit and ROI; landUse: planted share the land must reach before buying more;
 // loan: he may borrow for a capital job; ask: capital jobs wait for your signature (Manual Approval).
 export const FARM_MANAGER = {
-  modeOrder: ['balanced', 'profit', 'expansion', 'conservative', 'manual'],
+  // Heart–Reason slider (founder 2026-11-10): 0 heart, 100 reason, 50 changes nothing. `stance` is the position, the nearest
+  // mark picks the investment mode below. speedReason / speedHeart: worker speed at the ends. drainPerMin ^ drainPow: morale lost on
+  // the reason side, regenPerMin: gained on the heart side. careCut / carePlus: his care wallet at the ends. mvpBonus / mvpMorale /
+  // worstMorale: the reward and the punishment each MVP round at full reason. A worker who starts to sulk on the reason side quits instead.
+  stance: { start: 50, snap: 3, marks: [[0, 'conservative'], [25, 'expansion'], [50, 'balanced'], [65, 'debt'], [80, 'profit']],
+    speedReason: 0.3, speedHeart: 0.1, drainPerMin: 7, drainPow: 1.5, regenPerMin: 3, careCut: 1, carePlus: 0.5, mvpBonus: 120, mvpMorale: 30, worstMorale: 40, minRepay: 20 },
   modes: {
     balanced: { reserveMul: 1, maxPayback: 60, landPayback: 120, horizon: 90, landUse: 0.7, loan: true },
-    profit: { reserveMul: 1, maxPayback: 40, landPayback: 90, horizon: 60, landUse: 0.85, loan: true },
+    profit: { reserveMul: 1, maxPayback: 60, landPayback: 100, horizon: 75, landUse: 0.75, loan: true },
     expansion: { reserveMul: 0.8, maxPayback: 120, landPayback: 180, horizon: 180, landUse: 0.55, loan: true },
     conservative: { reserveMul: 2, maxPayback: 30, landPayback: 60, horizon: 45, landUse: 0.85, loan: false },
-    manual: { reserveMul: 1, maxPayback: 60, landPayback: 120, horizon: 90, landUse: 0.7, loan: false, ask: true },
+    debt: { reserveMul: 1, maxPayback: 50, landPayback: 80, horizon: 60, landUse: 0.8, loan: false, repayFirst: true },
   },
   reservePicks: [0, 200, 500, 1000, 2000, 5000, 10000], // 0 = automatic only
   limitPicks: [0, 200, 500, 1000, 3000, 10000], // per GM.windowMinutes; 0 = no extra limit
@@ -639,6 +650,16 @@ export const FARM_MANAGER = {
   stuckSeconds: 15, avoidSeconds: 12, ageCapM: 30,
 };
 /** Field jobs the manager does by himself per minute. */
+/** The investment mode of a slider position: its nearest mark. */
+export const stanceMode = v => FARM_MANAGER.stance.marks.reduce((best, m) => (Math.abs(m[0] - v) < Math.abs(best[0] - v) ? m : best))[1];
+/** Slider position, as −1 (heart) .. 0 (balance) .. 1 (reason). */
+export const stanceTiltOf = v => (v - 50) / 50;
+/** What a slider position does to the team, for the rules and the screen. */
+export function stanceEffects(v) {
+  const t = stanceTiltOf(v), S = FARM_MANAGER.stance;
+  return { speed: 1 + (t > 0 ? S.speedReason * t : S.speedHeart * t), moralePerMin: t > 0 ? -S.drainPerMin * t ** S.drainPow : t < 0 ? S.regenPerMin * -t : 0,
+    care: t > 0 ? 1 - S.careCut * t : 1 - S.carePlus * t, bonus: t > 0 ? Math.round(S.mvpBonus * t) : 0, quits: t > 0 };
+}
 export const gmHandsPerMin = gm => FARM_MANAGER.hands.perMin * (1 + FARM_MANAGER.hands.perSpeed * (gmStatOf(gm, 'speed') - 1));
 /** Field jobs in one of his rounds. */
 export const gmHandsPerRound = gm => Math.max(1, Math.round(gmHandsPerMin(gm) * FARM_MANAGER.hands.everySec / 60));
@@ -659,7 +680,7 @@ export function gmCandidatesFor(seed, country = 'vn', taken = []) {
   const r = rng(seed | 0);
   const used = new Set(taken);
   return Array.from({ length: GM.board.size }, () => {
-    const gender = r() < .5 ? 'male' : 'female', name = drawName(country, gender, r, used);
+    const gender = r() < .5 ? 'male' : 'female', name = drawPerson(country, gender, r, used).name;
     used.add(name);
     const skill = 1 + Math.min(4, Math.floor(r() * r() * 5 + r() * 2)); // mostly 1–3, sometimes 4–5
     const style = GM.styleOrder[Math.floor(r() * GM.styleOrder.length)];
@@ -669,13 +690,8 @@ export function gmCandidatesFor(seed, country = 'vn', taken = []) {
 }
 /** Base salary of a GM per GM.payMinutes in a power mode. */
 export const gmSalary = (gm, mode) => Math.round(GM.salaryPerSkill * (gm?.skill || 1) * (GM.modes[mode]?.mul ?? 1) * (1 + GM.raiseStep * (gm?.raises || 0)));
-/** Age + hometown drawn from an rng (applicants) — or from a uid hash (old saves, see profileOfUid). */
-function profileFrom(r) {
-  const [lo, hi] = PROFILE.age;
-  return { age: lo + Math.floor(r() * (hi - lo + 1)), home: PROFILE.homes[Math.floor(r() * PROFILE.homes.length)] };
-}
-/** A stable profile for a unit hired before profiles existed (same uid → same age / hometown). */
-export const profileOfUid = uid => profileFrom(rng((parseInt(String(uid).replace(/\D+/g, ''), 10) || 0) * 7919 + 17));
+/** A stable life (age, hometown, hobbies) for a unit with no record of its own, from its uid and the country it works in. */
+export const profileOfUid = (uid, country = 'vn') => lifeOfSeed(country, uid);
 /** Robot serial number "SB-0427" from its type and uid (stable). */
 export const robotSerial = (type, uid) => `${PROFILE.serial[type] || 'RB'}-${String(((parseInt(String(uid).replace(/\D+/g, ''), 10) || 0) * 389 + 101) % 10000).padStart(4, '0')}`;
 // Per-stat upgrades (§5): every finished job gives the worker XP (× trait xpMul); every xpPerPoint XP = 1 skill point.
@@ -957,14 +973,16 @@ export function chestPrize(roll) {
   return CHEST_PRIZES[0];
 }
 
-// Loans (HUD 💰 under the gear, management-rules §2.7 / §4.5): borrow a pack of coins now, owe it back plus a fee.
+// Loans (HUD 💰 under the gear, management-rules §2.7 / §4.5): borrow a pack of cash into the cash wallet, owe it back.
+// Founder 2026-11-10: Gold cannot be borrowed. Interest (LOAN.interest, read only through loanRate()) is paid when borrowed
+// cash is exchanged for Gold, out of the amount exchanged; the debt itself is the principal.
 // At most maxOpen loans at once (s.loans[]); a pack opens at packLevel[pack]; the total owed may not pass the credit
 // limit creditMul × I10ref × (1 + creditLevelStep × level), I10ref = 10 × I(L) (the reference 10-minute income).
 // Each loan's term (played minutes) is fixed when taken: clamp(ceil to term.round of term.mul × owed / (autoRepay ×
 // I(L))), term.minMin, term.maxMin). Late → owed × (1 + lateFee) once and no new loan until every late loan is paid.
 // While a loan is open, autoRepay of every coin income goes to the oldest debt first; the rest can be paid any time.
 // The Level-10 incident does NOT wipe the debt (a debt is a debt).
-export const LOAN = { packs: [1000, 2000, 5000], fee: 0.1, autoRepay: 0.2, maxOpen: 2,
+export const LOAN = { packs: [1000, 2000, 5000], interest: 0.1, autoRepay: 0.2, maxOpen: 2,
   packLevel: { 1000: 4, 2000: 6, 5000: 8 },
   creditMul: 1.5, creditLevelStep: 0.1,
   term: { mul: 2, minMin: 30, maxMin: 150, round: 10 }, // mul 1.5 → 2 (2026-11-08, sim: the delegate earns ≈ 50 % of I(L); 1.5 only covered ≥ 67 %)
@@ -972,7 +990,9 @@ export const LOAN = { packs: [1000, 2000, 5000], fee: 0.1, autoRepay: 0.2, maxOp
 // Wage arrears (management-rules §2.7): unpaid salary / follower wage is owed in s.debt.wages { gm, follower } (never on
 // a loan). Arrears are paid first out of the next income; a follower whose arrears reach wageCapMul × its wage leaves.
 export const DEBT = { wageCapMul: 10 };
-export const loanOwed = amount => Math.round(amount * (1 + LOAN.fee));
+export const loanOwed = amount => Math.round(amount);
+/** The interest rate in force. The one place a future operator-controlled rate plugs in. */
+export const loanRate = () => LOAN.interest;
 /** Term of a loan in played minutes (management-rules §2.7): LOAN.term.mul × the time autoRepay alone needs to clear
  *  `owed` at the reference income `perMin` (I(L)), rounded up to LOAN.term.round, clamped to [minMin, maxMin]. */
 export function loanTermMin(owed, perMin) {
@@ -1220,20 +1240,20 @@ export const GM_RULES = [
 ];
 
 // ---------- Wallets (docs/design/wallet-economy.md) ----------
-// USD: one account wallet, in integer cents. Gold: one wallet per owned city (region).
-// goldPerUsd: $1 = 100 Gold, approved by the founder on 2026-11-09. A new rate must set `rateApproved` back to false until it is signed off.
+// Cash (shown without a currency name; `usd` in code): one account wallet, in integer cents. Gold: one wallet per owned city (region).
+// goldPerUsd: 1 cash = 1 Gold (founder 2026-11-10). A new rate must set `rateApproved` back to false until it is signed off.
 // demoDeposit: the demo top-up gate (founder 2026-11-09): tapping a pack adds that USD, no real payment exists. Off: the gate closes.
 // sandboxPackCents: the packs it offers.
 // newFarmStarterGold: working capital for the second and later farms (always below the cheapest city, so opening farms
 // can never make money). runwayMinutes / lowGoldSeeds: when the dashboard warns that a farm is running out.
 export const WALLET = {
-  version: 1,
-  goldPerUsd: 100,
+  version: 2,
+  goldPerUsd: 1,
   rateApproved: true,
-  minConvertCents: 100,
-  quickConvertCents: [100, 500, 2000],
+  minConvertCents: 10000,
+  quickConvertCents: [10000, 50000, 200000],
   demoDeposit: true,
-  sandboxPackCents: [500, 2000, 10000],
+  sandboxPackCents: [50000, 200000, 1000000],
   newFarmStarterGold: START.coins,
   maxUsdCents: 1e12,
   maxGold: 1e15,
