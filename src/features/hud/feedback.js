@@ -201,7 +201,7 @@ export function createFeedback(ctx) {
           else if (ev.wave === 1 && now - (lastAt.wave1 || 0) > 3000) { lastAt.wave1 = now; toast(T('hud.toast.wave1', { crop: T(`crop.${ev.crop}`) }), 'info'); }
           break;
         case 'harvestedAll': toast(T(ev.full ? 'hud.harvestAll.full' : 'hud.harvestAll.done', { n: fmt(ev.n) }), ev.full ? 'warn' : 'good'); break;
-        case 'pruned': toast(T('hud.toast.pruned'), 'good'); break;
+        case 'pruned': if (ev.by == null) toast(T('hud.toast.pruned'), 'good'); break; // a pruner's cuts stay quiet, like staff picks
         case 'uprooted': toast(T('hud.toast.uprooted'), 'info'); break;
         case 'specialtyBonus': if (now - (lastAt.specialty || 0) > 30000) { lastAt.specialty = now; toast(T('hud.toast.specialty', { coins: fmt(ev.coins) }), 'good'); } break;
         case 'licenceBought': toast(T('hud.gm.toast.licence', { lic: T(`hud.gm.lic.${ev.group}`) }), 'good'); break;

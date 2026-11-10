@@ -279,3 +279,93 @@
 #hud-root .hud-pf-cert{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border-radius:12px;background:#f3f7e6;font-size:13px}
 #hud-root .hud-pf-cert>div{display:grid;gap:2px;min-width:0}
 #hud-root .hud-pf-cert.is-expired{background:#fde7e2;color:#a63422}
+
+/* --- Phone tidy-up (2026-11-11 mobile QA) --- */
+/* Auto strip: words · clock · pause in one row. The clock kept the Auto sheet's absolute corner spot and sat under the pause button. */
+#hud-root .hud-sm-poach-slot .hud-auto-strip.is-on,#hud-root .hud-sm-poach-slot .hud-auto-strip.is-paused{grid-template-columns:minmax(0,1fr) auto auto}
+#hud-root .hud-auto-strip .hud-auto-state-time{position:static;height:32px;padding:0 10px;font-size:15px}
+#hud-root .hud-auto-strip .hud-auto-meter{grid-column:1/-1;position:static;margin:0 6px 6px}
+@media (max-width:599px){
+  /* the four numbers: an even 2 × 2 block instead of a ragged centred wrap */
+  #hud-root .hud-sm-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+  #hud-root .hud-sm-kpi{justify-content:center;min-width:0;height:32px;overflow:hidden;text-overflow:ellipsis}
+  #hud-root .hud-sm-kpi:last-child:nth-child(odd){grid-column:1/-1} /* three numbers: the last one takes the row, no hole */
+  /* filters: one row that slides sideways, Select stays at the end */
+  #hud-root .hud-rs-bar{align-items:center;margin-bottom:10px}
+  #hud-root .hud-rs-filters{flex-wrap:nowrap;overflow-x:auto;padding:2px 2px 4px;scrollbar-width:none;-webkit-mask-image:linear-gradient(90deg,#000 88%,transparent);mask-image:linear-gradient(90deg,#000 88%,transparent)}
+  #hud-root .hud-rs-filters::-webkit-scrollbar{display:none}
+  #hud-root :is(.hud-rs-chip,.hud-rs-pick){flex:none;height:32px}
+  /* "Fix all / Upgrade all": the button takes the card's width so the price never spills out */
+  #hud-root .hud-ny{grid-template-columns:minmax(0,1fr);gap:6px;min-height:0}
+  #hud-root .hud-ny-act,#hud-root .hud-ny-act .hud-btn{width:100%}
+  /* Auto strip on a phone: a smaller robot, the title and the numbers one line each (they broke into four) */
+  #hud-root .hud-sm-poach-slot .hud-auto-strip{min-height:64px;gap:6px}
+  #hud-root .hud-auto-strip .hud-auto-state-ico{width:42px;height:42px}
+  #hud-root .hud-auto-strip-text strong{font-size:14px!important;line-height:18px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #hud-root .hud-auto-strip .hud-auto-state-time{height:28px;padding:0 7px;font-size:13px}
+  #hud-root .hud-sm-poach-slot .hud-auto-strip .hud-btn{min-width:44px;padding-left:8px;padding-right:8px}
+  #hud-root .hud-auto-strip-text small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* a card's report: two lines at most */
+  #hud-root .hud-rs-text .hud-report{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+}
+
+/* Coins / beans flying from the fields to the money bar crossed an open panel and landed on its text: they wait while one is open. */
+body:has(#hud-root:is([data-sheet],:has(.hud-sm-host:not([hidden])))) .farm-reward-flight{display:none}
+/* a toast over the money bar: solid, two lines at most */
+#hud-root:is([data-sheet],:has(.hud-sm-host:not([hidden]))) .hud-toast{max-width:calc(100vw - 24px);box-sizing:border-box;font-size:13px;line-height:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} /* one line: it sits on the money bar */
+
+/* Hiring on a phone (2026-11-11 mobile QA) */
+@media (max-width:599px){
+  /* the three tabs: icon beside the word, 46 px instead of 62, so the list gets the room */
+  #hud-root .hud-sm-tabs .hud-tab{height:46px!important;padding:0 2px 4px 26px;background-position:6px center,0 0!important;background-size:18px,auto!important;font-size:12px;line-height:14px;text-align:center;text-overflow:clip}
+  #hud-root .hud-sm-tabs{gap:6px}
+  /* a smaller portrait: two whole cards fit the screen */
+  #hud-root .hud-hire-row .hud-hire-ico{height:78px;background-size:contain}
+  #hud-root .hud-sm-tabs-slot{margin-top:70px}
+  /* a card is as tall as what it says: robot cards were 262 px with half of it empty */
+  #hud-root .hud-hire-row{min-height:0!important;height:auto!important;padding-bottom:34px}
+  #hud-root .hud-sm-body[data-screen="tab:gm"] .hud-hire-row{min-height:0!important}
+  /* the button says what it does, not only the price */
+  #hud-root .hud-hire-act .hud-btn-main>span:not(.hud-cost){display:inline;margin-right:4px}
+}
+
+/* Staff detail on a phone (2026-11-11 mobile QA) */
+/* No photo yet (unit off the farm, or the shot is still queued): the trade's picture instead of a lone coffee bean */
+#hud-root .hud-pf-photo[data-art]:not(.has-photo){background-size:contain;background-position:center bottom;background-repeat:no-repeat}
+#hud-root .hud-pf-photo[data-art]:not(.has-photo)>.ui-icon{display:none}
+#hud-root .hud-pf-photo[data-art=planter]:not(.has-photo){background-image:url(../../game-art/art/w-planter-f.png)}
+#hud-root .hud-pf-photo[data-art=picker]:not(.has-photo){background-image:url(../../game-art/art/w-picker-f.png)}
+#hud-root .hud-pf-photo[data-art=hauler]:not(.has-photo){background-image:url(../../game-art/art/w-hauler-m.png)}
+#hud-root .hud-pf-photo[data-art=pruner]:not(.has-photo){background-image:url(../../game-art/art/w-pruner-m.png)}
+#hud-root .hud-pf-photo[data-art=processor]:not(.has-photo){background-image:url(../../game-art/art/w-processor-f.png)}
+#hud-root .hud-pf-photo[data-art=waterer]:not(.has-photo){background-image:url(../../game-art/art/w-waterer-m.png)}
+#hud-root .hud-pf-photo[data-art=surveyor]:not(.has-photo){background-image:url(../../game-art/art/w-supervisor-m.png)}
+#hud-root .hud-pf-photo[data-art=builder]:not(.has-photo){background-image:url(../../game-art/art/w-picker-m.png)}
+#hud-root .hud-pf-photo[data-art=harvestBot]:not(.has-photo){background-image:url(../../game-art/art/robot-harvest.png)}
+#hud-root .hud-pf-photo[data-art=plantBot]:not(.has-photo){background-image:url(../../game-art/art/robot-plant.png)}
+#hud-root .hud-pf-photo[data-art=waterBot]:not(.has-photo){background-image:url(../../game-art/art/robot-water.png)}
+#hud-root .hud-pf-photo[data-art=haulBot]:not(.has-photo){background-image:url(../../game-art/art/robot-haul.png)}
+#hud-root .hud-pf-photo[data-art=pruneBot]:not(.has-photo){background-image:url(../../game-art/art/robot-prune.png)}
+#hud-root .hud-pf-photo[data-art=droneBot]:not(.has-photo){background-image:url(../../game-art/art/robot-drone.png)}
+#hud-root .hud-pf-photo[data-art=barista]:not(.has-photo){background-image:url(../../game-art/art/w-processor-f.png)}
+#hud-root .hud-pf-photo[data-art=brewBot]:not(.has-photo){background-image:url(../../game-art/art/robot-plant.png)}
+@media (max-width:599px){
+  /* Today / Grow / History: the word beside the icon (three bare icons said nothing) */
+  #hud-root .hud-sm-ptabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+  #hud-root .hud-sm-ptabs .hud-tab{width:auto!important;height:44px!important;min-width:0;padding:0 4px 3px 28px;color:var(--line);font:400 13px/15px var(--disp);background-size:20px,auto!important;background-position:8px center,0 0!important;transform:none!important}
+}
+@media (max-width:599px){
+  /* The profile head took two thirds of the screen on every tab. Tighter facts, and the vitals + health card only on Today
+     (Grow and History are about skills and the past, the bars repeated what Today shows). */
+  #hud-root .hud-pf-id:has(.hud-pf-facts){grid-template-columns:76px 1fr;gap:8px 10px}
+  #hud-root .hud-pf-id:has(.hud-pf-facts) .hud-pf-photo{width:76px;height:76px}
+  #hud-root .hud-pf-id:has(.hud-pf-facts) .hud-pf-photo img{width:70px;height:70px}
+  #hud-root .hud-pf-id:has(.hud-pf-facts) .hud-sm-dhead-text{gap:4px}
+  #hud-root .hud-pf-facts{font-size:12px;line-height:1.25;gap:1px 8px}
+  #hud-root .hud-sm-detail:has([data-hud-id="staffPTab-today"][aria-pressed="false"]) .hud-pf-health{display:none}
+}
+@media (max-width:599px){
+  /* a robot's head (no fact list): the photo box was 190 px tall, half the screen with the tabs */
+  #hud-root .hud-pf-id:not(:has(.hud-pf-facts)) .hud-sm-avatar--big{height:128px}
+  #hud-root .hud-pf-id:not(:has(.hud-pf-facts)) .hud-sm-avatar--big img{width:116px;height:116px}
+}

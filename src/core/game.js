@@ -764,7 +764,7 @@ const uidNum = u => parseInt(String(u.uid).replace(/\D+/g, ''), 10) || 0;
 // Journal / timeline rows (were s.staff.journal and u.log, now history rows; D.teamJournal / D.unitLog are the old
 // views). By whom: the unit itself (its own trouble / craft), the rival, or whoever runs this action (you, the manager,
 // a lead / software → the unit).
-const SELF_TYPES = new Set(['overheat', 'jam', 'slacked', 'craft', 'mvp', 'autoCare', 'warranty']);
+const SELF_TYPES = new Set(['overheat', 'jam', 'slacked', 'craft', 'mvp', 'autoCare', 'warranty', 'funny']); // funny: the unit's own incident, not something the player did
 const RIVAL_TYPES = new Set(['poachStarted', 'poachRefused']);
 function journal(s, now, type, u, extra) {
   const actor = !u ? ACTOR : SELF_TYPES.has(type) ? u.uid : RIVAL_TYPES.has(type) ? 'system' : ACTOR === 'staff' || ACTOR === 'penalty' ? u.uid : ACTOR;
@@ -1155,7 +1155,7 @@ const handlers = {
     pl.n = 0; pl.pruned = true; pl.plantedAt = ctx.now;
     delete pl.wave; delete pl.watered;
     if (by != null) practice(D.unitOf(s, by), 'prune', ctx.now);
-    ev.push({ type: 'pruned', plotId, crop: pl.crop, cost });
+    ev.push({ type: 'pruned', plotId, crop: pl.crop, cost, by });
   },
   // Light pruning by a pruner / TrimBot: this season's harvest gives CREW.trimBeans more. Once per season.
   'farm/trim'(s, { plotId, uid: id } = {}, ev, ctx) {

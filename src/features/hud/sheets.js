@@ -1,3 +1,4 @@
+import { numberLocale } from '../../i18n/index.js';
 // Sheet contents: Build (café), Seeds (farm), Menu (café drinks) and Progress (Round + Rebirth). Staff: staff-modal.js.
 // Pure render functions of the store state. Each screen has its own toolbar (toolbar.js), so sheets filter by view.
 import { BUILD_MENU, BUILD_MENU_FARM, BUILD_MENU_CAFE, BUILDINGS, CATEGORY_ORDER, AUTO, autoPrice, CROPS, CROP_ORDER, STAFF, STAFF_ORDER, LOAN, loanOwed, loanRate, DRINKS, DRINK_ORDER, BEANS } from '../../core/config/economy.js';
@@ -142,10 +143,14 @@ export function upgradesSheet(ctx) {
   const render = s => {
     const items = list(s), news = fresh(s);
     if (!items.length && !news.length) return h('p', { class: 'hud-line hud-line--muted' }, T('hud.upgrades.none'));
-    const rows = items.map(b => h('li', { class: 'hud-land-row', attrs: { title: buildingEffect(b.type, b.level, true) } },
+    // Same buildings side by side, numbered in the order they were built (three cards all reading "Barn" could not be told apart),
+    // each with its level step and what the step gives.
+    const byType = {}; for (const b of items) (byType[b.type] ||= []).push(b);
+    const ordered = Object.values(byType).flat();
+    const rows = ordered.map(b => { const same = byType[b.type], n = same.length > 1 ? ` ${same.indexOf(b) + 1}` : ''; return h('li', { class: 'hud-land-row', attrs: { title: buildingEffect(b.type, b.level, true) } },
       rowIcon(BUILDINGS[b.type]),
-      h('span', { class: 'hud-land-text' }, h('strong', null, T(`building.${b.type}`)), h('small', null, `Lv ${b.level} → ${b.level + 1}`)),
-      actionButton({ id: `up-${b.uid}`, label: T('hud.upgrade'), icon: '⬆️', cost: upgradeCost(b.type, b.level), tone: 'gold', disabled: upgradeError(s, b) === 'coins', note: upgradeError(s, b) === 'coins' ? needMore(upgradeCost(b.type, b.level) - Math.floor(s.player.coins)) : null, onClick: () => ctx.act('build/upgrade', { uid: b.uid }) })));
+      h('span', { class: 'hud-land-text' }, h('strong', null, `${T(`building.${b.type}`)}${n}`), h('small', null, `Lv ${b.level} → ${b.level + 1}`), h('small', { class: 'hud-up-fx' }, buildingEffect(b.type, b.level, true) || '')),
+      actionButton({ id: `up-${b.uid}`, label: T('hud.upgrade'), icon: '⬆️', cost: upgradeCost(b.type, b.level), tone: 'gold', disabled: upgradeError(s, b) === 'coins', note: upgradeError(s, b) === 'coins' ? needMore(upgradeCost(b.type, b.level) - Math.floor(s.player.coins)) : null, onClick: () => ctx.act('build/upgrade', { uid: b.uid }) })); });
     const newRows = news.map(type => { const err = buildError(s, type), cost = buildCost(s, type); return h('li', { class: 'hud-land-row', attrs: { title: has(`fw.desc.${type}`) ? T(`fw.desc.${type}`) : '' } },
       rowIcon(BUILDINGS[type]),
       h('span', { class: 'hud-land-text' }, h('strong', null, T(`building.${type}`)), h('small', null, T('hud.upgrades.new'))),
@@ -503,10 +508,12 @@ function autoMain(ctx, s, face, short) {
   }[face];
 }
 /** Auto as the Staff screen's manager card: one line, always above the tabs. A tap on the words opens its report. */
+let compactFmt = null;
+export const compactNum = v => { v = Math.round(v || 0); if (Math.abs(v) < 1e4) return fmt(v); try { compactFmt ||= new Intl.NumberFormat(numberLocale(), { notation: 'compact', maximumFractionDigits: 1 }); return compactFmt.format(v); } catch { return fmt(v); } };
 export function autoStrip(ctx, s, onReport) {
   const a = s.autoplay || {}, face = autoFace(a), runs = a.runs || 0, min = Math.round(AUTO.runSeconds / 60), total = AUTO.runSeconds * 1000;
   const timed = face === 'on' || face === 'paused', left = face === 'on' ? autoLeftMs(a) : a.saved || 0, book = autoRunBook(s);
-  const num = (key, v) => h('b', { dataset: { autoStat: key } }, fmt(Math.round(v || 0)));
+  const num = (key, v) => h('b', { dataset: { autoStat: key } }, compactNum(v)); // the strip is one phone line: 143K, not 143,869
   const main = autoMain(ctx, s, face, true), mainBtn = actionButton(face === 'on' ? { ...main, label: '' } : main); // running: the pause icon alone, the clock needs the room
   mainBtn.setAttribute('aria-label', main.label);
   return h('section', { class: `hud-auto-strip is-${face}` },
@@ -561,7 +568,7 @@ export function questsSheet(ctx) {
   return s => {
     const a = s.autoplay || {}, list = questList(s), c = questCount(s);
     const head = h('div', { class: 'hud-quest-head' }, h('span', { class: 'ui-ico ui-ico--trophy', attrs: { 'aria-hidden': 'true' } }),
-      h('div', { class: 'ui-bar is-gold is-large', attrs: { style: `--v:${c.total ? Math.round(c.claimed / c.total * 100) : 0}%` } }, h('u'), h('span', null, T('hud.quests.claimed', { n: fmt(c.claimed), max: fmt(c.total) }))));
+      h('div', { class: 'ui-bar is-gold is-large', attrs: { style: `--v:${c.total ? Math.min(100, Math.round(c.claimed / c.total * 100)) : 0}%` } }, h('u'), h('span', null, c.claimed > c.total ? T('hud.quests.claimedAll', { n: fmt(c.claimed) }) : T('hud.quests.claimed', { n: fmt(c.claimed), max: fmt(c.total) })))); // past the list the repeating quests keep counting: no '41 / 30'
     const rows = list.slice(0, 10).map(q => {
       const now = Math.min(q.n, Math.floor(q.value));
       return h('div', { class: `hud-quest${q.done ? ' is-done' : ''}`, dataset: { art: q.kind === 'stat' ? q.key : q.kind } },

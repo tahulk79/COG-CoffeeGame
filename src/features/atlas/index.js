@@ -431,8 +431,14 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
       if (p.x < 0 || p.x > innerWidth) { p.pin.classList.add('is-tucked'); continue; } // its country is off screen: no half label at the side
       const size = fullSize.get(p.pin) || { w: DOT, h: DOT };
       if (rank(p) === 0 && reserved.length) p.y = Math.max(p.y, Math.max(...reserved.map(r => r.b)) + size.h + TAIL + PAD); // the chosen country always keeps a readable label
-      const fx = p.x + shiftFor(p.x, size.w), sx = p.x + shiftFor(p.x, DOT);
-      const full = box(fx, size.w, size.h, p.y), small = box(sx, DOT, DOT, p.y);
+      const sx = p.x + shiftFor(p.x, DOT), slide = Math.max(0, size.w / 2 - 14); // how far a label may slide and still have its tail over the country
+      // Centred first, then slid left or right, before the label shrinks to a bare dot (India lost its name next to China).
+      let fx = p.x + shiftFor(p.x, size.w), full = box(fx, size.w, size.h, p.y);
+      if (rank(p) > 0 && hits(full, placed)) for (const dx of [-slide, slide]) {
+        const tx = p.x + dx + shiftFor(p.x + dx, size.w), tb = box(tx, size.w, size.h, p.y);
+        if (Math.abs(tx - p.x) <= slide + 1 && !hits(tb, placed)) { fx = tx; full = tb; break; }
+      }
+      const small = box(sx, DOT, DOT, p.y);
       const dot = rank(p) > 0 && hits(full, placed);
       const tucked = dot && hits(small, labels);
       if (!dot) labels.push(full);

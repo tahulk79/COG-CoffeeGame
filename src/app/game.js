@@ -497,7 +497,8 @@ function resize() {
   realm?.resize(window.innerWidth, window.innerHeight);
 }
 function frame(now) {
-  const idle = mode === 'play' && (now - lastActiveAt >= IDLE_AFTER_MS || !!hud?.worldCovered); // covered: only the simulation runs, 30 steps a second are plenty
+  // The world map idles the same way: open and untouched it kept drawing at the full rate (60, more on a 120 Hz phone) for as long as it stayed open.
+  const idle = (mode === 'play' || mode === 'atlas') && (now - lastActiveAt >= IDLE_AFTER_MS || (mode === 'play' && !!hud?.worldCovered)); // covered: only the simulation runs, 30 steps a second are plenty
   const target = idle ? IDLE_FRAME_MS : activeFrameMs();
   if (!frameDue(now, target)) return;
   renderer.shadowMap.autoUpdate = mode !== 'play'; // the realm asks for its shadow map only when something in it changed

@@ -116,9 +116,25 @@ export function createTutorial(ctx) {
       setUi(document.querySelector('#hud-btn-build'));
       return;
     }
+    // Same first field, Build open: point at the cheapest seed (the hint used to vanish as soon as the sheet opened, and a new
+    // player faced four tabs and three seeds with no idea which to tap).
+    if (ctx.isPlaying() && fr && fr.mode !== 'cafe' && !(fr.fields || []).length && ctx.sheet.openId === 'build' && !ctx.modals.open && !ctx.realm?.placement && !ctx.realm?.planting) {
+      const seed = ctx.sheet.query('[data-hud-id="seed-robusta"]') || ctx.sheet.query('.hud-seedtile');
+      skip.hidden = true;
+      tip.classList.add('is-say');
+      setTip(T('hud.hint.pickSeed')); setWorld(null);
+      setUi(seed || null);
+      return;
+    }
+    // Level 1, Quests open with a reward waiting: the hand points at the first Claim (it disappeared once the sheet opened).
+    if (ctx.isPlaying() && fr && levelProgress(s).level === 1 && ctx.sheet.openId === 'quests' && questsReady(s) > 0 && !ctx.modals.open) {
+      const claim = ctx.sheet.query('[data-hud-id^="questClaim-"]');
+      if (claim) { skip.hidden = true; tip.classList.add('is-say'); setTip(T('hud.hint.claim')); setWorld(null); setUi(claim); return; }
+    }
     const cur = ctx.isPlaying() && !ctx.realm?.switching ? currentStep(s, track()) : null;
     // Level 1, no scripted step running: one line that says what to do next, from what is true on the farm right now.
-    if (!cur && ctx.isPlaying() && fr && fr.mode !== 'cafe' && levelProgress(s).level === 1 && !ctx.modals.open && !ctx.sheet.openId && !ctx.selection && !ctx.realm?.placement && !ctx.realm?.planting && !ctx.staffModal?.covering) {
+    // Up to level 3 (level 1 only left a player with a full barn and no idea how to sell, the moment the level-up screen closed).
+    if (!cur && ctx.isPlaying() && fr && fr.mode !== 'cafe' && levelProgress(s).level <= 3 && !ctx.modals.open && !ctx.sheet.openId && !ctx.selection && !ctx.realm?.placement && !ctx.realm?.planting && !ctx.staffModal?.covering) {
       const now = Date.now(), ids = Object.keys(fr.plots || {}).filter(id => plotOf(s, id));
       const ripe = ids.some(id => plotState(s, id, now).stage === 'ready');
       const next = ripe ? ['hud.hint.harvest', '[data-hud-id="harvestAll"]'] : s.inventory.beans > 0 ? ['hud.hint.sell', '#hud-beans'] : questsReady(s) > 0 ? ['hud.hint.quests', '#hud-btn-manage'] : ids.length ? ['hud.hint.growing', null] : null;
