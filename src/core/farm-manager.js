@@ -79,10 +79,15 @@ export function handsJobs(s, now, plots, n) {
   }
   // Tiers with nobody of that trade are his first: the crew stays on its own tier, so nobody else will come.
   const covered = job => new Set(crewOf(s).filter(u => doesJob(u, job)).map(u => s.gm?.tiers?.[u.uid]));
-  const firstUncovered = (list, job, then = null) => { const c = covered(job), gap = p => Number(c.has(tierIndexAt(p.x, p.z))); return list.sort((a, b) => gap(a) - gap(b) || (then ? then(a, b) : 0)); };
+  // Keys are worked out once per field, not inside the comparator: the sort compared ~n log n pairs and each harvestUrgency
+  // re-derived the field's grow time (a long task every Auto round with 200 ripe fields).
+  const firstUncovered = (list, job, key = null) => {
+    const c = covered(job), gap = new Map(list.map(p => [p, Number(c.has(tierIndexAt(p.x, p.z)))])), k = key && new Map(list.map(p => [p, key(p)]));
+    return list.sort((a, b) => gap.get(a) - gap.get(b) || (k ? k.get(b) - k.get(a) : 0));
+  };
   firstUncovered(empty, 'plant'); firstUncovered(dry, 'water');
   const jobs = [], hasRoom = stored(s) < capacity(s);
-  const picks = hasRoom ? firstUncovered(ripe, 'harvest', (a, b) => harvestUrgency(s, b.id, now) - harvestUrgency(s, a.id, now)) : [];
+  const picks = hasRoom ? firstUncovered(ripe, 'harvest', p => harvestUrgency(s, p.id, now)) /* most urgent first */ : [];
   const pick = () => { const p = picks.shift(); if (p) jobs.push({ act: 'farm/harvest', payload: { plotId: p.id }, plotId: p.id }); return !!p; };
   const sow = () => { const p = empty.shift(), crop = p && managerCropFor(s, p.id, coins); if (!crop) return false; coins -= seedCost(s, crop); jobs.push({ act: 'farm/plant', payload: { plotId: p.id, crop }, plotId: p.id }); return true; };
   const cut = () => { const p = old.find(q => pruneCost(r.plots[q.id].crop) <= coins); if (!p) return false; old.splice(old.indexOf(p), 1); coins -= pruneCost(r.plots[p.id].crop); jobs.push({ act: 'farm/prune', payload: { plotId: p.id }, plotId: p.id }); return true; };

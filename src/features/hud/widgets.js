@@ -2,6 +2,8 @@
 import { h } from './dom.js';
 import { T, fmt } from './text.js';
 
+/** A sum of coins in a report (earned, spent…): 0 reads 0. coinAmount is for prices, where 0 reads Free. */
+export const coinValue = (n, cls = '') => h('span', { class: `hud-cost ${cls}` }, h('span', { class: 'hud-coin-ico', attrs: { 'aria-hidden': 'true' } }), fmt(n));
 export const coinAmount = (n, cls = '') => h('span', { class: `hud-cost ${cls}` }, h('span', { class: 'hud-coin-ico', attrs: { 'aria-hidden': 'true' } }), n === 0 ? T('hud.free') : fmt(n));
 
 /**

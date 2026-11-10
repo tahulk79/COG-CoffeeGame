@@ -462,10 +462,17 @@ export function createPlots({ scene, templates, vfx, getActiveCrop = () => null 
     freeSlots.push(i);
   }
   // Rebuilds the GPU list of every part that changed: only the slots that show this part and are near the view.
+  // Slow changes (growth, the ripe bob) are `soft` and re-upload at most SOFT_HZ times a second; with 200 saplings one of them
+  // crossed a size step nearly every frame, so every list was rebuilt and re-uploaded each frame (2+ MB/s while idle).
+  const SOFT_HZ = RIPE_BOB_HZ;
+  let softWrite = false, softFlushAt = -1;
   function flushTrees() {
+    const softDue = lastTime - softFlushAt >= 1 / SOFT_HZ || lastTime < softFlushAt;
+    let flushedSoft = false;
     for (const part of parts) {
-      if (!part.dirty) continue;
-      part.dirty = false;
+      if (!part.dirty && !(part.soft && softDue)) continue;
+      if (part.soft) flushedSoft = true;
+      part.dirty = part.soft = false;
       const { mesh, store, colors, shown } = part, m = mesh.instanceMatrix.array, c = mesh.instanceColor.array;
       let n = 0;
       for (let s = 0; s < slotHigh; s++) {
@@ -478,6 +485,7 @@ export function createPlots({ scene, templates, vfx, getActiveCrop = () => null 
       mesh.count = n; mesh.visible = n > 0 || warming;
       mesh.instanceMatrix.needsUpdate = true; mesh.instanceColor.needsUpdate = true;
     }
+    if (flushedSoft) softFlushAt = lastTime;
   }
   // Which trees are near the view. CULL_PAD = crown radius + how far a tree's shadow reaches + the camera slack below, so a tree
   // just off screen still casts into view and the test only reruns after the camera has really moved (CULL_MOVE m / CULL_TURN).
@@ -530,8 +538,9 @@ export function createPlots({ scene, templates, vfx, getActiveCrop = () => null 
       } else base.compose(pos.set(e.x + dx, .2 + e.h, e.z + dz), quat, scl.set(sx * L.w * R.k * v, sy * L.h * R.k * v, sx * L.w * R.k * v));
       for (const part of parts) {
         const show = part.kind === KIND_RING || (stage === KIND_TREE ? part.species === sp && (part.kind === KIND_TREE || (part.kind === KIND_GREEN ? green : part.kind === KIND_RIPE && ripe)) : part.kind === stage);
-        if (show) { m4.multiplyMatrices(base, part.local).toArray(part.store, slot * 16); part.shown[slot] = 1; part.dirty = true; }
-        else if (part.shown[slot]) { part.shown[slot] = 0; part.dirty = true; }
+        // A tree off the view is left out of the lists anyway: its matrices wait in `store` until the cull brings it back (which re-flushes every list).
+        if (show) { m4.multiplyMatrices(base, part.local).toArray(part.store, slot * 16); part.shown[slot] = 1; if (inView[slot]) part[softWrite ? 'soft' : 'dirty'] = true; }
+        else if (part.shown[slot]) { part.shown[slot] = 0; if (inView[slot]) part[softWrite ? 'soft' : 'dirty'] = true; }
       }
     });
   }
@@ -719,7 +728,9 @@ export function createPlots({ scene, templates, vfx, getActiveCrop = () => null 
       // first crop: seedling → young → mature (the mature model takes over at STAGE_AT[1] and grows on as before)
       const stage = grown || ratio >= STAGE_AT[1] ? KIND_TREE : ratio < STAGE_AT[0] ? KIND_SEED : KIND_YOUNG;
       const sk = stage === KIND_SEED ? ratio / STAGE_AT[0] : stage === KIND_YOUNG ? (ratio - STAGE_AT[0]) / (STAGE_AT[1] - STAGE_AT[0]) : 1;
+      softWrite = !popping && shake === 1 && !e.moved; // a pop or a tap shake is drawn every frame, growth and the bob can wait a beat
       if (vis) writeTree(e, q(e.scale), q(e.scale * bob), e.green && stage === KIND_TREE, e.ripe && stage === KIND_TREE, stage, q(sk));
+      softWrite = false;
       if (ready !== e.ready) {
         e.ready = ready;
         if (ready && vis) vfx.burst('sparkle', e.pos, { count: 6 });

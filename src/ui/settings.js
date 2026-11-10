@@ -38,6 +38,7 @@ function render() {
   for (const b of dialog.querySelectorAll('[data-lang]')) b.setAttribute('aria-pressed', String(b.dataset.lang === getLang()));
   for (const input of dialog.querySelectorAll('[data-vol]')) { const v = Math.round((settings.muted ? 0 : volOf(input.dataset.vol)) * 100); input.value = String(v); input.parentElement.style.setProperty('--v', `${v}%`); }
   for (const tab of dialog.querySelectorAll('[data-quality]')) tab.setAttribute('aria-pressed', String(tab.dataset.quality === getQuality()));
+  $('[data-quality-desc]').textContent = t(`settings.quality.${getQuality()}.desc`); // what the chosen level means (Low runs coolest)
   const saved = readProgress();
   $('[data-reset]').hidden = !(canResetHandler ? canResetHandler() : (saved.introCompleted || saved.farm));
 }
@@ -58,6 +59,7 @@ function template() {
           <div class="set-row" role="group" aria-label="${t('settings.graphicsQuality')}"><i class="set-ico set-ico--screen" aria-hidden="true"></i>
             ${QUALITY.map(id => `<button type="button" class="set-q" data-quality="${id}">${t(`settings.quality.${id}`)}</button>`).join('')}
           </div>
+          <p class="set-hint" data-quality-desc></p>
         </div>
         <section class="settings-reset" data-reset hidden>
           <h3>🔄 ${t('settings.progress')}</h3>

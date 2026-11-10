@@ -144,7 +144,7 @@ function plotState(state, id, now) {
   if (!v) { v = readPlotState(state, id, now); plotMemo.m.set(id, v); }
   return v;
 }
-export function createStaff({ scene, store, vfx, templates = {}, pads, navigate = null, getFocus = () => null, getActiveCrop = () => null, getCarrying = () => null, getSeat = () => null, getQueued = () => null, canStand = () => true, isPaused = () => false, say = null, getPlayerPos = () => null, getManagerPos = () => null, isWalkable = null, autoOnFoot = () => false }) {
+export function createStaff({ scene, store, vfx, templates = {}, pads, navigate = null, getFocus = () => null, getActiveCrop = () => null, getCarrying = () => null, getSeat = () => null, getQueued = () => null, canStand = () => true, isPaused = () => false, say = null, getPlayerPos = () => null, getManagerPos = () => null, isWalkable = null, autoOnFoot = () => false, getCamera = () => null }) {
   const group = new THREE.Group();
   group.name = 'realm-staff';
   scene.add(group);
@@ -404,7 +404,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     if (e.status === s && e.labelShown === shown && e.labelFee === fee) return; // asked every frame by idle units
     e.status = s; e.labelShown = shown; e.labelFee = fee;
     const tagKey = ICON[shown] ? shown : '';
-    e.label.sprite.visible = !!tagKey;
+    e.label.sprite.visible = !!tagKey && !e.tagCrowded; // crowded: the next tag layout decides
     if (!tagKey) return; // hidden: the old words can stay on the canvas, the same job often comes straight back
     const text = t(`realm.staff.tag.${tagKey}`), tone = tagTone(tagKey), drawn = `${text}|${tone}|${fee}`;
     if (e.label.drawn === drawn) return; // jobs change more often than the words: no redraw, no texture upload
@@ -1376,8 +1376,38 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
       if (e.culled !== culled) { e.culled = culled; e.root.visible = e.pose !== 'bench' && !culled; }
     });
   }
+  // Tags over the crew must not pile up (a crowd of red "Goofing off" tags read as one smudge on a phone). A few times a second the
+  // shown tags are laid out on the screen: priced ones first (they can be tapped), then problems, then jobs; a tag that would cover
+  // one already placed waits until there is room. Only the tag hides: the unit and its state are unchanged.
+  const LAYOUT_S = .2, PRI = { bad: 1, wait: 2, work: 3 }, tagAt = new THREE.Vector3(), placed = [];
+  let layoutT = 0;
+  function layoutTags() {
+    const cam = getCamera();
+    if (!cam) return;
+    const w = window.innerWidth, hgt = window.innerHeight, list = [];
+    const k = hgt / (2 * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2));
+    for (const e of units.values()) {
+      const sp = e.label?.sprite, key = e.labelShown;
+      if (!sp || !key || !ICON[key] || !e.root.visible || !e.root.parent?.visible) { e.tagCrowded = false; continue; }
+      sp.getWorldPosition(tagAt);
+      const dist = tagAt.distanceTo(cam.position);
+      tagAt.project(cam);
+      if (tagAt.z > 1 || Math.abs(tagAt.x) > 1.1 || Math.abs(tagAt.y) > 1.1) { e.tagCrowded = false; continue; }
+      const px = k / Math.max(dist, .1), tw = sp.scale.x * px * .8, th = sp.scale.y * px * .8; // .8: a little overlap is fine
+      list.push({ e, sp, pri: e.feeTag ? 0 : PRI[tagTone(key)] || 3, x: (tagAt.x + 1) / 2 * w - tw / 2, y: (1 - tagAt.y) / 2 * hgt - th / 2, tw, th, dist });
+    }
+    list.sort((a, b) => a.pri - b.pri || a.dist - b.dist);
+    placed.length = 0;
+    for (const r of list) {
+      const hit = placed.some(q => r.x < q.x + q.tw && q.x < r.x + r.tw && r.y < q.y + q.th && q.y < r.y + r.th);
+      r.e.tagCrowded = hit;
+      if (r.sp.visible === hit) r.sp.visible = !hit;
+      if (!hit) placed.push(r);
+    }
+  }
   // Per frame. state = store.state, now = Date.now(); time = realm clock.
   function update(dt, time, state, now) {
+    if ((layoutT -= dt) <= 0) { layoutT = LAYOUT_S; layoutTags(); }
     const paused = isPaused() || state.story.phase !== 'play' || !state.world.currentRegion;
     const interval = vitalsInterval(units.size);
     if ((lodT -= dt) <= 0) { lodT = FARM_MANAGER.lod.everySec; lodRound(); }
@@ -1527,7 +1557,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     *pickers() {
       for (const e of units.values()) {
         if (!e.root.parent?.visible || !e.root.visible) continue;
-        if (e.feeTag) yield e.tagHit; // the priced tag first: tapping it pays
+        if (e.feeTag && !e.tagCrowded) yield e.tagHit; // the priced tag first: tapping it pays (not while it waits for room)
         yield e.pick;
       }
     },

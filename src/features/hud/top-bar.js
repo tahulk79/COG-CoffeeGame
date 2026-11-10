@@ -18,8 +18,15 @@ import { h, setText, bump } from './dom.js';
 import { farmAlerts } from '../../core/finance.js';
 import { usdOf } from '../../core/wallet.js';
 import { T, fmt } from './text.js';
+import { numberLocale } from '../../i18n/index.js';
 
 // Animated number: eases the shown value towards the target; writes the DOM only when the rounded value changes.
+// The coin pill holds about six digits on a 360 px phone: from 100,000 it reads 120K / 3.4M (the full sum is in the Capital panel).
+let compact = null;
+const pillFmt = v => {
+  if (Math.abs(v) < 1e5) return fmt(v);
+  try { compact ||= new Intl.NumberFormat(numberLocale(), { notation: 'compact', maximumFractionDigits: 1 }); return compact.format(Math.floor(v)); } catch { return fmt(v); }
+};
 function counter(el, format = fmt) {
   return { el, shown: null, target: 0, text: '', format,
     set(value) {
@@ -113,7 +120,7 @@ export function createTopBar(ctx) {
     h('div', { class: 'hud-top-right' }, h('div', { class: 'hud-gear-col' }, gear), loanBtn, worldBtn, rotateBtn, giftBtn, inboxBtn)); // right rail, top to bottom: settings · loan · map · compass (founder 2026-11-10); quests and upgrades live in the Manage menu
   morePop.append(upgradesBtn, questBtn);
 
-  const coinCounter = counter(coinsVal), beanCounter = counter(beansVal);
+  const coinCounter = counter(coinsVal, pillFmt), beanCounter = counter(beansVal);
   let last = {};
 
   function render(s) {
@@ -171,7 +178,7 @@ export function createTopBar(ctx) {
       else setText(beansTag, T('hud.storage.tag'));
     }
     coinCounter.set(s.player.coins);
-    setText(usdVal, fmt(usdOf(s) / 100));
+    setText(usdVal, pillFmt(usdOf(s) / 100));
     // Warnings cost a few rule checks: only when the Gold moved, or every few seconds.
     const key = `${Math.round(s.player.coins)}|${s.world.currentRegion}`, t0 = Date.now();
     if (s.story.phase === 'play' && region(s) && (key !== alertKey || t0 - alertAt > 5000)) {

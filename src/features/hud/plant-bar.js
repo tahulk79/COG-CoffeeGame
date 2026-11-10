@@ -59,9 +59,9 @@ export function createPlantBar(ctx) {
     fit.className = `hud-plantbar-fit is-${f.tone}`;
     setText(care, pickTip(s, p.crop, where.zone));
     care.hidden = !!plan; // while drawing, the row's own numbers matter more
-    const none = plan && plan.n === 0;
-    setText(line, !plan ? T('hud.plantRow.hint', { n: p.rows }) : none ? errorText(plan.error || 'blocked') : plan.broke ? T('hud.plantRow.short', { n: plan.n }) : T('hud.plantRow.count', { n: plan.n }));
-    line.classList.toggle('is-bad', !!none || !!plan?.broke);
+    const none = plan && plan.n === 0, broke = !plan && s.player.coins < seedCost(s, p.crop); // not even one seed: say so, not "drag to plant"
+    setText(line, broke ? T('hud.plantRow.broke', { coins: seedCost(s, p.crop) }) : !plan ? T('hud.plantRow.hint', { n: p.rows }) : none ? errorText(plan.error || 'blocked') : plan.broke ? T('hud.plantRow.short', { n: plan.n }) : T('hud.plantRow.count', { n: plan.n }));
+    line.classList.toggle('is-bad', broke || !!none || !!plan?.broke);
     price.replaceChildren(...(plan && !none ? [coinAmount(plan.cost)] : []));
   }
   return { el, update };

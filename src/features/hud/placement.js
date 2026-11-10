@@ -114,7 +114,8 @@ export function createPlacementBar(ctx) {
     if (!plotBar.isConnected) ctx.root?.append(plotBar);
     const sel = ctx.realm?.selection;
     const dp = sel?.kind === 'plot' && ctx.selection?.kind !== 'plot' && !p ? ctx.realm?.screenPoint?.(sel) : null;
-    plotBar.hidden = !(dp && dp.visible !== false);
+    const hideBar = !(dp && dp.visible !== false);
+    if (plotBar.hidden !== hideBar) plotBar.hidden = hideBar; // re-setting the same `hidden` still rewrites the attribute and restyles the HUD every frame
     if (!plotBar.hidden) {
       plotBar.style.left = `${Math.round(dp.x)}px`; plotBar.style.top = `${Math.round(dp.y - 34)}px`;
       const st = ctx.store.state, pl = region(st)?.plots?.[sel.id], ps = pl ? plotState(st, sel.id, Date.now()) : null;

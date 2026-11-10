@@ -111,6 +111,7 @@ export function rowText(s, r) {
     case 'nudged': return T('hud.sm.j.nudged', { name, by: x?.by || T('hud.sm.someone') });
     case 'autoCare': return T('hud.sm.j.autoCare', { name, care: careName(x) });
     case 'managerCare': return T('hud.sm.j.managerCare', { name, by: x?.by || T('hud.sm.someone'), care: careName(x) });
+    case 'funny': return `${name}: ${x?.id ? T(`funny.${x.id}.${x.level || 1}`) : T('hud.sm.state.funny')}${x?.level ? ` · ${T('hud.uc.level', { n: x.level })}` : ''}`; // an incident (Drunk on oil · level 7)
     case 'poachStarted': case 'poachRefused': return T(`hud.sm.j.${r.type}`, { name, rival: typeof x === 'string' ? x : '' });
     default: break;
   }
@@ -149,7 +150,11 @@ function actorClass(s, r) {
 function daySum(s, d) {
   let jobs = 0, earned = 0, spent = 0, done = 0, expired = 0;
   for (const x of s.history?.days || []) if (x.d === d) { jobs += x.jobs || 0; earned += x.earned || 0; spent += x.spent || 0; done += x.tasksDone || 0; expired += x.tasksExpired || 0; }
-  return jobs || earned || spent || done || expired ? T('hud.hist.daySum', { jobs: fmt(jobs), earned: fmt(earned), spent: fmt(spent), done, expired }) : '';
+  if (!(jobs || earned || spent || done || expired)) return null;
+  // Labelled chips (the old line read '🛠️ 9,229 · +🪙69,674 · −🪙621,419 · 📋 ✅0 ⛔0' with nothing saying what each number was).
+  const chip = (label, value, tone = '') => h('span', { class: `hud-hist-sum${tone ? ` is-${tone}` : ''}` }, h('em', null, label), ' ', value);
+  return h('span', { class: 'hud-hist-sums' }, chip(T('hud.hist.sum.jobs'), fmt(jobs)), earned ? chip(T('hud.hist.sum.in'), `+${fmt(earned)}`, 'good') : null, spent ? chip(T('hud.hist.sum.out'), `−${fmt(spent)}`, 'bad') : null,
+    done || expired ? chip(T('hud.hist.sum.tasks'), `✓${done} ✗${expired}`) : null);
 }
 // A task opened from its id in Nhật ký: what it asked, status, ask → answer time, fine.
 function taskDetail(s, id) {
@@ -170,7 +175,7 @@ export function journalSheet(ctx) {
     let cur = null;
     for (const r of shown) {
       const d = dayKey(r.at);
-      if (d !== cur) { cur = d; const sum = daySum(s, d); list.push(h('li', { class: 'hud-hist-day' }, h('span', null, d === dayKey(Date.now()) ? T('hud.pf.today') : dayText(d)), sum ? h('small', null, sum) : null)); }
+      if (d !== cur) { cur = d; const sum = daySum(s, d); list.push(h('li', { class: 'hud-hist-day' }, h('span', null, d === dayKey(Date.now()) ? T('hud.pf.today') : dayText(d)), sum)); }
       const open = r.taskId && f.task === `${r.id}`;
       list.push(h('li', { class: `hud-sm-jrow hud-hist-row ${actorClass(s, r)}` },
         h('span', { class: 'hud-sm-jico', attrs: { 'aria-hidden': 'true' } }, GROUP_ICON[r.group] || '•'),
@@ -181,7 +186,7 @@ export function journalSheet(ctx) {
     }
     return h('div', { class: 'hud-hist' },
       h('div', { class: 'hud-jtabs', attrs: { role: 'group', 'aria-label': T('hud.hist.f.actor') } }, ...[['all', 'book', { actor: 'all', group: 'all' }], ['player', 'star', { actor: 'player', group: 'all' }], ['worker', 'people', { actor: 'worker', group: 'all' }], ['money', 'coin', { actor: 'all', group: 'money' }]].map(([id, art, patch]) =>
-        h('button', { type: 'button', class: 'hud-tab', dataset: { art }, attrs: { 'aria-label': id === 'money' ? T('hud.hist.g.money') : T(`hud.hist.a.${id}`), 'aria-pressed': String(f.actor === patch.actor && f.group === patch.group) }, on: { click: () => set(patch) } }))),
+        h('button', { type: 'button', class: 'hud-tab', dataset: { art }, attrs: { 'aria-pressed': String(f.actor === patch.actor && f.group === patch.group) }, on: { click: () => set(patch) } }, id === 'money' ? T('hud.hist.g.money') : T(`hud.hist.a.${id}`)))), // the name shows on a phone (skin/hud.css), not only to screen readers
       shown.length ? h('ul', { class: 'hud-sm-journal hud-hist-list' }, ...list) : h('div', { class: 'ui-hero hud-hist-empty' }, h('span', { class: 'ui-ico ui-ico--book', attrs: { 'aria-hidden': 'true' } }), h('strong', null, T('hud.hist.empty'))),
       rows.length > shown.length ? h('div', { class: 'hud-row' }, actionButton({ label: T('hud.hist.more', { n: rows.length - shown.length }), tone: 'plain', onClick: () => set({ pages: f.pages + 1 }) })) : null);
   };

@@ -2032,7 +2032,9 @@ const tierOf = (s, c) => (c.group === 'advice' ? 'advice' : c.always || c.cost >
  * held this think, for the `ticks` rows). offscreen: also think about the zone not on screen (care + trade rows).
  * score = urgency × (value + 1) / (cost / I10 + costFloor) × styleMul[style][group].
  */
-export function gmCandidates(s, now, { offscreen = true } = {}) {
+// Pure read, so one staff-bonus sum serves every field it scores (it also runs on the reducer's draft, where nothing changes while it reads).
+export function gmCandidates(s, now, opts) { return readOnlyPass(s, () => gmCandidatesOf(s, now, opts)); }
+function gmCandidatesOf(s, now, { offscreen = true } = {}) {
   const { on, off } = gmScope(s), list = [], hits = {};
   if (!on || !region(s) || s.story.phase !== 'play') return { list, hits };
   const style = s.gm?.unit?.style || 'balanced', bigLimit = s.gm?.bigLimit ?? GM.defaults.bigLimit;

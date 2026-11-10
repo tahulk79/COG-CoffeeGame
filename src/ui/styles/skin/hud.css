@@ -715,7 +715,7 @@ body[data-gender="male"] #hud-root .hud-tip.is-say::before{background-image:url(
 #hud-root .hud-harvest-all[hidden]{display:none}
 #hud-root .hud-harvest-all .hud-harvest-ico{font-size:40px;line-height:1}
 #hud-root .hud-harvest-all .ui-icon{width:44px;height:44px}
-#hud-root .hud-harvest-all b{display:grid;place-items:center;min-width:27px;height:27px;box-sizing:border-box;padding:0 5px;border:3px solid #fff;border-radius:999px;background:linear-gradient(var(--re1),var(--re2));box-shadow:0 2px 0 var(--re3);color:#fff;font:400 13px/1 var(--disp)}
+#hud-root .hud-harvest-all b{flex:none;display:grid;place-items:center;min-width:27px;height:27px;box-sizing:border-box;padding:0 5px;border:3px solid #fff;border-radius:999px;background:linear-gradient(var(--re1),var(--re2));box-shadow:0 2px 0 var(--re3);color:#fff;font:400 13px/1 var(--disp)}
 @media (prefers-reduced-motion:no-preference){html:not([data-quality="low"]) #hud-root .hud-harvest-all .hud-harvest-ico{animation:sk-bob 1s ease-in-out infinite}}
 /* A full storehouse: the counter stays readable, the pill turns red instead of adding a tag */
 #hud-root .hud-pill--bean .hud-pill-tag{display:none}
@@ -879,7 +879,10 @@ body:has(#intro-controls:not([hidden])) #game-settings-toggle{right:calc(max(12p
 #hud-root .hud-auto-jobs small{position:absolute;left:-8px;right:-8px;bottom:-20px;color:var(--line);font:800 12px/15px 'Baloo 2',sans-serif;font-style:normal;text-align:center}
 #hud-root .hud-auto-jobs{margin-bottom:24px}
 /* With a window open, messages sit at the foot of the screen instead of over its title */
-#hud-root:is([data-sheet],:has(.hud-sm-host:not([hidden]))) .hud-feedback-col{left:0;right:0;top:auto;bottom:calc(var(--h-sb,0px) + 12px);width:auto;align-items:center}
+/* Over a sheet only the newest toast shows, laid over the money bar: at the bottom it covered the sheet's buy / confirm buttons,
+   lower down it covered a full-screen panel's title and close button. */
+#hud-root:is([data-sheet],:has(.hud-sm-host:not([hidden]))) .hud-feedback-col{left:0;right:0;top:calc(var(--h-st,0px) + 6px);bottom:auto;width:auto;align-items:center}
+#hud-root:is([data-sheet],:has(.hud-sm-host:not([hidden]))) .hud-toast:not(:last-child){display:none}
 #hud-root:is([data-sheet],:has(.hud-sm-host:not([hidden]))) .hud-toasts{justify-items:center}
 /* Harvest fills the gap between the side buttons on a phone, touching neither */
 @media (max-width:599px){
@@ -892,3 +895,67 @@ body:has(#intro-controls:not([hidden])) #game-settings-toggle{right:calc(max(12p
 #hud-root[data-sheet="build"] :is(.hud-card-fx,.hud-seedtile small){-webkit-line-clamp:2}
 #hud-root .hud-tip.is-say{bottom:calc(var(--h-sb,0px) + 200px)!important}
 #hud-root[data-sheet="build"] :is(.hud-card-name,.hud-seedtile strong){top:auto;left:auto;right:auto;margin-top:2px}
+
+/* Build sheet tabs (2026-11-11 mobile QA): the 44 px icon sat in a 24 px box from its top-left corner, so it spilled out of the tile
+   at the bottom right; and four bare icons (sprout, factory, leaf, tag) did not say what each tab holds. Centred icon + short name. */
+#hud-root[data-sheet="build"] .hud-cat-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:0 16px 8px;padding:6px 0 4px;overflow:visible} /* lined up with the cards, off the sheet's border */
+#hud-root[data-sheet="build"] .hud-cat-tab{width:auto!important;height:74px!important;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:4px 3px 7px}
+#hud-root[data-sheet="build"] .hud-cat-tab-ico{display:grid;place-items:center;flex:none;width:32px;height:32px;background:none}
+#hud-root[data-sheet="build"] .hud-cat-tab-ico .ui-icon{width:32px;height:32px}
+#hud-root[data-sheet="build"] .hud-cat-tab-label{position:static;width:auto;height:auto;overflow:hidden;clip-path:none;max-width:100%;font:400 11px/12px var(--disp);text-align:center;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+/* The build sheet had a fixed 372 px and no room for the iPhone home bar: the price buttons sat under it. It grows by the safe area
+   (and a little air under the hanging prices). */
+#hud-root[data-sheet="build"] .hud-sheet{height:calc(384px + var(--h-sb,0px));padding-bottom:calc(14px + var(--h-sb,0px))}
+
+/* Upgrades on a phone (2026-11-11 mobile QA): two columns with room for words. A card now says which one it is (Barn 2), the level
+   step (Lv 3 → 4) and what the step gives (Stores 110 → 160 goods); before, three cards read "Barn" and a price, nothing else. */
+@media (max-width:599px){
+  #hud-root[data-sheet="upgrades"] .hud-land-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:24px 10px;padding-bottom:30px} /* the last row's hanging price stays inside the scroll */
+  #hud-root[data-sheet="upgrades"] .hud-land-row{height:auto!important;min-height:0!important;padding:4px 6px 36px}
+  #hud-root[data-sheet="upgrades"] .hud-land-ico{position:relative;left:auto;right:auto;top:auto;height:76px}
+  #hud-root[data-sheet="upgrades"] .hud-land-ico img{width:auto!important;height:76px!important;max-width:100%;object-fit:contain} /* the picture kept its square size and covered the name */
+  #hud-root[data-sheet="upgrades"] .hud-land-text{position:relative;z-index:1}
+  #hud-root[data-sheet="upgrades"] .hud-land-text{position:static;display:grid;justify-items:center;gap:2px;margin-top:2px}
+  #hud-root[data-sheet="upgrades"] .hud-land-text strong{font-size:15px!important;line-height:18px!important;white-space:normal}
+  #hud-root[data-sheet="upgrades"] .hud-land-text small{display:inline-block;color:var(--line);font:800 12px/15px 'Baloo 2',sans-serif}
+  #hud-root[data-sheet="upgrades"] .hud-land-text small:not(.hud-up-fx){padding:1px 8px;border:2px solid var(--line);border-radius:999px;background:#fff8dc}
+  #hud-root[data-sheet="upgrades"] .hud-land-text .hud-up-fx{color:#6b4a1c;text-align:center;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  #hud-root[data-sheet="upgrades"] .hud-land-text .hud-up-fx:empty{display:none}
+}
+
+/* Journal (2026-11-11 mobile QA): the four filter tabs carry their name, and the day line is labelled chips */
+#hud-root .hud-jtabs .hud-tab{color:var(--line);font:400 12px/14px var(--disp)}
+@media (max-width:599px){
+  #hud-root .hud-jtabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+  #hud-root .hud-jtabs .hud-tab{width:auto!important;height:58px!important;min-width:0;padding:30px 2px 4px;background-position:center 5px,0 0!important;background-size:24px,auto!important;transform:none!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+}
+#hud-root .hud-hist-day{flex-wrap:wrap;gap:4px 8px}
+#hud-root .hud-hist-sums{display:flex;flex-wrap:wrap;gap:4px;margin-left:auto}
+#hud-root .hud-hist-sum{padding:1px 7px;border:2px solid var(--line);border-radius:999px;background:#fff8dc;color:var(--line);font:800 11px/15px 'Baloo 2',sans-serif;white-space:nowrap}
+#hud-root .hud-hist-sum em{font-style:normal;font-weight:600;opacity:.75}
+#hud-root .hud-hist-sum.is-good{color:#2f7d1f}
+#hud-root .hud-hist-sum.is-bad{color:#c4342d}
+/* the guide's line while Build is open sits above the sheet (384 px + its title pill), not behind it */
+#hud-root[data-sheet="build"] .hud-tip.is-say{bottom:calc(var(--h-sb,0px) + 424px)!important}
+/* the guide's speech bubble is words only: taps go through it to the buttons it overlaps (it covered the top of Auto); Skip stays tappable */
+#hud-root .hud-tip.is-say,#hud-root .hud-tip.is-say .hud-tip-text{pointer-events:none}
+#hud-root .hud-tip.is-say .hud-tip-skip{pointer-events:auto}
+
+/* Planting bar on a phone (2026-11-11 mobile QA): three seed cards squeezed next to a 112 px tool column read as one cramped
+   block (names touching the card edges, prices hanging out under them, 36 px row buttons). Two tiers instead: the seeds across
+   the full width, then rows + Fill on one line under them. */
+@media (max-width:599px){
+  #hud-root .hud-plantbar{padding:30px 12px 14px}
+  #hud-root .hud-plantbar-main{grid-template-columns:minmax(0,1fr)!important;gap:10px}
+  #hud-root .hud-plantbar-crops{gap:8px}
+  #hud-root .hud-plantbar-crop{height:auto!important;display:grid;grid-template-rows:56px auto auto;justify-items:center;gap:2px;padding:4px 4px 6px;border-radius:18px}
+  #hud-root .hud-plantbar-crop .hud-plantbar-art{position:static;width:100%;height:56px}
+  #hud-root .hud-plantbar-crop .hud-plantbar-art img{width:auto!important;height:56px!important;max-width:100%;object-fit:contain} /* the tree kept a square size and ran into its name */
+  #hud-root .hud-plantbar-crop b{position:static;font-size:14px!important;line-height:17px;white-space:nowrap}
+  #hud-root .hud-plantbar-cost{position:static;width:auto;min-width:64px;height:28px;padding:0 10px;font-size:14px}
+  #hud-root .hud-plantbar-tools{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:stretch}
+  #hud-root .hud-plantbar-rows{gap:5px}
+  #hud-root .hud-plantbar-row{height:48px;min-width:0}
+  #hud-root .hud-plantbar-fill{min-height:48px!important}
+  #hud-root .hud-plantbar .hud-round-btn.is-cancel{right:-8px;top:-26px}
+}

@@ -17,7 +17,7 @@ import { createFieldPop } from './field-pop.js';
 import { createActionBar } from './action-bar.js';
 import { createShopStrip } from './shop-strip.js';
 import { createSheetHost } from './sheet.js';
-import { manageSheet, sellSheet, upgradesSheet, buildSheet, seedsSheet, menuSheet, progressSheet, questsSheet, autoSheet, autoLeftMs, drinkSeenKey, beansSheet, loanSheet, setBuildTab, supplySheet } from './sheets.js';
+import { manageSheet, sellSheet, upgradesSheet, buildSheet, seedsSheet, menuSheet, progressSheet, questsSheet, autoSheet, autoLeftMs, drinkSeenKey, beansSheet, loanSheet, setBuildTab, supplySheet, compactNum } from './sheets.js';
 import { inboxSheet, journalSheet } from './inbox.js';
 import { roundsSheet } from './rounds.js';
 import { createStaffModal } from './staff-modal.js';
@@ -283,7 +283,7 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
     // The open Auto sheet or tab: only the clock and the numbers change, its buttons stay under the finger.
     for (const n of root.querySelectorAll('[data-auto-clock]')) n.textContent = time;
     for (const n of root.querySelectorAll('[data-auto-meter]')) n.style.width = `${pct}%`;
-    for (const [key, v] of Object.entries({ jobs: book?.jobs || 0, earned: Math.round(book?.earned || 0), spent: Math.round(book?.spent || 0) })) for (const n of root.querySelectorAll(`[data-auto-stat="${key}"]`)) n.textContent = fmt(v);
+    for (const [key, v] of Object.entries({ jobs: book?.jobs || 0, earned: Math.round(book?.earned || 0), spent: Math.round(book?.spent || 0) })) for (const n of root.querySelectorAll(`[data-auto-stat="${key}"]`)) n.textContent = n.closest('.hud-auto-strip') ? compactNum(v) : fmt(v);
   }
   top.el.querySelector('.hud-top-right')?.append(autoBtn);
   top.el.querySelector('#hud-lv10')?.before(todoBar); // left stack: money warning · to-do chips · Lv-10 chip
@@ -390,7 +390,7 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
   return {
     el: root,
     /** The world cannot be seen right now: the app skips drawing it (the simulation keeps running). */
-    get worldCovered() { return staffModal.coversWorld; },
+    get worldCovered() { return staffModal.coversWorld || feedback.bannerShowing(); }, // the level-up screen is opaque and full-screen too
     setSelection,
     /** hooks.onShopFocus(id | null) from the realm → highlight that shop in the strip (null = street overview). */
     setShopFocus: id => shops.setFocus(id),

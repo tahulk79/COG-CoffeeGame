@@ -26,7 +26,7 @@ import { h } from './dom.js';
 import { T, fmt, gmReasonText } from './text.js';
 import { formatNumber } from '../../i18n/index.js';
 import { staffEffect } from './effects.js';
-import { actionButton, coinAmount, lockTag, needMore } from './widgets.js';
+import { actionButton, coinAmount, coinValue, lockTag, needMore } from './widgets.js';
 import { dashboardOf } from '../../core/farm-manager.js';
 import { autoPanel, autoStrip, autoSig } from './sheets.js';
 import { rowText, taskCard } from './inbox.js';
@@ -401,7 +401,7 @@ export function createStaffModal(ctx) {
       h('div', { class: 'hud-sm-grid hud-sm-grid--2 hud-pf-kpis' },
         tile(T('hud.sb.onShift'), `${activeCount(s, zone)}/${rows.length}`),
         tile(T('hud.sb.problem'), bad ? `⚠️ ${bad}` : '0', bad ? 'is-bad' : '', bad ? () => setDrill('problem') : null),
-        tile(T('hud.rp.earned'), coinAmount(Math.round(m.earned))),
+        tile(T('hud.rp.earned'), coinValue(Math.round(m.earned))),
         tile(T('hud.rp.profit'), signed(m.profit), m.profit < 0 ? 'is-bad' : 'is-good')),
       h('h3', { class: 'hud-sm-h hud-db-title' }, T('hud.sb.week')), chart);
   }
@@ -643,7 +643,7 @@ export function createStaffModal(ctx) {
         avatarOf(s, u, key),
         h('span', { class: 'hud-rs-text' },
           h('strong', { class: 'hud-rs-name' }, nameOf(u), u.perk ? ' ⭐' : '', poached ? ' 💼' : '', u.name && STAFF[u.type].jobs ? h('span', { class: 'hud-rs-trade' }, T(`staff.${u.type}`)) : null),
-          h('small', { class: 'hud-rs-sub' }, `${T(`staff.${u.type}`)} · ${isRobot(u) ? T(`hud.staff.task.${robotTask(u)}`) : T('hud.staff.lv', { level: unitLevel(u) })}`),
+          h('small', { class: 'hud-rs-sub' }, `${u.name ? `${T(`staff.${u.type}`)} · ` : ''}${isRobot(u) ? T(`hud.staff.task.${robotTask(u)}`) : T('hud.staff.lv', { level: unitLevel(u) })}`), // no own name: the title already is the trade
           h('small', { class: `hud-report hud-report--${lineTone(key, info)}` }, nowLine(s, u, key, now, info))),
         vitalBars(u, false, info),
         cond != null && cond < 50 ? h('span', { class: `hud-rs-meter is-${cond < 25 ? 'bad' : cond < 50 ? 'warn' : 'ok'}`, attrs: { role: 'img', 'aria-label': T('hud.sm.condition', { n: cond }) } },
@@ -996,7 +996,7 @@ export function createStaffModal(ctx) {
     const tips = opts.length ? h('ul', { class: 'hud-ny-list' }, ...opts.map(o => {
       const short = s.player.coins < o.cost, slow = o.payback > UPGRADE_GATE.paybackMin;
       return h('li', { class: `hud-ny is-p${slow ? 6 : 5}` },
-        h('span', { class: 'hud-ny-main' }, h('span', { class: 'hud-ny-ico', attrs: { 'aria-hidden': 'true' } }, PAY_ICON[o.act.type] || '⬆️'),
+        h('span', { class: 'hud-ny-main' }, h('span', { class: 'hud-ny-ico', attrs: { 'aria-hidden': 'true' } }, (o.act.type === 'staff/buyGear' && GEAR.items[o.act.payload?.item]?.icon) || PAY_ICON[o.act.type] || '⬆️'), // gear shows its own item (boots, hat…), not one glove for all
           h('span', { class: 'hud-ny-text' }, h('strong', null, upgradeWhat(o)), h('small', null, T(slow ? 'hud.ny.paybackSlow' : 'hud.ny.payback', { min: Math.max(1, Math.round(o.payback)) })))),
         h('div', { class: 'hud-ny-act' }, actionButton({ label: T('hud.ny.upgradeBtn'), cost: o.cost, tone: slow ? 'plain' : 'gold', disabled: short, note: short ? needMore(o.cost - s.player.coins) : null,
           onClick: () => { const r = act(o.act.type, o.act.payload); if (r.ok) sfx('coin.spend'); } })));
@@ -1022,11 +1022,11 @@ export function createStaffModal(ctx) {
       ? T('hud.pf.robotWho', { model: PROFILE.model[u.type] || T(`staff.${u.type}`), serial: u.serial || '—', date, days })
       : `${T('hud.pf.who', { age: u.age ?? '—', home: u.home || '—', date, days })}${u.hobbies?.length ? ` · ${T('hud.pf.hobbies', { list: u.hobbies.map(k => T(`hobby.${k}`)).join(', ') })}` : ''}`;
     const tags = robot
-      ? [tag(`${JOB_ICON[robotTask(u)] || '🤖'} ${T(`hud.staff.task.${robotTask(u)}`)}`), tag(T('hud.pf.fixedStar')), warrantyLeft(u) > 0 ? tag(T('hud.g4.warrantyTag', { n: warrantyLeft(u) }), 'good') : null]
+      ? [tag(T(`hud.staff.task.${robotTask(u)}`)) /* the task label carries its own icon */, tag(T('hud.pf.fixedStar')), warrantyLeft(u) > 0 ? tag(T('hud.g4.warrantyTag', { n: warrantyLeft(u) }), 'good') : null]
       : [tag(T('hud.staff.lv', { level: unitLevel(u) }), 'gold'), TRAITS[u.trait] ? tag(`${TRAITS[u.trait].icon} ${T(`staff.trait.${u.trait}`)}`) : null,
-        tag('⭐'.repeat(unitStars(u)))];
+        unitStars(u) > 0 ? tag('⭐'.repeat(unitStars(u))) : null]; // no stars yet: no empty pill
     return h('div', { class: 'hud-sm-dhead hud-pf-id' },
-      h('span', { class: `hud-sm-avatar hud-sm-avatar--big hud-pf-photo${photo ? ' has-photo' : ''}`, style: { '--hue': String(hueOf(u.uid)) }, attrs: { 'aria-hidden': 'true' } },
+      h('span', { class: `hud-sm-avatar hud-sm-avatar--big hud-pf-photo${photo ? ' has-photo' : ''}`, style: { '--hue': String(hueOf(u.uid)) }, dataset: { art: u.type }, attrs: { 'aria-hidden': 'true' } }, // data-art: the trade's picture while no photo exists (skin/staff.css)
         photo ? h('img', { src: photo, alt: '', attrs: { width: '72', height: '72', draggable: 'false' } }) : def.icon,
         h('span', { class: 'hud-sm-avatar-state' }, STATE_ICON[key] || '🙂')),
       h('div', { class: 'hud-sm-dhead-text' },
@@ -1078,7 +1078,7 @@ export function createStaffModal(ctx) {
     } else shift.push(h('p', { class: 'hud-sub' }, T(u.assigned ? 'hud.staff.elsewhere' : 'hud.staff.idle')),
       h('div', { class: 'hud-row' }, actionButton({ label: T('hud.staff.assign'), disabled: !region(s), onClick: () => act('staff/assign', { uid: u.uid }) })));
     parts.push(section('hud.pf.sec.now',
-      h('p', { class: `hud-sm-state hud-sm-state--${toneOf(key)}` }, h('span', { class: 'hud-sm-state-ico', attrs: { 'aria-hidden': 'true' } }, STATE_ICON[key] || '🙂'), T(`hud.sm.state.${key}`)),
+      h('p', { class: `hud-sm-state hud-sm-state--${toneOf(key)}` }, h('span', { class: 'hud-sm-state-ico', attrs: { 'aria-hidden': 'true' } }, STATE_ICON[key] || '🙂'), key === 'funny' && u.stopped?.id ? T(`funny.${u.stopped.id}.${u.stopped.level}`) : T(`hud.sm.state.${key}`)), // what they are actually up to (Napping), as the head says
       isRobot(u) ? vitalBars(u, true, info) : null,
       h('p', { class: 'hud-sm-todo' }, h('strong', null, T('hud.sm.todoTitle')), ' ', todoText(s, u, key, info)),
       care.length ? h('div', { class: 'hud-sm-care' }, care) : null,
@@ -1112,7 +1112,7 @@ export function createStaffModal(ctx) {
       kpi(T('hud.pf.kpi.perHour'), k ? T('hud.pf.perHourV', { n: fmt(Math.round(k.perHour)) }) : '—', k && hasY ? delta(k.perHour, y.perHour) : null),
       kpi(T('hud.pf.kpi.quality'), k ? pct(k.quality) : '—', null, k ? T('hud.pf.mistakesV', { n: k.mistakes }) : null),
       kpi(T('hud.pf.kpi.att'), k ? pct(k.att) : '—', k && hasY ? delta(k.att, y.att) : null),
-      kpi(T('hud.pf.kpi.profit'), k ? coinAmount(Math.round(k.profit)) : '—', k && hasY ? delta(k.profit, y.profit) : null),
+      kpi(T('hud.pf.kpi.profit'), k ? coinValue(Math.round(k.profit)) : '—', k && hasY ? delta(k.profit, y.profit) : null),
     ];
     const grade = g ? h('div', { class: 'hud-pf-grade' }, h('b', { class: `is-${g.letter[0].toLowerCase()}` }, g.letter), h('p', { class: 'hud-sub' }, gradeWhy(s, u, g, k, today)))
       : h('p', { class: 'hud-sub' }, T('hud.pf.noGrade'));
@@ -1191,9 +1191,9 @@ export function createStaffModal(ctx) {
     const profit = unitProfit(u);
     const totals = section('hud.pf.sec.total', h('div', { class: 'hud-sm-grid hud-sm-grid--2' },
       cell(T('hud.sm.book.jobs'), fmt(b.jobs || 0)),
-      cell(T('hud.sm.book.earned'), coinAmount(b.earned || 0)),
-      cell(T('hud.sm.book.spent'), coinAmount(b.spent || 0)),
-      robot ? cell(T('hud.pf.partsSpent'), coinAmount(u.partsSpent || 0)) : cell(T('hud.sm.book.mistakes'), fmt(b.mistakes || 0)),
+      cell(T('hud.sm.book.earned'), coinValue(b.earned || 0)),
+      cell(T('hud.sm.book.spent'), coinValue(b.spent || 0)),
+      robot ? cell(T('hud.pf.partsSpent'), coinValue(u.partsSpent || 0)) : cell(T('hud.sm.book.mistakes'), fmt(b.mistakes || 0)),
       cell(T('hud.sm.book.profit'), `${profit < 0 ? '−' : ''}${fmt(Math.abs(profit))}`, profit < 0 ? 'is-bad' : 'is-good'),
       cell(T('hud.pf.daysOn'), T('hud.pf.daysV', { n: daysSince(u.hiredAt ?? b.since ?? now, now) }))));
     const all = unitLog(u);
@@ -1522,8 +1522,8 @@ export function createStaffModal(ctx) {
     const signed = v => `${v < 0 ? '−' : ''}${fmt(Math.abs(Math.round(v)))}`;
     const perCoin = money.spent > 0 ? Math.round(money.earned / money.spent * 10) / 10 : null;
     const tiles = h('div', { class: 'hud-sm-grid hud-pf-kpis' },
-      tile(T('hud.rp.earned'), coinAmount(Math.round(money.earned)), delta(money.earned, money.prev?.earned || 0)),
-      tile(T('hud.rp.spent'), coinAmount(Math.round(money.spent)), delta(money.spent, money.prev?.spent || 0)),
+      tile(T('hud.rp.earned'), coinValue(Math.round(money.earned)), delta(money.earned, money.prev?.earned || 0)),
+      tile(T('hud.rp.spent'), coinValue(Math.round(money.spent)), delta(money.spent, money.prev?.spent || 0)),
       tile(T('hud.rp.profit'), signed(money.profit), null, money.profit < 0 ? 'is-bad' : 'is-good'),
       tile(T('hud.rp.perCoin'), perCoin == null ? '—' : T('hud.rp.perCoinV', { n: formatNumber(perCoin, { maximumFractionDigits: 1 }) }), null));
     const moneyNote = h('p', { class: 'hud-sub' }, T(`hud.rp.note.${period}`, { min: BOOKS.mvpMinutes }));

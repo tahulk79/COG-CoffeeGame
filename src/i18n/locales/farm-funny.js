@@ -24,6 +24,6 @@ const pack = (line, tag) => Object.fromEntries(Object.keys(LINES).flatMap(id => 
   [`realm.staff.tag.f_${id}`, tag(id)],
 ]));
 export default {
-  en: { ...pack((id, i) => `${EN[id]} (level ${i + 1})`, id => EN[id]), ...jobTags('en') },
+  en: { ...pack(id => EN[id], id => EN[id]), ...jobTags('en') }, // the level is added after it ("Gossiping · level 10"), as in Vietnamese
   vi: { ...pack((id, i) => LINES[id][i], id => TAG[id]), ...jobTags('vi') },
 };

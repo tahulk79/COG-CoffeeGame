@@ -214,6 +214,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     scene, store, vfx, templates, pads: PADS, navigate,
     autoOnFoot: () => farmer.onDuty,
     getFocus: () => cam.cur.target,
+    getCamera: () => camera,
     getActiveCrop: () => activeCrop,
     getCarrying: () => carry?.orderId ?? null,
     getSeat: id => cafe.walker(id)?.seat || null,
@@ -1478,7 +1479,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
       if (state.story.phase === 'play') { cam.explore(); cam.snapTo(avatar.position); }
     }
     syncArea(state);
-    updateFarmer(dt, state, now);
+    readOnlyPass(state, () => updateFarmer(dt, state, now)); // Auto's round reads grow times field by field: one staff-bonus sum for all of them
     avatar.update(dt, clock);
     const orders = regionOf(state)?.shop.orders || [];
     plots.update(dt, clock, now);
@@ -1492,11 +1493,13 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     incidents.update(dt, clock, state, now, playing);
     speech.update(dt, clock);
     crewTick = true;
-    try { staff.update(dt, clock, state, now); } finally { crewTick = false; }
+    // readOnlyPass: the crew asks for grow times plot by plot, and each one re-summed the whole team's staff bonus (the top derive cost while Auto runs).
+    // Safe across dispatches: the memo is keyed on this state object, and a dispatch replaces store.state with a new one.
+    try { readOnlyPass(state, () => staff.update(dt, clock, state, now)); } finally { crewTick = false; }
     let round = false; // one heavy pass a frame: the timed passes below wait a frame after a world sync
     if (crewDue) { flushCrew(); round = true; }
     else if (quietDue && (quietT += dt) >= .5) { quietDue = false; quietT = 0; syncAll(store.state); round = true; }
-    manager.update(dt, clock, state);
+    readOnlyPass(state, () => manager.update(dt, clock, state));
     world.update(clock);
     placement.update(clock);
     // Plants that need you (ripe / thirsty): blinking rings, refreshed a few times a second.
