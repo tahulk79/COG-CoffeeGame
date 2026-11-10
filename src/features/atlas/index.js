@@ -184,7 +184,8 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
       pin.dataset.status = status.kind;
       pin.classList.toggle('is-selected', selected === entry.id);
       const name = t(`country.${entry.id}`);
-      const icon = status.kind === 'locked' ? '🔒' : status.kind === 'current' ? '📍' : '🚩';
+      const firstPick = !state().world.ownedRegions.length; // choosing where to start is free: nothing is locked yet
+      const icon = status.kind === 'locked' ? (firstPick ? '🌱' : '🔒') : status.kind === 'current' ? '📍' : '🚩';
       // Owned: "2/4" cities opened. Locked: the cheapest city's price (or Free).
       const extra = status.kind === 'locked' ? (status.cost == null ? '' : coinText(status.cost)) : formatNumber(Math.round(status.gold));
       // Games offered here, visible on the map: 🌱 farm, ☕ café (both = 🌱☕). A country where only some cities farm shows both.

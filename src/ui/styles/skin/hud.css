@@ -849,3 +849,46 @@ body:has(dialog[open]) #hud-root :is(.hud-top-right,.hud-toolbar){visibility:hid
   /* no transform here: the planting hint is position:fixed inside this panel and must stay measured from the screen */
   #hud-root .hud-plantbar{left:calc(50% - 230px);width:460px;transform:none}
 }
+
+/* ---------- From playing the first levels ---------- */
+/* Story: the gear stands clear of Skip */
+.tch-skip.tch-skip{right:78px}
+body:has(#intro-controls:not([hidden])) #game-settings-toggle{right:calc(max(12px,env(safe-area-inset-right)) + 146px)!important}
+/* Level progress under the star */
+#hud-root .hud-level::after{content:"";position:absolute;left:5px;right:5px;bottom:-6px;height:9px;box-sizing:border-box;border:2px solid var(--line);border-radius:999px;background:linear-gradient(90deg,var(--go2) var(--xp,0%),#c98e4b 0)}
+/* Level 1 shows only what the first harvest needs */
+#hud-root[data-newbie] :is([data-hud-id="auto"],#hud-btn-loan,#hud-btn-staff){display:none!important}
+/* Nothing peeks out from behind an open action card */
+#hud-root:has(.hud-action:not([hidden])) [data-hud-id="auto"]{visibility:hidden}
+/* Build shelf: every card says what it does */
+#hud-root[data-sheet="build"] :is(.hud-cat-card,.hud-seedtile){display:flex;flex-direction:column;align-items:center;padding:6px 8px 34px}
+#hud-root[data-sheet="build"] :is(.hud-card-ico,.hud-seedtile-ico){position:static;flex:none;width:100%;height:86px;font-size:62px}
+#hud-root[data-sheet="build"] .hud-land-ico{height:86px;font-size:62px}
+#hud-root[data-sheet="build"] :is(.hud-card-name,.hud-seedtile strong){position:static;font-size:15px;line-height:19px}
+#hud-root[data-sheet="build"] .hud-land-text strong{top:96px;padding:0 6px;font-size:14px;line-height:18px}
+#hud-root[data-sheet="build"] :is(.hud-card-fx,.hud-seedtile small){display:-webkit-box;margin-top:2px;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;color:var(--line);font:800 12px/15px 'Baloo 2',sans-serif;text-align:center}
+#hud-root[data-sheet="build"] .hud-card-tip{display:block;position:absolute;left:6px;top:6px;z-index:3;padding:2px 8px;border:2px solid var(--line);border-radius:999px;background:linear-gradient(var(--au1),var(--au2));color:var(--line);font:400 12px/16px var(--disp)}
+/* Tree card: a word under each icon */
+#hud-root .hud-pan-tools .hud-btn-main{display:flex;flex-direction:column;align-items:center;gap:1px}
+#hud-root .hud-pan-tools .hud-btn{min-height:62px!important;padding:2px 2px 6px!important;font-size:14px!important;line-height:17px!important}
+#hud-root .hud-pan-tools .hud-btn-ico{font-size:24px;line-height:1}
+/* Placing: a caution is amber, only a real block is red */
+#hud-root .hud-place-reason.is-warn{color:#b35f00}
+/* Auto: what each picture means */
+#hud-root .hud-auto-jobs i{position:relative}
+#hud-root .hud-auto-jobs small{position:absolute;left:-8px;right:-8px;bottom:-20px;color:var(--line);font:800 12px/15px 'Baloo 2',sans-serif;font-style:normal;text-align:center}
+#hud-root .hud-auto-jobs{margin-bottom:24px}
+/* With a window open, messages sit at the foot of the screen instead of over its title */
+#hud-root:is([data-sheet],:has(.hud-sm-host:not([hidden]))) .hud-feedback-col{left:0;right:0;top:auto;bottom:calc(var(--h-sb,0px) + 12px);width:auto;align-items:center}
+#hud-root:is([data-sheet],:has(.hud-sm-host:not([hidden]))) .hud-toasts{justify-items:center}
+/* Harvest fills the gap between the side buttons on a phone, touching neither */
+@media (max-width:599px){
+  #hud-root .hud-harvest-all{left:calc(max(6px,var(--h-sl,0px)) + 86px);right:calc(max(6px,var(--h-sr,0px)) + 108px);width:auto;justify-content:center;transform:none}
+  #hud-root .hud-harvest-all:active{transform:translateY(2px)}
+}
+#hud-root[data-sheet="build"] :is(.hud-card-ico,.hud-seedtile-ico){overflow:hidden;min-height:0}
+#hud-root[data-sheet="build"] :is(.hud-card-ico,.hud-seedtile-ico) img{height:86px;max-height:86px;object-fit:contain}
+#hud-root[data-sheet="build"] :is(.hud-card-name,.hud-seedtile strong){position:relative;z-index:1}
+#hud-root[data-sheet="build"] :is(.hud-card-fx,.hud-seedtile small){-webkit-line-clamp:2}
+#hud-root .hud-tip.is-say{bottom:calc(var(--h-sb,0px) + 200px)!important}
+#hud-root[data-sheet="build"] :is(.hud-card-name,.hud-seedtile strong){top:auto;left:auto;right:auto;margin-top:2px}

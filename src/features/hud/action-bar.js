@@ -199,7 +199,7 @@ export function createActionBar(ctx) {
     modelIcon(def).then(url => { if (!url) return; const img = Object.assign(document.createElement('img'), { src: url, alt: '', draggable: false }); box.replaceChildren(img); });
     return box;
   }
-  const iconAction = (id, icon, label, onClick, extra = {}) => { const b = actionButton({ id, label: '', icon, tone: 'plain', onClick, ...extra }); b.setAttribute('aria-label', label); return b; };
+  const iconAction = (id, icon, label, onClick, extra = {}) => actionButton({ id, label, icon, tone: 'plain', onClick, ...extra });
   function plotCard(m, s) {
     const crop = CROPS[m.crop];
     title.replaceChildren();
@@ -224,7 +224,7 @@ export function createActionBar(ctx) {
     body.append(bar, h('div', { class: 'hud-pan-tools' },
       iconAction('plotWater', '💧', T('hud.tree.water'), () => { if (ctx.blockedByAuto?.()) return; ctx.act('farm/water', { plotId: m.id }); }, { disabled: m.watered }),
       iconAction('plotInfo', '🌳', T('hud.plot.detail'), details),
-      iconAction('treeUproot', '✕', T('hud.tree.uproot'), async () => {
+      iconAction('treeUproot', '🪓', T('hud.tree.uproot'), async () => {
         if (ctx.blockedByAuto?.()) return;
         const yes = await ctx.confirm({ title: T('hud.tree.uproot'), body: T('hud.tree.uprootBody', { n: m.age }), confirmLabel: T('hud.tree.uproot'), danger: true, art: { model: `farm/coffee-tree-${TREE_ART[m.crop] || 'gedeo'}.glb#tree`, trueScale: 1 } });
         if (yes) ctx.act('farm/uproot', { plotId: m.id });

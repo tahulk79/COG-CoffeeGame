@@ -136,7 +136,8 @@ export function createPlacementBar(ctx) {
     price.classList.toggle('is-move', !!p.uid);
     const why = p.error === 'onField' && p.type === 'field' ? T('fw.place.plantHere') : p.error === 'onField' && p.fieldsUnder > 0 ? T('fw.place.clearFields', { n: p.fieldsUnder }) : errorText(p.error || 'blocked');
     setText(reason, el.classList.contains('is-docked') ? T('hud.place.back') : p.valid && p.warn ? errorText(p.warn) : p.valid ? T('hud.place.hint') : p.noRoom ? T(p.noRoom) : why);
-    reason.classList.toggle('is-bad', !p.valid || !!p.warn);
+    reason.classList.toggle('is-bad', !p.valid);
+    reason.classList.toggle('is-warn', p.valid && !!p.warn); // allowed, just worth knowing
     reason.classList.toggle('is-quiet', p.valid && !p.warn && !el.classList.contains('is-docked')); // nothing to say: the green grid says it
     ok.disabled = !p.valid;
     ok.setAttribute('aria-disabled', String(!p.valid));
