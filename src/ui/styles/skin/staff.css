@@ -3,7 +3,7 @@
 
 /* --- The screen --- */
 #hud-root .hud-sm-scrim{background:none}
-#hud-root .hud-sm{position:fixed;left:0!important;right:0!important;top:calc(var(--h-st,0px) + 66px)!important;bottom:0!important;width:auto!important;max-width:none!important;height:auto!important;max-height:none!important;margin:0;display:flex;flex-direction:column;box-sizing:border-box;padding-bottom:var(--h-sb,0px);border:5px solid var(--line);border-bottom:0;border-radius:34px 34px 0 0;background:linear-gradient(var(--cr1),var(--cr2) 55%,var(--cr3));box-shadow:inset 0 8px 0 var(--fr1),inset 0 10px 0 var(--fr2),inset 0 12px 0 var(--cr1);transform:none!important}
+#hud-root .hud-sm{position:fixed;left:0!important;right:0!important;top:calc(var(--h-st,0px) + 66px)!important;bottom:0!important;width:auto!important;max-width:none!important;height:auto!important;max-height:none!important;margin:0;display:flex;flex-direction:column;box-sizing:border-box;padding-bottom:var(--h-sb,0px);border:4px solid var(--line);border-bottom:0;border-radius:34px 34px 0 0;background:linear-gradient(var(--cr1),var(--cr2) 55%,var(--cr3));box-shadow:inset 0 4px 0 var(--fr1),inset 0 5px 0 var(--fr2),inset 0 6px 0 var(--cr1);transform:none!important}
 #hud-root .hud-sm-title{top:14px}
 #hud-root .hud-sm-head .hud-x{top:12px;right:14px}
 #hud-root .hud-sm-back,#hud-root .hud-sm-back:active{top:12px;left:14px}
@@ -31,7 +31,7 @@
 
 /* --- The card --- */
 #hud-root :is(.hud-hire,.hud-rs){display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:30px 10px;margin:0;padding:0 0 20px;list-style:none}
-#hud-root .hud-hire-row,#hud-root .hud-rs-row{position:relative;display:block;box-sizing:border-box;height:auto;min-height:262px;padding:0;border:4px solid var(--line);border-radius:24px}
+#hud-root .hud-hire-row,#hud-root .hud-rs-row{position:relative;display:block;box-sizing:border-box;height:auto;min-height:262px;padding:0;border:3px solid var(--line);border-radius:24px}
 #hud-root .hud-hire-ico,#hud-root .hud-rs-row .hud-sm-avatar{position:static;display:block;width:auto;height:100px;margin:4px 2px 0}
 #hud-root .hud-hire-text,#hud-root .hud-rs-text{position:static;display:block;padding:0 8px;text-align:center}
 #hud-root .hud-hire-top strong,#hud-root .hud-rs-name{display:block;font-size:15px;line-height:19px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -49,12 +49,12 @@
 #hud-root .hud-hire-stats .ui-icon{width:14px;height:14px}
 #hud-root :is(.hud-hire-trait,.hud-hire-perk){display:inline-flex;align-items:center;gap:3px;max-width:100%;color:var(--line);font:800 12px/15px 'Baloo 2',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #hud-root .hud-hire-perk{color:#b35f00}
-#hud-root .hud-hire-row.is-rare{box-shadow:inset 0 0 0 3px #ffffffe0,0 6px 0 var(--line),0 0 0 3px var(--au2)}
+#hud-root .hud-hire-row.is-rare{box-shadow:inset 0 0 0 3px #ffffffe0,0 3px 0 var(--line),0 0 0 3px var(--au2)}
 
 /* price or fix: the same small button hanging off the card */
 #hud-root :is(.hud-hire-act,.hud-rs-fix){position:absolute;left:9px;right:9px;bottom:-14px;z-index:2;margin:0}
 #hud-root :is(.hud-hire-act,.hud-rs-fix) .hud-btn{width:100%}
-#hud-root .hud-hire-act .hud-btn:disabled{--a:#e9edf2;--m:#c3ccd6;--e:#8d99a8;opacity:1;border-color:var(--line);background:linear-gradient(var(--a),var(--m) 60%,var(--e));box-shadow:inset 0 -5px 0 var(--e),inset 0 2px 0 #fff9,0 4px 0 var(--line)}
+#hud-root .hud-hire-act .hud-btn:disabled{--a:#e9edf2;--m:#c3ccd6;--e:#8d99a8;opacity:1;border-color:var(--line);background:linear-gradient(var(--a),var(--m) 60%,var(--e));box-shadow:inset 0 -3px 0 var(--e),inset 0 2px 0 #fff9,0 2px 0 var(--line)}
 
 /* a team member's two bars: icon, track, number */
 #hud-root .hud-rs-row .hud-rs-main{position:static;display:block;width:100%;padding:0 0 30px;background:none;border:0;box-shadow:none}
@@ -71,7 +71,7 @@
 /* --- Team tools --- */
 #hud-root .hud-rs-bar{display:flex;align-items:flex-start;gap:6px;margin:0 0 14px}
 #hud-root .hud-rs-filters{display:flex;flex-wrap:wrap;gap:6px;flex:1;min-width:0}
-#hud-root :is(.hud-rs-chip,.hud-rs-pick){display:inline-flex;align-items:center;gap:4px;height:34px;box-sizing:border-box;padding:0 12px;border:3px solid var(--line);border-radius:999px;background:linear-gradient(#fff,#fff8dc);box-shadow:0 2px 0 var(--line);color:var(--line);font:400 14px/1 var(--disp)}
+#hud-root :is(.hud-rs-chip,.hud-rs-pick){display:inline-flex;align-items:center;gap:4px;height:34px;box-sizing:border-box;padding:0 12px;border:2px solid var(--line);border-radius:999px;background:linear-gradient(#fff,#fff8dc);box-shadow:0 2px 0 var(--line);color:var(--line);font:400 14px/1 var(--disp)}
 #hud-root .hud-rs-chip[aria-pressed="true"]{background:linear-gradient(var(--au1),var(--au2))}
 #hud-root .hud-rs-chip small{font:400 12px/1 var(--disp);opacity:.8}
 
@@ -110,7 +110,7 @@
 #hud-root .hud-sm-ptabs{position:sticky;top:-2px;z-index:3;margin:0 -16px;padding:6px 16px 10px;background:#fff6d2}
 
 /* rows inside a panel use the small button; the words get the room */
-#hud-root :is(.hud-sm-stat,.hud-sm-part,.hud-ny-act,.hud-sm-fire,.hud-hire-refresh) .hud-btn{min-height:42px!important;font-size:15px!important;line-height:18px!important;padding:0 12px 5px!important;border-width:3px!important;border-radius:15px!important;white-space:nowrap}
+#hud-root :is(.hud-sm-stat,.hud-sm-part,.hud-ny-act,.hud-sm-fire,.hud-hire-refresh) .hud-btn{min-height:42px!important;font-size:15px!important;line-height:18px!important;padding:0 12px 5px!important;border-width:2px!important;border-radius:15px!important;white-space:nowrap}
 #hud-root .hud-ny{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;box-sizing:border-box;min-height:62px;margin:0;padding:8px 10px;border:3px solid var(--fr1);border-radius:18px;background:#fffdf0}
 #hud-root .hud-ny-list{display:grid;gap:8px;margin:0;padding:0;list-style:none}
 #hud-root .hud-ny-main{display:flex;align-items:center;gap:8px;min-width:0}
@@ -143,13 +143,13 @@
 #hud-root .hud-sb-count{display:flex;align-items:center;justify-content:space-between;gap:8px}
 #hud-root .hud-sb-count strong{color:var(--line);font:400 15px/19px var(--disp)}
 #hud-root .hud-sb-acts{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:8px}
-#hud-root .hud-sb-act{display:grid;justify-items:center;align-content:center;gap:1px;min-height:58px;box-sizing:border-box;padding:2px 2px 6px;border:4px solid var(--line);border-radius:20px;background:linear-gradient(#fff,#fffbe6 60%,#fff0c2);box-shadow:inset 0 -5px 0 #f6dc9f,0 4px 0 var(--line);color:var(--line);font:400 13px/16px var(--disp)}
-#hud-root .hud-sb-act[aria-pressed="true"]{background:linear-gradient(var(--au1),var(--au2) 60%,var(--au3));box-shadow:inset 0 -5px 0 var(--au3),0 4px 0 var(--line)}
-#hud-root .hud-sb-act:disabled{background:linear-gradient(#e9edf2,#c3ccd6 60%,#8d99a8);box-shadow:inset 0 -5px 0 #8d99a8,0 4px 0 var(--line);color:#fff;opacity:1}
-#hud-root .hud-sb-act:not(:disabled):active{transform:translateY(3px);box-shadow:inset 0 -3px 0 #f6dc9f,0 1px 0 var(--line)}
+#hud-root .hud-sb-act{display:grid;justify-items:center;align-content:center;gap:1px;min-height:58px;box-sizing:border-box;padding:2px 2px 6px;border:3px solid var(--line);border-radius:20px;background:linear-gradient(#fff,#fffbe6 60%,#fff0c2);box-shadow:inset 0 -3px 0 #f6dc9f,0 2px 0 var(--line);color:var(--line);font:400 13px/16px var(--disp)}
+#hud-root .hud-sb-act[aria-pressed="true"]{background:linear-gradient(var(--au1),var(--au2) 60%,var(--au3));box-shadow:inset 0 -3px 0 var(--au3),0 2px 0 var(--line)}
+#hud-root .hud-sb-act:disabled{background:linear-gradient(#e9edf2,#c3ccd6 60%,#8d99a8);box-shadow:inset 0 -3px 0 #8d99a8,0 2px 0 var(--line);color:#fff;opacity:1}
+#hud-root .hud-sb-act:not(:disabled):active{transform:translateY(2px);box-shadow:inset 0 -2px 0 #f6dc9f,0 0px 0 var(--line)}
 #hud-root .hud-sb-panel{max-height:38vh;padding:10px;border:3px solid var(--fr1);border-radius:18px;background:#fffdf0;box-shadow:none}
 #hud-root .hud-sb-opts{gap:8px}
-#hud-root .hud-sb-opt{min-height:58px;padding:6px 10px 8px;border:3px solid var(--line);border-radius:15px;background:linear-gradient(#fff,#fff8dc);box-shadow:0 3px 0 var(--line);color:var(--line)}
+#hud-root .hud-sb-opt{min-height:58px;padding:6px 10px 8px;border:2px solid var(--line);border-radius:15px;background:linear-gradient(#fff,#fff8dc);box-shadow:0 2px 0 var(--line);color:var(--line)}
 #hud-root .hud-sb-opt-name{font:400 14px/18px var(--disp);white-space:normal}
 #hud-root .hud-sb-opt small{font:800 12px/15px 'Baloo 2',sans-serif}
 #hud-root .hud-sb-opt:disabled{opacity:1;background:linear-gradient(#e9edf2,#c3ccd6);color:#6b7684}

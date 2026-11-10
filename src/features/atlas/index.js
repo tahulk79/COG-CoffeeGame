@@ -249,21 +249,20 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
       chip = [access.expired ? 'expired' : saved ? 'visited' : 'new'];
       action = gameButtons('ui-btn--go', g => enter(regionId, saved?.mode ? null : g));
     }
+    // A paid opening asks on the card itself: the same two slots become Open / Cancel, nothing pops up over the map.
+    if (confirming === regionId) {
+      action = el('div', 'atlas-actions');
+      action.append(button(t('atlas.unlock.go'), 'ui-btn--go atlas-game', () => unlock(regionId, confirmingGame)), button(t('atlas.unlock.cancel'), 'ui-btn--plain atlas-game', () => { confirming = null; renderSheet(); }));
+      row.classList.add('is-confirming');
+    }
     row.append(info, action);
     row.dataset.state = chip[0];
-    if (confirming === regionId) {
-      const cost = regionAccess(s, regionId).cost;
-      const card = el('div', 'atlas-confirm');
-      card.append(el('p', 'atlas-confirm-title', t('atlas.unlock.title', { name: t(`regionName.${regionId}`) })), el('p', 'atlas-confirm-cost', coinText(cost)), el('div', 'atlas-confirm-actions'));
-      card.lastChild.append(button(t('atlas.unlock.cancel'), 'ui-btn--plain', () => { confirming = null; renderSheet(); }), button(t('atlas.unlock.go'), 'ui-btn--gold atlas-confirm-go', () => unlock(regionId, confirmingGame)));
-      const wrap = el('li', 'atlas-region-confirm'); wrap.append(card);
-      const frag = document.createDocumentFragment(); frag.append(row, wrap); return frag;
-    }
     return row;
   }
   function renderSheet() {
     renderHeader();
     if (!selected) { sheet.hidden = true; return; }
+    const shelfLeft = sheet.querySelector('.atlas-regions')?.scrollLeft || 0; // a redraw keeps the shelf where it was
     sheet.hidden = false; sheet.replaceChildren();
     sheet.setAttribute('aria-label', t(`country.${selected}`));
     const head = el('div', 'atlas-sheet-head');
@@ -276,6 +275,7 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
     const list = el('ul', 'atlas-regions');
     for (const regionId of cities) list.append(regionRow(regionId));
     sheet.append(list);
+    list.scrollLeft = shelfLeft;
     // Only a first-time player still needs the one warning; the rest of the tray is the choice itself.
     const st = state();
     if (!st.story.level10Done && !st.world.ownedRegions.length) {
