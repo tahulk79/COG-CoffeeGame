@@ -2,15 +2,14 @@
    so a new screen gets the game style for free. `:is(#hud-root,body)` lifts a rule over the per-screen ones. */
 html:root{
   --ui-backdrop:#7a451533;
-  --stud:radial-gradient(circle,#fff6b0 0 3px,#b8741f 3.5px 5px,#0000 5.5px);
-  --window-bg:var(--stud) 8px 8px/16px 16px no-repeat,var(--stud) calc(100% - 8px) 8px/16px 16px no-repeat,var(--stud) 8px calc(100% - 8px)/16px 16px no-repeat,var(--stud) calc(100% - 8px) calc(100% - 8px)/16px 16px no-repeat,linear-gradient(var(--cr1),var(--cr2) 55%,var(--cr3));
-  --window-rim:inset 0 0 0 8px var(--fr1),inset 0 0 0 10px var(--fr2),inset 0 0 0 12px var(--cr1),0 8px 0 var(--line),0 18px 26px #7a451559;
+  --window-bg:linear-gradient(var(--cr1),var(--cr2) 55%,var(--cr3));
+  --window-rim:inset 0 0 0 4px var(--fr1),inset 0 0 0 5px var(--fr2),inset 0 0 0 6px var(--cr1),0 4px 0 var(--line),0 4px 8px #7a451533;
 }
 
-/* --- Windows: same rim, same studs, same dim behind --- */
+/* --- Windows: same rim, same dim behind --- */
 :is(#hud-root,body) :is(.hud-sm,.hud-confirm,.ui-modal__window),
 #hud-root[data-sheet]:not([data-sheet="build"]) .hud-sheet,
-.fin-root .fin-sheet{border:5px solid var(--line);border-radius:36px;background:var(--window-bg);box-shadow:var(--window-rim)}
+.fin-root .fin-sheet{border:4px solid var(--line);border-radius:36px;background:var(--window-bg);box-shadow:var(--window-rim)}
 :is(#hud-root,body) :is(.hud-sheet-scrim,.hud-sm-scrim,.hud-scrim,.fin-scrim){background:var(--ui-backdrop)}
 
 /* --- Title plate --- */
@@ -18,7 +17,7 @@ html:root{
 
 /* --- Buttons: white label, outlined in a darker shade of the button's own colour --- */
 .hud-btn--plain.hud-btn--plain,.ui-btn--plain.ui-btn--plain,.gu-btn--plain.gu-btn--plain{--a:var(--sk1);--m:var(--sk2);--e:var(--sk3)}
-:is(.hud-btn,.ui-btn--go,.ui-btn--gold,.ui-btn--plain,.gu-btn--go,.gu-btn--brass,.gu-btn--plain,#skip,#enter-game,.hud-cat-foot,.hud-seedtile>.hud-cost,.hud-land-state,.hud-plantbar-cost){--o:var(--e);--ol:-2px 0 var(--o),2px 0 var(--o),0 -2px var(--o),0 2px var(--o),-1.5px -1.5px var(--o),1.5px -1.5px var(--o),-1.5px 1.5px var(--o),1.5px 1.5px var(--o)}
+:is(.hud-btn,.ui-btn--go,.ui-btn--gold,.ui-btn--plain,.gu-btn--go,.gu-btn--brass,.gu-btn--plain,#skip,#enter-game,.hud-cat-foot,.hud-seedtile>.hud-cost,.hud-land-state,.hud-plantbar-cost){--o:var(--e);--ol:-1.5px 0 var(--o),1.5px 0 var(--o),0 -1.5px var(--o),0 1.5px var(--o),-1px -1px var(--o),1px -1px var(--o),-1px 1px var(--o),1px 1px var(--o)}
 :is(.hud-cat-foot,.hud-seedtile>.hud-cost,.hud-land-state,.hud-plantbar-cost){--e:var(--au3)}
 .hud-land-state.is-owned{--e:var(--go3)}
 @supports (color:color-mix(in srgb,red,blue)){
@@ -27,40 +26,40 @@ html:root{
 /* !important: dozens of older per-screen rules paint their own label; this is the single answer */
 :is(.hud-btn,.ui-btn--go,.ui-btn--gold,.ui-btn--plain,.gu-btn--go,.gu-btn--brass,.gu-btn--plain,.hud-cat-foot,.hud-seedtile>.hud-cost,.hud-land-state,.hud-plantbar-cost),
 :is(.hud-btn,.ui-btn--go,.ui-btn--gold,.ui-btn--plain,.gu-btn--go,.gu-btn--brass,.gu-btn--plain,.hud-cat-foot,.hud-seedtile>.hud-cost,.hud-land-state,.hud-plantbar-cost) *{color:#fff!important;font-family:var(--disp)!important;font-weight:400!important;text-shadow:var(--ol)!important}
-:is(#hud-root,body) :is(.hud-btn,.ui-btn--go,.ui-btn--gold,.ui-btn--plain,.gu-btn--go,.gu-btn--brass,.gu-btn--plain){border:4px solid var(--line);border-radius:20px}
+:is(#hud-root,body) :is(.hud-btn,.ui-btn--go,.ui-btn--gold,.ui-btn--plain,.gu-btn--go,.gu-btn--brass,.gu-btn--plain){border:3px solid var(--line);border-radius:20px}
 :is(#hud-root,body) :is(.hud-cat-foot,.hud-seedtile>.hud-cost,.hud-land-state){border-radius:20px}
 /* the same button, small: inside a card or a list row */
 #hud-root :is(.hud-quest,.hud-hire-act,.hud-loan-pack,.hud-auto-strip,.hud-ask-acts,.hud-al) .hud-btn,
-#hud-root[data-sheet="upgrades"] .hud-land-row .hud-btn{border-width:3px;border-radius:15px}
-#hud-root .hud-sell>.hud-btn,#hud-root .hud-pan-go .hud-btn,.fin-root .fin-farm-btns .gu-btn{border-radius:24px}
+#hud-root[data-sheet="upgrades"] .hud-land-row .hud-btn{border-width:2px;border-radius:15px}
+#hud-root .hud-sell>.hud-btn,#hud-root .hud-pan-go .hud-btn,.fin-root .fin-farm:only-child .fin-farm-btns .gu-btn{border-radius:24px}
 /* cost button hanging off a small card sits at one spot */
 #hud-root .hud-loan-pack .hud-btn{left:5px;right:5px;bottom:-13px}
 /* can't press it: a glossy grey button, not a flat box */
 :is(#hud-root,body) :is(.hud-btn,.ui-btn--go,.ui-btn--gold,.ui-btn--plain,.gu-btn--go,.gu-btn--brass,.gu-btn--plain):is(:disabled,[aria-disabled="true"]),
-#hud-root .hud-hire-row.needs-well .hud-btn{--a:#e9edf2;--m:#c3ccd6;--e:#8d99a8;border-color:var(--line);background:linear-gradient(var(--a),var(--m) 60%,var(--e));box-shadow:inset 0 -6px 0 var(--e),inset 0 2px 0 #fff9,0 4px 0 var(--line)}
+#hud-root .hud-hire-row.needs-well .hud-btn{--a:#e9edf2;--m:#c3ccd6;--e:#8d99a8;border-color:var(--line);background:linear-gradient(var(--a),var(--m) 60%,var(--e));box-shadow:inset 0 -4px 0 var(--e),inset 0 2px 0 #fff9,0 2px 0 var(--line)}
 
 /* --- Round close and back: one size, one glyph --- */
 :is(#hud-root,body) :is(.hud-x,.ui-close),
 .fin-root .fin-head .fin-round,
 #hud-root .hud-plantbar .hud-round-btn.is-cancel,
-#hud-root :is(.hud-sm-back,.hud-sheet-back){display:grid;place-items:center;width:52px;height:52px;box-sizing:border-box;padding:0 0 3px;border:4px solid var(--line);border-radius:50%}
+#hud-root :is(.hud-sm-back,.hud-sheet-back){display:grid;place-items:center;width:52px;height:52px;box-sizing:border-box;padding:0 0 3px;border:3px solid var(--line);border-radius:50%}
 :is(#hud-root,body) :is(.hud-x,.ui-close),
 .fin-root .fin-head .fin-round:last-child,
-#hud-root .hud-plantbar .hud-round-btn.is-cancel{background:linear-gradient(var(--re1),var(--re2) 60%,var(--re3));box-shadow:inset 0 -5px 0 var(--re3),inset 0 2px 0 #fff9,0 4px 0 var(--line)}
+#hud-root .hud-plantbar .hud-round-btn.is-cancel{background:linear-gradient(var(--re1),var(--re2) 60%,var(--re3));box-shadow:inset 0 -3px 0 var(--re3),inset 0 2px 0 #fff9,0 2px 0 var(--line)}
 :is(#hud-root,body) :is(.hud-x,.ui-close),
 :is(#hud-root,body) :is(.hud-x,.ui-close) *,
 .fin-root .fin-head .fin-round:last-child,
 .fin-root .fin-head .fin-round:last-child *,
 #hud-root .hud-plantbar .hud-round-btn.is-cancel,
-#hud-root .hud-plantbar .hud-round-btn.is-cancel *{color:#fff!important;font:400 30px/1 var(--disp)!important;text-shadow:0 2px 0 var(--re3)!important}
+#hud-root .hud-plantbar .hud-round-btn.is-cancel *{color:#fff!important;font:400 30px/1 var(--disp)!important;text-shadow:0 1.5px 0 var(--re3)!important}
 
 /* --- Top bar: three pills cut from the same cloth --- */
-#hud-root .hud-pills>*{width:100%;min-width:0;height:38px;min-height:38px;box-sizing:border-box;justify-content:flex-end;padding:0 7px 0 26px;font-size:14px;border:3px solid var(--line);box-shadow:inset 0 3px 0 #2f9d1466,0 3px 0 var(--line)}
+#hud-root .hud-pills>*{width:100%;min-width:0;height:38px;min-height:38px;box-sizing:border-box;justify-content:flex-end;padding:0 7px 0 26px;font-size:14px;border:2px solid var(--line);box-shadow:inset 0 3px 0 #2f9d1466,0 2px 0 var(--line)}
 #hud-root .hud-pills :is(.hud-pill-val,span){font-size:14px}
 #hud-root .hud-pills .hud-pill-cap{font-size:11px}
-#hud-root .hud-pill--bean.is-full{box-shadow:inset 0 3px 0 #0002,0 3px 0 var(--line)}
+#hud-root .hud-pill--bean.is-full{box-shadow:inset 0 3px 0 #0002,0 2px 0 var(--line)}
 #hud-root .hud-pill .farm-gold-coin,#hud-root .hud-pill .hud-pill-ico,#hud-root .hud-pill--bean::before,#hud-root .hud-usd::before{left:-11px;width:42px;height:42px;margin-top:-21px}
-#hud-root .hud-top-right .hud-roundmap.hud-loan-btn,#hud-root .hud-loan-btn{border:4px solid var(--line);border-radius:50%}
+#hud-root .hud-top-right .hud-roundmap.hud-loan-btn,#hud-root .hud-loan-btn{border:3px solid var(--line);border-radius:50%}
 @media (max-width:389px){
   #hud-root .hud-pills>*{height:36px;min-height:36px;padding:0 5px 0 22px}
   #hud-root .hud-pills :is(.hud-pill-val,span){font-size:13px}
@@ -69,20 +68,20 @@ html:root{
 }
 
 /* --- Tabs --- */
-:is(#hud-root,body) :is(.hud-cat-tab,.hud-tab){border:4px solid var(--line);border-radius:20px}
+:is(#hud-root,body) :is(.hud-cat-tab,.hud-tab){border:3px solid var(--line);border-radius:20px}
 
 /* --- Text: Paytone One for names and numbers (never faux-bold), Baloo 2 at 800 for sentences --- */
 :is(#hud-root,body) :is(.hud-line,.hud-line--muted,.fin-balance,.fin-preview small,.fin-preview b,.fin-note,.hud-sm-note){font-family:'Baloo 2',sans-serif;font-weight:800}
 :is(#hud-root,body) :is(.fin-gold,.hud-confirm-cost,.fin-preview strong){font-family:var(--disp);font-weight:400}
 #hud-root .hud-plantbar :is(.hud-plantbar-row,.hud-plantbar-fill),#hud-root .hud-plantbar :is(.hud-plantbar-row,.hud-plantbar-fill) *{font-family:var(--disp);font-weight:400}
 #hud-root .hud-plantbar-row{border-radius:15px}
-#hud-root .hud-plantbar-fill{border-radius:20px;color:#fff;text-shadow:-2px 0 var(--go3),2px 0 var(--go3),0 -2px var(--go3),0 2px var(--go3)}
+#hud-root .hud-plantbar-fill{border-radius:20px;color:#fff;text-shadow:-1.5px 0 var(--go3),1.5px 0 var(--go3),0 -1.5px var(--go3),0 1.5px var(--go3)}
 
 /* --- Sticker stars and the small status chip --- */
 .ui-stars{display:inline-flex;justify-content:center;gap:1px;vertical-align:middle}
 .ui-star{flex:none;width:15px;height:15px;background:url(../../game-art/ico/star.svg) center/contain no-repeat}
 .ui-icon--gold{background:url(../../game-art/ico/coin.svg) center/122% no-repeat}.ui-icon--gold>*{visibility:hidden}
-.fin-root .fin-status{display:inline-flex;align-items:center;height:32px;box-sizing:border-box;padding:0 12px;border:3px solid var(--line);border-radius:999px;background:linear-gradient(#fff,#fff8dc);box-shadow:0 2px 0 var(--line);color:var(--line);font:400 13px/1 var(--disp)}
+.fin-root .fin-status{display:inline-flex;align-items:center;height:32px;box-sizing:border-box;padding:0 12px;border:2px solid var(--line);border-radius:999px;background:linear-gradient(#fff,#fff8dc);box-shadow:0 2px 0 var(--line);color:var(--line);font:400 13px/1 var(--disp)}
 
 /* Capital's small stats use full-size stickers */
 .fin-root .fin-stats .ui-icon{width:22px;height:22px}
@@ -91,7 +90,7 @@ html:root{
 #hud-root .ui-ico--gift{width:110px;height:110px;background-image:url(../../game-art/ico/gift.svg)}
 #hud-root .ui-ico--people{width:110px;height:110px;background-image:url(../../game-art/ico/people.svg)}
 #hud-root .hud-empty-hero{height:190px;align-content:center;gap:8px}
-#hud-root .hud-empty-hero strong{max-width:260px;color:#fff;font:400 18px/23px var(--disp);text-align:center;text-shadow:-2px 0 var(--line),2px 0 var(--line),0 -2px var(--line),0 2px var(--line),-2px -2px var(--line),2px -2px var(--line),-2px 2px var(--line),2px 2px var(--line)}
+#hud-root .hud-empty-hero strong{max-width:260px;color:#fff;font:400 18px/23px var(--disp);text-align:center;text-shadow:-1.5px 0 var(--line),1.5px 0 var(--line),0 -1.5px var(--line),0 1.5px var(--line),-1.5px -1.5px var(--line),1.5px -1.5px var(--line),-1.5px 1.5px var(--line),1.5px 1.5px var(--line)}
 #hud-root .hud-sm-empty{display:grid;justify-items:stretch;gap:14px}#hud-root .hud-sm-empty>.hud-btn{width:100%}
 
 /* --- Settings: one frame, not three --- */
@@ -126,11 +125,11 @@ body .ui-modal__body{width:100%;box-sizing:border-box}
 :is(.hud-btn,.ui-btn--go,.ui-btn--gold,.ui-btn--plain,.gu-btn--go,.gu-btn--brass,.gu-btn--plain,.set-lang),
 #hud-root .hud-plantbar-fill{min-height:50px!important;font-size:18px!important;line-height:22px!important;padding-top:0!important;padding-bottom:6px!important}
 /* buttons: big */
-#hud-root :is(.hud-auto-actions .hud-btn--go,.hud-pan-go .hud-btn,.hud-sell>.hud-btn,.hud-gifts>.hud-btn),.fin-root .fin-farm-btns .gu-btn{min-height:60px!important;font-size:22px!important;line-height:26px!important}
+#hud-root :is(.hud-auto-actions .hud-btn--go,.hud-pan-go .hud-btn,.hud-sell>.hud-btn,.hud-gifts>.hud-btn),.fin-root .fin-farm:only-child .fin-farm-btns .gu-btn{min-height:60px!important;font-size:22px!important;line-height:26px!important}
 /* buttons: small */
 #hud-root :is(.hud-quest,.hud-hire-act,.hud-loan-pack,.hud-auto-strip,.hud-ask-acts,.hud-al,.hud-land-row) .hud-btn,
 #hud-root :is(.hud-cat-foot,.hud-seedtile>.hud-cost,.hud-land-state),
-.set-q,.set-toggle{min-height:42px!important;font-size:15px!important;line-height:18px!important;padding-top:0!important;padding-bottom:5px!important;border-width:3px!important;border-radius:15px!important}
+.set-q,.set-toggle{min-height:42px!important;font-size:15px!important;line-height:18px!important;padding-top:0!important;padding-bottom:5px!important;border-width:2px!important;border-radius:15px!important}
 #hud-root :is(.hud-hire-act,.hud-loan-pack,.hud-land-row) .hud-btn,#hud-root :is(.hud-cat-foot,.hud-seedtile>.hud-cost,.hud-land-state){padding-left:2px!important;padding-right:2px!important}
 #hud-root[data-sheet="build"] :is(.hud-cat-foot,.hud-seedtile>.hud-cost,.hud-land-state,.hud-land-row .hud-btn){bottom:-13px;left:9px;right:9px}
 :is(.hud-btn,.gu-btn) :is(.hud-cost,.hud-btn-main,.hud-btn-main>span:not(.hud-btn-ico)){font-size:inherit!important;line-height:inherit!important}
@@ -174,7 +173,7 @@ body :is(.atlas .atlas-title,.sel-title){box-sizing:border-box;min-height:48px;p
 }
 
 /* Staff board shortcuts sit in a list row, so they are small buttons on one line */
-#hud-root :is(#staffUpAll,#staffFixAll,#staffIdleIn,#staffHandOff){min-height:42px!important;font-size:15px!important;line-height:18px!important;padding:0 10px 5px!important;border-width:3px!important;border-radius:15px!important;white-space:nowrap}
+#hud-root :is(#staffUpAll,#staffFixAll,#staffIdleIn,#staffHandOff){min-height:42px!important;font-size:15px!important;line-height:18px!important;padding:0 10px 5px!important;border-width:2px!important;border-radius:15px!important;white-space:nowrap}
 body #game-settings-toggle{width:58px;height:58px;box-sizing:border-box}
 /* the longest roster name ("Planting robot") still fits a 3-across card */
 #hud-root .hud-rs-name{font-size:14px!important}

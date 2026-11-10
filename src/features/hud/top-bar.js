@@ -126,6 +126,8 @@ export function createTopBar(ctx) {
     const next = { level: lp.level, ratio: Math.round(lp.ratio * 100), name: s.character?.name || '', cap, full: cap > 0 && used >= cap, round: s.player.round, credits: s.rebirth.credits, goods };
     if (next.level !== last.level) { setText(levelNum, String(lp.level)); if (last.level) bump(badge, 1.25); }
     if (next.level !== last.level || next.ratio !== last.ratio) {
+      badge.style.setProperty('--xp', `${next.ratio}%`);
+      ctx.root?.toggleAttribute('data-newbie', lp.level < 2); // level 1: only what the first harvest needs
       xpFill.style.setProperty('--p', String(lp.ratio));
       badge.setAttribute('aria-label', T('hud.levelAria', { level: lp.level, xp: fmt(lp.xp - lp.from), need: fmt(lp.to - lp.from) }));
     }

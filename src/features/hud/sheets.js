@@ -533,7 +533,7 @@ export function autoPanel(ctx, s, { link = false, detail = false } = {}) {
       h('div', { class: 'hud-auto-state-text' }, h('strong', null, face === 'on' && boss ? T('hud.auto.state.help', { name: boss.name }) : T(`hud.auto.state.${face}`)), h('small', null, T(`hud.auto.sub.${face}`, { min, n: runs }))),
       h('span', { class: 'hud-auto-state-time', dataset: timed ? { autoClock: '' } : undefined }, timed ? clock(left) : `×${runs}`),
       timed ? h('div', { class: 'hud-auto-meter', attrs: { 'aria-hidden': 'true' } }, h('i', { dataset: { autoMeter: '' }, style: { width: `${Math.min(100, left / total * 100)}%` } })) : null),
-    detail ? null : h('div', { class: 'hud-auto-jobs', attrs: { 'aria-hidden': 'true' } }, ...['sprout', 'basket', 'scroll'].map(job => h('i', { dataset: { job } }))),
+    detail ? null : h('div', { class: 'hud-auto-jobs', attrs: { 'aria-hidden': 'true' } }, ...[['sprout', 'plant'], ['basket', 'harvest'], ['scroll', 'quests']].map(([job, key]) => h('i', { dataset: { job } }, h('small', null, T(`hud.auto.job.${key}`))))),
     h('div', { class: 'hud-auto-actions' },
       detail ? null : actionButton(main),
       face === 'empty' && !detail ? null : actionButton({ id: 'autoBuy', label: T('hud.auto.buyMore'), cost: price, tone: 'plain', disabled: broke, onClick: buy })),
@@ -561,7 +561,7 @@ export function questsSheet(ctx) {
   return s => {
     const a = s.autoplay || {}, list = questList(s), c = questCount(s);
     const head = h('div', { class: 'hud-quest-head' }, h('span', { class: 'ui-ico ui-ico--trophy', attrs: { 'aria-hidden': 'true' } }),
-      h('div', { class: 'ui-bar is-gold is-large', attrs: { style: `--v:${c.total ? Math.round(c.claimed / c.total * 100) : 0}%` } }, h('u'), h('span', null, `${fmt(c.claimed)} / ${fmt(c.total)}`)));
+      h('div', { class: 'ui-bar is-gold is-large', attrs: { style: `--v:${c.total ? Math.round(c.claimed / c.total * 100) : 0}%` } }, h('u'), h('span', null, T('hud.quests.claimed', { n: fmt(c.claimed), max: fmt(c.total) }))));
     const rows = list.slice(0, 10).map(q => {
       const now = Math.min(q.n, Math.floor(q.value));
       return h('div', { class: `hud-quest${q.done ? ' is-done' : ''}`, dataset: { art: q.kind === 'stat' ? q.key : q.kind } },

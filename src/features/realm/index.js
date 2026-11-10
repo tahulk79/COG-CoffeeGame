@@ -1346,7 +1346,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     }
     return out;
   }
-  let plantRows = 3; // how many rows side by side one stroke plants (the planting panel's 1 · 3 · 5)
+  let plantRows = 1; // how many rows side by side one stroke plants (the planting panel's 1 · 3 · 5)
   let plantCrop = null; // seed in hand while planting: a stroke on the land plants a row, a tap one tree
   function endPlacement() {
     if (signMove) { world.hideTierSign(signMove, false); signMove = null; }

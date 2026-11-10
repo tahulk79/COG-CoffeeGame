@@ -3,7 +3,8 @@
 // found only the tip is shown. The farm and the café are separate games with their own tutorial track: only the track of
 // the area on screen runs (a target in the other area still falls back to pointing at the Café / Farm button).
 import { BUILDINGS, DRINKS } from '../../core/config/economy.js';
-import { region, plotState, plotOf, ownedPlots, upgradeError, upgradeCost, seedCost, buildCost } from '../../core/derive.js';
+import { region, plotState, plotOf, ownedPlots, upgradeError, upgradeCost, seedCost, buildCost, levelProgress } from '../../core/derive.js';
+import { questsReady } from '../../core/quests.js';
 import { currentStep } from '../../core/tutorial.js';
 import { h } from './dom.js';
 import { drinkName } from '../../ui/local-menu.js';
@@ -116,6 +117,18 @@ export function createTutorial(ctx) {
       return;
     }
     const cur = ctx.isPlaying() && !ctx.realm?.switching ? currentStep(s, track()) : null;
+    // Level 1, no scripted step running: one line that says what to do next, from what is true on the farm right now.
+    if (!cur && ctx.isPlaying() && fr && fr.mode !== 'cafe' && levelProgress(s).level === 1 && !ctx.modals.open && !ctx.sheet.openId && !ctx.selection && !ctx.realm?.placement && !ctx.realm?.planting && !ctx.staffModal?.covering) {
+      const now = Date.now(), ids = Object.keys(fr.plots || {}).filter(id => plotOf(s, id));
+      const ripe = ids.some(id => plotState(s, id, now).stage === 'ready');
+      const next = ripe ? ['hud.hint.harvest', '[data-hud-id="harvestAll"]'] : s.inventory.beans > 0 ? ['hud.hint.sell', '#hud-beans'] : questsReady(s) > 0 ? ['hud.hint.quests', '#hud-btn-manage'] : ids.length ? ['hud.hint.growing', null] : null;
+      if (next) {
+        skip.hidden = true; tip.classList.add('is-say');
+        setTip(T(next[0])); setWorld(null);
+        setUi(next[1] ? document.querySelector(next[1]) : null);
+        return;
+      }
+    }
     if (!cur || ctx.modals.open || ctx.staffModal?.covering) { hide(); return; } // the staff manager covers the world
     const r = region(s);
     const now = Date.now();
