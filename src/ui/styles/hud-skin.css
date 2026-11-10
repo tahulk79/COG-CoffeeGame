@@ -1,0 +1,148 @@
+/* Game UI system applied to the HUD: loaded after v3.css. Every sheet, card and button of the farm takes wood, paper and
+   brass from here, so the screens match without each one being rewritten. */
+#hud-root{
+  --h-ink:var(--gu-ink);--h-ink-soft:var(--gu-ink-soft);--h-cream:var(--gu-paper);--h-cream-2:var(--gu-paper-2);--h-edge:var(--gu-paper-edge);--h-line:var(--gu-paper-2);
+  --h-go:var(--gu-moss);--h-go-drop:var(--gu-moss-edge);--h-gold:var(--gu-brass);--h-gold-drop:var(--gu-brass-edge);--h-red:var(--gu-clay);--h-red-drop:var(--gu-clay-edge);
+  --h-off:#d8ccb4;--h-good:var(--gu-good);--h-bad:var(--gu-bad);--h-shadow:0 3px 0 #2a1a0c55;
+}
+/* top HUD */
+.hud-player{background:var(--gu-wood);border:2px solid var(--gu-wood-dark);border-radius:var(--gu-r-md);padding:2px 10px 2px 2px;box-shadow:none}
+.hud-name{color:var(--gu-ink-light)}
+.hud-level-hex{border-radius:var(--gu-r-sm)!important;background:var(--gu-brass)!important}
+.hud-level-num{color:var(--gu-ink);text-shadow:none}
+.hud-xp{background:var(--gu-wood-dark)}.hud-xp-fill{background:var(--gu-brass-hi)}
+.hud-pills{gap:4px;align-items:center}
+.hud-pill{height:36px;border:2px solid var(--gu-wood-dark);border-radius:var(--gu-r-md);background:var(--gu-wood);box-shadow:none}
+.hud-usd{height:28px;min-width:44px;padding:0 7px;border:2px solid var(--gu-moss-edge);border-radius:var(--gu-r-sm);background:var(--gu-good-bg);color:var(--gu-ink);font:800 12px/1 var(--gu-font);cursor:pointer}
+.hud-alert-chip{max-width:min(250px,62vw);min-height:30px;padding:3px 8px;border:2px solid var(--gu-clay-edge);border-radius:var(--gu-r-sm);background:var(--gu-bad-bg);color:var(--gu-bad);font:800 12px/1.2 var(--gu-font);text-align:left;cursor:pointer;pointer-events:auto}
+.hud-alert-chip[hidden]{display:none}
+.hud-top-right{flex-direction:column;align-items:flex-end;gap:6px}
+.hud-roundmap-num{background:var(--gu-clay);border-color:var(--gu-wood-dark)}
+.hud-lv10{border-radius:var(--gu-r-sm);box-shadow:none}
+/* bottom menu: one wooden plank across the thumb zone. v3.css stacks several older layouts at #hud-root specificity, hence the long selectors. */
+#hud-root .hud-toolbar,#hud-root .hud-toolbar[data-view]{left:0;right:0;top:auto;bottom:0;width:auto;height:auto;transform:none;flex-direction:row;align-items:flex-end;justify-content:space-around;gap:0;padding:4px 4px calc(var(--h-sb) + 4px);border-radius:0;border-top:3px solid var(--gu-wood-dark);background:var(--gu-wood);box-shadow:none;pointer-events:auto}
+#hud-root .hud-toolbar .hud-tool,#hud-root .hud-toolbar[data-view] .hud-tool,#hud-root .hud-toolbar[data-view] .hud-view{flex:1 1 0;width:auto;min-width:0;min-height:60px;margin:0;padding:0;gap:1px}
+#hud-root .hud-toolbar .hud-tool-ico,#hud-root .hud-toolbar[data-view] .hud-tool-ico,#hud-root .hud-toolbar[data-view] .hud-view .hud-tool-ico{width:42px;height:42px;border:2px solid var(--gu-wood-dark);border-radius:var(--gu-r-md);background:var(--gu-paper);box-shadow:none;font-size:22px}
+#hud-root .hud-toolbar[data-view] .hud-view .hud-tool-ico{border-color:var(--gu-brass-edge);background:var(--gu-brass)}
+#hud-root .hud-toolbar .hud-tool-label,#hud-root .hud-toolbar[data-view] .hud-tool-label,#hud-root .hud-toolbar[data-view] .hud-view .hud-tool-label{position:static;transform:none;max-width:100%;margin:0;padding:0;border-radius:0;background:none;color:var(--gu-ink-light);font:700 11.5px/1.2 var(--gu-font)}
+#hud-root[data-sheet="build"] .hud-toolbar #hud-btn-build .hud-tool-ico,#hud-root[data-sheet="seeds"] .hud-toolbar #hud-btn-seeds .hud-tool-ico,#hud-root[data-sheet="manage"] .hud-toolbar #hud-btn-manage .hud-tool-ico,#hud-root[data-sheet="sell"] .hud-toolbar #hud-btn-storage .hud-tool-ico,#hud-root[data-sheet="staff"] .hud-toolbar #hud-btn-staff .hud-tool-ico{background:var(--gu-brass-hi)}
+@media (orientation:landscape) and (max-height:520px){#hud-root .hud-toolbar,#hud-root .hud-toolbar[data-view]{left:auto;right:var(--h-sr);top:0;bottom:0;flex-direction:column;justify-content:center;border-top:0;border-left:3px solid var(--gu-wood-dark);padding:4px}#hud-root .hud-toolbar .hud-tool,#hud-root .hud-toolbar[data-view] .hud-tool{flex:none;width:60px}}
+/* sheets and cards */
+.hud-sheet{border:3px solid var(--gu-wood-dark);border-bottom:0;border-radius:var(--gu-r-lg) var(--gu-r-lg) 0 0;padding:0 0 calc(var(--h-sb) + 8px);background:var(--gu-paper);box-shadow:none;overflow:hidden}
+.hud-sheet::before{display:none}
+.hud-sheet-head{padding:4px 6px 4px 14px;background:var(--gu-wood);border-bottom:3px solid var(--gu-wood-dark)}
+.hud-sheet-body{padding:8px 12px}
+.hud-sheet-scrim{background:#2a1a0c55}
+.hud-btn{border-radius:var(--gu-r-md);text-shadow:none}
+.hud-btn--plain{background:var(--gu-paper-hi);box-shadow:0 3px 0 var(--gu-paper-edge),inset 0 0 0 2px var(--gu-paper-edge)}
+.hud-card,.hud-panel,.hud-rail-card{border-radius:var(--gu-r-md);background:var(--gu-paper-hi);box-shadow:inset 0 0 0 2px var(--gu-paper-edge)}
+.hud-chip{border-radius:var(--gu-r-sm);box-shadow:none}
+.gu-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.gu-tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:8px 4px;min-height:68px;border:2px solid var(--gu-paper-edge);border-radius:var(--gu-r-md);background:var(--gu-paper-hi);box-shadow:0 3px 0 var(--gu-paper-edge);color:var(--gu-ink);font-family:var(--gu-font);cursor:pointer}
+.gu-tile:active{transform:translateY(2px);box-shadow:0 1px 0 var(--gu-paper-edge)}
+.gu-tile-ico{display:grid;place-items:center;height:28px;font-size:24px;line-height:1}.gu-tile-label{font:800 13px/1.1 var(--gu-font)}
+/* staff, robot and manager window */
+.hud-sm{border:3px solid var(--gu-wood-dark);border-bottom:0;border-radius:var(--gu-r-lg) var(--gu-r-lg) 0 0;background:var(--gu-paper);box-shadow:none;overflow:hidden}
+.hud-sm-head{background:var(--gu-wood);box-shadow:none;border-bottom:3px solid var(--gu-wood-dark);padding-top:6px}
+.hud-sm-title,.hud-sm-back{color:var(--gu-ink-light)}
+.hud-sm-head .hud-sm-line{color:var(--gu-paper-2)}
+.hud-sm-card{border-radius:var(--gu-r-md);background:var(--gu-paper-hi);box-shadow:inset 0 0 0 2px var(--gu-paper-edge)}
+.hud-sm-avatar{border-radius:var(--gu-r-sm);background:var(--gu-paper-2)}
+.hud-sm-chip{border-radius:var(--gu-r-sm);background:var(--gu-paper-2);color:var(--gu-ink-soft)}
+.hud-sm-chip.is-on,.hud-sm-chip[aria-pressed="true"],.hud-sm-chip[aria-selected="true"]{background:var(--gu-wood);color:var(--gu-ink-light)}
+
+/* ---------- Roastery look: the last word on every HUD window (loaded after v3.css) ---------- */
+#hud-root{--h-go:linear-gradient(var(--gu-moss-hi),var(--gu-moss));--h-gold:linear-gradient(var(--gu-brass-hi),var(--gu-brass));--h-red:linear-gradient(var(--gu-clay-hi),var(--gu-clay));--h-mark:var(--gu-good);--h-shadow:0 3px 0 #4b2a1255}
+/* top HUD: dark glass pills over the world, numbers you can read on any ground */
+.hud-player{background:#3b2412d9;border:0;border-radius:999px;box-shadow:0 2px 0 #2a180b66}
+.hud-level-hex{background:linear-gradient(var(--gu-brass-hi),var(--gu-brass))!important}
+.hud-level-num{color:var(--gu-wood-dark)}
+.hud-pill{border:0;border-radius:999px;background:#3b2412d9;box-shadow:0 2px 0 #2a180b66}
+.hud-pill-val{text-shadow:0 1px 0 #0006}
+.hud-usd{border-radius:999px}
+.hud-gear,.hud-roundmap,.hud-top-right>.hud-gear-col .hud-gear,.hud-top-right .hud-roundmap,.hud-top-right .hud-auto-btn,.hud-top-right .hud-inbox-btn{border:2px solid var(--gu-paper-edge);border-radius:14px;background:linear-gradient(var(--gu-paper-hi),var(--gu-paper-2));color:var(--gu-wood-dark);box-shadow:0 3px 0 var(--gu-paper-edge),0 5px 10px #2a180b40}
+.hud-top-right .hud-auto-btn.is-on{border-radius:50%}
+.hud-roundmap-num{background:var(--gu-clay);border-color:#fff}
+/* bottom: floating cream tiles, the farm stays visible behind them */
+#hud-root .hud-toolbar,#hud-root .hud-toolbar[data-view]{border:0;background:none;pointer-events:none}
+#hud-root .hud-toolbar .hud-tool,#hud-root .hud-toolbar[data-view] .hud-tool,#hud-root .hud-toolbar[data-view] .hud-view{pointer-events:auto}
+#hud-root .hud-toolbar .hud-tool-ico,#hud-root .hud-toolbar[data-view] .hud-tool-ico,#hud-root .hud-toolbar[data-view] .hud-view .hud-tool-ico{width:52px;height:52px;border:2px solid var(--gu-paper-edge);border-radius:14px;background:linear-gradient(var(--gu-paper-hi),var(--gu-paper-2));box-shadow:0 3px 0 var(--gu-paper-edge),0 6px 10px #2a180b4d;font-size:26px}
+#hud-root .hud-toolbar .hud-tool-label,#hud-root .hud-toolbar[data-view] .hud-tool-label,#hud-root .hud-toolbar[data-view] .hud-view .hud-tool-label{margin-top:2px;color:#fff;font:800 12px/1.2 var(--gu-font);text-shadow:0 1px 0 #2a180b,0 -1px 0 #2a180b,1px 0 0 #2a180b,-1px 0 0 #2a180b,0 2px 3px #2a180b99}
+#hud-root[data-sheet="build"] .hud-toolbar #hud-btn-build .hud-tool-ico,#hud-root[data-sheet="seeds"] .hud-toolbar #hud-btn-seeds .hud-tool-ico,#hud-root[data-sheet="manage"] .hud-toolbar #hud-btn-manage .hud-tool-ico,#hud-root[data-sheet="sell"] .hud-toolbar #hud-btn-storage .hud-tool-ico,#hud-root[data-sheet="staff"] .hud-toolbar #hud-btn-staff .hud-tool-ico{background:linear-gradient(var(--gu-brass-hi),var(--gu-brass));border-color:var(--gu-brass-edge)}
+/* the tiles sit together in the middle instead of spreading across a wide screen (a short landscape phone keeps its side column) */
+@media not all and (orientation:landscape) and (max-height:520px){
+  #hud-root .hud-toolbar,#hud-root .hud-toolbar[data-view]{justify-content:center;gap:4px}
+  #hud-root .hud-toolbar .hud-tool,#hud-root .hud-toolbar[data-view] .hud-tool,#hud-root .hud-toolbar[data-view] .hud-view{flex:0 1 64px;min-height:0}
+  #hud-root .hud-toolbar .hud-tool-ico,#hud-root .hud-toolbar[data-view] .hud-tool-ico,#hud-root .hud-toolbar[data-view] .hud-view .hud-tool-ico{width:46px;height:46px;border-radius:12px;font-size:23px}
+  #hud-root .hud-toolbar .hud-tool-label,#hud-root .hud-toolbar[data-view] .hud-tool-label,#hud-root .hud-toolbar[data-view] .hud-view .hud-tool-label{font-size:11px;white-space:nowrap}
+}
+/* buttons: chunky, a tap presses them in */
+.hud-btn{min-height:48px;border-radius:14px;font-weight:800}
+.hud-btn--go{background:var(--h-go);box-shadow:0 4px 0 var(--gu-moss-edge);color:#fff;text-shadow:0 1px 0 var(--gu-moss-edge)}
+.hud-btn--gold{background:var(--h-gold);box-shadow:0 4px 0 var(--gu-brass-edge);color:var(--gu-wood-dark)!important;text-shadow:none}
+.hud-btn--plain{background:var(--gu-paper-hi);box-shadow:0 4px 0 var(--gu-paper-edge),inset 0 0 0 2px var(--gu-paper-edge)}
+.hud-btn:not(:disabled):active{transform:translateY(3px);box-shadow:0 1px 0 var(--gu-moss-edge)}
+/* windows: one flat brown bar with the name, crema paper below, a red corner to close */
+.hud-sheet,.hud-sm{border:0;background:var(--gu-paper)}
+.hud-sheet-head,.hud-sm-head{background:var(--gu-plank);border-bottom:0}
+.hud-sheet-head{padding:7px 8px 7px 10px}
+.hud-sheet-title{padding:0;background:none;box-shadow:none;color:var(--gu-ink-light);font:800 18px/1.2 var(--gu-font)}
+.hud-sheet-head .hud-x,.hud-sm-head .hud-x,.hud-x{margin:0;border:2px solid var(--gu-clay-edge);border-radius:12px;background:linear-gradient(var(--gu-clay-hi),var(--gu-clay));color:#fff;font-weight:800;box-shadow:0 3px 0 var(--gu-clay-edge)}
+.hud-x:active{transform:translateY(2px);box-shadow:0 1px 0 var(--gu-clay-edge);background:var(--gu-clay)}
+.hud-sheet-scrim{background:#2a180b66}
+.hud-card,.hud-panel,.hud-rail-card,.hud-sm-card{border-radius:14px;background:var(--gu-paper-hi);box-shadow:inset 0 0 0 1.5px var(--gu-paper-2)}
+.hud-tabs{border-radius:14px;background:var(--gu-paper-2)}
+.hud-tab{color:var(--gu-ink-soft)}
+.hud-tab[aria-pressed="true"]{background:var(--gu-plank);color:var(--gu-ink-light);box-shadow:0 2px 0 var(--gu-wood-dark)}
+/* the small confirm and gift cards share the window look */
+.hud-confirm{overflow:hidden;padding:0 16px 16px;border:0;border-radius:18px;background:var(--gu-paper);box-shadow:0 12px 32px #2a180b66}
+.hud-confirm h2{margin:0 -16px 12px;padding:11px 14px;background:var(--gu-plank);color:var(--gu-ink-light);font:800 18px/1.2 var(--gu-font)}
+.hud-gift--chest{background:var(--gu-paper)}
+.hud-gift-items{grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px}
+.hud-gift-item{flex-direction:column;justify-content:center;gap:4px;min-height:84px;padding:10px 8px;border-radius:14px;background:var(--gu-paper-hi);box-shadow:inset 0 0 0 2px var(--gu-paper-edge),0 3px 0 var(--gu-paper-edge);text-align:center}
+.hud-gift-item-ico{font-size:32px;line-height:1}
+/* level up: a plaque with what it unlocked on small paper cards */
+.hud-banner{padding:14px 20px 16px;border:3px solid var(--gu-wood-dark);border-radius:18px;background:var(--gu-plank);box-shadow:0 5px 0 var(--gu-wood-dark),0 14px 30px #2a180b66}
+.hud-banner-title{color:var(--gu-brass-hi);text-shadow:0 2px 0 var(--gu-wood-dark)}
+.hud-banner-sub{color:var(--gu-ink-light)}
+.hud-banner-list{gap:8px}
+.hud-banner-list li{padding:8px 12px;border-radius:12px;background:var(--gu-paper-hi);box-shadow:0 3px 0 var(--gu-paper-edge);color:var(--gu-ink)}
+/* the guide: the bean's round portrait leaning on a speech card */
+.hud-mascot{display:block;width:100%;height:100%}
+.hud-tip{gap:10px;padding:10px 8px 10px 8px;border:3px solid var(--gu-wood-dark);border-radius:16px;background:var(--gu-paper-hi);box-shadow:0 4px 0 var(--gu-wood-dark),0 10px 20px #2a180b4d;color:var(--gu-ink);font:700 14.5px/1.3 var(--gu-font)}
+.hud-tip::after{display:none}
+.hud-tip .hud-tip-ico{flex:none;box-sizing:border-box;width:54px;height:54px;margin:-14px 0 -14px -18px;padding:3px;border:3px solid var(--gu-wood-dark);border-radius:50%;background:radial-gradient(circle at 40% 30%,#fff,var(--gu-brass-hi));box-shadow:0 3px 0 var(--gu-wood-dark)}
+.hud-talk-avatar{width:88px;height:88px;padding:6px;box-sizing:border-box;border:4px solid var(--gu-wood-dark);background:radial-gradient(circle at 40% 30%,#fff,var(--gu-brass-hi));box-shadow:0 4px 0 var(--gu-wood-dark),0 8px 16px #2a180b66;font-size:48px}
+.hud-talk-bubble{padding:22px 18px 22px;border:3px solid var(--gu-wood-dark);border-radius:18px;background:var(--gu-paper-hi);box-shadow:0 5px 0 var(--gu-wood-dark),0 12px 24px #2a180b4d;color:var(--gu-ink);font:600 17px/1.35 var(--gu-font)}
+.hud-talk-bubble::before{display:none}
+.hud-talk-name{position:absolute;left:12px;top:-15px;padding:4px 14px 3px;border-radius:7px;background:var(--gu-wood);color:var(--gu-ink-light);font:800 14px/1.1 var(--gu-font);box-shadow:none}
+.hud-talk-more{position:absolute;right:12px;bottom:4px;color:var(--gu-wood)}
+/* one quiet line for an urgent money problem, never a block of text beside the rail */
+.hud-alert-chip{max-width:min(340px,calc(100vw - 90px));min-height:28px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Low graphics: an endless CSS animation keeps the phone compositing at full refresh, whatever the 3D frame rate. They play once. */
+html[data-quality="low"] #hud-root *:not(.hud-hand-inner),html[data-quality="low"] #hud-root *::before,html[data-quality="low"] #hud-root *::after,html[data-quality="low"] .atlas *{animation-iteration-count:1!important}
+/* Staff screen, wide screens: a comfortable window, not the whole screen, so rows and charts keep their shape. Two columns of people, the report's numbers beside its chart. (A phone already fills its screen.) */
+@media (min-width:600px){
+  .hud-sm{--sm-h:min(760px,88vh);top:calc((100vh - var(--sm-h))/2);bottom:auto;height:var(--sm-h);width:min(980px,90vw);border-radius:24px}
+  .hud-sm .hud-rs-sec .hud-rs,.hud-sm .hud-hire{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(400px,100%),1fr));gap:6px}
+  .hud-sm .hud-rs-sec .hud-rs{overflow:visible;background:none}
+  .hud-sm .hud-rs-sec .hud-rs-row,.hud-sm .hud-rs-sec .hud-rs-row.is-bad,.hud-sm .hud-rs-sec .hud-rs-row.is-warn{border-radius:14px;background:#fff}
+  .hud-sm .hud-rs-sec .hud-rs-row+.hud-rs-row{border-top:0}
+  .hud-sm .hud-rs-sec .hud-rs-row.is-picked{background:#f0f8e4}
+  .hud-sm .hud-sb-hand:not(.is-on){max-width:420px;margin-inline:auto} /* one button, not a green band across the window */
+  .hud-sm .hud-pf-kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+  .hud-sm .hud-sm-sec:has(>.hud-db-bars){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:16px;align-items:start}
+  .hud-sm .hud-sm-sec:has(>.hud-db-bars)>.hud-sm-h{grid-row:1;margin:0 0 4px!important}
+  .hud-sm .hud-sm-sec:has(>.hud-db-bars)>.hud-pf-kpis,.hud-sm .hud-sm-sec:has(>.hud-db-bars)>.hud-db-bars{grid-row:2;margin:0}
+  .hud-sm .hud-db-bars{height:96px}
+  .hud-sm .hud-sm-seg{max-width:380px}
+  .hud-sm .hud-sm-seg .hud-tab{min-height:36px;font-size:13px}
+}
+/* Staff screen colours: every word readable on its background */
+.hud-sm{--h-good:#25701a;--h-go:linear-gradient(#38841f,#2b6f15)}
+.hud-sm .hud-fold-chev{color:var(--gu-ink-soft)}
+#hud-root .hud-tab[aria-pressed="true"]{color:#fff!important} /* the selected tab was dark brown on dark brown wherever the tabs are used */
+/* Build sheet: the card the tip on top of the tab recommends */
+.hud-buildtip{margin:8px 0}
+.hud-cat-card.is-tip{box-shadow:inset 0 0 0 3px #38841f}
+.hud-card-tip{position:absolute;top:6px;left:6px;z-index:1;padding:2px 8px;border-radius:99px;background:#2b6f15;color:#fff;font:800 11px/1.4 var(--h-font)}

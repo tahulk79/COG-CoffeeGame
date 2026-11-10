@@ -5,6 +5,10 @@
 import { apply } from './game.js';
 import { createSave, normalizeSave, LAYOUT_VERSION } from './state.js';
 import { migrateLegacy } from './migrate.js';
+import { WALLET } from './config/economy.js';
+
+/** Frequent background actions with nothing to show unless they raise an event: the world and the HUD re-read them a few times a second, not on each one. */
+export const BACKGROUND_ACTIONS = new Set(['staff/vitals', 'clock/tick', 'gm/payroll', 'gm/think', 'staff/workDone']);
 
 export function createMemoryStorage() {
   const map = new Map();
@@ -18,7 +22,10 @@ function readJson(storage, key) {
 /**
  * @param {{storage?: Storage, key: string, legacyKeys?: {progress:string, player:string}, dev?: boolean, now?: () => number}} opts
  */
-export function createStore({ storage = globalThis.localStorage, key, legacyKeys = null, dev = false, now = () => Date.now(), saveEveryMs = 0 } = {}) {
+// Money must survive a closed tab: these actions are written at once, never grouped with the background saves.
+const SAVE_NOW = /^(wallet\/|world\/(unlockRegion|enterRegion)$)/;
+
+export function createStore({ storage = globalThis.localStorage, key, legacyKeys = null, dev = false, sandbox = false, now = () => Date.now(), saveEveryMs = 0 } = {}) {
   const listeners = new Set();
   let readOnly = false;
   let saveFailed = false;
@@ -36,6 +43,11 @@ export function createStore({ storage = globalThis.localStorage, key, legacyKeys
         const old = parsed && typeof parsed.world?.regions === 'object' && Object.values(parsed.world.regions || {}).some(r => r && (r.layout | 0) < LAYOUT_VERSION);
         const bk = `${key}-pre-layout${LAYOUT_VERSION}`;
         if (old && storage.getItem(bk) === null) storage.setItem(bk, raw);
+      } catch { /* storage full or blocked: migrate anyway */ }
+      // Before the wallets exist the raw one-pot save is kept once, so the split can be undone (`<key>-pre-wallet<N>`).
+      try {
+        const bk = `${key}-pre-wallet${WALLET.version}`;
+        if (parsed && parsed.wallet === undefined && storage.getItem(bk) === null) storage.setItem(bk, raw);
       } catch { /* storage full or blocked: migrate anyway */ }
       const norm = normalizeSave(parsed, now());
       if (norm) return norm;
@@ -74,14 +86,14 @@ export function createStore({ storage = globalThis.localStorage, key, legacyKeys
   }
 
   function dispatch(type, payload = {}, opts = {}) {
-    const ctx = { now: opts.now ?? now(), dev };
+    const ctx = { now: opts.now ?? now(), dev, sandbox };
     if (type === 'expiry/execute' && state.story.expiry?.status === 'pending') {
       try { storage.setItem(`${key}-pre-expiry`, JSON.stringify(state)); } catch { /* best effort */ }
     }
     const result = apply(state, { type, payload, txId: opts.txId }, ctx);
     if (result.ok && result.state !== state) {
       state = result.state;
-      requestSave();
+      if (SAVE_NOW.test(type)) { dirty = true; flush(); } else requestSave();
       for (const fn of listeners) fn(state, result.events, type);
     }
     return result;

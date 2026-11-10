@@ -4,7 +4,10 @@ import * as THREE from 'three';
 import { loadModel } from '../../shared/three/models.js';
 
 const cache = new Map();
-let gl = null;
+const IDLE_MS = 4000; // a build sheet asks for its icons in one burst: the context lives for the burst, not forever
+let gl = null, idleTimer = 0;
+// Frees the second WebGL context and its GPU copies. No texture.dispose(): the textures belong to the shared model cache.
+function release() { gl.renderer.dispose(); gl.renderer.forceContextLoss(); gl = null; }
 function init() {
   if (gl) return gl;
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
@@ -23,6 +26,7 @@ export function modelIcon(def, scale = def?.trueScale) {
     cache.set(key, loadModel(key).then(m => {
       if (!m) return null;
       const { renderer, scene, camera } = init();
+      clearTimeout(idleTimer); idleTimer = setTimeout(release, IDLE_MS);
       if (typeof scale === 'number') m.scale.multiplyScalar(scale);
       scene.add(m); m.updateMatrixWorld(true);
       const box = new THREE.Box3().setFromObject(m), c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());

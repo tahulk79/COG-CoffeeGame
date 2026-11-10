@@ -7,6 +7,7 @@ import { farmGroundY } from '../../core/config/layout.js';
 import { BOUNDS } from '../../core/config/layout.js';
 import { gardenStyleOf } from '../../core/config/economy.js';
 import { createPlant, createPlantInstances } from '../../shared/three/gedeo-vegetation.js';
+import { freezeStatic } from './util.js';
 
 const mat = (color, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: .95, flatShading: true, ...extra });
 
@@ -91,7 +92,7 @@ export function createScenery({ parent }) {
     const m = new THREE.InstancedMesh(geo, material, Math.max(1, list.length));
     const o = new THREE.Object3D();
     list.forEach((s, i) => { fn(o, s); o.updateMatrix(); m.setMatrixAt(i, o.matrix); });
-    m.count = list.length; m.castShadow = true; m.receiveShadow = true; m.raycast = () => {};
+    m.count = list.length; m.castShadow = true; m.receiveShadow = true; m.raycast = () => {}; m.userData.cullable = true;
     belt.add(m); geos.push(geo); mats.push(material);
     return m;
   };
@@ -144,7 +145,7 @@ export function createScenery({ parent }) {
       // other countries: stores, a roastery and a packing shed where the sheds / greenhouses stood
       put(outbuildings, 'warehouse', east + 5, 10, -Math.PI / 2), put(outbuildings, 'roasteryShed', east + 5, -18, -Math.PI / 2),
       put(outbuildings, 'warehouse', west - 5, -30, Math.PI / 2), put(outbuildings, 'packingShed', west - 4, 4, Math.PI / 2),
-    ]).then(() => gedeo.traverse(c => { if (c.isMesh) c.raycast = () => {}; }), e => console.warn('Gedeo scenery failed, keeping the procedural set.', e));
+    ]).then(() => { gedeo.traverse(c => { if (c.isMesh) c.raycast = () => {}; }); freezeStatic(gedeo); }, e => console.warn('Gedeo scenery failed, keeping the procedural set.', e));
     return gedeoLoading;
   }
   return {

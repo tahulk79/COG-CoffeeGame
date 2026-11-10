@@ -25,12 +25,13 @@ Do NOT commit. The founder tests in the browser himself. Keep all existing uncom
 
 ## 1. Hiring, slots, bench
 
-- **Hiring cap (user decision 2026-11-07, replaces "unlimited hiring")**: a zone's team (workers + robots, all regions)
-  is at most the **player level** (`D.hireCap`; `staffError` / `recruitError` → `hireLimit { level }` = the level that
-  allows one more). So every hire has a working slot; the bench is only for resting (setActive / swapShift) or for old
-  saves with more staff than the level (nobody is fired). Soft cap `STAFF_CAP.perZone = 30` stays behind it (`teamFull`).
+- **Hiring cap (2026-11-09, replaces the 2026-11-07 "team = level" and the flat 30 of 2026-11-08)**: a zone's team
+  (workers + robots, all regions) is at most `max(STAFF_CAP.base 30, player level)` (`D.hireCap`), so money alone decides up
+  to 30, then one more per level. `staffError` / `recruitError` → `hireLimit { level }` = `D.nextHireLevel`, the level that
+  allows one more. The ceiling a phone can draw is `STAFF_CAP.perZone = 60` (`teamFull`, no level helps). Every hire has a
+  working slot; the bench is only for resting (setActive / swapShift).
 - New unit field `active: boolean`. Working = `assigned.regionId === currentRegion && active && !stopped && no break`.
-- `slots(s, zone) = hireLimit(level)` (= level). `activeCount(s, zone)` counts active units assigned to the current
+- `slots(s, zone) = hireLimit(level)` (= the hire cap). `activeCount(s, zone)` counts active units assigned to the current
   region in that zone. `freeSlots(s, zone) = slots - activeCount`.
 - On hire/recruit: assigned to the current region + zone; `active = freeSlots > 0`.
 - `staff/setActive { uid, active }`: activating needs a free slot (`fail('slotsFull')`). Deactivating = bench.
@@ -234,6 +235,24 @@ sticky header + tabs). One modal per game (farm / café = zone of the current vi
 - The modal refreshes every second while open (the realm state changes without store events).
 - All strings in `src/i18n/locales/v3-hud.js` (vi + en, every key both). Copy samples: see the founder doc §Text mẫu.
 - Toolbar Staff dot: any unit with a blocking state, a poach, or an affordable stat upgrade.
+
+### 10.1 Staff board (2026-11-09)
+
+The first tab is an overview: hand-over button, today's numbers, 7-day takings, then one row per trade once the team passes 12 people (or is handed over); a tap opens that trade's people, 20 at a time. Handed over, only Tổng quan and Quản lý remain. In Phân công a big team moves by trade per terrace.
+
+Who works where has one screen, the «Phân công» tab: terraces on the farm, jobs in the café. Touch people, then a target in the dock (`gm/fmPin`, `staff/setTasks`); «Tự chia đều» = `gm/splitTiers`. The dock no longer has a position order and the manager tab no longer lists the crew.
+
+Default view is plain: tasks one by one, then at most three group rows («N người đang vướng việc», «đang rảnh», «nâng cấp đáng tiền») with one button each. Checkboxes, filters and the dock appear only after «Chọn nhiều»; the manager tab shows who, what they do now and three numbers, the rest is folded.
+
+Every roster row has a checkbox; filters (status, trade) and «Chọn cả» pick a group, the dock at the bottom gives one order:
+upgrade (each stat / part, or «best value» from `upgradeOptions`), position (`gm/fmPin` terrace, job for those who can change it), shift, care, let go.
+Orders run through `staff/bulk`, which calls each unit's normal handler and skips who cannot take it. Spending and letting go ask first (people + total coins / refund).
+«Giao việc này cho Quản lý quyết định» = `gm/handStaff` (`s.gm.handed[zone]`, `D.gmHanded`): pins and job picks are dropped, staff jobs skip his attention limit
+(`GM.handedPerThink` extra per round) and Manual Approval; money rules of the Farm Manager still apply. The card shows `D.gmStaffReport` (today's jobs from the history).
+
+## 10.2 Farm: Auto instead of a hired manager (2026-11-09)
+
+On the farm the fourth tab is **Auto** (`gmView` → `autoView`): the run's state, time left, buttons and numbers (`sheets.js autoPanel`), then the manager's dashboard while it runs. The Farm Manager settings fold is gone. The Tổng quan card links to that tab instead of "Giao cho Quản lý", which remains for the café only. Rules: `docs/design/v3-gdd.md`, section Auto.
 
 ## 11. Tests and checks
 

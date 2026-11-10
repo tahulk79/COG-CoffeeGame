@@ -1,4 +1,4 @@
-// Gedeo farm staff looks (scripts/blender/gedeo_characters.py / gedeo_robots.py): the realm's staff logic stays as it is
+// Gedeo farm staff looks (scripts/blender/gedeo_chibi_workers.py / gedeo_robots.py): the realm's staff logic stays as it is
 // (paths, jobs, the createPerson leg swing that tells "walking"); these only swap the visible body and pick the clip.
 //  · worker: skinned 17-bone rig, clips idle / walk / carry / harvest / water / prune / plant / rake / inspect
 //  · robot: part-animated machine, clips idle / drive / work
@@ -8,6 +8,7 @@ import { clone } from 'three/addons/utils/SkeletonUtils.js';
 import { gltfLoader } from '../shared/three/models.js';
 import { tuneGedeoMaterials } from '../shared/three/gedeo-vegetation.js';
 
+const WORKER_ANIMS = 'worker-anims'; // the clips of every worker, downloaded once (scripts/blender/gedeo_chibi_workers.py)
 const cache = new Map();
 function load(file) {
   if (!cache.has(file)) cache.set(file, gltfLoader.loadAsync(`${import.meta.env.BASE_URL}models/gedeo/${file}.glb`).then(g => {
@@ -55,16 +56,16 @@ function mixerOf(model, clips) {
 export const gedeoProp = file => load(file).then(g => (g ? clone(g.scene) : null));
 
 /** Dress a createPerson body as a Gedeo worker. jobOf() → the unit's current job type (or null). */
-export function dressGedeoWorker(person, file, jobOf) {
+export function dressGedeoWorker(person, file, jobOf, walkRate = 1) { // walkRate: how much faster than normal this body walks, so the steps keep up
   const blocks = [...person.children];
-  load(file).then(g => enqueue(() => {
-    if (!g || person.userData.dressed) return;
+  Promise.all([load(file), load(WORKER_ANIMS)]).then(([g, shared]) => enqueue(() => {
+    if (!g || !shared || person.userData.dressed) return;
     const model = clone(g.scene);
     for (const child of blocks) child.visible = false;
     person.add(model); person.userData.dressed = true;
-    const clips = Object.fromEntries(g.animations.map(a => [a.name, a]));
+    const clips = Object.fromEntries(shared.animations.map(a => [a.name, a])); // every worker shares one skeleton, so one file of clips fits them all
     const anim = mixerOf(model, clips); anim.play('idle');
-    let skin = null; model.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } skin ??= o.isSkinnedMesh ? o : null; });
+    let skin = null; model.traverse(o => { if (o.isMesh) o.castShadow = o.receiveShadow = false; skin ??= o.isSkinnedMesh ? o : null; }); // no shadow on people or robots: it flickered while they walked
     let last = performance.now(), lastStride = 0, frames = 0;
     // Animate only while drawn: off-screen workers cost nothing, far ones update every 2nd / 4th frame (staff.js lodRound).
     (skin || model).onBeforeRender = () => {
@@ -72,13 +73,13 @@ export function dressGedeoWorker(person, file, jobOf) {
       const now = performance.now(), dt = Math.min(.3, (now - last) / 1000); last = now;
       const stride = person.userData.legs?.[0]?.rotation.x ?? 0, walking = Math.abs(stride - lastStride) > 1e-4; lastStride = stride;
       anim.play(walking ? 'walk' : person.userData.seated ? 'idle' : JOB_CLIP[jobOf()] || 'idle');
-      anim.mixer.update(dt);
+      anim.mixer.update(walking ? dt * walkRate : dt);
     };
   }));
 }
 
 /** Swap a procedural hover robot for a Gedeo farm robot. hide: the stand-in meshes; stateOf() → 'drive' | 'work' | 'idle'. */
-export function dressGedeoRobot(root, file, hide, stateOf) {
+export function dressGedeoRobot(root, file, hide, stateOf, driveRate = 1) {
   load(file).then(g => enqueue(() => {
     if (!g || root.userData.dressed) return;
     const model = clone(g.scene); model.scale.setScalar(.85);
@@ -86,12 +87,12 @@ export function dressGedeoRobot(root, file, hide, stateOf) {
     root.add(model); root.userData.dressed = true;
     const clips = Object.fromEntries(g.animations.map(a => [a.name, a]));
     const anim = mixerOf(model, clips); anim.play('idle');
-    let first = null; model.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; first ??= o; } });
+    let first = null; model.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = false; first ??= o; } });
     let last = performance.now(), frames = 0;
     first.onBeforeRender = () => {
       if (++frames % (root.userData.animEvery || 1)) return;
       const now = performance.now(), dt = Math.min(.3, (now - last) / 1000); last = now;
-      anim.play(stateOf()); anim.mixer.update(dt);
+      const state = stateOf(); anim.play(state); anim.mixer.update(state === 'drive' ? dt * driveRate : dt);
     };
   }));
 }

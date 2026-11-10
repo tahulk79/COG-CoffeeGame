@@ -21,7 +21,14 @@ import { EXPIRY_LEVEL } from '../../core/config/economy.js';
 import { disposeScene } from '../../shared/three/dispose-scene.js';
 import { sfx } from '../../shared/audio/index.js';
 import { hasKey, t } from '../../i18n/index.js';
+import { iconSvg } from '../../ui/icons.js';
+import { levelProgress } from '../../core/derive.js';
+import { farmCard, overview } from '../../core/finance.js';
+import { usdOf, totalGold, goldOf } from '../../core/wallet.js';
+import { WALLET } from '../../core/config/economy.js';
+import { formatNumber } from '../../i18n/index.js';
 import './atlas.css';
+import './atlas-account.css';
 
 const BOUNDS = { minX: -13, maxX: 14, minZ: -8, maxZ: 5 };
 const ZOOM = { min: 5, max: 22 };
@@ -48,7 +55,7 @@ export function atlasErrorText(result) {
   return t('story.err.generic');
 }
 
-export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onClose }) {
+export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onClose, onFinance }) {
   let mode = initialMode;
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#cdebf5');
@@ -127,7 +134,16 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
   const pins = el('div', 'atlas-pins');
   const sheet = el('section', 'atlas-sheet'); sheet.hidden = true; sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-modal', 'false');
   const toastEl = el('p', 'atlas-toast'); toastEl.hidden = true; toastEl.setAttribute('role', 'status');
-  root.append(pins, header, close, sheet, toastEl);
+  // Account bar: level, the USD wallet, warnings and the capital book. Shown once the player owns a farm.
+  const svg = (name, tag = 'span') => { const n = el(tag, 'fin-ico'); n.innerHTML = iconSvg(name); return n; };
+  const money = cents => `$${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const accountBtn = (label, run, ...kids) => { const b = el('button', 'atlas-account-btn'); b.type = 'button'; b.setAttribute('aria-label', label); b.append(...kids); b.addEventListener('click', event => { event.stopPropagation(); run(); }, { signal }); return b; };
+  const lvEl = el('span', 'atlas-account-lv'), usdText = el('b'), bellCount = el('i'); bellCount.hidden = true;
+  const account = el('div', 'atlas-account');
+  account.append(lvEl, accountBtn(t('fin.usdWallet'), () => onFinance?.('topup'), svg('usd'), usdText), el('span', 'atlas-account-gap'),
+    accountBtn(t('fin.alerts'), () => onFinance?.('alerts'), svg('bell'), bellCount), accountBtn(t('fin.title'), () => onFinance?.('home'), svg('ledger')));
+  root.append(pins, account, header, sheet, toastEl);
+  account.append(close);
   document.body.append(root); document.body.classList.add('atlas-open');
 
   const pinFor = new Map(countries.map(entry => {
@@ -149,7 +165,9 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
     const closed = regions.filter(r => !ownsRegion(s, r)).map(r => regionAccess(s, r)).filter(a => a.reason === 'locked');
     const cost = closed.length ? Math.min(...closed.map(a => a.cost)) : null;
     const kind = countryOfRegion(s.world.currentRegion) === id ? 'current' : owned ? 'owned' : 'locked';
-    return { kind, owned, total: regions.length, cost };
+    const trouble = owned > 0 && regions.some(r => ownsRegion(s, r) && farmCard(s, r, Date.now()).status === 'trouble');
+    const gold = regions.reduce((n, r) => n + (ownsRegion(s, r) ? goldOf(s, r) : 0), 0);
+    return { kind, owned, total: regions.length, cost, trouble, gold };
   }
   const coinText = cost => (cost === 0 ? t('atlas.free') : t('atlas.country.cost', { cost }));
   // Colours, flags and pin labels follow the save.
@@ -167,12 +185,13 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
       const name = t(`country.${entry.id}`);
       const icon = status.kind === 'locked' ? '🔒' : status.kind === 'current' ? '📍' : '🚩';
       // Owned: "2/4" cities opened. Locked: the cheapest city's price (or Free).
-      const extra = status.kind === 'locked' ? (status.cost == null ? '' : coinText(status.cost)) : status.total > 1 ? t('atlas.country.owned', { n: status.owned, total: status.total }) : '';
+      const extra = status.kind === 'locked' ? (status.cost == null ? '' : coinText(status.cost)) : formatNumber(Math.round(status.gold));
       // Games offered here, visible on the map: 🌱 farm, ☕ café (both = 🌱☕). A country where only some cities farm shows both.
       const games = countryGames(entry.id), gameText = games.map(g => t(`hud.mode.${g}`)).join(' + ');
       pin.dataset.games = games.join(' ');
       pin.replaceChildren(el('span', 'atlas-pin-icon', icon), el('span', 'atlas-pin-name', name),
-        el('span', 'atlas-pin-games', games.map(g => GAME_ICON[g]).join('')), ...(extra ? [el('small', 'atlas-pin-extra', extra)] : []));
+        el('span', 'atlas-pin-games', games.map(g => GAME_ICON[g]).join('')), ...(extra ? [el('small', 'atlas-pin-extra', extra)] : []), ...(status.trouble ? [el('i', 'atlas-pin-alert')] : []));
+      pin.dataset.trouble = status.trouble ? '1' : '';
       pin.setAttribute('aria-label', [name, gameText, extra].filter(Boolean).join(' · '));
     }
     sizesDirty = true;
@@ -182,6 +201,14 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
     root.dataset.mode = mode;
     close.hidden = mode !== 'play';
     hint.hidden = Boolean(selected);
+    const s = state(), o = s.world.ownedRegions.length ? overview(s, Date.now()) : null;
+    account.hidden = !o;
+    if (o) {
+      lvEl.textContent = String(levelProgress(s).level);
+      usdText.textContent = money(usdOf(s));
+      const n = o.cards.reduce((sum, c) => sum + c.alerts.length, 0);
+      bellCount.hidden = !n; bellCount.textContent = String(n);
+    }
   }
 
   function regionRow(regionId) {
@@ -228,6 +255,23 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
       action = pickGame ? gameButtons('ui-btn--go', g => enter(regionId, g)) : button(`➜ ${t('atlas.go')}`, 'ui-btn--go atlas-enter', () => enter(regionId));
     }
     info.append(el('span', `atlas-chip is-${chip[0]}`, chip[1]));
+    // An owned farm shows its money and health here; the full card opens on tap, so the map stays uncovered.
+    if (saved && ownsRegion(s, regionId) && saved.status !== 'expired') {
+      const card = farmCard(s, regionId, Date.now()), p = card.period;
+      const line = el('div', 'atlas-farm-line'), gold = el('span', 'atlas-farm-gold');
+      gold.append(svg('gold'), formatNumber(Math.round(card.gold)));
+      line.append(gold, el('span', `atlas-farm-profit ${p.profit < 0 ? 'is-bad' : p.profit > 0 ? 'is-good' : ''}`, p.hasData ? `${p.profit > 0 ? '+' : p.profit < 0 ? '−' : ''}${formatNumber(Math.abs(Math.round(p.profit)))}` : '—'), el('span', `atlas-farm-status is-${card.status}`, t(`fin.status.${card.status}`)));
+      info.append(line);
+      if (card.alerts[0]) {
+        const a = card.alerts[0], warn = el('button', 'atlas-farm-alert', t(`fin.alert.${a.kind}${a.what ? `.${a.what}` : ''}`, { farm: t(`regionName.${regionId}`), n: a.minutes ?? formatNumber(a.missing ?? a.loss ?? 0) }));
+        warn.type = 'button'; warn.addEventListener('click', event => { event.stopPropagation(); onFinance?.(a.go === 'fund' ? 'fund' : 'farm', regionId); }, { signal });
+        info.append(warn);
+      }
+      const wrap = el('div', 'atlas-farm-actions');
+      if (action) wrap.append(action);
+      wrap.append(button(t('atlas.fund'), 'ui-btn--gold ui-btn--sm', () => onFinance?.('fund', regionId)), button(t('atlas.info'), 'ui-btn--plain ui-btn--sm', () => onFinance?.('farm', regionId)));
+      action = wrap;
+    }
     if (hasKey(`city.${regionId}.vibe`)) info.append(el('small', 'atlas-region-vibe', `☕ ${t(`city.${regionId}.vibe`)}`));
     if (note) info.append(el('small', 'atlas-region-note', note));
     row.append(info);
@@ -260,7 +304,7 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
     if (status.owned) sheet.append(el('p', 'atlas-note', t('atlas.note.owned')));
     const offered = countryGames(selected), st = state();
     const how = el('div', 'atlas-howto');
-    if (offered.length) {
+    if (offered.length && !status.owned) {
       how.append(el('p', 'atlas-howto-title', t(offered.length > 1 ? 'atlas.howto.pick' : 'atlas.howto.only')));
       how.append(el('p', 'atlas-howto-line', offered.map(g => `${GAME_ICON[g]} ${t(`atlas.play.${g}`)}: ${t(`atlas.play.${g}Sub`)}`).join(' · ')));
     }
@@ -371,7 +415,13 @@ export function createAtlas({ store, mode: initialMode = 'gate', onEntered, onCl
   }, { passive: false, signal });
   const held = new Set();
   const KEYS = { ArrowLeft: [-1, 0], KeyA: [-1, 0], ArrowRight: [1, 0], KeyD: [1, 0], ArrowUp: [0, -1], KeyW: [0, -1], ArrowDown: [0, 1], KeyS: [0, 1] };
-  const unsubscribe = store.subscribe(() => { refreshCountries(); renderSheet(); });
+  // Rebuilt only when what the map shows has changed: background actions would otherwise rebuild the pins and the open sheet.
+  let shownSig = '';
+  const unsubscribe = store.subscribe(s => {
+    const next = `${s.world.ownedRegions.join()}|${s.world.currentRegion}|${s.story.phase}|${Math.round(totalGold(s))}|${usdOf(s)}|${s.wallet.seq}`;
+    if (next === shownSig) return;
+    shownSig = next; refreshCountries(); renderSheet();
+  });
 
   // Start over the current (or starting) country.
   const s0 = state();

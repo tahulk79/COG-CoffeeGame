@@ -1,0 +1,86 @@
+/* Godbean game UI system: wood, paper and brass, solid colours, one hard drop instead of soft shadows. No blur, no glow,
+   and looping animations use transform or opacity only, so the 3D scene keeps its frame budget.
+   Breakpoints: portrait phone first (320–430), --bp-wide from 768 (the sheet stops growing and centres). */
+:root{
+  /* Roastery: flat roasted brown, crema paper, leaf green and coffee-cherry red. Few materials, no ornament. */
+  --gu-wood:#774623;--gu-wood-dark:#4b2a12;--gu-wood-light:#9a6438;--gu-wood-line:#573519;
+  --gu-plank:#6b3f1f;
+  --gu-paper:#fff4dc;--gu-paper-2:#f7e4bf;--gu-paper-edge:#d8b783;--gu-paper-hi:#fffaf0;
+  --gu-ink:#4a2c14;--gu-ink-soft:#7a5a3a;--gu-ink-light:#fff6e0;
+  --gu-brass:#f6b93b;--gu-brass-hi:#ffdb73;--gu-brass-edge:#b0700f;
+  --gu-moss:#58b226;--gu-moss-hi:#7fd63f;--gu-moss-edge:#2f7a12;--gu-clay:#dc452c;--gu-clay-hi:#f26a4c;--gu-clay-edge:#8f2414;
+  --gu-good:#2f8a1f;--gu-good-bg:#e0f2c6;--gu-warn:#9a6410;--gu-warn-bg:#ffe6ab;--gu-bad:#b93420;--gu-bad-bg:#fbd9cb;
+  --gu-font:var(--game-font,'Baloo 2',system-ui,sans-serif);
+  --gu-r-sm:8px;--gu-r-md:12px;--gu-r-lg:18px;
+  --gu-s-1:4px;--gu-s-2:8px;--gu-s-3:12px;--gu-s-4:16px;
+  --gu-fs-cap:12px;--gu-fs-body:14px;--gu-fs-title:18px;--gu-fs-num:22px;
+  --gu-tap:44px;--gu-sheet:min(560px,100vw);
+  --gu-t-tap:90ms;--gu-t-panel:180ms;--gu-ease:cubic-bezier(.2,.8,.2,1);
+  --gu-z-finance:40;
+}
+.gu-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:var(--gu-tap);padding:8px 16px;border:2px solid var(--gu-paper-edge);border-radius:var(--gu-r-md);background:var(--gu-paper-hi);box-shadow:0 3px 0 var(--gu-paper-edge);color:var(--gu-ink);font:800 15px/1.1 var(--gu-font);cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:transform var(--gu-t-tap)}
+.gu-btn:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px 0 var(--gu-paper-edge)}
+.gu-btn:focus-visible{outline:3px solid var(--gu-brass-hi);outline-offset:2px}
+.gu-btn--go{border-color:var(--gu-moss-edge);background:var(--gu-moss);box-shadow:0 3px 0 var(--gu-moss-edge);color:#fff}
+.gu-btn--go:not(:disabled):active{box-shadow:0 1px 0 var(--gu-moss-edge)}
+.gu-btn--brass{border-color:var(--gu-brass-edge);background:var(--gu-brass);box-shadow:0 3px 0 var(--gu-brass-edge);color:var(--gu-ink)}
+.gu-btn--brass:not(:disabled):active{box-shadow:0 1px 0 var(--gu-brass-edge)}
+.gu-btn--sm{min-height:var(--gu-tap);padding:4px 10px;font-size:13px}
+.gu-btn:disabled{border-color:#b9ab90;background:#d8ccb4;box-shadow:none;color:#85775f;cursor:not-allowed}
+.gu-btn.is-on{border-color:var(--gu-brass-edge);background:var(--gu-brass-hi)}
+@keyframes gu-pulse{50%{transform:scale(1.07)}}
+@keyframes gu-fade{from{opacity:0}to{opacity:1}}
+@keyframes gu-rise{from{transform:translate(-50%,24px)}to{transform:translate(-50%,0)}}
+@media (prefers-reduced-motion:reduce){.gu-btn,.fin-sheet{transition:none;animation:none!important}}
+/* Shared kit and dialogs outside the HUD (selection, settings, world map) take the same materials. */
+.ui-btn{border-radius:var(--gu-r-md);text-shadow:none}
+.ui-btn--gold{background:linear-gradient(var(--gu-brass-hi),var(--gu-brass));border-color:var(--gu-brass-edge);box-shadow:0 3px 0 var(--gu-brass-edge)}
+.ui-btn--go{background:linear-gradient(var(--gu-moss-hi),var(--gu-moss));border-color:var(--gu-moss-edge);box-shadow:0 3px 0 var(--gu-moss-edge);color:#fff}
+.ui-btn--plain{background:var(--gu-paper-hi);border-color:var(--gu-paper-edge);box-shadow:0 3px 0 var(--gu-paper-edge)}
+.atlas-title{border:2px solid var(--gu-wood-dark);border-radius:var(--gu-r-md);background:var(--gu-plank);color:var(--gu-ink-light);box-shadow:none}
+.atlas-hint{border-radius:var(--gu-r-sm);background:var(--gu-paper)}
+.atlas-pin{border-radius:var(--gu-r-md);background:var(--gu-paper-hi);box-shadow:none}
+.atlas-sheet{border:3px solid var(--gu-wood-dark)!important;background:var(--gu-paper)!important;box-shadow:none!important;border-bottom:0!important}
+.ui-modal__window{border:3px solid var(--gu-wood-dark);border-radius:var(--gu-r-lg);background:var(--gu-paper);box-shadow:none}
+.ui-close{border:2px solid var(--gu-clay-edge);border-radius:var(--gu-r-md);background:linear-gradient(var(--gu-clay-hi),var(--gu-clay));box-shadow:0 3px 0 var(--gu-clay-edge);color:#fff}
+
+/* ---------- Roastery on the screens outside the HUD: intro, dialogue, hero select, world map ---------- */
+html:root{
+  --ui-ink:var(--gu-ink);--ui-ink-soft:var(--gu-ink-soft);--ui-ink-light:var(--gu-ink-light);
+  --ui-wood:var(--gu-wood);--ui-wood-dark:var(--gu-wood-dark);--ui-wood-trim:#ffe9c0;
+  --ui-paper:linear-gradient(135deg,#fffaf0,#fff0d2);--ui-paper-edge:var(--gu-paper-edge);--ui-paper-drop:#4b2a1244;
+  --ui-inset-edge:var(--gu-paper-edge);--ui-cream:linear-gradient(var(--gu-paper-hi),var(--gu-paper-2));--ui-cream-edge:var(--gu-paper-edge);--ui-cream-drop:#b08a55;
+  --ui-go:linear-gradient(var(--gu-moss-hi),var(--gu-moss));--ui-go-edge:#c8f09a;--ui-go-drop:var(--gu-moss-edge);
+  --ui-gold:linear-gradient(var(--gu-brass-hi),var(--gu-brass));--ui-gold-edge:#ffeaa0;--ui-gold-drop:var(--gu-brass-edge);
+  --ui-close:linear-gradient(var(--gu-clay-hi),var(--gu-clay));--ui-close-drop:var(--gu-clay-edge);--ui-close-edge:#ffc9b3;
+  --ui-backdrop:#2a180b80;--ui-line:var(--gu-paper-2);--ui-muted:var(--gu-ink-soft);--ui-sheet:var(--gu-paper);
+  --ui-good:var(--gu-good);--ui-good-bg:var(--gu-good-bg);--ui-bad:var(--gu-bad);--ui-bad-bg:var(--gu-bad-bg);--ui-warn:var(--gu-warn);--ui-warn-bg:var(--gu-warn-bg);
+  --ui-nameplate-bg:#3b2412d9;
+}
+/* dialogue: dark frame, crema page, the speaker's name on a small brown tag */
+#caption-box.dialogue{border-color:var(--gu-wood-dark);background:var(--gu-paper-hi);box-shadow:0 5px 0 var(--gu-wood-dark),0 14px 34px #2a180b66}
+#caption-box #speaker{border:0;border-radius:7px;background:var(--gu-wood);color:var(--gu-ink-light);box-shadow:none;text-shadow:none}
+#caption-box .dialogue-avatar{border-color:var(--gu-wood-dark);box-shadow:0 3px 0 var(--gu-wood-dark);background:radial-gradient(circle at 40% 30%,#fff,var(--gu-brass-hi))}
+#caption-box #dialogue-choices button{border-color:var(--gu-paper-edge);border-radius:14px;background:var(--gu-paper-hi);box-shadow:0 3px 0 var(--gu-paper-edge);color:var(--gu-ink)}
+#caption-box #dialogue-choices .dialogue-later{background:none;box-shadow:none}
+/* the Deity scene's speech bubble */
+.tch .tch-bubble,.tch .tch-bubble.is-hero{padding-top:20px;border:3px solid var(--gu-wood-dark);border-radius:18px;background:var(--gu-paper-hi);box-shadow:0 5px 0 var(--gu-wood-dark),0 14px 34px #2a180b66;color:var(--gu-ink)}
+.tch .tch-bubble::before{display:none}
+.tch .tch-speaker,.tch .tch-bubble.is-hero .tch-speaker{position:absolute;left:14px;top:-15px;margin:0;padding:4px 14px 3px;border-radius:7px;background:var(--gu-wood);color:var(--gu-ink-light);font-size:14px;box-shadow:none}
+.tch .tch-bubble.is-hero .tch-speaker{left:auto;right:14px;background:var(--gu-good-bg)}
+.tch .tch-speaker::before,.tch .tch-bubble.is-hero .tch-speaker::before{display:none}
+.tch .tch-key,.tch .tch-bubble.is-hero .tch-key{padding:0;background:none;color:var(--gu-good)}
+/* world map */
+.atlas .atlas-title{padding:6px 18px 5px;border:0;border-radius:8px;background:var(--gu-wood);color:var(--gu-ink-light);box-shadow:none}
+.atlas[data-mode=chooseRegion] .atlas-title{background:var(--gu-wood);color:var(--gu-ink-light)}
+.atlas .atlas-hint{border-radius:999px;background:#3b2412d9;color:#fff}
+.atlas .atlas-pin{border-width:2px;background:var(--gu-paper-hi);color:var(--gu-ink);box-shadow:0 3px 0 var(--gu-paper-edge),0 5px 9px #2a180b4d}
+.atlas .atlas-pin[data-status=locked]{background:#e9dfca;color:var(--gu-ink-soft)}
+.atlas .atlas-pin.is-selected{background:var(--chip);color:#fff}
+.atlas .atlas-sheet{padding-top:0;border:3px solid var(--gu-wood-dark)!important;border-bottom:0!important;background:var(--gu-paper)!important}
+.atlas .atlas-sheet-head{position:sticky;top:0;z-index:2;margin:0 -16px 10px;padding:7px 8px 7px 12px;background:var(--gu-plank);border-bottom:3px solid var(--gu-wood-dark)}
+.atlas .atlas-sheet-title{color:var(--gu-ink-light);font-size:18px;text-shadow:0 1px 0 var(--gu-wood-dark)}
+.atlas .atlas-region{border-radius:14px;background:var(--gu-paper-hi);box-shadow:0 2px 0 var(--gu-paper-edge)}
+.atlas .atlas-confirm{border-color:var(--gu-brass-edge);border-radius:14px}
+.atlas .atlas-howto{border-radius:12px;background:var(--gu-paper-hi);border-color:var(--gu-paper-edge)}
+@media(min-width:701px){.atlas .atlas-sheet{border-bottom:3px solid var(--gu-wood-dark)!important}}

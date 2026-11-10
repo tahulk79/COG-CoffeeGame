@@ -1,8 +1,10 @@
 // V3 HUD (DOM only): minimal top HUD, bottom toolbar, contextual action bar, sheets, placement controls,
 // confirm modal, Teacher dialogue, toasts and the tutorial overlay. API per docs/design/v3-architecture.md §HUD API.
 import '../../ui/styles/v3.css';
-import { GM, CROP_ORDER, DRINK_ORDER } from '../../core/config/economy.js';
-import { sellAllQuote, cropUnlocked, drinkUnlocked, region, bothGames, regionGame, currentGames, pendingGifts, isChestLevel, tasksOpen } from '../../core/derive.js';
+import '../../ui/styles/hud-skin.css';
+import { BACKGROUND_ACTIONS } from '../../core/store.js';
+import { AUTO, GM, CROP_ORDER, DRINK_ORDER, autoPrice } from '../../core/config/economy.js';
+import { sellAllQuote, cropUnlocked, drinkUnlocked, region, bothGames, regionGame, currentGames, pendingGifts, isChestLevel, tasksOpen, autoBook } from '../../core/derive.js';
 import { openTierModal } from './tier-modal.js';
 import { sfx } from '../../shared/audio/index.js';
 import { h } from './dom.js';
@@ -13,13 +15,14 @@ import { createFieldPop } from './field-pop.js';
 import { createActionBar } from './action-bar.js';
 import { createShopStrip } from './shop-strip.js';
 import { createSheetHost } from './sheet.js';
-import { sellSheet, upgradesSheet, buildSheet, seedsSheet, menuSheet, progressSheet, drinkSeenKey, beansSheet, loanSheet, setBuildTab, supplySheet } from './sheets.js';
+import { manageSheet, sellSheet, upgradesSheet, buildSheet, seedsSheet, menuSheet, progressSheet, questsSheet, autoSheet, autoLeftMs, drinkSeenKey, beansSheet, loanSheet, setBuildTab, supplySheet } from './sheets.js';
 import { inboxSheet, journalSheet } from './inbox.js';
 import { roundsSheet } from './rounds.js';
 import { createStaffModal } from './staff-modal.js';
 import { createStaffAlerts } from './staff-alerts.js';
 import { giftsSheet } from './gifts.js';
 import { createPlacementBar } from './placement.js';
+import { createPlantBar } from './plant-bar.js';
 import { createModals } from './modal.js';
 import { createFeedback, readableError } from './feedback.js';
 import { createTutorial } from './tutorial.js';
@@ -34,13 +37,13 @@ const PURCHASE = /^(shop\/buyBeans|shop\/openVenue|build\/upgrade|land\/|staff\/
  * @param {{ store: object, realm?: object, dev?: boolean, onOpenAtlas?: () => void, onOpenSettings?: () => void }} opts
  */
 let workTimer = 0;
-export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpenSettings } = {}) {
+export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpenSettings, onOpenFinance } = {}) {
   document.getElementById('hud-root')?.remove(); // a stale root from a previous run (HMR / restart)
   const root = h('div', { id: 'hud-root' });
-  const ctx = { store, realm, dev, root, onOpenAtlas, onOpenSettings, selection: null };
+  const ctx = { store, realm, dev, root, onOpenAtlas, onOpenSettings, onOpenFinance, selection: null };
 
   ctx.isPlaying = () => store.state.story.phase === 'play' && !!store.state.world.currentRegion;
-  // (auto play is gone: nothing blocks the player's actions any more)
+  // Auto nông trại runs in the background: it never blocks the player's actions (founder 2026-11-09).
   ctx.isAuto = () => false;
   ctx.blockedByAuto = () => false;
   ctx.act = (type, payload = {}, opts = {}) => {
@@ -92,6 +95,8 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
   };
 
   const progressRender = progressSheet(ctx);
+  const questsRender = questsSheet(ctx);
+  const autoRender = autoSheet(ctx);
   const roundsRender = roundsSheet(ctx);
   const loanRender = loanSheet(ctx); // keeps its "pending" flag across re-renders
   const inboxRender = inboxSheet(ctx), journalRender = journalSheet(ctx), giftsRender = giftsSheet(ctx); // Duyệt (n) / 📒 Nhật ký (journal keeps its filters)
@@ -109,6 +114,7 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
       return;
     }
     staffModal.close();
+    if (id === 'finance') { sheet.close(); ctx.onOpenFinance?.('home'); return; }
     if (id === 'world') { if (ctx.blockedByAuto()) return; sheet.close(); ctx.onOpenAtlas?.(); return; }
     // Storage: the storehouse's own card (capacity + upgrade), with the camera on the building.
     if (id === 'storage' && ctx.realm?.view === 'cafe') id = 'beans'; // café: the bean pill opens the supplier
@@ -116,13 +122,13 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
     if (sheet.openId === id) { sheet.close(); return; }
     sfx('ui.open');
     const s = store.state;
-    if (id === 'seeds') { // opening the picker clears the "new crop" dot
+    if (id === 'seeds' || (id === 'build' && ctx.realm?.view !== 'cafe')) { // opening the picker (or Build, where planting lives) clears the "new crop" dot
       for (const crop of CROP_ORDER) if (cropUnlocked(s, crop) && !s.story.seen?.[seenKey(crop)]) store.dispatch('story/seen', { key: seenKey(crop) });
     }
     if (id === 'menu') { // same for new drinks
       for (const drink of DRINK_ORDER) if (drinkUnlocked(s, drink) && !s.story.seen?.[drinkSeenKey(drink)]) store.dispatch('story/seen', { key: drinkSeenKey(drink) });
     }
-    const render = { sell: () => sellSheet(ctx), upgrades: () => upgradesSheet(ctx), beans: () => beansSheet(ctx), build: () => buildSheet(ctx), seeds: () => seedsSheet(ctx), menu: () => menuSheet(ctx), supply: () => supplySheet(ctx), progress: () => progressRender, rounds: () => roundsRender, loan: () => loanRender, gifts: () => giftsRender, inbox: () => inboxRender, journal: () => journalRender }[id];
+    const render = { manage: () => manageSheet(ctx), sell: () => sellSheet(ctx), upgrades: () => upgradesSheet(ctx), beans: () => beansSheet(ctx), build: () => buildSheet(ctx), seeds: () => seedsSheet(ctx), menu: () => menuSheet(ctx), supply: () => supplySheet(ctx), progress: () => progressRender, quests: () => questsRender, auto: () => autoRender, rounds: () => roundsRender, loan: () => loanRender, gifts: () => giftsRender, inbox: () => inboxRender, journal: () => journalRender }[id];
     if (!render) return;
     if (ctx.selection) ctx.clearSelection();
     if (landWanted) ctx.setLandMode(null);
@@ -152,6 +158,7 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
   const staffModal = createStaffModal(ctx);
   const staffAlerts = createStaffAlerts(ctx);
   const placement = createPlacementBar(ctx);
+  const plantBar = createPlantBar(ctx);
   const modals = createModals(ctx);
   const feedback = createFeedback(ctx);
   Object.assign(ctx, { top, toolbar, actionBar, shops, sheet, staffModal, placement, modals });
@@ -245,7 +252,41 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
     notices.textContent = lines.join('. ');
   }
 
-  root.append(...[top.el, todoBar, staffAlerts.el, shops.el, actionBar.el, landChip, toolbar.el, placement.el, sheet.el, staffModal.el, tutorial.el, feedback.el, modals.el, notices, devPanel?.el].filter(Boolean)); // no dev panel → nothing (not the text "undefined")
+  // ---------- Auto: one round button in the right rail, every action lives in its sheet (sheets.js autoPanel) ----------
+  // 🤖 always. "AUTO ×N" runs left · "⏸ 7:12" paused · gold price when none is left · green with the time left and a ring while it runs.
+  const autoIco = h('span', { class: 'hud-auto-ico', attrs: { 'aria-hidden': 'true' } }, '🤖');
+  const autoTag = h('span', { class: 'hud-auto-tag' });
+  const autoBtn = h('button', { type: 'button', class: 'hud-auto-btn', hidden: true, dataset: { hudId: 'auto' }, attrs: { 'aria-label': T('hud.auto.aria') },
+    on: { click: () => ctx.onTool('auto') } }, autoIco, autoTag);
+  let autoSig = '', autoClock = 1; // text that changes once a second: read four times a second
+  function updateAuto() {
+    const s = store.state, a = s.autoplay || {};
+    const show = ctx.isPlaying() && !!region(s) && regionGame(s) !== 'cafe';
+    if (a.retired && show) { ctx.act('auto/retiredSeen'); ctx.toast(T('hud.toast.autoRetired', { name: a.retired.name, coins: fmt(a.retired.coins) }), 'info'); }
+    const runs = a.runs || 0, price = autoPrice(a.bought || 0), on = !!a.active, left = on ? autoLeftMs(a) : a.saved || 0, time = clock(left);
+    const tag = on ? time : a.saved > 0 ? `⏸ ${time}` : runs > 0 ? `AUTO ×${runs}` : `🪙${fmt(price)}`;
+    const book = autoBook(s);
+    const sig = `${show}|${on}|${tag}|${book?.jobs || 0}|${book?.earned || 0}|${book?.spent || 0}`;
+    if (sig === autoSig) return;
+    autoSig = sig;
+    autoBtn.hidden = !show;
+    autoTag.textContent = tag;
+    autoBtn.classList.toggle('is-on', on);
+    autoBtn.classList.toggle('is-paused', !on && a.saved > 0);
+    autoBtn.classList.toggle('is-buy', !on && runs <= 0 && !(a.saved > 0));
+    const pct = Math.min(100, left / (AUTO.runSeconds * 1000) * 100);
+    autoBtn.style.setProperty('--auto-pct', `${pct}%`);
+    autoBtn.setAttribute('aria-label', on ? T('hud.auto.ariaOn', { time }) : a.saved > 0 ? T('hud.auto.ariaPaused', { time }) : T('hud.auto.aria'));
+    if (!on) return;
+    // The open Auto sheet or tab: only the clock and the numbers change, its buttons stay under the finger.
+    for (const n of root.querySelectorAll('[data-auto-clock]')) n.textContent = time;
+    for (const n of root.querySelectorAll('[data-auto-meter]')) n.style.width = `${pct}%`;
+    for (const [key, v] of Object.entries({ jobs: book?.jobs || 0, earned: Math.round(book?.earned || 0), spent: Math.round(book?.spent || 0) })) for (const n of root.querySelectorAll(`[data-auto-stat="${key}"]`)) n.textContent = fmt(v);
+  }
+  top.el.querySelector('.hud-top-right')?.append(autoBtn);
+  top.el.querySelector('#hud-lv10')?.before(todoBar); // left stack: money warning · to-do chips · Lv-10 chip
+
+  root.append(...[top.el, staffAlerts.el, shops.el, actionBar.el, landChip, toolbar.el, placement.el, plantBar.el, sheet.el, staffModal.el, tutorial.el, feedback.el, modals.el, notices, devPanel?.el].filter(Boolean)); // no dev panel → nothing (not the text "undefined")
   document.body.append(root);
 
   function renderAll(s) {
@@ -258,7 +299,12 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
     sheet.refresh(); // repaints only when what the sheet shows changed (no button swapped under the finger)
     staffModal.refresh(); // same rule (it also repaints every second on its own while open)
   }
-  const unsubscribe = store.subscribe((s, events) => {
+  let hudDue = false, hudClock = 0, cardDue = false; // background actions repaint a few times a second, not on each one
+  const unsubscribe = store.subscribe((s, events, type) => {
+    if (BACKGROUND_ACTIONS.has(type) && !events.length) { hudDue = true; return; }
+    // The crew's own jobs: numbers and lists follow at the same rate; the card that is open keeps up every frame (its buttons are under the finger).
+    if (ctx.realm?.crewTick) { hudDue = true; cardDue = !!ctx.selection; feedback.onEvents(s, events); return; }
+    hudDue = false; hudClock = 0;
     renderAll(s);
     feedback.onEvents(s, events);
     tutorial.refresh();
@@ -291,10 +337,10 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
   // --hud-top-band: lowest edge of the whole top HUD (both columns + ▶ Auto / AUTO bar) — the action card's ceiling.
   let tlBottom = -1, bandBottom = -1, trBottom = -1;
   function syncTopLeft() {
-    const tl = top.el.querySelector('.hud-top-left');
+    const tl = top.el.querySelector('.hud-left-col');
     const b = shown(tl) ? Math.round(tl.getBoundingClientRect().bottom) : 0;
     let band = 0;
-    for (const n of [...top.el.querySelectorAll('.hud-top-left, .hud-top-right')]) if (shown(n)) band = Math.max(band, n.getBoundingClientRect().bottom);
+    for (const n of [...top.el.querySelectorAll('.hud-left-col, .hud-top-right')]) if (shown(n)) band = Math.max(band, n.getBoundingClientRect().bottom);
     band = Math.round(band);
     if (b !== tlBottom) { tlBottom = b; root.style.setProperty('--hud-tl-bottom', `${b}px`); }
     if (band !== bandBottom) { bandBottom = band; root.style.setProperty('--hud-top-band', `${band}px`); }
@@ -332,7 +378,7 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
     // Escape cancels whatever is open, topmost first: viewers / tier modal → staff manager → sheets → placing / planting → the card
     if (ctx.closeTop) { e.preventDefault(); ctx.closeTop(); return; }
     if (ctx.realm?.signMoving) { e.preventDefault(); ctx.realm.cancelSignMove(); return; }
-    if (!staffModal.isOpen && !sheet.openId && ctx.realm?.placement) { e.preventDefault(); ctx.realm.cancelPlacement(); return; }
+    if (!staffModal.isOpen && !sheet.openId && (ctx.realm?.placement || ctx.realm?.planting)) { e.preventDefault(); ctx.realm.cancelPlacement(); return; }
     if (!staffModal.isOpen && !sheet.openId && ctx.selection) { e.preventDefault(); ctx.clearSelection(); return; }
     if (staffModal.isOpen) { e.preventDefault(); staffModal.back(); }
     else if (sheet.openId) { e.preventDefault(); sheet.close(); }
@@ -341,6 +387,8 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
 
   return {
     el: root,
+    /** The world cannot be seen right now: the app skips drawing it (the simulation keeps running). */
+    get worldCovered() { return staffModal.coversWorld; },
     setSelection,
     /** hooks.onShopFocus(id | null) from the realm → highlight that shop in the strip (null = street overview). */
     setShopFocus: id => shops.setFocus(id),
@@ -370,21 +418,26 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
     confirm: opts => modals.confirm(opts),
     dialogue: lines => modals.dialogue(lines),
     update(dt = 0) {
+      let painted = false; // a repaint and a layout read in one frame force a layout: the insets wait for the next frame
+      if (hudDue && (hudClock += dt) >= .25) { hudDue = cardDue = false; hudClock = 0; painted = true; renderAll(store.state); tutorial.refresh(); }
+      else if (cardDue) { cardDue = false; fieldPop.render(store.state); actionBar.render(store.state, ctx.selection); }
       top.update(dt);
       shops.update(dt);
       toolbar.update(dt);
       fieldPop.update(dt);
       actionBar.update(dt);
+      plantBar.update();
       placement.update(dt);
       if ((todoClock += dt) > .3) { todoClock = 0; syncTodo(); }
       updateFirstGame();
       updateGifts(dt);
       updateSwitch();
+      if ((autoClock += dt) >= .25) { autoClock = 0; updateAuto(); }
       syncLandChip();
       tutorial.update(dt);
       updateNotices(dt);
       staffAlerts.update(dt);
-      if ((insetClock += dt) >= .25) { insetClock = 0; syncInsets(); } // card height / resize / placing changes
+      if ((insetClock += dt) >= .25 && !painted) { insetClock = 0; syncInsets(); } // card height / resize / placing changes
     },
     dispose() {
       unsubscribe();

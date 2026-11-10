@@ -25,7 +25,7 @@ export default {
     'html.farm.level1': 'Level 1',
     'html.farm.title': 'Coffee farm',
     'html.farm.xp': 'Experience to next level',
-    'html.farm.coinsShop': 'Gold coins · Open shop',
+    'html.farm.coinsShop': 'Gold Gold · Open shop',
     'html.farm.zoom': 'Zoom',
     'html.farm.zoomIn': 'Zoom in',
     'html.farm.zoomOut': 'Zoom out',

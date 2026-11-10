@@ -1,5 +1,5 @@
 // Save schema v3 (Farm & Café V3). Stored under its own localStorage key, so the old v1 save is never overwritten.
-import { maxStatOf, maxTierOf, EXPIRY_ENABLED } from './config/economy.js';
+import { maxStatOf, maxTierOf, EXPIRY_ENABLED, AUTO } from './config/economy.js';
 import { STAFF_CAP, FARM_MANAGER } from './config/economy.js';
 import { crewTypeOf, workerJobs } from './config/economy.js';
 import { TASKS, PENALTY, HISTORY, CROPS, GM, GEAR, INCOME, LOAN, loanOwed, loanTermMin, incomeRef, SOFTWARE, WARRANTY, PROFILE, CAREER, CRAFT, profileOfUid, robotSerial, START, BUILDINGS, STAFF, TRAITS, RECRUIT, ROBOT_TASKS, PLAYTEST, SKILL, STAT_ORDER, VITALS, RARE, WORKER_TASKS, BOOKS, energyMax, levelForXp, startCoins, VENUES, RATING, CELL } from './config/economy.js';
@@ -7,6 +7,8 @@ import { COUNTRIES, LEGACY_REGIONS, isRegionId, regionGames } from './config/wor
 import { countryRecipes, SUPPLY } from './config/research.js';
 import { FIXED, PARCELS, LOT_KINDS, areaOfParcel, inRect, rectsOverlap, plotsOf, ESTATES } from './config/layout.js';
 import { RECIPES, GOODS, ITEM_GOODS } from './config/economy.js';
+import { settleSizes } from './settle-sizes.js';
+import { newWallet, normalizeWallet } from './wallet.js';
 
 export const SCHEMA = 3;
 export const PHASES = ['select', 'intro', 'teacher', 'gate', 'play', 'expiry', 'chooseRegion'];
@@ -19,7 +21,8 @@ export function createSave(now = Date.now(), character = null) {
     rev: 0,
     character: character ? { gender: character.gender === 'male' ? 'male' : 'female', name: String(character.name || '').slice(0, 20) } : null,
     story: { phase: character ? 'intro' : 'select', teacherMet: false, level10Done: false, expiry: null, seen: {} },
-    player: { coins: startCoins(), xp: 0, round: 1 },
+    player: { coins: startCoins(), xp: 0, round: 1 }, // coins: the Gold of the city being played (core/wallet.js)
+    wallet: newWallet(), // USD for the account, Gold per city, day books, money history
     rebirth: { credits: 0, granted: false, used: 0, purchased: 0, blessings: { grow: 0, price: 0, xp: 0 }, history: [] },
     inventory: { beans: 0, items: { dried: 0, roasted: 0, bag: 0 } }, // beans: harvested (café brews them); items: farm goods
     world: {
@@ -57,7 +60,8 @@ export function createSave(now = Date.now(), character = null) {
     // region's country has). Coins / XP / level / beans are shared by both games.
     mode: null,
     tutorial: { step: 0, done: true, farmDone: true, cafeDone: true }, // the opening tutorial is removed
-    autoplay: { runs: 0, granted: false, active: null },   // active = { startedAt, endsAt } while a run plays
+    autoplay: { runs: AUTO.freeRuns, granted: true, bought: 0, saved: 0, active: null, tally: null, last: null, retired: null }, // active = { leftMs } while a run plays; saved = ms kept by Pause, tally = that run's numbers so far; last = the finished run's numbers; retired = the hired farm manager Auto replaced, until the player has been told
+    quests: { claimed: [], loop: 0 }, // quests claimed (core/quests.js); loop = how many endless ones are done
     stats: { harvested: 0, planted: 0, served: 0, built: 0, upgraded: 0, parcels: 0, earned: 0, sold: 0, bought: 0, venueSold: 0, reviews: 0, fights: 0 },
     tx: [],
     nextUid: 1,
@@ -144,7 +148,11 @@ export function normalizeSave(raw, now = Date.now()) {
     const type = crewTypeOf(u, u.type === 'farmhand' ? oldHands++ : 0);
     return { ...u, type, task: 'auto', tasks: [] };
   };
-  out.staff = { units: Array.isArray(s.staff?.units) ? s.staff.units.map(toCrew).filter(u => obj(u) && typeof u.type === 'string' && Object.hasOwn(STAFF, u.type)).map(u => ({ ...u })) : [] };
+  const savedUnits = Array.isArray(s.staff?.units) ? s.staff.units : [];
+  // Herders left the game with the livestock (founder 2026-11-09): a saved one goes and the coins paid for the hire come back.
+  const herders = savedUnits.filter(u => obj(u) && u.type === 'herder');
+  for (const u of herders) out.player.coins += num(u.paid, 0, 0, 1e9);
+  out.staff = { units: savedUnits.map(toCrew).filter(u => obj(u) && typeof u.type === 'string' && Object.hasOwn(STAFF, u.type)).map(u => ({ ...u })) };
   for (const u of out.staff.units) {
     if (obj(u.assigned) && typeof u.assigned.regionId === 'string') u.assigned = { ...u.assigned, regionId: remap(u.assigned.regionId) };
     if (u.trait != null && !Object.hasOwn(TRAITS, u.trait)) delete u.trait;
@@ -203,17 +211,32 @@ export function normalizeSave(raw, now = Date.now()) {
   out.rewards = { claimed: Array.isArray(rw.claimed) ? [...new Set(rw.claimed.filter(n => Number.isInteger(n) && n >= 2 && n <= 100))] : [], tickets: num(rw.tickets, 0, 0, 99) | 0 };
   normalizeMoney(out, s, levelForXp(out.player.xp));
   normalizeHistory(out, s, now);
-  normalizeTasks(out, s, now);
+  out.history.tombstones = [...out.history.tombstones, ...herders.filter(u => typeof u.uid === 'string').map(u => ({ uid: u.uid.slice(0, 16), name: typeof u.name === 'string' ? u.name.slice(0, 20) : null, kind: 'worker', leftAt: now }))].slice(-HISTORY.tombstones);
+  const gone = removedUids(s);
+  if (out.gm.orders) out.gm.orders = out.gm.orders.filter(o => !staleAct(o, gone));
+  normalizeTasks(out, s, now, gone);
   out.tutorial = { ...base.tutorial, ...obj(s.tutorial) };
   if (out.tutorial.done) { out.tutorial.farmDone = true; out.tutorial.cafeDone = true; } // skipped before the split
   out.autoplay = { ...base.autoplay, ...obj(s.autoplay) };
   out.autoplay.runs = num(out.autoplay.runs, 0, 0, 99) | 0;
-  if (!obj(out.autoplay.active)) out.autoplay.active = null;
-  // Saves from before auto play existed get their free run once.
-  if (!obj(s.autoplay) && s.story?.teacherMet) { out.autoplay.runs = 1; out.autoplay.granted = true; }
+  out.autoplay.bought = num(out.autoplay.bought, 0, 0, 999) | 0;
+  out.autoplay.saved = num(out.autoplay.saved, 0, 0, AUTO.runSeconds * 1000);
+  // A run counts played time down (leftMs); the old wall-clock runs ({ startedAt, endsAt }) are over.
+  const act = obj(out.autoplay.active);
+  const runBook = v => (obj(v) ? { jobs: num(v.jobs, 0, 0) | 0, earned: num(v.earned, 0, 0), spent: num(v.spent, 0, 0), ...(Number.isFinite(v.at) ? { at: v.at } : {}) } : null);
+  out.autoplay.active = act && Number.isFinite(act.leftMs) && act.leftMs > 0 ? { leftMs: Math.min(act.leftMs, AUTO.runSeconds * 1000), ...(obj(act.book) ? { book: runBook(act.book) } : {}) } : null;
+  out.autoplay.tally = runBook(out.autoplay.tally);
+  out.autoplay.last = runBook(out.autoplay.last);
+  const retired = obj(out.autoplay.retired);
+  out.autoplay.retired = retired ? { name: typeof retired.name === 'string' ? retired.name.slice(0, 20) : '', coins: num(retired.coins, 0, 0, 1e9) } : null;
+  if (out.gm.unit?.isAuto && !out.autoplay.active) { out.gm.unit = null; out.gm.orders = []; } // Auto's stand-in lives only as long as its run
+  // Every save gets its free run(s) once.
+  if (!out.autoplay.granted) { out.autoplay.runs += AUTO.freeRuns; out.autoplay.granted = true; }
+  { const q = obj(s.quests) || {}; out.quests = { claimed: Array.isArray(q.claimed) ? q.claimed.filter(id => typeof id === 'string') : [], loop: num(q.loop, 0, 0, 1e6) | 0 }; }
   out.stats = { ...base.stats, ...obj(s.stats) };
   out.tx = Array.isArray(s.tx) ? s.tx.slice(-64) : [];
   out.nextUid = num(s.nextUid, 1, 1) | 0;
+  normalizeWallet(out, s.wallet, now);
   return out;
 }
 
@@ -310,7 +333,7 @@ function normalizeFm(raw) {
   const pins = obj(f.pins) || {};
   out.pins = Object.fromEntries(Object.entries(pins).filter(([, t]) => Number.isInteger(t) && t >= 0 && t <= 3));
   if (obj(f.plan) && Number.isFinite(f.plan.at)) out.plan = f.plan;
-  out.log = (Array.isArray(f.log) ? f.log : []).filter(e => obj(e) && typeof e.k === 'string' && Number.isFinite(e.p)).slice(-FARM_MANAGER.logKeep);
+  out.log = (Array.isArray(f.log) ? f.log : []).filter(e => obj(e) && typeof e.k === 'string' && Number.isFinite(e.p) && !namesRemoved(e)).slice(-FARM_MANAGER.logKeep);
   out.calib = num(f.calib, 1, FARM_MANAGER.calib.min, FARM_MANAGER.calib.max);
   if (obj(f.away) && Number.isFinite(f.away.at)) out.away = f.away;
   return out;
@@ -324,7 +347,7 @@ function normalizeGm(raw) {
     // The shared Unit interface (management-rules §1.1): uid 'g1', kind 'manager', book / days / recent, backlog and
     // its states (waiting = Chờ lệnh, strike = Đình công). The GM stays in s.gm, never in s.staff.units.
     const b = obj(u.book) || {};
-    out.unit = { uid: 'g1', kind: 'manager', name: u.name.slice(0, 20), gender: u.gender === 'male' ? 'male' : 'female', skill: num(u.skill, 1, 1, 5) | 0, worked: num(u.worked, 0, 0, 1e7) | 0, ...(obj(u.stats) ? { stats: Object.fromEntries(GM.stats.map(k => [k, num(u.stats[k], 1, 1, GM.maxStat) | 0])) } : {}),
+    out.unit = { uid: 'g1', kind: 'manager', ...(u.isAuto === true ? { isAuto: true } : {}), name: u.name.slice(0, 20), gender: u.gender === 'male' ? 'male' : 'female', skill: num(u.skill, 1, 1, 5) | 0, worked: num(u.worked, 0, 0, 1e7) | 0, ...(obj(u.stats) ? { stats: Object.fromEntries(GM.stats.map(k => [k, num(u.stats[k], 1, 1, GM.maxStat) | 0])) } : {}),
       style: GM.styles[u.style] ? u.style : 'balanced', loyalty: num(u.loyalty, GM.loyalty.start, 0, 100), raises: num(u.raises, 0, 0, 20) | 0, hiredAt: num(u.hiredAt, 0, 0), paid: num(u.paid, 0, 0, 1e9),
       tenurePlayedMin: num(u.tenurePlayedMin, 0, 0, 1e9), backlog: num(u.backlog, 0, 0, 99) | 0, decayMs: num(u.decayMs, 0, 0, 36e5),
       book: { jobs: num(b.jobs, 0, 0) | 0, earned: num(b.earned, 0, 0), spent: num(b.spent, 0, 0), mistakes: num(b.mistakes, 0, 0) | 0, since: num(b.since, num(u.hiredAt, 0, 0), 0) },
@@ -357,6 +380,7 @@ function normalizeGm(raw) {
   out.chaos = null; // no team chaos any more
   if (Number.isInteger(g.reserve)) out.reserve = g.reserve;
   if (obj(g.tiers)) out.tiers = g.tiers;
+  if (obj(g.handed)) out.handed = { farm: g.handed.farm === true, shop: g.handed.shop === true }; // team handed to him per game (staff board)
   if (Array.isArray(g.orders)) out.orders = g.orders.filter(o => obj(o) && typeof o.id === 'string' && obj(o.act));
   normalizePlanner(out, g);
   out.fm = normalizeFm(g.fm);
@@ -446,7 +470,7 @@ function normalizeHistory(out, s, now) {
   const h = obj(s.history);
   const rawUnits = new Map((Array.isArray(s.staff?.units) ? s.staff.units : []).filter(obj).map(u => [u.uid, u]));
   if (h) {
-    const rows = (Array.isArray(h.rows) ? h.rows : []).filter(histRowOk).map(histRowOf).slice(-HISTORY.rows);
+    const rows = (Array.isArray(h.rows) ? h.rows : []).filter(histRowOk).filter(r => !namesRemoved(r.extra)).map(histRowOf).slice(-HISTORY.rows);
     const days = (Array.isArray(h.days) ? h.days : []).filter(r => obj(r) && Number.isInteger(r.d) && typeof r.actor === 'string')
       .map(r => ({ d: r.d, actor: r.actor.slice(0, 16), ...Object.fromEntries(['jobs', 'earned', 'spent', 'mistakes', 'tasksDone', 'tasksExpired'].map(k => [k, num(r[k], 0, 0)])) }))
       .sort((a, b) => a.d - b.d);
@@ -500,12 +524,12 @@ function taskOf(t, units, hasGm, open = true) {
 }
 // s.tasks. Saves from before the inbox: the manager's requests, the rival's offer on a worker and on the manager become
 // open tasks; their real-time deadlines turn into played time (time left kept). Idempotent: the old fields are dropped.
-function normalizeTasks(out, s, now) {
+function normalizeTasks(out, s, now, gone) {
   const t = obj(s.tasks), units = out.staff.units, hasGm = !!out.gm.unit, P = out.clock.played;
   const res = newTasks();
   if (t) {
-    res.open = (Array.isArray(t.open) ? t.open : []).map(x => taskOf(x, units, hasGm)).filter(Boolean).map(x => ({ ...x, status: 'open' })).slice(0, TASKS.cap);
-    res.done = (Array.isArray(t.done) ? t.done : []).map(x => taskOf(obj(x) ? { ...x, untilPlayed: Number.isFinite(x.untilPlayed) ? x.untilPlayed : 0 } : null, units, true, false)).filter(Boolean).slice(0, TASKS.doneKeep);
+    res.open = (Array.isArray(t.open) ? t.open : []).filter(x => !staleAct(x, gone)).map(x => taskOf(x, units, hasGm)).filter(Boolean).map(x => ({ ...x, status: 'open' })).slice(0, TASKS.cap);
+    res.done = (Array.isArray(t.done) ? t.done : []).filter(x => !staleAct(x, gone)).map(x => taskOf(obj(x) ? { ...x, untilPlayed: Number.isFinite(x.untilPlayed) ? x.untilPlayed : 0 } : null, units, true, false)).filter(Boolean).slice(0, TASKS.doneKeep);
     res.cool = Object.fromEntries(Object.entries(obj(t.cool) || {}).filter(([, v]) => Number.isFinite(v) && v > P).slice(0, 100));
     res.fines = (Array.isArray(t.fines) ? t.fines : []).filter(f => obj(f) && Number.isFinite(f.p) && Number.isFinite(f.c) && f.p > P - PENALTY.windowMin * 60000).map(f => ({ p: f.p, c: f.c }));
     const pen = obj(t.pen);
@@ -615,6 +639,15 @@ function normalizeActive(units, level) {
 //  2 → 3: the farm is fields only: build lots B1–B5 are gone (bought lots refunded), buildings on them refunded,
 //         starter buildings snap to their FIXED spots (the storehouse moved).
 export const LAYOUT_VERSION = 5;
+// Livestock, barns and the buyable vehicles were cut from the game (founder 2026-11-09). These ids are all that remains of them:
+// saved buildings of these types drop out in normalizeRegion like any unknown id (no refund); here a manager request or a
+// log line that names one goes too, because its text and action no longer exist.
+const REMOVED_IDS = ['barn', 'chickenCoop', 'rooster', 'cow', 'goat', 'farmDog', 'motorbike', 'tillerCart', 'farmTruck', 'herder'];
+const REMOVED_NAME = new RegExp(`"(?:${[...REMOVED_IDS, 'herdBuy'].join('|')})"`);
+const namesRemoved = x => REMOVED_NAME.test(JSON.stringify(x) ?? '');
+const staleAct = (x, gone) => gone.has(x?.act?.payload?.uid) || namesRemoved([x?.act?.payload?.type, x?.key, x?.reason]);
+const removedUids = s => new Set([...Object.values(obj(s.world?.regions) || {}).flatMap(r => (Array.isArray(r?.buildings) ? r.buildings : [])), ...(Array.isArray(s.staff?.units) ? s.staff.units : [])]
+  .filter(x => obj(x) && REMOVED_IDS.includes(x.type)).map(x => x.uid));
 const OLD_CAFE_RECTS = [[4, 2, 16, 14], [18, 2, 28, 12]];
 const CAFE_SHIFT = { x: -10, z: 100 };
 const OLD_BUILD_LOT_COST = { B1: 0, B2: 150, B3: 800, B4: 3000, B5: 4500 };
@@ -732,6 +765,7 @@ export function normalizeRegion(r) {
     roads: Array.isArray(v.roads) ? [...new Set(v.roads)] : [],
     buildings,
     fields,
+    sized: v.sized ? 1 : settleSizes(buildings, fields, withEstates(Array.isArray(v.parcels) ? v.parcels : [])), // old saves: once, after the buildings grew
     // peak: most copies ever built per type here (build XP is earned once per copy slot — no build/remove XP loop).
     peak: Object.fromEntries([...Object.entries(obj(v.peak) || {}).filter(([k, n]) => (k === 'field' || Object.hasOwn(BUILDINGS, k)) && Number.isFinite(n)).map(([k, n]) => [k, Math.max(0, n | 0)]),
       ...Object.keys(BUILDINGS).map(k => [k, buildings.filter(b => b.type === k).length]).filter(([, n]) => n > 0), ['field', fields.length]]
@@ -748,7 +782,7 @@ export function normalizeRegion(r) {
 function normalizeFields(raw) {
   const seen = new Set();
   return (Array.isArray(raw) ? raw : []).filter(f => obj(f) && typeof f.id === 'string' && f.id.length <= 40 && Number.isFinite(f.x) && Number.isFinite(f.z)
-    && !seen.has(f.id) && seen.add(f.id)).map(f => ({ id: f.id, x: f.x, z: f.z }));
+    && !seen.has(f.id) && seen.add(f.id)).map(f => ({ id: f.id, x: f.x, z: f.z, ...(Number.isFinite(f.spent) && f.spent > 0 ? { spent: Math.min(1e6, f.spent) } : {}), ...(Number.isInteger(f.row) && f.row >= 0 && f.row < 4 ? { row: f.row } : {}) }));
 }
 // A building: integer level within its upgrade list, rotation 0..3, a valid production batch or none.
 function normalizeBuilding(b) {
@@ -779,4 +813,16 @@ export function normalizeStreet(raw) {
   };
 }
 
-export const clone = value => (typeof structuredClone === 'function' ? structuredClone(value) : JSON.parse(JSON.stringify(value)));
+// The save is plain JSON data (it round-trips through localStorage), so a plain copy gives the same result about 5x faster than
+// structuredClone, and every action goes through here.
+export function clone(value) {
+  if (value === null || typeof value !== 'object') return value;
+  if (Array.isArray(value)) {
+    const copy = new Array(value.length);
+    for (let i = 0; i < value.length; i++) copy[i] = clone(value[i]);
+    return copy;
+  }
+  const copy = {};
+  for (const key in value) copy[key] = clone(value[key]);
+  return copy;
+}

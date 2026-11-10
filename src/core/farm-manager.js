@@ -11,9 +11,9 @@
 //  EXECUTE   game.js gm/think (gmRun, or a crew order).
 //  VERIFY    note(): every outcome, with its reason code, in the decision log.
 //  ADJUST    calibrate: measured income / modelled income scales every later forecast.
-import { FARM_MANAGER as FM, CLIMATE_PICK, gmHandsPerMin, TEND, QUALITY, CROPS, GOODS, RECIPES, BUILDINGS, STAFF, ROBOT_TASKS, GM, doesJob, unitSpeed } from './config/economy.js';
+import { FARM_MANAGER as FM, EXPIRY_LEVEL, EXPIRY_ENABLED, CLIMATE_PICK, gmHandsPerMin, TEND, QUALITY, CROPS, GOODS, RECIPES, BUILDINGS, STAFF, ROBOT_TASKS, GM, doesJob, unitSpeed } from './config/economy.js';
 import { ESTATES, ESTATE_ORDER, FARM_TIERS, tierIndexAt } from './config/layout.js';
-import { region, ownedPlots, plotState, buildingsOf, capacity, stored, farmStaffing, farmOverloaded, farmPicksPerMin, sellAllQuote, I10, incomeEarned, incomeRows, loanTotal, playedMs, fmOf, fmReserve, fmCommitted, climateFit, climateEffect, climateOfPlot, harvestUrgency, treeOld, pruneCost, unlockedCrops, cropBeanValue, perBean, yieldOf, seedCost, growMs, dripCovers, wellBonus, assignedUnits, applicants, gmStaffPlan, perJob, contrib, jobsPerMin, runCostPerMin, buildCost, estateOwned, nextEstate, parcelCost, parcelError, recipeOf, storeBuildings } from './derive.js';
+import { level, region, ownedPlots, plotState, buildingsOf, capacity, stored, farmStaffing, farmOverloaded, farmPicksPerMin, sellAllQuote, I10, incomeEarned, incomeRows, loanTotal, playedMs, fmOf, fmReserve, fmCommitted, climateFit, climateEffect, climateOfPlot, harvestUrgency, treeOld, pruneCost, unlockedCrops, cropBeanValue, perBean, yieldOf, seedCost, growMs, dripCovers, wellBonus, assignedUnits, applicants, gmStaffPlan, perJob, contrib, jobsPerMin, runCostPerMin, buildCost, estateOwned, nextEstate, parcelCost, parcelError, recipeOf, storeBuildings } from './derive.js';
 
 const clamp01 = v => Math.max(0, Math.min(1, v));
 const r2 = v => Math.round(v * 100) / 100;
@@ -143,13 +143,15 @@ export function inRecovery(s, now, reserve = fmReserve(s)) {
 function modelFlow(k, labour) { return k.reduce((n, t) => n + t.planted * t.flow, 0) * labour; }
 /** 0.25..1: how much of the fields' harvest the crew can actually pick (the player's own tapping is not assumed). */
 function labourShare(s, k) {
-  const pickers = crewOf(s).filter(u => doesJob(u, 'harvest')).reduce((n, u) => n + jobsPerMin(u), 0);
+  // + the manager's own hands (gm/hands picks first, harvestShare of his jobs): without them a fresh manager with a small farm
+  // read "Ruộng chín nhanh hơn sức hái: 25 %" while he picked every ripe tree himself (QA 2026-11-09).
+  const own = s.gm?.unit && fmOf(s).auto ? gmHandsPerMin(s.gm.unit) * FM.hands.harvestShare : 0;
+  const pickers = own + crewOf(s).filter(u => doesJob(u, 'harvest')).reduce((n, u) => n + jobsPerMin(u), 0);
   const need = k.reduce((n, t) => { const best = t.best ? cropEcon(s, t.best, t.zone) : null; return n + (best ? (t.planted + 1) / Math.max(.2, best.season) : 0); }, 0);
   return need > 0 ? Math.max(.25, Math.min(1, pickers / need)) : 1;
 }
 
 // ---------- forecast: one investment ----------
-const VEHICLES = ['motorbike', 'tillerCart', 'farmTruck'];
 function storageFlow(s, x) {
   const cap = capacity(s), pct = cap > 0 ? stored(s) / cap : 1;
   return x.farmFlow * clamp01((pct - .5) / .5);
@@ -196,7 +198,7 @@ function flowOf(s, c, x) {
     if (type === 'dripLine') { const n = ownedPlots(s).filter(q => Math.hypot(q.x - p.x, q.z - p.z) <= def.effect.radius[0] && region(s).plots[q.id] && !dripCovers(s, q.id)).length; return { cat: 'water', flow: n * (x.k[t]?.flow || 0) * TEND.speedup * .5, known: true, tier: t }; }
     if (def.effect?.capacity) return { cat: 'storage', flow: storageFlow(s, x), known: true, tier: t };
     if (def.recipe) return { cat: 'process', flow: stationFlow(s, x, def.recipe, 1, 1), known: true, tier: t };
-    return { cat: VEHICLES.includes(type) ? 'logistics' : 'building', flow: c.value, known: false, tier: t };
+    return { cat: 'building', flow: c.value, known: false, tier: t };
   }
   if (a.type === 'build/upgrade') {
     const b = (region(s)?.buildings || []).find(q => q.uid === p.uid), def = b && BUILDINGS[b.type];
@@ -264,6 +266,12 @@ function landBlock(x, c) {
   if (!crewOf(x.s).some(u => doesJob(u, 'plant') || doesJob(u, 'harvest'))) return 'noCrew';
   return null;
 }
+/** The Lv10 incident is close (FM.incidentLoanLevels or fewer levels left, first region only): the loans survive the
+ *  incident but the land and buildings they would buy do not, so the manager never borrows then (QA 2026-11-09: the
+ *  delegate's manager took 1000 at Lv6 and reached Lv10 17 % faster than main, then carried the debt into a 60-coin restart). */
+export function incidentNear(s) {
+  return EXPIRY_ENABLED && !s.story?.level10Done && EXPIRY_LEVEL - level(s) <= FM.incidentLoanLevels;
+}
 /**
  * Why this candidate may not run now (a reason code), or null. Only capital spending is gated: care, operations and sales
  * keep their own rules. `perm` is D.gmPermission's answer ('loan' = paid with a loan, so the cash check does not apply).
@@ -278,13 +286,14 @@ export function gate(s, c, x, perm) {
   if (hireAct(c) && !f.hire) return 'hireOff';
   if (x.recovery && !c.essential) return 'recovery';
   if (perm === 'loan' && (!x.m.loan || x.recovery)) return 'noLoan';
+  if (perm === 'loan' && incidentNear(s)) return 'incidentLoan';
   if (perm !== 'loan') {
     if (c.essential ? s.player.coins - c.cost < f.minReserve : c.cost > x.budget) return 'reserve';
   }
   const win = s.gm.window, spent = win && x.now - win.start < GM.windowMinutes * 60000 ? win.spent : 0;
   if (f.spendLimit > 0 && spent + x.committed + c.cost > f.spendLimit) return 'limit';
   if (!c.essential && e.known && (e.payback > paybackLimit(x, e) || e.net <= 0)) return 'payback';
-  // No formula for what it earns (animals, vehicles, shade, extra team upgrades): only with real profit and no debt.
+  // No formula for what it earns (shade, extra team upgrades): only with real profit and no debt.
   if (!c.essential && !e.known && e.cat !== 'other' && (x.net <= 0 || x.owed > 0)) return 'noProfit';
   if (landAct(c)) { const why = landBlock(x, c); if (why) return why; }
   if (!c.essential && x.saving && x.saving.key !== c.key && (!e.known || e.flow / e.invest < x.saving.econ.flow / x.saving.econ.invest)) return 'saving';

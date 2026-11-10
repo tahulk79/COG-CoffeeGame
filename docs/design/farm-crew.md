@@ -35,17 +35,16 @@ Bảng tuyển dụng có 3 ứng viên khác nghề. Ứng viên đầu luôn l
 |---|---|---|---|---|
 | Dây tưới nhỏ giọt `dripLine` | `drip-line` | Ruộng trong 12 m tự được tưới, thợ tưới bỏ qua | 1 xu/ô mỗi mùa | 180 |
 | Máy xát vỏ `pulper` | `pulper-machine` | Trạm sơ chế trong 12 m chạy nhanh hơn 30 % | 1 xu/mẻ | 350 |
-| Xe máy chở bao `motorbike` | `motorbike-sacks` | Thợ khuân chở thêm 6 | 1 xu/chuyến | 120 |
-| Xe công nông `tillerCart` | `power-tiller-cart` | Thợ khuân chở thêm 14 | 2 xu/chuyến | 450 |
-| Xe tải `farmTruck` | `farm-truck` | Thợ khuân chở thêm 30 | 6 xu/chuyến | 1500 |
 
-Mọi máy nâng được 5 cấp (nút Nâng cấp của công trình). Có nhiều xe thì tính xe chở được nhiều nhất.
+Mọi máy nâng được 5 cấp (nút Nâng cấp của công trình).
 
 ## 4. Save cũ
 
 - `farmhand`: có task thì theo task (hái, trồng, tưới), không có thì luân phiên Thợ hái, Thợ trồng.
 - `sproutBot`: task trồng thành `plantBot`, còn lại thành `harvestBot`.
 - Bỏ tưới trả phí (`staff/tend`), vì đã có nghề tưới.
+
+Bỏ chăn nuôi, chuồng và xe (người sáng lập, 2026-11-09): nông trại tập trung trồng 3 giống cà phê. Save cũ tải vào thì chuồng, vật nuôi và xe biến mất, không hoàn xu. Thợ chăn nuôi được cho nghỉ và hoàn đúng số xu đã thuê (`paid`).
 
 ## 5. Luồng hàng và nước
 
@@ -60,7 +59,7 @@ Mọi máy nâng được 5 cấp (nút Nâng cấp của công trình). Có nhi
 |---|---|---|
 | ⚡ Nhanh | Mọi nghề | Tốc độ làm và đi theo n = 1..5: ×0,65 · 0,8 · 1 · 1,15 · 1,3. Robot theo động cơ t = 0..3: ×0,7 · 1 · 1,2 · 1,4 |
 | 💪 Bền | Mọi nghề | Năng lượng = 100 + 20 × (n − 1), ít lười hơn 15 % mỗi bậc |
-| 💪 Bền | Thợ khuân | Chở = 6 + xe + 2 × (n − 1). Robot: 6 + xe + 2 × t(pin) |
+| 💪 Bền | Thợ khuân | Chở = 6 + 2 × (n − 1). Robot: 6 + 2 × t(pin) |
 | 💪 Bền | Thợ tưới | Mỗi lượt = 4 + bình tưới + (n − 1). Robot: 8 + 2 × t(pin) |
 | 🎯 Chuẩn | Thợ hái, trồng, khuân | Giảm tỉ lệ hái non, trồng lệch, rơi hàng; từ n = 3 làm ra hàng 2★ |
 | 🎯 Chuẩn | Thợ tưới | Mỗi lần tưới rút ngắn 30 % + 3 % × (n − 1) thời gian chờ |
@@ -127,7 +126,7 @@ Tỉ lệ làm hỏng theo 🎯: hái non 25 · 15 · 8 · 3 · 0 %, trồng l�
 
 ## 12. Quản lý ra lệnh, người chuyên môn đi làm
 
-- Thợ trồng mở ruộng. Thợ khai hoang mở lô đất mới. Thợ xây xây công trình, máy. Thợ chăn nuôi xây chuồng, mua vật nuôi.
+- Thợ trồng mở ruộng. Thợ khai hoang mở lô đất mới. Thợ xây xây công trình, máy.
 - Quản lý quyết định, người có nghề đó đi tới nơi rồi làm. Chưa có ai cho việc đó thì quản lý tự làm.
 - Từ đầu game chưa có ruộng: thuê thợ trồng, mở 6 ruộng đầu, xây kho.
 - Ba việc bạn quyết (bán hạt, nạp tiền, quản lý bị dụ) nằm trong menu Duyệt, mỗi việc có nội dung và nút Duyệt, Từ chối.

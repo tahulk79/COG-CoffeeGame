@@ -88,7 +88,8 @@ export function resetProgress(withMemory = false) {
   } catch { return false; }
 }
 
-const DEFAULT_SETTINGS = { version: 1, master: 0.8, music: 0.6, ambience: 0.7, sfx: 0.8, ui: 0.6, muted: false, quality: 'high', lang: DEFAULT_LANG, analytics: true, autoFocus: true };
+const IS_PHONE = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches; // a first run on a phone starts cooler than on a computer
+const DEFAULT_SETTINGS = { version: 1, master: 0.8, music: 0.6, ambience: 0.7, sfx: 0.8, ui: 0.6, muted: false, quality: IS_PHONE ? 'medium' : 'high', lang: DEFAULT_LANG, analytics: true, autoFocus: true };
 const QUALITIES = ['low', 'medium', 'high'];
 
 export function normalizeSettings(raw) {
@@ -99,6 +100,7 @@ export function normalizeSettings(raw) {
   }
   if (typeof value.muted === 'boolean') settings.muted = value.muted;
   if (QUALITIES.includes(value.quality)) settings.quality = value.quality;
+  if (value.qualityChosen === true) settings.qualityChosen = true; // the player picked it: automatic quality stays out across reloads
   if (LANGS.includes(value.lang)) settings.lang = value.lang;
   if (typeof value.analytics === 'boolean') settings.analytics = value.analytics; // F-38: gửi thống kê ẩn danh
   if (typeof value.autoFocus === 'boolean') settings.autoFocus = value.autoFocus; // camera tự tới chỗ có vấn đề

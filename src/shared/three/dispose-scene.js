@@ -19,6 +19,11 @@ export function markCached(root) {
   return root;
 }
 
+// Bộ đệm instance (ma trận, màu) chỉ được giải phóng qua InstancedMesh.dispose(), kể cả khi geometry là đồ dùng chung.
+export function disposeInstances(root) {
+  root?.traverse(object => { if (object.isInstancedMesh) object.dispose(); });
+}
+
 export function disposeScene(scene) {
   const geometries = new Set();
   const materials = new Set();
@@ -27,6 +32,7 @@ export function disposeScene(scene) {
   scene.traverse(object => {
     if (object.isLight && object.shadow?.map) object.shadow.dispose(); // shadow map là render target, không tự giải phóng
     if (object.skeleton) skeletons.add(object.skeleton); // mỗi bản clone có skeleton riêng
+    if (object.isInstancedMesh) object.dispose();
     if (object.geometry?.userData.keep) return;
     if (object.geometry) geometries.add(object.geometry);
     if (object.material) {

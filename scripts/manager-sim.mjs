@@ -69,6 +69,9 @@ function nextBuildSpot(s, type, tier) {
 class Builder {
   constructor() {
     this.now = T0 - 3600_000; this.state = createSave(this.now, { gender: 'female', name: 'Bot' }); this.cursor = [0, 0, 0, 0];
+    // The profiles are farms past the Level-10 incident (it is on again, 2026-11-09): levels ≥ 10 and no wipe inside a run —
+    // the harness compares who runs the farm, not the restart.
+    this.state.story.level10Done = true;
     this.act('story/introDone'); this.act('story/teacherDone'); this.act('world/unlockRegion', { regionId: 'vn-1' }); this.act('world/enterRegion', { regionId: 'vn-1', game: 'farm' });
   }
   act(type, payload = {}) { simNow = this.now; const r = apply(this.state, { type, payload }, { now: this.now, dev: true }); if (!r.ok) throw new Error(`profile: ${type} ${JSON.stringify(payload)} failed: ${r.error} ${JSON.stringify(r.data ?? '')}`); if (r.state) this.state = r.state; return r; }
@@ -90,7 +93,7 @@ class Builder {
   // Gifts for the set level are opened now so no policy gets a windfall; coins and beans are then set to the profile's values.
   finish({ coins, beans = 0, loans = [] }) {
     for (let guard = 0; guard < 200 && D.pendingGifts(this.state).length; guard++) this.act('level/claim', { roll: 0.5 });
-    for (const amount of loans) this.act('loan/take', { amount });
+    for (const amount of loans) this.act('loan/take', { amount, gold: true });
     this.act('dev/set', { coins, beans, level: D.level(this.state) });
     this.now = T0; this.act('clock/tick', { ms: 5000 });
     const out = normalizeSave(JSON.parse(JSON.stringify(this.state)), T0); // proves the profile survives a real save / load

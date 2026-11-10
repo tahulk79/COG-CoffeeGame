@@ -2,17 +2,17 @@
 // Venue card ({ kind: 'venue', venue }, docs/design/cafe-street.md §3.8): a street shop — icon, name, pitch, menu with
 // prices; locked → level gate or "Open X 🪙cost" (shop/openVenue; a 2nd tap after paying is a core noop); open →
 // ⭐ rating (+ review count), sold this session (ctx.venueSold, counted in feedback.js) and "Go to X" (realm.focusShop).
-import { BUILDINGS, BARN_ANIMALS, CROPS, GOODS, GOOD_ORDER, VENUES, VENUE_ITEMS, PERENNIAL , GARDEN } from '../../core/config/economy.js';
+import { BUILDINGS, CROPS, GOODS, GOOD_ORDER, VENUES, VENUE_ITEMS, PERENNIAL , GARDEN } from '../../core/config/economy.js';
 import { PARCELS, lotAllows, terrainOfLot, climateOfLot, estateOfLot, ESTATE_FIELDS } from '../../core/config/layout.js';
 import { beanPrice, buyerNow, treeHealth, unlockedCrops, nextEstate, parcelCost, climateOfPlot, climateFit, beanMix, sellQuote, plotGrowMs as plotGrowMsOf, treeAge, treeOld, pruneCost, region, plotOf, plotState, upgradeCost, upgradeError, levelCap, parcelError, seedCost, capacity, stored, goodCount, seatCount, seatsUsed, venueError, venueOpen, venueRating, venueReviews, venueItems,
-  removeError, removeRefund, wellBonus, recipeIOFor, jobState, prodError, missingInput, collectError, countOf, maxCount, buildCost, buildError, housingOf, nextLimitLevel, tileAt , gardenOf } from '../../core/derive.js';
+  removeError, removeRefund, wellBonus, recipeIOFor, jobState, prodError, missingInput, collectError, countOf, maxCount, buildCost, buildError, nextLimitLevel, tileAt , gardenOf } from '../../core/derive.js';
 import { newTxId } from '../../core/store.js';
 import { h, setText } from './dom.js';
 import { modelIcon } from './model-icons.js';
 import { T, clock, fmt, has, duration, errorText } from './text.js';
 import { buildingEffect } from './effects.js';
 import { actionButton, coinAmount, lockTag, needMore } from './widgets.js';
-import { TERRAIN_ICON } from './sheets.js';
+import { TERRAIN_ICON, buyLand } from './sheets.js';
 import { stars1 } from './shop-strip.js';
 
 // Optional key (not in the locale packs yet): "Sold {n} today" — falls back to "🧾 ×n" until it exists.
@@ -222,12 +222,12 @@ export function createActionBar(ctx) {
       const life = crop.life || 0;
       body.append(h('p', { class: `hud-line${m.old ? ' hud-line--bad' : ' hud-line--muted'}` },
         m.old ? T('hud.tree.old', { n: m.age, pct: Math.round(PERENNIAL.oldYield * 100) })
-          : m.age === 0 ? T(m.pruned ? 'hud.tree.regrow' : 'hud.tree.young') : T('hud.tree.age', { n: m.age, left: Math.max(0, life - m.age) })));
+          : m.age === 0 ? T(m.stage === 'ready' ? 'hud.tree.firstRipe' : m.pruned ? 'hud.tree.regrow' : 'hud.tree.young') : T('hud.tree.age', { n: m.age, left: Math.max(0, life - m.age) })));
       if (m.health) { // how the tree is really doing: survival share and what one harvest gives
         body.append(h('div', { class: 'hud-treehealth' },
           h('p', { class: 'hud-line' }, `🌿 ${T('hud.tree.survival', { pct: m.health.survival })}`),
           h('div', { class: 'hud-xpbar hud-health-bar', attrs: { role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(m.health.survival) } }, h('span', { style: { width: `${m.health.survival}%` } })),
-          h('p', { class: 'hud-line' }, `🫘 ${T('hud.tree.yield', { n: m.health.beans })}`)));
+          h('p', { class: 'hud-line' }, `🫘 ${T('hud.tree.yield', { n: m.health.beansMax > m.health.beans ? `${m.health.beans}–${m.health.beansMax}` : m.health.beans })}`)));
       }
       const tools = [];
       if (m.old) tools.push(actionButton({ id: 'treePrune', label: T('hud.tree.prune'), icon: '🪚', cost: m.prune, tone: 'gold', disabled: !m.coinsOk || m.stage === 'ready',
@@ -369,29 +369,6 @@ export function createActionBar(ctx) {
 
   // ONE layout for every building (founder 2026-11-08), the barn screen: picture + what it does on the left, the upgrade box on the
   // right, then what it holds / makes (stock rows, production), then Move / Remove. Wide, no scrollbar.
-  function livestockIcon(def) {
-    const ico = h('span', { class: 'hud-livestock-ico', attrs: { 'aria-hidden': 'true' } }, def.icon);
-    modelIcon(def).then(url => { if (!url) return; const img = Object.assign(document.createElement('img'), { src: url, alt: '', draggable: false }); img.className = 'hud-livestock-img'; ico.replaceChildren(img); });
-    return ico;
-  }
-  // Barn: the animals you can buy here (they roam around the barn)
-  function livestockBlock(m) {
-    const s = ctx.store.state, list = region(s)?.buildings || [];
-    const have = list.filter(b => BUILDINGS[b.type]?.animal).length;
-    const grid = h('div', { class: 'hud-livestock-grid' });
-    const wrap = h('div', { class: 'hud-livestock' }, h('p', { class: 'hud-line' }, T('hud.barn.cap', { n: have, max: housingOf(s) }), have >= housingOf(s) ? ` · ${T('err.barnFull')}` : ''), grid);
-    for (const type of BARN_ANIMALS) {
-      const err = buildError(s, type), cost = buildCost(s, type), n = list.filter(b => b.type === type).length, def = BUILDINGS[type];
-      grid.append(h('div', { class: 'hud-livestock-tile' },
-        n ? h('b', { class: 'hud-livestock-n' }, `×${n}`) : null,
-        livestockIcon(def),
-        h('strong', null, T(`building.${type}`)),
-        actionButton({ id: `buy-${type}`, label: T('hud.buy'), cost, tone: 'go', disabled: !!err,
-          onClick: () => { const r = ctx.realm?.buyAnimal?.(type, m.uid); if (r && !r.ok) ctx.toast(errorText(r), 'warn'); } })));
-    }
-    return wrap;
-  }
-
   function buildingCard(m) {
     const def = BUILDINGS[m.type], st = m.store, max = def.decor ? 1 : def.upgrade.length + 1, level = m.level;
     el.classList.add('is-wide');
@@ -423,11 +400,10 @@ export function createActionBar(ctx) {
     } else top.classList.add('is-solo');
     body.append(top);
     if (m.prod) body.append(prodBlock(m));
-    if (m.type === 'barn') body.append(livestockBlock(m));
     if (st) body.append(storeBlock(m, { bare: true }));
     if (m.seats) body.append(h('p', { class: 'hud-line' }, T('hud.seats.line', { n: m.seats.used, max: m.seats.seats })));
     const tools = h('div', { class: 'hud-row hud-row--tools' });
-    if (!def.fixed && !def.animal) tools.append(actionButton({ id: 'move', label: T('hud.move'), icon: '✥', tone: 'plain', onClick: () => { if (ctx.blockedByAuto?.()) return; ctx.clearSelection(); ctx.realm?.startPlacement?.(m.type, { uid: m.uid }); } }));
+    if (!def.fixed) tools.append(actionButton({ id: 'move', label: T('hud.move'), icon: '✥', tone: 'plain', onClick: () => { if (ctx.blockedByAuto?.()) return; ctx.clearSelection(); ctx.realm?.startPlacement?.(m.type, { uid: m.uid }); } }));
     const rm = removeButton(m.uid, m, { label: T('fw.building.remove'), icon: '🗑️', confirm: true, busyNote: T('fw.building.busy') });
     if (rm) tools.append(rm);
     if (tools.childNodes.length) body.append(tools);
@@ -453,7 +429,7 @@ export function createActionBar(ctx) {
     // Far land: no open road reaches it yet → buy the land next to it first.
     if (m.err === 'road') { body.append(h('p', { class: 'hud-line hud-line--muted' }, '🔒 ', T('hud.parcel.noRoad'))); return; }
     body.append(h('div', { class: 'hud-row' }, actionButton({ id: 'buy', label: T(farmArea ? 'hud.parcel.clear' : 'hud.buy'), icon: farmArea ? '🪓' : '🏷️', cost: p.cost, disabled: m.err === 'coins',
-      note: m.err === 'coins' ? needMore(m.missing) : null, onClick: () => ctx.act('land/buyParcel', { parcelId: p.id }) })));
+      note: m.err === 'coins' ? needMore(m.missing) : null, onClick: () => buyLand(ctx, p.id, p.cost, title.textContent) })));
   }
 
   // Estates (land-ui-simplify §2A): a farm lot's card is its estate's card — one price, one level, one button.
@@ -469,7 +445,7 @@ export function createActionBar(ctx) {
     if (m.err === 'order') { body.append(h('p', { class: 'hud-line hud-line--muted' }, '🔒 ', T('estate.order', { name: T(`estate.${m.next}`) }))); return; }
     if (m.err === 'level') { body.append(h('p', { class: 'hud-line hud-line--muted' }, '🔒 ', T('estate.level', { level: est.level }))); return; }
     body.append(h('div', { class: 'hud-row' }, actionButton({ id: 'buy', label: T('estate.buy'), icon: '🪓', cost: est.cost, disabled: m.err === 'coins',
-      note: m.err === 'coins' ? needMore(m.missing) : null, onClick: () => ctx.act('land/buyParcel', { parcelId: est.seed }) })));
+      note: m.err === 'coins' ? needMore(m.missing) : null, onClick: () => buyLand(ctx, est.seed, est.cost, T(`estate.${est.id}`)) })));
   }
 
   function venueCard(m) {

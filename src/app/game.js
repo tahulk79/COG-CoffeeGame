@@ -6,14 +6,17 @@ import { beatAt, START_TIME, DURATION, PLAYBACK_RATE, nextDialogueTime } from '.
 import { showDialogue, usesTouch } from '../ui/dialogue.js';
 import { readPlayer, readSettings, resetProgress, savePlayer, saveSettings } from '../state/progress.js';
 import { DEFAULT_NAME, randomName } from '../state/names.js';
-import { applyRendererQuality, getQuality, onQuality, setQuality } from '../shared/vfx/index.js';
-import { lowerQuality, mountSettings, openSettings, closeSettings } from '../ui/settings.js';
+import { applyRendererQuality, getQuality, onQuality, setQuality, stepResolution } from '../shared/vfx/index.js';
+import { autoQualityAllowed, lowerQuality, mountSettings, openSettings, closeSettings } from '../ui/settings.js';
 import { attachModels, releaseModels } from '../shared/three/models.js';
 import { loading, showLoading, hideLoading, setLoadingRunner } from '../ui/loading.js';
 import { getLang, hasKey, t } from '../i18n/index.js';
 import { sfx } from '../shared/audio/index.js';
 import { detectPlatform, initAnalytics, track } from '../shared/analytics/wire.js';
 import { createStore } from '../core/store.js';
+import { WALLET } from '../core/config/economy.js';
+import { captureThumb } from '../features/finance/thumbs.js';
+import '../ui/styles/game-ui.css';
 import { CAFE_ENABLED } from '../core/config/world.js';
 import { START, STAFF } from '../core/config/economy.js';
 import { followerCandidate, followerWage } from '../core/derive.js';
@@ -40,7 +43,7 @@ const $ = id => document.getElementById(id);
 const vignette = document.querySelector('.vignette');
 
 // ---------- store (created once) + analytics ----------
-const store = createStore({ key: V3_KEY, legacyKeys: { progress: PROGRESS_KEY, player: PLAYER_KEY }, dev: DEV_PROFILE, saveEveryMs: 1500 });
+const store = createStore({ key: V3_KEY, legacyKeys: { progress: PROGRESS_KEY, player: PLAYER_KEY }, dev: DEV_PROFILE, sandbox: WALLET.demoDeposit, saveEveryMs: 1500 });
 window.addEventListener('pagehide', () => store.flush());
 const legacyPlayer = readPlayer();
 // The character in the V3 save wins; the v1 player key is only a default for the selection screen.
@@ -65,29 +68,57 @@ let previous = null, visualTime = 0;
 let elapsed = 0, currentBeat = null; // intro timeline
 let expiryRunning = false;
 
-// Frame monitor: if gameplay stays under ~25 fps for 2 s, step quality down once and wait before judging again.
-let slowTime = 0, judgedTime = 0, graceUntil = 0;
+// Frame monitor: every 4 s of judged frames, compares the mean frame time with the interval the frame gate aims for, so Low's deliberate
+// 30 fps is on budget. Over budget: one resolution rung down. Tier drops stay the last resort: ladder spent or useless and still crawling.
+// Back up one rung only after 60 s on budget, and every step down holds that off for minutes (longer each time a raise fails), so it cannot oscillate.
+const JUDGE_S = 4, SLOW_RATIO = 1.15, FAST_RATIO = 1.05, CRAWL_RATIO = 2.4, RAISE_AFTER_S = 60, PROVE_S = 60, MAX_HOLD_S = 3600;
+let slowTime = 0, judgedTime = 0, judgedFrames = 0, graceUntil = 0;
+let steadyTime = 0, provingTime = 0, raiseBlockedUntil = 0, stepBlockedUntil = 0, holdS = 180;
+let unproved = 0, proofBase = 0; // rungs taken with no gain seen yet, and the mean frame time before the first of them
 // `?fps` in the URL shows fps, draw calls and quality so performance can be checked on a real phone.
 const fpsMeter = new URLSearchParams(location.search).has('fps') ? Object.assign(document.body.appendChild(document.createElement('output')), { style: 'position:fixed;left:50%;transform:translateX(-50%);top:max(4px,env(safe-area-inset-top));z-index:99;padding:3px 8px;border-radius:8px;background:#000a;color:#fff;font:11px/1.3 monospace;white-space:nowrap;pointer-events:none' }) : null;
 let meterFrames = 0, meterTime = 0;
 function meter(raw) {
   meterFrames++; meterTime += raw;
   if (meterTime < .5) return;
-  fpsMeter.textContent = `${Math.round(meterFrames / meterTime)} fps · ${renderer.info.render.calls} draw · ${getQuality()}`;
+  fpsMeter.textContent = `${Math.round(meterFrames / meterTime)} fps · ${renderer.info.render.calls} draw · ${getQuality()} · ${renderer.getPixelRatio()}x`;
   meterFrames = meterTime = 0;
 }
-function watchFrame(dt) {
+function watchFrame(dt, budget) {
   // A frame over 250 ms is the browser throttling or pausing the page, not a slow device: restart the window.
-  if (dt > .25) { slowTime = judgedTime = 0; graceUntil = visualTime + 3; return; }
-  if (dt <= 0 || visualTime < graceUntil) return;
-  judgedTime += dt; if (dt > 1 / 25) slowTime += dt;
-  if (judgedTime < 2) return;
-  if (slowTime / judgedTime > .6 && lowerQuality()) graceUntil = visualTime + 5;
-  slowTime = judgedTime = 0;
+  if (dt > .25) { slowTime = judgedTime = judgedFrames = 0; graceUntil = visualTime + 3; return; }
+  if (dt <= 0 || visualTime < graceUntil || !autoQualityAllowed()) return;
+  judgedTime += dt; judgedFrames++; if (dt > budget * CRAWL_RATIO) slowTime += dt;
+  if (judgedTime < JUDGE_S) return;
+  const mean = judgedTime / judgedFrames, ratio = mean / budget, crawling = slowTime / judgedTime > .6;
+  slowTime = judgedTime = judgedFrames = 0;
+  if (unproved && (ratio <= SLOW_RATIO || mean < proofBase * .96)) unproved = 0;
+  if (ratio > SLOW_RATIO) {
+    steadyTime = 0;
+    if (provingTime > 0) { provingTime = 0; holdS = Math.min(holdS * 2, MAX_HOLD_S); }
+    if (unproved < 2 && visualTime >= stepBlockedUntil && stepResolution(renderer, -1)) {
+      if (!unproved++) proofBase = mean;
+      raiseBlockedUntil = visualTime + holdS; graceUntil = visualTime + 3;
+      return;
+    }
+    // Coarser made no difference: the limit is the CPU or a capped display (iOS Low Power Mode draws 30), so give the sharpness back.
+    if (unproved) {
+      stepResolution(renderer, unproved); unproved = 0;
+      stepBlockedUntil = visualTime + holdS; holdS = Math.min(holdS * 2, MAX_HOLD_S);
+      graceUntil = visualTime + 3;
+    }
+    if (crawling && lowerQuality()) graceUntil = visualTime + 5;
+    return;
+  }
+  provingTime = Math.max(0, provingTime - JUDGE_S);
+  steadyTime = ratio <= FAST_RATIO ? steadyTime + JUDGE_S : 0;
+  if (steadyTime < RAISE_AFTER_S || visualTime < raiseBlockedUntil) return;
+  steadyTime = 0;
+  if (stepResolution(renderer, 1)) { provingTime = PROVE_S; graceUntil = visualTime + 3; }
 }
 
 // ---------- small helpers ----------
-const startLoop = () => { previous = null; renderer.setAnimationLoop(document.hidden ? null : frame); };
+const startLoop = () => { previous = null; refreshes = Infinity; lastActiveAt = performance.now(); renderer.setAnimationLoop(document.hidden ? null : frame); };
 const paint = () => new Promise(resolve => setTimeout(resolve, 30)); // let the loading screen paint before heavy sync work
 function bootDone() { document.body.classList.remove('booting'); }
 function present(titleKey, labelKey, labelParams) {
@@ -248,6 +279,27 @@ async function godBeanSplash(skipped) {
   } finally { await splash.close(); }
 }
 
+// ---------- capital (USD wallet, Gold per farm) ----------
+let finance = null;
+async function openFinance(view = 'home', param) {
+  if (!finance) {
+    const { createFinance } = await import('../features/finance/index.js');
+    finance ||= createFinance({ store, sandbox: WALLET.demoDeposit, onEnterFarm: enterFarm });
+  }
+  finance.open(view, param);
+}
+function enterFarm(regionId) {
+  if (store.state.autoplay?.active && regionId !== store.state.world.currentRegion) return { ok: false, error: 'autoRunning' };
+  if (realm && mode === 'play') snapFarm();
+  const result = store.dispatch('world/enterRegion', { regionId });
+  if (result.ok) enteredRegion(regionId, result);
+  return result;
+}
+// The farm's thumbnail on the capital screens: taken from the real view, once, as the player leaves it.
+function snapFarm() {
+  try { renderer.render(realm.scene, realm.camera); captureThumb(store.state.world.currentRegion, renderer.domElement); } catch { /* decoration only */ }
+}
+
 // ---------- atlas (gate / chooseRegion / play) ----------
 let atlasOpening = false; // guards against a second atlas being created while the first one is still loading
 async function openAtlas(atlasMode) {
@@ -258,6 +310,7 @@ async function openAtlas(atlasMode) {
 }
 async function buildAtlas(atlasMode) {
   const overRealm = atlasMode === 'play' && realm;
+  if (overRealm) snapFarm();
   mode = 'transition';
   if (overRealm) {
     // The realm stays loaded underneath (not rendered); the HUD is rebuilt when the atlas closes.
@@ -266,7 +319,7 @@ async function buildAtlas(atlasMode) {
   showLoading(50, t('story.loading.atlas'));
   await paint();
   const { createAtlas } = await import('../features/atlas/index.js');
-  atlas = createAtlas({ store, mode: atlasMode, onEntered: enteredRegion, onClose: closeAtlas });
+  atlas = createAtlas({ store, mode: atlasMode, onEntered: enteredRegion, onClose: closeAtlas, onFinance: openFinance });
   renderer.toneMappingExposure = .95;
   resize();
   await renderer.compileAsync(atlas.scene, atlas.camera);
@@ -297,7 +350,7 @@ function enteredRegion(regionId, result) {
 
 // ---------- play (realm + HUD) ----------
 function createPlayHud() {
-  hud = hudModule.createHud({ store, realm, dev: DEV_PROFILE, onOpenAtlas: () => { openAtlas('play').catch(fail); }, onOpenSettings: openSettings });
+  hud = hudModule.createHud({ store, realm, dev: DEV_PROFILE, onOpenAtlas: () => { openAtlas('play').catch(fail); }, onOpenSettings: openSettings, onOpenFinance: (view, param) => { openFinance(view, param).catch(fail); } });
 }
 // The realm plays its own 'arrive' swoop on load / region change (and skips it while the expiry cinematic runs).
 async function enterPlay() {
@@ -321,6 +374,7 @@ async function enterPlay() {
     onWalkToGate: () => { if (mode === 'play') openAtlas('play').catch(fail); },
     // Café street: the camera framed a shop (id) or the street overview (null) → the HUD shop strip highlights it.
     onShopFocus: id => hud?.setShopFocus?.(id),
+    requestFrame: () => { refreshes = Infinity; repaint = true; }, // something drew into the canvas outside the loop: the next frame must repaint it
   };
   realm = await createRealm({ renderer, store, gender: profile.gender, hooks });
   realm.resize(window.innerWidth, window.innerHeight);
@@ -402,7 +456,30 @@ const unsubscribeStory = store.subscribe((state, evts) => {
 });
 
 // ---------- render loop ----------
+// Frame gate: draws every Nth display refresh, the smallest N that stays near 60 fps (30 once the farm has been still for a few
+// seconds). Whole refreshes keep the pacing even: 60 Hz → 60, 75 Hz → 75, 120 Hz → 60, 144 Hz → 72. A time-based 60 cap on 75 Hz
+// alternates 13 and 27 ms frames, which reads as stutter. `vsyncMs` is learned from the loop, so a device that cannot keep up
+// simply measures as a slower display and is never throttled further.
+// A skipped frame leaves `previous` alone: the next real frame gets the whole elapsed time, so the game clock never loses any.
+const ACTIVE_FRAME_MS = 1000 / 60, IDLE_FRAME_MS = 1000 / 30, IDLE_AFTER_MS = 4000;
+const activeFrameMs = () => (getQuality() === 'low' ? IDLE_FRAME_MS : ACTIVE_FRAME_MS); // Low is the cool-running mode: 30 fps at all times
+let vsyncMs = ACTIVE_FRAME_MS, lastRefreshAt = 0, refreshes = Infinity, lastActiveAt = 0;
+let repaint = false; // the canvas was cleared or drawn over: a covered world still has to be drawn once
+function frameDue(now, target) {
+  const gap = now - lastRefreshAt; lastRefreshAt = now;
+  if (gap > 2 && gap < 40) vsyncMs += (gap - vsyncMs) * .05;
+  if (++refreshes < Math.max(1, Math.floor(target / vsyncMs + .2))) return false;
+  refreshes = 0;
+  return true;
+}
+// Input leaves the idle rate on the very next frame instead of waiting out the 30 fps interval.
+function noteActivity() {
+  const now = performance.now();
+  if (now - lastActiveAt >= IDLE_AFTER_MS) refreshes = Infinity;
+  lastActiveAt = now;
+}
 function resize() {
+  repaint = true;
   applyRendererQuality(renderer, active?.scene, atlas?.scene, realm?.scene);
   renderer.setSize(window.innerWidth, window.innerHeight);
   active?.resize(window.innerWidth, window.innerHeight);
@@ -410,8 +487,13 @@ function resize() {
   realm?.resize(window.innerWidth, window.innerHeight);
 }
 function frame(now) {
+  const idle = mode === 'play' && (now - lastActiveAt >= IDLE_AFTER_MS || !!hud?.worldCovered); // covered: only the simulation runs, 30 steps a second are plenty
+  const target = idle ? IDLE_FRAME_MS : activeFrameMs();
+  if (!frameDue(now, target)) return;
+  renderer.shadowMap.autoUpdate = mode !== 'play'; // the realm asks for its shadow map only when something in it changed
   const raw = previous === null ? 0 : (now - previous) / 1000, dt = Math.min(raw, .1);
-  if (previous === null) graceUntil = visualTime + 3; // skip shader warm-up and tab returns
+  const resumed = previous === null; // first frame back from a hidden tab or another screen
+  if (resumed) graceUntil = visualTime + 3; // skip shader warm-up and tab returns
   previous = now; visualTime += dt;
   if (mode === 'selection' && active) {
     active.update(visualTime);
@@ -435,9 +517,11 @@ function frame(now) {
     renderer.render(atlas.scene, atlas.camera);
   } else if (mode === 'play' && realm) {
     realm.update(dt, visualTime);
+    if (realm.moving) lastActiveAt = now;
     hud?.update(dt);
-    watchFrame(raw);
-    renderer.render(realm.scene, realm.camera);
+    if (target === activeFrameMs() && !hud?.worldCovered) watchFrame(raw, target / 1000); // a capped idle frame is slow on purpose, it says nothing about the device; before the draw, so a new scale is painted at once
+    // Covered by a full-screen panel: the last frame stays on the canvas and the GPU rests.
+    if (!hud?.worldCovered || repaint || resumed) { repaint = false; renderer.render(realm.scene, realm.camera); }
   }
   if (fpsMeter) meter(raw);
 }
@@ -463,7 +547,7 @@ function fail(error) {
   text.textContent = t('app.error.text');
   const action = (label, style, run) => { const button = document.createElement('button'); button.type = 'button'; button.className = `ui-btn ${style}`; button.textContent = label; button.addEventListener('click', run); return button; };
   actions.className = 'error-actions';
-  actions.append(action(t('app.error.reload'), 'ui-btn--go', () => location.reload()), action(t('app.error.lowGraphics'), 'ui-btn--plain', () => { saveSettings({ ...readSettings(), quality: 'low' }); location.reload(); }),
+  actions.append(action(t('app.error.reload'), 'ui-btn--go', () => location.reload()), action(t('app.error.lowGraphics'), 'ui-btn--plain', () => { saveSettings({ ...readSettings(), quality: 'low', qualityChosen: true }); location.reload(); }),
     // A damaged save can fail on every load; both resets keep a backup copy of the old run.
     action(t('app.error.restart'), 'ui-btn--plain', event => {
       const button = event.currentTarget; // two taps: the first only asks
@@ -493,12 +577,12 @@ function fail(error) {
 // ---------- boot ----------
 async function initialize() {
   try {
-    // Edge smoothing on every device (art-upgrade-plan §1): walls and roofs were visibly jagged on phones. Lower it in settings if a phone struggles.
-    renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    // Edge smoothing (art-upgrade-plan §1): walls and roofs were visibly jagged on phones. Low goes without; MSAA is fixed when the context is made, so it follows the saved level and a change takes effect on the next load.
+    renderer = new THREE.WebGLRenderer({ antialias: readSettings().quality !== 'low', powerPreference: 'high-performance' });
     renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = .95;
-    events.signal.addEventListener('abort', onQuality(() => applyRendererQuality(renderer, active?.scene, atlas?.scene, realm?.scene)), { once: true });
+    events.signal.addEventListener('abort', onQuality(() => { repaint = true; applyRendererQuality(renderer, active?.scene, atlas?.scene, realm?.scene); }), { once: true });
     // After onQuality so the saved level is applied to the renderer.
     mountSettings({
       onOpen: () => { realm?.clearInput?.(); atlas?.clearInput(); },
@@ -554,8 +638,9 @@ document.addEventListener('click', event => {
   event.preventDefault(); event.stopPropagation(); nextDialogue();
 }, { capture: true, signal: events.signal });
 window.addEventListener('resize', () => { if (renderer) resize(); }, listenerOptions);
+for (const type of ['pointerdown', 'pointermove', 'wheel', 'keydown', 'touchstart']) window.addEventListener(type, noteActivity, { capture: true, passive: true, signal: events.signal });
 document.addEventListener('visibilitychange', () => {
-  previous = null;
+  previous = null; noteActivity();
   if (document.hidden) { store.flush(); realm?.clearInput?.(); atlas?.clearInput(); }
   renderer?.setAnimationLoop(document.hidden || ['error', 'loading'].includes(mode) ? null : frame);
 }, listenerOptions);

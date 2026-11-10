@@ -1,11 +1,27 @@
-import { MeshBasicMaterial } from 'three';
+import { MeshBasicMaterial, MeshStandardMaterial } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { markCached, disposeScene } from './dispose-scene.js';
+import { getQuality } from '../vfx/index.js';
 
 // Every GLB is meshopt-compressed (scripts/optimize-models.mjs); load them all through this loader.
 export const gltfLoader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 const loader = gltfLoader;
+
+// Low tier: Blender's KHR_materials_specular is the only reason these GLBs parse as MeshPhysicalMaterial; Standard drops just that
+// specular tweak. Swapped during the parse, before any cache or material tuning (wind, alpha cards) sees the file. The tier at
+// load time decides, so a later tier change keeps the old look until the next page load.
+function standardOnLow(gltf) {
+  if (getQuality() !== 'low') return;
+  const swapped = new Map();
+  const toStandard = m => {
+    if (!m.isMeshPhysicalMaterial) return m;
+    if (!swapped.has(m)) swapped.set(m, new MeshStandardMaterial().copy(m));
+    return swapped.get(m);
+  };
+  for (const scene of gltf.scenes) scene.traverse(o => { if (o.isMesh) o.material = Array.isArray(o.material) ? o.material.map(toStandard) : toStandard(o.material); });
+}
+gltfLoader.register(() => ({ name: 'low-tier-standard-material', afterRoot: standardOnLow }));
 const cache = new Map();
 
 // Meshy bakes ship a metallic map with metallic=1 on cloth/skin. With no env map that reads as dark,

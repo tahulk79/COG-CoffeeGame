@@ -1,6 +1,6 @@
 // Decorate displayed currency without changing gameplay messages or price calculations.
 export function installCurrencyIcons(root=document.body) {
-  const excluded='script,style,textarea,option,.farm-gold-coin,.game-currency';
+  const excluded='script,style,textarea,option,.farm-gold-coin,.game-currency,.fin-root,.atlas-account,.atlas-farm-line,#hud-usd';
   function decorate(node){
     if(node.nodeType===Node.ELEMENT_NODE&&node.closest(excluded))return;
     const texts=[];
@@ -9,9 +9,9 @@ export function installCurrencyIcons(root=document.body) {
     for(const text of texts){
       const parent=text.parentElement;
       // \b chỉ hiểu ASCII nên "xu" trong "xuống/xuất" bị khớp; dùng ranh giới chữ Unicode.
-      if(!parent||parent.closest(excluded)||!/(?:(?<![\p{L}\p{N}])(?:xu|coins?)(?![\p{L}\p{N}])|🪙)/u.test(text.data))continue;
+      if(!parent||parent.closest(excluded)||!/(?:(?<![\p{L}\p{N}])(?:xu|coins?|vàng|gold)(?![\p{L}\p{N}])|🪙)/iu.test(text.data))continue;
       if(parent.previousElementSibling?.classList.contains('farm-gold-coin')||[...parent.children].some(child=>child.classList.contains('farm-gold-coin')))continue;
-      const fragment=document.createDocumentFragment(),pattern=/(?:(?:(?<![\p{L}\d])[+\-−])?\d[\d.,]*\s*(?:xu|coins?)(?![\p{L}\p{N}])|(?<![\p{L}\p{N}])xu(?![\p{L}\p{N}])|🪙)/gu;
+      const fragment=document.createDocumentFragment(),pattern=/(?:(?:(?<![\p{L}\d])[+\-−])?\d[\d.,]*\s*(?:xu|coins?|vàng|gold)(?![\p{L}\p{N}])|(?<![\p{L}\p{N}])xu(?![\p{L}\p{N}])|🪙)/giu;
       // "coins" (tiếng Anh) chỉ trang trí khi đi sau số; không khớp gì thì bỏ qua để không thay node vô ích (MutationObserver lặp).
       const matches=[...text.data.matchAll(pattern)];if(!matches.length)continue;
       let end=0;

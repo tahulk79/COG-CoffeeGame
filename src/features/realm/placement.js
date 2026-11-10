@@ -85,7 +85,7 @@ export function createPlacement({ scene, prefabs, bedGhost = null }) {
   }
   // The plant being sown / moved: its real model, translucent, following the ring (a seedling, a young tree or a full tree).
   let plantGhost = null, plantSpec = null, plantToken = 0;
-  const PLANT_FILE = { arabica: 'gedeo', robusta: 'robusta', liberica: 'liberica' };
+  const PLANT_FILE = { arabica: 'gedeo', robusta: 'gedeo', liberica: 'liberica' };
   function setPlantGhost(spec) {
     plantToken++;
     if (plantGhost) { plantGhost.removeFromParent(); plantGhost = null; }
@@ -218,6 +218,8 @@ export function createPlacement({ scene, prefabs, bedGhost = null }) {
       const near0 = near && nearestValid(state, type, near.x, near.z, 4);
       if (near0) return near0;
       for (const lot of lots) { const found = packedSpot(state, type, lot, from); if (found) return found; }
+      const wide = nearestValid(state, type, from.x, from.z, 40); // bigger than any one lot (the 12 m drying yard): anywhere free on the land
+      if (wide) return wide;
       const at = near ? snapPosition(type, near.x, near.z, 0) : lots[0] ? rectCenter(lots[0].rect) : { x: 16, z: 15.5 };
       return { x: at.x, z: at.z, rot: 0, noRoom: 'realm.place.noRoomFarm' };
     }

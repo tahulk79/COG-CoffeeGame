@@ -1,0 +1,45 @@
+// Staff names by country (founder 2026-11-10): applicants and managers get a name of the country being played, and no two
+// people the player employs ever share one. m / f: given names; last: family names, only used once every given name is
+// taken; familyFirst: how that country writes a full name. Romanised where the country has its own script.
+const NAMES = {
+  vn: { familyFirst: true, m: 'Tí Tèo Minh Nam Bảo Khoa Hùng Phúc Đạt Khải Sáu Tuấn Bảy Quân Dũng Long Sơn Thắng Huy Toàn', f: 'Hoa Lan Mai Linh Vy Thảo Ngân Hằng Ngọc Thu Trang Hương Yến Nhung Oanh Hà Chi Quyên Duyên My', last: 'Nguyễn Trần Lê Phạm Hoàng Phan Vũ Đặng Bùi Đỗ' },
+  jp: { familyFirst: true, m: 'Haruto Ren Sota Yuto Kaito Riku Takumi Daiki Kenji Hiroshi Akira Shota Naoki Ryo Taro Yuki', f: 'Yui Hina Sakura Aoi Mio Rin Emi Hana Natsuki Ayaka Misaki Kaori Yuna Saki Nanami Mei', last: 'Sato Suzuki Takahashi Tanaka Ito Watanabe Yamamoto Nakamura' },
+  fr: { m: 'Louis Hugo Lucas Jules Arthur Léo Théo Antoine Pierre Julien Mathis Gabriel Olivier Rémi Baptiste Étienne', f: 'Emma Chloé Léa Manon Camille Inès Jade Lucie Margaux Élise Claire Amélie Juliette Louise Sophie Zoé', last: 'Martin Bernard Dubois Durand Moreau Laurent Lefebvre Roux' },
+  gb: { m: 'Oliver Harry George Jack Noah Charlie Oscar Alfie Thomas James Henry Freddie Archie Edward Liam Callum', f: 'Olivia Amelia Isla Ava Poppy Lily Grace Freya Evie Ruby Daisy Imogen Phoebe Holly Alice Molly', last: 'Smith Jones Taylor Brown Williams Wilson Evans Davies' },
+  us: { m: 'Mason Ethan Logan Jacob Tyler Hunter Carter Wyatt Brandon Cody Austin Dylan Parker Jordan Chase Connor', f: 'Madison Abigail Emily Hailey Taylor Savannah Brooklyn Kayla Ashley Morgan Paige Sierra Lauren Megan Harper Riley', last: 'Johnson Miller Davis Garcia Anderson Thompson Moore Clark' },
+  au: { m: 'Lachlan Jack Cooper Riley Angus Mitchell Bailey Flynn Jarrah Hamish Darcy Heath Bruce Kane Nate Tom', f: 'Matilda Charlotte Zoe Chelsea Kylie Sheila Tahlia Bronte Indi Mackenzie Georgia Sienna Tegan Skye Ellie Kirra', last: 'Kelly Walsh Ryan Murphy Campbell Stewart Hughes Fraser' },
+  de: { m: 'Lukas Felix Jonas Maximilian Leon Paul Niklas Tobias Stefan Matthias Jürgen Klaus Moritz Florian Fabian Emil', f: 'Mia Hannah Lena Lina Anna Emilia Greta Johanna Katharina Sabine Heike Ursula Franziska Nele Frieda Marlene', last: 'Müller Schmidt Schneider Fischer Weber Wagner Becker Hoffmann' },
+  tr: { m: 'Emre Can Mert Kerem Burak Yusuf Ali Hakan Murat Serkan Tolga Onur Kaan Baran Cem Volkan', f: 'Selin Elif Zeynep Defne Esra Merve Aylin Derya Ebru Gamze Deniz Hande Nazan Sibel Melis Pelin', last: 'Kaya Demir Arslan Aksoy Polat Kurt Erdem Tekin' },
+  sa: { m: 'Abdullah Faisal Khalid Saud Turki Omar Nasser Majed Bandar Yazeed Sultan Fahad Hamad Salman Tariq Rayan', f: 'Noura Fatimah Sarah Reem Lama Hessa Maha Amal Dana Layan Shahad Ghada Haya Joud Lina Wafa', last: 'Alharbi Alqahtani Alghamdi Alzahrani Aldosari Alotaibi Alshehri Almutairi' },
+  cn: { familyFirst: true, m: 'Wei Jun Hao Lei Ming Tao Bo Yang Qiang Feng Chao Peng Jie Kai Rui Zhen', f: 'Fang Xiu Li Na Jing Ying Mei Yan Xia Lan Hui Ting Yue Qing Ling Min', last: 'Wang Li Zhang Liu Chen Yang Huang Zhao' },
+  tw: { familyFirst: true, m: 'Chih-Ming Chun-Hao Wei-Lun Po-Han Yu-Ting Kuan-Yu Chia-Hao Tsung-Han Shih-Kai Jen-Hao Cheng-Yi Yi-Chen', f: 'Shu-Fen Mei-Ling Ya-Ting Hsin-Yi Pei-Shan Yu-Chen Chia-Ying Hui-Ju I-Ting Wan-Ting Li-Hua Szu-Han', last: 'Chen Lin Huang Chang Lee Wang Wu Liu' },
+  kr: { familyFirst: true, m: 'Min-jun Seo-jun Do-yun Ji-ho Ha-jun Joon-woo Hyun-woo Tae-hyun Sung-min Dong-hyun Jae-won Woo-jin', f: 'Seo-yeon Ji-woo Ha-eun Soo-ah Ji-min Yu-na Eun-ji Hye-jin Min-seo Da-eun Su-bin Ye-jin', last: 'Kim Lee Park Choi Jung Kang Cho Yoon' },
+  br: { m: 'João Pedro Lucas Mateus Gustavo Rafael Thiago Bruno Felipe Caio Diego Rodrigo Vinícius Otávio Renato Marcelo', f: 'Maria Ana Júlia Beatriz Larissa Camila Fernanda Letícia Gabriela Rafaela Bianca Tatiana Isabela Luana Vitória Sofia', last: 'Silva Santos Oliveira Souza Pereira Costa Ferreira Almeida' },
+  in: { m: 'Aarav Vivaan Arjun Rohan Rahul Amit Sanjay Vikram Karan Nikhil Ravi Suresh Manoj Deepak Harish Anil', f: 'Priya Ananya Diya Aisha Kavya Neha Pooja Sneha Meera Lakshmi Riya Shreya Divya Anjali Sunita Rekha', last: 'Sharma Patel Singh Kumar Gupta Reddy Nair Iyer' },
+  ca: { m: 'Liam Ethan Owen Nathan Mathieu Gabriel Tristan Carter Wesley Spencer Dawson Colton Etienne Marc Bryce Reid', f: 'Emily Maude Charlotte Ainsley Brooke Hayley Kaitlyn Mackenzie Noémie Rosalie Shannon Tessa Jenna Avery Claire Nora', last: 'Tremblay Roy Gagnon Côté MacDonald Lavoie Bouchard Fortin' },
+  id: { m: 'Budi Agus Bambang Dedi Eko Joko Rizky Fajar Hendra Wahyu Yoga Adi Bayu Dimas Putra Surya', f: 'Siti Dewi Ayu Putri Rina Sri Wulan Indah Lestari Ratna Intan Mega Nia Fitri Citra Kartika', last: 'Wijaya Santoso Kusuma Hidayat Saputra Pratama Utami Halim' },
+  my: { m: 'Ahmad Hafiz Amir Faiz Syafiq Azlan Rashid Zul Daniel Haziq Irfan Nabil Wei-Jie Kumar Ravi Kamal', f: 'Nurul Aisyah Farah Siti Aina Balqis Sofea Amira Hani Liyana Mei-Yee Priya Shalini Zarina Izzah Syahirah', last: 'Rahman Ismail Abdullah Hassan Ibrahim Yusof Tan Lim' },
+  ru: { m: 'Ivan Dmitri Sergei Nikolai Alexei Mikhail Andrei Pavel Oleg Vladimir Maxim Artem Yuri Boris Roman Igor', f: 'Anna Olga Tatiana Natalia Elena Irina Svetlana Daria Anastasia Ksenia Polina Vera Marina Yulia Alina Sofia', last: 'Ivanov Smirnov Popov Volkov Morozov Lebedev Sokolov Kozlov' },
+  et: { m: 'Abebe Dawit Tesfaye Kebede Yonas Solomon Bekele Getachew Haile Mulugeta Tadesse Girma Samuel Biruk Elias Fikru', f: 'Tigist Selam Hiwot Meron Bethlehem Almaz Aster Genet Mekdes Sara Tsehay Rahel Liya Hanna Eden Kidist', last: 'Alemu Tadesse Gebre Mengistu Worku Desta Wolde Assefa' },
+  ke: { m: 'Kamau Otieno Mwangi Kiprono Njoroge Odhiambo Kipchoge Wafula Mutua Kariuki Ochieng Barasa Kimani Korir Juma Baraka', f: 'Wanjiru Achieng Njeri Akinyi Chebet Wambui Nyambura Atieno Mumbi Jepkosgei Nekesa Zawadi Makena Kendi Neema Imani', last: 'Kamau Omondi Mutiso Kiplagat Ndegwa Wanyama Maina Koech' },
+  ug: { m: 'Okello Mugisha Ssemakula Kato Wasswa Tumusiime Byaruhanga Lubega Mukasa Opio Musoke Kizito Ochen Ssali Nsubuga Twesigye', f: 'Nakato Babirye Namubiru Akello Atim Kyomuhendo Nabirye Namusoke Nalwoga Kobusingye Tendo Birungi Auma Nansubuga Kemigisha Nakimera', last: 'Ssebunya Kaggwa Mugerwa Okot Kiggundu Tumwine Ochieng Lule' },
+  tz: { m: 'Juma Hamisi Baraka Rajabu Salum Bakari Emmanuel Godfrey Athumani Musa Omari Daudi Ramadhani Shabani Tumaini Elia', f: 'Neema Zawadi Rehema Asha Mwajuma Halima Upendo Furaha Amina Saada Pendo Salma Tatu Mariam Fatuma Joyce', last: 'Mushi Massawe Kimaro Mrema Shirima Mwakyusa Swai Lyimo' },
+  rw: { m: 'Mugabo Habimana Niyonzima Uwimana Kwizera Mutabazi Ishimwe Gatete Nkurunziza Rukundo Hakizimana Munyaneza Bizimana Karenzi Shema Manzi', f: 'Uwase Mukamana Ingabire Umutoni Keza Mutesi Iradukunda Uwera Ineza Gaju Isimbi Kirezi Teta Umuhoza Akaliza Mahoro', last: 'Ndayisaba Nsengimana Twagirayezu Mugisha Kayitare Rutayisire Gasana Sibomana' },
+  bi: { m: 'Ndayishimiye Niyonkuru Irakoze Nshimirimana Ciza Bukuru Nduwimana Havyarimana Manirakiza Ntahompagaze Kaneza Nizigiyimana', f: 'Irakoze Inamahoro Akimana Ndayizeye Kankindi Niyonsaba Ndikumana Gakobwa Iteka Kaneza Nshimirimana Bukeyeneza', last: 'Ntakirutimana Nibizi Bigirimana Hatungimana Nsabimana Kwizera Ndabaneze Sindayigaya' },
+  ci: { m: 'Kouassi Konan Yao Koffi Didier Serge Ibrahim Moussa Yacouba Aka Kouadio Salif Fofana Gervais Seydou Adama', f: 'Aya Adjoua Affoué Amenan Akissi Mariam Fatou Awa Nadège Aminata Ramatou Sandrine Rokia Bintou Ahou Tata', last: 'Kouamé Traoré Coulibaly Bamba Touré Diabaté Ouattara Koné' },
+  za: { m: 'Sipho Thabo Bongani Themba Mandla Lungile Pieter Johan Sibusiso Kagiso Tshepo Vusi Ruan Mpho Nkosana Dumisani', f: 'Thandiwe Nomvula Zanele Lerato Palesa Naledi Busisiwe Anneke Precious Refilwe Nokuthula Ayanda Sibongile Lindiwe Tumi Karabo', last: 'Nkosi Dlamini Khumalo Mokoena Botha Naidoo Ndlovu Mahlangu' },
+};
+
+/**
+ * A name for a person of this country and gender that `taken` (a Set) does not hold: a given name while any is free, then a
+ * full name, then a number. Draws exactly one r(), so the rest of a seeded board stays the same whatever the name turns out to be.
+ */
+export function drawName(country, gender, r, taken) {
+  const c = NAMES[country] || NAMES.vn, given = (gender === 'female' ? c.f : c.m).split(' '), roll = r();
+  const free = given.filter(n => !taken.has(n));
+  if (free.length) return free[Math.floor(roll * free.length)];
+  const full = given.flatMap(g => c.last.split(' ').map(l => (c.familyFirst ? `${l} ${g}` : `${g} ${l}`))).filter(n => n.length <= 20 && !taken.has(n));
+  if (full.length) return full[Math.floor(roll * full.length)];
+  const base = given[Math.floor(roll * given.length)];
+  for (let n = 2; ; n++) if (!taken.has(`${base} ${n}`)) return `${base} ${n}`;
+}

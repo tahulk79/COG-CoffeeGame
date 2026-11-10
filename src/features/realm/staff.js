@@ -47,9 +47,10 @@
 import * as THREE from 'three';
 import { STAFF, CROPS, CROP_ORDER, DRINKS, STAFF_BREAKS, ROBOT_TASKS, ROBOT_AUTO, unitSpeed, batteryMinutes, slackMul, hasRule, robotTask, mistakeChance, partTier, isHardDrink, BEANS, BUILDINGS, CREW, FUNNY, goofFee, funnyRoll, gmCalmMul, goofRoll, goofHold, knows, isHardCrop, jamChance, energyMax, RIVAL, BOOKS, GM, craftSpeed, gearWalk, gearJob, hasSoftware, SOFTWARE, STAFF_SIM, CLOCK } from '../../core/config/economy.js';
 import { PARCELS, FIXED, FARM_WELL, farmGroundY, farmRouteDist, tierIndexAt } from '../../core/config/layout.js';
-import { FARM_MANAGER } from '../../core/config/economy.js';
+import { FARM_MANAGER, AUTO } from '../../core/config/economy.js';
+import { getQuality } from '../../shared/vfx/index.js';
 import { managerCropFor } from '../../core/farm-manager.js';
-import { fmOf, easyCropFor, pickCropFor, harvestUrgency, assignedUnits, ownedPlots, plotState as readPlotState, cropUnlocked, seedCost, capacity, stored, plotOf, tileAt, seatCount, seatsUsed, brewSlots, seatPatienceRatio, beanBuyQuote, plotGrowMs, canBrew, region as regionOf, unitState, unitBlocked, unitWorking, stateSpeedMul, quickFix, upgradableStats, buildingsOf, footprint, needs, careError, chaosSlackMul, gmOf, gmThinkSeconds, workerPoach, planCropFor, recipeOf, orderSpot, prodError, collectError, treeOld, pruneCost, dripCovers, haulCapacity, pileCount, cargoCount, storeBuildings, bucketPlots } from '../../core/derive.js';
+import { fmOf, easyCropFor, pickCropFor, harvestUrgency, assignedUnits, ownedPlots, plotState as readPlotState, cropUnlocked, seedCost, capacity, stored, plotOf, farmOccupied, seatCount, seatsUsed, brewSlots, seatPatienceRatio, beanBuyQuote, plotGrowMs, canBrew, region as regionOf, unitState, unitBlocked, unitWorking, stateSpeedMul, quickFix, upgradableStats, buildingsOf, footprint, needs, careError, chaosSlackMul, gmOf, gmThinkSeconds, workerPoach, planCropFor, recipeOf, orderSpot, prodError, collectError, treeOld, pruneCost, dripCovers, haulCapacity, pileCount, cargoCount, storeBuildings, bucketPlots } from '../../core/derive.js';
 import { assignPosts, pickShopJob, orderBlock, waitsForBrew, secondCup, nearestFirst, urgencyK, facing, yieldsTo, isReady, POST_JOBS, autoTask, ROBOT_POST, allows, ctxTakes, TICKS, vitalsInterval, vitalsNoop, timerDue, poseOf, stateIconKey, showsFix, knockStep, KNOCK } from './staff-brain.js';
 import { createPerson } from '../../characters/player.js';
 import { dressPerson } from '../../characters/npc.js';
@@ -72,7 +73,7 @@ const WORK = STAFF_SIM.work;   // seconds per job by unit type (core config)
 const ICON = { harvest: '🌾', plant: '🌱', brew: '☕', order: '🧾', deliver: '🚶', phone: '📱', giggle: '😂', zzz: '💤', battery: '🔋', charged: '⚡', noBeans: '☕❌', water: '💧', prune: '✂️', spray: '🛸', process: '🫘', haul: '📦', noBatch: '🫘', cantDo: '❓', goofPlay: '🎮', goofLost: '🤷', botLost: '📡', botDock: '🔌', noPile: '🧺', noStore: '🏚️', noWell: '🚱', growing: '⏳', storageFull: '📦', noSeeds: '💸', noPlots: '🏞️',
   tired: '😮‍💨', hungry: '🍔', sulking: '😤', lunch: '🍽️', overheat: '🔥', jam: '⚙️', bench: '🪑' };
 for (const [id] of [...FUNNY.worker, ...FUNNY.robot]) ICON[`f_${id}`] = '❗';
-for (const job of ['openField', 'expand', 'build', 'livestock']) ICON[`x_${job}`] = '🛠️';
+for (const job of ['openField', 'expand', 'build']) ICON[`x_${job}`] = '🛠️';
 // Staff manager poses (§9).
 const SIT_Y = -.32;            // m: body lowered when sitting (lunch, exhausted)
 const FACE_AWAY = Math.PI;     // sulking: back to the camera (the view looks north)
@@ -99,13 +100,16 @@ const TAG_TONE = { bad: { bg: '#d9503c', fg: '#fff' }, wait: { bg: '#6d6253', fg
 const TAG_BAD = new Set(['phone', 'giggle', 'zzz', 'battery', 'overheat', 'jam', 'sulking', 'tired', 'hungry', 'noBeans', 'storageFull', 'noSeeds', 'cantDo', 'noWell', 'noStore', 'goofPlay', 'goofLost', 'botLost', 'botDock']);
 const TAG_WAIT = new Set(['growing', 'noBatch', 'noPile', 'noPlots', 'lunch', 'bench']);
 const tagTone = key => (TAG_BAD.has(key) || key.startsWith('f_') ? 'bad' : TAG_WAIT.has(key) ? 'wait' : 'work');
+// The pill is at most 54 texels tall: a band of the old 384 square at the same texels per metre (same sharpness, ¼ the memory).
+// The margin keeps the pill's soft mip levels off the clamped edge.
+const TAG_W = 384, TAG_H = 96;
 function drawTag(g, size, text = '', tone = 'work', fee = null) {
   if (!text) return;
   const H = 54, c = TAG_TONE[tone] || TAG_TONE.work, hasFee = fee != null, D = 34;
   g.font = FONT.replace('{size}', 36); g.textBaseline = 'middle'; g.textAlign = 'left';
   const textW = g.measureText(text).width, num = hasFee ? String(fee) : '', numW = hasFee ? g.measureText(num).width : 0, coinW = hasFee ? D + numW + 20 : 0, W = textW + 34 + (hasFee ? coinW + 6 : 0);
   const k = Math.min(1, (size - 6) / W); // a long line shrinks to fit, the coins stay readable
-  g.save(); g.translate(size / 2, size / 2); g.scale(k, k);
+  g.save(); g.translate(size / 2, g.canvas.height / 2); g.scale(k, k);
   const x = -W / 2, y = -H / 2;
   rr(g, x, y, W, H, H / 2); g.fillStyle = c.bg; g.fill();
   g.fillStyle = c.fg; g.fillText(text, x + 17, 2);
@@ -140,7 +144,7 @@ function plotState(state, id, now) {
   if (!v) { v = readPlotState(state, id, now); plotMemo.m.set(id, v); }
   return v;
 }
-export function createStaff({ scene, store, vfx, templates = {}, pads, navigate = null, getFocus = () => null, getActiveCrop = () => null, getCarrying = () => null, getSeat = () => null, getQueued = () => null, canStand = () => true, isPaused = () => false, say = null, getPlayerPos = () => null, getManagerPos = () => null, isWalkable = null }) {
+export function createStaff({ scene, store, vfx, templates = {}, pads, navigate = null, getFocus = () => null, getActiveCrop = () => null, getCarrying = () => null, getSeat = () => null, getQueued = () => null, canStand = () => true, isPaused = () => false, say = null, getPlayerPos = () => null, getManagerPos = () => null, isWalkable = null, autoOnFoot = () => false }) {
   const group = new THREE.Group();
   group.name = 'realm-staff';
   scene.add(group);
@@ -262,21 +266,21 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
               const uid = u.uid, b = e.body.children;
               dressGedeoRobot(e.root, def.file, [...b.filter(m => m !== e.parts.pack && m !== e.parts.ring), e.shadow], () => {
                 const me = units.get(uid); return me?.moving ? 'drive' : me?.job ? 'work' : 'idle';
-              });
+              }, STAFF_SIM.farmWalkMul);
             }
           } else {
             const gender = u.gender === 'male' || u.gender === 'female' ? u.gender : i % 2 ? 'female' : 'male';
             const person = createPerson(zone === 'farm' ? '#6f9a4a' : '#8a5a3a', { gender });
             const blocks = [...person.children]; // createPerson's own meshes: the only GPU resources this worker owns
             const uid = u.uid;
-            if (zone === 'farm') dressGedeoWorker(person, def.looks[gender] || Object.values(def.looks)[0], () => units.get(uid)?.job?.type || null); // Gedeo farm worker, clip by job
+            if (zone === 'farm') dressGedeoWorker(person, def.looks[gender] || Object.values(def.looks)[0], () => units.get(uid)?.job?.type || null, STAFF_SIM.farmWalkMul); // Gedeo farm worker, clip by job
             else if (def.model) dressPerson(person, def.model);
             e = { root: person, body: person, kind: 'worker', blocks };
           }
           Object.assign(e, { uid: u.uid, type: u.type, trait: u.trait || null, zone, slot: i, phase: Math.random() * 6, job: null, think: Math.random() * THINK, walk: 0, status: '', yaw: 0, path: null, tgtX: NaN, tgtZ: NaN, watch: 0, watchX: 0, watchZ: 0, repaths: 0 });
           const idle = zone === 'farm' ? freeFarmSpot(state, IDLE.farm(i)) : IDLE[zone](i);
           e.root.position.set(idle.x, 0, idle.z);
-          e.label = makeCanvasSprite(384, drawTag, { scale: 2.25 });
+          e.label = makeCanvasSprite(TAG_W, drawTag, { scale: 2.25, height: TAG_H });
           // the tag's tap area: only the pill, not the whole canvas square
           e.tagHit = new THREE.Sprite(tagHitMat); e.tagHit.geometry.userData.keep = true; e.tagHit.scale.set(3.4, 1, 1); e.tagHit.visible = false;
           e.tagHit.position.y = e.kind === 'robot' ? 2.25 : 2.35; e.tagHit.userData.target = { kind: 'staffFix', uid: u.uid };
@@ -363,7 +367,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
   }
   // Farm World 2.0: fields / buildings can stand anywhere on owned land, so a farm idle spot is checked against the
   // tile grid (no field or building footprint under it); else the nearest free standable spot on rings around it.
-  const farmFree = (state, x, z) => !tileAt(state, x, z)?.occupant;
+  const farmFree = (state, x, z) => !farmOccupied(state, x, z);
   function freeFarmSpot(state, spot) {
     if (farmFree(state, spot.x, spot.z) && canStand('farm', spot.x, spot.z)) return spot;
     for (let r = .75; r <= 8; r += .75) {
@@ -396,13 +400,16 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     const fee = fix ? fix.cost : null;
     e.feeTag = fee != null;
     const tagSize = e.feeTag ? 3.1 : 2.25; // a tag you can pay is bigger and easier to tap
-    e.label.sprite.scale.set(tagSize, tagSize, 1);
-    const key = `${shown}|${fee}`;
-    if (e.status === s && e.labelKey === key) return;
-    e.status = s; e.labelKey = key;
+    e.label.sprite.scale.set(tagSize, tagSize * TAG_H / TAG_W, 1);
+    if (e.status === s && e.labelShown === shown && e.labelFee === fee) return; // asked every frame by idle units
+    e.status = s; e.labelShown = shown; e.labelFee = fee;
     const tagKey = ICON[shown] ? shown : '';
-    e.label.redraw(tagKey ? t(`realm.staff.tag.${tagKey}`) : '', tagTone(tagKey), fee);
     e.label.sprite.visible = !!tagKey;
+    if (!tagKey) return; // hidden: the old words can stay on the canvas, the same job often comes straight back
+    const text = t(`realm.staff.tag.${tagKey}`), tone = tagTone(tagKey), drawn = `${text}|${tone}|${fee}`;
+    if (e.label.drawn === drawn) return; // jobs change more often than the words: no redraw, no texture upload
+    e.label.drawn = drawn;
+    e.label.redraw(text, tone, fee);
   }
   // Parts go to level 10 on the farm but there are three looks: 1-3, 4-6, 7 and up.
   const tierLook = t => (t >= 7 ? 3 : t >= 4 ? 2 : Math.max(1, Math.min(3, t)));
@@ -502,7 +509,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     if (!wp) { e.moving = false; return true; }
     const dx = wp.x - p.x, dz = wp.z - p.z, dist = Math.hypot(dx, dz);
     if (dist < (e.path.length > 1 ? .2 : .1)) { e.path.shift(); e.moving = e.path.length > 0; return !e.path.length; }
-    const step = Math.min(dist, SPEED[e.kind] * (e.type === 'brewBot' ? STAFF_SIM.brewBotWalkMul : 1) * unitSpeed(e.u) * gearWalk(e.u) * (e.speedK || 1) * (e.stateK || 1) * dt); // gearWalk: boots // stateK: tired ×0.6, hungry ×0.7
+    const step = Math.min(dist, SPEED[e.kind] * (e.zone === 'farm' ? STAFF_SIM.farmWalkMul : 1) * (e.type === 'brewBot' ? STAFF_SIM.brewBotWalkMul : 1) * unitSpeed(e.u) * gearWalk(e.u) * (e.speedK || 1) * (e.stateK || 1) * dt); // gearWalk: boots // stateK: tired ×0.6, hungry ×0.7
     const way = e.zone === 'farm' ? steer(e, dx / dist, dz / dist) : null;
     p.x += (way ? way.x : dx / dist) * step; p.z += (way ? way.z : dz / dist) * step;
     e.moving = true;
@@ -520,23 +527,25 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
   // Dodging (farm): anyone within AVOID_R ahead bends the heading away from them, the player too; both turn to their own
   // right, so two people meeting head-on pass each other. Null = keep the path's heading; never steers into a blocked cell.
   const AVOID_R = 1.5, steerOut = { x: 0, z: 0 };
+  // Every walker runs this against everyone, every frame: shared state instead of a closure per call.
+  let feelX = 0, feelZ = 0, feelAx = 0, feelAz = 0, feelSide = 0;
+  function feel(ox, oz) {
+    const dx = ox - feelX, dz = oz - feelZ, q = dx * dx + dz * dz;
+    if (q < 1e-4 || q > AVOID_R * AVOID_R) return;
+    const d = Math.sqrt(q), ahead = (dx * feelAx + dz * feelAz) / d;
+    if (ahead < .3) return;
+    const cross = feelAx * dz - feelAz * dx; // which side it is on: turn the other way (dead ahead: to the right)
+    feelSide += (cross < -.05 ? -1 : 1) * (1 - d / AVOID_R) * ahead;
+  }
   function steer(e, ax, az) {
     const p = e.root.position;
-    let side = 0;
-    const feel = (ox, oz) => {
-      const dx = ox - p.x, dz = oz - p.z, d = Math.hypot(dx, dz);
-      if (d < .01 || d > AVOID_R) return;
-      const ahead = (dx * ax + dz * az) / d;
-      if (ahead < .3) return;
-      const cross = ax * dz - az * dx; // which side it is on: turn the other way (dead ahead: to the right)
-      side += (cross < -.05 ? -1 : 1) * (1 - d / AVOID_R) * ahead;
-    };
+    feelX = p.x; feelZ = p.z; feelAx = ax; feelAz = az; feelSide = 0;
     for (const o of units.values()) if (o !== e && o.zone === 'farm' && o.root.visible) feel(o.root.position.x, o.root.position.z);
     const me = getPlayerPos(), boss = getManagerPos();
     if (me) feel(me.x, me.z);
     if (boss) feel(boss.x, boss.z);
-    if (!side) return null;
-    const k = Math.max(-1.6, Math.min(1.6, side * 2.2)), nx = ax + az * k, nz = az - ax * k, len = Math.hypot(nx, nz);
+    if (!feelSide) return null;
+    const k = Math.max(-1.6, Math.min(1.6, feelSide * 2.2)), nx = ax + az * k, nz = az - ax * k, len = Math.hypot(nx, nz);
     steerOut.x = nx / len; steerOut.z = nz / len;
     return standable(e, p.x + steerOut.x * .45, p.z + steerOut.z * .45) ? steerOut : null;
   }
@@ -573,7 +582,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
       const A = list[i], B = list[k];
       if (A.zone !== B.zone || (A.stopped && B.stopped)) continue;
       const a = A.root.position, b = B.root.position;
-      const dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz);
+      const dx = b.x - a.x, dz = b.z - a.z, d = Math.sqrt(dx * dx + dz * dz);
       const room = A.zone === 'farm' && (A.kind === 'robot' || B.kind === 'robot') ? 1.1 : .6; // robots are wider
       if (d > 0 && d < room) { // a unit on a break stays put: the other one takes the whole push
         const push = (room - d) * .25 / d;
@@ -609,9 +618,12 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     if (t == null || !ownedPlots(store.state).some(q => tierIndexAt(q.x, q.z) === t)) return list;
     return list.filter(q => tierIndexAt(q.x, q.z) === t);
   };
+  const busyNow = [];
   const near = (e, list, ageOf = null) => {
     const p = e.root.position, farm = e.zone === 'farm', homeTier = store.state.gm?.tiers?.[e.uid];
-    const busy = farm ? [...units.values()].filter(o => o.zone === 'farm' && o.job) : [];
+    const busy = busyNow; // reused: near() never nests
+    busy.length = 0;
+    if (farm) for (const o of units.values()) if (o.zone === 'farm' && o.job) busy.push(o);
     let best = null, bd = Infinity;
     for (const it of list) {
       let d = farm ? farmRouteDist(p.x, p.z, it.x, it.z) : Math.hypot(it.x - p.x, it.z - p.z);
@@ -641,7 +653,8 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     return easyCropFor(state, plotId, isHardCrop) || crop; // not learned yet: plant what it can (suited to this terrace first) instead of standing idle
   }
   // Stand beside the bed (south edge) so the unit does not stand inside the tree.
-  const plotSpot = plot => ({ x: plot.x, z: plot.z + 1.25 });
+  const PLOT_SIDE = 1.25;
+  const plotSpot = plot => ({ x: plot.x, z: plot.z + PLOT_SIDE });
 
   function farmJob(e, state, now) {
     const plots = ownedPlots(state);
@@ -732,7 +745,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     let piles = plots.filter(p => !claimed(`plot:${p.id}`) && pileCount(r.plots[p.id]) > 0);
     const chains = e.kind === 'robot' ? partTier(e.u, 'battery') >= 1 : rule(e, 'chainPiles');
     if (load > 0) {
-      if (chains && load < haulCapacity(state, me)) piles = piles.filter(p => Math.hypot(p.x - p0.x, p.z - p0.z) <= CREW.haulChainM); else piles = [];
+      if (chains && load < haulCapacity(me)) piles = piles.filter(p => Math.hypot(p.x - p0.x, p.z - p0.z) <= CREW.haulChainM); else piles = [];
       if (!piles.length) {
         if (stored(state) >= capacity(state)) { e.reason = 'storageFull'; return null; }
         const spot = machineSpot(state, near(e, stores));
@@ -1284,27 +1297,34 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
   }
 
   // Team timers (seconds of play): bench upkeep, rival visits per zone, MVP; rival/resolve once the poach time is up.
-  const timers = { upkeep: 0, rival: { farm: 0, shop: 0 }, mvp: 0, resolved: null, started: false, boss: 0, gmThink: 0, gmPay: 0, gmRival: 0, clock: 0, loan: 0 };
+  const timers = { upkeep: 0, rival: { farm: 0, shop: 0 }, mvp: 0, resolved: null, started: false, boss: 0, gmThink: 0, gmPay: 0, gmRival: 0, clock: 0, loan: 0, auto: 0 };
   const workersIn = { farm: 0, shop: 0 };
   const ZONES = ['farm', 'shop'];
+  // Timers of the same period land on one frame (2 s Auto + hands, 5 s clock, every 60 s nearly all). They keep their pace
+  // (reset when due), but their actions run one per frame, in order.
+  const dueActs = [];
+  const later = fn => { dueActs.push(fn); };
   function teamTimers(dt, state, now) {
     // Played clock (management-rules §4.1): only time the game really runs in front moves it (this loop stops when the
     // tab is hidden / the game is paused). Tenure, loan terms and the income series run on it.
     // Tenure, loan terms, the income series and the inbox (task deadlines, reminders, penalties) run on it.
-    if ((timers.clock += dt) >= CLOCK.tickSeconds) { const ms = Math.round(timers.clock * 1000); timers.clock = 0; act('clock/tick', { ms }); }
-    if ((timers.loan += dt) >= CLOCK.loanTickSeconds) { timers.loan = 0; if (state.loans?.length) act('loan/tick', {}); }
+    if ((timers.clock += dt) >= CLOCK.tickSeconds) { const ms = Math.round(timers.clock * 1000); timers.clock = 0; later(() => act('clock/tick', { ms })); }
+    if ((timers.loan += dt) >= CLOCK.loanTickSeconds) { timers.loan = 0; if (state.loans?.length) later(() => act('loan/tick', {})); }
     gmTimers(dt, state);
+    // Auto nông trại: a round every AUTO.everySec of played time while a run is on (the player keeps playing).
+    if (state.autoplay?.active) { if ((timers.auto += dt) >= AUTO.everySec) { const ms = Math.round(timers.auto * 1000); timers.auto = 0; later(() => act('auto/tick', { ms, roll: Math.random(), skip: autoOnFoot() ? ownedPlots(store.state).map(p => p.id) : [...claims.keys()].filter(k => k.startsWith('plot:')).map(k => k.slice(5)) })); } } // farmer on foot: this round only counts the time and sells, he does the jobs himself
+    else timers.auto = 0;
     if (!units.size) return;
     // The first call only starts the reducer's clock (once per session, so a failed call cannot repeat every frame).
-    if ((timers.upkeep += dt) >= TICKS.upkeepSeconds || (!state.staff.upkeepAt && !timers.started)) { timers.upkeep = 0; timers.started = true; act('staff/upkeep', {}); }
+    if ((timers.upkeep += dt) >= TICKS.upkeepSeconds || (!state.staff.upkeepAt && !timers.started)) { timers.upkeep = 0; timers.started = true; later(() => act('staff/upkeep', {})); }
     for (const zone of ZONES) {
       if (!workersIn[zone]) { timers.rival[zone] = 0; continue; }
       if ((timers.rival[zone] += dt) < RIVAL.everyMinutes * 60) continue;
       timers.rival[zone] = 0;
-      if (!workerPoach(state)) act('rival/visit', { zone, roll: Math.random() });
+      if (!workerPoach(state)) later(() => act('rival/visit', { zone, roll: Math.random() }));
     }
     // a rival's offer that ran out is resolved by the inbox (clock/tick expires the poach task on played time)
-    if ((timers.mvp += dt) >= BOOKS.mvpMinutes * 60) { timers.mvp = 0; act('staff/mvp', {}); }
+    if ((timers.mvp += dt) >= BOOKS.mvpMinutes * 60) { timers.mvp = 0; later(() => act('staff/mvp', {})); }
     if ((timers.boss += dt) >= 5) { timers.boss = 0; softwareRound(now); }
   }
   // General manager (docs/design/general-manager.md): thinks every gmThinkSeconds (by skill), paid about every minute,
@@ -1312,10 +1332,11 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
   function gmTimers(dt, state) {
     const gm = gmOf(state);
     if (!gm) { timers.gmThink = timers.gmPay = timers.gmRival = 0; return; }
-    if ((timers.gmThink += dt) >= gmThinkSeconds(gm)) { timers.gmThink = 0; act('gm/think', { roll: Math.random() }); }
-    if ((timers.gmHands = (timers.gmHands || 0) + dt) >= FARM_MANAGER.hands.everySec) { timers.gmHands = 0; if (fmOf(state).auto) act('gm/hands', { skip: [...claims.keys()].filter(k => k.startsWith('plot:')).map(k => k.slice(5)) }); }
-    if ((timers.gmPay += dt) >= 60 || !state.gm.payAt) { timers.gmPay = 0; act('gm/payroll', {}); }
-    if ((timers.gmRival += dt) >= GM.poach.everyMinutes * 60) { timers.gmRival = 0; act('gm/rivalVisit', { roll: Math.random() }); }
+    if ((timers.gmThink += dt) >= gmThinkSeconds(gm)) { timers.gmThink = 0; later(() => act('gm/think', { roll: Math.random() })); }
+    if (gm.isAuto) { timers.gmHands = timers.gmPay = timers.gmRival = 0; return; } // field work is auto/tick; no salary, no rival
+    if ((timers.gmHands = (timers.gmHands || 0) + dt) >= FARM_MANAGER.hands.everySec) { timers.gmHands = 0; if (fmOf(state).auto) later(() => act('gm/hands', { skip: [...claims.keys()].filter(k => k.startsWith('plot:')).map(k => k.slice(5)) })); }
+    if ((timers.gmPay += dt) >= 60 || !state.gm.payAt) { timers.gmPay = 0; if (state.gm.payAt) later(() => act('gm/payroll', {})); else act('gm/payroll', {}); } // the first one starts the clock: right now, or it would be queued every frame
+    if ((timers.gmRival += dt) >= GM.poach.everyMinutes * 60) { timers.gmRival = 0; later(() => act('gm/rivalVisit', { roll: Math.random() })); }
     // a rival's offer that ran out is resolved by the inbox (clock/tick)
   }
   // Robot software packs (step 4): autoCharge pays the recharge itself when the battery is empty (your coins);
@@ -1345,14 +1366,13 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
   // Only the visuals change: every unit keeps working wherever it is.
   let lodT = 0;
   function lodRound() {
-    const f = getFocus(), L = FARM_MANAGER.lod;
+    const f = getFocus(), L = getQuality() === 'low' ? FARM_MANAGER.lod.low : FARM_MANAGER.lod;
     if (!f) return;
     const list = [...units.values()].filter(e => e.zone === 'farm').map(e => ({ e, d: Math.hypot(e.root.position.x - f.x, e.root.position.z - f.z) })).sort((a, b) => a.d - b.d);
     list.forEach(({ e }, i) => {
-      const shadow = i < L.shadows, culled = i >= L.drawn;
+      const culled = i >= L.drawn;
       e.root.userData.animEvery = i < L.fullAnim ? 1 : i < L.halfAnim ? 2 : 4;
-      const key = `${shadow}${!!e.root.userData.dressed}`; // re-applied once its model has arrived
-      if (e.shadowKey !== key) { e.shadowKey = key; e.root.traverse(o => { if (!o.isMesh) return; o.userData.castsAlone ??= o.castShadow; o.castShadow = shadow && o.userData.castsAlone; }); }
+      if (!e.shadowOff) { e.shadowOff = true; e.root.traverse(o => { if (o.isMesh) o.castShadow = o.receiveShadow = false; }); if (e.shadow) e.shadow.visible = false; } // the farm crew has no shadow (founder 2026-11-10); the dressed model is set up the same way
       if (e.culled !== culled) { e.culled = culled; e.root.visible = e.pose !== 'bench' && !culled; }
     });
   }
@@ -1404,8 +1424,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
       // never walk to the old spot or act on a field that is gone.
       if (e.job?.plotId && e.zone === 'farm') { // (a 'fetch' step walks to the well, not to the field: only check the field exists)
         const pl = plotOf(state, e.job.plotId);
-        const sp = pl && plotSpot(pl);
-        if (!sp || (e.job.step !== 'fetch' && (Math.abs(sp.x - e.job.x) > 1e-6 || Math.abs(sp.z - e.job.z) > 1e-6))) { endJob(e); e.path = null; e.think = 0; }
+        if (!pl || (e.job.step !== 'fetch' && (Math.abs(pl.x - e.job.x) > 1e-6 || Math.abs(pl.z + PLOT_SIDE - e.job.z) > 1e-6))) { endJob(e); e.path = null; e.think = 0; }
       }
       if (e.xpN && (e.xpT = (e.xpT || 0) + dt) > 15) flushXp(e);
       if (e.kind === 'robot' && !e.job) robotIdle(e, dt, state, now);
@@ -1464,7 +1483,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     if (!paused && units.size > 1) { sepList.length = 0; for (const e of units.values()) if (e.root.visible) sepList.push(e); separate(sepList); }
     // everyone stands on the mountain tiers (eased, so crossing a tier wall looks like taking the steps)
     for (const e of units.values()) { const p = e.root.position, gy = farmGroundY(p.x, p.z) + (e.sitY || 0); p.y = Math.abs(gy - p.y) > 4 ? gy : p.y + (gy - p.y) * Math.min(1, dt * 10); }
-    if (!paused) teamTimers(dt, state, now);
+    if (!paused) { teamTimers(dt, state, now); if (dueActs.length) dueActs.shift()(); }
   }
   const sepList = [];
 
@@ -1472,6 +1491,8 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     group, sync, update,
     /** True when a staff member is bringing this order's cup (the player must not pick it up too). */
     isClaimed: orderId => claims.has(`order:${orderId}`),
+    /** True when a crew member is on this field. */
+    plotClaimed: plotId => claims.has(`plot:${plotId}`),
     /** What a unit is doing now: 'harvest' | 'plant' | 'brew' | 'order' | 'deliver' | 'noBeans' | 'phone' | 'battery' | '' (idle). */
     statusOf: uid => { const e = units.get(uid); return e?.stopped ? e.stopped.kind : e?.flash > 0 ? '' : e?.status || ''; },
     /**
@@ -1531,7 +1552,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
       const e = units.get(uid);
       if (!e || !e.root.visible || !zones[e.zone]?.visible) return null;
       if (e.kind === 'worker' && !e.body.userData.dressed) return null;
-      return { root: e.root, head: e.kind === 'robot' ? 1.12 : 1.5, kind: e.kind };
+      return { root: e.root, head: e.kind === 'robot' ? 1.12 : 1.15, kind: e.kind }; // the height of the face (chibi workers: a big head, low down)
     },
     /** Puts the highlight ring under a unit for RING_SECONDS; returns its position (live vector) or null. */
     highlight(uid) {

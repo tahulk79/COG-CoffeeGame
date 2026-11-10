@@ -186,7 +186,7 @@ export const urgencyK = ratio => (ratio >= URGENT_RATIO ? URGENT_SPEED : 1);
 
 /** Two walkers heading at each other (yaw: atan2(dx, dz) of travel) within LANE_M. */
 export function facing(ax, az, ayaw, bx, bz, byaw, range = LANE_M) {
-  const dx = bx - ax, dz = bz - az, d = Math.hypot(dx, dz);
+  const dx = bx - ax, dz = bz - az, d = Math.sqrt(dx * dx + dz * dz); // every pair walking, every frame
   if (!(d > 0) || d > range) return false;
   const a = (Math.sin(ayaw) * dx + Math.cos(ayaw) * dz) / d;
   const b = -(Math.sin(byaw) * dx + Math.cos(byaw) * dz) / d;

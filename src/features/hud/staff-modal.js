@@ -1,21 +1,25 @@
 // Staff manager: a full modal (docs/design/staff-manager.md §10, mobile-first redesign 2026-11-08), one per game (the
 // zone of the screen shown: farm staff on the farm, café staff in the café).
-//  · sticky header: title, 3 numbers (on shift n/max · team earned / 10 min · problems), × close, tabs Đội · Tuyển · Quản lý;
+//  · sticky header: title, × close, on the farm the Auto card (the farm's manager, by the hour), tabs Đội · Phân công · Tuyển
+//    (café: Quản lý as a tab); the other tabs also show 3 numbers (on shift n/max · team earned / 10 min · problems);
 //  · Đội: «Cần bạn» — ONE list of what needs the player, ranked by the same rules the manager uses (open tasks and
 //    the rival's lure first, then blocking problems with their paid fix, slow problems, a free slot for a bench worker,
 //    promotions, then the team's fastest-payback upgrades from D.upgradeOptions), one button per row; then the roster
-//    (one line per unit: photo, state, what it does, a condition meter) and the report folded at the bottom;
+//    (filter chips; one line per unit: photo, state, a condition meter and its paid fix right on the line) and the report folded at the bottom;
 //  · Detail (← back): ID card, then 3 tabs: Hôm nay (state, care, shift, today's grade, tasks) · Phát triển (upgrade
 //    suggestions by payback, career, stats / parts, gear / software, craft) · Nhật ký;
 //  · 📍 Xem ở đâu collapses the modal to a bottom strip (name, state, fix, «Mở lại») while the camera shows the unit.
+//  · staff board (docs/design/staff-manager.md §10.1): every roster row has a checkbox, filters and «chọn cả» pick a group, a dock
+//    at the bottom gives one order to all of them; or the whole team goes to the manager and the card shows his report.
 // The realm changes vitals and jobs without store events, so the open modal refreshes every second; a refresh only
 // swaps the DOM when what it shows changed (never while a finger is down) and keeps each screen's scroll position.
 import { maxStatOf, maxTierOf, gmStatOf } from '../../core/config/economy.js';
 import { GOOF, SKILL_GATE } from '../../core/config/economy.js';
 import { CREW } from '../../core/config/economy.js';
-import { CROP_ORDER } from '../../core/config/economy.js';
+import { CROP_ORDER, EXPIRY_LEVEL, EXPIRY_ENABLED } from '../../core/config/economy.js';
 import { countryRecipes, SUPPLY, FARMLAB, methodKey } from '../../core/config/research.js';
 import { TASKS, PENALTY, HISTORY, GM, gmCandidatesFor, gmSalary, GEAR, gearTier, SOFTWARE, softwarePrice, hasSoftware, WARRANTY, PROFILE, CRAFT, craftLevel, STAFF, STAFF_ORDER, TRAITS, RECRUIT, ROBOT_TASKS, ROBOT_PARTS, PART_ORDER, PART_COST, WORKER_TASKS, TASK_LIMIT, SMART_RULES, QUALITY, TEND, MISTAKES, STAFF_BREAKS, SKILL, RARE, STAT_ORDER, LEVEL_STEP, VITALS, UPKEEP, RIVAL, BOOKS, ROBOT_WEAR, CARE, statOf, statCap, taskLimit, energyMax, unitLevel, mistakeChance, hasRule, batteryMinutes, slackMul, partTier, robotTask, heatPerMin, jamChance, isHardDrink, UPGRADE_GATE } from '../../core/config/economy.js';
+import { nextHireLevel, gmHanded, gmStaffReport, openTiers, autoManaged } from '../../core/derive.js';
 import { region, regionGame, level, hireCap, hireCapReached, slots, activeCount, freeSlots, zoneUnits, staffError, freeHire, applicants, recruitError, poolRefreshIn, unitStars, unitOf, statError, statPrice, partError, partPrice, unitState, careCost, careError, quickFix, upkeepOf, upkeepPer, fireRefund, ledgerWindow, unitProfit, poachOf, canBrew, dayKey, lastDays, dayRow, dayKpis, daysSince, unitGrade, teamKpi, robotPayback, REPORT_PERIODS, SPEND_CATS, periodKeys, teamMoney, teamRanking, tenureDays, tenureShiftDays, tenureMinLeft, robotRoom, wageArrears, gmQuitArrears, warrantyLeft, gearPrice, gearError, softwareError, gearStockOf, gmUnlocked, gmOf, gmBoard, gmBoardRefreshIn, gmPay, gmBudgetLeft, gmPlan, gmPermission, gmAdvisorOf, chaosOf, calmCost, chaosSlackMul, gmMood, followerWage, countryNow, recipeFound, contractOf, cropUnlocked, methodOf, trialsHere, buyerNow, gmPoachOf, gmRequests, gmLog, unitLog, teamJournal, gmCareWallet, gmCareWalletLeft, gmBacklog, gmWaiting, gmStrike, apologiseCost, gmBudgetCap, gmLicensed, licenceError, licencePrice, gmTrainCost, gmTrainError, gmHighValue, histRows, upgradeOptions, throughputShare, tasksOpen } from '../../core/derive.js';
 import { sfx } from '../../shared/audio/index.js';
 import { h } from './dom.js';
@@ -24,8 +28,9 @@ import { formatNumber } from '../../i18n/index.js';
 import { staffEffect } from './effects.js';
 import { actionButton, coinAmount, lockTag, needMore } from './widgets.js';
 import { dashboardOf } from '../../core/farm-manager.js';
-import { FARM_MANAGER } from '../../core/config/economy.js';
+import { autoPanel, autoStrip, autoSig } from './sheets.js';
 import { rowText, taskCard } from './inbox.js';
+import { doesJob } from '../../core/config/economy.js';
 
 const REFRESH_MS = 1000;
 const isRobot = u => STAFF[u?.type]?.kind === 'robot';
@@ -51,7 +56,7 @@ const JOURNAL_ICON = { autoCare: '🤖', promoted: '🎖️', steppedDown: '🔽
 
 export function createStaffModal(ctx) {
   const store = ctx.store;
-  const st = { open: false, tab: 'team', filter: 'all', uid: null, ptab: 'today', period: 'today', collapsed: false, more: false, folds: Object.create(null) };
+  const st = { open: false, tab: 'team', filter: 'all', uid: null, ptab: 'today', period: 'today', collapsed: false, more: false, folds: Object.create(null), sel: new Set(), bulk: null, picking: false, drill: null, page: 20, place: new Set() };
   const scrollMem = Object.create(null); // screen key → body scrollTop
   let timer = null, pressing = false, pending = false, refreshingPool = false;
 
@@ -63,7 +68,8 @@ export function createStaffModal(ctx) {
   const tabs = h('div', { class: 'hud-sm-tabs-slot' });
   const head = h('header', { class: 'hud-sm-head' }, h('div', { class: 'hud-sm-titlebar' }, back, title, close), summary, banner, tabs);
   const body = h('div', { class: 'hud-sm-body' });
-  const panel = h('section', { class: 'hud-sm', attrs: { role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'hud-sm-title' } }, head, body);
+  const foot = h('div', { class: 'hud-sb-foot' }); // the staff board's dock: outside the scrolling body, always in reach
+  const panel = h('section', { class: 'hud-sm', attrs: { role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'hud-sm-title' } }, head, body, foot);
   const scrim = h('div', { class: 'hud-sm-scrim', on: { click: () => api.close() } });
   const strip = h('div', { class: 'hud-sm-strip', hidden: true, attrs: { role: 'status' } });
   const el = h('div', { class: 'hud-sm-host', hidden: true }, scrim, panel, strip);
@@ -93,6 +99,8 @@ export function createStaffModal(ctx) {
     if (pressing && !force) { pending = true; return; }
     const s = store.state, now = Date.now(), zone = zoneNow();
     if (st.uid && !unitOf(s, st.uid)) { st.uid = null; st.collapsed = false; } // fired, poached, left
+    for (const id of st.sel) if (!unitOf(s, id)) st.sel.delete(id);
+    for (const id of st.place) if (!unitOf(s, id)) st.place.delete(id);
     el.dataset.collapsed = st.collapsed ? '1' : '';
     panel.hidden = st.collapsed;
     scrim.hidden = st.collapsed;
@@ -100,12 +108,14 @@ export function createStaffModal(ctx) {
     if (st.collapsed) { swap(strip, stripView(s, now)); return; }
     const t = T('hud.sm.title', { zone: T(zone === 'shop' ? 'hud.sm.zoneShop' : 'hud.sm.zoneFarm') });
     if (title.textContent !== t) title.textContent = t;
+    if (gmHanded(s, zone) && (st.tab === 'hire' || st.tab === 'assign')) st.tab = 'team'; // handed over: nothing left to do there
+    if (st.tab === 'assign' && !canAssign(s, zone)) st.tab = 'team';
     back.hidden = !st.uid;
-    swap(summary, summaryView(s, now, zone));
-    swap(banner, null); // the rival's lure is the first row of «Cần bạn» now
+    swap(summary, st.tab === 'team' && !st.uid ? null : summaryView(s, now, zone)); // the dashboard says it bigger
+    paintAutoStrip(s, zone); // (the rival's lure is the first row of «Cần bạn» now)
     swap(tabs, st.uid ? null : tabsView(s, now, zone));
     const key = screenKey();
-    const node = st.uid ? detailView(s, now, zone, unitOf(s, st.uid)) : st.tab === 'hire' ? hireView(s, now, zone) : st.tab === 'gm' ? gmView(s, now, zone) : teamView(s, now, zone);
+    const node = st.uid ? detailView(s, now, zone, unitOf(s, st.uid)) : st.tab === 'hire' ? hireView(s, now, zone) : st.tab === 'assign' ? assignView(s, zone) : st.tab === 'gm' ? gmView(s, now, zone) : teamView(s, now, zone);
     if (body.dataset.screen !== key) {
       body.dataset.screen = key;
       body.replaceChildren(node);
@@ -114,6 +124,7 @@ export function createStaffModal(ctx) {
       const top = body.scrollTop;
       if (swap(body, node)) body.scrollTop = top;
     }
+    swap(foot, st.uid ? null : st.tab === 'team' ? dockView(s, now, zone) : st.tab === 'assign' ? assignDock(s, zone) : null);
   }
   body.addEventListener('scroll', () => { if (body.dataset.screen) scrollMem[body.dataset.screen] = body.scrollTop; }, { passive: true });
 
@@ -148,6 +159,10 @@ export function createStaffModal(ctx) {
     return 'ok';
   }
   const toneOf = key => (BLOCKING.has(key) ? 'bad' : SLOW.has(key) ? 'warn' : 'ok');
+  // A working unit stuck on something the player must fix (no well for the waterer, no coins for seeds, a full storehouse…)
+  // reads amber, not the same green as "đang làm" (QA 2026-11-09: "Chưa có bể nước" was shown in green).
+  const STUCK = new Set(['noWell', 'noSeeds', 'storageFull', 'cantDo', 'noStore', 'noPlots', 'noBatch', 'noPile']);
+  const lineTone = (key, info) => (key === 'ok' && !info?.job && STUCK.has(info?.reason) ? 'warn' : toneOf(key));
   const isProblem = key => BLOCKING.has(key) || SLOW.has(key);
   /** The paid fix of a unit's problem: { kind, cost } or null. */
   function fixOf(u, key, now) {
@@ -201,12 +216,14 @@ export function createStaffModal(ctx) {
       bar('😊', T('hud.sm.bar.morale'), m, 100, m < VITALS.sulkBelow ? 'bad' : m < RIVAL.targetMorale ? 'warn' : 'ok'),
       full ? bar('🍔', T('hud.sm.bar.fullness'), f, 100, f < VITALS.hungryBelow ? 'bad' : f < VITALS.warnBelow ? 'warn' : 'ok') : null);
   }
-  function careButton(s, u, kind, now, { compact = false } = {}) {
+  function careButton(s, u, kind, now, { compact = false, bare = false } = {}) {
     const cost = careCost(u, kind), err = careError(s, u, kind, now);
     const short = s.player.coins < cost;
-    return actionButton({ label: T(`hud.sm.care.${kind}`), icon: CARE_ICON[kind], cost: cost > 0 ? cost : undefined, tone: cost > 0 ? 'gold' : 'plain',
+    const btn = actionButton({ id: bare ? `staffFix-${u.uid}` : undefined, label: bare ? T('hud.sb.fix') : T(`hud.sm.care.${kind}`), icon: bare ? null : CARE_ICON[kind], cost: cost > 0 ? cost : undefined, tone: cost > 0 && !bare ? 'gold' : 'plain',
       disabled: !!err, note: short && !compact ? needMore(cost - s.player.coins) : null,
       onClick: () => { const r = act('staff/care', { uid: u.uid, kind, roll: Math.random() }); if (r.ok) sfx(cost > 0 ? 'coin.spend' : 'ui.click'); } });
+    if (bare) btn.setAttribute('aria-label', `${T(`hud.sm.care.${kind}`)}: ${nameOf(u)}`);
+    return btn;
   }
   function headLine(u) {
     const tr = TRAITS[u.trait];
@@ -249,12 +266,22 @@ export function createStaffModal(ctx) {
     if (yes) act('staff/letGo', { uid });
     rerender();
   }
+  // The farm's manager is Auto: its card stays above the tabs. Built only when its buttons change; the clock and numbers repaint in place.
+  let stripKey = null;
+  function paintAutoStrip(s, zone) {
+    const key = zone === 'farm' && !st.uid && st.tab === 'team' ? autoSig(s) : '';
+    if (key === stripKey) return;
+    stripKey = key;
+    swap(banner, key ? autoStrip(ctx, s, () => { st.folds.autoReport = !st.folds.autoReport; sfx('ui.tab'); rerender(); body.scrollTop = 0; }) : null);
+  }
+  // «Phân công» has nothing to do with one terrace open.
+  const canAssign = (s, zone) => zone !== 'farm' || openTiers(s).length > 1;
   function tabsView(s, now, zone) {
     const tab = (id, label, badge) => h('button', { type: 'button', class: 'hud-tab', dataset: { hudId: `staffTab-${id}` }, attrs: { 'aria-pressed': String(st.tab === id) },
-      on: { click: () => goTo({ tab: id }) } }, label, badge ? h('span', { class: 'hud-sm-badge' }, String(badge)) : null);
-    // Three tabs (Báo cáo lives at the bottom of Đội): words only, so they fit a phone with their badges.
+      on: { click: () => goTo({ tab: id, drill: null, picking: false }) } }, label, badge ? h('span', { class: 'hud-sm-badge' }, String(badge)) : null);
+    // Words only, so they fit a phone with their badges (Báo cáo lives at the bottom of Đội, the farm's Auto above the tabs).
     return h('div', { class: 'hud-tabs hud-sm-tabs', attrs: { role: 'group', 'aria-label': T('hud.sm.tabs') } },
-      tab('team', T('hud.sm.tab.team'), needsYou(s, now, zone).filter(x => x.pri <= 2).length), tab('hire', T('hud.sm.tab.hire')),
+      tab('team', T('hud.sb.tab.home'), needsOf(s, now, zone).filter(x => x.pri <= 2).length), gmHanded(s, zone) || !canAssign(s, zone) ? null : tab('assign', T('hud.sb.tab.assign')), gmHanded(s, zone) ? null : tab('hire', T('hud.sm.tab.hire')),
       tab('gm', T('hud.gm.tab'), gmRequests(s).length + (gmPoachOf(s) ? 1 : 0)));
   }
   // A section the player opens / closes (remembered while the modal lives); its body is built only when open.
@@ -269,45 +296,49 @@ export function createStaffModal(ctx) {
 
   // ---------- Cần bạn: what needs the player, ranked like the manager ranks it ----------
   // pri 0 = now (a lure, a blocked unit), 1 = an answer the manager waits for, 2 = a slow unit, 3 = an idle seat,
-  // 4 = a promotion, 5 = an upgrade that pays back within UPGRADE_GATE.paybackMin (fastest first, at most NY_UPGRADES).
-  const NY_SHOW = 4, NY_UPGRADES = 2;
+  // 5 = upgrades that pay back within UPGRADE_GATE.paybackMin. People with the same need are one row with one button.
+  const NY_SHOW = 4;
   const PAY_ICON = { 'staff/upgradeStat': '⬆️', 'staff/buyGear': '🧤', 'staff/upgradePart': '🔩', 'staff/buySoftware': '💾' };
   const upgradeWhat = o => (o.what.stat ? T(`hud.stat.${o.what.stat}`) : o.what.part ? T(`hud.staff.part.${o.what.part}`) : o.what.item ? T(`hud.g4.item.${o.what.item}`) : o.what.pack ? T(`hud.g4.pack.${o.what.pack}`) : '');
   let nyMemo = { s: null, at: 0, zone: null, v: [] };
+  const stuckUnits = (s, now, zone) => (region(s) ? zoneUnits(s, zone).filter(u => hereOf(s, u) && fixOf(u, stateKey(s, u, now), now)) : []);
+  const idleUnits = (s, now, zone) => (region(s) ? zoneUnits(s, zone).filter(u => { const k = stateKey(s, u, now); return k === 'unassigned' || (k === 'bench' && freeSlots(s, zone) > 0); }) : []);
+  const worthUnits = (s, zone) => (region(s) ? zoneUnits(s, zone).filter(u => hereOf(s, u) && u.active && upWorth(s)(u)) : []);
   function needsYou(s, now, zone) {
     if (nyMemo.s === s && nyMemo.zone === zone && now - nyMemo.at < 900) return nyMemo.v;
     const out = [];
-    const row = (pri, icon, u, text, btn) => out.push({ pri, node: h('li', { class: `hud-ny is-p${pri}` },
-      h('button', { type: 'button', class: 'hud-ny-main', attrs: { 'aria-label': T('hud.sm.openUnit', { name: nameOf(u) }) }, on: { click: () => goTo({ uid: u.uid }) } },
-        h('span', { class: 'hud-ny-ico', attrs: { 'aria-hidden': 'true' } }, icon),
-        h('span', { class: 'hud-ny-text' }, h('strong', null, nameOf(u)), h('small', null, text))),
-      btn ? h('div', { class: 'hud-ny-act' }, btn) : null) });
+    const group = (pri, icon, text, btn) => out.push({ pri, node: h('li', { class: `hud-ny is-p${pri}` },
+      h('span', { class: 'hud-ny-main' }, h('span', { class: 'hud-ny-ico', attrs: { 'aria-hidden': 'true' } }, icon), h('span', { class: 'hud-ny-text' }, h('strong', null, text))),
+      h('div', { class: 'hud-ny-act' }, btn)) });
     // open tasks: the rival's lure and the manager's questions (answered right here, the inbox shows the same cards)
     for (const t of tasksOpen(s)) {
       if (t.kind === 'poach' && t.zone && t.zone !== zone) continue;
-      out.push({ pri: t.kind === 'poach' || t.kind === 'gmPoach' ? 0 : 1, node: h('li', { class: 'hud-ny hud-ny--task' }, taskCard(ctx, s, t)) });
+      out.push({ pri: t.kind === 'poach' || t.kind === 'gmPoach' ? 0 : 1, task: true, node: h('li', { class: 'hud-ny hud-ny--task' }, taskCard(ctx, s, t)) });
     }
-    const here = region(s) ? zoneUnits(s, zone) : [];
-    for (const u of here) {
-      const key = stateKey(s, u, now), fix = hereOf(s, u) ? fixOf(u, key, now) : null, def = STAFF[u.type];
-      if (fix) row(BLOCKING.has(key) ? 0 : 2, STATE_ICON[key] || '⚠️', u, T(`hud.sm.state.${key}`), careButton(s, u, fix.kind, now, { compact: true }));
-      else if (key === 'bench' && freeSlots(s, def.zone) > 0) row(3, '🪑', u, T('hud.ny.bench'),
-        actionButton({ label: T('hud.sm.toShift'), icon: '▶️', tone: 'go', onClick: () => act('staff/setActive', { uid: u.uid, active: true }) }));
-      else if (key === 'unassigned') row(3, '💤', u, T('hud.ny.unassigned'), actionButton({ label: T('hud.staff.assign'), disabled: !region(s), onClick: () => act('staff/assign', { uid: u.uid }) }));
+    if (gmHanded(s, zone)) { out.sort((a, b) => a.pri - b.pri); nyMemo = { s, at: now, zone, v: out }; return out; } // the rest is the manager's
+    const costOf = p => (p.take.length ? p.total : undefined);
+    const stuck = stuckUnits(s, now, zone);
+    if (stuck.length) {
+      const p = orderPlan(s, stuck, careOf(s, now));
+      group(stuck.some(u => BLOCKING.has(stateKey(s, u, now))) ? 0 : 2, '⚠️', T('hud.sb.groupStuck', { n: stuck.length }),
+        actionButton({ id: 'staffFixAll', label: T('hud.sb.fixBtn'), cost: costOf(p), tone: 'gold', disabled: !p.take.length, onClick: () => orderCare(x => stuckUnits(x, Date.now(), zoneNow())) }));
     }
-    // upgrades: the manager's value table (coins per minute each step adds), fastest payback first
-    const ups = here.filter(u => hereOf(s, u) && u.active).flatMap(u => upgradeOptions(s, u).map(o => ({ u, o })))
-      .filter(x => x.o.payback <= UPGRADE_GATE.paybackMin).sort((a, b) => a.o.payback - b.o.payback).slice(0, NY_UPGRADES);
-    for (const { u, o } of ups) {
-      const short = s.player.coins < o.cost;
-      row(5, PAY_ICON[o.act.type] || '⬆️', u, T('hud.ny.upgrade', { what: upgradeWhat(o), min: Math.max(1, Math.round(o.payback)) }),
-        actionButton({ label: T('hud.ny.upgradeBtn'), cost: o.cost, tone: 'gold', disabled: short, note: short ? needMore(o.cost - s.player.coins) : null,
-          onClick: () => { const r = act(o.act.type, o.act.payload); if (r.ok) sfx('coin.spend'); } }));
+    const idle = idleUnits(s, now, zone);
+    if (idle.length) group(3, '🪑', T('hud.sb.groupIdle', { n: idle.length }),
+      actionButton({ id: 'staffIdleIn', label: T('hud.sb.idleBtn'), tone: 'go', onClick: () => putToWork() }));
+    const worth = worthUnits(s, zone);
+    if (worth.length) {
+      const p = orderPlan(s, worth, upWorth(s));
+      group(5, '⬆️', T('hud.sb.groupUp', { n: worth.length }),
+        actionButton({ id: 'staffUpAll', label: T('hud.sb.upBtn'), cost: costOf(p), tone: 'gold', disabled: !p.take.length, onClick: () => orderUpgrade(T('hud.sb.best'), upWorth, x => worthUnits(x, zoneNow())) }));
     }
     out.sort((a, b) => a.pri - b.pri);
     nyMemo = { s, at: now, zone, v: out };
     return out;
   }
+  // With the team handed over (or Auto running the farm), only questions the manager cannot settle himself still need the player.
+  const managed = (s, zone) => gmHanded(s, zone) || (zone === 'farm' && autoManaged(s));
+  const needsOf = (s, now, zone) => (managed(s, zone) ? needsYou(s, now, zone).filter(x => x.task) : needsYou(s, now, zone));
   /** Condition 0..100 of a unit here: its weakest vital (worker energy / morale / fullness, robot charge / heat / wear). */
   function conditionOf(u, info) {
     if (isRobot(u)) return Math.round(Math.min(u.stopped?.kind === 'battery' ? 0 : info?.battery ?? 100, 100 - (u.heat || 0), u.wear ?? 100));
@@ -315,61 +346,305 @@ export function createStaffModal(ctx) {
   }
 
   // ---------- Đội ----------
+  // The first screen: what needs the player, then the people, filtered by a row of chips (trades join the chips past BIG_TEAM people).
+  const BIG_TEAM = 12, PAGE = 20;
   function teamView(s, now, zone) {
     const units = zoneUnits(s, zone);
     if (!units.length) return h('div', { class: 'hud-sm-empty' }, h('p', { class: 'hud-line' }, T('hud.sm.noTeam')),
       actionButton({ label: T('hud.sm.goHire'), icon: '🧑', onClick: () => goTo({ tab: 'hire' }) }));
-    // 1. Cần bạn
-    const ny = needsYou(s, now, zone), shown = st.more ? ny : ny.slice(0, NY_SHOW);
-    const fixes = units.filter(u => hereOf(s, u)).map(u => ({ u, fix: fixOf(u, stateKey(s, u, now), now) }))
-      .filter(x => x.fix && [null, 'coins'].includes(careError(s, x.u, x.fix.kind, now)));
-    const total = fixes.reduce((n, x) => n + x.fix.cost, 0);
-    const needs = !ny.length ? null : h('section', { class: 'hud-sm-sec hud-ny-sec' },
-      h('div', { class: 'hud-ny-head' }, h('h3', { class: 'hud-sm-h' }, T('hud.ny.title', { n: ny.length })),
-        fixes.length > 1 ? actionButton({ id: 'staffFixAll', label: T('hud.sm.fixAll'), icon: '🧰', cost: total, tone: 'gold', disabled: s.player.coins < Math.min(...fixes.map(x => x.fix.cost)),
-          note: s.player.coins < total ? T('hud.sm.fixSome') : null, onClick: () => fixAll() }) : null),
-      h('ul', { class: 'hud-ny-list' }, ...shown.map(x => x.node)),
-      ny.length > NY_SHOW ? h('button', { type: 'button', class: 'hud-ny-more', on: { click: () => { st.more = !st.more; rerender(); } } },
-        st.more ? T('hud.ny.less') : T('hud.ny.more', { n: ny.length - NY_SHOW })) : null);
-    // 2. Đội: one line per unit, problems first, then on shift, bench, elsewhere (hire order inside each group)
+    const handed = gmHanded(s, zone);
+    if (handed) st.picking = false;
+    // problems first, then on shift, bench, elsewhere (hire order inside each group)
     const rows = units.map(u => ({ u, key: stateKey(s, u, now) }));
     const rank = r => (BLOCKING.has(r.key) ? 0 : SLOW.has(r.key) ? 1 : hereOf(s, r.u) && r.u.active ? 2 : hereOf(s, r.u) ? 3 : 4);
     rows.sort((a, b) => rank(a) - rank(b));
-    const roster = h('section', { class: 'hud-sm-sec' },
-      h('div', { class: 'hud-ny-head' }, h('h3', { class: 'hud-sm-h' }, T('hud.sm.roster', { n: rows.length, active: activeCount(s, zone), max: slots(s, zone) })),
-        actionButton({ id: 'staffSwap', label: T('hud.sm.swap'), icon: '🔄', tone: 'plain', disabled: !region(s), onClick: () => swapShift() })),
-      h('ul', { class: 'hud-rs' }, ...rows.map(r => rosterRow(s, r.u, r.key, now))),
-      upkeepPer(s, zone) > 0 ? h('p', { class: 'hud-sub' }, T('hud.sm.upkeepLine', { coins: fmt(upkeepPer(s, zone)), min: UPKEEP.perMinutes })) : null);
-    // 3. Báo cáo (folded): money, spend, ranking, research, tips, journal
-    return h('div', null, needs, roster, fold('report', `📊 ${T('hud.sm.tab.report')}`, () => reportView(s, now, zone)));
+    if (st.drill && !filterKnown(st.drill, rows)) st.drill = null; // the last of that trade left
+    const visible = st.drill ? rows.filter(r => inFilter(s, r.u, r.key, st.drill)) : rows;
+    const ny = needsOf(s, now, zone), shown = st.more ? ny : ny.slice(0, NY_SHOW);
+    const needs = !ny.length ? null : h('section', { class: 'hud-ny-sec', attrs: { 'aria-label': T('hud.ny.title', { n: ny.length }) } },
+      h('ul', { class: 'hud-ny-list' }, ...shown.map(x => x.node)),
+      ny.length > NY_SHOW ? h('button', { type: 'button', class: 'hud-ny-more', on: { click: () => { st.more = !st.more; rerender(); } } },
+        st.more ? T('hud.ny.less') : T('hud.ny.more', { n: ny.length - NY_SHOW })) : null);
+    const people = listBlock(s, now, visible, handed, filterChips(s, rows));
+    const canHand = zone !== 'farm' || (gmOf(s) && !autoManaged(s)); // without a hired manager the farm's card is Auto
+    return h('div', null, canHand ? handCard(s, now, zone, rows) : null, zone === 'farm' && st.folds.autoReport ? fold('autoReport', `🤖 ${T('hud.auto.detailFold')}`, () => autoView(s, now)) : null, needs, people, // (a tap on the Auto card opens its report here)
+      fold('report', `📊 ${T('hud.sm.tab.report')}`, () => [dashboard(s, now, zone, rows), reportView(s, now, zone)]));
+  }
+  // One tap narrows the list in place: nobody leaves the screen to find a person.
+  function filterChips(s, rows) {
+    const n = f => rows.filter(r => inFilter(s, r.u, r.key, f)).length;
+    const chip = (f, label, count) => h('button', { type: 'button', class: 'hud-rs-chip', dataset: { hudId: `staffFilter-${f}` }, attrs: { 'aria-pressed': String((st.drill || 'all') === f) }, on: { click: () => setDrill(f === 'all' ? null : f) } }, label, h('small', null, String(count)));
+    const group = (kids, cls = '') => h('div', { class: `hud-rs-filters${cls}`, attrs: { role: 'group', 'aria-label': T('hud.sb.filters') } }, ...kids);
+    const onTrade = !!st.drill && !STATUS_FILTERS.includes(st.drill), big = rows.length > BIG_TEAM, showTrades = big && (st.trades || onTrade);
+    const types = [...new Set(rows.map(r => r.u.type))].sort((a, b) => T(`staff.${a}`).localeCompare(T(`staff.${b}`)));
+    return [group([chip('all', T('hud.sb.all'), rows.length),
+      ...['problem', 'people', 'robots'].filter(f => n(f) > 0 && (f === 'problem' || n(f) < rows.length)).map(f => chip(f, drillLabel(f), n(f))),
+      big ? h('button', { type: 'button', class: 'hud-rs-chip', dataset: { hudId: 'staffFilterTrades' }, attrs: { 'aria-expanded': String(!!showTrades), 'aria-pressed': String(onTrade) }, on: { click: () => { st.trades = !showTrades; if (!st.trades && onTrade) st.drill = null; sfx('ui.tab'); rerender(); } } }, T('hud.sb.f.trade'), showTrades ? ' ▴' : ' ▾') : null].filter(Boolean)),
+    showTrades ? group(types.map(t => chip(t, T(`staff.${t}`), n(t))), ' is-sub') : null];
+  }
+  function dashboard(s, now, zone, rows) {
+    const m = teamMoney(s, now, 'today', zone), bad = rows.filter(r => isProblem(r.key)).length;
+    const signed = v => `${v < 0 ? '−' : ''}${fmt(Math.abs(Math.round(v)))}`;
+    const tile = (label, value, cls = '', onClick = null) => h(onClick ? 'button' : 'div', { class: `hud-sm-cell hud-pf-kpi hud-db-tile ${cls}`, ...(onClick ? { type: 'button', on: { click: onClick } } : {}) }, h('small', null, label), h('strong', null, value));
+    const days = lastDays(now, 7).map(d => ({ d, v: Math.round((s.staff.daily || []).find(e => e.d === d)?.[zone]?.earned || 0) }));
+    const peak = Math.max(0, ...days.map(x => x.v)), today = days[days.length - 1].d;
+    const chart = h('div', { class: 'hud-db-bars', attrs: { role: 'img', 'aria-label': days.map(x => `${x.d % 100}: ${x.v}`).join(', ') } },
+      ...days.map(x => h('div', { class: `hud-db-col${x.d === today ? ' is-today' : ''}`, attrs: { title: `${String(x.d % 100).padStart(2, '0')}: ${fmt(x.v)}` } },
+        h('span', { class: 'hud-db-val' }, x.v > 0 && (x.d === today || x.v === peak) ? fmt(x.v) : ''),
+        h('i', { style: { height: `${peak > 0 ? Math.max(2, Math.round(x.v / peak * 100)) : 2}%` } }),
+        h('small', null, String(x.d % 100)))));
+    return h('section', { class: 'hud-sm-sec' },
+      h('h3', { class: 'hud-sm-h' }, T('hud.sb.today')),
+      h('div', { class: 'hud-sm-grid hud-sm-grid--2 hud-pf-kpis' },
+        tile(T('hud.sb.onShift'), `${activeCount(s, zone)}/${rows.length}`),
+        tile(T('hud.sb.problem'), bad ? `⚠️ ${bad}` : '0', bad ? 'is-bad' : '', bad ? () => setDrill('problem') : null),
+        tile(T('hud.rp.earned'), coinAmount(Math.round(m.earned))),
+        tile(T('hud.rp.profit'), signed(m.profit), m.profit < 0 ? 'is-bad' : 'is-good')),
+      h('h3', { class: 'hud-sm-h hud-db-title' }, T('hud.sb.week')), chart);
+  }
+  const drillLabel = f => (f === 'all' ? T('hud.sb.all') : f === 'problem' ? T('hud.sb.problem') : f === 'off' ? T('hud.sb.off') : f === 'people' ? T('hud.sb.f.people') : f === 'robots' ? T('hud.sb.f.robots') : T(`staff.${f}`));
+  function setDrill(f) { st.drill = f; st.picking = false; st.sel.clear(); st.bulk = null; st.page = PAGE; sfx('ui.tab'); rerender(); }
+  function listBlock(s, now, visible, handed, [filters, trades]) {
+    const allOn = visible.length > 0 && visible.every(r => st.sel.has(r.u.uid)), shown = visible.slice(0, st.page);
+    return h('section', { class: 'hud-rs-sec' },
+      h('div', { class: 'hud-rs-bar' }, filters,
+        handed ? null : h('button', { type: 'button', class: 'hud-rs-pick', dataset: { hudId: 'staffPick' }, on: { click: () => togglePicking() } }, T(st.picking ? 'hud.sb.pickDone' : 'hud.sb.pickMode'))),
+      trades,
+      st.picking && visible.length ? h('button', { type: 'button', class: 'hud-sb-all', dataset: { hudId: 'staffSelectAll' }, attrs: { role: 'checkbox', 'aria-checked': String(allOn) }, on: { click: () => toggleAll(visible, allOn) } },
+        h('span', { class: `hud-sb-box${allOn ? ' is-on' : ''}`, attrs: { 'aria-hidden': 'true' } }, allOn ? '✓' : ''), T(allOn ? 'hud.sb.selectNone' : 'hud.sb.selectAll', { n: visible.length })) : null,
+      visible.length ? h('ul', { class: 'hud-rs' }, ...shown.map(r => rosterRow(s, r.u, r.key, now))) : h('p', { class: 'hud-line hud-line--muted' }, T('hud.sb.noneMatch')),
+      visible.length > shown.length ? h('button', { type: 'button', class: 'hud-ny-more', dataset: { hudId: 'staffMore' }, on: { click: () => { st.page += PAGE; rerender(); } } }, T('hud.sb.morePeople', { n: visible.length - shown.length })) : null);
+  }
+
+  // ---------- Staff board: pick a group, give one order; or hand the team to the manager ----------
+  const STATUS_FILTERS = ['all', 'problem', 'off', 'people', 'robots'];
+  const filterKnown = (f, rows) => STATUS_FILTERS.includes(f) || rows.some(r => r.u.type === f);
+  const inFilter = (s, u, key, f) => (f === 'all' ? true : f === 'problem' ? isProblem(key) : f === 'on' ? hereOf(s, u) && !!u.active : f === 'off' ? !(hereOf(s, u) && u.active) : f === 'people' ? !isRobot(u) : f === 'robots' ? isRobot(u) : u.type === f);
+  function togglePicking() { st.picking = !st.picking; st.sel.clear(); st.bulk = null; sfx('ui.tab'); rerender(); }
+  function putToWork() {
+    const s = store.state, now = Date.now(), zone = zoneNow(), list = idleUnits(s, now, zone);
+    runOrder(list.map(u => (stateKey(s, u, now) === 'unassigned' ? { type: 'staff/assign', payload: { uid: u.uid } } : { type: 'staff/setActive', payload: { uid: u.uid, active: true } })));
+  }
+  function toggleUnit(id) { if (st.sel.has(id)) st.sel.delete(id); else st.sel.add(id); sfx('ui.tab'); rerender(); }
+  function toggleAll(visible, allOn) { for (const r of visible) { if (allOn) st.sel.delete(r.u.uid); else st.sel.add(r.u.uid); } if (allOn) st.bulk = null; sfx('ui.tab'); rerender(); }
+  const pickedUnits = s => [...st.sel].map(id => unitOf(s, id)).filter(Boolean);
+  const okCoins = e => e === null || e === 'coins';
+  const nameList = list => {
+    const first = list.slice(0, 3).map(x => nameOf(x.u || x)).join(', ');
+    return list.length > 3 ? T('hud.sb.namesMore', { names: first, n: list.length - 3 }) : first;
+  };
+  /** Who can take an order and who the coins reach, cheapest first. of(u) → { op, cost } | null. */
+  function orderPlan(s, picked, of) {
+    const able = picked.map(u => { const x = of(u); return x && { ...x, u }; }).filter(Boolean).sort((a, b) => a.cost - b.cost);
+    const take = [];
+    let total = 0;
+    for (const x of able) { if (total + x.cost > s.player.coins) break; total += x.cost; take.push(x); }
+    return { able: able.length, take, total };
+  }
+  const upStat = (s, stat) => u => (!isRobot(u) && okCoins(statError(s, u, stat)) ? { op: { type: 'staff/upgradeStat', payload: { uid: u.uid, stat } }, cost: statPrice(u, stat).coins } : null);
+  const upPart = (s, part) => u => (isRobot(u) && okCoins(partError(s, u, part)) ? { op: { type: 'staff/upgradePart', payload: { uid: u.uid, part } }, cost: partPrice(u, part) } : null);
+  const upWorth = s => u => { const o = upgradeOptions(s, u).filter(x => x.payback <= UPGRADE_GATE.paybackMin).sort((a, b) => a.payback - b.payback)[0]; return o ? { op: o.act, cost: o.cost } : null; };
+  const upBest = s => u => { const o = upgradeOptions(s, u).filter(x => !x.quality).sort((a, b) => a.payback - b.payback)[0]; return o ? { op: o.act, cost: o.cost } : null; };
+  const careOf = (s, now) => u => {
+    const fix = hereOf(s, u) ? fixOf(u, stateKey(s, u, now), now) : null;
+    return fix && okCoins(careError(s, u, fix.kind, now)) ? { op: { type: 'staff/care', payload: { uid: u.uid, kind: fix.kind, roll: Math.random() } }, cost: fix.cost } : null;
+  };
+  function runOrder(ops) {
+    if (ctx.blockedByAuto?.()) return;
+    const before = store.state.player.coins, r = act('staff/bulk', { ops });
+    st.bulk = null;
+    if (r.ok && !r.noop) {
+      const e = (r.events || []).find(x => x.type === 'staffBulk'), done = e?.done ?? ops.length, skipped = e?.skipped ?? 0, delta = Math.round(store.state.player.coins - before);
+      const text = delta < 0 ? T('hud.sb.doneSpent', { n: done, coins: fmt(-delta) }) : delta > 0 ? T('hud.sb.doneRefund', { n: done, coins: fmt(delta) }) : T('hud.sb.done', { n: done });
+      sfx(delta < 0 ? 'coin.spend' : 'ui.click');
+      ctx.toast(text + (skipped ? T('hud.sb.doneSkipped', { n: skipped }) : ''), 'good');
+    }
+    rerender();
+  }
+  async function orderUpgrade(what, of, unitsOf = pickedUnits) {
+    if (ctx.blockedByAuto?.()) return;
+    const s = store.state, picked = unitsOf(s), p = orderPlan(s, picked, of(s)), n = p.take.length;
+    if (!n) return;
+    const skip = picked.length - n;
+    const yes = await ctx.confirm({ title: T('hud.sb.upTitle', { n }), body: T('hud.sb.upBody', { what, names: nameList(p.take) }) + (skip ? T('hud.sb.skipNote', { n: skip }) : ''), cost: p.total, confirmLabel: T('hud.sb.upGo', { n }) });
+    if (yes) runOrder(p.take.map(x => x.op)); else rerender();
+  }
+  async function orderCare(unitsOf = pickedUnits) {
+    if (ctx.blockedByAuto?.()) return;
+    const s = store.state, picked = unitsOf(s), p = orderPlan(s, picked, careOf(s, Date.now())), n = p.take.length;
+    if (!n) return;
+    const skip = picked.length - n;
+    const yes = await ctx.confirm({ title: T('hud.sb.careTitle', { n }), body: T('hud.sb.careBody', { names: nameList(p.take) }) + (skip ? T('hud.sb.skipNote', { n: skip }) : ''), cost: p.total, confirmLabel: T('hud.sb.careGo', { n }) });
+    if (yes) runOrder(p.take.map(x => x.op)); else rerender();
+  }
+  async function orderFire() {
+    if (ctx.blockedByAuto?.()) return;
+    const s = store.state, picked = pickedUnits(s), n = picked.length;
+    if (!n) return;
+    const refund = picked.reduce((a, u) => a + fireRefund(u), 0), whole = n === zoneUnits(s, zoneNow()).length;
+    const yes = await ctx.confirm({ title: T('hud.sb.fireTitle', { n }), body: T('hud.sb.fireBody', { names: nameList(picked) }) + (picked.some(isRobot) ? T('hud.sb.fireRobots') : '') + (whole ? T('hud.sb.fireAll') : ''), costLabel: T('hud.sb.fireRefund', { coins: fmt(refund) }), confirmLabel: T('hud.sb.fireGo', { n }) });
+    if (yes) runOrder(picked.map(u => ({ type: 'staff/fire', payload: { uid: u.uid } }))); else rerender();
+  }
+  const panelHead = titleKey => h('div', { class: 'hud-sb-phead' }, h('strong', null, T(titleKey)),
+    h('button', { type: 'button', class: 'hud-sb-pclose', attrs: { 'aria-label': T('hud.sb.closePanel') }, on: { click: () => { st.bulk = null; rerender(); } } }, '×'));
+  function upgradePanel(s, picked) {
+    const opt = (id, icon, label, of) => {
+      const p = orderPlan(s, picked, of(s)), n = p.take.length;
+      return h('button', { type: 'button', class: 'hud-sb-opt', dataset: { hudId: `staffBulkUp-${id}` }, disabled: !n, on: { click: () => orderUpgrade(label, of) } },
+        h('span', { class: 'hud-sb-opt-name' }, `${icon} ${label}`),
+        h('small', null, !p.able ? T('hud.sb.optNone') : !n ? T('hud.sb.optShort', { n, m: p.able }) : [n < p.able ? `${T('hud.sb.optShort', { n, m: p.able })} · ` : T('hud.sb.optLine', { n }), coinAmount(p.total)]));
+    };
+    const workers = picked.some(u => !isRobot(u)), robots = picked.some(isRobot);
+    return h('div', { class: 'hud-sb-panel' }, panelHead('hud.sb.p.up'),
+      h('div', { class: 'hud-sb-opts' },
+        opt('best', '✨', T('hud.sb.best'), upBest),
+        ...(workers ? STAT_ORDER.map(k => opt(k, STAT_ICON[k], T(`hud.stat.${k}`), x => upStat(x, k))) : []),
+        ...(robots ? PART_ORDER.map(k => opt(k, '🔩', T(`hud.staff.part.${k}`), x => upPart(x, k))) : [])));
+  }
+  function shiftPanel(s, zone, picked) {
+    const bench = picked.filter(u => hereOf(s, u) && !u.active), on = picked.filter(u => hereOf(s, u) && u.active), away = picked.filter(u => !hereOf(s, u));
+    const canIn = Math.min(bench.length, freeSlots(s, zone));
+    const opt = (id, label, n, onClick) => h('button', { type: 'button', class: 'hud-sb-opt', dataset: { hudId: `staffBulkShift-${id}` }, disabled: !n, on: { click: onClick } }, h('span', { class: 'hud-sb-opt-name' }, label), n == null ? null : h('small', null, T('hud.sb.people', { n })));
+    return h('div', { class: 'hud-sb-panel' }, panelHead('hud.sb.p.shift'),
+      h('div', { class: 'hud-sb-opts' },
+        opt('in', `▶️ ${T('hud.sb.toShift')}`, canIn, () => runOrder(bench.slice(0, canIn).map(u => ({ type: 'staff/setActive', payload: { uid: u.uid, active: true } })))),
+        opt('out', `🪑 ${T('hud.sb.toBench')}`, on.length, () => runOrder(on.map(u => ({ type: 'staff/setActive', payload: { uid: u.uid, active: false } })))),
+        opt('swap', `🔄 ${T('hud.sm.swap')}`, null, () => { st.bulk = null; swapShift(); }),
+        away.length ? opt('here', `📍 ${T('hud.sb.toHere')}`, away.length, () => runOrder(away.map(u => ({ type: 'staff/assign', payload: { uid: u.uid } })))) : null),
+      h('p', { class: 'hud-sub' }, T('hud.sb.benchNote')));
+  }
+  function dockView(s, now, zone) {
+    const picked = pickedUnits(s);
+    if (!st.picking || !picked.length || gmHanded(s, zone)) { st.bulk = null; return null; }
+    const canCare = orderPlan(s, picked, careOf(s, now)).take.length > 0;
+    const open = id => { st.bulk = st.bulk === id ? null : id; sfx('ui.tab'); rerender(); };
+    const btn = (id, icon, onClick, disabled = false) => h('button', { type: 'button', class: 'hud-sb-act', dataset: { hudId: `staffBulk-${id}` }, attrs: { 'aria-pressed': String(st.bulk === id) }, disabled, on: { click: onClick } },
+      h('span', { attrs: { 'aria-hidden': 'true' } }, icon), h('small', null, T(`hud.sb.a.${id}`)));
+    return h('div', { class: 'hud-sb-dock' },
+      st.bulk === 'up' ? upgradePanel(s, picked) : st.bulk === 'shift' ? shiftPanel(s, zone, picked) : null,
+      h('div', { class: 'hud-sb-count' }, h('strong', null, T('hud.sb.selected', { n: picked.length })),
+        h('button', { type: 'button', class: 'hud-sb-clear', dataset: { hudId: 'staffBulkClear' }, on: { click: () => { st.sel.clear(); st.bulk = null; sfx('ui.tab'); rerender(); } } }, T('hud.sb.clear'))),
+      h('div', { class: 'hud-sb-acts' },
+        btn('up', '⬆️', () => open('up')), btn('shift', '🪑', () => open('shift')),
+        btn('care', '🧰', () => orderCare(pickedUnits), !canCare), btn('fire', '👋', () => orderFire())));
+  }
+  // The manager's card, on top of Đội: an offer to take the team, or (handed over) what he did today.
+  function gmReportBody(s, now, zone, keep) {
+    const rep = gmStaffReport(s, now, zone);
+    const cell = (label, value) => h('div', { class: 'hud-sm-cell hud-pf-kpi' }, h('small', null, label), h('strong', null, value));
+    return [h('div', { class: 'hud-sm-grid hud-sm-grid--2 hud-pf-kpis' },
+      cell(T('hud.sb.n.upgrade'), fmt(rep.n.upgrade)), cell(T('hud.sb.n.fire'), fmt(rep.n.fire)),
+      cell(T('hud.sb.n.shift'), fmt(rep.n.shift)), cell(T('hud.sb.n.spent'), rep.spent > 0 ? coinAmount(rep.spent) : '0')),
+    rep.rows.length ? h('ul', { class: 'hud-sm-journal' }, ...rep.rows.slice(0, keep).map(r => h('li', { class: 'hud-sm-jrow hud-hist-row is-manager' },
+      h('span', { class: 'hud-sm-jtext' }, r.cost > 0 ? T('hud.gm.log.didCost', { what: gmReasonText(r.reason), coins: fmt(r.cost) }) : T('hud.gm.log.did', { what: gmReasonText(r.reason) })),
+      h('small', { class: 'hud-sm-jago' }, whenText(r.at, now))))) : h('p', { class: 'hud-line hud-line--muted' }, T('hud.sb.noJobs'))];
+  }
+  function handCard(s, now, zone, rows) {
+    const gm = gmOf(s);
+    if (!gmHanded(s, zone)) return h('section', { class: 'hud-sb-hand' },
+      actionButton({ id: 'staffHandOff', label: T('hud.sb.handBtn'), icon: '👨‍💼', tone: 'go', note: gm ? null : T('hud.sb.handNoGm'), onClick: () => handOff(rows.length) }));
+    const n = gmStaffReport(s, now, zone).n;
+    return h('section', { class: 'hud-sb-hand is-on' },
+      h('p', { class: 'hud-sb-hand-text' }, h('strong', null, `👨‍💼 ${T('hud.sb.handedTitle', { name: gm.name })}`), h('small', null, T('hud.sb.handedLine', { up: fmt(n.upgrade), fire: fmt(n.fire), shift: fmt(n.shift) }))),
+      h('div', { class: 'hud-sb-hand-btns' },
+        actionButton({ id: 'staffFullReport', label: T('hud.sb.fullReport'), tone: 'plain', onClick: () => openReport() }),
+        actionButton({ id: 'staffTakeBack', label: T('hud.sb.takeBack'), tone: 'plain', onClick: () => takeBack() })));
+  }
+  function openReport() {
+    st.folds.report = true;
+    sfx('ui.tab');
+    rerender();
+    body.querySelector('[data-hud-id="staffFold-report"]')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+  async function handOff(n) {
+    const gm = gmOf(store.state), zone = zoneNow();
+    if (!gm) { ctx.toast(T('err.noGm'), 'info'); goTo({ tab: 'gm' }); return; }
+    if (ctx.blockedByAuto?.()) return;
+    const yes = await ctx.confirm({ title: T('hud.sb.handConfirmTitle', { name: gm.name }), body: T('hud.sb.handConfirmBody', { name: gm.name, n }), confirmLabel: T('hud.sb.handGo') });
+    if (yes && act('gm/handStaff', { zone, on: true }).ok) { st.sel.clear(); st.bulk = null; sfx('reward.levelup'); ctx.toast(T('hud.sb.handDone', { name: gm.name }), 'good'); }
+    rerender();
+  }
+  function takeBack() {
+    if (act('gm/handStaff', { zone: zoneNow(), on: false }).ok) { sfx('ui.tab'); ctx.toast(T('hud.sb.tookBack'), 'info'); }
+    rerender();
+  }
+  // ---------- Phân công: the one place for who works where. Touch people, then touch where they go ----------
+  const TIER_JOBS = ['harvest', 'water', 'prune'];
+  /** The board of this game: farm = open terraces, café = jobs. Each group lists who is in it now. */
+  function assignGroups(s, zone) {
+    const here = zoneUnits(s, zone).filter(u => hereOf(s, u));
+    const byTrade = (a, b) => a.type.localeCompare(b.type) || nameOf(a).localeCompare(nameOf(b));
+    if (zone === 'farm') {
+      const open = openTiers(s), tierOf = u => { const t = s.gm?.tiers?.[u.uid]; return open.includes(t) ? t : null; };
+      const groups = open.map(t => {
+        const units = here.filter(u => tierOf(u) === t).sort(byTrade);
+        return { id: t, label: T('hud.fm.tier', { n: t + 1 }), units, missing: TIER_JOBS.filter(j => !units.some(u => doesJob(u, j))) };
+      });
+      const none = here.filter(u => tierOf(u) === null).sort(byTrade);
+      return none.length ? [...groups, { id: 'none', label: T('hud.sb.anyTier'), units: none, missing: [], noTarget: true }] : groups;
+    }
+    const canChange = u => (isRobot(u) ? (ROBOT_TASKS[u.type] || []).length > 1 : !STAFF[u.type].jobs);
+    const jobOf = u => (isRobot(u) ? robotTask(u) : u.tasks?.[0] || 'auto');
+    return ['auto', ...(WORKER_TASKS[zone] || [])].map(j => ({ id: j, label: T(`hud.staff.task.${j}`), units: here.filter(u => canChange(u) && jobOf(u) === j).sort(byTrade), missing: [] }));
+  }
+  function moveOp(zone, u, target) {
+    if (zone === 'farm') return { type: 'gm/fmPin', payload: { uid: u.uid, tier: target } };
+    return isRobot(u) ? { type: 'staff/setTask', payload: { uid: u.uid, task: target } } : { type: 'staff/setTasks', payload: { uid: u.uid, tasks: target === 'auto' ? [] : [target] } };
+  }
+  function splitEven(zone) {
+    if (zone === 'farm') { if (act('gm/splitTiers', {}).ok) { st.place.clear(); sfx('ui.click'); ctx.toast(T('hud.sb.splitDone'), 'good'); } rerender(); return; }
+    st.place.clear();
+    const s = store.state;
+    runOrder(assignGroups(s, zone).flatMap(g => g.units).map(u => moveOp(zone, u, 'auto')));
+  }
+  function assignView(s, zone) {
+    const groups = assignGroups(s, zone), big = zoneUnits(s, zone).length > BIG_TEAM;
+    if (!groups.some(g => g.units.length)) return h('div', { class: 'hud-sm-empty' }, h('p', { class: 'hud-line' }, T('hud.sb.nobodyToPlace')));
+    if (zone === 'farm' && groups.filter(g => !g.noTarget).length <= 1) return h('p', { class: 'hud-sm-note' }, T('hud.sb.oneTier'));
+    const toggle = ids => { const all = ids.every(id => st.place.has(id)); for (const id of ids) { if (all) st.place.delete(id); else st.place.add(id); } sfx('ui.tab'); rerender(); };
+    const chip = u => h('button', { type: 'button', class: 'hud-as-chip', dataset: { hudId: `assign-${u.uid}` }, attrs: { 'aria-pressed': String(st.place.has(u.uid)) }, on: { click: () => toggle([u.uid]) } },
+      h('span', { attrs: { 'aria-hidden': 'true' } }, STAFF[u.type].icon), h('span', { class: 'hud-as-name' }, u.name || T(`staff.${u.type}`)));
+    const tradeChip = (g, type) => {
+      const ids = g.units.filter(u => u.type === type).map(u => u.uid);
+      return h('button', { type: 'button', class: 'hud-as-chip', dataset: { hudId: `assignT-${g.id}-${type}` }, attrs: { 'aria-pressed': String(ids.every(id => st.place.has(id))) }, on: { click: () => toggle(ids) } },
+        h('span', { attrs: { 'aria-hidden': 'true' } }, STAFF[type].icon), h('span', { class: 'hud-as-name' }, `${T(`staff.${type}`)} ${ids.length}`));
+    };
+    return h('div', null,
+      h('div', { class: 'hud-as-top' },
+        h('small', null, T(big ? 'hud.sb.assignHintBig' : zone === 'farm' ? 'hud.sb.assignHint' : 'hud.sb.assignHintJob')),
+        actionButton({ id: 'assignSplit', label: T(zone === 'farm' ? 'hud.sb.split' : 'hud.sb.allAuto'), tone: 'go', onClick: () => splitEven(zone) })),
+      ...groups.map(g => h('section', { class: 'hud-as-group' },
+        h('div', { class: 'hud-as-head' }, h('strong', null, g.label), h('small', null, T('hud.sb.people', { n: g.units.length })),
+          g.missing.length ? h('small', { class: 'hud-as-miss' }, T('hud.sb.missing', { list: g.missing.map(j => T(`hud.staff.task.${j}`)).join(', ') })) : null,
+          g.units.length ? h('button', { type: 'button', class: 'hud-as-all', dataset: { hudId: `assignAll-${g.id}` }, on: { click: () => toggle(g.units.map(u => u.uid)) } }, T('hud.sb.selectGroup')) : null),
+        g.units.length ? h('div', { class: 'hud-as-chips' }, ...(big ? [...new Set(g.units.map(u => u.type))].map(type => tradeChip(g, type)) : g.units.map(chip))) : null)));
+  }
+  function assignDock(s, zone) {
+    if (!st.place.size || gmHanded(s, zone)) return null;
+    const picked = [...st.place].map(id => unitOf(s, id)).filter(Boolean);
+    const go = id => { const ops = picked.map(u => moveOp(zone, u, id)); st.place.clear(); runOrder(ops); };
+    return h('div', { class: 'hud-sb-dock' },
+      h('div', { class: 'hud-sb-count' }, h('strong', null, T('hud.sb.moveTo', { n: picked.length })),
+        h('button', { type: 'button', class: 'hud-sb-clear', dataset: { hudId: 'assignClear' }, on: { click: () => { st.place.clear(); sfx('ui.tab'); rerender(); } } }, T('hud.sb.clear'))),
+      h('div', { class: 'hud-as-targets' }, ...assignGroups(s, zone).filter(g => !g.noTarget).map(g => h('button', { type: 'button', class: 'hud-as-target', dataset: { hudId: `assignTo-${g.id}` }, on: { click: () => go(g.id) } }, g.label))));
   }
   function rosterRow(s, u, key, now) {
     const info = infoOf(s, u), here = hereOf(s, u), cond = here ? conditionOf(u, info) : null;
-    const poached = poachOf(s)?.uid === u.uid;
-    return h('li', { class: `hud-rs-row is-${toneOf(key)}` },
-      h('button', { type: 'button', class: 'hud-rs-main', dataset: { hudId: `staffUnit-${u.uid}` }, attrs: { 'aria-label': T('hud.sm.openUnit', { name: nameOf(u) }) }, on: { click: () => goTo({ uid: u.uid }) } },
+    const poached = poachOf(s)?.uid === u.uid, on = st.sel.has(u.uid), picking = st.picking;
+    const fix = !picking && here && !managed(s, zoneNow()) ? fixOf(u, key, now) : null; // the paid fix, right on the line
+    return h('li', { class: `hud-rs-row is-${toneOf(key)}${on ? ' is-picked' : ''}` },
+      h('button', { type: 'button', class: 'hud-rs-main', dataset: { hudId: picking ? `staffSelect-${u.uid}` : `staffUnit-${u.uid}` },
+        attrs: picking ? { role: 'checkbox', 'aria-checked': String(on), 'aria-label': T('hud.sb.select', { name: nameOf(u) }) } : { 'aria-label': T('hud.sm.openUnit', { name: nameOf(u) }) },
+        on: { click: () => (picking ? toggleUnit(u.uid) : goTo({ uid: u.uid })) } },
+        picking ? h('span', { class: `hud-sb-box${on ? ' is-on' : ''}`, attrs: { 'aria-hidden': 'true' } }, on ? '✓' : '') : null,
         avatarOf(s, u, key),
         h('span', { class: 'hud-rs-text' },
-          h('strong', { class: 'hud-rs-name' }, nameOf(u), u.perk ? ' ⭐' : '', poached ? ' 💼' : '', u.name && STAFF[u.type].jobs ? h('span', { class: 'hud-rs-trade' }, T(`staff.${u.type}`)) : null, tierTag(s, u), ' ', gradePill(unitGrade(s, u, dayKey(now)))),
-          h('small', { class: `hud-report hud-report--${toneOf(key)}` }, nowLine(s, u, key, now, info))),
-        cond != null ? h('span', { class: `hud-rs-meter is-${cond < 25 ? 'bad' : cond < 50 ? 'warn' : 'ok'}`, attrs: { role: 'img', 'aria-label': T('hud.sm.condition', { n: cond }) } },
+          h('strong', { class: 'hud-rs-name' }, nameOf(u), u.perk ? ' ⭐' : '', poached ? ' 💼' : '', u.name && STAFF[u.type].jobs ? h('span', { class: 'hud-rs-trade' }, T(`staff.${u.type}`)) : null),
+          h('small', { class: `hud-report hud-report--${lineTone(key, info)}` }, nowLine(s, u, key, now, info))),
+        cond != null && cond < 50 ? h('span', { class: `hud-rs-meter is-${cond < 25 ? 'bad' : cond < 50 ? 'warn' : 'ok'}`, attrs: { role: 'img', 'aria-label': T('hud.sm.condition', { n: cond }) } },
           h('i', { style: { height: `${Math.max(4, cond)}%` } })) : null,
-        h('span', { class: 'hud-sm-chev', attrs: { 'aria-hidden': 'true' } }, '›')));
-  }
-  function fixAll() {
-    const s = store.state, now = Date.now(), zone = zoneNow();
-    if (ctx.blockedByAuto?.()) return;
-    let paid = 0, n = 0, missed = 0;
-    for (const u of zoneUnits(s, zone).filter(x => hereOf(s, x))) {
-      const cur = store.state, unit = unitOf(cur, u.uid);
-      const fix = unit && fixOf(unit, stateKey(cur, unit, now), now);
-      if (!fix) continue;
-      const r = store.dispatch('staff/care', { uid: u.uid, kind: fix.kind, roll: Math.random() });
-      if (r.ok && !r.noop) { paid += fix.cost; n++; } else missed++;
-    }
-    if (n) { sfx('coin.spend'); ctx.toast(T('hud.sm.fixedAll', { n, coins: fmt(paid) }), 'good'); }
-    if (missed) ctx.toast(T('hud.sm.fixMissed', { n: missed }), 'warn');
-    rerender();
+      ),
+      fix ? h('div', { class: 'hud-rs-fix' }, careButton(s, u, fix.kind, now, { compact: true, bare: true })) : null);
   }
   function swapShift() {
     const r = act('staff/swapShift', { zone: zoneNow() });
@@ -391,13 +666,17 @@ export function createStaffModal(ctx) {
   }
   function gmView(s, now, zone) {
     const gm = gmOf(s), out = [];
-    if (!gm) { out.push(gmBoardBlock(s, now)); return h('div', null, ...out); }
+    if (!gm || gm.isAuto) { out.push(gm ? h('p', { class: 'hud-sm-note' }, T('hud.gm.autoNote')) : null, gmBoardBlock(s, now)); return h('div', null, ...out); }
     if (gmPoachOf(s)) out.push(gmPoachBlock(s, now, gm));
-    out.push(gmCard(s, now, gm), gmRequestsBlock(s, now), ...(zone === 'farm' ? fmBlocks(s, now, gm) : []), gmStatsBlock(s, gm),
-      fold('gmMore', `📋 ${T('hud.gm.sec.more')}`, () => [gmWorth(s, now, gm)]),
-      fold('gmLog', `📒 ${T('hud.gm.sec.log')}`, () => gmLogBlock(s, now)),
-      h('div', { class: 'hud-sm-fire' }, actionButton({ id: 'gmFire', label: T('hud.gm.fire'), tone: 'plain', onClick: () => gmFire() })));
+    out.push(gmCard(s, now, gm), gmRequests(s).length ? gmRequestsBlock(s, now) : null, ...(zone === 'farm' ? fmBlocks(s, now) : []),
+      fold('gmMore', `👨‍💼 ${T('hud.sb.gmProfile')}`, () => [gmStatsBlock(s, gm), gmWorth(s, now, gm),
+        h('div', { class: 'hud-sm-fire' }, actionButton({ id: 'gmFire', label: T('hud.gm.fire'), tone: 'plain', onClick: () => gmFire() }))]),
+      fold('gmLog', `📒 ${T('hud.gm.sec.log')}`, () => [gmLogBlock(s, now), zone === 'farm' && fmData(s, now).log.length ? section('hud.fm.sec.log', h('ul', { class: 'hud-sm-journal' }, ...fmData(s, now).log.map(e => fmLogRow(e, now)))) : null]));
     return h('div', null, ...out);
+  }
+  // The Auto card's report: what the run did and, while it goes, the manager's own numbers on it.
+  function autoView(s, now) {
+    return h('div', null, autoPanel(ctx, s, { detail: true }), ...(autoManaged(s) ? [...fmBlocks(s, now), fold('gmLog', `📒 ${T('hud.gm.sec.log')}`, () => [gmLogBlock(s, now), fmData(s, now).log.length ? section('hud.fm.sec.log', h('ul', { class: 'hud-sm-journal' }, ...fmData(s, now).log.map(e => fmLogRow(e, now)))) : null])] : []));
   }
   // ---------- Farm Manager V2 panel (docs/design/farm-manager-v2.md) ----------
   // Rebuilt at most every 3 s (or at once when a setting changes): the modal repaints every second.
@@ -408,8 +687,6 @@ export function createStaffModal(ctx) {
     return fmMemo.v;
   }
   const fmSet = (key, value) => { if (act('gm/fmSet', { key, value }).ok) { sfx('ui.tab'); rerender(); } };
-  const fmToggle = (key, on) => h('li', { class: 'hud-hire-row hud-fm-row' }, h('div', { class: 'hud-hire-text' }, h('strong', null, T(`hud.fm.${key}`))),
-    h('div', { class: 'hud-hire-act' }, actionButton({ id: `fm-${key}`, label: T(on ? 'hud.fm.on' : 'hud.fm.off'), tone: on ? 'go' : 'plain', onClick: () => fmSet(key, !on) })));
   const fmObjective = (plan, off) => {
     if (off) return T('hud.fm.obj.off');
     if (!plan) return T('hud.fm.obj.run');
@@ -423,61 +700,42 @@ export function createStaffModal(ctx) {
       h('small', null, `${T('hud.fm.tierRow', { planted: t.planted, plots: t.plots })} · 🌾${t.ripe} · 💧${t.dry} · 👷${t.crew} · 🏗️${t.buildings} · 🪙${fmt(Math.round(t.earnPerMin))}/${T('hud.minuteShort')}`),
       t.best ? h('small', null, T('hud.fm.tierPick', { crop: T(`crop.${t.best}`), coins: fmt(Math.round(t.bestRate)) })) : null);
   }
-  /** The tier a farm unit is responsible for, as a small tag (nothing without a manager's assignment). */
-  function tierTag(s, u) {
-    const t = s.gm?.tiers?.[u.uid];
-    return t == null ? null : h('span', { class: 'hud-rs-trade' }, T('hud.fm.tier', { n: t + 1 }));
-  }
-  function fmCrewRow(s, u, pin) {
-    const info = ctx.realm?.staffInfo?.(u.uid), label = u.name || u.serial || T(`staff.${u.type}`);
-    return h('li', { class: 'hud-fm-crew' },
-      h('p', { class: 'hud-hire-top' }, h('strong', null, label, tierTag(s, u)), h('span', null, info?.phase ? T(`hud.fm.phase.${info.phase}`) : '—')),
-      segOf(label, ['a', 0, 1, 2, 3], pin ?? 'a', v => (v === 'a' ? T('hud.fm.autoTier') : String(v + 1)), v => { if (act('gm/fmPin', { uid: u.uid, tier: v === 'a' ? null : v }).ok) rerender(); }, `fmPin-${u.uid}`));
-  }
   function fmLogRow(e, now) {
     const what = e.reason ? gmReasonText(e.reason) : T(`hud.fm.cat.${e.cat || 'other'}`);
     const pay = e.known && e.payback != null ? T('hud.fm.logPay', { min: Math.round(e.payback) }) : '';
     return h('li', { class: 'hud-sm-jrow hud-hist-row is-manager' }, h('span', { class: 'hud-sm-jtext' }, `${T('hud.fm.logLine', { what, code: T(`hud.fm.code.${e.code}`) })}${pay}`), h('small', { class: 'hud-sm-jago' }, whenText(e.at, now)));
   }
   function fmBlocks(s, now) {
-    const d = fmData(s, now), f = d.settings, C = FARM_MANAGER, top = d.plan?.top;
+    const d = fmData(s, now), f = d.settings, top = d.plan?.top;
     const M = d.money, sign = v => `${v < 0 ? '−' : ''}${fmt(Math.abs(Math.round(v)))}`;
     const durationText = min => (min >= 120 ? T('hud.fm.hours', { h: Math.round(min / 60) }) : T('hud.fm.mins', { m: min }));
     const cell = (label, value, cls = '') => h('div', { class: `hud-sm-cell hud-pf-kpi ${cls}` }, h('small', null, label), h('strong', null, value));
-    const crew = s.staff.units.filter(u => STAFF[u.type]?.zone === 'farm');
     const blocks = (d.plan?.blocks || []).filter(b => b.code !== d.plan?.objective?.replace('fix.', ''));
     const next = top ? h('p', { class: 'hud-sub' }, T('hud.fm.next', { what: T(`hud.fm.cat.${top.cat}`), coins: fmt(top.cost) }), ' · ', top.known && top.payback != null ? T('hud.fm.nextPay', { min: Math.round(top.payback), net: fmt(Math.round(top.net)) }) : T('hud.fm.nextEst')) : h('p', { class: 'hud-sub' }, T('hud.fm.noNext'));
     return [
-      section('hud.fm.title',
+      h('section', { class: 'hud-sm-sec' },
         h('p', { class: `hud-fm-obj${d.recovery ? ' is-bad' : ''}` }, fmObjective(d.plan, !f.auto)),
-        segOf(T('hud.fm.title'), C.modeOrder, f.mode, v => T(`hud.fm.mode.${v}`), v => fmSet('mode', v), 'fmMode'),
-        h('p', { class: 'hud-sub' }, T(`hud.fm.modeFx.${f.mode}`)),
+        h('div', { class: 'hud-sm-grid hud-pf-kpis hud-sb-kpi3' },
+          cell(T('hud.fm.coins'), fmt(d.coins)), cell(T('hud.fm.netMin'), sign(M.net), M.net < 0 ? 'is-bad' : 'is-good'), cell(T('hud.fm.owed'), fmt(M.owed), M.owed > 0 ? 'is-bad' : '')),
+        M.whyLoss === 'ok' ? null : h('p', { class: 'hud-fm-obj is-bad' }, T(`hud.fm.why.${M.whyLoss}`, { stock: fmt(M.stock), potential: fmt(M.potential), opex: fmt(M.opex), labour: M.labour })),
+        M.whyLoss === 'unsold' && !f.autoSell ? h('div', { class: 'hud-row' }, actionButton({ id: 'fmSellOn', label: T('hud.fm.letSell'), tone: 'go', onClick: () => fmSet('autoSell', true) })) : null,
+        next),
+      fold('fmData', `📊 ${T('hud.sb.gmDetail')}`, () => [
         h('div', { class: 'hud-sm-grid hud-sm-grid--2 hud-pf-kpis' },
-          cell(T('hud.fm.coins'), fmt(d.coins)), cell(T('hud.fm.owed'), fmt(M.owed), M.owed > 0 ? 'is-bad' : ''),
           cell(T('hud.fm.stock'), fmt(M.stock)), cell(T('hud.fm.worth'), sign(M.worth), M.worth < 0 ? 'is-bad' : 'is-good'),
           cell(T('hud.fm.earned'), fmt(M.earned)), cell(T('hud.fm.opex'), fmt(M.opex)),
-          cell(T('hud.fm.invest'), fmt(M.invest)), cell(T('hud.fm.netMin'), sign(M.net), M.net < 0 ? 'is-bad' : 'is-good'),
-          cell(T('hud.fm.reserve'), fmt(d.reserve)), cell(T('hud.fm.free'), fmt(d.budget))),
-        h('p', { class: `hud-fm-obj${M.whyLoss === 'ok' ? '' : ' is-bad'}` }, T(`hud.fm.why.${M.whyLoss}`, { stock: fmt(M.stock), potential: fmt(M.potential), opex: fmt(M.opex), labour: M.labour })),
-        M.whyLoss === 'unsold' && !f.autoSell ? h('div', { class: 'hud-row' }, actionButton({ id: 'fmSellOn', label: T('hud.fm.letSell'), tone: 'go', onClick: () => fmSet('autoSell', true) })) : null,
+          cell(T('hud.fm.invest'), fmt(M.invest)), cell(T('hud.fm.reserve'), fmt(d.reserve)), cell(T('hud.fm.free'), fmt(d.budget))),
         d.handsPerMin ? h('p', { class: 'hud-sub' }, T('hud.fm.hands', { n: d.handsPerMin })) : null,
         h('p', { class: 'hud-sub' }, M.owed <= 0 ? T('hud.fm.noDebt') : M.payoffMin == null ? T('hud.fm.payoffNone') : T(M.payoffMeasured ? 'hud.fm.payoff' : 'hud.fm.payoffModel', { t: durationText(M.payoffMin) })),
-        next,
         h('p', { class: 'hud-sub' }, T('hud.fm.water', { wells: d.wells, dry: d.dry, orders: d.orders })),
         Object.keys(d.queue).length ? h('p', { class: 'hud-sub' }, T('hud.fm.queue', { list: Object.entries(d.queue).map(([k, n]) => `${T(`hud.fm.job.${k}`)} ${n}`).join(' · ') })) : null,
-        d.away ? h('p', { class: 'hud-sub' }, T('hud.fm.away', { min: d.away.minutes, earned: fmt(Math.round(d.away.earned)), salary: fmt(Math.round(d.away.salary)), ripe: d.away.ripe, empty: d.away.empty, orders: d.away.orders })) : null),
-      section('hud.fm.sec.need', h('ul', { class: 'hud-fm-tiers' },
-        ...d.need.rows.map(r => h('li', { class: 'hud-fm-tier' }, h('strong', null, T(`hud.fm.need.${r.job}`, { n: fmt(r.backlog) })), h('small', { class: r.have < r.want ? 'is-short' : '' }, T('hud.fm.needLine', { want: r.want, have: r.have })))),
-        h('li', { class: 'hud-fm-tier' }, h('strong', null, T('hud.fm.need.storage', { stored: fmt(d.need.storage.stored), capacity: fmt(d.need.storage.capacity) })), h('small', { class: d.need.storage.silos < d.need.storage.want ? 'is-short' : '' }, T('hud.fm.needSilo', { want: d.need.storage.want, have: d.need.storage.silos }))))),
-      section('hud.fm.sec.tiers', h('ul', { class: 'hud-fm-tiers' }, ...d.tiers.map(t => fmTierRow(t, t.t === d.nextTier ? d.landWhy : null)))),
-      blocks.length ? section('hud.fm.sec.blocks', h('ul', { class: 'hud-fm-tiers' }, ...blocks.map(b => h('li', { class: 'hud-fm-tier' }, h('small', null, T(`hud.fm.obj.fix.${b.code}`, b)))))) : null,
-      fold('fmCrew', `👷 ${T('hud.fm.sec.crew')}`, () => h('ul', { class: 'hud-fm-tiers' }, ...crew.map(u => fmCrewRow(s, u, f.pins[u.uid])))),
-      fold('fmSet', `⚙️ ${T('hud.fm.sec.settings')}`, () => [
-        h('ul', { class: 'hud-hire' }, fmToggle('auto', f.auto), fmToggle('build', f.build), fmToggle('land', f.land), fmToggle('hire', f.hire), fmToggle('autoSell', f.autoSell)),
-        h('p', { class: 'hud-sub' }, T('hud.fm.minReserve')), segOf(T('hud.fm.minReserve'), C.reservePicks, f.minReserve, v => (v ? fmt(v) : T('hud.fm.autoPick')), v => fmSet('minReserve', v), 'fmRes'),
-        h('p', { class: 'hud-sub' }, T('hud.fm.spendLimit')), segOf(T('hud.fm.spendLimit'), C.limitPicks, f.spendLimit, v => (v ? fmt(v) : T('hud.fm.noLimit')), v => fmSet('spendLimit', v), 'fmLim'),
+        d.away ? h('p', { class: 'hud-sub' }, T('hud.fm.away', { min: d.away.minutes, earned: fmt(Math.round(d.away.earned)), salary: fmt(Math.round(d.away.salary)), ripe: d.away.ripe, empty: d.away.empty, orders: d.away.orders })) : null,
+        section('hud.fm.sec.need', h('ul', { class: 'hud-fm-tiers' },
+          ...d.need.rows.map(r => h('li', { class: 'hud-fm-tier' }, h('strong', null, T(`hud.fm.need.${r.job}`, { n: fmt(r.backlog) })), h('small', { class: r.have < r.want ? 'is-short' : '' }, T('hud.fm.needLine', { want: r.want, have: r.have })))),
+          h('li', { class: 'hud-fm-tier' }, h('strong', null, T('hud.fm.need.storage', { stored: fmt(d.need.storage.stored), capacity: fmt(d.need.storage.capacity) })), h('small', { class: d.need.storage.silos < d.need.storage.want ? 'is-short' : '' }, T('hud.fm.needSilo', { want: d.need.storage.want, have: d.need.storage.silos }))))),
+        section('hud.fm.sec.tiers', h('ul', { class: 'hud-fm-tiers' }, ...d.tiers.map(t => fmTierRow(t, t.t === d.nextTier ? d.landWhy : null)))),
+        blocks.length ? section('hud.fm.sec.blocks', h('ul', { class: 'hud-fm-tiers' }, ...blocks.map(b => h('li', { class: 'hud-fm-tier' }, h('small', null, T(`hud.fm.obj.fix.${b.code}`, b)))))) : null,
       ]),
-      fold('fmLog', `🧾 ${T('hud.fm.sec.log')}`, () => (d.log.length ? h('ul', { class: 'hud-sm-journal' }, ...d.log.map(e => fmLogRow(e, now))) : h('p', { class: 'hud-line hud-line--muted' }, T('hud.pf.logEmpty')))),
     ].filter(Boolean);
   }
   // His four numbers: what each does, one tap to raise it.
@@ -516,8 +774,6 @@ export function createStaffModal(ctx) {
   }
   // Ignored requests pile up (management-rules §4.3): Chờ lệnh / dễ bị dụ / Đình công, and the apology that clears it.
   // Why the manager's spirits are sinking now (idle: you did everything; absent: nobody touched the game).
-  const segOf = (label, values, cur, fmtV, onPick, id) => h('div', { class: 'hud-tabs hud-sm-seg', attrs: { role: 'group', 'aria-label': label } },
-    ...values.map(v => h('button', { type: 'button', class: 'hud-tab', dataset: { hudId: `${id}-${v}` }, attrs: { 'aria-pressed': String(cur === v) }, on: { click: () => { if (cur !== v) onPick(v); } } }, fmtV(v))));
   // Giấy phép (§2.5): the player's licences — what the manager may do; Đào tạo: his next skill step.
   // Is the GM worth it: today's team profit (this game) against the GM's pay today, jobs done.
   function gmWorth(s, now, gm) {
@@ -553,7 +809,10 @@ export function createStaffModal(ctx) {
         h('small', null, T('hud.gm.salary', { coins: fmt(gmSalary(c, 'full')), min: GM.payMinutes }))),
       h('div', { class: 'hud-hire-act' }, actionButton({ id: `gmHire-${i}`, label: T('hud.hire'), cost: c.fee, tone: 'gold', disabled: s.player.coins < c.fee,
         onClick: () => { const r = act('gm/hire', { index: i }); if (r.ok) sfx('reward.levelup'); } }))));
-    return h('div', null, h('p', { class: 'hud-sub' }, T('hud.gm.what')), h('ul', { class: 'hud-hire' }, ...rows),
+    // Close to the Level-10 incident the region (and the manager with it) is wiped: say so before 500+ coins go on a hire.
+    const lvLeft = EXPIRY_ENABLED && !s.story.level10Done ? EXPIRY_LEVEL - level(s) : 99;
+    const soon = lvLeft > 0 && lvLeft <= 2 ? h('p', { class: 'hud-sm-note is-warn' }, T('hud.gm.lv10Soon', { n: lvLeft, level: EXPIRY_LEVEL })) : null;
+    return h('div', null, h('p', { class: 'hud-sub' }, T('hud.gm.what')), soon, h('ul', { class: 'hud-hire' }, ...rows),
       h('div', { class: 'hud-hire-refresh' }, h('span', { class: 'hud-sub' }, wait > 0 ? T('hud.gm.refreshIn', { t: mmss(wait) }) : ''),
         actionButton({ label: T('hud.gm.refresh'), icon: '🔄', cost: wait > 0 ? GM.board.refreshCost : undefined, tone: 'plain', onClick: () => act('gm/refreshBoard', { roll: Math.random(), paid: wait > 0 }) })));
   }
@@ -747,7 +1006,7 @@ export function createStaffModal(ctx) {
         h('strong', { class: 'hud-sm-dname' }, nameOf(u)),
         h('small', { class: 'hud-pf-who' }, who),
         h('span', { class: 'hud-pf-tags' }, ...tags, perkBadge(u.perk), u.follower ? tag(T('hud.follow.tag', { coins: followerWage(u), min: UPKEEP.perMinutes }), 'gold') : null),
-        h('small', { class: `hud-report hud-report--${toneOf(key)}` }, nowLine(s, u, key, now, infoOf(s, u)))));
+        h('small', { class: `hud-report hud-report--${lineTone(key, infoOf(s, u))}` }, nowLine(s, u, key, now, infoOf(s, u)))));
   }
   /** List avatar: the unit's photo when it is drawn here (cached by the realm), else its icon on a per-unit tint. */
   function avatarOf(s, u, key) {
@@ -1138,12 +1397,11 @@ export function createStaffModal(ctx) {
 
   // ---------- Tuyển dụng ----------
   // The level whose cap (= level) leaves room for one more unit (an old save may already be over the cap).
-  const nextHireLevel = (s, zone) => Math.max(level(s), zoneUnits(s, zone).length) + 1;
   function hireFoot(s, err, def, cost, hire) {
     if (err === 'round') return lockTag(T('hud.roundN', { round: def.round }));
     if (err === 'level') return lockTag(T('hud.levelN', { level: def.level }));
     if (err === 'teamFull') return lockTag(T('hud.sm.teamFull', { max: zoneUnits(s, def.zone).length }));
-    // Team = level (one hire per level, §1): the lock names the level that allows one more.
+    // Past STAFF_CAP.base the team grows one per level: the lock names the level that allows one more.
     if (err === 'hireLimit') return lockTag(T('hud.levelN', { level: nextHireLevel(s, def.zone) }));
     // Robot share (management-rules §2.1): robots ≤ half the slots, a robot never takes the last worker's place.
     if (err === 'robotShare') return lockTag(T('hud.sm.robotShare', { max: robotRoom(s, def.zone) + zoneUnits(s, def.zone).filter(x => STAFF[x.type].kind === 'robot').length }));
@@ -1157,12 +1415,12 @@ export function createStaffModal(ctx) {
       refreshingPool = true;
       queueMicrotask(() => { refreshingPool = false; store.dispatch('staff/refreshPool', { zone, roll: Math.random() }); });
     }
-    // The team is capped at the player level, so a new hire normally gets a working slot; the bench note only shows
+    // Every hire normally gets a working slot; the bench note only shows
     // when old saves (or a level drop) left more units than slots.
     const capped = hireCapReached(s, zone), full = freeSlots(s, zone) <= 0;
     // Only a limit is worth a banner; free slots need no sentence.
     const note = capped || full ? h('p', { class: 'hud-sm-note is-warn' }, capped
-      ? T('hud.sm.hireCap', { n: zoneUnits(s, zone).length, max: hireCap(s, zone), level: nextHireLevel(s, zone) })
+      ? (nextHireLevel(s, zone) ? T('hud.sm.hireCap', { n: zoneUnits(s, zone).length, max: hireCap(s, zone), level: nextHireLevel(s, zone) }) : T('hud.sm.hireMax', { n: zoneUnits(s, zone).length, max: hireCap(s, zone) }))
       : T('hud.sm.hireBench', { n: activeCount(s, zone), max: slots(s, zone), pct: Math.round(UPKEEP.benchRatio * 100), rpct: Math.round(UPKEEP.robotStandbyRatio * 100), min: UPKEEP.perMinutes })) : null;
     // One slim row per candidate: icon, who + what, one detail line, the hire button.
     const row = (icon, rare, title, sub, detail, foot, tip) => h('li', { class: `hud-hire-row${rare ? ' is-rare' : ''}`, attrs: tip ? { title: tip } : undefined },
@@ -1171,12 +1429,14 @@ export function createStaffModal(ctx) {
         h('p', { class: 'hud-hire-top' }, h('strong', null, title), sub ? h('span', null, sub) : null),
         h('small', null, detail)),
       h('div', { class: 'hud-hire-act' }, foot));
+    // A waterer / water robot fetches water at a well: with none built it would only stand there (QA 2026-11-09).
+    const needsWell = type => /^water/.test(type) && !(region(s)?.buildings || []).some(b => b.type === 'well');
     const cards = h('ul', { class: 'hud-hire' });
     applicants(s, zone).forEach((a, index) => {
       const def = STAFF[a.type], tr = TRAITS[a.trait];
       const stats = STAT_ORDER.map(k => `${STAT_ICON[k]}${a.stats?.[k] ?? 1}`).join('  ');
       const perk = a.perk ? `  ·  ${PERK_ICON[a.perk] || '⭐'} ${T(`hud.sm.perk.${a.perk}`)}` : '';
-      cards.append(row(def.icon, !!a.perk, a.name, `${T(`staff.${a.type}`)} · ${tr.icon} ${T(`staff.trait.${a.trait}`)}`, stats + perk,
+      cards.append(row(def.icon, !!a.perk, a.name, `${T(`staff.${a.type}`)} · ${tr.icon} ${T(`staff.trait.${a.trait}`)}`, needsWell(a.type) ? T('hud.sm.needWell') : stats + perk,
         hireFoot(s, recruitError(s, zone, index), def, a.cost, () => act('staff/recruit', { zone, index })),
         `${T(`hud.staffJob.${a.type}`)}. ${T(`staff.traitFx.${a.trait}.${zone}`)}`));
     });
@@ -1187,7 +1447,7 @@ export function createStaffModal(ctx) {
     const robots = h('ul', { class: 'hud-hire' });
     for (const type of STAFF_ORDER.filter(id => STAFF[id].zone === zone && STAFF[id].kind === 'robot')) {
       const def = STAFF[type], owned = zoneUnits(s, zone).filter(u => u.type === type).length;
-      robots.append(row(def.icon, false, T(`staff.${type}`), owned ? T('hud.sm.owned', { n: owned }) : '', T(`hud.staffJob.${type}`),
+      robots.append(row(def.icon, false, T(`staff.${type}`), owned ? T('hud.sm.owned', { n: owned }) : '', needsWell(type) ? T('hud.sm.needWell') : T(`hud.staffJob.${type}`),
         hireFoot(s, staffError(s, type), def, def.cost, () => act('staff/hire', { type }))));
     }
     return h('div', null, note,
@@ -1261,15 +1521,17 @@ export function createStaffModal(ctx) {
       h('span', { class: 'hud-sm-jico', attrs: { 'aria-hidden': 'true' } }, JOURNAL_ICON[e.type] || '•'),
       h('span', { class: 'hud-sm-jtext' }, journalText(s, e)),
       h('small', { class: 'hud-sm-jago' }, ago(now - (e.at || now)))));
+    // Money stays open; the long lists are one tap away so the report fits a screen.
     return h('div', null, seg,
-      section('hud.rp.sec.money', tiles, moneyNote),
+      section('hud.rp.sec.money', tiles, moneyNote, upkeepPer(s, zone) > 0 ? h('p', { class: 'hud-sub' }, T('hud.sm.upkeepLine', { coins: fmt(upkeepPer(s, zone)), min: UPKEEP.perMinutes })) : null),
       section('hud.rp.sec.spend', spendBody),
-      section('hud.rp.sec.rank', ranked.length ? rank : h('p', { class: 'hud-line hud-line--muted' }, T('hud.sm.noTeamShort')),
-        h('p', { class: 'hud-sub' }, T(period === '10m' ? 'hud.rp.rankToday' : 'hud.rp.rankNote', { a: PROFILE.grade.cuts[0][1], b: PROFILE.grade.cuts[2][1], c: PROFILE.grade.cuts[3][1] }))),
-      researchSummary(s, now, zone),
-      section('hud.sm.sec.mvp', h('p', { class: 'hud-line' }, mvp ? T('hud.sm.mvp', { name: mvp.name || nameOf(unitOf(s, mvp.uid)), coins: fmt(mvp.earned) }) : T('hud.sm.mvpNone', { min: BOOKS.mvpMinutes }))),
-      section('hud.sm.sec.tips', h('ul', { class: 'hud-sm-tips' }, ...tips.map(t => h('li', null, t)))),
-      section('hud.sm.sec.journal', journal.length ? h('ul', { class: 'hud-sm-journal' }, ...journal) : h('p', { class: 'hud-line hud-line--muted' }, T('hud.sm.journalEmpty'))));
+      gmOf(s) ? fold('rpManager', T('hud.sb.reportSec'), () => gmReportBody(s, now, zone, 30)) : null,
+      fold('rpRank', T('hud.rp.sec.rank'), () => [ranked.length ? rank : h('p', { class: 'hud-line hud-line--muted' }, T('hud.sm.noTeamShort')),
+        h('p', { class: 'hud-sub' }, T(period === '10m' ? 'hud.rp.rankToday' : 'hud.rp.rankNote', { a: PROFILE.grade.cuts[0][1], b: PROFILE.grade.cuts[2][1], c: PROFILE.grade.cuts[3][1] }))]),
+      fold('rpMore', T('hud.rp.more'), () => [researchSummary(s, now, zone),
+        section('hud.sm.sec.mvp', h('p', { class: 'hud-line' }, mvp ? T('hud.sm.mvp', { name: mvp.name || nameOf(unitOf(s, mvp.uid)), coins: fmt(mvp.earned) }) : T('hud.sm.mvpNone', { min: BOOKS.mvpMinutes }))),
+        section('hud.sm.sec.tips', h('ul', { class: 'hud-sm-tips' }, ...tips.map(t => h('li', null, t)))),
+        section('hud.sm.sec.journal', journal.length ? h('ul', { class: 'hud-sm-journal' }, ...journal) : h('p', { class: 'hud-line hud-line--muted' }, T('hud.sm.journalEmpty')))]));
   }
   // Research at a glance (docs/design/research.md step 4): what you found / set up — the growth only you can do.
   function researchSummary(s, now, zone) {
@@ -1351,15 +1613,19 @@ export function createStaffModal(ctx) {
   }
 
   // ---------- API ----------
+  const fillsWidth = matchMedia('(max-width: 460px)'); // the modal's own max width (.hud-sm in v3.css): nothing of the world shows beside it
   const api = {
     el,
     get isOpen() { return st.open; },
     /** The full modal covers the world (open and not collapsed to the strip). */
     get covering() { return st.open && !st.collapsed; },
+    /** Covering AND wide enough that the world cannot be seen at its sides (wider screens keep drawing the world around it). */
+    get coversWorld() { return st.open && !st.collapsed && fillsWidth.matches; },
     get collapsed() { return st.open && st.collapsed; },
     /** Opens the modal (on a unit's Detail with `uid`, or a tab). */
-    open({ uid = null, tab = null } = {}) {
+    open({ uid = null, tab = null, autoReport = false } = {}) {
       const was = st.open;
+      if (autoReport) st.folds.autoReport = true;
       if (body.dataset.screen) scrollMem[body.dataset.screen] = body.scrollTop;
       st.open = true;
       st.collapsed = false;
@@ -1381,9 +1647,11 @@ export function createStaffModal(ctx) {
       st.open = false;
       st.collapsed = false;
       st.uid = null;
+      st.sel.clear(); st.bulk = null; st.picking = false; st.drill = null; st.place.clear();
       clearInterval(timer); timer = null;
       pending = false;
       el.hidden = true;
+      foot.replaceChildren();
       body.replaceChildren(); delete body.dataset.screen;
       strip.replaceChildren();
       delete ctx.root.dataset.staff;

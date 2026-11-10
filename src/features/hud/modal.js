@@ -2,6 +2,7 @@
 import { h } from './dom.js';
 import { T } from './text.js';
 import { coinAmount } from './widgets.js';
+import { mascot } from './mascot.js';
 
 export function createModals(ctx) {
   const layer = h('div', { class: 'hud-modal-layer', hidden: true });
@@ -78,14 +79,14 @@ export function createModals(ctx) {
     let i = 0;
     const speaker = h('strong', { class: 'hud-talk-name' });
     const text = h('p', { class: 'hud-talk-text', attrs: { 'aria-live': 'polite' } });
-    const more = h('span', { class: 'hud-talk-more', attrs: { 'aria-hidden': 'true' } }, '▼');
+    const more = h('span', { class: 'hud-talk-more', attrs: { 'aria-hidden': 'true' } }, '﹀');
     const bubble = h('button', { type: 'button', class: 'hud-talk-bubble', on: { click: () => next() } }, speaker, text, more);
-    const avatar = h('div', { class: 'hud-talk-avatar', attrs: { 'aria-hidden': 'true' } }, '🧙‍♂️');
+    const avatar = h('div', { class: 'hud-talk-avatar', attrs: { 'aria-hidden': 'true' } });
     const node = h('div', { class: 'hud-talk', on: { click: e => { if (e.target === node) next(); } } }, avatar, bubble);
     let done;
     const show = () => {
       speaker.textContent = list[i].speaker || T('hud.teacher');
-      avatar.textContent = list[i].avatar || '🧙‍♂️'; // a line may come from someone else (e.g. the evolved robot)
+      avatar.replaceChildren(list[i].avatar || mascot()); // a line may come from someone else (e.g. the evolved robot)
       text.textContent = list[i].text;
       bubble.setAttribute('aria-label', `${speaker.textContent}: ${list[i].text}. ${T('hud.tapContinue')}`);
     };
