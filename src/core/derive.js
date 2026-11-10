@@ -505,14 +505,17 @@ export function placementError(s, type, x, z, rot = 0, ignoreId = null) {
  * spots: [{ x, z, error }] (error = why this spot is left out: taken, wall, not owned, another terrace, or out of coins).
  * n / cost: the trees it will really plant and what they cost (seeds + clearing past the free rows, the same prices as one by one).
  */
-export function rowPlan(s, crop, x0, z0, x1, z1) {
+export function rowPlan(s, crop, x0, z0, x1, z1, rows = 1) {
   const dx = x1 - x0, dz = z1 - z0, step = Math.PI / 4, a = Math.round(Math.atan2(dz, dx) / step) * step, ux = Math.cos(a), uz = Math.sin(a);
   const count = Math.min(PLANT_ROW.maxTrees, 1 + Math.floor(Math.max(0, dx * ux + dz * uz) / PLANT_ROW.spacing + 1e-6));
-  const axis = u => Math.sign(Math.round(u * 1e6)) * Math.ceil(Math.abs(u) * PLANT_ROW.spacing * 10 - 1e-6) / 10, sx = axis(ux), sz = axis(uz); // whole 10 cm steps: neighbours on a diagonal never touch
+  const axis = u => Math.sign(Math.round(u * 1e6)) * Math.ceil(Math.abs(u) * PLANT_ROW.spacing * 10 - 1e-6) / 10, sx = axis(ux), sz = axis(uz), px = axis(-uz), pz = axis(ux); // whole 10 cm steps: neighbours on a diagonal never touch
+  const width = Math.max(1, Math.min(PLANT_ROW.maxRows, Math.floor(Number(rows)) || 1));
+  const offsets = [0]; // the row under the finger first, then one each side: short of coins, the stroke keeps its middle
+  for (let k = 1; offsets.length < width; k++) offsets.push(k, -k);
   const zone = tierZoneAt(x0, z0), allow = fieldAllowance(s), spots = [];
   let coins = s.player.coins, beds = fieldsOf(s).length, seed = seedCost(s, crop), cost = 0, n = 0, error = null, broke = false;
-  for (let i = 0; i < count; i++) {
-    const p = snapPosition('field', x0 + sx * i, z0 + sz * i, 0);
+  for (const off of offsets.slice(0, width)) for (let i = 0; i < count && spots.length < PLANT_ROW.maxSpots; i++) {
+    const p = snapPosition('field', x0 + sx * i + px * off, z0 + sz * i + pz * off, 0);
     let err = broke ? 'coins' : tierZoneAt(p.x, p.z) !== zone ? 'mountain' : placementError(s, 'field', p.x, p.z, 0);
     if (!err) {
       const price = seed + (beds < allow ? 0 : fieldExtraCost(beds - allow));
@@ -522,7 +525,26 @@ export function rowPlan(s, crop, x0, z0, x1, z1) {
     if (err) error ||= err;
     spots.push({ x: p.x, z: p.z, error: err });
   }
-  return { spots, n, cost: Math.round(cost * 100) / 100, error, broke, dir: ((Math.round(a / step) % 4) + 4) % 4 };
+  return { spots, n, cost: Math.round(cost * 100) / 100, error, broke, dir: ((Math.round(a / step) % 4) + 4) % 4, count: Math.min(count, spots.length), rows: width };
+}
+/** The nearest free planting spots around (cx, cz), ring by ring on the row spacing, as far as the coins go (the Fill button). */
+export function fillPlan(s, crop, cx, cz, max = PLANT_ROW.fillTrees) {
+  const limit = Math.max(1, Math.min(PLANT_ROW.fillTrees, Math.floor(Number(max)) || PLANT_ROW.fillTrees));
+  const zone = tierZoneAt(cx, cz), allow = fieldAllowance(s), spots = [], at = snapPosition('field', cx, cz, 0), gap = PLANT_ROW.spacing;
+  let coins = s.player.coins, beds = fieldsOf(s).length, seed = seedCost(s, crop), cost = 0, n = 0, error = null, broke = false;
+  for (let r = 0; r <= PLANT_ROW.fillRings && n < limit && !broke; r++) {
+    for (let j = -r; j <= r && n < limit && !broke; j++) for (let i = -r; i <= r && n < limit && !broke; i++) {
+      if (Math.max(Math.abs(i), Math.abs(j)) !== r) continue; // only the ring's edge
+      const p = snapPosition('field', at.x + i * gap, at.z + j * gap, 0);
+      const err = tierZoneAt(p.x, p.z) !== zone ? 'mountain' : placementError(s, 'field', p.x, p.z, 0);
+      if (err) { error ||= err; continue; }
+      const price = seed + (beds < allow ? 0 : fieldExtraCost(beds - allow));
+      if (coins < price) { error = 'coins'; broke = true; break; }
+      coins -= price; cost += price; beds++; n++; seed = CROPS[crop].seedCost;
+      spots.push({ x: p.x, z: p.z, error: null });
+    }
+  }
+  return { spots, n, cost: Math.round(cost * 100) / 100, error: n ? null : error || 'blocked', broke, dir: 0, count: spots.length, rows: 1 };
 }
 // Would a solid footprint `fp` leave a field or a non-decor building in this lot with no walkable neighbour reaching
 // the lot's surroundings (roads / open land)? Local flood fill on the SNAP lattice over the lot + 1 m (cheap: ≤ ~800 cells).

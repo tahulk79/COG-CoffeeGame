@@ -107,7 +107,7 @@ export function createTopBar(ctx) {
     // Left column: player + money, then under it one left-aligned stack (to-do chips, added by index.js, and the Lv-10 chip).
     h('div', { class: 'hud-left-col' },
       h('div', { class: 'hud-top-left' },
-        h('div', { class: 'hud-player', attrs: { role: 'button' }, on: { click: () => ctx.realm?.focusAvatar?.() } }, badge, h('div', { class: 'hud-player-text' }, name, xpBar)),
+        h('div', { class: 'hud-player', attrs: { role: 'button' }, on: { click: () => ctx.onTool?.('rounds') } }, badge, h('div', { class: 'hud-player-text' }, name, xpBar)),
         h('div', { class: 'hud-pills' }, coins, usdPill, beans)),
       h('div', { class: 'hud-left-chips' }, alertChip, lv10)),
     h('div', { class: 'hud-top-right' }, h('div', { class: 'hud-gear-col' }, gear), loanBtn, worldBtn, rotateBtn, giftBtn, inboxBtn)); // right rail, top to bottom: settings · loan · map · compass (founder 2026-11-10); quests and upgrades live in the Manage menu

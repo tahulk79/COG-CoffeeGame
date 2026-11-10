@@ -15,7 +15,8 @@ import { sfx } from '../../shared/audio/index.js';
 import { localItemsOf } from '../../ui/local-menu.js';
 import { h } from './dom.js';
 import { T, has, fmt, errorText, gmReasonText } from './text.js';
-import { levelUnlocks, questText } from './sheets.js';
+import { levelUnlockCards, questText } from './sheets.js';
+import { modelIcon } from './model-icons.js';
 
 const TOAST_MS = 2400, MAX_TOASTS = 3;
 // What the toast / banner column must stay clear of. TOP: HUD sitting above it (its bottoms are the candidate tops);
@@ -53,8 +54,8 @@ export function createFeedback(ctx) {
   const toasts = h('div', { class: 'hud-toasts', attrs: { role: 'status', 'aria-live': 'polite' } });
   const banner = h('div', { class: 'hud-banner', hidden: true, attrs: { role: 'status' } });
   // Banner first, toasts under it, in one column: a level-up banner can never hide the toasts (or the reverse).
-  const col = h('div', { class: 'hud-feedback-col' }, banner, toasts);
-  const el = h('div', { class: 'hud-feedback' }, col);
+  const col = h('div', { class: 'hud-feedback-col' }, toasts);
+  const el = h('div', { class: 'hud-feedback' }, col, banner); // the level-up covers the whole screen, so it sits outside the toast column
   const timers = new Set();
   ctx.venueSold = ctx.venueSold || Object.create(null); // per-shop sales this session (venue card)
   const later = (fn, ms) => { const id = setTimeout(() => { timers.delete(id); fn(); }, ms); timers.add(id); return id; };
@@ -115,28 +116,44 @@ export function createFeedback(ctx) {
   }
 
   let bannerTimer = 0;
-  // Phones: 3 unlocks + "+N" keep the banner small (the full list is in Progress); larger screens: up to 6.
-  function bannerItems(unlocks) {
-    const max = (window.innerWidth || 0) < 760 || (window.innerHeight || 0) < 561 ? 3 : 6;
-    const shown = unlocks.length > max ? unlocks.slice(0, max - 1) : unlocks;
-    const items = shown.map(u => h('li', null, u));
-    if (unlocks.length > shown.length) items.push(h('li', { class: 'is-more' }, `+${unlocks.length - shown.length}`));
-    return items;
-  }
+  // The celebration waits while the player is planting or placing something: it must never interrupt a row. Auto only gets a toast.
+  let heldLevels = null;
   function levelBanner(s, from, to) {
+    if (ctx.isAuto?.()) { ctx.toast(T('hud.levelUp', { level: to }), 'good'); sfx('reward.levelup'); return; }
+    if (ctx.realm?.planting || ctx.realm?.placement) {
+      if (!heldLevels) later(flushLevels, 400);
+      heldLevels = { from: Math.min(heldLevels?.from ?? from, from), to: Math.max(heldLevels?.to ?? to, to) };
+      return;
+    }
+    showLevel(s, from, to);
+  }
+  function flushLevels() {
+    if (!heldLevels) return;
+    if (ctx.realm?.planting || ctx.realm?.placement) { later(flushLevels, 400); return; }
+    const { from, to } = heldLevels;
+    heldLevels = null;
+    showLevel(ctx.store.state, from, to);
+  }
+  function showLevel(s, from, to) {
     const unlocks = [];
-    for (let l = from + 1; l <= to; l++) unlocks.push(...levelUnlocks(s, l));
-    // replaceChildren() turns null into the text "null": only real nodes go in.
-    banner.replaceChildren(...[h('strong', { class: 'hud-banner-title' }, T('hud.levelUp', { level: to })),
-      unlocks.length ? h('div', { class: 'hud-banner-sub' }, T('hud.unlocked')) : null,
-      unlocks.length ? h('ul', { class: 'hud-banner-list' }, bannerItems(unlocks)) : null,
-      // The last 3 levels before the Level-10 incident: say it is coming.
-      EXPIRY_ENABLED && !s.story.level10Done && to < EXPIRY_LEVEL && EXPIRY_LEVEL - to <= 3 ? h('div', { class: 'hud-banner-warn' }, T('hud.lv10.banner', { n: EXPIRY_LEVEL - to, level: EXPIRY_LEVEL })) : null].filter(Boolean));
+    for (let l = from + 1; l <= to; l++) unlocks.push(...levelUnlockCards(s, l));
+    const tile = (u, i) => {
+      const ico = h('span', { class: 'hud-lvup-tile-ico', attrs: { 'aria-hidden': 'true' } }, u.icon);
+      if (u.model) modelIcon(u.model).then(url => { if (url) ico.replaceChildren(Object.assign(document.createElement('img'), { src: url, alt: '', draggable: false })); });
+      return h('div', { class: `hud-lvup-tile is-${i}` }, ico, h('strong', null, u.name));
+    };
+    const close = () => { clearTimeout(bannerTimer); timers.delete(bannerTimer); banner.hidden = true; };
+    banner.replaceChildren(...[h('span', { class: 'hud-lvup-rays', attrs: { 'aria-hidden': 'true' } }), h('span', { class: 'hud-lvup-conf', attrs: { 'aria-hidden': 'true' } }),
+      h('strong', { class: 'hud-banner-title' }, T('hud.levelUpShort')),
+      h('div', { class: 'hud-lvup-star' }, h('b', null, String(to))),
+      unlocks.length ? h('div', { class: 'hud-lvup-tiles' }, ...unlocks.slice(0, 2).map(tile)) : null,
+      EXPIRY_ENABLED && !s.story.level10Done && to < EXPIRY_LEVEL && EXPIRY_LEVEL - to <= 3 ? h('div', { class: 'hud-banner-warn' }, T('hud.lv10.banner', { n: EXPIRY_LEVEL - to, level: EXPIRY_LEVEL })) : null,
+      h('button', { type: 'button', class: 'hud-btn hud-btn--go hud-lvup-go', on: { click: close } }, h('span', { class: 'hud-btn-main' }, T('hud.gift.collect')))].filter(Boolean));
     banner.hidden = false;
     layout();
     clearTimeout(bannerTimer);
     timers.delete(bannerTimer);
-    bannerTimer = later(() => { banner.hidden = true; }, unlocks.length || banner.querySelector('.hud-banner-warn') ? 4200 : 2600);
+    bannerTimer = later(() => { banner.hidden = true; }, 7000);
     sfx('reward.levelup');
   }
 
@@ -214,10 +231,11 @@ export function createFeedback(ctx) {
         // coffee varieties: what the player's own pick lost or left on the plant (staff picks stay quiet)
         case 'harvested':
           if (ev.by != null) break;
-          if (ev.dropped) toast(T('hud.toast.dropped', { crop: T(`crop.${ev.crop}`), n: ev.dropped }), 'warn');
+          if (ev.dropped) { if (now - (lastAt.dropped || 0) > 3000) { lastAt.dropped = now; toast(T('hud.toast.dropped', { crop: T(`crop.${ev.crop}`), n: ev.dropped }), 'warn'); } }
           else if (ev.lonely && now - (lastAt.lonely || 0) > 60000) { lastAt.lonely = now; toast(T('hud.toast.lonely'), 'info'); }
-          else if (ev.wave === 1) toast(T('hud.toast.wave1', { crop: T(`crop.${ev.crop}`) }), 'info');
+          else if (ev.wave === 1 && now - (lastAt.wave1 || 0) > 3000) { lastAt.wave1 = now; toast(T('hud.toast.wave1', { crop: T(`crop.${ev.crop}`) }), 'info'); }
           break;
+        case 'harvestedAll': toast(T(ev.full ? 'hud.harvestAll.full' : 'hud.harvestAll.done', { n: fmt(ev.n) }), ev.full ? 'warn' : 'good'); break;
         case 'pruned': toast(T('hud.toast.pruned'), 'good'); break;
         case 'uprooted': toast(T('hud.toast.uprooted'), 'info'); break;
         case 'specialtyBonus': if (now - (lastAt.specialty || 0) > 30000) { lastAt.specialty = now; toast(T('hud.toast.specialty', { coins: fmt(ev.coins) }), 'good'); } break;

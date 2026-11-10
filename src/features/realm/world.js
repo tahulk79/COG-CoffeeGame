@@ -1146,6 +1146,7 @@ export function createWorld({ scene, templates }) {
     decor.farm.rocks.show([...open, ...wildFarm]); // border stones of open roads + rocks on overgrown land
     orchard.show([], state); // (orchard lots grow no ready-made trees either: you plant them)
     rebuildFences(owned);
+    dressing?.syncStart?.(state.world?.regions?.[state.world?.currentRegion]);
     lastState = state;
     if (land.mode) applyLand(state); // ownership changed while building / expanding: rebuilt only when the key changes
   }
@@ -1210,7 +1211,7 @@ export function createWorld({ scene, templates }) {
   freezeStatic(group); // only world-owned decor lives under this group; the café's half gets no later pass
 
   return {
-    group, areas, mats, gate, gatePicker, cull: createInstanceCull(group), tierPickers: () => dressing?.pickers?.() || [], moveTierSign: (seed, x, z) => dressing?.moveSign?.(seed, x, z) || false, hideTierSign: (seed, b) => dressing?.hideSign?.(seed, b), sync, update,
+    group, areas, mats, gate, gatePicker, cull: createInstanceCull(group), previewDressing: (x, z, r) => dressing?.previewStart?.(x, z, r), tierPickers: () => dressing?.pickers?.() || [], moveTierSign: (seed, x, z) => dressing?.moveSign?.(seed, x, z) || false, hideTierSign: (seed, b) => dressing?.hideSign?.(seed, b), sync, update,
     /** Static decor the player cannot walk through (the city's houses). */
     blockers: city.blockers,
     /** Shows only one area: 'farm' | 'cafe' (null → both, used while shaders compile). */

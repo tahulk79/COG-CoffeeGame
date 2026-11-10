@@ -7,7 +7,7 @@
 // Red dot when something is new or affordable. Buttons of the other screen are hidden (never removed: the tutorial and
 // tests can still find them by id).
 import { BUILD_MENU_FARM, BUILD_MENU_CAFE, BUILDINGS, CROPS, CROP_ORDER, DRINK_ORDER, STAFF, STAFF_ORDER, BEANS, ITEM_GOODS } from '../../core/config/economy.js';
-import { buildError, countOf, maxCount, useOf, defOf, staffError, unitBlocked, upgradableStats, zoneUnits, unlockedCrops, unlockedDrinks, freeSlots, region, upgradeError, capacity, stored, goodCount, beanBuyQuote, tasksOpen } from '../../core/derive.js';
+import { ownedPlots, plotState, buildError, countOf, maxCount, useOf, defOf, staffError, unitBlocked, upgradableStats, zoneUnits, unlockedCrops, unlockedDrinks, freeSlots, region, upgradeError, capacity, stored, goodCount, beanBuyQuote, tasksOpen } from '../../core/derive.js';
 import { h, setText } from './dom.js';
 import { T } from './text.js';
 import { drinkSeenKey } from './sheets.js';
@@ -92,6 +92,20 @@ export function createToolbar(ctx) {
     useFarmArt(icon, `ui/nav-${tool.id}.png`);
     buttons[tool.id] = { btn, icon, dot, tool };
   }
+  // Harvest every ripe tree in one tap; only there while at least two are ripe and nothing else (Auto, another game) is in charge.
+  const harvestCount = h('b');
+  const harvestBtn = h('button', { type: 'button', class: 'hud-harvest-all', hidden: true, dataset: { hudId: 'harvestAll' }, on: { click: () => { harvestBtn.hidden = true; ctx.act('farm/harvestAll'); } } },
+    h('span', { class: 'hud-harvest-ico', attrs: { 'aria-hidden': 'true' } }, '🧺'), h('span', null, T('hud.harvestAll.btn')), harvestCount);
+  let harvestPoll = 0;
+  function updateHarvest(view) {
+    const t = performance.now();
+    if (t - harvestPoll < 400) return;
+    harvestPoll = t;
+    const s = ctx.store.state, now = Date.now();
+    const ripe = view === 'farm' && !ctx.isAuto?.() ? ownedPlots(s).reduce((n, p) => n + (plotState(s, p.id, now).stage === 'ready' ? 1 : 0), 0) : 0;
+    harvestBtn.hidden = ripe < 2;
+    setText(harvestCount, String(ripe));
+  }
   const el = h('nav', { class: 'hud-toolbar', attrs: { 'aria-label': T('hud.toolbar') } });
   let lastCrop = null;
   let viewSig = '';
@@ -107,7 +121,7 @@ export function createToolbar(ctx) {
     // the farm has no Sell button any more (the storage pill opens the sell list); the café keeps its bean-buying button
     if (view !== 'farm') shown.splice(VIEW_SLOT, 0, viewBtn);
     const hidden = TOOLS.filter(t => !t.views.includes(view)).map(t => buttons[t.id].btn);
-    el.replaceChildren(...shown, ...hidden);
+    el.replaceChildren(...shown, ...hidden, harvestBtn);
     el.dataset.view = view;
   }
   layout(ctx.realm?.view || 'farm');
@@ -135,6 +149,7 @@ export function createToolbar(ctx) {
     const crop = ctx.realm?.activeCrop;
     if (crop !== lastCrop) { lastCrop = crop; if (!buttons.seeds.icon.classList.contains('has-art')) setText(buttons.seeds.icon, CROPS[crop]?.icon || '🌱'); }
     const view = ctx.realm?.view || 'farm';
+    updateHarvest(view);
     if (view === viewSig) return;
     viewSig = view;
     ctx.root.dataset.view = view;

@@ -142,13 +142,13 @@ export function upgradesSheet(ctx) {
   const render = s => {
     const items = list(s), news = fresh(s);
     if (!items.length && !news.length) return h('p', { class: 'hud-line hud-line--muted' }, T('hud.upgrades.none'));
-    const rows = items.map(b => h('li', { class: 'hud-land-row' },
+    const rows = items.map(b => h('li', { class: 'hud-land-row', attrs: { title: buildingEffect(b.type, b.level, true) } },
       rowIcon(BUILDINGS[b.type]),
-      h('span', { class: 'hud-land-text' }, h('strong', null, `${T(`building.${b.type}`)} · Lv ${b.level} → ${b.level + 1}`), h('small', null, buildingEffect(b.type, b.level, true))),
+      h('span', { class: 'hud-land-text' }, h('strong', null, T(`building.${b.type}`)), h('small', null, `Lv ${b.level} → ${b.level + 1}`)),
       actionButton({ id: `up-${b.uid}`, label: T('hud.upgrade'), icon: '⬆️', cost: upgradeCost(b.type, b.level), tone: 'gold', disabled: upgradeError(s, b) === 'coins', note: upgradeError(s, b) === 'coins' ? needMore(upgradeCost(b.type, b.level) - Math.floor(s.player.coins)) : null, onClick: () => ctx.act('build/upgrade', { uid: b.uid }) })));
-    const newRows = news.map(type => { const err = buildError(s, type), cost = buildCost(s, type); return h('li', { class: 'hud-land-row' },
+    const newRows = news.map(type => { const err = buildError(s, type), cost = buildCost(s, type); return h('li', { class: 'hud-land-row', attrs: { title: has(`fw.desc.${type}`) ? T(`fw.desc.${type}`) : '' } },
       rowIcon(BUILDINGS[type]),
-      h('span', { class: 'hud-land-text' }, h('strong', null, `${T(`building.${type}`)} · ${T('hud.upgrades.new')}`), h('small', null, has(`fw.desc.${type}`) ? T(`fw.desc.${type}`) : '')),
+      h('span', { class: 'hud-land-text' }, h('strong', null, T(`building.${type}`)), h('small', null, T('hud.upgrades.new'))),
       actionButton({ id: `new-${type}`, label: T('hud.upgrades.buildBtn'), icon: '🔨', cost, tone: 'gold', disabled: err === 'coins', note: err === 'coins' ? needMore(cost - Math.floor(s.player.coins)) : null,
         onClick: () => { ctx.sheet.close(); ctx.clearSelection?.(); ctx.realm?.startPlacement?.(type); } })); });
     return h('div', { class: 'hud-land' }, h('p', { class: 'hud-hint' }, T('hud.upgrades.hint')), h('ul', { class: 'hud-land-list' }, ...rows, ...newRows));
@@ -423,17 +423,15 @@ export function sellSheet(ctx) {
     const cap = region(s) ? capacity(s) : 0, used = region(s) ? stored(s) : 0;
     const rows = GOOD_ORDER.map(g => ({ g, n: Math.floor(goodCount(s, g)), q: sellQuote(s, g) })).filter(r => r.n > 0);
     const all = sellAllQuote(s);
-    const head = h('p', { class: `hud-line${cap && used >= cap ? ' hud-line--bad' : ''}` }, T('hud.storage.fill', { n: used, max: cap }));
-    if (!rows.length) return h('div', null, head, h('p', { class: 'hud-line hud-line--muted' }, T('hud.sell.empty')));
-    const mix = beanMix(s);
-    const list = h('ul', { class: 'hud-sell-list' }, ...rows.map(({ g, n, q }) => h('li', { class: 'hud-sell-row' },
-      h('span', { class: 'hud-sell-ico', attrs: { 'aria-hidden': 'true' } }, GOODS[g]?.icon || '📦'),
-      h('div', { class: 'hud-sell-text' },
-        h('strong', null, T(`good.${g}`), ' ', h('em', null, `× ${n}`)),
-        g === 'beans' ? h('small', null, Object.entries(mix).filter(([, k]) => k > 0).map(([c, k]) => `${CROPS[c]?.icon || ''} ${T(`crop.${c}`)} ${k}`).join(' · ')) : null),
-      actionButton({ id: `sell-${g}`, label: T('hud.sell.one', { coins: fmt(q.coins) }), icon: '🪙', tone: 'gold', onClick: () => ctx.act('farm/sell', { good: g }) }))));
-    return h('div', null, head, list,
-      h('div', { class: 'hud-row' }, actionButton({ id: 'sellAll', label: T('hud.sell.all', { coins: fmt(all.coins) }), icon: '🧺', tone: 'gold', onClick: () => { ctx.act('farm/sellAll'); ctx.sheet.close(); } })));
+    const pct = cap ? Math.min(100, Math.round(used / cap * 100)) : 0;
+    const head = h('div', { class: `ui-bar is-gold is-large${cap && used >= cap ? ' is-full' : ''}`, attrs: { style: `--v:${pct}%` } }, h('u'), h('span', null, T('hud.sell.fill', { n: used, max: cap })));
+    if (!rows.length) return h('div', { class: 'hud-sell' }, head, h('p', { class: 'hud-line hud-line--muted' }, T('hud.sell.empty')));
+    const list = h('div', { class: 'hud-sell-flows' }, ...rows.map(({ g, n, q }) => h('button', { type: 'button', class: 'hud-sell-flow', dataset: { hudId: `sell-${g}`, good: g }, attrs: { 'aria-label': `${T(`good.${g}`)} × ${n} · ${fmt(q.coins)}` }, on: { click: () => ctx.act('farm/sell', { good: g }) } },
+      h('span', { class: 'ui-sq', attrs: { 'aria-hidden': 'true' } }, GOODS[g]?.icon || '📦'),
+      h('b', null, `×${fmt(n)}`), h('span', { class: 'ui-arrow', attrs: { 'aria-hidden': 'true' } }),
+      h('span', { class: 'hud-coin-ico', attrs: { 'aria-hidden': 'true' } }), h('strong', null, fmt(q.coins)))));
+    return h('div', { class: 'hud-sell' }, head, list,
+      actionButton({ id: 'sellAll', label: T('hud.sell.allGo'), tone: 'go', onClick: () => { ctx.act('farm/sellAll'); ctx.sheet.close(); } }));
   };
 }
 
@@ -535,6 +533,7 @@ export function autoPanel(ctx, s, { link = false, detail = false } = {}) {
       h('div', { class: 'hud-auto-state-text' }, h('strong', null, face === 'on' && boss ? T('hud.auto.state.help', { name: boss.name }) : T(`hud.auto.state.${face}`)), h('small', null, T(`hud.auto.sub.${face}`, { min, n: runs }))),
       h('span', { class: 'hud-auto-state-time', dataset: timed ? { autoClock: '' } : undefined }, timed ? clock(left) : `×${runs}`),
       timed ? h('div', { class: 'hud-auto-meter', attrs: { 'aria-hidden': 'true' } }, h('i', { dataset: { autoMeter: '' }, style: { width: `${Math.min(100, left / total * 100)}%` } })) : null),
+    detail ? null : h('div', { class: 'hud-auto-jobs', attrs: { 'aria-hidden': 'true' } }, ...['sprout', 'basket', 'scroll'].map(job => h('i', { dataset: { job } }))),
     h('div', { class: 'hud-auto-actions' },
       detail ? null : actionButton(main),
       face === 'empty' && !detail ? null : actionButton({ id: 'autoBuy', label: T('hud.auto.buyMore'), cost: price, tone: 'plain', disabled: broke, onClick: buy })),
@@ -561,19 +560,20 @@ export const questText = q => T(q.kind === 'stat' || q.kind === 'building' ? `hu
 export function questsSheet(ctx) {
   return s => {
     const a = s.autoplay || {}, list = questList(s), c = questCount(s);
-    const head = h('div', { class: 'hud-quest-head' },
-      h('p', { class: 'hud-line' }, a.active ? T('hud.quest.autoOn') : T('hud.quest.autoOff')),
-      a.active ? null : actionButton({ id: 'questAuto', label: T('hud.quest.start'), icon: '🤖', onClick: () => ctx.onTool('auto') }),
-      h('p', { class: 'hud-line hud-line--muted' }, T('hud.quest.count', { n: c.claimed, total: c.total })));
-    const rows = list.slice(0, 10).map(q => h('div', { class: `hud-quest${q.done ? ' is-done' : ''}` },
-      h('div', { class: 'hud-quest-main' },
-        h('span', { class: 'hud-quest-text' }, questText(q)),
-        h('span', { class: 'hud-quest-prize' }, `🪙${fmt(q.coins)} · ${q.xp} XP`),
-        h('div', { class: 'hud-quest-bar', attrs: { role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': String(q.n), 'aria-valuenow': String(Math.min(q.n, Math.floor(q.value))) } },
-          h('i', { style: { width: `${Math.min(100, Math.floor(q.value / q.n * 100))}%` } })),
-        h('span', { class: 'hud-quest-num' }, `${fmt(Math.min(q.n, Math.floor(q.value)))}/${fmt(q.n)}`)),
-      q.done ? actionButton({ id: `questClaim-${q.id}`, label: T('hud.quest.claim'), onClick: () => ctx.act('quest/claim', { id: q.id }) }) : null));
-    return h('div', { class: 'hud-quests' }, head, ...rows);
+    const head = h('div', { class: 'hud-quest-head' }, h('span', { class: 'ui-ico ui-ico--trophy', attrs: { 'aria-hidden': 'true' } }),
+      h('div', { class: 'ui-bar is-gold is-large', attrs: { style: `--v:${c.total ? Math.round(c.claimed / c.total * 100) : 0}%` } }, h('u'), h('span', null, `${fmt(c.claimed)} / ${fmt(c.total)}`)));
+    const rows = list.slice(0, 10).map(q => {
+      const now = Math.min(q.n, Math.floor(q.value));
+      return h('div', { class: `hud-quest${q.done ? ' is-done' : ''}`, dataset: { art: q.kind === 'stat' ? q.key : q.kind } },
+        h('span', { class: 'hud-quest-ico', attrs: { 'aria-hidden': 'true' } }),
+        h('div', { class: 'hud-quest-main' },
+          h('span', { class: 'hud-quest-text' }, questText(q)),
+          q.done ? h('span', { class: 'hud-quest-prize' }, h('span', { class: 'hud-coin-ico', attrs: { 'aria-hidden': 'true' } }), `${fmt(q.coins)} · ${q.xp} XP`)
+            : h('div', { class: 'ui-bar', attrs: { role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': String(q.n), 'aria-valuenow': String(now), style: `--v:${Math.floor(now / q.n * 100)}%` } }, h('u'), h('span', null, `${fmt(now)}/${fmt(q.n)}`))),
+        q.done ? actionButton({ id: `questClaim-${q.id}`, label: T('hud.quest.claim'), tone: 'gold', onClick: () => ctx.act('quest/claim', { id: q.id }) })
+          : h('span', { class: 'ui-pill' }, h('span', { class: 'hud-coin-ico', attrs: { 'aria-hidden': 'true' } }), fmt(q.coins)));
+    });
+    return h('div', { class: 'hud-quests' }, head, ...rows, a.active ? null : actionButton({ id: 'questAuto', label: T('hud.quest.start'), icon: '▶', tone: 'go', onClick: () => ctx.onTool('auto') }));
   };
 }
 
@@ -586,13 +586,14 @@ export function progressSheet(ctx) {
   };
 }
 
-/** Things that unlock exactly at `lvl` (level-up banner). */
-export function levelUnlocks(s, lvl) {
-  const out = [];
-  for (const id of CROP_ORDER) if (CROPS[id].level === lvl && CROPS[id].round <= s.player.round) out.push(`${CROPS[id].icon} ${T(`crop.${id}`)}`);
-  for (const id of DRINK_ORDER) if (DRINKS[id].level === lvl) out.push(`${DRINKS[id].icon} ${T(`drink.${id}`)}`);
-  for (const id of BUILD_MENU) { const def = defOf(id); if (def && def.level === lvl && def.round <= s.player.round) out.push(`${def.icon} ${T(`building.${id}`)}`); }
-  for (const id of STAFF_ORDER) if (STAFF[id].level === lvl && STAFF[id].round <= s.player.round) out.push(`${STAFF[id].icon} ${T(has(`hud.unlock.${id}`) ? `hud.unlock.${id}` : `staff.${id}`)}`);
+/** What unlocks exactly at `lvl` in the game being played here (level-up screen): { name, icon, model }. */
+export function levelUnlockCards(s, lvl) {
+  const game = regionGame(s), farm = game !== 'cafe', cafe = game !== 'farm', out = [];
+  const inGame = zone => (zone === 'farm' ? farm : zone === 'shop' ? cafe : true);
+  if (farm) for (const id of CROP_ORDER) if (CROPS[id].level === lvl && CROPS[id].round <= s.player.round) out.push({ name: T(`crop.${id}`), icon: CROPS[id].icon, model: { model: `farm/coffee-tree-${TREE_FILE[id] || 'gedeo'}.glb#tree`, trueScale: 1 } });
+  if (cafe) for (const id of DRINK_ORDER) if (DRINKS[id].level === lvl) out.push({ name: T(`drink.${id}`), icon: DRINKS[id].icon });
+  for (const id of BUILD_MENU) { const def = defOf(id); if (def && def.level === lvl && def.round <= s.player.round && inGame(def.zone)) out.push({ name: T(`building.${id}`), icon: def.icon, model: def.model ? def : null }); }
+  for (const id of STAFF_ORDER) if (STAFF[id].level === lvl && STAFF[id].round <= s.player.round && inGame(STAFF[id].zone)) out.push({ name: T(has(`hud.unlock.${id}`) ? `hud.unlock.${id}` : `staff.${id}`), icon: STAFF[id].icon });
   return out;
 }
 
@@ -698,14 +699,14 @@ export function loanSheet(ctx) {
         h('span', { class: 'hud-loan-pack-owed' }, T('hud.loan.payBack', { n: usd(owed) })),
         loanLock(s, amount) || actionButton({ id: `loan-${amount}`, label: T('hud.loan.take'), tone: 'gold', disabled: pending, onClick: () => take(amount) })));
     });
-    out.append(packs);
+    out.append(packs, h('p', { class: 'hud-loan-note' }, h('span', { class: 'hud-coin-ico', attrs: { 'aria-hidden': 'true' } }), T('hud.loan.autoShort', { pct: Math.round(LOAN.autoRepay * 100) })));
     return out;
   };
 }
 
 // Manage: everything used less often, one tap away. Tiles only; each opens its own sheet.
 export function manageSheet(ctx) {
-  const tiles = [['upgrades', '⬆️'], ['quests', '📜'], ['journal', '📓']]; // Loan and World map sit in the top rail; the capital book opens from the money pills
+  const tiles = [['upgrades', '⭐'], ['quests', '📜'], ['journal', '📓']]; // Loan and World map sit in the top rail; the capital book opens from the money pills
   return () => h('div', { class: 'gu-tiles' }, tiles.map(([id, icon]) => h('button', { type: 'button', class: 'gu-tile', dataset: { hudId: `manage-${id}` },
     on: { click: () => ctx.onTool(id) } }, h('span', { class: 'gu-tile-ico', attrs: { 'aria-hidden': 'true' } }, icon), h('span', { class: 'gu-tile-label' }, T(`hud.manage.${id}`)))));
 }

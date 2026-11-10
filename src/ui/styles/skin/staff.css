@@ -1,0 +1,269 @@
+/* Staff: the game's biggest system gets the whole screen under the top bar.
+   One card for everybody (candidate, robot, team member): picture, name, role, facts, action. Loaded after hud.css. */
+
+/* --- The screen --- */
+#hud-root .hud-sm-scrim{background:none}
+#hud-root .hud-sm{position:fixed;left:0!important;right:0!important;top:calc(var(--h-st,0px) + 66px)!important;bottom:0!important;width:auto!important;max-width:none!important;height:auto!important;max-height:none!important;margin:0;display:flex;flex-direction:column;box-sizing:border-box;padding-bottom:var(--h-sb,0px);border:5px solid var(--line);border-bottom:0;border-radius:34px 34px 0 0;background:linear-gradient(var(--cr1),var(--cr2) 55%,var(--cr3));box-shadow:inset 0 8px 0 var(--fr1),inset 0 10px 0 var(--fr2),inset 0 12px 0 var(--cr1);transform:none!important}
+#hud-root .hud-sm-title{top:14px}
+#hud-root .hud-sm-head .hud-x{top:12px;right:14px}
+#hud-root .hud-sm-back,#hud-root .hud-sm-back:active{top:12px;left:14px}
+#hud-root .hud-sm-tabs-slot{margin:76px 16px 0}
+#hud-root .hud-sm-summary{margin:12px 16px 0}
+#hud-root .hud-sm-body{flex:1 1 auto;width:100%;max-width:1160px;min-height:0;margin:12px auto 0;padding:2px 16px 20px;overflow:auto;box-sizing:border-box}
+#hud-root .hud-sm-poach-slot{width:calc(100% - 32px);max-width:1128px;margin:0 auto 12px}
+#hud-root .hud-sb-foot{width:100%;max-width:1160px;margin:0 auto;box-sizing:border-box}
+
+/* --- Tabs: picture and word. Stacked on a phone so four still fit --- */
+#hud-root .hud-sm-tabs{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:8px;max-width:560px;margin:0 auto}
+#hud-root .hud-sm-tabs .hud-tab{position:relative;width:auto!important;height:62px!important;padding:32px 2px 0;box-sizing:border-box;background-position:center 5px,0 0!important;background-size:28px,auto!important;background-repeat:no-repeat;transform:none!important;color:var(--line);font:400 13px/16px var(--disp);text-align:center;white-space:nowrap}
+#hud-root .hud-sm-tabs .hud-sm-badge{position:absolute;top:-8px;right:-4px}
+#hud-root .hud-sm-tabs [data-hud-id="staffTab-assign"]{background-image:url(../../game-art/ico/land.svg),linear-gradient(#fff,#fffbe6 60%,#fff0c2)}
+#hud-root .hud-sm-tabs [data-hud-id="staffTab-assign"][aria-pressed="true"]{background-image:url(../../game-art/ico/land.svg),linear-gradient(var(--au1),var(--au2) 60%,var(--au3))}
+
+/* word-only choices (Working / Bench, report periods) share the row evenly */
+#hud-root .hud-sm-seg{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:8px}
+#hud-root .hud-sm-seg .hud-tab{width:auto!important;height:42px!important;padding:0 4px 3px;color:var(--line);font:400 15px/18px var(--disp)}
+
+/* --- Numbers strip --- */
+#hud-root .hud-sm-kpis{display:flex;flex-wrap:wrap;justify-content:center;gap:8px}
+#hud-root .hud-sm-kpi{font:400 14px/1 var(--disp)}
+@media (max-width:599px){#hud-root .hud-sm-kpis{gap:6px}#hud-root .hud-sm-kpi{padding:0 9px;font-size:13px;white-space:nowrap}}
+
+/* --- The card --- */
+#hud-root :is(.hud-hire,.hud-rs){display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:30px 10px;margin:0;padding:0 0 20px;list-style:none}
+#hud-root .hud-hire-row,#hud-root .hud-rs-row{position:relative;display:block;box-sizing:border-box;height:auto;min-height:262px;padding:0;border:4px solid var(--line);border-radius:24px}
+#hud-root .hud-hire-ico,#hud-root .hud-rs-row .hud-sm-avatar{position:static;display:block;width:auto;height:100px;margin:4px 2px 0}
+#hud-root .hud-hire-text,#hud-root .hud-rs-text{position:static;display:block;padding:0 8px;text-align:center}
+#hud-root .hud-hire-top strong,#hud-root .hud-rs-name{display:block;font-size:15px;line-height:19px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hud-root .hud-hire-top span{display:inline-flex;align-items:center;justify-content:center;gap:1px;min-height:15px}
+#hud-root .hud-hire-text small,#hud-root .hud-rs-text small{display:-webkit-box;margin-top:4px;white-space:normal;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:var(--line);font:800 12px/15px 'Baloo 2',sans-serif}
+#hud-root .hud-rs-text .hud-rs-sub{margin-top:0;-webkit-line-clamp:1}
+#hud-root .hud-rs-text .hud-report--warn{color:#b35f00}
+#hud-root .hud-rs-text .hud-report--bad{color:#d42f35}
+#hud-root .hud-rs-text .hud-report--ok{color:#2f8a1f}
+
+/* facts on a candidate */
+#hud-root .hud-hire-facts{display:grid;justify-items:center;gap:3px;margin-top:4px}
+#hud-root .hud-hire-stats{display:flex;justify-content:center;gap:6px;color:var(--line);font:400 13px/16px var(--disp)}
+#hud-root .hud-hire-stats span{display:inline-flex;align-items:center;gap:1px}
+#hud-root .hud-hire-stats .ui-icon{width:14px;height:14px}
+#hud-root :is(.hud-hire-trait,.hud-hire-perk){display:inline-flex;align-items:center;gap:3px;max-width:100%;color:var(--line);font:800 12px/15px 'Baloo 2',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hud-root .hud-hire-perk{color:#b35f00}
+#hud-root .hud-hire-row.is-rare{box-shadow:inset 0 0 0 3px #ffffffe0,0 6px 0 var(--line),0 0 0 3px var(--au2)}
+
+/* price or fix: the same small button hanging off the card */
+#hud-root :is(.hud-hire-act,.hud-rs-fix){position:absolute;left:9px;right:9px;bottom:-14px;z-index:2;margin:0}
+#hud-root :is(.hud-hire-act,.hud-rs-fix) .hud-btn{width:100%}
+#hud-root .hud-hire-act .hud-btn:disabled{--a:#e9edf2;--m:#c3ccd6;--e:#8d99a8;opacity:1;border-color:var(--line);background:linear-gradient(var(--a),var(--m) 60%,var(--e));box-shadow:inset 0 -5px 0 var(--e),inset 0 2px 0 #fff9,0 4px 0 var(--line)}
+
+/* a team member's two bars: icon, track, number */
+#hud-root .hud-rs-row .hud-rs-main{position:static;display:block;width:100%;padding:0 0 30px;background:none;border:0;box-shadow:none}
+#hud-root .hud-rs-row .hud-sm-bars{display:grid;gap:3px;margin:6px 8px 0}
+#hud-root .hud-rs-row .hud-sm-bar{display:grid;grid-template-columns:18px minmax(0,1fr) 24px;align-items:center;gap:3px}
+#hud-root .hud-rs-row .hud-sm-bar-name{display:grid;place-items:center;width:18px;height:18px;font-size:14px;line-height:18px}
+#hud-root .hud-rs-row .hud-sm-bar-label{display:none}
+#hud-root .hud-rs-row .hud-sm-bar-track{display:block;height:10px;border:2px solid var(--line);border-radius:999px;background:#c98e4b;overflow:hidden}
+#hud-root .hud-rs-row .hud-sm-bar-track>span{display:block;height:100%;background:linear-gradient(var(--go1),var(--go2))}
+#hud-root .hud-rs-row .hud-sm-bar--warn .hud-sm-bar-track>span{background:linear-gradient(var(--au1),var(--au2))}
+#hud-root .hud-rs-row .hud-sm-bar--bad .hud-sm-bar-track>span{background:linear-gradient(var(--re1),var(--re2))}
+#hud-root .hud-rs-row .hud-sm-bar-num{color:var(--line);font:400 12px/1 var(--disp);text-align:right}
+
+/* --- Team tools --- */
+#hud-root .hud-rs-bar{display:flex;align-items:flex-start;gap:6px;margin:0 0 14px}
+#hud-root .hud-rs-filters{display:flex;flex-wrap:wrap;gap:6px;flex:1;min-width:0}
+#hud-root :is(.hud-rs-chip,.hud-rs-pick){display:inline-flex;align-items:center;gap:4px;height:34px;box-sizing:border-box;padding:0 12px;border:3px solid var(--line);border-radius:999px;background:linear-gradient(#fff,#fff8dc);box-shadow:0 2px 0 var(--line);color:var(--line);font:400 14px/1 var(--disp)}
+#hud-root .hud-rs-chip[aria-pressed="true"]{background:linear-gradient(var(--au1),var(--au2))}
+#hud-root .hud-rs-chip small{font:400 12px/1 var(--disp);opacity:.8}
+
+/* --- Hire tab: the two groups are named, the free refresh stays with the candidates --- */
+#hud-root .hud-sm-body[data-screen="tab:hire"] .hud-sm-h{display:block;margin:0 0 10px;color:var(--line);font:400 16px/20px var(--disp)}
+#hud-root .hud-sm-body[data-screen="tab:hire"]>div{padding-top:0}
+#hud-root .hud-sm-body[data-screen="tab:hire"] .hud-hire-refresh{order:0;margin:0 0 8px}
+#hud-root .hud-sm-body[data-screen="tab:gm"] .hud-hire-row{min-height:190px}
+#hud-root .hud-sm-body[data-screen="tab:gm"]>div>div>.hud-sm-note.is-warn{margin-top:14px}
+
+/* --- One person's page: its picture and name sit inside the screen --- */
+#hud-root .hud-sm-dname{top:14px}
+#hud-root .hud-sm-detail{max-width:720px;margin:0 auto}
+#hud-root .hud-sm-tabs-slot:empty{height:0}
+#hud-root .hud-sm-tabs-slot:empty+*{margin-top:0}
+
+@media (min-width:600px){
+  #hud-root .hud-sm{left:0!important;width:auto!important;transform:none!important}
+  #hud-root .hud-sm-tabs .hud-tab{padding:0 2px 5px 48px;height:58px!important;background-position:12px center,0 0!important;font-size:16px;text-align:left}
+  #hud-root :is(.hud-hire,.hud-rs){grid-template-columns:repeat(auto-fill,minmax(178px,1fr))}
+}
+
+/* --- Rhythm: every block on a page is 12px from the next, every line in a panel 10px --- */
+#hud-root .hud-sm-body[data-screen^="tab:"]>div,#hud-root .hud-sm-detail{display:flex;flex-direction:column;gap:12px}
+#hud-root :is(.hud-sm-sec,.hud-rs-sec,.hud-ny-sec,.hud-sb-hand){margin:0}
+#hud-root .hud-sm-sec{box-sizing:border-box;padding:14px;border:3px solid var(--fr1);border-radius:20px;background:#fffdf0;box-shadow:none}
+#hud-root .hud-sm-sec>*+*{margin-top:10px}
+#hud-root .hud-sm-sec>.hud-sm-h,#hud-root .hud-fold-title{margin:0;color:var(--line);font:400 16px/20px var(--disp)}
+/* a section that opens: one frame only, whatever sits inside it */
+#hud-root .hud-fold{padding:0}
+#hud-root .hud-fold-head{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:50px;box-sizing:border-box;margin:0;padding:0 14px;border:0;border-radius:18px;background:none;box-shadow:none}
+#hud-root .hud-fold-body{margin:0;padding:0 14px 14px;border:0;background:none;box-shadow:none}
+#hud-root .hud-fold-body .hud-sm-sec{padding:0;border:0;border-radius:0;background:none}
+#hud-root .hud-fold-body>*+*{margin-top:14px}
+/* one person's page keeps its tabs in reach, on a solid strip so the page slides under cleanly */
+#hud-root .hud-sm-ptabs{position:sticky;top:-2px;z-index:3;margin:0 -16px;padding:6px 16px 10px;background:#fff6d2}
+
+/* rows inside a panel use the small button; the words get the room */
+#hud-root :is(.hud-sm-stat,.hud-sm-part,.hud-ny-act,.hud-sm-fire,.hud-hire-refresh) .hud-btn{min-height:42px!important;font-size:15px!important;line-height:18px!important;padding:0 12px 5px!important;border-width:3px!important;border-radius:15px!important;white-space:nowrap}
+#hud-root .hud-ny{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;box-sizing:border-box;min-height:62px;margin:0;padding:8px 10px;border:3px solid var(--fr1);border-radius:18px;background:#fffdf0}
+#hud-root .hud-ny-list{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+#hud-root .hud-ny-main{display:flex;align-items:center;gap:8px;min-width:0}
+#hud-root .hud-ny-text strong{display:block;color:var(--line);font:400 15px/19px var(--disp)}
+#hud-root .hud-ny-text small{display:block;color:#8a5a22;font:800 12px/15px 'Baloo 2',sans-serif}
+#hud-root .hud-ny-act{margin:0}
+#hud-root .hud-sm-stat,#hud-root .hud-sm-part{margin:0;padding:10px 0;border-bottom:2px dashed var(--cr3)}
+#hud-root :is(.hud-sm-stat,.hud-sm-part):last-child{padding-bottom:0;border-bottom:0}
+#hud-root .hud-sm-stats{display:block}
+#hud-root .hud-sm-seg{margin-top:10px}
+
+@media (max-width:599px){
+  #hud-root :is(.hud-rs-chip,.hud-rs-pick){padding:0 9px;font-size:13px;white-space:nowrap}
+}
+
+/* a page's panels can sit one wrapper deeper, the rhythm is the same */
+#hud-root .hud-sm-detail>div:not(.hud-tabs):not(.hud-sm-dhead){display:flex;flex-direction:column;gap:12px}
+/* a job description is never cut: the card grows and the button stays clear of it */
+#hud-root .hud-hire-row{padding-bottom:36px}
+#hud-root .hud-hire-text small{display:block;overflow:visible}
+#hud-root .hud-sm-stat>.hud-btn,#hud-root .hud-sm-part>.hud-btn{margin-top:8px}
+
+/* Choosing several people: the list gets the room, everything above it steps aside */
+#hud-root .hud-sm:has(.hud-sb-all) :is(.hud-sm-poach-slot,.hud-sb-hand,.hud-ny-sec){display:none}
+#hud-root .hud-ny-act .hud-btn{padding-left:8px!important;padding-right:8px!important}
+
+/* The order bar at the foot: same chunky tiles as the rest of the screen */
+#hud-root .hud-sb-foot{padding:10px 16px calc(var(--h-sb,0px) + 12px);background:#fff6d2;box-shadow:none;border-top:3px solid var(--fr1)}
+#hud-root .hud-sb-dock{gap:8px}
+#hud-root .hud-sb-count{display:flex;align-items:center;justify-content:space-between;gap:8px}
+#hud-root .hud-sb-count strong{color:var(--line);font:400 15px/19px var(--disp)}
+#hud-root .hud-sb-acts{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:8px}
+#hud-root .hud-sb-act{display:grid;justify-items:center;align-content:center;gap:1px;min-height:58px;box-sizing:border-box;padding:2px 2px 6px;border:4px solid var(--line);border-radius:20px;background:linear-gradient(#fff,#fffbe6 60%,#fff0c2);box-shadow:inset 0 -5px 0 #f6dc9f,0 4px 0 var(--line);color:var(--line);font:400 13px/16px var(--disp)}
+#hud-root .hud-sb-act[aria-pressed="true"]{background:linear-gradient(var(--au1),var(--au2) 60%,var(--au3));box-shadow:inset 0 -5px 0 var(--au3),0 4px 0 var(--line)}
+#hud-root .hud-sb-act:disabled{background:linear-gradient(#e9edf2,#c3ccd6 60%,#8d99a8);box-shadow:inset 0 -5px 0 #8d99a8,0 4px 0 var(--line);color:#fff;opacity:1}
+#hud-root .hud-sb-act:not(:disabled):active{transform:translateY(3px);box-shadow:inset 0 -3px 0 #f6dc9f,0 1px 0 var(--line)}
+#hud-root .hud-sb-panel{max-height:38vh;padding:10px;border:3px solid var(--fr1);border-radius:18px;background:#fffdf0;box-shadow:none}
+#hud-root .hud-sb-opts{gap:8px}
+#hud-root .hud-sb-opt{min-height:58px;padding:6px 10px 8px;border:3px solid var(--line);border-radius:15px;background:linear-gradient(#fff,#fff8dc);box-shadow:0 3px 0 var(--line);color:var(--line)}
+#hud-root .hud-sb-opt-name{font:400 14px/18px var(--disp);white-space:normal}
+#hud-root .hud-sb-opt small{font:800 12px/15px 'Baloo 2',sans-serif}
+#hud-root .hud-sb-opt:disabled{opacity:1;background:linear-gradient(#e9edf2,#c3ccd6);color:#6b7684}
+
+/* what someone is doing is read in full; the card grows rather than cutting the sentence */
+#hud-root .hud-rs-text .hud-report{display:block;overflow:visible}
+
+/* a row's label always wraps; its button never pushes the words out */
+#hud-root .hud-ny-text{min-width:0;overflow:visible}
+#hud-root .hud-ny-text strong{white-space:normal;overflow:visible;overflow-wrap:break-word}
+#hud-root .hud-sm-stat-top{display:flex;align-items:center;gap:8px}
+#hud-root .hud-sm-stat-top strong{flex:none;overflow:visible}
+#hud-root .hud-sm-pips{display:flex;flex:1 1 0;min-width:0;gap:2px}
+#hud-root .hud-sm-pips>span{flex:1 1 0;min-width:0}
+#hud-root .hud-sm-stat-n{flex:none}
+@media (max-width:389px){
+  #hud-root .hud-ny-act .hud-btn{padding-left:6px!important;padding-right:6px!important;font-size:14px!important}
+  #hud-root .hud-ny-act .hud-btn-main{gap:3px}
+}
+@media (max-width:389px){
+  #hud-root .hud-ny{grid-template-columns:minmax(0,1fr)}
+  #hud-root .hud-ny-act .hud-btn{width:100%}
+}
+
+/* ---------- Wide screens: a desk, not a stretched phone ----------
+   Left: where you are and how the team is doing. Right: the work, with bigger cards and bigger words. */
+@media (min-width:1000px){
+  #hud-root .hud-sm{display:grid;grid-template-columns:276px minmax(0,1fr);grid-template-rows:76px auto auto minmax(0,1fr) auto;grid-template-areas:"title title" "tabs body" "sum body" "strip body" ". foot"}
+  #hud-root .hud-sm-titlebar{grid-area:title}
+  #hud-root .hud-sm-tabs-slot{grid-area:tabs;margin:6px 0 0 18px}
+  #hud-root .hud-sm-summary{grid-area:sum;margin:12px 0 0 18px}
+  #hud-root .hud-sm-poach-slot{grid-area:strip;align-self:start;width:auto;max-width:none;margin:12px 0 0 18px}
+  #hud-root .hud-sm-body{grid-area:body;max-width:1500px;margin:6px auto 0;padding:2px 22px 24px}
+  #hud-root .hud-sb-foot{grid-area:foot;max-width:none}
+
+  /* sidebar: tabs stacked, numbers as a list, Auto as a small card */
+  #hud-root .hud-sm-tabs{grid-auto-flow:row;grid-auto-columns:auto;max-width:none;gap:10px}
+  #hud-root .hud-sm-tabs .hud-tab{width:100%!important;height:60px!important;padding:0 8px 5px 56px;background-position:16px center,0 0!important;background-size:30px,auto!important;font-size:18px;text-align:left}
+  #hud-root .hud-sm-kpis{flex-direction:column;align-items:stretch;gap:8px}
+  #hud-root .hud-sm-kpi{justify-content:flex-start;height:38px;padding:0 14px;font-size:15px}
+  #hud-root .hud-sm-poach-slot .hud-auto-strip{grid-template-columns:minmax(0,1fr);padding:10px}
+  #hud-root .hud-sm-poach-slot .hud-auto-strip .hud-btn{width:100%}
+
+  /* bigger cards, bigger words */
+  #hud-root :is(.hud-hire,.hud-rs){grid-template-columns:repeat(auto-fill,minmax(204px,1fr));gap:34px 14px}
+  #hud-root .hud-hire-row,#hud-root .hud-rs-row{min-height:326px}
+  #hud-root .hud-hire-ico,#hud-root .hud-rs-row .hud-sm-avatar{height:132px}
+  #hud-root .hud-hire-top strong,#hud-root .hud-rs-name{font-size:18px!important;line-height:23px!important}
+  #hud-root .hud-hire-top span,#hud-root .hud-rs-text .hud-rs-sub,#hud-root .hud-hire-text small,#hud-root .hud-rs-text small,#hud-root :is(.hud-hire-trait,.hud-hire-perk){font-size:14px!important;line-height:18px!important}
+  #hud-root .hud-hire-stats{gap:10px;font-size:15px;line-height:18px}
+  #hud-root .hud-hire-stats .ui-icon{width:17px;height:17px}
+  #hud-root .hud-rs-row .hud-sm-bar{grid-template-columns:20px minmax(0,1fr) 30px}
+  #hud-root .hud-rs-row .hud-sm-bar-track{height:12px}
+  #hud-root .hud-rs-row .hud-sm-bar-num{font-size:14px}
+  #hud-root .hud-sm-h,#hud-root .hud-fold-title,#hud-root .hud-sm-sec>.hud-sm-h{font-size:18px;line-height:23px}
+  #hud-root .hud-ny-text strong{font-size:16px;line-height:20px}
+
+  /* Team: shortcuts side by side, then the roster, then the report */
+  #hud-root .hud-sm-body[data-screen="tab:team"]>div{flex-direction:row;flex-wrap:wrap;align-items:flex-start;gap:14px}
+  #hud-root .hud-sm-body[data-screen="tab:team"]>div>*{flex:1 1 100%;min-width:0}
+  #hud-root .hud-sm-body[data-screen="tab:team"]>div>:is(.hud-sb-hand,.hud-ny-sec){flex:1 1 380px}
+  #hud-root .hud-ny-list{grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
+  #hud-root .hud-fold-body{display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:18px;align-items:start}
+  #hud-root .hud-fold-body>*+*{margin-top:0}
+
+  /* Hiring: the title and its refresh share a line above each group */
+  #hud-root .hud-sm-body[data-screen="tab:hire"]>div{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px}
+  #hud-root .hud-sm-body[data-screen="tab:hire"]>div>:is(.hud-hire,.hud-sm-note){grid-column:1/-1}
+  #hud-root .hud-sm-body[data-screen="tab:hire"]>div>.hud-sm-h{order:1;margin:0}
+  #hud-root .hud-sm-body[data-screen="tab:hire"]>div>.hud-hire-refresh{order:2;margin:0}
+  #hud-root .hud-sm-body[data-screen="tab:hire"]>div>.hud-hire:first-of-type{order:3}
+  #hud-root .hud-sm-body[data-screen="tab:hire"]>div>.hud-sm-h~.hud-sm-h{order:4;grid-column:1/-1}
+  #hud-root .hud-sm-body[data-screen="tab:hire"]>div>.hud-hire~.hud-hire{order:5}
+  #hud-root .hud-sm-body[data-screen="tab:hire"]>div>.hud-sm-note{order:0}
+
+  /* Manager: panels flow into columns */
+  #hud-root .hud-sm-body[data-screen="tab:gm"]>div{flex-direction:row;flex-wrap:wrap;align-items:flex-start;gap:14px}
+  #hud-root .hud-sm-body[data-screen="tab:gm"]>div>*{flex:1 1 440px;min-width:0}
+  #hud-root .hud-sm-body[data-screen="tab:gm"]>div>:is(.hud-gm-card,div:only-child){flex:1 1 100%}
+  #hud-root .hud-sm-body[data-screen="tab:gm"] .hud-hire-row{min-height:270px}
+
+  /* One person: the picture stays on the left, the pages open on the right */
+  #hud-root .hud-sm:has(.hud-sm-detail){grid-template-columns:minmax(0,1fr);grid-template-rows:76px minmax(0,1fr) auto auto;grid-template-areas:"title" "body" "strip" "foot"}
+  #hud-root .hud-sm:has(.hud-sm-detail) :is(.hud-sm-tabs-slot,.hud-sm-summary){display:none}
+  #hud-root .hud-sm:has(.hud-sm-detail) .hud-sm-poach-slot{width:calc(100% - 44px);max-width:1456px;margin:12px auto}
+  #hud-root .hud-sm-detail{display:grid;max-width:none;grid-template-columns:340px minmax(0,1fr);grid-auto-flow:row dense;align-items:start;gap:14px 20px}
+  #hud-root .hud-sm-detail>*{grid-column:2;min-width:0}
+  #hud-root .hud-sm-detail>.hud-sm-dhead{grid-column:1;grid-row:1/span 30;position:sticky;top:0;margin:0}
+  #hud-root .hud-sm-dhead .hud-sm-avatar--big{height:260px}
+  #hud-root .hud-sm-dhead .hud-sm-avatar--big img{width:230px;height:230px}
+  #hud-root .hud-sm-ptabs{position:static;justify-content:flex-start;margin:0;padding:0;background:none}
+  #hud-root .hud-sm-sec{padding:16px}
+  #hud-root .hud-sm-sec,#hud-root .hud-sm-detail p{font-size:15px;line-height:21px}
+}
+@media (min-width:1500px){
+  #hud-root .hud-sm-detail{grid-template-columns:360px repeat(2,minmax(0,1fr))}
+  #hud-root .hud-sm-detail>*{grid-column:auto}
+  #hud-root .hud-sm-detail>.hud-sm-dhead{grid-column:1}
+  #hud-root .hud-sm-detail>.hud-sm-ptabs{grid-column:2/-1}
+}
+
+/* Wide screens: finishing touches */
+@media (min-width:1000px){
+  #hud-root .hud-sm-tabs{width:100%;margin:0}
+  /* the name sits under the picture, inside the column that stays put */
+  #hud-root .hud-sm-dhead-text{display:grid;justify-items:center;gap:8px;margin-top:12px}
+  #hud-root .hud-sm-dname{position:static;transform:none;max-width:100%;box-sizing:border-box;white-space:nowrap}
+  /* one upgrade per line: what it does on the left, its button on the right */
+  #hud-root .hud-sm-stat,#hud-root .hud-sm-part{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:18px;align-items:center}
+  #hud-root .hud-sm-stat>*,#hud-root .hud-sm-part>*{grid-column:1}
+  #hud-root .hud-sm-stat>.hud-btn,#hud-root .hud-sm-part>.hud-btn{grid-column:2;grid-row:1/span 6;align-self:center;margin:0;min-width:150px}
+  /* a lone action doesn't need the full width of a desk */
+  #hud-root .hud-sm-body[data-screen="tab:gm"] .hud-hire-refresh{justify-content:flex-start}
+  #hud-root .hud-sm-body[data-screen="tab:gm"] .hud-hire-refresh .hud-btn{width:320px}
+  #hud-root .hud-sm-care,#hud-root .hud-sm-seg{max-width:520px}
+}
+@media (min-width:1000px){#hud-root .hud-sm-tabs{grid-template-columns:minmax(0,1fr);justify-content:stretch}}

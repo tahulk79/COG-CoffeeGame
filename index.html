@@ -7,7 +7,7 @@
     <link rel="icon" type="image/svg+xml" href="%BASE_URL%favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&amp;family=Paytone+One&amp;display=swap" rel="stylesheet" />
     <title>GodBean: Build your own Coffee Empire!</title>
     <meta name="description" content="GodBean: Build your own Coffee Empire! Grow, roast and brew coffee, then run your own café." />
     <meta name="application-name" content="GodBean" />
@@ -32,11 +32,11 @@
          (the player's own character model, see .ld-runner), 🫘 beans picked up on the way, dark-brown
          percent pill (like the coin / bean pills) and the white tip bubble. src/ui/loading.js drives --p and the beans. */
       .loading-screen{--ld-ink:#694427;--ld-cream:#fff8e6;position:fixed;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:16px;color:var(--ld-ink);font-family:'Baloo 2',system-ui,sans-serif;
-        background:#f6ecd3;transition:opacity .25s ease}
+        background:#6fd8ff url('%BASE_URL%assets/ui/sky.svg') center/cover no-repeat;transition:opacity .25s ease}
       .loading-screen.is-leaving{opacity:0;pointer-events:none}
-      .loading-logo{display:grid;justify-items:center;margin:0 0 6px;color:#694427;font:800 clamp(34px,10vw,46px)/1 'Baloo 2',system-ui,sans-serif;letter-spacing:.5px}
-      .loading-logo small{margin-top:6px;padding:2px 12px;border-radius:999px;background:#4a2f1bd9;color:#fff;font:800 13px/1.5 'Baloo 2',system-ui,sans-serif;letter-spacing:.3px;-webkit-text-stroke:0}
-      .ld-card{width:min(340px,100%);padding:16px 18px 14px;border:3px solid #4b2a12;border-radius:18px;background:var(--ld-cream);box-shadow:0 5px 0 #4b2a12,0 12px 24px #4a2f1b33}
+      .loading-logo{display:grid;justify-items:center;margin:0 0 6px;color:#fff;font:400 clamp(44px,13vw,60px)/1.05 'Paytone One','Baloo 2',system-ui,sans-serif;text-shadow:-3px 0 #d9620a,3px 0 #d9620a,0 -3px #d9620a,0 3px #d9620a,-2px -2px #d9620a,2px -2px #d9620a,-2px 2px #d9620a,2px 2px #d9620a,0 5px 0 #7a4515}
+      .loading-logo small{margin-top:6px;padding:2px 12px;border-radius:999px;background:#fffdf0;color:#7a4515;font:800 13px/1.5 'Baloo 2',system-ui,sans-serif;letter-spacing:.3px;text-shadow:none;-webkit-text-stroke:0}
+      .ld-card{width:min(340px,100%);padding:16px 18px 14px;border:4px solid #7a4515;border-radius:24px;background:linear-gradient(#fffdf0,#fff3c0);box-shadow:0 6px 0 #7a4515,0 12px 24px #7a451533}
       .ld-road{position:relative;padding-top:0}
       #load-track{position:relative;height:22px;border-radius:999px;background:#e8dcc2;box-shadow:inset 0 2px 2px #0002}
       #load-fill{position:absolute;left:0;top:0;bottom:0;width:calc(var(--p,0) * 1%);min-width:22px;border-radius:inherit;background:linear-gradient(#8cd45a,#5aab35);box-shadow:inset 0 -3px 0 #3e7f2266,inset 0 3px 0 #ffffff55}
@@ -51,12 +51,12 @@
       .ld-shadow{position:absolute;left:50%;bottom:2px;width:34px;height:7px;margin-left:-17px;border-radius:50%;background:#3e2a1a;opacity:.22}
       .ld-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px}
       #load-status{min-width:0;overflow:hidden;color:var(--ld-ink);font:700 14px/1.3 'Baloo 2',system-ui,sans-serif;text-overflow:ellipsis;white-space:nowrap}
-      #load-pct{flex:none;min-width:58px;padding:0 12px;border-radius:999px;background:#4a2f1bd9;box-shadow:0 3px 0 #2a1a0e66;color:#fff;font:800 16px/30px 'Baloo 2',system-ui,sans-serif;text-align:center;font-variant-numeric:tabular-nums}
+      #load-pct{flex:none;min-width:58px;padding:0 12px;border-radius:999px;background:linear-gradient(#7fe03a,#3fb51c);box-shadow:0 3px 0 #7a4515;color:#fff;font:800 16px/30px 'Baloo 2',system-ui,sans-serif;text-align:center;font-variant-numeric:tabular-nums}
       .loading-tip{position:relative;display:flex;gap:8px;align-items:flex-start;width:min(340px,100%);margin:0;padding:10px 14px;border-radius:20px;background:#fff;box-shadow:0 4px 0 #a2763a40,0 8px 18px #4a32101f;color:var(--ld-ink);font:700 14px/1.35 'Baloo 2',system-ui,sans-serif}
       .loading-tip::before{content:'💡';flex:none;font-size:17px;line-height:19px}
       .loading-tip:empty{display:none}
       /* temporary logo: the letters db in a rounded brown tile */
-      .ld-mark{display:grid;place-items:center;width:72px;height:72px;margin:0 0 -4px;border-radius:22px;background:#694427;color:#fff8e6;font:800 40px/1 'Baloo 2',system-ui,sans-serif;letter-spacing:-1px;box-shadow:0 3px 0 #4a2f1b,0 8px 18px #4a2f1b33}
+      .ld-mark{display:grid;place-items:center;width:72px;height:72px;margin:0 0 -4px;border-radius:22px;width:132px;height:132px;background:url('%BASE_URL%assets/ui/bean.svg') center/contain no-repeat;color:transparent;font-size:0;box-shadow:none}
       /* simple loading: no runner, no beans, no tip, no patterned ground — just the logo, the bar and the percent */
       .ld-runner,#load-beans,.loading-tip{display:none!important}
       @media(prefers-reduced-motion:reduce){.ld-sprite{animation:none}}
@@ -82,6 +82,8 @@
       <p id="load-tip" class="loading-tip"></p>
     </section>
     <section id="selection" hidden aria-label="Chọn nhân vật" data-i18n-attr="aria-label:html.selection.label">
+      <h2 class="sel-title" data-i18n="html.selection.title">Choose your hero</h2>
+      <span id="sel-plate" class="sel-plate"></span>
       <div class="selection-focus">
         <button type="button" class="selection-arrow selection-arrow--prev ui-btn ui-btn--icon" aria-label="Nhân vật trước" data-i18n-attr="aria-label:html.selection.prev">‹</button>
         <button type="button" class="selection-arrow selection-arrow--next ui-btn ui-btn--icon" aria-label="Nhân vật sau" data-i18n-attr="aria-label:html.selection.next">›</button>

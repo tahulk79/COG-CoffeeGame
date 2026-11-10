@@ -940,6 +940,27 @@ function ensureStarters(s, r) {
   }
 }
 
+// Plants every spot of a plan through farm/plantAt, so the price, the XP and what staff see are those of planting one by one.
+// Taken spots are skipped; out of coins, it stops at the last tree it could pay for.
+function plantSpots(s, crop, plan, ev, ctx) {
+  const r = D.region(s);
+  if (!r) return fail('unknown');
+  if (otherGame(r, 'farm')) return fail('gameLocked');
+  if (!D.cropUnlocked(s, crop)) return fail('locked');
+  const before = s.player.coins;
+  let n = 0;
+  for (const p of plan.spots) {
+    if (p.error) continue;
+    const q = handlers['farm/plantAt'](s, { x: p.x, z: p.z, crop }, ev, ctx);
+    if (q?.ok === false) { if (q.error === 'coins') break; continue; }
+    r.fields[r.fields.length - 1].row = plan.dir; // looks only: its soil bed lies along the row (plots.js)
+    n++;
+  }
+  D.forgetRegionMemo(r); // the last tree's `row` was written after the memo was built
+  if (!n) return fail(plan.error || 'blocked', plan.error === 'coins' ? { missing: Math.max(1, Math.ceil(D.seedCost(s, crop) - s.player.coins)) } : undefined);
+  ev.push({ type: 'rowPlanted', crop, n, cost: Math.round((before - s.player.coins) * 100) / 100 });
+}
+
 const handlers = {
   // ---------- story ----------
   'character/set'(s, { gender, name }) {
@@ -1041,23 +1062,30 @@ const handlers = {
   },
   // A long row in one stroke (founder 2026-11-09): every tree goes through farm/plantAt, so the price, the XP and what staff see are
   // those of planting one by one. Taken spots are skipped; out of coins, the row stops at the last tree it could pay for.
-  'farm/plantRow'(s, { x0, z0, x1, z1, crop = 'robusta' }, ev, ctx) {
+  'farm/plantRow'(s, { x0, z0, x1, z1, crop = 'robusta', rows = 1 }, ev, ctx) {
+    return plantSpots(s, crop, D.rowPlan(s, crop, Number(x0), Number(z0), Number(x1), Number(z1), rows), ev, ctx);
+  },
+  // The Fill button: the same trees at the same price, on the nearest free spots around the point the player is looking at.
+  'farm/plantFill'(s, { x, z, crop = 'robusta', max }, ev, ctx) {
+    if (!Number.isFinite(Number(x)) || !Number.isFinite(Number(z))) return fail('blocked');
+    return plantSpots(s, crop, D.fillPlan(s, crop, Number(x), Number(z), max), ev, ctx);
+  },
+  // The Harvest button: every ripe tree of this farm, each through farm/harvest, so stars, beans and XP are those of picking it by hand.
+  // A storehouse that fills up stops the round; what was picked stays picked.
+  'farm/harvestAll'(s, _, ev, ctx) {
     const r = D.region(s);
     if (!r) return fail('unknown');
     if (otherGame(r, 'farm')) return fail('gameLocked');
-    if (!D.cropUnlocked(s, crop)) return fail('locked');
-    const before = s.player.coins, plan = D.rowPlan(s, crop, Number(x0), Number(z0), Number(x1), Number(z1));
-    let n = 0;
-    for (const p of plan.spots) {
-      if (p.error) continue;
-      const q = handlers['farm/plantAt'](s, { x: p.x, z: p.z, crop }, ev, ctx);
-      if (q?.ok === false) { if (q.error === 'coins') break; continue; }
-      r.fields[r.fields.length - 1].row = plan.dir; // looks only: its soil bed lies along the row (plots.js)
+    const ready = D.ownedPlots(s).filter(p => D.plotState(s, p.id, ctx.now).stage === 'ready');
+    if (!ready.length) return fail('empty');
+    let n = 0, full = false;
+    for (const p of ready) {
+      const q = handlers['farm/harvest'](s, { plotId: p.id }, ev, ctx);
+      if (q?.ok === false) { if (q.error === 'storageFull') { full = true; break; } continue; }
       n++;
     }
-    D.forgetRegionMemo(r); // the last tree's `row` was written after the memo was built
-    if (!n) return fail(plan.error || 'blocked', plan.error === 'coins' ? { missing: Math.max(1, Math.ceil(D.seedCost(s, crop) - s.player.coins)) } : undefined);
-    ev.push({ type: 'rowPlanted', crop, n, cost: Math.round((before - s.player.coins) * 100) / 100 });
+    if (!n) return fail(full ? 'storageFull' : 'empty', full ? { capacity: D.capacity(s) } : undefined);
+    ev.push({ type: 'harvestedAll', n, full });
   },
   // unripe: a staff mistake (picked a bit early) — one bean less (never below 1).
   // uid: a staff unit harvested it (its stars, unitStars); none = the player: 3★ when fresh (QUALITY.freshSeconds).

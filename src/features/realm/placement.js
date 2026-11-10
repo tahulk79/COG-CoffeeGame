@@ -18,7 +18,9 @@ const TILE = 1; // footprint tiles: 1 m squares
 // Enough 1 m tiles for the largest footprint of any placeable (never fewer than 128; no silent cap).
 const TILE_CAP = Math.max(128, ...[...Object.values(BUILDINGS), FIELD].map(d => Math.ceil(d.size[0] * CELL / TILE) * Math.ceil(d.size[1] * CELL / TILE)));
 
-export function createPlacement({ scene, prefabs, bedGhost = null }) {
+const CELL_CAP = 144, GHOST_ALPHA = .55;
+
+export function createPlacement({ scene, prefabs, bedGhost = null, onGhost = null }) {
   const group = new THREE.Group();
   group.name = 'realm-placement';
   group.visible = false;
@@ -34,6 +36,41 @@ export function createPlacement({ scene, prefabs, bedGhost = null }) {
   tiles.raycast = () => {};
   tiles.renderOrder = 5;
   group.add(tiles);
+  // A building stands on a grid of cells: green where it can stand, red on whatever is in the way, with a soft light rim round it.
+  // Lives outside the placement group so the loading screen compiles its shader while no placement is open.
+  const cellGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+  const cellMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .82, depthWrite: false, depthTest: false, toneMapped: false }); // no depth test: red cells must show over what is in the way
+  const cells = new THREE.InstancedMesh(cellGeo, cellMat, CELL_CAP);
+  cells.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(CELL_CAP * 3), 3);
+  cells.count = 0; cells.raycast = () => {}; cells.renderOrder = -2; cells.frustumCulled = false; // drawn before the ghost, which would hide it otherwise
+  scene.add(cells);
+  const rimMat = new THREE.MeshBasicMaterial({ color: 0xb6ff9c, transparent: true, opacity: .45, depthWrite: false, depthTest: false, toneMapped: false });
+  const rim = new THREE.Mesh(cellGeo, rimMat);
+  rim.raycast = () => {}; rim.renderOrder = -3; rim.visible = false;
+  group.add(rim);
+  const cellM = new THREE.Matrix4(), cellP = new THREE.Vector3(), cellS = new THREE.Vector3(), cellQ = new THREE.Quaternion();
+  const CELL_OK = new THREE.Color(0x1fc42a), CELL_NO = new THREE.Color(0xe8352b);
+  const overlaps = (a, b) => a[0] < b[2] - 1e-6 && a[2] > b[0] + 1e-6 && a[1] < b[3] - 1e-6 && a[3] > b[1] + 1e-6;
+  function layCells(state, fp) {
+    const w = fp[2] - fp[0], d = fp[3] - fp[1], nx = Math.max(1, Math.min(12, Math.round(w / CELL))), nz = Math.max(1, Math.min(12, Math.round(d / CELL))), sx = w / nx, sz = d / nz, gap = Math.min(sx, sz) * .045;
+    const r = regionOf(state), blocks = info.valid ? [] : [...(r?.buildings || []).filter(b => b.uid !== info.uid).map(b => footprint(b.type, b.x, b.z, b.rot)), ...(r?.fields || []).filter(f => f.id !== info.uid).map(f => footprint('field', f.x, f.z))];
+    const hits = cell => blocks.some(b => overlaps(cell, b));
+    let any = false;
+    for (let j = 0; j < nz && !any; j++) for (let i = 0; i < nx && !any; i++) any = hits([fp[0] + i * sx, fp[1] + j * sz, fp[0] + (i + 1) * sx, fp[1] + (j + 1) * sz]);
+    let n = 0;
+    for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+      const x0 = fp[0] + i * sx, z0 = fp[1] + j * sz, cell = [x0, z0, x0 + sx, z0 + sz], cx = x0 + sx / 2, cz = z0 + sz / 2;
+      cellM.compose(cellP.set(cx, farmGroundY(cx, cz) + .09, cz), cellQ, cellS.set(sx - gap * 2, 1, sz - gap * 2));
+      cells.setMatrixAt(n, cellM);
+      cells.setColorAt(n, info.valid ? CELL_OK : !any || hits(cell) ? CELL_NO : CELL_OK); // nothing in particular in the way (road, edge of the land): all red
+      n++;
+    }
+    cells.count = n;
+    cells.instanceMatrix.needsUpdate = true; cells.instanceColor.needsUpdate = true;
+    const mx = (fp[0] + fp[2]) / 2, mz = (fp[1] + fp[3]) / 2;
+    rim.position.set(mx, farmGroundY(mx, mz) + .07, mz); rim.scale.set(w + .9, 1, d + .9); rim.visible = true;
+    rimMat.color.set(info.valid ? 0xb6ff9c : 0xffb3a3);
+  }
   // Lot tints: one shared unit plane scaled per lot, two shared materials, pooled meshes (nothing allocated per start
   // once the pool has grown to the number of owned lots).
   const zoneGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
@@ -105,6 +142,19 @@ export function createPlacement({ scene, prefabs, bedGhost = null }) {
       plantGhost.position.set(info.x, farmGroundY(info.x, info.z), info.z);
     });
   }
+  // The see-through tree of a move needs its own shader variant. Compiled during the loading screen and never freed, so picking up
+  // the first tree cannot freeze the game. Kept far below the ground, where the camera never draws it.
+  async function prepareGhosts() {
+    const keep = new THREE.Group();
+    keep.position.y = -500;
+    group.parent?.add(keep);
+    for (const path of ['farm/coffee-stages-gedeo.glb#seedling', 'farm/coffee-tree-gedeo.glb#tree']) {
+      const m = await loadModel(path);
+      if (!m) continue;
+      m.traverse(o => { if (!o.isMesh) return; o.castShadow = false; o.raycast = () => {}; o.material = [o.material].flat().map(mat => { const c = mat.clone(); c.transparent = true; c.opacity = .65; c.depthWrite = false; return c; }); if (o.material.length === 1) o.material = o.material[0]; });
+      keep.add(m);
+    }
+  }
   let info = null; // { type, uid, x, z, rot, valid, error }
   let getState = () => null;
   const m4 = new THREE.Matrix4();
@@ -118,7 +168,7 @@ export function createPlacement({ scene, prefabs, bedGhost = null }) {
       o.material = [o.material].flat().map(mat => {
         if (!ghostMats.has(mat)) {
           const c = mat.clone();
-          c.transparent = true; c.opacity = .6; c.depthWrite = false;
+          c.transparent = true; c.opacity = GHOST_ALPHA; // depth stays on: one clean silhouette instead of every inner wall showing through
           ghostMats.set(mat, c);
         }
         return ghostMats.get(mat);
@@ -126,6 +176,14 @@ export function createPlacement({ scene, prefabs, bedGhost = null }) {
       if (o.material.length === 1) o.material = o.material[0];
     });
     return g;
+  }
+
+  // The whole building glows the colour of the answer. Only uniforms change, so moving it costs nothing.
+  let ghostTint = null;
+  function tintGhost(valid) {
+    if (ghostTint === valid) return;
+    ghostTint = valid;
+    for (const m of ghostMats.values()) if (m.emissive) { m.emissive.set(valid ? 0x1f9c2c : 0xc42a22); m.emissiveIntensity = .4; }
   }
 
   function refresh() {
@@ -152,11 +210,13 @@ export function createPlacement({ scene, prefabs, bedGhost = null }) {
     const cx = (fp[0] + fp[2]) / 2, cz = (fp[1] + fp[3]) / 2, one = info.type === 'field'; // a plant uses the plain small ring
     const rx = one ? .47 : (fp[2] - fp[0]) / 2, rz = one ? .47 : (fp[3] - fp[1]) / 2;
     const gy = farmGroundY(cx, cz);
+    if (!one) { layCells(state, fp); tintGhost(info.valid); }
+    onGhost?.(cx, cz, one ? 1 : Math.max(rx, rz) + 1); // loose greenery steps aside for the piece being placed
     if (ringRect) { tiles.geometry = ringRect.geo; m4.compose(new THREE.Vector3(info.x + ringRect.ox, farmGroundY(info.x, info.z) + .06, info.z + ringRect.oz), new THREE.Quaternion(), new THREE.Vector3(1, 1, 1)); }
     else { tiles.geometry = tileGeo; m4.compose(new THREE.Vector3(cx, gy + .06, cz), new THREE.Quaternion(), new THREE.Vector3(rx * 1.02, 1, rz * 1.02)); }
     if (bed) { bed.setZone(tierZoneAt(info.x, info.z)); bed.group.position.set(info.x, farmGroundY(info.x, info.z) + .01, info.z); }
     tiles.setMatrixAt(0, m4);
-    tiles.count = 1;
+    tiles.count = one ? 1 : 0; // a building shows its grid of cells instead
     tiles.instanceMatrix.needsUpdate = true;
     tiles.computeBoundingSphere(); // three computes it lazily only once: keep it on the ghost or the disc gets culled
     earth.position.set(cx, gy + .045, cz); earth.scale.set(rx * 1.18, 1, rz * 1.18); earth.visible = true;
@@ -275,9 +335,16 @@ export function createPlacement({ scene, prefabs, bedGhost = null }) {
       return info;
     },
     moveTo(x, z) { if (!info) return; info.x = x; info.z = z; info.noRoom = null; refresh(); },
+    /** A spot that cannot be built on slides to the nearest one that can, so a slightly wrong drop never ends on a red ghost. */
+    settle() {
+      if (!info || info.valid || info.type === 'tierSign') return;
+      const p = nearestValid(getState(), info.type, info.x, info.z, 3); // a nudge only: a piece must never jump out of sight
+      if (p) { info.x = p.x; info.z = p.z; info.noRoom = null; refresh(); }
+    },
     rotate() { if (!info || info.type === 'field') return; info.rot = (info.rot + 1) % 4; refresh(); }, // fields never rotate
     refresh,
     setPlantGhost,
+    prepareGhosts,
     /** Dispatches the placement; ends the preview on success. */
     confirm(dispatch) {
       if (!info) return { ok: false, error: 'unknown' };
@@ -296,13 +363,15 @@ export function createPlacement({ scene, prefabs, bedGhost = null }) {
       clearZones();
       tiles.count = 0; earth.visible = false; ringRect?.geo.dispose(); ringRect = null;
       setPlantGhost(null);
+      cells.count = 0; rim.visible = false; ghostTint = null;
+      onGhost?.(0, 0, 0);
       hint.sprite.visible = false;
       group.visible = false;
       info = null;
     },
     update(time) {
       if (!info) return;
-      const a = .7 + .08 * Math.sin(time * 4); // translucent ghost (~70 %, easier to read) with a slight pulse
+      const a = GHOST_ALPHA + .06 * Math.sin(time * 4); // translucent ghost with a slight pulse
       for (const m of ghostMats.values()) m.opacity = a;
       tileMat.opacity = a + .1;
     },
@@ -311,6 +380,7 @@ export function createPlacement({ scene, prefabs, bedGhost = null }) {
       hint.dispose(); tileGeo.dispose(); tileMat.dispose(); tiles.dispose(); earth.material.dispose();
       for (const z of zones) z.removeFromParent();
       zones.length = 0;
+      cells.removeFromParent(); cells.dispose(); cellGeo.dispose(); cellMat.dispose(); rimMat.dispose();
       zoneGeo.dispose(); zoneOk.dispose(); zoneNo.dispose();
       fieldPrefab?.traverse(o => { if (o.isMesh) o.geometry.dispose(); }); // its material is the shared propMaterial
       fieldPrefab = null;

@@ -180,11 +180,9 @@ export function journalSheet(ctx) {
         h('small', { class: 'hud-sm-jago' }, hm(r.at))));
     }
     return h('div', { class: 'hud-hist' },
-      chips(T('hud.hist.f.actor'), ACTORS, f.actor, v => T(`hud.hist.a.${v}`), v => set({ actor: v })),
-      chips(T('hud.hist.f.group'), ['all', ...HISTORY.groupOrder], f.group, v => `${GROUP_ICON[v] || ''} ${T(`hud.hist.g.${v}`)}`.trim(), v => set({ group: v })),
-      chips(T('hud.hist.f.zone'), ZONES, f.zone, v => T(`hud.hist.z.${v}`), v => set({ zone: v })),
-      days.length > 1 ? chips(T('hud.hist.f.day'), [null, ...days.slice(0, 7)], f.day, v => (v == null ? T('hud.hist.allDays') : dayText(v)), v => set({ day: v })) : null,
-      shown.length ? h('ul', { class: 'hud-sm-journal hud-hist-list' }, ...list) : h('p', { class: 'hud-line hud-line--muted' }, T('hud.hist.empty')),
+      h('div', { class: 'hud-jtabs', attrs: { role: 'group', 'aria-label': T('hud.hist.f.actor') } }, ...[['all', 'book', { actor: 'all', group: 'all' }], ['player', 'star', { actor: 'player', group: 'all' }], ['worker', 'people', { actor: 'worker', group: 'all' }], ['money', 'coin', { actor: 'all', group: 'money' }]].map(([id, art, patch]) =>
+        h('button', { type: 'button', class: 'hud-tab', dataset: { art }, attrs: { 'aria-label': id === 'money' ? T('hud.hist.g.money') : T(`hud.hist.a.${id}`), 'aria-pressed': String(f.actor === patch.actor && f.group === patch.group) }, on: { click: () => set(patch) } }))),
+      shown.length ? h('ul', { class: 'hud-sm-journal hud-hist-list' }, ...list) : h('div', { class: 'ui-hero hud-hist-empty' }, h('span', { class: 'ui-ico ui-ico--book', attrs: { 'aria-hidden': 'true' } }), h('strong', null, T('hud.hist.empty'))),
       rows.length > shown.length ? h('div', { class: 'hud-row' }, actionButton({ label: T('hud.hist.more', { n: rows.length - shown.length }), tone: 'plain', onClick: () => set({ pages: f.pages + 1 }) })) : null);
   };
   render.sig = s => `${s.history?.seq || 0}|${s.history?.rows?.at(-1)?.extra?.n || 0}|${f.actor}|${f.group}|${f.zone}|${f.day}|${f.pages}|${f.task}|${f.task ? Math.floor((s.clock?.played || 0) / 1000) : 0}`;

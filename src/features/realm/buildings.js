@@ -22,7 +22,7 @@ const FIT = { fill: .9, maxScale: 2, maxHeight: 3.6 }; // buildings fill ~90% of
 const DECOR_FIT = { fill: .92, maxScale: 1.4 };
 const DECK_H = .14;
 const DECK_COVERAGE = 0; // no wooden deck under any building any more (founder 2026-11-08): the model stands on the ground
-const RISE = .7;
+const RISE = .55;
 // Effects while a machine runs: [particle kind, per second, spread in metres].
 const PROD_FX = { wetMill: [['splash', 5, 1.4], ['mist', 2, 1.2]], dryer: [['steam', 4, 5]] };
 const BAR_W = 1.5, BAR_H = .26, BAR_FILL_W = BAR_W * .92, BAR_FILL_H = BAR_H * .62; // production bar (world m)
@@ -441,7 +441,7 @@ export function createBuildings({ scene, prefabs, templates, vfx }) {
   }
   function remove(uid, e) {
     e.seats?.geometry.dispose();
-    endBuild(e, false); e.prod?.fx?.forEach(x => x.stop());
+    e.prod?.fx?.forEach(x => x.stop());
     e.emitter?.stop(); e.steam?.stop(); e.prod?.smoke?.stop();
     e.badge?.dispose();
     e.sign?.dispose();
@@ -450,79 +450,15 @@ export function createBuildings({ scene, prefabs, templates, vfx }) {
     entities.delete(uid);
   }
 
-  // ---------- construction (looks only: the building already works; docs/design/ground-pass.md) ----------
-  // Stake out and clear the ground → scaffold goes up → the house appears from the foundation upward, sparks and dust
-  // where the crew works → scaffold comes down. The cut is a clipping plane, so it fits any model.
-  const poleGeo = new THREE.CylinderGeometry(1, 1, 1, 6), poleMat = new THREE.MeshStandardMaterial({ color: 0xa98258, roughness: .9 });
-  const smooth = k => { const t = Math.max(0, Math.min(1, k)); return t * t * (3 - 2 * t); };
-  function scaffold(fw, fd, h) {
-    const ox = fw / 2 + .4, oz = fd / 2 + .4, H = h + .6, nx = Math.max(2, Math.ceil(fw / 1.7)), nz = Math.max(2, Math.ceil(fd / 1.7)), levels = Math.max(2, Math.ceil(h / 1.25));
-    const up = new THREE.Vector3(0, 1, 0), parts = [];
-    const add = (a, b, r) => { const d = new THREE.Vector3().subVectors(b, a), m = new THREE.Matrix4(); m.compose(a.clone().addScaledVector(d, .5), new THREE.Quaternion().setFromUnitVectors(up, d.clone().normalize()), new THREE.Vector3(r, d.length(), r)); parts.push(m); };
-    const P = (x, y, z) => new THREE.Vector3(x, y, z);
-    for (let i = 0; i <= nx; i++) { const x = -ox + 2 * ox * i / nx; for (const z of [-oz, oz]) add(P(x, 0, z), P(x, H, z), .055); }
-    for (let i = 1; i < nz; i++) { const z = -oz + 2 * oz * i / nz; for (const x of [-ox, ox]) add(P(x, 0, z), P(x, H, z), .055); }
-    for (let k = 1; k <= levels; k++) {
-      const y = H * k / levels - .05;
-      for (const z of [-oz, oz]) add(P(-ox - .25, y, z), P(ox + .25, y, z), .04);
-      for (const x of [-ox, ox]) add(P(x, y, -oz - .25), P(x, y, oz + .25), .04);
-    }
-    add(P(-ox, 0, oz), P(ox, H, oz), .03); add(P(ox, 0, -oz), P(-ox, H, -oz), .03);   // cross braces
-    const mesh = new THREE.InstancedMesh(poleGeo, poleMat, parts.length);
-    parts.forEach((m, i) => mesh.setMatrixAt(i, m));
-    mesh.castShadow = true; mesh.raycast = () => {}; mesh.frustumCulled = false;
-    return mesh;
-  }
-  function startBuild(e, time) {
-    const def = BUILDINGS[e.type], fw = def.size[0] * CELL, fd = def.size[1] * CELL, plane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0), saved = [];
-    e.model.traverse(o => {
-      if (!o.isMesh) return;
-      const orig = o.material, list = Array.isArray(orig) ? orig : [orig], clones = list.map(m => { const c = m.clone(); c.clippingPlanes = [plane]; c.clipShadows = true; return c; });
-      o.material = Array.isArray(orig) ? clones : clones[0]; saved.push([o, orig, clones]);
-    });
-    const padMat = new THREE.MeshStandardMaterial({ map: farmTex('soil'), normalMap: farmTex('soil', 'normal'), roughness: 1, polygonOffset: true, polygonOffsetFactor: -2 });
-    const padGeo = new THREE.PlaneGeometry(fw + 1.4, fd + 1.4).rotateX(-Math.PI / 2);
-    const uv = padGeo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * (fw + 1.4) / 3, uv.getY(i) * (fd + 1.4) / 3);
-    const pad = new THREE.Mesh(padGeo, padMat); pad.position.y = .05; pad.receiveShadow = true; pad.raycast = () => {};
-    const rig = scaffold(fw, fd, e.height);
-    e.root.add(pad, rig);
-    if (e.sign) e.sign.sprite.visible = false;
-    e.build = { t0: time, dur: Math.max(8, Math.min(24, 6 + fw * fd * .22 + e.height * 1.2)), plane, saved, pad, padMat, padGeo, rig, next: time + .4, fw, fd };
-    vfx.burst('dust', e.root.position, { count: 10 });
-  }
-  function endBuild(e, finished) {
-    const c = e.build; if (!c) return;
-    for (const [o, orig, clones] of c.saved) { o.material = orig; clones.forEach(m => m.dispose()); }
-    c.pad.removeFromParent(); c.padGeo.dispose(); c.padMat.dispose();
-    c.rig.removeFromParent(); c.rig.dispose();
-    if (e.sign) e.sign.sprite.visible = true;
-    e.build = null;
-    if (finished) { vfx.burst('dust', e.root.position, { count: 16 }); vfx.burst('sparkle', tmp.copy(e.root.position).setY(e.root.position.y + e.height + .3), { count: 12 }); }
-  }
-  function updateBuild(e, time) {
-    const c = e.build, k = (time - c.t0) / c.dur;
-    if (k >= 1) { endBuild(e, true); return; }
-    const y0 = e.root.position.y, reveal = smooth((k - .18) / .64), top = y0 - .05 + (e.height + .4) * reveal;
-    c.plane.constant = top;
-    c.rig.scale.y = Math.max(.001, k < .86 ? smooth(k / .16) : 1 - smooth((k - .86) / .13));
-    c.pad.scale.setScalar(Math.max(.001, k < .92 ? smooth(k / .08) : 1 - smooth((k - .92) / .08)));
-    if (time >= c.next && k > .12 && k < .84) {
-      c.next = time + .24 + Math.random() * .4;
-      const a = Math.random() * 4, side = Math.floor(a), f = (a - side) * 2 - 1, hx = c.fw / 2, hz = c.fd / 2;
-      tmp.set(side === 0 ? -hx : side === 1 ? hx : f * hx, Math.max(.2, top - y0), side === 2 ? -hz : side === 3 ? hz : f * hz);
-      e.root.localToWorld(tmp);
-      vfx.burst('spark', tmp); if (Math.random() < .55) vfx.burst('chip', tmp, { count: 2 }); if (Math.random() < .45) vfx.burst('dust', tmp, { count: 2 });
-    }
-  }
-
+  // A new building lands with one soft bounce: it costs no new materials or shaders, so it can never hitch.
   function onBuilt(uid, time) {
     const e = entities.get(uid);
     if (!e) return;
-    const d = BUILDINGS[e.type];
-    if (!d.decor && d.use !== 'decor' && e.height >= 1) { startBuild(e, time); return; }
     e.rise = time;
-    e.model.position.y = -e.height;
-    vfx.burst('dust', e.root.position, { count: 14 });
+    e.riseBase = e.model.scale.clone();
+    e.model.scale.set(e.riseBase.x * 1.12, e.riseBase.y * .05, e.riseBase.z * 1.12);
+    e.model.updateMatrix(); e.model.updateMatrixWorld(true);
+    vfx.burst('dust', e.root.position, { count: 10 });
   }
   function onUpgraded(uid) {
     const e = entities.get(uid);
@@ -577,11 +513,16 @@ export function createBuildings({ scene, prefabs, templates, vfx }) {
 
   function update(dt, time, orders, now, isCarried = () => false) {
     for (const e of entities.values()) {
-      if (e.build) updateBuild(e, time);
       if (e.rise >= 0) {
-        const k = (time - e.rise) / RISE;
-        if (k >= 1) { e.rise = -1; e.model.position.y = 0; }
-        else e.model.position.y = -e.height * (1 - easeOutBack(k));
+        const k = (time - e.rise) / RISE, b = e.riseBase;
+        if (k >= 1) {
+          e.rise = -1; e.model.scale.copy(b);
+          vfx.burst('sparkle', tmp.copy(e.root.position).setY(e.root.position.y + e.height + .3), { count: 8 });
+        } else {
+          const y = Math.max(.05, easeOutBack(k)), wide = 1 + (1 - y) * .35; // squashed wide while low, stretching up past its height, then settling
+          e.model.scale.set(b.x * wide, b.y * y, b.z * wide);
+        }
+        e.model.updateMatrix(); e.model.updateMatrixWorld(true);
       }
       if (e.prod) { updateProd(e, e.prod, time, now); continue; }
       if (e.type !== 'brewCounter') continue;
