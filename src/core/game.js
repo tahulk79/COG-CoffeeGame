@@ -5,7 +5,7 @@ import { statCostOf } from './config/economy.js';
 import { goofFee } from './config/economy.js';
 import { funnyLevel, funnyFee, gmActionsOf, gmMoneyMul, gmHaggleMul, gmStatOf } from './config/economy.js';
 import { waterSpeedupOf, trimBeansOf, premiumMulOf } from './config/economy.js';
-import { CREW, doesJob, FARM_MANAGER, gmHandsPerRound, STAFF_CAP } from './config/economy.js';
+import { CREW, doesJob, FARM_MANAGER, gmHandsPerRound, STAFF_CAP, stanceMode, stanceEffects, stanceTiltOf, CHECKUP, checkupGrade } from './config/economy.js';
 import { TASKS, PENALTY, HISTORY, GM, gmCandidatesFor, gmSalary, gearDrain, GEAR, softwarePrice, gearTier, craftLevel, PROFILE, CAREER, robotSerial, profileOfUid, AUTO, autoPrice, BEANS, startCoins, xpForLevel, STAFF_BREAKS, staffFee, unitFee, RECRUIT, TRAITS, PART_COST, QUALITY, TEND, UPKEEP, SHIFT, VITALS, CARE, RARE, ROBOT_WEAR, ROBOT_PARTS, SKILL, STAT_ORDER, statOf, statCost, startStats, unitLevel, energyMax, heatPerMin, partTier, taskLimit, MISTAKES, RIVAL, BOOKS, BUILDINGS, CROPS, DRINKS, STAFF, XP, REBIRTH, START, EXPIRY_LEVEL, EXPIRY_ENABLED, levelForXp, MAX_LEVEL, levelGift, chestPrize, LOAN, loanOwed, INCOME, CLOCK, VENUES, VENUE_ITEMS, RATING, REVIEW_REASONS, LEAVE_REASONS, FIELD, GOODS, ITEM_GOODS, RECIPES, PERENNIAL } from './config/economy.js';
 import { PARCELS, ROADS, FIXED, PRE_TILLED, plotById, plotsOf, estateOfLot, ESTATES, ESTATE_ORDER, farmLotsOf, ESTATE_FIELDS } from './config/layout.js';
 import { parseRegionId } from './config/world.js';
@@ -79,7 +79,7 @@ function onWallet(s, regionId, fn) {
   s.player.coins = W.goldOf(s, regionId); BOOK_TO = regionId;
   try { return fn(); } finally { s.wallet.gold[regionId] = s.player.coins; s.player.coins = here; BOOK_TO = was; }
 }
-const setLoansHere = (s, list) => { s.loans = [...D.allLoans(s).filter(ln => !D.loanHere(s, ln)), ...list]; };
+const setLoansHere = (s, list) => { s.loans = list; };
 const SYSTEM_ACTIONS = new Set(['clock/tick', 'loan/tick', 'rival/visit', 'rival/resolve', 'task/expire', 'gm/rivalVisit']);
 const actorOf = (type, p) => (SYSTEM_ACTIONS.has(type) ? 'system' : type === 'gm/payroll' || type === 'staff/upkeep' ? 'staff'
   : /^(farm|shop)\//.test(type) && p?.uid != null ? 'staff' : type === 'staff/care' && p?.by != null ? 'staff' : 'player');
@@ -375,7 +375,7 @@ function autoManagerOn(s, now, tally = null) {
     tenurePlayedMin: 0, backlog: 0, book: { jobs: tally?.jobs || 0, earned: tally?.earned || 0, spent: tally?.spent || 0, mistakes: 0, since: now }, days: [], recent: [] };
   Object.assign(g, D.gmDefaultLimits(s));
   g.mode = GM.defaults.mode;
-  g.fm = { ...(g.fm || newFmState()), auto: true, mode: 'balanced', minReserve: 0, spendLimit: 0, build: true, land: true, hire: true, autoSell: true, plan: null }; // no settings: left alone, it decides like a manager on default
+  g.fm = { ...(g.fm || newFmState()), auto: true, stance: FARM_MANAGER.stance.start, mode: 'balanced', ask: false, minReserve: 0, spendLimit: 0, build: true, land: true, hire: true, autoSell: true, plan: null }; // no settings: left alone, it decides like a manager on default
   g.handed = { ...g.handed, farm: false }; // the player's own picks stay; they are not handing the team over for good
   Object.assign(g, { payAt: 0, seenAt: now, lastJobAt: now, window: { start: now, spent: 0 }, careWin: null, orders: [], plan: null });
 }
@@ -841,18 +841,19 @@ function unitSpent(s, u, amount, now, cat = 'care') {
 }
 function unitEarned(s, u, amount, now) { if (!(amount > 0)) return; tally(u, now, 'earned', amount); ledger(s, now, 'earned', amount, null, STAFF[u.type]?.zone); }
 // A new unit joins the current region's zone: on shift when a working slot is free, else benched.
-function makeUnit(s, { type, trait, name, gender, perk, age, home, paid = 0 }, now) {
+function makeUnit(s, { type, trait, name, gender, perk, age, home, paid = 0, hobbies }, now) {
   const def = STAFF[type];
   const unit = { uid: uid(s, 'u'), type, assigned: null, active: false, paid, hiredAt: now, tenurePlayedMin: 0, book: { jobs: 0, earned: 0, spent: 0, mistakes: 0, since: now }, days: [] };
   if (def.kind === 'robot') Object.assign(unit, { serial: robotSerial(type, unit.uid), task: 'auto', parts: { battery: 0, motor: 0, cooler: 0, frame: 0 }, partsSpent: 0, heat: 0, wear: 100, software: [], softwareSpent: 0, warrantyUsed: 0 });
   else {
     if (trait) Object.assign(unit, { trait, name, gender });
     if (perk) unit.perk = perk;
-    Object.assign(unit, Number.isFinite(age) && home ? { age, home } : profileOfUid(unit.uid));
+    Object.assign(unit, Number.isFinite(age) && home ? { age, home, hobbies: hobbies || profileOfUid(unit.uid, String(s.world.currentRegion || '').split('-')[0] || 'vn').hobbies } : profileOfUid(unit.uid, String(s.world.currentRegion || '').split('-')[0] || 'vn'));
     unit.craft = {};
     unit.gear = {};
     unit.gearSpent = 0;
     Object.assign(unit, { stats: startStats(trait, perk), points: 0, xp: 0, tasks: [], water: 0, ...VITALS.start });
+    unit.checkup = { at: now, atTenure: 0, grade: checkupGrade(unit) };
   }
   s.staff.units.push(unit);
   if (D.region(s)) { unit.assigned = { regionId: s.world.currentRegion, zone: def.zone }; unit.active = D.freeSlots(s, def.zone) > 0; }
@@ -1585,7 +1586,7 @@ const handlers = {
     if (err) return fail(err, err === 'coins' ? { missing: a.cost - s.player.coins } : err === 'hireLimit' ? { level: D.nextHireLevel(s, zone) } : undefined);
     const ticket = D.freeHire(s);
     if (ticket) s.rewards.tickets--; else spend(s, a.cost);
-    const unit = makeUnit(s, { type: a.type, trait: a.trait, name: a.name, gender: a.gender, perk: a.perk, age: a.age, home: a.home, paid: ticket ? 0 : a.cost }, ctx.now);
+    const unit = makeUnit(s, { type: a.type, trait: a.trait, name: a.name, gender: a.gender, perk: a.perk, age: a.age, home: a.home, hobbies: a.hobbies, paid: ticket ? 0 : a.cost }, ctx.now);
     ledger(s, ctx.now, 'spent', unit.paid, 'hire', STAFF[unit.type].zone);
     const pool = D.poolOf(s, zone);
     s.staff.pool ||= {};
@@ -1696,7 +1697,10 @@ const handlers = {
       if (u.trait === 'funny') morale += (w + r) / 60 * VITALS.funnyMoraleRegenPerMin;
       // Chaos after a poached GM: spirits sink (half as fast with a Manager-rank worker in the zone).
       if (onShift && s.gm?.chaos) morale -= (w + r) / 60 * GM.chaos.moralePerMin;
+      const stance = onShift && STAFF[u.type].zone === 'farm' ? stanceEffects(D.stanceOf(s)) : null; // Heart–Reason slider
+      if (stance) morale += (w + r) / 60 * stance.moralePerMin;
       u.morale = r2(clampN(morale, 0, 100));
+      if (stance?.quits && u.morale < VITALS.sulkBelow) { removeUnit(s, u, ctx.now, 'stress', ev); return; }
     } else {
       u.heat = r2(clampN((u.heat || 0) + w / 60 * heatPerMin(u) - r / 60 * ROBOT_WEAR.coolPerMin, 0, 100));
       u.wear = r2(clampN((u.wear ?? 100) - n * ROBOT_WEAR.wearPerJob * ROBOT_PARTS.frame.wearMul[partTier(u, 'frame')], 0, 100));
@@ -1717,6 +1721,16 @@ const handlers = {
     u.stopped = { kind: 'jam', at: ctx.now, fee: CARE.repair };
     journal(s, ctx.now, 'jam', u);
     ev.push({ type: 'staffStopped', uid: id, kind: 'jam', fee: CARE.repair });
+  },
+  // A new health exam, once the certificate has run out (CHECKUP).
+  'staff/checkup'(s, { uid: id }, ev, ctx) {
+    const u = D.unitOf(s, id);
+    if (!u || STAFF[u.type].kind !== 'worker') return fail('unknown');
+    if (!D.checkupOf(u)?.expired) return { noop: true };
+    if (s.player.coins < CHECKUP.cost) return fail('coins', { missing: Math.ceil(CHECKUP.cost - s.player.coins) });
+    spend(s, CHECKUP.cost);
+    u.checkup = { at: ctx.now, atTenure: u.tenurePlayedMin || 0, grade: checkupGrade(u) };
+    ev.push({ type: 'staffCheckup', uid: id, name: u.name || null, grade: u.checkup.grade, coins: CHECKUP.cost });
   },
   // Care (§3): one fix per problem, free or paid (CARE). `roll` decides whether nagging works.
   // by: the zone's manager bought it (realm, CAREER.manager) — journaled as the manager's doing.
@@ -1993,6 +2007,16 @@ const handlers = {
       if (STAFF[u.type].kind === 'worker' && g > gain) { best = u; gain = g; }
     }
     if (!best) return { noop: true };
+    // Reason side of the slider: a real reward for the best, a real punishment for whoever earned least.
+    const stance = stanceEffects(D.stanceOf(s));
+    if (stance.bonus > 0 && STAFF[best.type].zone === 'farm' && s.player.coins >= stance.bonus) {
+      const tilt = stanceTiltOf(D.stanceOf(s)), S = FARM_MANAGER.stance, gainOf = u => (u.book?.earned || 0) - (u.book?.mvpBase || 0);
+      const worst = D.assignedUnits(s, s.world.currentRegion, 'farm').filter(u => STAFF[u.type].kind === 'worker' && u.uid !== best.uid).sort((a, b) => gainOf(a) - gainOf(b))[0];
+      spend(s, stance.bonus);
+      best.morale = r2(Math.min(100, (best.morale ?? VITALS.start.morale) + S.mvpMorale * tilt));
+      if (worst) worst.morale = r2(Math.max(0, (worst.morale ?? VITALS.start.morale) - S.worstMorale * tilt));
+      ev.push({ type: 'staffDisciplined', best: best.name || null, worst: worst?.name || null, coins: stance.bonus });
+    }
     for (const u of s.staff.units) if (u.book) u.book.mvpBase = u.book.earned;
     for (const u of s.staff.units) if (STAFF[u.type].kind === 'worker') u.morale = r2(Math.min(100, (u.morale ?? VITALS.start.morale) + BOOKS.mvpMorale));
     s.staff.mvp = { uid: best.uid, name: best.name || null, earned: r2(gain), at: ctx.now };
@@ -2200,14 +2224,16 @@ const handlers = {
   // Farm Manager V2 settings (docs/design/farm-manager-v2.md). Stopping him, or a kind of work, drops the orders nobody has started.
   'gm/fmSet'(s, { key, value } = {}) {
     const f = (s.gm.fm ||= newFmState()), C = FARM_MANAGER;
-    const ok = key === 'mode' ? !!C.modes[value] : key === 'minReserve' ? C.reservePicks.includes(value) : key === 'spendLimit' ? C.limitPicks.includes(value) : ['auto', 'build', 'land', 'hire', 'autoSell'].includes(key) && typeof value === 'boolean';
+    if (key === 'mode') { const mark = C.stance.marks.find(m => m[1] === value); if (!mark) return fail('unknown'); key = 'stance'; value = mark[0]; }
+    const ok = key === 'stance' ? Number.isInteger(value) && value >= 0 && value <= 100 : key === 'minReserve' ? C.reservePicks.includes(value) : key === 'spendLimit' ? C.limitPicks.includes(value) : ['auto', 'build', 'land', 'hire', 'autoSell', 'ask'].includes(key) && typeof value === 'boolean';
     if (!ok) return fail('unknown');
     if (f[key] === value) return { noop: true };
     f[key] = value;
+    if (key === 'stance') f.mode = stanceMode(value);
     if (key === 'autoSell') f.sellChosen = true;
     f.plan = null; // the objective is re-read at once
     if (value === false && s.gm.orders?.length) s.gm.orders = s.gm.orders.filter(o => key !== 'auto' && (key !== 'build' || !o.act.type.startsWith('build/')) && (key !== 'land' || o.act.type !== 'land/buyParcel'));
-    if (key === 'mode' && C.modes[value].ask) s.gm.orders = [];
+    if (key === 'ask' && value) s.gm.orders = [];
   },
   // Staff board «Giao cho Quản lý»: he runs this game's team (upgrades, letting go, shifts, who works where) and the
   // player reads the report. Handing over drops the player's own pins and job picks, so he places everyone himself.
@@ -2415,6 +2441,16 @@ const handlers = {
     if (JSON.stringify(tiers) !== JSON.stringify(g.tiers || {})) { g.tiers = tiers; changed = true; }
     const fmx = FM.thinkContext(s, ctx.now, list); // Farm Manager V2: budget, ranking, modes
     if (D.gmZone(s) === 'farm') changed = FM.refreshPlan(s, ctx.now, fmx) || changed;
+    // One expired health certificate per round, out of what is above his reserve.
+    if (!fmx.ask) {
+      const due = D.assignedUnits(s, s.world.currentRegion).find(u => STAFF[u.type].kind === 'worker' && D.checkupOf(u)?.expired);
+      if (due && s.player.coins - fmx.reserve - fmx.committed >= CHECKUP.cost) changed = gmRun(s, { key: `checkup:${due.uid}`, rule: 'checkup', group: 'care', zone: STAFF[due.type].zone, act: { type: 'staff/checkup', payload: { uid: due.uid } }, cost: CHECKUP.cost, value: 0, reason: ['checkup', { name: due.name || '' }] }, ctx, ev, { budget: 'care' }) || changed;
+    }
+    // Goal "repay debt": whatever is above his reserve goes to the loan first. The player chose this, so no credit licence is asked.
+    if (D.gmZone(s) === 'farm' && fmx.m.repayFirst && fmx.f.auto && !fmx.ask) {
+      const room = Math.floor(Math.min(D.loanTotal(s), s.player.coins - fmx.reserve - fmx.committed));
+      if (room >= FARM_MANAGER.stance.minRepay) changed = gmRun(s, { key: 'fmRepay', rule: 'repay', group: 'capital', zone: 'farm', kind: 'loan', act: { type: 'loan/repay', payload: { amount: room } }, cost: room, value: 0, reason: ['repay', { coins: room }] }, ctx, ev) || changed;
+    }
     const careOps = c => c.group === 'care' || c.group === 'ops';
     const incident = c => careOps(c) || c.rule === 'funnyFireW' || c.rule === 'funnyFireR'; // trouble comes first and never waits for a free slot
     const handed = c => D.gmHanded(s, c.zone) && /^staff\//.test(c.act?.type || ''); // you gave him the team: its jobs are his first duty
@@ -2739,40 +2775,46 @@ const handlers = {
     ev.push({ type: 'usdDeposited', cents });
   },
   // rate: the rate the player saw on the preview; if it has changed since, nothing moves and the preview is shown again.
-  'wallet/convert'(s, { regionId, cents, rate, requestId }, ev, ctx) {
+  'wallet/convert'(s, { regionId, cents, rate, interestRate, requestId }, ev, ctx) {
     if (!W.validRequest(requestId)) return fail('request');
     if (W.seenRequest(s, requestId)) return { noop: true };
     const q = W.convertQuote(s, regionId, cents);
     if (!q.ok) return fail(q.error, q);
-    if (rate !== q.rate) return fail('rateChanged', q);
+    if (rate !== q.rate || (interestRate !== undefined && interestRate !== q.interestRate)) return fail('rateChanged', q);
     s.wallet.usd -= cents;
+    s.wallet.borrowed = Math.max(0, q.borrowed - cents); // borrowed money is exchanged first
     if (regionId === s.world.currentRegion) s.player.coins = q.goldAfter; else s.wallet.gold[regionId] = q.goldAfter;
     W.rememberRequest(s, requestId);
-    W.addLedger(s, ctx.now, { kind: 'convert', usd: -cents, gold: q.gold, rate: q.rate, regionId, request: requestId });
+    W.addLedger(s, ctx.now, { kind: 'convert', usd: -cents, gold: q.gold, interest: q.interest, rate: q.rate, regionId, request: requestId });
     ev.push({ type: 'goldFunded', regionId, cents, gold: q.gold });
   },
 
   // ---------- loans ----------
   // A new loan (management-rules §2.7): its own entry in s.loans (≤ LOAN.maxOpen), its term in played minutes fixed now.
-  // Founder 2026-11-10: a loan is in USD and lands in the USD wallet. amount and owed stay counted in Gold at WALLET.goldPerUsd
-  // ($10 = 1,000), so the credit limit and the share of Gold income that pays it off work as before. `gold`: the manager
-  // borrows for a purchase he is about to make, so his money goes straight to this farm.
+  // Founder 2026-11-10: a loan is cash and lands in the cash wallet; Gold can only be had by exchanging cash, and the interest
+  // is paid out of that exchange, so the debt is the principal. `gold`: the manager borrows for a purchase he is about to
+  // make, so his pack is exchanged at once for this farm, interest included.
   'loan/take'(s, { amount, gold = false }, ev, ctx) {
     const err = D.loanError(s, amount);
     if (err) return fail(err, D.loanErrorData(s, amount, err));
-    const cents = gold ? 0 : W.centsForGold(amount);
-    if (s.wallet.usd + cents > WALLET.maxUsdCents) return fail('usdCap');
+    const cents = W.centsForGold(amount), now = ctx?.now ?? NOW, regionId = s.world.currentRegion;
+    if (!gold && s.wallet.usd + cents > WALLET.maxUsdCents) return fail('usdCap');
     const ln = { id: `L${s.nextUid++}`, amount, owed: loanOwed(amount), takenAtPlayed: D.playedMs(s), termMin: D.loanTerm(s, amount), late: false, regionId: s.world.currentRegion };
+    const borrowedBefore = W.borrowedOf(s), interest = gold ? W.interestOn(cents) : 0, got = gold ? W.goldForCents(cents - interest) : 0;
     s.loans = [...D.allLoans(s), ln];
-    if (gold) s.player.coins = Math.round((s.player.coins + amount) * 100) / 100; // borrowed coins are not income
-    else { s.wallet.usd += cents; W.addLedger(s, ctx?.now ?? NOW, { kind: 'loan', usd: cents, regionId: s.world.currentRegion }); }
-    hist(s, { type: 'loanTaken', actor: ACTOR, gain: amount, extra: { id: ln.id, owed: ln.owed, termMin: ln.termMin, ...(gold ? {} : { usd: cents }) } });
+    W.addLedger(s, now, { kind: 'loan', usd: cents, regionId });
+    s.wallet.borrowed = borrowedBefore; // drops what a repaid debt left behind, so a new debt cannot brand deposited cash as borrowed
+    if (gold) {
+      s.player.coins = r2(s.player.coins + got); // borrowed coins are not income
+      W.addLedger(s, now, { kind: 'convert', usd: -cents, gold: got, interest, rate: WALLET.goldPerUsd, regionId });
+    } else { s.wallet.usd += cents; s.wallet.borrowed += cents; }
+    hist(s, { type: 'loanTaken', actor: ACTOR, gain: gold ? got : amount, extra: { id: ln.id, owed: ln.owed, termMin: ln.termMin, ...(gold ? {} : { usd: cents }) } });
     ev.push({ type: 'loanTaken', amount, owed: D.loanTotal(s), termMin: ln.termMin });
   },
   // Pays the debt with the coins at hand: `amount` coins when given (the Repay tab's chosen amount), else as much as
   // possible. Never more than the debt or the coins you have. Late loans first (to lift the block), then the oldest.
-  // A repayment is not a running cost (not booked as spent in the income series). from 'usd': `amount` is still counted in
-  // Gold at WALLET.goldPerUsd, and the USD wallet pays it.
+  // A repayment is not a running cost (not booked as spent in the income series). from 'usd': the cash wallet pays it,
+  // borrowed money first, so money returned without being exchanged carries no interest.
   'loan/repay'(s, { amount = null, from = 'gold' } = {}, ev, ctx) {
     const owed = D.loanTotal(s);
     if (!(owed > 0)) return { noop: true };
@@ -2781,7 +2823,7 @@ const handlers = {
     const pay = Math.min(owed, have, amount == null ? Infinity : Math.floor(Number(amount)));
     if (pay <= 0) return fail(usd ? 'usdShort' : 'coins', usd ? {} : { missing: Math.ceil(owed) });
     const cents = usd ? Math.min(s.wallet.usd, W.centsForGold(pay)) : 0;
-    if (usd) { s.wallet.usd -= cents; W.addLedger(s, ctx?.now ?? NOW, { kind: 'loanRepay', usd: -cents, regionId: s.world.currentRegion }); }
+    if (usd) { s.wallet.borrowed = Math.max(0, W.borrowedOf(s) - cents); s.wallet.usd -= cents; W.addLedger(s, ctx?.now ?? NOW, { kind: 'loanRepay', usd: -cents, regionId: s.world.currentRegion }); }
     else s.player.coins = r2(s.player.coins - pay);
     let left = pay;
     for (const ln of [...D.loansOf(s)].sort((a, b) => (b.late ? 1 : 0) - (a.late ? 1 : 0))) {

@@ -1,15 +1,15 @@
-// Wallets (docs/design/wallet-economy.md): one USD wallet for the account, one Gold wallet per owned city.
+// Wallets (docs/design/wallet-economy.md): one cash wallet (`usd`) for the account, one Gold wallet per owned city.
 // s.player.coins stays the Gold of the city being played, so the economy code keeps one register to read and write;
 // s.wallet.gold holds every city's balance and is mirrored from the register after each action (game.js apply()).
 // Pure helpers only: nothing here reads the clock or the browser.
-import { WALLET } from './config/economy.js';
+import { WALLET, loanRate } from './config/economy.js';
 import { isRegionId } from './config/world.js';
 
 const r2 = n => Math.round(n * 100) / 100;
 const obj = v => (v && typeof v === 'object' && !Array.isArray(v)) ? v : null;
 const clampNum = (v, min, max, d = 0) => (Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : d);
 
-export const newWallet = () => ({ v: WALLET.version, usd: 0, gold: {}, books: {}, ledger: [], requests: [], seq: 0, migrated: null });
+export const newWallet = () => ({ v: WALLET.version, usd: 0, borrowed: 0, gold: {}, books: {}, ledger: [], requests: [], seq: 0, migrated: null });
 
 /** Local calendar day as a running number, so a period is a plain subtraction. */
 export const dayNumber = now => { const d = new Date(now); return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 864e5); };
@@ -23,18 +23,27 @@ export const totalGold = s => r2(farmIds(s).reduce((n, id) => n + goldOf(s, id),
 export const walletRate = () => WALLET.goldPerUsd;
 export const goldForCents = (cents, rate = WALLET.goldPerUsd) => r2(cents * rate / 100);
 /** USD cents worth this much Gold, rounded up: a debt is never shown or paid for less than it is. */
-export const centsForGold = (gold, rate = WALLET.goldPerUsd) => Math.ceil(r2(gold * 100 / rate) - 1e-9);
+export const centsForGold = (gold, rate = WALLET.goldPerUsd) => Math.max(0, Math.ceil(r2(gold * 100 / rate) - 1e-9));
+/** Interest on this many borrowed cents, rounded up to a whole cent. */
+export const interestOn = (cents, rate = loanRate()) => Math.max(0, Math.ceil(cents * rate - 1e-9));
+/** Cents of the cash wallet that are still borrowed money: never more than the balance or what is still owed. Spent first. */
+export function borrowedOf(s) {
+  const debt = (Array.isArray(s.loans) ? s.loans : []).reduce((n, ln) => n + (ln?.owed > 0 ? ln.owed : 0), 0);
+  return Math.min(s.wallet?.borrowed || 0, usdOf(s), centsForGold(debt));
+}
 export const validRequest = id => typeof id === 'string' && id.length >= 8 && id.length <= 64;
 export const seenRequest = (s, id) => (s.wallet.requests || []).includes(id);
 
 /** What a conversion would do, or why it cannot be done. The preview and the action both read this. */
 export function convertQuote(s, regionId, cents) {
   const rate = WALLET.goldPerUsd;
-  const base = { regionId, cents, rate, approved: WALLET.rateApproved, gold: 0, usdAfter: usdOf(s), goldAfter: goldOf(s, regionId) };
+  // Interest only on the borrowed part of the amount, taken out of it: the deposit part converts in full.
+  const interestRate = loanRate(), borrowed = borrowedOf(s), interest = Number.isInteger(cents) && cents > 0 ? interestOn(Math.min(cents, borrowed), interestRate) : 0;
+  const base = { regionId, cents, rate, approved: WALLET.rateApproved, interestRate, borrowed, interest, gold: 0, usdAfter: usdOf(s), goldAfter: goldOf(s, regionId) };
   if (!farmIds(s).includes(regionId)) return { ...base, ok: false, error: 'notOwned' };
   if (!Number.isInteger(cents) || cents < WALLET.minConvertCents) return { ...base, ok: false, error: 'amount', minCents: WALLET.minConvertCents };
   if (cents > usdOf(s)) return { ...base, ok: false, error: 'usdShort', missingCents: cents - usdOf(s) };
-  const gold = goldForCents(cents, rate);
+  const gold = goldForCents(cents - interest, rate);
   if (goldOf(s, regionId) + gold > WALLET.maxGold) return { ...base, ok: false, error: 'goldCap' };
   return { ...base, ok: true, gold, usdAfter: usdOf(s) - cents, goldAfter: r2(goldOf(s, regionId) + gold) };
 }
@@ -83,12 +92,15 @@ function migrate(out, now) {
   addLedger(out, now, { kind: 'migrate', gold: coins, farms: ids.length });
 }
 function sanitize(raw) {
-  const w = { ...newWallet(), ...raw };
-  w.usd = Math.floor(clampNum(raw.usd, 0, WALLET.maxUsdCents));
+  const w = { ...newWallet(), ...raw, v: WALLET.version };
+  // Before v2 the rate was 100 Gold per unit of cash. The rate is now 1:1, so old balances are scaled to buy the same Gold.
+  const scale = (Number(raw.v) || 1) < 2 ? 100 : 1;
+  w.usd = Math.floor(clampNum(raw.usd * scale, 0, WALLET.maxUsdCents));
+  w.borrowed = Math.floor(clampNum(raw.borrowed, 0, WALLET.maxUsdCents));
   w.gold = Object.fromEntries(Object.entries(obj(raw.gold) || {}).filter(([id, v]) => isRegionId(id) && Number.isFinite(v)).map(([id, v]) => [id, clampNum(v, 0, WALLET.maxGold)]));
   w.books = Object.fromEntries(Object.entries(obj(raw.books) || {}).filter(([id, rows]) => isRegionId(id) && Array.isArray(rows))
     .map(([id, rows]) => [id, rows.filter(r => obj(r) && Number.isInteger(r.d)).map(r => ({ d: r.d, earned: clampNum(r.earned, 0, WALLET.maxGold), spent: clampNum(r.spent, 0, WALLET.maxGold), by: obj(r.by) || {} })).slice(-WALLET.bookDays)]));
-  w.ledger = (Array.isArray(raw.ledger) ? raw.ledger : []).filter(obj).slice(-WALLET.ledgerKeep);
+  w.ledger = (Array.isArray(raw.ledger) ? raw.ledger : []).filter(obj).slice(-WALLET.ledgerKeep).map(r => (scale > 1 && Number.isFinite(r.usd) ? { ...r, usd: r.usd * scale } : r));
   w.requests = (Array.isArray(raw.requests) ? raw.requests : []).filter(validRequest).slice(-WALLET.requestKeep);
   w.seq = Math.floor(clampNum(raw.seq, 0, Number.MAX_SAFE_INTEGER));
   w.migrated = obj(raw.migrated);

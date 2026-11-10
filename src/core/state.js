@@ -2,13 +2,14 @@
 import { maxStatOf, maxTierOf, EXPIRY_ENABLED, AUTO } from './config/economy.js';
 import { STAFF_CAP, FARM_MANAGER } from './config/economy.js';
 import { crewTypeOf, workerJobs } from './config/economy.js';
-import { TASKS, PENALTY, HISTORY, CROPS, GM, GEAR, INCOME, LOAN, loanOwed, loanTermMin, incomeRef, SOFTWARE, WARRANTY, PROFILE, CAREER, CRAFT, profileOfUid, robotSerial, START, BUILDINGS, STAFF, TRAITS, RECRUIT, ROBOT_TASKS, PLAYTEST, SKILL, STAT_ORDER, VITALS, RARE, WORKER_TASKS, BOOKS, energyMax, levelForXp, startCoins, VENUES, RATING, CELL } from './config/economy.js';
+import { TASKS, PENALTY, HISTORY, CROPS, GM, GEAR, INCOME, LOAN, loanTermMin, stanceMode, CHECKUP, checkupGrade, incomeRef, SOFTWARE, WARRANTY, PROFILE, CAREER, CRAFT, profileOfUid, robotSerial, START, BUILDINGS, STAFF, TRAITS, RECRUIT, ROBOT_TASKS, PLAYTEST, SKILL, STAT_ORDER, VITALS, RARE, WORKER_TASKS, BOOKS, energyMax, levelForXp, startCoins, VENUES, RATING, CELL } from './config/economy.js';
 import { COUNTRIES, LEGACY_REGIONS, isRegionId, regionGames } from './config/world.js';
 import { countryRecipes, SUPPLY } from './config/research.js';
 import { FIXED, PARCELS, LOT_KINDS, areaOfParcel, inRect, rectsOverlap, plotsOf, ESTATES } from './config/layout.js';
 import { RECIPES, GOODS, ITEM_GOODS } from './config/economy.js';
 import { settleSizes } from './settle-sizes.js';
 import { newWallet, normalizeWallet } from './wallet.js';
+import { LEGACY_HOMES } from './config/staff-people.js';
 
 export const SCHEMA = 3;
 export const PHASES = ['select', 'intro', 'teacher', 'gate', 'play', 'expiry', 'chooseRegion'];
@@ -320,14 +321,16 @@ export function newGmState() {
 }
 // Farm Manager V2 settings (docs/design/farm-manager-v2.md). auto: he runs the farm at all; minReserve / spendLimit: 0 = none
 // beyond the automatic reserve / income budget; pins: the tier the player fixed for a unit; plan / log / calib / away: his own notes.
-export function newFmState() { return { auto: true, mode: 'balanced', minReserve: 0, spendLimit: 0, build: true, land: true, hire: true, autoSell: true, pins: {}, plan: null, log: [], calib: 1, away: null }; }
+export function newFmState() { return { auto: true, stance: FARM_MANAGER.stance.start, mode: 'balanced', ask: false, minReserve: 0, spendLimit: 0, build: true, land: true, hire: true, autoSell: true, pins: {}, plan: null, log: [], calib: 1, away: null }; }
 function normalizeFm(raw) {
   const f = obj(raw), out = newFmState();
   if (!f) return out;
   for (const k of ['auto', 'build', 'land', 'hire']) if (typeof f[k] === 'boolean') out[k] = f[k];
   // On by default (founder 2026-11-09), older saves too: only a choice the player made himself (sellChosen) is kept.
   if (f.sellChosen === true && typeof f.autoSell === 'boolean') { out.autoSell = f.autoSell; out.sellChosen = true; }
-  if (FARM_MANAGER.modes[f.mode]) out.mode = f.mode;
+  // Saves from before the slider chose a mode: each one starts on its mark, and "ask me" (manual) becomes the switch.
+  const stance = Number.isInteger(f.stance) && f.stance >= 0 && f.stance <= 100 ? f.stance : FARM_MANAGER.stance.marks.find(m => m[1] === f.mode)?.[0] ?? FARM_MANAGER.stance.start;
+  out.stance = stance; out.mode = stanceMode(stance); out.ask = f.ask === true || f.mode === 'manual';
   out.minReserve = FARM_MANAGER.reservePicks.includes(f.minReserve) ? f.minReserve : 0;
   out.spendLimit = FARM_MANAGER.limitPicks.includes(f.spendLimit) ? f.spendLimit : 0;
   const pins = obj(f.pins) || {};
@@ -427,11 +430,11 @@ function normalizeMoney(out, s, level) {
   const wages = { gm: num(w.gm, 0, 0, 1e9), follower: num(w.follower, 0, 0, 1e9) };
   let loans = (Array.isArray(s.loans) ? s.loans : []).filter(ln => obj(ln) && Number.isFinite(ln.owed) && ln.owed > 0)
     .map((ln, i) => ({ id: typeof ln.id === 'string' && ln.id ? ln.id.slice(0, 16) : `L0-${i}`, amount: num(ln.amount, 0, 0, 1e9), owed: num(ln.owed, 0, 0, 1e9),
-      takenAtPlayed: num(ln.takenAtPlayed, 0, 0, 1e13), termMin: num(ln.termMin, LOAN.term.maxMin, LOAN.term.minMin, LOAN.term.maxMin), late: ln.late === true }));
+      takenAtPlayed: num(ln.takenAtPlayed, 0, 0, 1e13), termMin: num(ln.termMin, LOAN.term.maxMin, LOAN.term.minMin, LOAN.term.maxMin), late: ln.late === true, regionId: typeof ln.regionId === 'string' ? ln.regionId : null }));
   const old = obj(s.loan);
   if (!Array.isArray(s.loans) && old && Number.isFinite(old.owed) && old.owed > 0) {
     const amount = num(old.amount, 0, 0, 1e9), owed = num(old.owed, 0, 0, 1e9);
-    const pay = Math.min(owed, Math.max(0, owed - loanOwed(amount))); // what is above the packs' own debt = follower pay
+    const pay = Math.min(owed, Math.max(0, owed - Math.round(amount * 1.1))); // what is above the packs' own debt (10 % fee in those saves) = follower pay
     if (amount <= 0) wages.follower += owed;
     else {
       if (pay > 0) wages.follower += pay;
@@ -585,7 +588,13 @@ function normalizeProfile(u, now) {
     u.warrantyUsed = num(u.warrantyUsed, 0, 0, WARRANTY.repairs) | 0;
     delete u.gear; delete u.gearSpent;
   } else {
-    const p = profileOfUid(u.uid);
+    // Hometowns used to be Vietnamese for everybody: anyone working abroad with one of those gets one of their own country.
+    const country = String(u.assigned?.regionId || '').split('-')[0] || 'vn', p = profileOfUid(u.uid, country);
+    if (country !== 'vn' && LEGACY_HOMES.has(u.home)) u.home = p.home;
+    // No certificate yet (hired before they existed): examined today.
+    const exam = obj(u.checkup);
+    u.checkup = exam && Number.isFinite(exam.at) && Number.isFinite(exam.atTenure) && CHECKUP.grades.some(g => g[1] === exam.grade) ? { at: exam.at, atTenure: exam.atTenure, grade: exam.grade } : { at: now, atTenure: num(u.tenurePlayedMin, 0, 0), grade: checkupGrade(u) };
+    u.hobbies = Array.isArray(u.hobbies) && u.hobbies.every(k => typeof k === 'string') ? u.hobbies.slice(0, 3) : p.hobbies;
     u.age = num(u.age, p.age, PROFILE.age[0], 99) | 0;
     u.home = typeof u.home === 'string' && u.home ? u.home.slice(0, 32) : p.home;
     delete u.rank; // no ranks any more: stats are what counts

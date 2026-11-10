@@ -97,7 +97,8 @@
 .hud-tip .hud-tip-ico,.hud-talk-avatar{border:4px solid var(--line);background:#fff4c2;box-shadow:0 3px 0 var(--line)}
 .hud-talk-bubble{border:4px solid var(--line);border-radius:24px;background:linear-gradient(#fff,#fff8dc);box-shadow:0 5px 0 var(--line);color:var(--line)}
 .hud-talk-name{padding:3px 18px 8px;border:4px solid var(--line);border-radius:14px;background:linear-gradient(var(--au1),var(--au2) 62%,var(--au3));box-shadow:inset 0 -5px 0 var(--au3);color:#fff;font:400 16px/20px var(--disp);text-shadow:-2px 0 var(--au3),2px 0 var(--au3),0 -2px var(--au3),0 2px var(--au3)}
-.hud-toast{border:3px solid var(--line);border-radius:999px;background:linear-gradient(#fff,#fff8dc);box-shadow:0 4px 0 var(--line);color:var(--line);font:400 15px/20px var(--disp)}
+.hud-toast{border:2px solid var(--line);border-left-width:6px;border-radius:12px;padding:4px 10px;background:linear-gradient(#fff,#fff8dc);box-shadow:0 2px 0 var(--line);color:var(--line);font:400 13px/17px var(--disp);text-align:left}
+.hud-toast--good{border-left-color:#3f9a2e}.hud-toast--bad{border-left-color:#c8402a}.hud-toast--warn{border-left-color:#e08a1f}
 /* fixes from play-testing */
 #hud-root .hud-toolbar .hud-tool-label,#hud-root .hud-toolbar[data-view] .hud-tool-label,#hud-root .hud-toolbar[data-view] .hud-view .hud-tool-label{left:auto;right:auto}
 #hud-root .hud-tip{bottom:calc(var(--h-sb,0px) + 300px)}
@@ -679,7 +680,7 @@ body[data-gender="male"] #hud-root .hud-tip.is-say::before{background-image:url(
 #hud-root .hud-sm-dhead .hud-sm-avatar-state{display:none}
 #hud-root .hud-sm-dhead-text{display:block;margin-top:10px;text-align:center}
 #hud-root .hud-sm-dname{position:absolute;left:50%;top:-30px;z-index:5;transform:translateX(-50%);padding:5px 30px 11px;border:4px solid var(--line);border-radius:14px;background:linear-gradient(var(--go1),var(--go2) 62%,var(--go3));box-shadow:inset 0 -7px 0 var(--go3),inset 0 2px 0 #fffc,0 5px 0 var(--line);color:#fff;font:400 22px/28px var(--disp);white-space:nowrap;text-shadow:-2px 0 var(--go3),2px 0 var(--go3),0 -2px var(--go3),0 2px var(--go3)}
-#hud-root .hud-pf-who{display:none}
+#hud-root .hud-pf-who{display:block;margin:2px 12px 0;text-align:center;font:700 13px/1.35 var(--h-font,inherit);color:#6b4a2b;overflow-wrap:anywhere}
 #hud-root .hud-pf-tags{display:flex;flex-wrap:wrap;justify-content:center;gap:6px}
 #hud-root .hud-pf-tag{display:inline-flex;align-items:center;gap:3px;height:30px;box-sizing:border-box;padding:0 10px;border:3px solid var(--line);border-radius:999px;background:linear-gradient(#fff,#fff8dc);box-shadow:0 2px 0 var(--line);color:var(--line);font:400 13px/1 var(--disp)}
 #hud-root .hud-sm-dhead-text .hud-report{display:block;margin-top:6px}

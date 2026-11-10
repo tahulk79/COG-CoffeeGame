@@ -431,7 +431,7 @@ export function createStaff({ scene, store, vfx, templates = {}, pads, navigate 
     e.blocked = unitBlocked(u, now);
     e.bench = u.active === false;
     e.working = !e.bench && !e.blocked;
-    e.stateK = e.blocked ? 1 : stateSpeedMul(u, now);
+    e.stateK = e.blocked ? 1 : stateSpeedMul(u, now, store.state);
     e.pose = poseOf(e.st, e.bench, e.blocked, u.energy ?? 100);
     e.fix = showsFix(e.pose, true) ? quickFix(u, now) : null;
     e.stopped = e.pose === 'stop' ? u.stopped || { kind: e.st, fee: e.fix?.cost || 0 } : null;

@@ -49,7 +49,6 @@ export function createTutorial(ctx) {
   let lastView = '';        // realm view at the last resolve (a view change re-focuses the target)
 
   // Keep the tip 6 px below whatever top HUD it would overlap (pills row, Auto chip/banner), on any screen size.
-  // Toasts (feedback.js layout()) treat the tip as HUD above them, so they always sit under it, never on top of it.
   const placeTip = () => {
     if (tip.hidden) return;
     const tr = tip.getBoundingClientRect();
