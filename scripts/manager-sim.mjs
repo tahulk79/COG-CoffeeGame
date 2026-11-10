@@ -93,7 +93,7 @@ class Builder {
   // Gifts for the set level are opened now so no policy gets a windfall; coins and beans are then set to the profile's values.
   finish({ coins, beans = 0, loans = [] }) {
     for (let guard = 0; guard < 200 && D.pendingGifts(this.state).length; guard++) this.act('level/claim', { roll: 0.5 });
-    for (const amount of loans) this.act('loan/take', { amount });
+    for (const amount of loans) this.act('loan/take', { amount, gold: true });
     this.act('dev/set', { coins, beans, level: D.level(this.state) });
     this.now = T0; this.act('clock/tick', { ms: 5000 });
     const out = normalizeSave(JSON.parse(JSON.stringify(this.state)), T0); // proves the profile survives a real save / load

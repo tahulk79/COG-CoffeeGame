@@ -3,13 +3,13 @@
 //   · south entrance: farm gate arch, dirt road, a mountain stream with a log bridge, market stalls, trader, truck, tiller
 //   · west village (tier 1): stilt house, wooden house, wood kitchen, nursery beds, drying yard + pulper, sacks, pond,
 //     banana / avocado / durian, chickens, children, elders, beehive
-//   · along the tiers: pepper vines (tier 2), bamboo windbreaks (tier 3), goats grazing, harvest corner, cliffs where the
-//     tiers meet the hills, the hilltop cistern and channel above the highland, mist on the far hills, a name sign per tier
+//   · along the tiers: pepper vines (tier 2), bamboo windbreaks (tier 3), goats grazing, harvest corner, the hilltop cistern
+//     and channel above the highland, mist on the far hills, a name sign per tier
 // Everything stands on layout.farmGroundY. Models are authored with their front to Blender −Y = three +z (south, towards
 // the camera); "faces" below are three.js yaw. Animated people / animals tick themselves while drawn (onBeforeRender).
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
-import { farmGroundY, TIER_EDGES, tierEdgeZ, ESTATES, ESTATE_ORDER } from '../../core/config/layout.js';
+import { farmGroundY, TIER_EDGES, ESTATES, ESTATE_ORDER } from '../../core/config/layout.js';
 import { GEDEO_MODELS, createPlant, createPlantInstances, tuneGedeoMaterials } from '../../shared/three/gedeo-vegetation.js';
 import { gltfLoader } from '../../shared/three/models.js';
 import { getQuality } from '../../shared/vfx/index.js';
@@ -19,7 +19,7 @@ const N = Math.PI / 2;
 // founder 2026-11-08: the map starts as wild land — no village, market, vehicles, people, gate or planted trees. Only the
 // nature pieces below are placed; the rest of PROPS / ACTORS stays listed for later unlocks (WILD_START filters them).
 const SIGN_SCALE = 1.6; // the dark tier name signs: big, and tappable (opens that tier's modal)
-const WILD_KEEP = new Set(['wooden-bridge', 'stream', 'cliff-face', 'mist-bank', 'tier-sign']);
+const WILD_KEEP = new Set(['wooden-bridge', 'stream', 'mist-bank', 'tier-sign']);
 const WILD_START = true;
 const PROPS = [
   // south entrance
@@ -94,11 +94,7 @@ export function createMountainDressing({ parent, farmName = 'GODBEAN · Gedeo Co
   const props = placed.filter(([file]) => !repeated(file));
   // a name sign at the foot of each tier, beside the spine ramp (tier 1 by the plaza)
   const signs = [[4.4, 19, 0]]; // a little off the ramp: the signs are bigger now
-  for (const e of TIER_EDGES) signs.push([4.4, Math.max(e.z, e.zE ?? e.z) + 1.9, 0]);
-  // cliffs where the tier steps meet the hills (outside the farm walls), facing south
-  const cliffs = [];
-  let prev = 0;
-  for (const e of TIER_EDGES) { const step = e.h - prev; for (const x of [-36.5, 36.5]) cliffs.push([x, tierEdgeZ(e, x) + .8, prev, step]); prev = e.h; }
+  for (const e of TIER_EDGES) signs.push([4.4, Math.max(e.z, e.zE ?? e.z) + 2.2, 0]);
 
   const jobs = [
     ...props.map(([file, x, z, yaw = 0, s = 1]) => createPlant(keyOf(file)).then(o => { place(o, x, z, yaw, s); if (file === 'farm-gate-sign') labelSign(o, farmName); }).catch(() => null)),
@@ -109,7 +105,6 @@ export function createMountainDressing({ parent, farmName = 'GODBEAN · Gedeo Co
       pick.position.y = 1.6; pick.userData.target = { kind: 'parcel', id: ESTATES[ESTATE_ORDER[i]].seed, sign: true, x, z }; o.add(pick); pickers.push(pick);
     }).catch(() => null)),
     ...Object.keys(copiesOf).filter(repeated).flatMap(file => placeCopies(file, copiesOf[file].map(([, x, z, yaw = 0, s = 1]) => ({ position: new THREE.Vector3(x, farmGroundY(x, z), z), rotationY: yaw, scale: s })))),
-    ...placeCopies('cliff-face', cliffs.map(([x, z, base, step]) => ({ position: new THREE.Vector3(x, base - .1, z), rotationY: Math.PI, scale: [1, step / 4.5, 1] }))),
   ];
   if (rich) {
     for (const [x, z, s] of [[0, -125, 2.4], [-75, -60, 1.8], [75, -45, 1.8], [-60, -105, 1.5], [55, -100, 1.6]]) {
@@ -131,7 +126,7 @@ export function createMountainDressing({ parent, farmName = 'GODBEAN · Gedeo Co
   /** Moves a tier signboard (by its seed lot id) to (x, z) and remembers the place. */
   function moveSign(seed, x, z) {
     const o = signObjs[seed]; if (!o) return false;
-    o.position.set(x, farmGroundY(x, z), z);
+    o.position.set(x, farmGroundY(x, z), z); o.updateMatrix(); // frozen with the rest of the farm (world.js)
     const t = pickers.find(p => p.userData.target.id === seed)?.userData.target; if (t) { t.x = x; t.z = z; }
     try { const all = savedSigns(); all[seed] = { x, z }; localStorage.setItem(SIGN_KEY, JSON.stringify(all)); } catch { /* ignore */ }
     return true;

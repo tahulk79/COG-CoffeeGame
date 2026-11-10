@@ -38,9 +38,9 @@
 .hud-card,.hud-panel,.hud-rail-card{border-radius:var(--gu-r-md);background:var(--gu-paper-hi);box-shadow:inset 0 0 0 2px var(--gu-paper-edge)}
 .hud-chip{border-radius:var(--gu-r-sm);box-shadow:none}
 .gu-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.gu-tile{display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 4px;min-height:84px;border:2px solid var(--gu-paper-edge);border-radius:var(--gu-r-md);background:var(--gu-paper-hi);box-shadow:0 3px 0 var(--gu-paper-edge);color:var(--gu-ink);font-family:var(--gu-font);cursor:pointer}
+.gu-tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:8px 4px;min-height:68px;border:2px solid var(--gu-paper-edge);border-radius:var(--gu-r-md);background:var(--gu-paper-hi);box-shadow:0 3px 0 var(--gu-paper-edge);color:var(--gu-ink);font-family:var(--gu-font);cursor:pointer}
 .gu-tile:active{transform:translateY(2px);box-shadow:0 1px 0 var(--gu-paper-edge)}
-.gu-tile-ico{font-size:30px;line-height:1}.gu-tile-label{font:800 13px/1.1 var(--gu-font)}
+.gu-tile-ico{display:grid;place-items:center;height:28px;font-size:24px;line-height:1}.gu-tile-label{font:800 13px/1.1 var(--gu-font)}
 /* staff, robot and manager window */
 .hud-sm{border:3px solid var(--gu-wood-dark);border-bottom:0;border-radius:var(--gu-r-lg) var(--gu-r-lg) 0 0;background:var(--gu-paper);box-shadow:none;overflow:hidden}
 .hud-sm-head{background:var(--gu-wood);box-shadow:none;border-bottom:3px solid var(--gu-wood-dark);padding-top:6px}
@@ -69,6 +69,13 @@
 #hud-root .hud-toolbar .hud-tool-ico,#hud-root .hud-toolbar[data-view] .hud-tool-ico,#hud-root .hud-toolbar[data-view] .hud-view .hud-tool-ico{width:52px;height:52px;border:2px solid var(--gu-paper-edge);border-radius:14px;background:linear-gradient(var(--gu-paper-hi),var(--gu-paper-2));box-shadow:0 3px 0 var(--gu-paper-edge),0 6px 10px #2a180b4d;font-size:26px}
 #hud-root .hud-toolbar .hud-tool-label,#hud-root .hud-toolbar[data-view] .hud-tool-label,#hud-root .hud-toolbar[data-view] .hud-view .hud-tool-label{margin-top:2px;color:#fff;font:800 12px/1.2 var(--gu-font);text-shadow:0 1px 0 #2a180b,0 -1px 0 #2a180b,1px 0 0 #2a180b,-1px 0 0 #2a180b,0 2px 3px #2a180b99}
 #hud-root[data-sheet="build"] .hud-toolbar #hud-btn-build .hud-tool-ico,#hud-root[data-sheet="seeds"] .hud-toolbar #hud-btn-seeds .hud-tool-ico,#hud-root[data-sheet="manage"] .hud-toolbar #hud-btn-manage .hud-tool-ico,#hud-root[data-sheet="sell"] .hud-toolbar #hud-btn-storage .hud-tool-ico,#hud-root[data-sheet="staff"] .hud-toolbar #hud-btn-staff .hud-tool-ico{background:linear-gradient(var(--gu-brass-hi),var(--gu-brass));border-color:var(--gu-brass-edge)}
+/* the tiles sit together in the middle instead of spreading across a wide screen (a short landscape phone keeps its side column) */
+@media not all and (orientation:landscape) and (max-height:520px){
+  #hud-root .hud-toolbar,#hud-root .hud-toolbar[data-view]{justify-content:center;gap:4px}
+  #hud-root .hud-toolbar .hud-tool,#hud-root .hud-toolbar[data-view] .hud-tool,#hud-root .hud-toolbar[data-view] .hud-view{flex:0 1 64px;min-height:0}
+  #hud-root .hud-toolbar .hud-tool-ico,#hud-root .hud-toolbar[data-view] .hud-tool-ico,#hud-root .hud-toolbar[data-view] .hud-view .hud-tool-ico{width:46px;height:46px;border-radius:12px;font-size:23px}
+  #hud-root .hud-toolbar .hud-tool-label,#hud-root .hud-toolbar[data-view] .hud-tool-label,#hud-root .hud-toolbar[data-view] .hud-view .hud-tool-label{font-size:11px;white-space:nowrap}
+}
 /* buttons: chunky, a tap presses them in */
 .hud-btn{min-height:48px;border-radius:14px;font-weight:800}
 .hud-btn--go{background:var(--h-go);box-shadow:0 4px 0 var(--gu-moss-edge);color:#fff;text-shadow:0 1px 0 var(--gu-moss-edge)}
@@ -111,6 +118,31 @@
 .hud-talk-name{position:absolute;left:12px;top:-15px;padding:4px 14px 3px;border-radius:7px;background:var(--gu-wood);color:var(--gu-ink-light);font:800 14px/1.1 var(--gu-font);box-shadow:none}
 .hud-talk-more{position:absolute;right:12px;bottom:4px;color:var(--gu-wood)}
 /* one quiet line for an urgent money problem, never a block of text beside the rail */
-.hud-alert-chip{max-width:min(230px,58vw);min-height:28px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hud-alert-chip{max-width:min(340px,calc(100vw - 90px));min-height:28px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* Low graphics: an endless CSS animation keeps the phone compositing at full refresh, whatever the 3D frame rate. They play once. */
 html[data-quality="low"] #hud-root *:not(.hud-hand-inner),html[data-quality="low"] #hud-root *::before,html[data-quality="low"] #hud-root *::after,html[data-quality="low"] .atlas *{animation-iteration-count:1!important}
+/* Staff screen, wide screens: a comfortable window, not the whole screen, so rows and charts keep their shape. Two columns of people, the report's numbers beside its chart. (A phone already fills its screen.) */
+@media (min-width:600px){
+  .hud-sm{--sm-h:min(760px,88vh);top:calc((100vh - var(--sm-h))/2);bottom:auto;height:var(--sm-h);width:min(980px,90vw);border-radius:24px}
+  .hud-sm .hud-rs-sec .hud-rs,.hud-sm .hud-hire{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(400px,100%),1fr));gap:6px}
+  .hud-sm .hud-rs-sec .hud-rs{overflow:visible;background:none}
+  .hud-sm .hud-rs-sec .hud-rs-row,.hud-sm .hud-rs-sec .hud-rs-row.is-bad,.hud-sm .hud-rs-sec .hud-rs-row.is-warn{border-radius:14px;background:#fff}
+  .hud-sm .hud-rs-sec .hud-rs-row+.hud-rs-row{border-top:0}
+  .hud-sm .hud-rs-sec .hud-rs-row.is-picked{background:#f0f8e4}
+  .hud-sm .hud-sb-hand:not(.is-on){max-width:420px;margin-inline:auto} /* one button, not a green band across the window */
+  .hud-sm .hud-pf-kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+  .hud-sm .hud-sm-sec:has(>.hud-db-bars){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:16px;align-items:start}
+  .hud-sm .hud-sm-sec:has(>.hud-db-bars)>.hud-sm-h{grid-row:1;margin:0 0 4px!important}
+  .hud-sm .hud-sm-sec:has(>.hud-db-bars)>.hud-pf-kpis,.hud-sm .hud-sm-sec:has(>.hud-db-bars)>.hud-db-bars{grid-row:2;margin:0}
+  .hud-sm .hud-db-bars{height:96px}
+  .hud-sm .hud-sm-seg{max-width:380px}
+  .hud-sm .hud-sm-seg .hud-tab{min-height:36px;font-size:13px}
+}
+/* Staff screen colours: every word readable on its background */
+.hud-sm{--h-good:#25701a;--h-go:linear-gradient(#38841f,#2b6f15)}
+.hud-sm .hud-fold-chev{color:var(--gu-ink-soft)}
+#hud-root .hud-tab[aria-pressed="true"]{color:#fff!important} /* the selected tab was dark brown on dark brown wherever the tabs are used */
+/* Build sheet: the card the tip on top of the tab recommends */
+.hud-buildtip{margin:8px 0}
+.hud-cat-card.is-tip{box-shadow:inset 0 0 0 3px #38841f}
+.hud-card-tip{position:absolute;top:6px;left:6px;z-index:1;padding:2px 8px;border-radius:99px;background:#2b6f15;color:#fff;font:800 11px/1.4 var(--h-font)}

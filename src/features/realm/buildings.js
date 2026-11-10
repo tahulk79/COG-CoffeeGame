@@ -14,7 +14,7 @@ import { region as regionOf } from '../../core/derive.js';
 import { areaAt, CAFE_SEATS, FIXED, PLOT_SIZE, farmGroundY } from '../../core/config/layout.js';
 import { terraceSeats, TERRACE_TABLE_TOP, TERRACE_TABLE_Z } from './seats.js';
 import { t, hasKey } from '../../i18n/index.js';
-import { makeLabel, normalizeModel, placeholderBox, easeOutBack, paint, mulberry32 } from './util.js';
+import { makeLabel, normalizeModel, placeholderBox, easeOutBack, paint, mulberry32, freezeStatic } from './util.js';
 import { farmTex } from '../../shared/three/farm-textures.js';
 
 const COUNTER_TOP = 1.02; // raw GLB height of the pickup counter's work surface (machine and cups sit on it)
@@ -390,6 +390,8 @@ export function createBuildings({ scene, prefabs, templates, vfx }) {
         e.cups.push(cup);
       }
     }
+    // root (place), model (rise, pulse) and children[0] (production) move; the parts below that wrapper never do
+    freezeStatic(pick, ...(model.children[0]?.children ?? []));
     return e;
   }
 

@@ -85,8 +85,8 @@ export function rowText(s, r) {
     case 'taskExpired': return T('hud.hist.taskExpired', { what: x?.kind === 'poach' ? T('hud.inbox.poach', { name }) : x?.kind === 'gmPoach' ? T('hud.inbox.gmPoach', { name: who(s, 'g1'), rival: GM.poach.rival }) : what });
     case 'taskLate': return T('hud.hist.taskLate', { what });
     case 'fine': return T('hud.hist.fine', { coins: fmt(r.cost || 0) });
-    case 'loanTaken': return T('hud.hist.loanTaken', { coins: fmt(r.gain || 0), min: x?.termMin ?? '' });
-    case 'loanPaid': return T('hud.hist.loanPaid', { coins: fmt(r.cost || 0), owed: fmt(Math.ceil(x?.owed || 0)) });
+    case 'loanTaken': return x?.usd ? T('hud.hist.loanTakenUsd', { usd: `$${(x.usd / 100).toFixed(2)}` }) : T('hud.hist.loanTaken', { coins: fmt(r.gain || 0), min: x?.termMin ?? '' });
+    case 'loanPaid': return x?.usd ? T('hud.hist.loanPaidUsd', { usd: `$${(x.usd / 100).toFixed(2)}` }) : T('hud.hist.loanPaid', { coins: fmt(r.cost || 0), owed: fmt(Math.ceil(x?.owed || 0)) });
     case 'loanRepaid': return T('hud.hist.loanRepaid');
     case 'loanLate': return T('hud.gm.log.loanLate', { owed: fmt(x?.owed || r.cost || 0) });
     case 'rebirth': return T('hud.hist.rebirth');

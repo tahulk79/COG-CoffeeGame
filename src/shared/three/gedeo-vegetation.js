@@ -194,7 +194,11 @@ export async function createActor(key, clip = GEDEO_ACTORS[key].job) {
   const object = SkeletonUtils.clone(gltf.scene); object.name = `gedeo-${key}`;
   object.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = !o.isSkinnedMesh; } });
   const mixer = new THREE.AnimationMixer(object);
-  const clips = Object.fromEntries(gltf.animations.map(a => [a.name, a]));
+  // The farm workers keep their clips in one shared file.
+  const clipFile = `${base}worker-anims.glb`;
+  if (!gltf.animations.length && !actorCache.has(clipFile)) actorCache.set(clipFile, gltfLoader.loadAsync(clipFile));
+  const animations = gltf.animations.length ? gltf.animations : (await actorCache.get(clipFile)).animations;
+  const clips = Object.fromEntries(animations.map(a => [a.name, a]));
   let current = null;
   const play = (name, fade = .25) => {
     const c = clips[name]; if (!c) return null;

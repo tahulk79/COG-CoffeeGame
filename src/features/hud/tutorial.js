@@ -31,7 +31,9 @@ export function createTutorial(ctx) {
   const edgeIco = h('span', { class: 'hud-edge-ico', attrs: { 'aria-hidden': 'true' } }, '➜');
   const edge = h('button', { type: 'button', class: 'hud-edge', hidden: true, attrs: { 'aria-label': T('hud.tut.goTarget') },
     on: { click: () => { if (world) ctx.realm?.focus?.(world, { force: true }); } } }, edgeIco);
-  const el = h('div', { class: 'hud-tut' }, tip, hand, edge);
+  // A toolbar button is shown by words, not the hand: a "Tap here" bubble bobbing right above it (the button itself glows).
+  const callout = h('div', { class: 'hud-tut-callout', hidden: true }, h('span', { class: 'hud-tut-callout-inner' }, T('hud.tut.tapHere')));
+  const el = h('div', { class: 'hud-tut' }, tip, hand, edge, callout);
 
   // Farm and café are separate games, each with its own tutorial track: the one on screen.
   const track = () => (ctx.store.state.mode === 'cafe' ? 'cafe' : 'farm'); // the region's game
@@ -230,6 +232,11 @@ export function createTutorial(ctx) {
     setUi(node && node.isConnected && !node.disabled ? node : null);
   }
 
+  function placeCallout(x, y) {
+    if (callout.hidden) callout.hidden = false;
+    callout.style.transform = `translate3d(${Math.round(x)}px,${Math.round(y)}px,0)`;
+  }
+  function hideCallout() { if (!callout.hidden) callout.hidden = true; }
   function placeHand(x, y) {
     if (!handVisible) { hand.hidden = false; handVisible = true; }
     hand.style.transform = `translate3d(${Math.round(x)}px,${Math.round(y)}px,0)`;
@@ -254,9 +261,14 @@ export function createTutorial(ctx) {
     if (acc >= .2) { acc = 0; resolve(); }
     // Hand position: the only per-frame layout read in the HUD.
     if (ui) {
-      const rect = ui.getBoundingClientRect();
-      if (rect.width) placeHand(rect.left + rect.width / 2, rect.top + rect.height / 2); else hideHand();
-    } else if (world) {
+      const rect = ui.getBoundingClientRect(), onBar = !!ui.closest('.hud-toolbar');
+      if (!rect.width) { hideHand(); hideCallout(); }
+      else if (onBar) { hideHand(); placeCallout(rect.left + rect.width / 2, rect.top - 8); }
+      else { hideCallout(); placeHand(rect.left + rect.width / 2, rect.top + rect.height / 2); }
+      return;
+    }
+    hideCallout();
+    if (world) {
       const p = ctx.realm?.screenPoint?.(world);
       // Near an edge counts as off-screen too (a target half cut at the border must be framed by the camera).
       let visible = p && p.visible !== false && Number.isFinite(p.x) && p.y > 110 && p.y < innerHeight - 150 && p.x > 36 && p.x < innerWidth - 36;

@@ -4,7 +4,8 @@ Status: implemented for local play. No server exists, so this is not yet tamper-
 
 ## Rules
 
-- **USD**: one wallet for the account, stored as whole cents (`s.wallet.usd`). It only goes up through a deposit and only goes down through a conversion.
+- **USD**: one wallet for the account, stored as whole cents (`s.wallet.usd`). It goes up through a deposit or a loan, and down through a conversion or a loan repayment.
+- **Loans (founder 2026-11-10)**: packs are $10, $20, $50 and land in the USD wallet. The debt is shown in USD and kept in Gold value at `WALLET.goldPerUsd`, so 20% of Gold income still pays it off. It can also be repaid from Gold or USD by hand. A hired manager's loan goes straight to the farm's Gold, because he borrows for a purchase.
 - **Gold**: one wallet per owned city (`s.wallet.gold[regionId]`). Production, purchases and sales use the Gold of the city being played.
 - **Register**: `s.player.coins` is the Gold of the city on screen. All economy code keeps reading it. `world/enterRegion` swaps it, and `apply()` mirrors it into `s.wallet.gold` after each action.
 - A cost of another city (bench upkeep of staff working there) uses `onWallet()` in `core/game.js`, which pays from and books to that city.

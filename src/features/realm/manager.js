@@ -100,8 +100,6 @@ export function createManager({ scene, say = null, navigate = null, isPaused = (
     crate: M('#b98a4e'), phone: new THREE.MeshStandardMaterial({ color: 0x1d2330, emissive: 0x3a7bd5, emissiveIntensity: .6 }), plate: M(COLOR) };
   const ringGeo = new THREE.RingGeometry(.58, .82, 32).rotateX(-Math.PI / 2);
   const ringMat = new THREE.MeshBasicMaterial({ color: 0xe5482f, transparent: true, opacity: .85, depthWrite: false });
-  const shadowGeo = new THREE.CircleGeometry(.42, 20).rotateX(-Math.PI / 2);
-  const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: .18, depthWrite: false });
   const pickGeo = new THREE.BoxGeometry(1, 2.1, 1).translate(0, 1.05, 0);
   const pickMat = new THREE.MeshBasicMaterial();
   const part = (parent, m, x, y, z, w, h, d, geo = box) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.scale.set(w, h, d); o.castShadow = true; o.receiveShadow = true; o.raycast = () => {}; parent.add(o); return o; };
@@ -156,9 +154,9 @@ export function createManager({ scene, say = null, navigate = null, isPaused = (
     part(clip, mat.metal, 0, .15, .02, .1, .04, .02);
     const phone = part(arm[0], mat.phone, 0, -.72, .08, .09, .16, .02); phone.visible = false;
     person.userData.legs = leg; // the rig's walk clip reads the swing of these
+    person.traverse(o => { if (o.isMesh) o.castShadow = o.receiveShadow = false; });
     dressGedeoWorker(person, 'worker-supervisor-m', () => 'inspect');
     const root = new THREE.Group(); root.add(person); person.scale.setScalar(L.heightMul);
-    const shadow = new THREE.Mesh(shadowGeo, shadowMat); shadow.position.y = .03; shadow.raycast = () => {}; root.add(shadow);
     const ring = new THREE.Mesh(ringGeo, ringMat); ring.position.y = .05; ring.renderOrder = 5; ring.visible = false; ring.raycast = () => {}; root.add(ring);
     const pick = new THREE.Mesh(pickGeo, pickMat); pick.visible = false; pick.userData.target = { kind: 'manager' }; root.add(pick);
     const pill = makePill(); pill.sprite.position.y = 2.45; pill.sprite.visible = false; root.add(pill.sprite);
@@ -263,19 +261,21 @@ export function createManager({ scene, say = null, navigate = null, isPaused = (
   }
   // Same dodge as the crew (staff.js steer): anyone within 1.5 m ahead bends his heading away.
   const dodgeOut = { x: 0, z: 0 };
+  // Shared between calls: no closure per frame while he walks.
+  let feelX = 0, feelZ = 0, feelAx = 0, feelAz = 0, feelSide = 0;
+  function feel(o) {
+    const dx = o.x - feelX, dz = o.z - feelZ, d = Math.hypot(dx, dz);
+    if (d < .01 || d > 1.5) return;
+    const ahead = (dx * feelAx + dz * feelAz) / d;
+    if (ahead < .3) return;
+    feelSide += ((feelAx * dz - feelAz * dx) < -.05 ? -1 : 1) * (1 - d / 1.5) * ahead;
+  }
   function dodge(p, ax, az) {
-    let side = 0;
-    const feel = o => {
-      const dx = o.x - p.x, dz = o.z - p.z, d = Math.hypot(dx, dz);
-      if (d < .01 || d > 1.5) return;
-      const ahead = (dx * ax + dz * az) / d;
-      if (ahead < .3) return;
-      side += ((ax * dz - az * dx) < -.05 ? -1 : 1) * (1 - d / 1.5) * ahead;
-    };
+    feelX = p.x; feelZ = p.z; feelAx = ax; feelAz = az; feelSide = 0;
     if (zone === 'farm') { for (const o of getCrew()) feel(o); const me = getPlayerPos(); if (me) feel(me); }
     dodgeOut.x = ax; dodgeOut.z = az;
-    if (!side) return dodgeOut;
-    const k = Math.max(-1.6, Math.min(1.6, side * 2.2)), nx = ax + az * k, nz = az - ax * k, len = Math.hypot(nx, nz);
+    if (!feelSide) return dodgeOut;
+    const k = Math.max(-1.6, Math.min(1.6, feelSide * 2.2)), nx = ax + az * k, nz = az - ax * k, len = Math.hypot(nx, nz);
     if (!isWalkable || isWalkable(p.x + nx / len * .45, p.z + nz / len * .45)) { dodgeOut.x = nx / len; dodgeOut.z = nz / len; }
     return dodgeOut;
   }
@@ -399,7 +399,7 @@ export function createManager({ scene, say = null, navigate = null, isPaused = (
     dispose() {
       freeFigure();
       for (const k of ['farm', 'shop']) desks[k].sign.dispose();
-      box.dispose(); ball.dispose(); ringGeo.dispose(); ringMat.dispose(); shadowGeo.dispose(); shadowMat.dispose(); pickGeo.dispose(); pickMat.dispose();
+      box.dispose(); ball.dispose(); ringGeo.dispose(); ringMat.dispose(); pickGeo.dispose(); pickMat.dispose();
       Object.values(mat).forEach(m => m.dispose());
       group.removeFromParent();
     },

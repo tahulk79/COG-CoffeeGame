@@ -6,7 +6,6 @@ import * as THREE from 'three';
 
 const MOVE = 3, TURN = .9995;      // the lists are rebuilt only after the camera moved this far (m) or turned this much (dot)
 const SLACK = MOVE + 1;            // ...so every instance is padded by that movement
-const SHADOW_REACH = 1.5, SHADOW_MAX = 15; // shadow casters also count while their shadow can still fall into view
 const RESCAN_MS = 2000;            // models load in the background: look for new sets now and then
 
 export function createInstanceCull(root) {
@@ -31,7 +30,7 @@ export function createInstanceCull(root) {
       c.copy(g.boundingSphere.center).applyMatrix4(m);
       const r = g.boundingSphere.radius * m.getMaxScaleOnAxis();
       set.bounds[i * 4] = c.x; set.bounds[i * 4 + 1] = c.y; set.bounds[i * 4 + 2] = c.z;
-      set.bounds[i * 4 + 3] = r + SLACK + (mesh.castShadow ? Math.min(r * SHADOW_REACH, SHADOW_MAX) : 0);
+      set.bounds[i * 4 + 3] = r + SLACK;
     }
     stale = true;
   }

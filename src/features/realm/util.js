@@ -119,19 +119,19 @@ export function makeLabel(text = '', { bg = '#fff8ea', fg = '#4a2f1c', border = 
   };
 }
 
-/** Square canvas sprite with a custom draw function (icons, bubbles, cursors). */
-export function makeCanvasSprite(size, draw, { scale = 1, onTop = false } = {}) {
+/** Canvas sprite with a custom draw function (icons, bubbles, cursors). Square unless `height` (texels) crops it. */
+export function makeCanvasSprite(size, draw, { scale = 1, onTop = false, height = size } = {}) {
   const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = size;
+  canvas.width = size; canvas.height = height;
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, depthTest: !onTop });
   const sprite = new THREE.Sprite(material);
   sprite.geometry.userData.keep = true;
   sprite.raycast = () => {};
-  sprite.scale.set(scale, scale, 1);
+  sprite.scale.set(scale, scale * height / size, 1);
   if (onTop) sprite.renderOrder = 21;
-  const redraw = (...args) => { const g = canvas.getContext('2d'); g.clearRect(0, 0, size, size); draw(g, size, ...args); texture.needsUpdate = true; };
+  const redraw = (...args) => { const g = canvas.getContext('2d'); g.clearRect(0, 0, size, height); draw(g, size, ...args); texture.needsUpdate = true; };
   redraw();
   return { sprite, redraw, dispose() { sprite.removeFromParent(); texture.dispose(); material.dispose(); } };
 }
@@ -201,6 +201,19 @@ export const unionRect = (a, b) => [Math.min(a[0], b[0]), Math.min(a[1], b[1]), 
 export const fmtTimer = ms => { const s = Math.ceil(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 
 // ---------- art helpers (static decor) ----------
+/**
+ * Composes each local matrix once and stops recomputing it every frame; matrixWorld follows on the next render, and again
+ * whenever a parent moves. Whoever moves a frozen node must call its updateMatrix(). Sprites stay live (a label's scale follows
+ * its text), and so do bones.
+ */
+export function freezeStatic(...roots) {
+  for (const root of roots) root.traverse(o => {
+    if (o.isSprite || o.isBone) return;
+    o.updateMatrix();
+    o.matrixAutoUpdate = false;
+  });
+}
+
 const _paint = new THREE.Color();
 /** Non-indexed copy of `geo` with a constant vertex color (sRGB hex/string); disposes the source. */
 export function paint(geo, color) {

@@ -3,7 +3,7 @@
 // Nội dung gọn: Ngôn ngữ (danh sách thả xuống, thêm ngôn ngữ chỉ cần thêm vào LANGS), Tắt tiếng, Đồ họa, Chơi lại từ đầu.
 import { readProgress, readSettings, resetProgress, saveSettings } from '../state/progress.js';
 import { setVolume, setMuted } from '../shared/audio/index.js';
-import { getQuality, setQuality } from '../shared/vfx/index.js';
+import { getQuality, resetResolution, setQuality } from '../shared/vfx/index.js';
 import { getLang, LANGS, t } from '../i18n/index.js';
 
 const BUSES = ['master', 'music', 'ambience', 'sfx', 'ui'];
@@ -15,7 +15,6 @@ let openHandler = () => {};
 // V3: the app can wipe its own save on restart (settings stay in the v1 key) and say when the reset row is useful.
 let resetHandler = null;
 let canResetHandler = null;
-let qualityChosen = false;
 
 const $ = sel => dialog.querySelector(sel);
 
@@ -94,7 +93,8 @@ function bind() {
     tab.addEventListener('click', () => {
       if (getQuality() === tab.dataset.quality) return;
       settings.quality = tab.dataset.quality;
-      qualityChosen = true;
+      settings.qualityChosen = true;
+      resetResolution(); // before setQuality: its listeners resize the buffer
       setQuality(settings.quality);
       render();
       persist();
@@ -141,9 +141,12 @@ export function mountSettings({ onOpen, onReset, canReset } = {}) {
   document.getElementById('game-settings-toggle')?.addEventListener('click', openSettings);
 }
 
-// Called by the frame monitor when the game stays slow; never overrides a level the player picked this session.
+/** False once the player has picked a level: the frame monitor then changes neither the tier nor the resolution. */
+export const autoQualityAllowed = () => !!settings && !settings.qualityChosen;
+
+// Called by the frame monitor when the game stays slow.
 export function lowerQuality() {
-  if (!settings || qualityChosen) return false;
+  if (!autoQualityAllowed()) return false;
   const next = { high: 'medium', medium: 'low' }[getQuality()];
   if (!next) return false;
   setQuality(next);

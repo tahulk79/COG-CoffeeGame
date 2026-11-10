@@ -7,6 +7,10 @@ const QUALITY = {
   high: { pixelRatio: 2, shadows: true, particles: 800, burst: 1, emitter: 1, shake: true, pulse: true, outline: true, chips: 8 }
 };
 let quality = 'high';
+// Touch screens are small and pay for every shaded pixel in heat, so no tier goes past 1.5 there.
+const IS_PHONE = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+const PHONE_MAX_RATIO = 1.5, RATIO_STEP = .25;
+let ratioCeiling = Infinity; // set by the resolution ladder, this session only; survives an automatic tier drop so the buffer never jumps back up
 const qualityListeners = new Set();
 const motionQuery = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
 const reducedMotion = () => !!motionQuery?.matches;
@@ -18,11 +22,27 @@ export function setQuality(level) {
   for (const fn of qualityListeners) fn(level);
 }
 export function onQuality(fn) { qualityListeners.add(fn); return () => qualityListeners.delete(fn); }
+const maxRatio = () => Math.min(window.devicePixelRatio || 1, QUALITY[quality].pixelRatio, IS_PHONE ? PHONE_MAX_RATIO : Infinity);
+const minRatio = () => Math.min(maxRatio(), quality === 'low' ? .75 : 1); // only Low may render under one buffer pixel per CSS pixel
+const currentRatio = () => Math.max(minRatio(), Math.min(maxRatio(), ratioCeiling));
+function fitPixelRatio(renderer) {
+  const ratio = currentRatio();
+  if (renderer.getPixelRatio() !== ratio) renderer.setPixelRatio(ratio);
+}
+/** Resolution ladder: moves the render scale `rungs` steps (negative = coarser). False when it is already at that end. */
+export function stepResolution(renderer, rungs) {
+  const from = currentRatio(), to = Math.max(minRatio(), Math.min(maxRatio(), from + rungs * RATIO_STEP));
+  if (to === from) return false;
+  ratioCeiling = to >= maxRatio() ? Infinity : to;
+  fitPixelRatio(renderer);
+  return true;
+}
+/** The player picked a level: the tier's own resolution applies again. */
+export function resetResolution() { ratioCeiling = Infinity; }
 export function applyRendererQuality(renderer, ...scenes) {
   const q = QUALITY[quality];
   document.documentElement.dataset.quality = quality; // CSS: Low stops the HUD's endless animations
-  const ratio = Math.min(window.devicePixelRatio || 1, q.pixelRatio);
-  if (renderer.getPixelRatio() !== ratio) renderer.setPixelRatio(ratio);
+  fitPixelRatio(renderer);
   if (renderer.shadowMap.enabled === q.shadows) return;
   renderer.shadowMap.enabled = q.shadows;
   renderer.shadowMap.needsUpdate = true;

@@ -121,3 +121,6 @@ Giới hạn thật (không phải lỗi đã sửa):
 - `farm/coffee-stages-gedeo.glb` (cây con, cây tơ) đã gắn vào vụ đầu trong `plots.js`.
 - Kiểm hình khối thô: 801 → 5 (chỉ còn mặt đất phẳng và decal lô). Báo cáo trước/sau, ảnh QA, số đo hiệu năng: `docs/design/gedeo-world-replacement-report.md`.
 - Mục 6.1 (tích hợp vào farm) đã xong. Còn: cull bụi cà phê theo cụm, KTX2, đo máy thật.
+
+## Nhân viên chibi (2026-11-10, thay 8 nhân công đợt 3)
+`scripts/blender/gedeo_chibi_workers.py` dựng lại 8 file `worker-*.glb`: đầu khoảng 40% chiều cao, khoảng 2.000 tam giác, mỗi người một mesh, không texture thật. Mọi người chung một bộ 17 xương; 9 động tác nằm riêng trong `worker-anims.glb`, tải một lần. Dân làng vẫn dùng `gedeo_characters.py`.

@@ -18,6 +18,7 @@ export async function createAvatar({ scene, gender }) {
   const root = new THREE.Group();
   root.name = 'realm-player';
   const body = character || createPerson(gender === 'male' ? '#3f7fc4' : '#d0637a', { gender });
+  body.traverse(o => { if (o.isMesh) o.castShadow = o.receiveShadow = false; }); // founder 2026-11-10: people and robots have no shadow (it flickered while walking)
   root.add(body);
   root.position.set(PLAYER_SPAWN.x, 0, PLAYER_SPAWN.z);
   root.rotation.y = Math.PI;

@@ -62,7 +62,7 @@ export function createTopBar(ctx) {
   const roundBtn = h('button', { id: 'hud-btn-rounds', class: 'hud-roundmap', type: 'button', attrs: { 'aria-label': T('hud.rounds.open') },
     on: { click: () => ctx.onTool?.('rounds') } }, h('span', { attrs: { 'aria-hidden': 'true' } }, '🚂'), roundNum);
   // Loan (💰): a glowing money bag under the gear → loan packs sheet.
-  const loanBtn = h('button', { id: 'hud-btn-loan', class: 'hud-loan-btn', type: 'button', attrs: { 'aria-label': T('hud.loan.openBtn') },
+  const loanBtn = h('button', { id: 'hud-btn-loan', class: 'hud-roundmap hud-loan-btn', type: 'button', attrs: { 'aria-label': T('hud.loan.openBtn') },
     on: { click: () => ctx.onTool?.('loan') } }, h('span', { class: 'hud-loan-bag', attrs: { 'aria-hidden': 'true' } }, '💰'), h('span', { class: 'hud-loan-label' }, T('hud.loan.btn')));
   // Heads-up for the Level-10 incident (until it has happened): a small chip under the badge, louder from 3 levels
   // before. Tap → the Rounds sheet, which says what happens at Level 10.
@@ -96,7 +96,7 @@ export function createTopBar(ctx) {
   const rotateBtn = h('button', { id: 'hud-btn-rotate', class: 'hud-roundmap hud-rotate-btn', type: 'button', attrs: { 'aria-label': T('hud.rotate') },
     on: { click: () => ctx.realm?.rotateView?.(1) } }, h('span', { attrs: { 'aria-hidden': 'true' } }, '🧭'));
   const moreDot = h('span', { class: 'hud-dot', hidden: true, attrs: { 'aria-hidden': 'true' } });
-  const morePop = h('div', { class: 'hud-more-pop', hidden: true, attrs: { role: 'menu' } }, journalBtn, roundBtn, loanBtn);
+  const morePop = h('div', { class: 'hud-more-pop', hidden: true, attrs: { role: 'menu' } }, journalBtn, roundBtn);
   const moreBtn = h('button', { id: 'hud-btn-more', class: 'hud-roundmap hud-more-btn', type: 'button', attrs: { 'aria-label': T('hud.more'), 'aria-haspopup': 'menu' },
     on: { click: () => { morePop.hidden = !morePop.hidden; } } }, h('span', { attrs: { 'aria-hidden': 'true' } }, '⋯'), moreDot);
   morePop.addEventListener('click', e => { if (e.target.closest('button')) morePop.hidden = true; });
@@ -104,11 +104,14 @@ export function createTopBar(ctx) {
   // Layout (founder 2026-11-08, standard mobile-game HUD): top-left = player + coins + storehouse (+ the Lv-10 chip);
   // top-right = ⚙ in the corner, then ONE rail of same-size round buttons: 🌍 world · ⬆ upgrades · 📋 inbox · ▶ auto · ⋯ more.
   const el = h('div', { class: 'hud-top' },
-    h('div', { class: 'hud-top-left' },
-      h('div', { class: 'hud-player', attrs: { role: 'button' }, on: { click: () => ctx.realm?.focusAvatar?.() } }, badge, h('div', { class: 'hud-player-text' }, name, xpBar)),
-      h('div', { class: 'hud-pills' }, coins, usdPill, beans), alertChip, lv10),
-    h('div', { class: 'hud-top-right' }, h('div', { class: 'hud-gear-col' }, gear), rotateBtn, giftBtn, inboxBtn)); // quests, upgrades and loans live in the Manage menu: the rail keeps only what is needed at a glance
-  morePop.append(upgradesBtn, questBtn, worldBtn); // right rail, top to bottom: settings · loan · map · upgrades · compass // the ⋯ menu is gone: journal and rounds removed, the loan button sits straight in the rail
+    // Left column: player + money, then under it one left-aligned stack (to-do chips, added by index.js, and the Lv-10 chip).
+    h('div', { class: 'hud-left-col' },
+      h('div', { class: 'hud-top-left' },
+        h('div', { class: 'hud-player', attrs: { role: 'button' }, on: { click: () => ctx.realm?.focusAvatar?.() } }, badge, h('div', { class: 'hud-player-text' }, name, xpBar)),
+        h('div', { class: 'hud-pills' }, coins, usdPill, beans)),
+      h('div', { class: 'hud-left-chips' }, alertChip, lv10)),
+    h('div', { class: 'hud-top-right' }, h('div', { class: 'hud-gear-col' }, gear), loanBtn, worldBtn, rotateBtn, giftBtn, inboxBtn)); // right rail, top to bottom: settings · loan · map · compass (founder 2026-11-10); quests and upgrades live in the Manage menu
+  morePop.append(upgradesBtn, questBtn);
 
   const coinCounter = counter(coinsVal), beanCounter = counter(beansVal);
   let last = {};

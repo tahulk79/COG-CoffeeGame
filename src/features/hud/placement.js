@@ -1,6 +1,6 @@
 // Placement controls (✓ confirm / ↻ rotate / ✕ cancel) shown while realm.placement != null. Polled in update().
-// They follow the building being placed (founder: "nút xây đi theo lò rang"): every frame the bar sits just under the
-// ghost's footprint on screen (realm.placementPoint), flipped above it near the bottom edge, clamped to the screen.
+// They follow the building being placed (founder: "nút xây đi theo lò rang"): every frame the info card (also the drag handle)
+// and under it ✕ ✓ hang below the ghost's footprint on screen (realm.placementPoint), clamped to the screen.
 import { openTreeViewer } from './tree-viewer.js';
 import { defOf, buildCost, region, plotState, plotNeeds, treeOld } from '../../core/derive.js';
 import { sfx } from '../../shared/audio/index.js';
@@ -24,7 +24,7 @@ export function createPlacementBar(ctx) {
   const cancel = round('is-cancel', '✕', T('hud.place.cancel'), () => ctx.realm?.cancelPlacement?.());
   const rotate = round('is-rotate', '↻', T('hud.place.rotate'), () => ctx.realm?.rotatePlacement?.());
   const ok = round('is-ok', '✓', T('hud.place.confirm'), confirm, 'hud-place-ok');
-  const el = h('div', { class: 'hud-place', hidden: true }, h('div', { class: 'hud-place-btns' }, cancel, ok), h('div', { class: 'hud-place-info' }, h('span', { class: 'hud-place-head' }, name, price), reason));
+  const el = h('div', { class: 'hud-place', hidden: true }, h('div', { class: 'hud-place-info' }, h('span', { class: 'hud-place-head' }, name, price), reason), h('div', { class: 'hud-place-btns' }, cancel, ok));
   // The tapped plant's quick bar: 💧 water · 🪚 prune · 👁 details — one UI family (same round buttons, same line icons).
   // A button lights up in its colour when the plant needs it, and stays dim otherwise.
   const SVG = {
@@ -67,12 +67,15 @@ export function createPlacementBar(ctx) {
     info.classList.add('is-handle');
     const end = e => { if (!grip || grip.id !== e.pointerId) return; const tap = !grip.moved && e.type === 'pointerup'; grip = null; ctx.realm?.endGhostDrag?.(); if (tap) ctx.realm?.centerOnGhost?.(); };
     // Only the main button grabs it (a right click opens a menu that swallows the release).
-    info.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse' && e.button !== 0) return; grip = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false }; info.setPointerCapture?.(e.pointerId); e.preventDefault(); });
+    // The ghost keeps its distance from the finger, so it does not jump when the drag starts. Docked (ghost off screen): it comes under the finger.
+    info.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse' && e.button !== 0) return;
+      const pt = el.classList.contains('is-docked') ? null : ctx.realm?.placementPoint?.();
+      grip = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false, dx: pt ? pt.x - e.clientX : 0, dy: pt ? pt.cy - e.clientY : 0 }; info.setPointerCapture?.(e.pointerId); e.preventDefault(); });
     info.addEventListener('pointermove', e => {
       if (!grip || grip.id !== e.pointerId) return;
       if (e.pointerType === 'mouse' && e.buttons === 0) { end(e); return; } // let go without a pointerup: stop following the cursor
       if (!grip.moved && Math.hypot(e.clientX - grip.x, e.clientY - grip.y) < 7) return;
-      grip.moved = true; ctx.realm?.dragGhostTo?.(e.clientX, e.clientY);
+      grip.moved = true; ctx.realm?.dragGhostTo?.(e.clientX, e.clientY, grip.dx, grip.dy);
     });
     info.addEventListener('pointerup', end); info.addEventListener('pointercancel', end); info.addEventListener('lostpointercapture', end);
   }
@@ -99,9 +102,8 @@ export function createPlacementBar(ctx) {
     el.classList.add('is-anchored');
     const w = el.offsetWidth, hgt = el.offsetHeight, vw = innerWidth, vh = innerHeight;
     const x = Math.min(vw - w / 2 - MARGIN, Math.max(w / 2 + MARGIN, pt.x));
-    // Always ABOVE the thing being placed, moving with it: it may cover the HUD, it never drops below the ghost (at the very top
-    // of the screen it stays on the top edge).
-    const y = Math.min(vh - hgt - MARGIN, Math.max(MARGIN, pt.top - hgt - 8));
+    // The whole set hangs under the footprint, moving with it; near the bottom edge it stays on screen and may cover the ghost.
+    const y = Math.min(vh - hgt - MARGIN, Math.max(MARGIN, pt.y + 10));
     el.style.left = `${Math.round(x)}px`;
     el.style.top = `${Math.round(y)}px`;
   }

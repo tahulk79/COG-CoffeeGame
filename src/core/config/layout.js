@@ -148,24 +148,26 @@ export const terrainOfLot = id => (Object.hasOwn(TERRAIN_OVERRIDE, id) ? TERRAIN
 export const CLIMATE_OF = Object.fromEntries(Object.values(ESTATES).flatMap(e => e.lots.map(id => [id, e.zone])));
 // Ground height of each tier (m) and where the land steps up: the farm climbs north (−z). West of the spine the pond
 // tier reaches further north, so tier 3 → 4 is at z −51.5 there and −46.5 east (lot edges, with the lanes on the lower side).
-export const FARM_TIERS = { lowland: 0, upland: 2.2, slope: 4.4, highland: 6.6 }; // mobile-game look: low tidy terraces
+export const FARM_TIERS = { lowland: 0, upland: 4, slope: 8.5, highland: 14 }; // founder 2026-11-10: climbing a high mountain, each step taller than the last
 export const TIER_EDGES = [
-  { z: -2.5, h: 2.2 },                 // lowland → upland (wall north of the main road)
-  { z: -20.5, h: 4.4 },                // upland → slope (wall north of the ring road)
-  { z: -51.5, zE: -46.5, h: 6.6 },     // slope → highland (west / east of the spine)
+  { z: -2.5, h: FARM_TIERS.upland },              // lowland → upland (bank north of the main road)
+  { z: -20.5, h: FARM_TIERS.slope },              // upland → slope (bank north of the ring road)
+  { z: -51.5, zE: -46.5, h: FARM_TIERS.highland }, // slope → highland (west / east of the spine)
 ];
-// The tier walls are dry-stone retaining walls WALL_T m thick (just inside the upper tier, so the lanes below stay flat); the spine road climbs each
-// wall on a ramp RAMP m long, north of the edge, inside the spine corridor |x| < SPINE_HALF (a sunken cutting through the bank).
-// WALL_FRONT: the land step starts 0.3 m south of the lot edge; the stone wall stands in front of it on the lane below.
-export const WALL_T = .5, WALL_FRONT = .3, RAMP = 8.5, SPINE_HALF = 1.5;
-// Cuttings through each tier wall: the spine road ramp (8.5 m) and two footpath stair flights between the field columns
-// (x ±15, 6 m runs, gedeo stone-steps.glb). Inside a cutting the land rises along z instead of at the wall.
+// The tiers are parted by plain earth-and-grass banks, no stones (founder 2026-11-10). A bank starts on the lane below, up to
+// WALL_FRONT m south of the lot edge (its foot wanders so it never reads as a ruled line) and tops out just inside the lot.
+// WALL_T: how far north of the lot edge the upper tier's fence stands. The spine road climbs each bank on a ramp RAMP m long,
+// north of the edge, inside the spine corridor |x| < SPINE_HALF (a sunken cutting through the bank).
+export const WALL_T = .5, WALL_FRONT = 1.5, BANK_CREST = .2, RAMP = 8.5, SPINE_HALF = 1.5;
+const bankFoot = x => WALL_FRONT - .45 * (.5 + .5 * Math.sin(x * .37 + 1.1) * Math.cos(x * .13));
+// Cuttings through each bank: the spine road ramp (8.5 m) and two earth footpaths between the field columns
+// (x ±15, 6 m runs). Inside a cutting the land rises along z instead of at the bank.
 export const TIER_CUTS = [{ x: 0, half: SPINE_HALF, len: RAMP, kind: 'ramp' }, { x: -15, half: 1.05, len: 6, kind: 'steps' }, { x: 15, half: 1.05, len: 6, kind: 'steps' }];
 const smooth = t => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
 /** Edge z of a tier edge at x (the slope → highland edge jogs at the spine). */
 export const tierEdgeZ = (e, x) => (e.zE != null && x > 0 ? e.zE : e.z);
 /**
- * Ground height (m) of the farm world at (x, z): the 4 tier plateaus, a near-vertical retaining wall at each tier edge and
+ * Ground height (m) of the farm world at (x, z): the 4 tier plateaus, a steep bank at each tier edge and
  * the ramp / stair cuttings. Pure and cheap: the realm calls it for every object it stands on the ground (plots, buildings,
  * staff, player, roads, scenery) and the picking ray (realm/util groundPoint) solves against it. Outside the farm the tiers
  * run on east / west (the Blender hill country adds its hills on top beyond the farm, gedeo_landscape.py).
@@ -177,10 +179,10 @@ export function farmGroundY(x, z) {
   for (const c of TIER_CUTS) { const d = Math.abs(x - c.x); if (d < c.half + .5) { const k = 1 - smooth((d - c.half) / .5); if (k > w) { w = k; cut = c; } } }
   for (const e of TIER_EDGES) {
     const step = e.h - prev; prev = e.h;
-    // inside the farm (|x| ≤ 30) a stone wall WALL_T thick; past it the step widens into a grassy bank (hillside)
-    const t = WALL_T + Math.min(14, Math.max(0, ax - 30) * 1.5);
+    // inside the farm (|x| ≤ 30) a steep bank; past it the step widens into the open hillside
+    const foot = bankFoot(x), t = foot + BANK_CREST + Math.min(14, Math.max(0, ax - 30) * 1.5);
     const ez = cut ? (cut.x === 0 ? Math.max(e.z, e.zE ?? e.z) : tierEdgeZ(e, cut.x)) : tierEdgeZ(e, x);
-    const wall = smooth((ez + WALL_FRONT - z) / t); // 0 just south of the edge … 1 a wall's depth north (behind the stones)
+    const wall = smooth((ez + foot - z) / t); // 0 at the foot of the bank … 1 on top of it
     if (cut) {
       const r = cut.kind === 'steps' ? Math.max(0, Math.min(1, (ez - z) / cut.len)) : smooth((ez - z) / cut.len);
       y += step * (r * w + wall * (1 - w));
@@ -188,6 +190,21 @@ export function farmGroundY(x, z) {
   }
   return y;
 }
+// The hill chunks around the farm (terrain-*.glb, gedeo_landscape.py) were exported over the first, low tiers. hillLift(x, z) is
+// what to add to a baked hill height so the hills rise with the tiers we have now, without exporting them again.
+const BAKED_EDGES = [{ z: -2.5, h: 2.2 }, { z: -20.5, h: 4.4 }, { z: -51.5, zE: -46.5, h: 6.6 }];
+function bakedTierY(x, z) {
+  let y = 0, prev = 0;
+  const ax = Math.abs(x), ramp = ax < 2 ? 1 - smooth((ax - 1.5) / .5) : 0;
+  for (const e of BAKED_EDGES) {
+    const step = e.h - prev; prev = e.h;
+    const zMax = Math.max(e.z, e.zE ?? e.z), t = .5 + Math.min(14, Math.max(0, ax - 30) * 1.5);
+    const wall = smooth(((ramp > 0 ? zMax : tierEdgeZ(e, x)) + .3 - z) / t);
+    y += step * (ramp > 0 ? smooth((zMax - z) / RAMP) * ramp + wall * (1 - ramp) : wall);
+  }
+  return y;
+}
+export const hillLift = (x, z) => farmGroundY(x, z) - bakedTierY(x, z);
 /** Tier number at a farm point: 0 lowland … 3 highland. */
 export const tierIndexAt = (x, z) => (z >= TIER_EDGES[0].z ? 0 : z >= TIER_EDGES[1].z ? 1 : z >= tierEdgeZ(TIER_EDGES[2], x) ? 2 : 3);
 /** Walking distance between two farm points: tier by tier through the best ramp or stairs, never straight through a wall. */

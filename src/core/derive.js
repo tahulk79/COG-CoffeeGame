@@ -692,10 +692,21 @@ export function collectError(s, b, now) {
 // SNAP-sized tiles over the farm BOUNDS, rasterised once per region object from lots, roads and placed objects.
 const FARM_LOTS = Object.values(PARCELS).filter(p => areaOfParcel(p.id) === 'farm');
 const ROAD_LIST = Object.values(ROADS);
+// Every action clones the region, which dropped the grid: lots and roads are fixed, so the same fields and buildings reuse it.
+let tilesLayout = null, tilesLast = null;
+const layoutOf = r => {
+  let k = '';
+  for (const f of r.fields || []) k += `${f.id}:${f.x}:${f.z}|`;
+  k += '/';
+  for (const b of r.buildings) k += `${b.uid}:${b.type}:${b.x}:${b.z}:${b.rot}|`;
+  return k;
+};
 export function farmTiles(s) {
   const r = region(s);
   const m = r ? memoOf(r) : null;
   if (m?.tiles) return m.tiles;
+  const layout = r ? layoutOf(r) : null;
+  if (r && layout === tilesLayout) return (m.tiles = tilesLast);
   const S = SNAP, minX = BOUNDS.minX, minZ = BOUNDS.minZ;
   const w = Math.round((BOUNDS.maxX - minX) / S), h = Math.round((BOUNDS.maxZ - minZ) / S);
   const lot = new Int16Array(w * h).fill(-1), ground = new Uint8Array(w * h), occ = new Int32Array(w * h).fill(-1);
@@ -711,8 +722,26 @@ export function farmTiles(s) {
     for (const b of r.buildings) if (own(BUILDINGS, b.type) && areaAt(b.x, b.z) === 'farm') { occupants.push({ kind: 'building', id: b.uid, type: b.type }); fill(fpBuilding(b), occ, occupants.length - 1); }
   }
   const out = { size: S, minX, minZ, w, h, lot, ground, occ, occupants, lots: FARM_LOTS };
-  if (m) m.tiles = out;
+  if (m) { m.tiles = out; tilesLayout = layout; tilesLast = out; }
   return out;
+}
+// Index of the tile under (x, z), or -1 off the grid.
+const tileIndex = (t, x, z) => {
+  const gx = Math.floor((x - t.minX) / t.size), gz = Math.floor((z - t.minZ) / t.size);
+  return gx < 0 || gz < 0 || gx >= t.w || gz >= t.h ? -1 : gz * t.w + gx;
+};
+/** tileAt(...)?.occupant as a yes / no, without building the tile (walkers ask this every frame). */
+export function farmOccupied(s, x, z) {
+  const t = farmTiles(s), i = tileIndex(t, x, z);
+  return i >= 0 && t.occ[i] >= 0;
+}
+/** A tile an idle unit may stand on: free, and on a road or owned land that is no pond (same answer as reading tileAt). */
+export function farmStandable(s, x, z) {
+  const t = farmTiles(s), i = tileIndex(t, x, z);
+  if (i < 0 || t.occ[i] >= 0 || t.ground[i] === 2) return false;
+  if (t.ground[i] === 1) return true;
+  const lot = t.lot[i] >= 0 ? t.lots[t.lot[i]] : null;
+  return !!lot && terrainOfLot(lot.id) !== 'pond' && !!region(s)?.parcels.includes(lot.id);
 }
 /**
  * Metadata of the farm tile under (x, z): { id, gx, gz, x, z, elevation, terrain, lot, owned, unlock, occupant, uses,
@@ -831,7 +860,9 @@ export function tradesFor(s, zone) {
   const open = all.filter(t => STAFF[t].level <= level(s));
   return (open.length ? open : all.slice(0, 1)).map((t, i) => ({ t, i })).sort((a, b) => rank(a.t) - rank(b.t) || team(a.t) - team(b.t) || a.i - b.i).map(x => x.t);
 }
-export const applicants = (s, zone) => applicantsFor(zone, poolOf(s, zone).seed, tradesFor(s, zone));
+/** Names already in use by everyone the player employs (any city): a new applicant or manager never gets one of them. */
+const takenNames = s => [...s.staff.units.map(u => u.name), s.gm?.unit?.name].filter(Boolean);
+export const applicants = (s, zone) => applicantsFor(zone, poolOf(s, zone).seed, tradesFor(s, zone), countryNow(s) || 'vn', takenNames(s));
 /** ms until the board refreshes for free (0 = due now). */
 export const poolRefreshIn = (s, zone, now) => Math.max(0, poolOf(s, zone).at + RECRUIT.refreshMinutes * 60000 - now);
 export const recruitCost = (s, a) => (freeHire(s) ? 0 : a.cost);
@@ -1116,9 +1147,9 @@ export const gmUnlocked = s => level(s) >= GM.unlockLevel;
 export const gmOf = s => s.gm?.unit || null;
 /** Auto is running the farm: the manager in s.gm.unit is its stand-in, not somebody you hired (AUTO in economy.js). */
 export const autoManaged = s => !!s.gm?.unit?.isAuto;
-/** A hired manager standing on a farm: the farm only has Auto now, so he is let go with his fee back (auto/retireHired). */
-export const hiredOnFarm = s => !!s.gm?.unit && !s.gm.unit.isAuto && regionGame(s) === 'farm';
-export const gmBoard = s => gmCandidatesFor(s.gm?.board?.seed ?? 1);
+/** The numbers of the run going now: the stand-in's own, or the run's when a hired manager holds the team and Auto only works the fields. */
+export const autoBook = s => (!s.autoplay?.active ? null : autoManaged(s) ? s.gm.unit.book : s.autoplay.active.book || null);
+export const gmBoard = s => gmCandidatesFor(s.gm?.board?.seed ?? 1, countryNow(s) || 'vn', takenNames(s));
 export const gmBoardRefreshIn = (s, now) => Math.max(0, (s.gm?.board?.at || 0) + GM.board.refreshMinutes * 60000 - now);
 // Backlog ≥ PENALTY.backlog.waitAt (ignored tasks): he thinks GM.plan.thinkSlowMul × slower (§3.3).
 export const gmThinkSeconds = gm => gmThinkOf(gm) * ((gm?.backlog || 0) >= PENALTY.backlog.waitAt ? GM.plan.thinkSlowMul : 1);

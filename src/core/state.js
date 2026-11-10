@@ -223,8 +223,8 @@ export function normalizeSave(raw, now = Date.now()) {
   out.autoplay.saved = num(out.autoplay.saved, 0, 0, AUTO.runSeconds * 1000);
   // A run counts played time down (leftMs); the old wall-clock runs ({ startedAt, endsAt }) are over.
   const act = obj(out.autoplay.active);
-  out.autoplay.active = act && Number.isFinite(act.leftMs) && act.leftMs > 0 ? { leftMs: Math.min(act.leftMs, AUTO.runSeconds * 1000) } : null;
   const runBook = v => (obj(v) ? { jobs: num(v.jobs, 0, 0) | 0, earned: num(v.earned, 0, 0), spent: num(v.spent, 0, 0), ...(Number.isFinite(v.at) ? { at: v.at } : {}) } : null);
+  out.autoplay.active = act && Number.isFinite(act.leftMs) && act.leftMs > 0 ? { leftMs: Math.min(act.leftMs, AUTO.runSeconds * 1000), ...(obj(act.book) ? { book: runBook(act.book) } : {}) } : null;
   out.autoplay.tally = runBook(out.autoplay.tally);
   out.autoplay.last = runBook(out.autoplay.last);
   const retired = obj(out.autoplay.retired);

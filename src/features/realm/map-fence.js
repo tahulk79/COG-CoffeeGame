@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { farmGroundY, BOUNDS, TIER_EDGES, TIER_CUTS, WALL_T, tierEdgeZ, ESTATE_ORDER } from '../../core/config/layout.js';
 import { estateOwned } from '../../core/derive.js';
+import { freezeStatic } from './util.js';
 
 const POST_H = 2.1, RAIL_YS = [.55, 1.15, 1.75], STEP = 2.2, INSET = -1.5; // post spacing; negative = the fence stands this far OUTSIDE the map edge
 const wood = new THREE.MeshStandardMaterial({ color: 0x8a5a33, roughness: .95, flatShading: true });
@@ -83,6 +84,7 @@ export function createMapFence({ parent }) {
     rails.forEach((r, i) => { q.setFromAxisAngle(up, r.yaw); s.set(r.len, 1, 1); p.set(r.x, r.y, r.z); rm.setMatrixAt(i, m.compose(p, q, s)); });
     rm.count = rails.length; rm.castShadow = true; rm.raycast = () => {}; rm.frustumCulled = false;
     group.add(pm, rm); live.push(pm, rm);
+    freezeStatic(group);
   }
 
   // The first tier you have not bought: a fence along the top of its wall with CLOSED gates where the ramp and the two
@@ -115,6 +117,7 @@ export function createMapFence({ parent }) {
     rails.forEach((r, i) => { q.setFromAxisAngle(up, r.yaw); s.set(r.len, 1, 1); p.set(r.x, r.y, r.z); rm.setMatrixAt(i, mm.compose(p, q, s)); });
     rm.count = rails.length; rm.castShadow = true; rm.raycast = () => {}; rm.frustumCulled = false;
     tierGroup.add(pm, rm); tierLive.push(pm, rm);
+    freezeStatic(tierGroup);
   }
   return {
     group,

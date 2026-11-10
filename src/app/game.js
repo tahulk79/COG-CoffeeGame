@@ -6,8 +6,8 @@ import { beatAt, START_TIME, DURATION, PLAYBACK_RATE, nextDialogueTime } from '.
 import { showDialogue, usesTouch } from '../ui/dialogue.js';
 import { readPlayer, readSettings, resetProgress, savePlayer, saveSettings } from '../state/progress.js';
 import { DEFAULT_NAME, randomName } from '../state/names.js';
-import { applyRendererQuality, getQuality, onQuality, setQuality } from '../shared/vfx/index.js';
-import { lowerQuality, mountSettings, openSettings, closeSettings } from '../ui/settings.js';
+import { applyRendererQuality, getQuality, onQuality, setQuality, stepResolution } from '../shared/vfx/index.js';
+import { autoQualityAllowed, lowerQuality, mountSettings, openSettings, closeSettings } from '../ui/settings.js';
 import { attachModels, releaseModels } from '../shared/three/models.js';
 import { loading, showLoading, hideLoading, setLoadingRunner } from '../ui/loading.js';
 import { getLang, hasKey, t } from '../i18n/index.js';
@@ -68,25 +68,53 @@ let previous = null, visualTime = 0;
 let elapsed = 0, currentBeat = null; // intro timeline
 let expiryRunning = false;
 
-// Frame monitor: if gameplay stays under ~25 fps for 2 s, step quality down once and wait before judging again.
-let slowTime = 0, judgedTime = 0, graceUntil = 0;
+// Frame monitor: every 4 s of judged frames, compares the mean frame time with the interval the frame gate aims for, so Low's deliberate
+// 30 fps is on budget. Over budget: one resolution rung down. Tier drops stay the last resort: ladder spent or useless and still crawling.
+// Back up one rung only after 60 s on budget, and every step down holds that off for minutes (longer each time a raise fails), so it cannot oscillate.
+const JUDGE_S = 4, SLOW_RATIO = 1.15, FAST_RATIO = 1.05, CRAWL_RATIO = 2.4, RAISE_AFTER_S = 60, PROVE_S = 60, MAX_HOLD_S = 3600;
+let slowTime = 0, judgedTime = 0, judgedFrames = 0, graceUntil = 0;
+let steadyTime = 0, provingTime = 0, raiseBlockedUntil = 0, stepBlockedUntil = 0, holdS = 180;
+let unproved = 0, proofBase = 0; // rungs taken with no gain seen yet, and the mean frame time before the first of them
 // `?fps` in the URL shows fps, draw calls and quality so performance can be checked on a real phone.
 const fpsMeter = new URLSearchParams(location.search).has('fps') ? Object.assign(document.body.appendChild(document.createElement('output')), { style: 'position:fixed;left:50%;transform:translateX(-50%);top:max(4px,env(safe-area-inset-top));z-index:99;padding:3px 8px;border-radius:8px;background:#000a;color:#fff;font:11px/1.3 monospace;white-space:nowrap;pointer-events:none' }) : null;
 let meterFrames = 0, meterTime = 0;
 function meter(raw) {
   meterFrames++; meterTime += raw;
   if (meterTime < .5) return;
-  fpsMeter.textContent = `${Math.round(meterFrames / meterTime)} fps · ${renderer.info.render.calls} draw · ${getQuality()}`;
+  fpsMeter.textContent = `${Math.round(meterFrames / meterTime)} fps · ${renderer.info.render.calls} draw · ${getQuality()} · ${renderer.getPixelRatio()}x`;
   meterFrames = meterTime = 0;
 }
-function watchFrame(dt) {
+function watchFrame(dt, budget) {
   // A frame over 250 ms is the browser throttling or pausing the page, not a slow device: restart the window.
-  if (dt > .25) { slowTime = judgedTime = 0; graceUntil = visualTime + 3; return; }
-  if (dt <= 0 || visualTime < graceUntil) return;
-  judgedTime += dt; if (dt > 1 / 25) slowTime += dt;
-  if (judgedTime < 2) return;
-  if (slowTime / judgedTime > .6 && lowerQuality()) graceUntil = visualTime + 5;
-  slowTime = judgedTime = 0;
+  if (dt > .25) { slowTime = judgedTime = judgedFrames = 0; graceUntil = visualTime + 3; return; }
+  if (dt <= 0 || visualTime < graceUntil || !autoQualityAllowed()) return;
+  judgedTime += dt; judgedFrames++; if (dt > budget * CRAWL_RATIO) slowTime += dt;
+  if (judgedTime < JUDGE_S) return;
+  const mean = judgedTime / judgedFrames, ratio = mean / budget, crawling = slowTime / judgedTime > .6;
+  slowTime = judgedTime = judgedFrames = 0;
+  if (unproved && (ratio <= SLOW_RATIO || mean < proofBase * .96)) unproved = 0;
+  if (ratio > SLOW_RATIO) {
+    steadyTime = 0;
+    if (provingTime > 0) { provingTime = 0; holdS = Math.min(holdS * 2, MAX_HOLD_S); }
+    if (unproved < 2 && visualTime >= stepBlockedUntil && stepResolution(renderer, -1)) {
+      if (!unproved++) proofBase = mean;
+      raiseBlockedUntil = visualTime + holdS; graceUntil = visualTime + 3;
+      return;
+    }
+    // Coarser made no difference: the limit is the CPU or a capped display (iOS Low Power Mode draws 30), so give the sharpness back.
+    if (unproved) {
+      stepResolution(renderer, unproved); unproved = 0;
+      stepBlockedUntil = visualTime + holdS; holdS = Math.min(holdS * 2, MAX_HOLD_S);
+      graceUntil = visualTime + 3;
+    }
+    if (crawling && lowerQuality()) graceUntil = visualTime + 5;
+    return;
+  }
+  provingTime = Math.max(0, provingTime - JUDGE_S);
+  steadyTime = ratio <= FAST_RATIO ? steadyTime + JUDGE_S : 0;
+  if (steadyTime < RAISE_AFTER_S || visualTime < raiseBlockedUntil) return;
+  steadyTime = 0;
+  if (stepResolution(renderer, 1)) { provingTime = PROVE_S; graceUntil = visualTime + 3; }
 }
 
 // ---------- small helpers ----------
@@ -460,7 +488,8 @@ function resize() {
 }
 function frame(now) {
   const idle = mode === 'play' && (now - lastActiveAt >= IDLE_AFTER_MS || !!hud?.worldCovered); // covered: only the simulation runs, 30 steps a second are plenty
-  if (!frameDue(now, idle ? IDLE_FRAME_MS : activeFrameMs())) return;
+  const target = idle ? IDLE_FRAME_MS : activeFrameMs();
+  if (!frameDue(now, target)) return;
   renderer.shadowMap.autoUpdate = mode !== 'play'; // the realm asks for its shadow map only when something in it changed
   const raw = previous === null ? 0 : (now - previous) / 1000, dt = Math.min(raw, .1);
   const resumed = previous === null; // first frame back from a hidden tab or another screen
@@ -490,7 +519,7 @@ function frame(now) {
     realm.update(dt, visualTime);
     if (realm.moving) lastActiveAt = now;
     hud?.update(dt);
-    if (!idle) watchFrame(raw); // a capped idle frame is slow on purpose, it says nothing about the device
+    if (target === activeFrameMs() && !hud?.worldCovered) watchFrame(raw, target / 1000); // a capped idle frame is slow on purpose, it says nothing about the device; before the draw, so a new scale is painted at once
     // Covered by a full-screen panel: the last frame stays on the canvas and the GPU rests.
     if (!hud?.worldCovered || repaint || resumed) { repaint = false; renderer.render(realm.scene, realm.camera); }
   }
@@ -518,7 +547,7 @@ function fail(error) {
   text.textContent = t('app.error.text');
   const action = (label, style, run) => { const button = document.createElement('button'); button.type = 'button'; button.className = `ui-btn ${style}`; button.textContent = label; button.addEventListener('click', run); return button; };
   actions.className = 'error-actions';
-  actions.append(action(t('app.error.reload'), 'ui-btn--go', () => location.reload()), action(t('app.error.lowGraphics'), 'ui-btn--plain', () => { saveSettings({ ...readSettings(), quality: 'low' }); location.reload(); }),
+  actions.append(action(t('app.error.reload'), 'ui-btn--go', () => location.reload()), action(t('app.error.lowGraphics'), 'ui-btn--plain', () => { saveSettings({ ...readSettings(), quality: 'low', qualityChosen: true }); location.reload(); }),
     // A damaged save can fail on every load; both resets keep a backup copy of the old run.
     action(t('app.error.restart'), 'ui-btn--plain', event => {
       const button = event.currentTarget; // two taps: the first only asks
@@ -548,8 +577,8 @@ function fail(error) {
 // ---------- boot ----------
 async function initialize() {
   try {
-    // Edge smoothing on every device (art-upgrade-plan §1): walls and roofs were visibly jagged on phones. Lower it in settings if a phone struggles.
-    renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    // Edge smoothing (art-upgrade-plan §1): walls and roofs were visibly jagged on phones. Low goes without; MSAA is fixed when the context is made, so it follows the saved level and a change takes effect on the next load.
+    renderer = new THREE.WebGLRenderer({ antialias: readSettings().quality !== 'low', powerPreference: 'high-performance' });
     renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = .95;

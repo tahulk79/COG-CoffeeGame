@@ -38,6 +38,7 @@ export default {
     'hud.sb.tookBack': 'You run the team again',
     'hud.sb.reportSec': 'What the manager did today',
 
+    'hud.sb.filters': 'Filter the team', 'hud.sb.f.people': 'Workers', 'hud.sb.f.robots': 'Robots', 'hud.sb.f.trade': 'By trade', 'hud.sb.fix': 'Fix',
     'hud.sb.all': 'Everyone', 'hud.sb.problem': 'Problems', 'hud.sb.on': 'On shift', 'hud.sb.off': 'Resting',
     'hud.sb.selectAll': 'Select all {n}', 'hud.sb.selectNone': 'Clear all {n}',
     'hud.sb.select': 'Select {name}',
@@ -117,6 +118,7 @@ export default {
     'hud.sb.tookBack': 'Bạn đã tự quản lại đội',
     'hud.sb.reportSec': 'Quản lý đã làm hôm nay',
 
+    'hud.sb.filters': 'Lọc đội', 'hud.sb.f.people': 'Người', 'hud.sb.f.robots': 'Robot', 'hud.sb.f.trade': 'Theo nghề', 'hud.sb.fix': 'Sửa',
     'hud.sb.all': 'Tất cả', 'hud.sb.problem': 'Có vấn đề', 'hud.sb.on': 'Đang làm', 'hud.sb.off': 'Nghỉ ca',
     'hud.sb.selectAll': 'Chọn cả {n} người', 'hud.sb.selectNone': 'Bỏ chọn {n} người',
     'hud.sb.select': 'Chọn {name}',

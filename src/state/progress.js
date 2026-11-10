@@ -100,6 +100,7 @@ export function normalizeSettings(raw) {
   }
   if (typeof value.muted === 'boolean') settings.muted = value.muted;
   if (QUALITIES.includes(value.quality)) settings.quality = value.quality;
+  if (value.qualityChosen === true) settings.qualityChosen = true; // the player picked it: automatic quality stays out across reloads
   if (LANGS.includes(value.lang)) settings.lang = value.lang;
   if (typeof value.analytics === 'boolean') settings.analytics = value.analytics; // F-38: gửi thống kê ẩn danh
   if (typeof value.autoFocus === 'boolean') settings.autoFocus = value.autoFocus; // camera tự tới chỗ có vấn đề

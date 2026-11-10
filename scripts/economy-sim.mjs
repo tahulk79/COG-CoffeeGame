@@ -520,7 +520,7 @@ export function runSim(minutes = 60, { game = 'both', process = true, tap, perso
     // customers
     if (playsCafe) while (now >= nextCustomer) { act('shop/spawnCustomer', { roll: rnd() }); nextCustomer += D.region(s) ? D.arrivalMs(s) : 9000; }
     if (loan && !loanRec && regionNo === 1 && D.level(s) >= (LOAN.packLevel[loan] || 1) && s.story.phase === 'play') {
-      if (act('loan/take', { amount: loan })) { const ln = D.loansOf(s).at(-1); loanRec = { pack: loan, id: ln.id, takenP: P(), termMin: ln.termMin, level: D.level(s), repaidP: null, late: false }; }
+      if (act('loan/take', { amount: loan, gold: true })) { const ln = D.loansOf(s).at(-1); loanRec = { pack: loan, id: ln.id, takenP: P(), termMin: ln.termMin, level: D.level(s), repaidP: null, late: false }; }
       else loanRec = { pack: loan, error: Object.keys(failures).filter(k => k.startsWith('loan/take')).join(',') || 'refused', level: D.level(s) };
     }
     let did = false;

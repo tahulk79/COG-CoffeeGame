@@ -4,7 +4,7 @@ import '../../ui/styles/v3.css';
 import '../../ui/styles/hud-skin.css';
 import { BACKGROUND_ACTIONS } from '../../core/store.js';
 import { AUTO, GM, CROP_ORDER, DRINK_ORDER, autoPrice } from '../../core/config/economy.js';
-import { sellAllQuote, cropUnlocked, drinkUnlocked, region, bothGames, regionGame, currentGames, pendingGifts, isChestLevel, tasksOpen, hiredOnFarm } from '../../core/derive.js';
+import { sellAllQuote, cropUnlocked, drinkUnlocked, region, bothGames, regionGame, currentGames, pendingGifts, isChestLevel, tasksOpen, autoBook } from '../../core/derive.js';
 import { openTierModal } from './tier-modal.js';
 import { sfx } from '../../shared/audio/index.js';
 import { h } from './dom.js';
@@ -122,7 +122,7 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
     if (sheet.openId === id) { sheet.close(); return; }
     sfx('ui.open');
     const s = store.state;
-    if (id === 'seeds') { // opening the picker clears the "new crop" dot
+    if (id === 'seeds' || (id === 'build' && ctx.realm?.view !== 'cafe')) { // opening the picker (or Build, where planting lives) clears the "new crop" dot
       for (const crop of CROP_ORDER) if (cropUnlocked(s, crop) && !s.story.seen?.[seenKey(crop)]) store.dispatch('story/seen', { key: seenKey(crop) });
     }
     if (id === 'menu') { // same for new drinks
@@ -258,15 +258,14 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
   const autoTag = h('span', { class: 'hud-auto-tag' });
   const autoBtn = h('button', { type: 'button', class: 'hud-auto-btn', hidden: true, dataset: { hudId: 'auto' }, attrs: { 'aria-label': T('hud.auto.aria') },
     on: { click: () => ctx.onTool('auto') } }, autoIco, autoTag);
-  let autoSig = '';
+  let autoSig = '', autoClock = 1; // text that changes once a second: read four times a second
   function updateAuto() {
     const s = store.state, a = s.autoplay || {};
-    if (hiredOnFarm(s)) ctx.act('auto/retireHired'); // a manager hired before Auto took over the farm: his fee back, told once below
     const show = ctx.isPlaying() && !!region(s) && regionGame(s) !== 'cafe';
     if (a.retired && show) { ctx.act('auto/retiredSeen'); ctx.toast(T('hud.toast.autoRetired', { name: a.retired.name, coins: fmt(a.retired.coins) }), 'info'); }
     const runs = a.runs || 0, price = autoPrice(a.bought || 0), on = !!a.active, left = on ? autoLeftMs(a) : a.saved || 0, time = clock(left);
     const tag = on ? time : a.saved > 0 ? `⏸ ${time}` : runs > 0 ? `AUTO ×${runs}` : `🪙${fmt(price)}`;
-    const book = on ? s.gm?.unit?.book : null;
+    const book = autoBook(s);
     const sig = `${show}|${on}|${tag}|${book?.jobs || 0}|${book?.earned || 0}|${book?.spent || 0}`;
     if (sig === autoSig) return;
     autoSig = sig;
@@ -285,8 +284,9 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
     for (const [key, v] of Object.entries({ jobs: book?.jobs || 0, earned: Math.round(book?.earned || 0), spent: Math.round(book?.spent || 0) })) for (const n of root.querySelectorAll(`[data-auto-stat="${key}"]`)) n.textContent = fmt(v);
   }
   top.el.querySelector('.hud-top-right')?.append(autoBtn);
+  top.el.querySelector('#hud-lv10')?.before(todoBar); // left stack: money warning · to-do chips · Lv-10 chip
 
-  root.append(...[top.el, todoBar, staffAlerts.el, shops.el, actionBar.el, landChip, toolbar.el, placement.el, plantBar.el, sheet.el, staffModal.el, tutorial.el, feedback.el, modals.el, notices, devPanel?.el].filter(Boolean)); // no dev panel → nothing (not the text "undefined")
+  root.append(...[top.el, staffAlerts.el, shops.el, actionBar.el, landChip, toolbar.el, placement.el, plantBar.el, sheet.el, staffModal.el, tutorial.el, feedback.el, modals.el, notices, devPanel?.el].filter(Boolean)); // no dev panel → nothing (not the text "undefined")
   document.body.append(root);
 
   function renderAll(s) {
@@ -299,10 +299,12 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
     sheet.refresh(); // repaints only when what the sheet shows changed (no button swapped under the finger)
     staffModal.refresh(); // same rule (it also repaints every second on its own while open)
   }
-  let hudDue = false, hudClock = 0; // background actions repaint a few times a second, not on each one
+  let hudDue = false, hudClock = 0, cardDue = false; // background actions repaint a few times a second, not on each one
   const unsubscribe = store.subscribe((s, events, type) => {
     if (BACKGROUND_ACTIONS.has(type) && !events.length) { hudDue = true; return; }
-    hudDue = false;
+    // The crew's own jobs: numbers and lists follow at the same rate; the card that is open keeps up every frame (its buttons are under the finger).
+    if (ctx.realm?.crewTick) { hudDue = true; cardDue = !!ctx.selection; feedback.onEvents(s, events); return; }
+    hudDue = false; hudClock = 0;
     renderAll(s);
     feedback.onEvents(s, events);
     tutorial.refresh();
@@ -335,10 +337,10 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
   // --hud-top-band: lowest edge of the whole top HUD (both columns + ▶ Auto / AUTO bar) — the action card's ceiling.
   let tlBottom = -1, bandBottom = -1, trBottom = -1;
   function syncTopLeft() {
-    const tl = top.el.querySelector('.hud-top-left');
+    const tl = top.el.querySelector('.hud-left-col');
     const b = shown(tl) ? Math.round(tl.getBoundingClientRect().bottom) : 0;
     let band = 0;
-    for (const n of [...top.el.querySelectorAll('.hud-top-left, .hud-top-right')]) if (shown(n)) band = Math.max(band, n.getBoundingClientRect().bottom);
+    for (const n of [...top.el.querySelectorAll('.hud-left-col, .hud-top-right')]) if (shown(n)) band = Math.max(band, n.getBoundingClientRect().bottom);
     band = Math.round(band);
     if (b !== tlBottom) { tlBottom = b; root.style.setProperty('--hud-tl-bottom', `${b}px`); }
     if (band !== bandBottom) { bandBottom = band; root.style.setProperty('--hud-top-band', `${band}px`); }
@@ -416,7 +418,9 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
     confirm: opts => modals.confirm(opts),
     dialogue: lines => modals.dialogue(lines),
     update(dt = 0) {
-      if (hudDue && (hudClock += dt) >= .25) { hudDue = false; hudClock = 0; renderAll(store.state); tutorial.refresh(); }
+      let painted = false; // a repaint and a layout read in one frame force a layout: the insets wait for the next frame
+      if (hudDue && (hudClock += dt) >= .25) { hudDue = cardDue = false; hudClock = 0; painted = true; renderAll(store.state); tutorial.refresh(); }
+      else if (cardDue) { cardDue = false; fieldPop.render(store.state); actionBar.render(store.state, ctx.selection); }
       top.update(dt);
       shops.update(dt);
       toolbar.update(dt);
@@ -428,12 +432,12 @@ export function createHud({ store, realm = null, dev = false, onOpenAtlas, onOpe
       updateFirstGame();
       updateGifts(dt);
       updateSwitch();
-      updateAuto();
+      if ((autoClock += dt) >= .25) { autoClock = 0; updateAuto(); }
       syncLandChip();
       tutorial.update(dt);
       updateNotices(dt);
       staffAlerts.update(dt);
-      if ((insetClock += dt) >= .25) { insetClock = 0; syncInsets(); } // card height / resize / placing changes
+      if ((insetClock += dt) >= .25 && !painted) { insetClock = 0; syncInsets(); } // card height / resize / placing changes
     },
     dispose() {
       unsubscribe();

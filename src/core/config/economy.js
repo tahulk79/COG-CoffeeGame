@@ -1,6 +1,7 @@
 // Farm & Café V3 — economy data. Single source of truth for every price, timer and reward.
 // UI and scenes must read numbers from here (never hardcode). Tuned with `node scripts/economy-sim.mjs`.
 // See docs/design/v3-gdd.md §Economy and docs/AUTONOMOUS_DECISIONS.md.
+import { drawName } from './staff-names.js';
 
 // Founder playtest (2026-11-06): every game starts with PLAYTEST.coins, and an existing save is raised to it once
 // (story.seen.playtestCoins = that amount; raising PLAYTEST.coins tops up again). Set coins to 0 to go back to the balanced START.coins. Tests run with it off.
@@ -380,22 +381,22 @@ export const TRAIT_ORDER = ['diligent', 'lazy', 'funny'];
 // Rare applicants (§7): a perk, a dearer price. goldHands: always ≥ 2★; swift: speed starts at 3; tireless: energy
 // drains ×tirelessDrain; charming: +charmingBonus coins on the cups it serves.
 export const RARE = { chance: 0.1, costMul: 2, perks: ['goldHands', 'swift', 'tireless', 'charming'], swiftSpeed: 3, tirelessDrain: 0.5, charmingBonus: 0.1 };
-export const RECRUIT_NAMES = ['Tí', 'Tèo', 'Hoa', 'Lan', 'Minh', 'Nam', 'Mai', 'Bảo', 'Linh', 'Khoa', 'Vy', 'Hùng', 'Thảo', 'Phúc', 'Ngân', 'Đạt'];
 export const RECRUIT_INTROS = 3; // staff.intro.<trait>.<1..N>
 const rng = seed => () => { seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
-/** The board for `zone` drawn from `seed` (pure): RECRUIT.size applicants, never two with the same trait and name. */
+/** The board for `zone` drawn from `seed` (pure): RECRUIT.size applicants named after `country`, none named like `taken` or each other. */
 // trades: the trades that can apply now, most needed first (D.applicants); the first applicant always has the first one.
-export function applicantsFor(zone, seed, trades = RECRUIT.trades[zone]) {
+export function applicantsFor(zone, seed, trades = RECRUIT.trades[zone], country = 'vn', taken = []) {
   if (!RECRUIT.worker[zone] || !trades?.length) return [];
   const r = rng(seed | 0);
   const traits = [...TRAIT_ORDER].sort(() => r() - .5);
-  const names = [...RECRUIT_NAMES];
+  const used = new Set(taken);
   const jobs = trades.length > 1 ? [trades[0], ...trades.slice(1).sort(() => r() - .5)] : trades;
   const out = [];
   for (let i = 0; i < RECRUIT.size; i++) {
     const trait = traits[i % traits.length], type = jobs[i % jobs.length], looks = STAFF[type].looks;
-    const name = names.splice(Math.floor(r() * names.length), 1)[0];
     const drawn = r() < .5 ? 'male' : 'female', gender = !looks || looks[drawn] ? drawn : Object.keys(looks)[0]; // a trade with one model keeps its model's gender
+    const name = drawName(country, gender, r, used);
+    used.add(name);
     out.push({ type, trait, name, gender, intro: 1 + Math.floor(r() * RECRUIT_INTROS),
       cost: Math.round(STAFF[type].cost * TRAITS[trait].costMul / 5) * 5 });
   }
@@ -603,7 +604,6 @@ export const GM = {
   // — a request, an expiry — always speak); walks only to targets ≤ maxWalkM from the desk (else he points from there).
   look: { color: '#7c4dbd', heightMul: 1.05, walkSpeed: 2.8, pointSec: 0.8, ringLifeShare: 0.1, urgentShare: 0.2, sadLoyalty: 0,
     yawnEverySec: 6, emoteSec: { facepalm: 1.6, thumbsUp: 1.4, yawn: 1.8 }, lineGapSec: 8, lineMs: 3600, requestMs: 4800, maxWalkM: 40 },
-  names: [['Hằng', 'female'], ['Khải', 'male'], ['Sáu', 'male'], ['Ngọc', 'female'], ['Tuấn', 'male'], ['Thu', 'female'], ['Bảy', 'male'], ['Quân', 'male'], ['Mai', 'female']],
 };
 // Farm Manager V2 (docs/design/farm-manager-v2.md). Every number here is a PROPOSAL from the V2 brief, not yet balanced by
 // the sim. reserveMul: × the operating reserve; maxPayback: played minutes an investment may take to pay back;
@@ -632,7 +632,7 @@ export const FARM_MANAGER = {
   incidentLoanLevels: 5,
   hands: { everySec: 2, perMin: 60, perSpeed: 0.2, harvestShare: 0.7, sellAt: 0.5, jobsPerPicker: 8 },
   // Big teams: only the units nearest the camera get shadows, full-rate animation, or are drawn at all (the rest keep working).
-  lod: { everySec: 0.5, shadows: 8, fullAnim: 10, halfAnim: 18, drawn: 22, low: { shadows: 0, fullAnim: 4, halfAnim: 8, drawn: 12 } }, idleThink: 1,
+  lod: { everySec: 0.5, fullAnim: 10, halfAnim: 18, drawn: 22, low: { fullAnim: 4, halfAnim: 8, drawn: 12 } }, idleThink: 1,
   // Staffing from the counters (ripe, thirsty, old trees, storage): clear the backlog in clearMin and keep up with what comes in.
   // share: most of the 30-unit crew one trade may take. No new fields while ripe > picks × stopBacklogMin or more ripens than can be picked.
   staffing: { clearMin: 5, stopBacklogMin: 2, holdAutoMin: 1, holdManualMin: 10, share: { harvest: 0.5, water: 0.2, prune: 0.1, haul: 0.15 } },
@@ -654,12 +654,13 @@ export const gmMoneyMul = gm => 1 + 0.03 * (gmStatOf(gm, 'smart') - 1);
 export const gmHaggleMul = gm => (gm ? 1 - 0.05 * (gmStatOf(gm, 'smart') - 1) : 1);
 /** Incident chance factor of the whole team while he is around. */
 export const gmCalmMul = gm => (gm ? 1 - 0.06 * (gmStatOf(gm, 'stamina') - 1) : 1);
-/** The headhunter board for a seed (pure): GM.board.size candidates — skill 1..5, style, loyalty, fee. */
-export function gmCandidatesFor(seed) {
+/** The headhunter board for a seed (pure): GM.board.size candidates — name of `country` not in `taken`, skill 1..5, style, loyalty, fee. */
+export function gmCandidatesFor(seed, country = 'vn', taken = []) {
   const r = rng(seed | 0);
-  const names = [...GM.names];
+  const used = new Set(taken);
   return Array.from({ length: GM.board.size }, () => {
-    const [name, gender] = names.splice(Math.floor(r() * names.length), 1)[0];
+    const gender = r() < .5 ? 'male' : 'female', name = drawName(country, gender, r, used);
+    used.add(name);
     const skill = 1 + Math.min(4, Math.floor(r() * r() * 5 + r() * 2)); // mostly 1–3, sometimes 4–5
     const style = GM.styleOrder[Math.floor(r() * GM.styleOrder.length)];
     const [lo, hi] = GM.styles[style].loyalty;
@@ -845,6 +846,7 @@ export const ROBOT_WEAR = { heatPerMin: 25, coolPerMin: 40, overheatSeconds: 30,
 // café chaining / urgency / lane numbers of the pure brain.
 export const STAFF_SIM = {
   speed: { worker: 2.6, robot: 3.2 }, brewBotWalkMul: 1.15,
+  farmWalkMul: 1.5, // founder 2026-11-10: the farm's workers and robots walk faster; the café keeps speed above
   work: { surveyor: 2.5, builder: 2.5, picker: 1.2, planter: 1.2, waterer: 1, processor: 1.4, hauler: 1.4, pruner: 1.6, harvestBot: .8, plantBot: .8, waterBot: .7, haulBot: 1, pruneBot: 1, droneBot: .6, barista: .7, brewBot: .4 }, deliverSeconds: .25,
   chainWaitMs: 2500, twoCupM: 4, urgentRatio: .7, urgentSpeed: 1.25, laneM: 1.4,
 };
@@ -889,7 +891,8 @@ export const traitEffect = (unit, key) => TRAITS[unit?.trait]?.bonus?.[STAFF[uni
 // asks for (fields, buildings, staff, land), keeping `questReserve` coins. It buys nothing that no quest asks for.
 // Stop keeps the time left (resume later, no new run spent).
 // One free run for every save; more cost in-game coins (never real money): price grows with each purchase.
-// Founder 2026-11-09: Auto IS the farm's manager, by the hour (the farm can no longer hire one; the cafe still can). While a
+// Founder 2026-11-10: the farm has both, Auto by the hour and a hired manager. With a hired one Auto only works the fields,
+// sells and does quests, he keeps the team. Otherwise, Founder 2026-11-09: Auto IS the farm's manager, by the hour. While a
 // run is on, a stand-in manager (s.gm.unit with isAuto) makes the same decisions as a hired one (hire, care, upgrade, split
 // the crew, build, buy land). It never borrows, files nothing for your signature, gets no salary and cannot be poached.
 // managerStars: his numbers, 1 = the same 60 jobs/min as before and no bonus on sales or incident fees.

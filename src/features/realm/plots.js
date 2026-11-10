@@ -577,6 +577,7 @@ export function createPlots({ scene, templates, vfx, getActiveCrop = () => null 
         if (!pick) {
           pick = new THREE.Mesh(pickGeo, pickMat);
           pick.visible = false;
+          pick.matrixAutoUpdate = false; // only moves in the block below: no per-frame compose
           pick.userData.target = { kind: 'plot', id: plot.id };
           group.add(pick);
           pickers.set(plot.id, pick);
@@ -584,6 +585,7 @@ export function createPlots({ scene, templates, vfx, getActiveCrop = () => null 
         if (pick.position.x !== plot.x || pick.position.z !== plot.z || !pick.userData.placed) {
           pick.position.set(plot.x, hOf(plot.id), plot.z);
           pick.userData.placed = true;
+          pick.updateMatrix();
           pick.updateMatrixWorld(true);
         }
       }

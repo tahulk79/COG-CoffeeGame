@@ -2121,12 +2121,12 @@ const handlers = {
   // ---------- general manager (docs/design/general-manager.md) ----------
   // Hire candidate `index` from the headhunter board (fee = GM.hireFeePerSkill × skill). A new GM ends any chaos.
   'gm/hire'(s, { index }, ev, ctx) {
-    if (D.gmZone(s) === 'farm') return fail('useAuto'); // the farm has Auto instead (economy.js AUTO)
     if (!D.gmUnlocked(s)) return fail('level', { level: GM.unlockLevel });
-    if (D.gmOf(s)) return fail('hasGm');
+    if (D.gmOf(s) && !D.autoManaged(s)) return fail('hasGm');
     const c = D.gmBoard(s)[index];
     if (!c) return fail('unknown');
     if (s.player.coins < c.fee) return fail('coins', { missing: c.fee - s.player.coins });
+    if (D.autoManaged(s)) s.autoplay.active.book = autoManagerOff(s, ctx.now); // he takes the team from Auto; the run's time goes on, on the fields
     spend(s, c.fee);
     ledger(s, ctx.now, 'spent', c.fee, 'hire', D.gmZone(s));
     // The shared Unit interface (management-rules §1.1): uid 'g1', kind 'manager', book / days / recent, backlog.
@@ -2261,24 +2261,15 @@ const handlers = {
     if (!D.ownedPlots(s).length) return fail('noFields'); // nothing to work yet: the run (the free one too) is kept
     let leftMs = a.saved > 0 ? a.saved : 0;
     if (!leftMs) { if (a.runs <= 0) return fail('noRuns'); a.runs--; leftMs = AUTO.runSeconds * 1000; a.tally = null; }
-    if (D.hiredOnFarm(s)) handlers['auto/retireHired'](s, {}, ev, ctx);
     a.saved = 0;
     a.active = { leftMs };
-    autoManagerOn(s, ctx.now, a.tally);
+    if (D.gmOf(s)) a.active.book = { jobs: a.tally?.jobs || 0, earned: a.tally?.earned || 0, spent: a.tally?.spent || 0 }; // a hired manager keeps the team: Auto only works the fields
+    else autoManagerOn(s, ctx.now, a.tally);
     a.tally = null;
-    handlers['gm/think'](s, { roll: 0.5 }, ev, ctx); // the first round of decisions starts now
+    if (D.autoManaged(s)) handlers['gm/think'](s, { roll: 0.5 }, ev, ctx); // the first round of decisions starts now
     ev.push({ type: 'autoStarted', runs: a.runs, leftMs });
   },
-  // The farm only has Auto now: a manager hired there leaves with his fee back and what he was owed wiped (HUD, once, on the farm).
-  'auto/retireHired'(s, _p, _ev, ctx) {
-    if (!D.hiredOnFarm(s)) return { noop: true };
-    const { name, paid = 0 } = s.gm.unit, coins = r2(paid);
-    s.player.coins = r2(s.player.coins + coins);
-    s.autoplay.retired = { name, coins };
-    s.gm.handed = { ...s.gm.handed, farm: false };
-    s.gm.payAt = 0;
-    gmLeave(s, ctx.now, 'auto', []); // told once by the HUD (auto/retiredSeen), not by the usual "he left" toast
-  },
+  // A notice left in an old save, from when a manager on the farm was let go with his fee back.
   'auto/retiredSeen'(s) {
     if (!s.autoplay.retired) return { noop: true };
     s.autoplay.retired = null;
@@ -2298,7 +2289,7 @@ const handlers = {
   'auto/stop'(s, { reason = 'user' } = {}, ev, ctx) {
     const a = s.autoplay;
     if (!a.active) return { noop: true };
-    const { leftMs } = a.active, run = autoManagerOff(s, ctx.now) || { jobs: 0, earned: 0, spent: 0 };
+    const { leftMs, book } = a.active, run = autoManagerOff(s, ctx.now) || { jobs: book?.jobs | 0, earned: Math.round(book?.earned || 0), spent: Math.round(book?.spent || 0) };
     a.active = null;
     if (reason === 'timeout') { a.saved = 0; a.tally = null; a.last = { ...run, at: ctx.now }; }
     else { a.saved = Math.max(0, Math.round(leftMs)); a.tally = run; }
@@ -2324,9 +2315,9 @@ const handlers = {
     if (a.active.leftMs <= 0) return handlers['auto/stop'](s, { reason: 'timeout' }, ev, ctx);
     const r = D.region(s);
     if (!r || otherGame(r, 'farm')) return;
-    if (D.hiredOnFarm(s)) handlers['auto/retireHired'](s, {}, ev, ctx);
-    if (!s.gm.unit) autoManagerOn(s, ctx.now, a.tally); // a run saved before Auto was the manager
-    const book = s.gm.unit.book, paidOut = fn => { const was = s.player.coins; fn(); book.spent = r2(book.spent + Math.max(0, was - s.player.coins)); };
+    if (!s.gm.unit) { autoManagerOn(s, ctx.now, a.tally || a.active.book); delete a.active.book; } // nobody holds the team (the hired manager left, or a run saved before Auto was a manager): Auto does
+    const book = D.autoManaged(s) ? s.gm.unit.book : (a.active.book ||= { jobs: 0, earned: 0, spent: 0 }); // with a hired manager the run keeps its own numbers, not his
+    const paidOut = fn => { const was = s.player.coins; fn(); book.spent = r2(book.spent + Math.max(0, was - s.player.coins)); };
     const busy = new Set(skip), from = ev.length, plots = D.ownedPlots(s).filter(p => !busy.has(p.id));
     let did = 0, at = null;
     paidOut(() => {
@@ -2356,7 +2347,7 @@ const handlers = {
       if (step) paidOut(() => handlers[step.act](s, step.payload, ev, ctx));
     }
     for (let i = from; i < ev.length; i++) if (!GM_LOUD.has(ev[i].type)) ev[i].byAuto = true;
-    if (did) { s.gm.lastJobAt = ctx.now; ev.push({ type: 'autoWork', plotId: at, n: did, byAuto: true }); }
+    if (did) { if (D.autoManaged(s)) s.gm.lastJobAt = ctx.now; ev.push({ type: 'autoWork', plotId: at, n: did, byAuto: true }); }
     if (sold) ev.push({ type: 'autoSold', coins: sold });
     if (finished) ev.push({ type: 'autoQuest', kind: finished.kind, key: finished.key, n: finished.n, coins: finished.coins });
   },
@@ -2435,7 +2426,7 @@ const handlers = {
       } else if (perm === 'loan') { // the coins are short and a loan pays it back: he borrows by himself
         const need = D.gmLoanFor(s, c);
         if (!need || done >= max || D.taskCooling(s, 'loan')) continue;
-        if (gmRun(s, { ...c, key: `loan:${c.key}`, act: { type: 'loan/take', payload: { amount: need.amount } }, cost: 0 }, ctx, ev, { roll: r })) { done++; changed = true; cool(s, 'loan', null, GM.loanRule.everyMin); }
+        if (gmRun(s, { ...c, key: `loan:${c.key}`, act: { type: 'loan/take', payload: { amount: need.amount, gold: true } }, cost: 0 }, ctx, ev, { roll: r })) { done++; changed = true; cool(s, 'loan', null, GM.loanRule.everyMin); }
       } else if (perm === 'file' || perm === 'loan') {
         if (isSale(c) && D.gmRequests(s).some(isSale)) continue;
         if (c.noFile || waiting || filed >= M || done + filed >= max + M || D.taskPending(s, c.key)) continue;
@@ -2454,7 +2445,7 @@ const handlers = {
           changed = true;
           continue;
         }
-        const item = loan ? { key: `loan:${c.key}`, kind: 'loan', act: { type: 'loan/take', payload: { amount: loan.amount } }, cost: 0, value: c.value, reason: ['loanFor', { coins: loan.amount, min: loan.termMin, for: c.reason }], zone: c.zone }
+        const item = loan ? { key: `loan:${c.key}`, kind: 'loan', act: { type: 'loan/take', payload: { amount: loan.amount, gold: true } }, cost: 0, value: c.value, reason: ['loanFor', { coins: loan.amount, min: loan.termMin, for: c.reason }], zone: c.zone }
           : { key: c.key, kind: c.kind || D.taskKindOf(c.act.type), act: c.act, cost: c.cost, value: c.value, reason: c.reason, zone: c.zone };
         const t = fileTask(s, ev, { kind: item.kind, key: item.key, by: 'g1', act: item.act, cost: item.cost, value: item.value, reason: item.reason, zone: item.zone || D.gmZone(s) });
         if (!t) continue;
@@ -2735,25 +2726,35 @@ const handlers = {
 
   // ---------- loans ----------
   // A new loan (management-rules §2.7): its own entry in s.loans (≤ LOAN.maxOpen), its term in played minutes fixed now.
-  'loan/take'(s, { amount }, ev) {
+  // Founder 2026-11-10: a loan is in USD and lands in the USD wallet. amount and owed stay counted in Gold at WALLET.goldPerUsd
+  // ($10 = 1,000), so the credit limit and the share of Gold income that pays it off work as before. `gold`: the manager
+  // borrows for a purchase he is about to make, so his money goes straight to this farm.
+  'loan/take'(s, { amount, gold = false }, ev, ctx) {
     const err = D.loanError(s, amount);
     if (err) return fail(err, D.loanErrorData(s, amount, err));
+    const cents = gold ? 0 : W.centsForGold(amount);
+    if (s.wallet.usd + cents > WALLET.maxUsdCents) return fail('usdCap');
     const ln = { id: `L${s.nextUid++}`, amount, owed: loanOwed(amount), takenAtPlayed: D.playedMs(s), termMin: D.loanTerm(s, amount), late: false, regionId: s.world.currentRegion };
     s.loans = [...D.allLoans(s), ln];
-    s.player.coins = Math.round((s.player.coins + amount) * 100) / 100; // borrowed coins are not income
-    hist(s, { type: 'loanTaken', actor: ACTOR, gain: amount, extra: { id: ln.id, owed: ln.owed, termMin: ln.termMin } });
+    if (gold) s.player.coins = Math.round((s.player.coins + amount) * 100) / 100; // borrowed coins are not income
+    else { s.wallet.usd += cents; W.addLedger(s, ctx?.now ?? NOW, { kind: 'loan', usd: cents, regionId: s.world.currentRegion }); }
+    hist(s, { type: 'loanTaken', actor: ACTOR, gain: amount, extra: { id: ln.id, owed: ln.owed, termMin: ln.termMin, ...(gold ? {} : { usd: cents }) } });
     ev.push({ type: 'loanTaken', amount, owed: D.loanTotal(s), termMin: ln.termMin });
   },
   // Pays the debt with the coins at hand: `amount` coins when given (the Repay tab's chosen amount), else as much as
   // possible. Never more than the debt or the coins you have. Late loans first (to lift the block), then the oldest.
-  // A repayment is not a running cost (not booked as spent in the income series).
-  'loan/repay'(s, { amount = null } = {}, ev) {
+  // A repayment is not a running cost (not booked as spent in the income series). from 'usd': `amount` is still counted in
+  // Gold at WALLET.goldPerUsd, and the USD wallet pays it.
+  'loan/repay'(s, { amount = null, from = 'gold' } = {}, ev, ctx) {
     const owed = D.loanTotal(s);
     if (!(owed > 0)) return { noop: true };
     if (amount != null && !(Number.isFinite(Number(amount)) && Number(amount) > 0)) return fail('invalid');
-    const pay = Math.min(owed, Math.floor(s.player.coins), amount == null ? Infinity : Math.floor(Number(amount)));
-    if (pay <= 0) return fail('coins', { missing: Math.ceil(owed) });
-    s.player.coins = r2(s.player.coins - pay);
+    const usd = from === 'usd', have = usd ? W.goldForCents(s.wallet.usd) : Math.floor(s.player.coins);
+    const pay = Math.min(owed, have, amount == null ? Infinity : Math.floor(Number(amount)));
+    if (pay <= 0) return fail(usd ? 'usdShort' : 'coins', usd ? {} : { missing: Math.ceil(owed) });
+    const cents = usd ? Math.min(s.wallet.usd, W.centsForGold(pay)) : 0;
+    if (usd) { s.wallet.usd -= cents; W.addLedger(s, ctx?.now ?? NOW, { kind: 'loanRepay', usd: -cents, regionId: s.world.currentRegion }); }
+    else s.player.coins = r2(s.player.coins - pay);
     let left = pay;
     for (const ln of [...D.loansOf(s)].sort((a, b) => (b.late ? 1 : 0) - (a.late ? 1 : 0))) {
       const c = Math.min(ln.owed, left);
@@ -2762,7 +2763,7 @@ const handlers = {
     }
     s.loans = D.allLoans(s);
     const stillOwed = D.loansOf(s).length;
-    hist(s, { type: stillOwed ? 'loanPaid' : 'loanRepaid', actor: ACTOR, cost: pay, extra: { owed: D.loanTotal(s) } });
+    hist(s, { type: stillOwed ? 'loanPaid' : 'loanRepaid', actor: ACTOR, cost: pay, extra: { owed: D.loanTotal(s), ...(usd ? { usd: cents } : {}) } });
     if (!stillOwed) ev.push({ type: 'loanRepaid' }); else ev.push({ type: 'loanPaid', amount: pay, owed: D.loanTotal(s) });
   },
 

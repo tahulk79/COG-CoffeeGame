@@ -1,19 +1,23 @@
 // Sheet contents: Build (café), Seeds (farm), Menu (café drinks) and Progress (Round + Rebirth). Staff: staff-modal.js.
 // Pure render functions of the store state. Each screen has its own toolbar (toolbar.js), so sheets filter by view.
 import { BUILD_MENU, BUILD_MENU_FARM, BUILD_MENU_CAFE, BUILDINGS, CATEGORY_ORDER, AUTO, autoPrice, CROPS, CROP_ORDER, STAFF, STAFF_ORDER, LOAN, loanOwed, DRINKS, DRINK_ORDER, BEANS } from '../../core/config/economy.js';
-import { goodCount, sellQuote, sellAllQuote, beanMix, climateFit, buildError, buildingLevel, defOf, useOf, countOf, maxCount, nextLimitLevel, buildCost, fieldAllowance, parcelError, estateOwned, nextEstate, stored, cropUnlocked, drinkUnlocked, drinkPrice, brewMs, seedCost, growMs, level, region, capacity, beanBuyQuote, upgradeError, upgradeCost, loanOf, loanError, loanTerm, loanMinLeft, creditLimit, loanTotal, loansOf } from '../../core/derive.js';
+import { goodCount, sellQuote, sellAllQuote, beanMix, buildError, buildingLevel, defOf, useOf, countOf, maxCount, nextLimitLevel, buildCost, fieldAllowance, parcelError, estateOwned, nextEstate, stored, cropUnlocked, drinkUnlocked, drinkPrice, brewMs, seedCost, level, region, capacity, beanBuyQuote, upgradeError, upgradeCost, loanOf, loanError, loanTerm, loanMinLeft, creditLimit, loanTotal, loansOf } from '../../core/derive.js';
 import { PARCELS, terrainOfLot, ESTATES, ESTATE_ORDER, ESTATE_FIELDS } from '../../core/config/layout.js';
 import { newTxId } from '../../core/store.js';
 import { questList, questCount } from '../../core/quests.js';
 import { h } from './dom.js';
 import { localItemsOf } from '../../ui/local-menu.js';
 import { INGREDIENTS, INGREDIENT_ORDER, RESEARCH } from '../../core/config/research.js';
+import { autoBook } from '../../core/derive.js';
 import { countryNow, recipeKnown, recipeFound, ingredientUnlocked, testCost, testError, benchBusyIn, suppliersFound, scoutOf, contractOf, supplyOf, contractFee, buyerNow, regionGame, dayKey, methodOf, trialsHere, trialSlots, trialResults, trialError, trialField, plotState } from '../../core/derive.js';
 import { SUPPLY, supplierOf, buyerOf, FARMLAB, methodEffect, methodKey } from '../../core/config/research.js';
 import { GOODS, GOOD_ORDER } from '../../core/config/economy.js';
 import { T, fmt, duration, has, clock } from './text.js';
 import { modelIcon } from './model-icons.js';
 import { buildingEffect } from './effects.js';
+import { plantNote, focusArea } from './plant-note.js';
+import { buildTip, buildTipNote } from './build-tip.js';
+import { usdOf, centsForGold, goldForCents } from '../../core/wallet.js';
 import { actionButton, coinAmount, lockTag, needMore } from './widgets.js';
 
 // ---------- Build (construction catalog) ----------
@@ -79,7 +83,7 @@ function cardIcon(def) {
   modelIcon(def).then(url => { if (!url) return; const img = Object.assign(document.createElement('img'), { src: url, alt: '', draggable: false }); img.className = 'hud-card-model'; el.classList.add('has-model'); el.replaceChildren(img); });
   return el;
 }
-function catalogCard(ctx, m) {
+function catalogCard(ctx, m, tipType = null) {
   const def = defOf(m.type), name = T(`building.${m.type}`);
   const desc = has(`fw.desc.${m.type}`) ? T(`fw.desc.${m.type}`) : useOf(m.type) === 'decor' ? T('fw.desc.decor') : buildingEffect(m.type, 1, false); // its own description first, the generic decor line only as a fallback
   let state = '', foot;
@@ -89,9 +93,10 @@ function catalogCard(ctx, m) {
   else if (m.freeLeft != null) foot = h('span', { class: 'hud-cost hud-cost--free' }, T('fw.field.free', { n: m.freeLeft }));
   else foot = coinAmount(m.cost, m.err === 'coins' ? 'is-short' : '');
   const price = m.freeLeft != null ? T('hud.free') : fmt(m.cost);
-  return h('button', { type: 'button', class: `hud-card hud-cat-card${state ? ` is-${state}` : ''}${m.err === 'coins' ? ' is-short' : ''}`,
+  return h('button', { type: 'button', class: `hud-card hud-cat-card${state ? ` is-${state}` : ''}${m.err === 'coins' ? ' is-short' : ''}${m.type === tipType ? ' is-tip' : ''}`,
     dataset: { hudId: `build-${m.type}` }, attrs: { 'aria-disabled': state ? 'true' : null, 'aria-label': `${name} · ${state ? foot.textContent : price}` },
     on: { click: () => pickCard(ctx, m.type) } },
+  m.type === tipType ? h('span', { class: 'hud-card-tip' }, T('hud.buildTip.badge')) : null,
   cardIcon(def),
   h('span', { class: 'hud-card-name' }, name),
   h('span', { class: 'hud-cat-foot' }, foot),
@@ -156,7 +161,7 @@ export function upgradesSheet(ctx) {
 const TREE_FILE = { arabica: 'gedeo', robusta: 'gedeo', liberica: 'liberica' };
 function plantTab(ctx, s) {
   const active = ctx.realm?.activeCrop;
-  return h('div', { class: 'hud-seedgrid' }, ...CROP_ORDER.filter(id => cropUnlocked(s, id)).map(id => {
+  return h('div', null, plantNote(ctx, s), h('div', { class: 'hud-seedgrid' }, ...CROP_ORDER.filter(id => cropUnlocked(s, id)).map(id => {
     const def = CROPS[id], cost = seedCost(s, id);
     const ico = h('span', { class: 'hud-seedtile-ico', attrs: { 'aria-hidden': 'true' } }, def.icon);
     modelIcon({ model: `farm/coffee-tree-${TREE_FILE[id] || 'gedeo'}.glb#tree`, trueScale: 1 }).then(url => { if (!url) return; const img = Object.assign(document.createElement('img'), { src: url, alt: '', draggable: false }); img.className = 'hud-card-model'; ico.classList.add('has-model'); ico.replaceChildren(img); });
@@ -166,7 +171,7 @@ function plantTab(ctx, s) {
     h('strong', null, T(`crop.${id}`)),
     coinAmount(cost),
     h('small', null, T(`crop.${id}.where`)));
-  }));
+  })));
 }
 
 export function buildSheet(ctx) {
@@ -179,17 +184,18 @@ export function buildSheet(ctx) {
       h('span', { class: 'hud-cat-tab-ico', attrs: { 'aria-hidden': 'true' } }, CAT_ICON[id] || '🔨'),
       h('span', { class: 'hud-cat-tab-label' }, T(`fw.cat.${id}`)),
       all.some(m => catOf(view, m.cat) === id && isNew(m)) ? h('span', { class: 'hud-dot', attrs: { 'aria-hidden': 'true' } }) : null)));
-    if (tab === 'land') return h('div', { class: 'hud-catalog' }, tabs, landTab(ctx, s));
+    const tip = view === 'farm' ? buildTip(s, tab) : null, note = buildTipNote(tip);
+    if (tab === 'land') return h('div', { class: 'hud-catalog' }, tabs, note, landTab(ctx, s));
     if (tab === 'plant') return h('div', { class: 'hud-catalog' }, tabs, plantTab(ctx, s));
-    const grid = h('div', { class: 'hud-cards hud-cat-grid' }, all.filter(m => catOf(view, m.cat) === tab).map(m => catalogCard(ctx, m)));
-    return h('div', { class: 'hud-catalog' }, tabs, grid);
+    const grid = h('div', { class: 'hud-cards hud-cat-grid' }, all.filter(m => catOf(view, m.cat) === tab).map(m => catalogCard(ctx, m, tip?.type)));
+    return h('div', { class: 'hud-catalog' }, tabs, note, grid);
   };
   // Signature: the tab + every card's state (+ the land list): a sale or a staff harvest does not rebuild the grid.
   render.sig = s => {
     const view = buildView(ctx), tab = buildTab(ctx);
-    const plant = tab === 'plant' ? `${ctx.realm?.activeCrop}|${ctx.store.state.player.coins | 0}` : '';
+    const plant = tab === 'plant' ? `${ctx.realm?.activeCrop}|${ctx.store.state.player.coins | 0}|${focusArea(ctx).id}` : '';
     const land = tab === 'land' ? ESTATE_ORDER.map(id => `${id}:${estateOwned(s, id) ? 'o' : parcelError(s, ESTATES[id].seed) || ''}`).join(',') : '';
-    return `${view}|${tab}|${JSON.stringify(models(s))}|${land}|${plant}`;
+    return `${view}|${tab}|${JSON.stringify(models(s))}|${land}|${plant}|${view === 'farm' ? JSON.stringify(buildTip(s, tab)) : ''}`;
   };
   return render;
 }
@@ -203,29 +209,16 @@ export function seedsSheet(ctx) {
       const def = CROPS[id];
       const open = cropUnlocked(s, id);
       const cost = seedCost(s, id);
-      const chip = h('button', { type: 'button', class: `hud-seed${id === active ? ' is-active' : ''}${open ? '' : ' is-locked'}`, disabled: !open,
+      const chip = h('button', { type: 'button', class: `hud-seed hud-seed--short${id === active ? ' is-active' : ''}${open ? '' : ' is-locked'}`, disabled: !open,
         attrs: { 'aria-pressed': String(id === active) },
         on: { click: () => { ctx.realm?.setActiveCrop?.(id); ctx.sheet.close(); if (ctx.realm?.startPlanting) ctx.realm.startPlanting(id); else ctx.toast(T('hud.seedPicked', { crop: T(`crop.${id}`) }), 'info'); } } },
       h('span', { class: 'hud-seed-ico', attrs: { 'aria-hidden': 'true' } }, def.icon),
       h('span', { class: 'hud-seed-name' }, T(`crop.${id}`)),
-      open ? h('span', { class: 'hud-seed-meta' }, coinAmount(cost), h('span', null, T('hud.seed.first', { t: duration(def.growSeconds * 1000) })), h('span', null, T('hud.seed.season', { t: duration(region(s) ? growMs(s, id) : def.cycleSeconds * 1000) })), h('span', null, `🫘 ${def.beans}`), h('span', null, T('hud.seed.price', { price: fmt(def.price) })))
-        : lockTag(s.player.round < def.round ? T('hud.roundN', { round: def.round }) : T('hud.levelN', { level: def.level })),
+      open ? h('span', { class: 'hud-seed-cost' }, coinAmount(cost)) : lockTag(s.player.round < def.round ? T('hud.roundN', { round: def.round }) : T('hud.levelN', { level: def.level })),
       h('span', { class: 'hud-seed-where' }, T(`crop.${id}.where`)));
       list.append(chip);
     }
-    // Variety card of the seed in hand: what it is, how to grow it, one real fact (docs/design/coffee-varieties.md).
-    const card = active && CROPS[active] ? h('div', { class: 'hud-variety' },
-      h('p', { class: 'hud-sm-h' }, `${CROPS[active].icon} ${T(`crop.${active}`)} · ${T(`crop.${active}.alt`)}`),
-      // the founder's trait table: altitude, temperature, difficulty, yield, price, strength ●●●○○, aroma, tree, best tier
-      h('ul', { class: 'hud-variety-stats' }, ...['where', 'height', 'temp', 'grow', 'yield', 'price', 'strength', 'aroma', 'tree'].map(k => h('li', null, h('span', null, T(`hud.variety.${k}`)),
-        h('strong', null, k === 'strength' ? `${'●'.repeat(CROPS[active].info?.strength || 0)}${'○'.repeat(5 - (CROPS[active].info?.strength || 0))} ${T(`crop.${active}.${k}`)}` : T(`crop.${active}.${k}`))))),
-      h('p', { class: 'hud-line' }, '🧑‍🌾 ', T(`crop.${active}.care`)),
-      h('p', { class: 'hud-line hud-line--muted' }, '💡 ', T(`crop.${active}.fact`))) : null;
-    // Tier board (one per altitude tier): what suits each, so the player plants freely but knowingly.
-    const tag = f => (f === 'good' ? '✅' : f === 'bad' ? '⚠️' : '➖');
-    const board = h('div', { class: 'hud-tierboard' }, ...ESTATE_ORDER.map(id => h('p', { class: 'hud-line' }, h('strong', null, T(`estate.${id}`)), ' — ', T(`fw.tier.zone.${ESTATES[id].zone}`), ' · ',
-      ...CROP_ORDER.filter(c => cropUnlocked(s, c)).map(c => `${CROPS[c].icon} ${tag(climateFit(c, ESTATES[id].zone))} `))));
-    return h('div', null, h('p', { class: 'hud-hint' }, T('hud.seeds.hint')), list, board, card, region(s) && regionGame(s) === 'farm' ? trialLab(ctx, s) : null);
+    return h('div', null, plantNote(ctx, s), list);
   };
 }
 
@@ -233,6 +226,7 @@ export function seedsSheet(ctx) {
 const lab = { crop: null, method: [0, 2, 1] };
 const wayText = m => FARMLAB.factors.map((f, i) => T(`hud.trial.${f}.${m[i]}`)).join(' · ');
 const effText = e => T('hud.trial.eff', { y: Math.round(e.yieldMul * 100), t: Math.round(e.timeMul * 100), q: Math.round(e.quality * 100) });
+// Not shown anywhere since 2026-11-10: the founder took the fold it lived in off the seed sheet. The game rules behind it are unchanged.
 function trialLab(ctx, s) {
   const crops = CROP_ORDER.filter(c => cropUnlocked(s, c));
   if (!crops.length) return null;
@@ -493,44 +487,71 @@ const autoFace = a => (a.active ? 'on' : a.saved > 0 ? 'paused' : (a.runs || 0) 
 /** The numbers of the run on screen: the one going, the paused one, or the last finished one. */
 function autoRunBook(s) {
   const a = s.autoplay || {};
-  return a.active ? s.gm?.unit?.book || null : a.saved > 0 ? a.tally : a.last;
+  return a.active ? autoBook(s) : a.saved > 0 ? a.tally : a.last;
 }
-/** Auto: state and time left, what the run did, what it may do, and the one action that fits. Used by the sheet and the Auto tab. */
-export function autoPanel(ctx, s, { link = false } = {}) {
-  const a = s.autoplay || {}, face = autoFace(a), runs = a.runs || 0, min = Math.round(AUTO.runSeconds / 60), total = AUTO.runSeconds * 1000;
-  const price = autoPrice(a.bought || 0), broke = s.player.coins < price, timed = face === 'on' || face === 'paused';
-  const left = face === 'on' ? autoLeftMs(a) : a.saved || 0, book = autoRunBook(s);
-  const buy = async () => { if (await buyAuto(ctx) && face === 'empty') startAuto(ctx); };
-  const main = {
+/** The manager you hired, if any (Auto's stand-in is not one): with him, Auto only helps on the fields. */
+const hiredBoss = s => (s.gm?.unit && !s.gm.unit.isAuto ? s.gm.unit : null);
+/** Changes only when the Auto controls need new buttons (the clock and numbers repaint in place). */
+export function autoSig(s) { const a = s.autoplay || {}, price = autoPrice(a.bought || 0); return `${autoFace(a)}|${a.runs || 0}|${price}|${s.player.coins < price}|${hiredBoss(s)?.name || ''}`; }
+/** The one button that fits Auto right now. */
+function autoMain(ctx, s, face, short) {
+  const a = s.autoplay || {}, min = Math.round(AUTO.runSeconds / 60), price = autoPrice(a.bought || 0), broke = s.player.coins < price;
+  const buy = async () => { if (await buyAuto(ctx)) startAuto(ctx); };
+  return {
     on: { id: 'autoPause', label: T('hud.auto.stopBtn'), icon: '⏸', tone: 'plain', onClick: () => pauseAuto(ctx) },
     paused: { id: 'autoResume', label: T('hud.auto.resumeBtn'), icon: '▶', tone: 'go', onClick: () => startAuto(ctx) },
-    ready: { id: 'autoStart', label: T('hud.auto.startBtn', { min }), icon: '▶', tone: 'go', onClick: () => startAuto(ctx) },
-    empty: { id: 'autoBuyStart', label: T('hud.auto.buyStart'), cost: price, tone: 'gold', disabled: broke, note: broke ? needMore(price - s.player.coins) : null, onClick: buy },
+    ready: { id: 'autoStart', label: short ? T('hud.auto.open') : T('hud.auto.startBtn', { min }), icon: '▶', tone: 'go', onClick: () => startAuto(ctx) },
+    empty: { id: 'autoBuyStart', label: short ? T('hud.auto.open') : T('hud.auto.buyStart'), cost: price, tone: 'gold', disabled: broke, note: broke && !short ? needMore(price - s.player.coins) : null, onClick: buy },
   }[face];
+}
+/** Auto as the Staff screen's manager card: one line, always above the tabs. A tap on the words opens its report. */
+export function autoStrip(ctx, s, onReport) {
+  const a = s.autoplay || {}, face = autoFace(a), runs = a.runs || 0, min = Math.round(AUTO.runSeconds / 60), total = AUTO.runSeconds * 1000;
+  const timed = face === 'on' || face === 'paused', left = face === 'on' ? autoLeftMs(a) : a.saved || 0, book = autoRunBook(s);
+  const num = (key, v) => h('b', { dataset: { autoStat: key } }, fmt(Math.round(v || 0)));
+  const main = autoMain(ctx, s, face, true), mainBtn = actionButton(face === 'on' ? { ...main, label: '' } : main); // running: the pause icon alone, the clock needs the room
+  mainBtn.setAttribute('aria-label', main.label);
+  return h('section', { class: `hud-auto-strip is-${face}` },
+    h('button', { type: 'button', class: 'hud-auto-strip-main', dataset: { hudId: 'autoStripReport' }, on: { click: onReport } },
+      h('span', { class: 'hud-auto-state-ico', attrs: { 'aria-hidden': 'true' } }, '🤖'),
+      h('span', { class: 'hud-auto-strip-text' },
+        h('strong', null, hiredBoss(s) && face !== 'paused' ? T(face === 'on' ? 'hud.auto.strip.helpOn' : 'hud.auto.strip.help') : T(`hud.auto.strip.${face}`)),
+        face === 'on' ? h('small', null, T('hud.auto.strip.jobs'), ' ', num('jobs', book?.jobs), ' · ', T('hud.auto.strip.spent'), ' ', num('spent', book?.spent)) : h('small', null, T(`hud.auto.stripSub.${face}`, { n: runs, min })))),
+    timed ? h('span', { class: 'hud-auto-state-time', dataset: { autoClock: '' } }, clock(left)) : null,
+    mainBtn,
+    timed ? h('div', { class: 'hud-auto-meter', attrs: { 'aria-hidden': 'true' } }, h('i', { dataset: { autoMeter: '' }, style: { width: `${Math.min(100, left / total * 100)}%` } })) : null);
+}
+/** Auto: state and time left, what the run did, what it may do, and the one action that fits. The sheet shows all of it; `detail` (the Staff screen's report, under the strip) leaves out the state and the main button. */
+export function autoPanel(ctx, s, { link = false, detail = false } = {}) {
+  const a = s.autoplay || {}, face = autoFace(a), runs = a.runs || 0, min = Math.round(AUTO.runSeconds / 60), total = AUTO.runSeconds * 1000;
+  const price = autoPrice(a.bought || 0), broke = s.player.coins < price, timed = face === 'on' || face === 'paused';
+  const left = face === 'on' ? autoLeftMs(a) : a.saved || 0, book = autoRunBook(s), boss = hiredBoss(s);
+  const buy = async () => { await buyAuto(ctx); };
+  const main = autoMain(ctx, s, face, false);
   const stat = (key, label, value) => h('div', { class: 'hud-auto-stat' }, h('strong', { dataset: { autoStat: key } }, value), h('small', null, label));
   return h('div', { class: 'hud-auto-panel' },
-    h('section', { class: `hud-auto-state is-${face}` },
+    detail ? null : h('section', { class: `hud-auto-state is-${face}` },
       h('span', { class: 'hud-auto-state-ico', attrs: { 'aria-hidden': 'true' } }, '🤖'),
-      h('div', { class: 'hud-auto-state-text' }, h('strong', null, T(`hud.auto.state.${face}`)), h('small', null, T(`hud.auto.sub.${face}`, { min, n: runs }))),
+      h('div', { class: 'hud-auto-state-text' }, h('strong', null, face === 'on' && boss ? T('hud.auto.state.help', { name: boss.name }) : T(`hud.auto.state.${face}`)), h('small', null, T(`hud.auto.sub.${face}`, { min, n: runs }))),
       h('span', { class: 'hud-auto-state-time', dataset: timed ? { autoClock: '' } : undefined }, timed ? clock(left) : `×${runs}`),
       timed ? h('div', { class: 'hud-auto-meter', attrs: { 'aria-hidden': 'true' } }, h('i', { dataset: { autoMeter: '' }, style: { width: `${Math.min(100, left / total * 100)}%` } })) : null),
     h('div', { class: 'hud-auto-actions' },
-      actionButton(main),
-      face === 'empty' ? null : actionButton({ id: 'autoBuy', label: T('hud.auto.buyMore'), cost: price, tone: 'plain', disabled: broke, onClick: buy })),
+      detail ? null : actionButton(main),
+      face === 'empty' && !detail ? null : actionButton({ id: 'autoBuy', label: T('hud.auto.buyMore'), cost: price, tone: 'plain', disabled: broke, onClick: buy })),
     book ? h('section', { class: 'hud-auto-report' },
       h('h3', null, T(face === 'ready' || face === 'empty' ? 'hud.auto.lastRun' : 'hud.auto.thisRun')),
       h('div', { class: 'hud-auto-stats' },
         stat('jobs', T('hud.auto.stat.jobs'), fmt(book.jobs || 0)), stat('earned', T('hud.auto.stat.earned'), fmt(Math.round(book.earned || 0))), stat('spent', T('hud.auto.stat.spent'), fmt(Math.round(book.spent || 0))))) : null,
-    link && face === 'on' ? actionButton({ id: 'autoReport', label: T('hud.auto.report'), tone: 'plain', onClick: () => { ctx.sheet.close(); ctx.staffModal.open({ tab: 'gm' }); } }) : null,
+    link && face === 'on' ? actionButton({ id: 'autoReport', label: T('hud.auto.report'), tone: 'plain', onClick: () => { ctx.sheet.close(); ctx.staffModal.open({ tab: 'team', autoReport: true }); } }) : null,
     h('details', { class: 'hud-auto-does' },
       h('summary', null, T('hud.auto.doesTitle')),
-      h('ul', null, ...['field', 'sell', 'crew', 'grow', 'quests'].map(k => h('li', null, T(`hud.auto.does.${k}`))), h('li', { class: 'is-no' }, T('hud.auto.does.noLoan'))),
+      h('ul', null, ...(boss ? ['field', 'sell', 'quests'] : ['field', 'sell', 'crew', 'grow', 'quests']).map(k => h('li', null, T(`hud.auto.does.${k}`))), boss ? h('li', null, T('hud.auto.does.hired', { name: boss.name })) : null, h('li', { class: 'is-no' }, T('hud.auto.does.noLoan'))),
       h('p', { class: 'hud-auto-note' }, T('hud.auto.note'))));
 }
 /** The bottom sheet behind the rail's AUTO button. The clock and the numbers repaint in place (HUD updateAuto), so a button is never swapped under a finger. */
 export function autoSheet(ctx) {
   const render = s => autoPanel(ctx, s, { link: true });
-  render.sig = s => { const a = s.autoplay || {}, book = autoRunBook(s); return `${autoFace(a)}|${a.runs || 0}|${autoPrice(a.bought || 0)}|${s.player.coins < autoPrice(a.bought || 0)}|${book ? 1 : 0}|${a.last?.at || 0}`; };
+  render.sig = s => { const a = s.autoplay || {}, book = autoRunBook(s); return `${autoFace(a)}|${a.runs || 0}|${autoPrice(a.bought || 0)}|${s.player.coins < autoPrice(a.bought || 0)}|${book ? 1 : 0}|${a.last?.at || 0}|${hiredBoss(s)?.name || ''}`; };
   return render;
 }
 
@@ -583,7 +604,9 @@ export function loanSheet(ctx) {
   //    a pack level and the credit limit (management-rules §2.7); a lock says why a pack cannot be taken now.
   //  · Repay tab (only while in debt) — the debt, its progress, then "how much?" chips, a preview of what is left
   //    after paying, and one Pay button that asks to confirm.
-  let pending = false, tab = null, pick = null;
+  let pending = false, tab = null, pick = null, paySrc = 'gold';
+  // Loans are in USD on screen; the rules count them in Gold at the fixed rate (game.js loan/take).
+  const usd = gold => { const c = centsForGold(gold); return `$${c % 100 ? (c / 100).toFixed(2) : c / 100}`; };
   async function take(amount) {
     if (pending) return;
     pending = true;
@@ -591,9 +614,9 @@ export function loanSheet(ctx) {
     ctx.sheet.rerender();
     try {
       const owed = loanOwed(amount);
-      const yes = await ctx.confirm({ title: T('hud.loan.confirmTitle', { n: fmt(amount) }), body: T('hud.loan.confirmBody', { owed: fmt(owed), pct: Math.round(LOAN.autoRepay * 100) }),
-        costLabel: T('hud.loan.owedLine', { n: fmt(owed) }), confirmLabel: T('hud.loan.take') });
-      if (yes) { const r = ctx.act('loan/take', { amount }, { txId }); if (r.ok && !r.duplicate) ctx.toast(T('hud.toast.loanTaken', { n: fmt(amount) }), 'good'); }
+      const yes = await ctx.confirm({ title: T('hud.loan.confirmTitle', { n: usd(amount) }), body: T('hud.loan.confirmBody', { owed: usd(owed), pct: Math.round(LOAN.autoRepay * 100) }),
+        costLabel: T('hud.loan.owedLine', { n: usd(owed) }), confirmLabel: T('hud.loan.take') });
+      if (yes) { const r = ctx.act('loan/take', { amount }, { txId }); if (r.ok && !r.duplicate) ctx.toast(T('hud.toast.loanTaken', { n: usd(amount) }), 'good'); }
     } finally { pending = false; ctx.sheet.rerender(); }
   }
   // Why a pack is locked now (null = it can be borrowed): its level, the loan count, the credit limit, a late loan.
@@ -605,16 +628,17 @@ export function loanSheet(ctx) {
     if (err === 'loanBlocked') return lockTag(T('hud.loan.lockBlocked'));
     return null;
   }
-  async function repay(amount, owed) {
+  async function repay(amount, owed, from) {
     if (pending) return;
     pending = true;
     ctx.sheet.rerender();
     try {
       const left = Math.max(0, Math.ceil(owed - amount));
-      const yes = await ctx.confirm({ title: T('hud.loan.payConfirmTitle', { n: fmt(amount) }),
-        body: left > 0 ? T('hud.loan.payConfirmLeft', { n: fmt(left) }) : T('hud.loan.payConfirmDone'), confirmLabel: T('hud.loan.payBtn', { n: fmt(amount) }) });
+      const label = from === 'usd' ? T('hud.loan.payBtnUsd', { n: usd(amount) }) : T('hud.loan.payBtn', { n: fmt(amount) });
+      const yes = await ctx.confirm({ title: `${label}?`,
+        body: left > 0 ? T('hud.loan.payConfirmLeft', { n: usd(left) }) : T('hud.loan.payConfirmDone'), confirmLabel: label });
       if (yes) {
-        const r = ctx.act('loan/repay', { amount });
+        const r = ctx.act('loan/repay', { amount, from });
         if (r.ok && !r.noop && !r.events?.some(e => e.type === 'loanRepaid')) ctx.toast(T('hud.toast.loanPaid'), 'good'); // paid off → the feedback toast
         pick = null;
       }
@@ -628,35 +652,40 @@ export function loanSheet(ctx) {
       const tabBtn = (id, label) => h('button', { type: 'button', class: 'hud-tab', dataset: { hudId: `loanTab-${id}` }, attrs: { 'aria-pressed': String(tab === id) },
         on: { click: () => { if (tab !== id) { tab = id; ctx.sheet.rerender(); } } } }, label);
       out.append(h('div', { class: 'hud-tabs hud-loan-tabs', attrs: { role: 'group', 'aria-label': T('hud.loan.tabs') } },
-        tabBtn('repay', h('span', null, `💸 ${T('hud.loan.tabRepay')} `, coinAmount(Math.ceil(loan.owed)))),
+        tabBtn('repay', `💸 ${T('hud.loan.tabRepay')} ${usd(loan.owed)}`),
         tabBtn('borrow', `💰 ${T('hud.loan.tabBorrow')}`)));
     }
     if (tab === 'repay' && loan) {
       const total = loanOwed(loan.amount);
       const paid = Math.max(0, Math.min(1, 1 - loan.owed / total));
-      const owed = Math.ceil(loan.owed), max = Math.min(owed, Math.floor(s.player.coins));
+      const usdValue = goldForCents(usdOf(s)), coinsHave = Math.floor(s.player.coins);
+      if (paySrc === 'usd' && usdValue <= 0) paySrc = 'gold'; else if (paySrc === 'gold' && coinsHave <= 0 && usdValue > 0) paySrc = 'usd';
+      const byUsd = paySrc === 'usd', owed = Math.ceil(loan.owed), max = Math.min(owed, byUsd ? Math.floor(usdValue) : coinsHave);
+      const money = n => (byUsd ? usd(n) : fmt(n));
       out.append(h('section', { class: 'hud-panel hud-loan-open' },
-        h('p', { class: 'hud-loan-owed' }, T('hud.loan.owed'), ' ', coinAmount(owed)),
+        h('p', { class: 'hud-loan-owed' }, T('hud.loan.owed'), ' ', usd(owed)),
         h('div', { class: 'hud-loan-bar', attrs: { role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(Math.round(paid * 100)) } },
           h('span', { attrs: { style: `width:${Math.round(paid * 100)}%` } })),
         ...loan.loans.map((ln, i) => h('p', { class: 'hud-hint hud-loan-row' },
-          T('hud.loan.row', { i: i + 1, amount: fmt(ln.amount), owed: fmt(Math.ceil(ln.owed)) }))),
+          T('hud.loan.row', { i: i + 1, amount: usd(ln.amount), owed: usd(ln.owed) }))),
         loan.late ? h('p', { class: 'hud-report hud-report--bad' }, T('hud.loan.blocked')) : null,
         h('p', { class: 'hud-hint' }, T('hud.loan.auto', { pct: Math.round(LOAN.autoRepay * 100) }))));
       if (max <= 0) { out.append(h('p', { class: 'hud-hint hud-loan-empty' }, T('hud.loan.noCoins'))); return out; }
       // Amounts: a few round steps under what you can pay, then "everything you can" (all of the debt when you have it).
-      const steps = [1000, 2000, 5000, 10000].filter(n => n < max).slice(-3);
-      const options = [...steps.map(n => ({ n, label: fmt(n) })), { n: max, label: max >= owed ? T('hud.loan.pickAll') : T('hud.loan.pickMax'), all: true }];
+      const steps = (byUsd ? [100, 500, 1000, 2000] : [1000, 2000, 5000, 10000]).filter(n => n < max).slice(-3);
+      const options = [...steps.map(n => ({ n, label: money(n) })), { n: max, label: max >= owed ? T('hud.loan.pickAll') : T('hud.loan.pickMax'), all: true }];
       if (!options.some(o => o.n === pick)) pick = options[0].n;
       const chips = h('div', { class: 'hud-tabs hud-loan-amounts', attrs: { role: 'group', 'aria-label': T('hud.loan.howMuch') } },
         ...options.map(o => h('button', { type: 'button', class: `hud-tab${o.all ? ' is-all' : ''}`, dataset: { hudId: `loanPay-${o.all ? 'all' : o.n}` }, attrs: { 'aria-pressed': String(pick === o.n) },
-          on: { click: () => { pick = o.n; ctx.sheet.rerender(); } } }, o.all ? h('span', null, o.label, h('small', null, fmt(o.n))) : o.label)));
-      const left = Math.max(0, owed - pick), coinsAfter = Math.floor(s.player.coins) - pick;
+          on: { click: () => { pick = o.n; ctx.sheet.rerender(); } } }, o.all ? h('span', null, o.label, h('small', null, money(o.n))) : o.label)));
+      const left = Math.max(0, owed - pick), after = byUsd ? `$${(Math.max(0, usdOf(s) - centsForGold(pick)) / 100).toFixed(2)}` : fmt(coinsHave - pick);
+      const srcBtn = (id, label) => h('button', { type: 'button', class: 'hud-tab', dataset: { hudId: `loanFrom-${id}` }, attrs: { 'aria-pressed': String(paySrc === id) }, on: { click: () => { if (paySrc !== id) { paySrc = id; pick = null; ctx.sheet.rerender(); } } } }, label);
       out.append(h('section', { class: 'hud-panel hud-loan-pay' },
+        usdValue > 0 && coinsHave > 0 ? h('div', { class: 'hud-tabs hud-loan-tabs', attrs: { role: 'group', 'aria-label': T('hud.loan.tabs') } }, srcBtn('gold', T('hud.loan.fromGold')), srcBtn('usd', T('hud.loan.fromUsd'))) : null,
         h('h3', { class: 'hud-h3' }, T('hud.loan.howMuch')),
         chips,
-        h('p', { class: 'hud-loan-after' }, left > 0 ? T('hud.loan.afterLeft', { owe: fmt(left), coins: fmt(coinsAfter) }) : T('hud.loan.afterDone', { coins: fmt(coinsAfter) })),
-        actionButton({ id: 'loanRepay', label: T('hud.loan.payBtn', { n: fmt(pick) }), tone: 'go', disabled: pending, onClick: () => repay(pick, loan.owed) })));
+        h('p', { class: 'hud-loan-after' }, T(byUsd ? (left > 0 ? 'hud.loan.afterLeftUsd' : 'hud.loan.afterDoneUsd') : (left > 0 ? 'hud.loan.afterLeft' : 'hud.loan.afterDone'), { owe: usd(left), coins: after, usd: after })),
+        actionButton({ id: 'loanRepay', label: byUsd ? T('hud.loan.payBtnUsd', { n: usd(pick) }) : T('hud.loan.payBtn', { n: fmt(pick) }), tone: 'go', disabled: pending, onClick: () => repay(pick, loan.owed, paySrc) })));
       return out;
     }
     if (loan?.late) out.append(h('p', { class: 'hud-report hud-report--bad' }, T('hud.loan.blocked')));
@@ -665,8 +694,8 @@ export function loanSheet(ctx) {
       const owed = loanOwed(amount);
       packs.append(h('div', { class: `hud-loan-pack tier-${i + 1}` },
         h('span', { class: 'hud-loan-pack-ico', attrs: { 'aria-hidden': 'true' } }, ['💰', '💰💰', '💰💰💰'][i] || '💰'),
-        h('strong', { class: 'hud-loan-pack-amount' }, coinAmount(amount)),
-        h('span', { class: 'hud-loan-pack-owed' }, T('hud.loan.payBack', { n: fmt(owed) })),
+        h('strong', { class: 'hud-loan-pack-amount' }, usd(amount)),
+        h('span', { class: 'hud-loan-pack-owed' }, T('hud.loan.payBack', { n: usd(owed) })),
         loanLock(s, amount) || actionButton({ id: `loan-${amount}`, label: T('hud.loan.take'), tone: 'gold', disabled: pending, onClick: () => take(amount) })));
     });
     out.append(packs);
@@ -676,7 +705,7 @@ export function loanSheet(ctx) {
 
 // Manage: everything used less often, one tap away. Tiles only; each opens its own sheet.
 export function manageSheet(ctx) {
-  const tiles = [['finance', '📒'], ['upgrades', '⬆️'], ['loan', '💰'], ['quests', '📜'], ['journal', '📓'], ['world', '🌍']];
+  const tiles = [['upgrades', '⬆️'], ['quests', '📜'], ['journal', '📓']]; // Loan and World map sit in the top rail; the capital book opens from the money pills
   return () => h('div', { class: 'gu-tiles' }, tiles.map(([id, icon]) => h('button', { type: 'button', class: 'gu-tile', dataset: { hudId: `manage-${id}` },
     on: { click: () => ctx.onTool(id) } }, h('span', { class: 'gu-tile-ico', attrs: { 'aria-hidden': 'true' } }, icon), h('span', { class: 'gu-tile-label' }, T(`hud.manage.${id}`)))));
 }

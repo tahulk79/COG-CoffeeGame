@@ -22,6 +22,8 @@ export const totalGold = s => r2(farmIds(s).reduce((n, id) => n + goldOf(s, id),
 
 export const walletRate = () => WALLET.goldPerUsd;
 export const goldForCents = (cents, rate = WALLET.goldPerUsd) => r2(cents * rate / 100);
+/** USD cents worth this much Gold, rounded up: a debt is never shown or paid for less than it is. */
+export const centsForGold = (gold, rate = WALLET.goldPerUsd) => Math.ceil(r2(gold * 100 / rate) - 1e-9);
 export const validRequest = id => typeof id === 'string' && id.length >= 8 && id.length <= 64;
 export const seenRequest = (s, id) => (s.wallet.requests || []).includes(id);
 
