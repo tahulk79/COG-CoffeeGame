@@ -14,7 +14,7 @@ import { getLang, hasKey, t } from '../i18n/index.js';
 import { sfx } from '../shared/audio/index.js';
 import { detectPlatform, initAnalytics, track } from '../shared/analytics/wire.js';
 import { createStore } from '../core/store.js';
-import { WALLET } from '../core/config/economy.js';
+import { WALLET, levelForXp } from '../core/config/economy.js';
 import { captureThumb } from '../features/finance/thumbs.js';
 import '../ui/styles/game-ui.css';
 import '../ui/styles/skin/base.css';
@@ -25,6 +25,9 @@ import { followerCandidate, followerWage } from '../core/derive.js';
 import { loadPlayer, playerModel } from '../characters/load-player.js';
 import { V3_KEY, PROGRESS_KEY, PLAYER_KEY, DEV_PROFILE } from '../state/storage-keys.js';
 import pkg from '../../package.json';
+import { startTelemetry, noteFrame, beginLoad, endLoad, log } from '../shared/godbean/telemetry.js';
+import { hasStoredSession, restoreSession, forgetAccount, flush } from '../shared/godbean/client.js';
+import { requireGoogleLogin } from '../ui/login-gate.js';
 import '../ui/styles/skin/system.css';
 
 installDragScroll();
@@ -159,6 +162,10 @@ function cinematic(name) {
 
 // ---------- phase router ----------
 async function route() {
+  // Closed the tab on the login screen that follows the incident: sign in first. Only a save that reached that screen
+  // (LOGIN_DUE); a save that passed Level 10 before the gate existed is not stopped.
+  // body.booting hides everything but the loading screen: lift it, or the gate is invisible and the load hangs.
+  if (loginDue()) { await requireGoogleLogin({ reason: 'resume', onShow: () => { hideLoading(); bootDone(); } }); clearLoginDue(); }
   const { phase } = store.state.story;
   if (phase === 'select' || !store.state.character) return enterSelection();
   if (phase === 'intro') return startIntro(null);
@@ -176,7 +183,7 @@ async function route() {
 
 // ---------- select ----------
 async function enterSelection() {
-  mode = 'transition';
+  mode = 'transition'; beginLoad('selection');
   const { createSelection } = await import('../features/selection/scene.js');
   showLoading(45, t('story.loading.characters'));
   active = await createSelection(profile.gender, showGender, progress => {
@@ -189,7 +196,7 @@ async function enterSelection() {
   hideLoading(); $('selection').hidden = false; resize(); // the panel must be visible before the character can be framed
   bootDone(); showGear(true);
   present('story.title.select', 'selection.ariaLabel');
-  mode = 'selection';
+  mode = 'selection'; endLoad('selection');
   startLoop();
 }
 const previewName = {}; // the random name on the hero plate, kept when the hero is chosen
@@ -222,7 +229,7 @@ async function enterGame(event) {
 
 // ---------- intro (replayed from the start after a reload) ----------
 async function startIntro(character) {
-  mode = 'transition';
+  mode = 'transition'; beginLoad('intro');
   showLoading(60, t('story.loading.intro'));
   const { createIntro } = await import('../features/intro/scene.js');
   character ??= await loadPlayer(playerModel(profile.gender));
@@ -235,7 +242,7 @@ async function startIntro(character) {
   active.update(START_TIME);
   present('story.title.intro', 'intro.ariaLabel', { name: profile.name });
   hideLoading(); $('selection').hidden = true; bootDone(); showGear(true);
-  elapsed = START_TIME; currentBeat = null; mode = 'intro';
+  elapsed = START_TIME; currentBeat = null; mode = 'intro'; endLoad('intro');
   showIntroControls(true); $('caption-box').hidden = true; $('dialogue-next').disabled = false;
   $('game').focus({ preventScroll: true });
   startLoop();
@@ -255,7 +262,7 @@ function finishIntro() {
 
 // ---------- teacher ----------
 async function enterTeacher() {
-  mode = 'transition';
+  mode = 'transition'; beginLoad('teacher');
   showLoading(40, t('story.loading.teacher'));
   const [{ createTeacher }, character] = await Promise.all([import('../features/teacher/index.js'), loadPlayer(playerModel(profile.gender))]);
   const teacher = await createTeacher({
@@ -271,7 +278,7 @@ async function enterTeacher() {
   await renderer.compileAsync(active.scene, active.camera);
   hideLoading(); bootDone(); showGear(true); vignette.style.opacity = '0';
   present('story.title.teacher', 'story.label.teacher');
-  mode = 'teacher';
+  mode = 'teacher'; endLoad('teacher');
   startLoop();
   teacher.start().catch(fail);
 }
@@ -321,7 +328,7 @@ async function openAtlas(atlasMode) {
 async function buildAtlas(atlasMode) {
   const overRealm = atlasMode === 'play' && realm;
   if (overRealm) snapFarm();
-  mode = 'transition';
+  mode = 'transition'; beginLoad('atlas');
   if (overRealm) {
     // The realm stays loaded underneath (not rendered); the HUD is rebuilt when the atlas closes.
     realm.setInputLocked(true); realm.clearInput?.(); realm.select(null); hud?.dispose(); hud = null;
@@ -335,7 +342,7 @@ async function buildAtlas(atlasMode) {
   await renderer.compileAsync(atlas.scene, atlas.camera);
   hideLoading(); bootDone(); showGear(true);
   present('story.title.atlas', 'story.label.atlas');
-  mode = 'atlas';
+  mode = 'atlas'; endLoad('atlas', { mode: atlasMode, over_realm: !!overRealm });
   startLoop();
 }
 // Closing is only offered in play mode (back to the same realm).
@@ -364,7 +371,7 @@ function createPlayHud() {
 }
 // The realm plays its own 'arrive' swoop on load / region change (and skips it while the expiry cinematic runs).
 async function enterPlay() {
-  mode = 'transition';
+  mode = 'transition'; beginLoad('play');
   disposeActive(); disposeAtlas(); disposePlay();
   showLoading(40, t('story.loading.realm'));
   const [{ createRealm }, hudMod] = await Promise.all([import('../features/realm/index.js'), import('../features/hud/index.js')]);
@@ -398,7 +405,7 @@ async function enterPlay() {
   createPlayHud();
   hideLoading(); bootDone(); showGear(false); vignette.style.opacity = '0';
   present('story.title.play', 'story.label.play');
-  mode = 'play';
+  mode = 'play'; endLoad('play', { region: store.state.world.currentRegion, ...realmCounts() });
   $('game').focus({ preventScroll: true });
   startLoop();
   leaveCafe();
@@ -411,6 +418,13 @@ function leaveCafe() {
   if (r?.mode !== 'cafe') return;
   hud?.toast?.(`☕ ${t('atlas.cafeUpdating')}`, 'info');
   openAtlas('play').catch(fail);
+}
+
+// Size of the loaded farm for perf_load: what the scene holds when play starts.
+function realmCounts() {
+  let meshes = 0, instances = 0;
+  try { realm?.scene.traverse(o => { if (o.isMesh) { meshes++; if (o.isInstancedMesh) instances += o.count; } }); } catch { /* stats only */ }
+  return { meshes, instances, programs: renderer.info.programs?.length ?? null };
 }
 
 /** One hidden draw with culling off + every texture initialised: the GPU already holds the far tiers' data (no first-sight upload hitch). */
@@ -427,6 +441,12 @@ function warmUpGPU(scene, camera, realmApi) {
     realmApi?.warmShadows?.(false);
   } catch (err) { console.warn('GPU warm-up skipped', err); }
 }
+
+// Login after the Level-10 incident: a flag per save profile, set when the incident ends, cleared once signed in.
+const LOGIN_DUE = `${V3_KEY}-login-due`;
+const loginDue = () => { try { return localStorage.getItem(LOGIN_DUE) === '1'; } catch { return false; } };
+const markLoginDue = () => { try { localStorage.setItem(LOGIN_DUE, '1'); } catch { /* private mode: asked once only */ } };
+const clearLoginDue = () => { try { localStorage.removeItem(LOGIN_DUE); } catch { /* ignore */ } };
 
 // ---------- Level 10 expiry (safe at any reload point: pending → cinematic + execute; reset → atlas) ----------
 async function runExpiry() {
@@ -451,7 +471,9 @@ async function runExpiry() {
       } catch (error) { console.warn('follower ask', error); }
     }
     const result = store.dispatch('expiry/execute', { follower });
-    if (result.ok && !result.noop) track('region_expired', { region: regionId || 'none' });
+    if (result.ok && !result.noop) { track('region_expired', { region: regionId || 'none' }); log('expiry_done', { region: regionId || null, follower: !!follower }); }
+    // Founder 2026-11-11: after the Level-10 incident the real game needs a Google account (blocking until signed in).
+    if (result.ok && !result.noop) { markLoginDue(); await requireGoogleLogin({ reason: 'level10' }); clearLoginDue(); }
   } finally { expiryRunning = false; }
   if (store.state.story.phase === 'chooseRegion') await openAtlas('chooseRegion');
   else realm?.setInputLocked(false);
@@ -535,6 +557,7 @@ function frame(now) {
     if (!hud?.worldCovered || repaint || resumed) { repaint = false; renderer.render(realm.scene, realm.camera); }
   }
   if (fpsMeter) meter(raw);
+  if (!idle && !resumed && !(mode === 'play' && hud?.worldCovered)) noteFrame(raw * 1000); // tester perf log: only frames that aim for the full rate
 }
 
 // ---------- errors ----------
@@ -543,6 +566,10 @@ function resetV3() {
   mode = 'transition';
   store.reset();
   store.dispatch('story/seen', { key: 'restart' });
+  // Like a new player: signed out (the Level-10 login asks again), no login still due, a new anonymous analytics id.
+  log('progress_reset', {}); flush({ keepalive: true });
+  forgetAccount(); clearLoginDue();
+  try { localStorage.removeItem('godbean-analytics'); } catch { /* private mode */ }
 }
 function fail(error) {
   console.error(error);
@@ -612,6 +639,15 @@ async function initialize() {
       if (!['transition', 'loading'].includes(mode)) hideLoading();
     }, listenerOptions);
     $('game').append(renderer.domElement); resize(); loading(20, t('story.loading.initGraphics'));
+    // Tester logs → godbean server (perf, errors, friction). Same switch as analytics (settings); ?profile=test runs are tagged.
+    startTelemetry({
+      renderer, store, enabled: readSettings().analytics,
+      screen: () => mode, level: () => levelForXp(store.state.player?.xp ?? 0),
+      quality: () => ({ quality: getQuality(), pixel_ratio: Math.round(renderer.getPixelRatio() * 100) / 100 }),
+      extra: { app_version: pkg.version, profile: DEV_PROFILE ? 'test' : 'main', phase: store.state.story.phase, level: levelForXp(store.state.player?.xp ?? 0), lang: getLang() },
+    });
+    events.signal.addEventListener('abort', onQuality(q => log('perf_quality', { quality: q ?? getQuality(), pixel_ratio: Math.round(renderer.getPixelRatio() * 100) / 100, screen: mode })), { once: true });
+    if (hasStoredSession()) restoreSession().catch(() => {}); // a session from before: logs from now on are tied to the player
     const phase = store.state.story.phase;
     if (phase !== 'select') track('game_started', { resumed: true, screen: phase });
     await route();

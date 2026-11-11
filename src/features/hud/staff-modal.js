@@ -984,9 +984,11 @@ export function createStaffModal(ctx) {
       h('div', { class: 'hud-tabs hud-sm-ptabs', attrs: { role: 'group', 'aria-label': T('hud.pf.tabs') } },
         ...tabsOf.map(id => h('button', { type: 'button', class: 'hud-tab', dataset: { hudId: `staffPTab-${id}` }, attrs: { 'aria-pressed': String(ptab === id) },
           on: { click: () => { if (st.ptab !== id) goTo({ ptab: id }); } } }, T(`hud.pf.tab.${id}`)))));
-    if (ptab === 'today') out.append(...overviewView(s, now, zone, u));
-    else if (ptab === 'grow') out.append(...growView(s, now, zone, u));
-    else out.append(...historyView(s, now, u));
+    // One box for the page's cards: on a phone it stacks like before; on a PC it flows them into columns (no grid-row gaps).
+    const page = ptab === 'today' ? overviewView(s, now, zone, u) : ptab === 'grow' ? growView(s, now, zone, u) : historyView(s, now, u);
+    const job = page.findIndex(el => el?.classList?.contains('hud-sm-job'));
+    if (job > 0) page.unshift(...page.splice(job, 1)); // what this person does: first line of the page, under the tabs
+    out.append(h('div', { class: 'hud-sm-pages' }, ...page));
     return out;
   }
   // Phát triển: the upgrades worth buying now (payback, like «Cần bạn»), then every ladder of this unit.

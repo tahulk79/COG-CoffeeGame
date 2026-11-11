@@ -1191,8 +1191,10 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
         return;
       }
       if (placement.info) {
-        // One finger carries the ghost from anywhere on the screen, so the finger never hides it; two fingers (or the screen edge) move the map.
-        if (groundPoint(raycaster, hit)) {
+        // A drag that starts on (or right around) the ghost carries it; a drag anywhere else moves the map, so the player can look
+        // around while the ✗ / ↻ / ✓ bar is up without the building following the finger.
+        const g = placement.info;
+        if (groundPoint(raycaster, hit) && Math.hypot(hit.x - g.x, hit.z - g.z) <= ghostReach(g)) {
           drag.mode = 'place'; drag.px = p.x; drag.py = p.y; drag.ghostX = placement.info.x; drag.ghostZ = placement.info.z; drag.startX = hit.x; drag.startZ = hit.z;
         } else drag.mode = 'pan';
         return;

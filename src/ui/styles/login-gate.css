@@ -1,0 +1,16 @@
+/* Google login gate (ui/login-gate.js): over everything, the farm UI window. */
+.gb-login.ui-modal{z-index:calc(var(--z-toast, 30) + 5);animation:gb-login-in .2s ease-out}
+.gb-login.is-out{opacity:0;transition:opacity .2s}
+.gb-login .ui-modal__body{display:grid;gap:10px;justify-items:center;text-align:center}
+.gb-login__icon{font-size:44px;line-height:1}
+.gb-login__text{margin:0;font-size:15px;line-height:1.45}
+.gb-login__perks{margin:0;padding:0;list-style:none;display:grid;gap:4px;font-size:14px;text-align:left}
+.gb-login__perks li::before{content:'✓ ';color:var(--go3, #3c9a2e);font-weight:700}
+.gb-login__google{min-height:44px;width:100%;display:flex;justify-content:center}
+.gb-login__status{margin:0;font-size:13px;opacity:.85}
+.gb-login__status.is-bad{color:#b43a22;opacity:1}
+.gb-login__dev{margin:0;font-size:12px;opacity:.7}
+.gb-login__actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.gb-login__actions .ui-btn[hidden]{display:none}
+@keyframes gb-login-in{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){.gb-login.ui-modal{animation:none}}

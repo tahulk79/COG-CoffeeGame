@@ -1,8 +1,10 @@
 // Nối analytics (F-38) vào game. Đặc tả: docs/design/godbean-gdd.md §13.5. Chỉ truyền cờ/đếm/mã, không chữ tự do.
-import { getAnalytics, attachAutoFlush, debugDump } from './index.js';
+import { getAnalytics, attachAutoFlush, debugDump, sanitizeProps } from './index.js';
+import { log as gbLog, setLogEnabled } from '../godbean/client.js';
 
-export const track = (event, props) => getAnalytics().track(event, props);
-export const setAnalyticsEnabled = (on) => getAnalytics().setEnabled(on);
+// Mỗi sự kiện analytics cũng đi vào log server godbean (POST /v1/events), cùng props đã lọc.
+export const track = (event, props) => { getAnalytics().track(event, props); gbLog(event, sanitizeProps(props)); };
+export const setAnalyticsEnabled = (on) => { getAnalytics().setEnabled(on); setLogEnabled(on); };
 
 // 'desktop' | 'mobile' | 'tablet' (+ '+touch'); theo cạnh ngắn của màn hình.
 export function detectPlatform(width, touch) {
