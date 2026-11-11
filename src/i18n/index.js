@@ -42,7 +42,14 @@ const lang = savedLang();
 export const getLang = () => lang;
 /** Locale cho toLocaleString/Intl: 'en-US' | 'vi-VN'. */
 export const numberLocale = () => LOCALES[lang];
-export const formatNumber = (value, options) => Number(value).toLocaleString(LOCALES[lang], options);
+// toLocaleString builds a new Intl formatter on every call (the HUD formats numbers several times a frame): keep one per options set.
+const numberFormats = new Map();
+export const formatNumber = (value, options) => {
+  const key = options ? JSON.stringify(options) : '';
+  let f = numberFormats.get(key);
+  if (!f) numberFormats.set(key, f = new Intl.NumberFormat(LOCALES[lang], options));
+  return f.format(Number(value));
+};
 
 /**
  * Tra chuỗi theo khóa. Thiếu ở ngôn ngữ hiện tại → lấy tiếng Anh → tiếng Việt → trả lại khóa.

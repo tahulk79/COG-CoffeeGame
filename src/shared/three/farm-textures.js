@@ -1,20 +1,22 @@
 import * as THREE from 'three';
+import { loadKTX2Texture } from './ktx2.js';
 
 // Realistic farm ground textures (scripts/blender/gedeo_environment.py export_ground_textures → public/assets/farm/env):
 // grass (highland pasture), soil (Gedeo red earth), road (packed dirt + gravel), stone (dry-stone wall). Each has a
 // matching -normal map. Tiles repeat in world metres; one cached texture per (name, kind) shared by every material.
-const loader = new THREE.TextureLoader();
+// Loaded as KTX2 (scripts/ktx2-textures.mjs --env, Y already flipped there): compressed in GPU memory. The .jpg files stay as sources.
 const cache = new Map();
 
 /** Cached repeat-wrapped texture. kind: 'color' (sRGB) | 'normal' (linear). */
 export function farmTex(name, kind = 'color') {
   const key = `${name}:${kind}`;
   if (!cache.has(key)) {
-    const t = loader.load(`${import.meta.env.BASE_URL}assets/farm/env/${name}${kind === 'normal' ? '-normal' : ''}.jpg`);
-    t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    t.colorSpace = kind === 'normal' ? THREE.NoColorSpace : THREE.SRGBColorSpace;
-    t.anisotropy = 8;
-    t.userData.keep = true;
+    const t = loadKTX2Texture(`${import.meta.env.BASE_URL}assets/farm/env/${name}${kind === 'normal' ? '-normal' : ''}.ktx2`, tex => {
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.colorSpace = kind === 'normal' ? THREE.NoColorSpace : THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      tex.userData.keep = true;
+    });
     cache.set(key, t);
   }
   return cache.get(key);

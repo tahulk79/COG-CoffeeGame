@@ -10,3 +10,4 @@ scripts/meshy/state.json
 
 # Local backups of replaced art (kept out of public/ and out of git)
 art-backup/
+.perf-traces/

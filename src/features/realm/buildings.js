@@ -542,6 +542,8 @@ export function createBuildings({ scene, prefabs, templates, vfx }) {
 
   return {
     group, sync, update, onBuilt, onUpgraded,
+    /** A type's prefab was replaced (its model arrived): rebuild the buildings of that type. */
+    refreshType(type, state) { for (const [uid, e] of entities) if (e.type === type) remove(uid, e); sync(state); },
     get: uid => entities.get(uid) || null,
     byType: type => { for (const e of entities.values()) if (e.type === type) return e; return null; },
     pickers: function* () { for (const e of entities.values()) if (e.root.visible && (!view || e.area === view) && !BUILDINGS[e.type].walkable) yield e.pick; },

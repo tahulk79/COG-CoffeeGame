@@ -67,8 +67,9 @@ const TREE_PARTS = { tree: 'farm/coffee-tree-gedeo.glb#tree', fruitGreen: 'farm/
   tree_liberica: 'farm/coffee-tree-liberica.glb#tree', fruitGreen_liberica: 'farm/coffee-tree-liberica.glb#fruit_green', fruitRipe_liberica: 'farm/coffee-tree-liberica.glb#fruit_ripe',
   seedling: 'farm/coffee-stages-gedeo.glb#seedling', young: 'farm/coffee-stages-gedeo.glb#young', // first-crop growth stages (real metres)
   plantingRow: 'farm/landscape-parts.glb#planting_row', mulchBasin: 'farm/landscape-parts.glb#mulch_basin', wallUnit: 'farm/landscape-parts.glb#wall_unit', bankUnit: 'farm/landscape-parts.glb#bank_unit' };
-const GATE_PARTS = { gateFrame: 'heaven/portal.glb#portal_frame', gateLeft: 'heaven/portal.glb#portal_left_leaf', gateRight: 'heaven/portal.glb#portal_right_leaf' };
-const EXTRA_MODELS = ['cafe/espresso-machine.glb#machine', 'cafe/table.glb#chairs_pair', 'cafe/props.glb#cup'];
+// (the World Gate model is no longer loaded: the gate is never shown since founder 2026-11-08, world.js keeps an empty group)
+const EXTRA_MODELS = { brewCounter: 'cafe/espresso-machine.glb#machine', tables: 'cafe/table.glb#chairs_pair' }; // extra parts of these prefabs
+const CUP_MODEL = 'cafe/props.glb#cup'; // carried by staff, players and customers
 const FADE_OUT = .2, FADE_IN = .32; // view switch fade (seconds)
 const BADGE_Y = 1.05; // object-notice anchor above a building's top
 // The seated customer closest to running out of patience comes first (brew / pick up / serve).
@@ -162,16 +163,26 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   }
 
   // ---------- assets ----------
-  const paths = [...new Set([...Object.values(BUILDINGS).map(b => b.model), ...EXTRA_MODELS, ...Object.values(TREE_PARTS), ...Object.values(GATE_PARTS)])].filter(Boolean); // procedural buildings (terrace) have no model
+  // Two waves (founder 2026-11-11: load in steps). Behind the loading screen: the coffee trees, the cup and the models of the
+  // buildings this save already has (every region). After it: every other building model, for the build menu and the café.
+  // A type placed before its model arrives shows the placeholder box, then is rebuilt with the model (buildings.refreshType).
+  const modelsOf = type => [BUILDINGS[type]?.model, EXTRA_MODELS[type]].filter(Boolean); // procedural buildings (terrace) have no model
+  const owned = new Set(Object.values(store.state.world?.regions || {}).flatMap(r => (r?.buildings || []).map(b => b.type)));
+  const firstPaths = [...new Set([...Object.values(TREE_PARTS), CUP_MODEL, ...[...owned].flatMap(modelsOf)])];
+  const laterTypes = Object.keys(BUILDINGS).filter(type => !owned.has(type) && modelsOf(type).length);
+  const templates = {};
+  const adopt = (paths, loaded) => paths.forEach((p, i) => {
+    templates[p] = loaded[i];
+    if (p.includes('gedeo') || p.includes('coffee-tree-')) tuneGedeoMaterials(loaded[i]); // alpha cards, crown-normal foliage shading
+  });
   const [loaded, avatar] = await Promise.all([
-    Promise.all(paths.map(p => loadModel(p).catch(() => null))),
+    Promise.all(firstPaths.map(p => loadModel(p).catch(() => null))),
     createAvatar({ scene, gender }),
   ]);
-  const templates = Object.fromEntries(paths.map((p, i) => [p, loaded[i]]));
-  for (const [k, p] of Object.entries({ ...TREE_PARTS, ...GATE_PARTS })) templates[k] = templates[p];
-  for (const p of paths) if (p.includes('gedeo') || p.includes('coffee-tree-')) tuneGedeoMaterials(templates[p]); // alpha cards, crown-normal foliage shading
+  adopt(firstPaths, loaded);
+  for (const [k, p] of Object.entries(TREE_PARTS)) templates[k] = templates[p];
   // Beehive: its bee / plain materials carry no colour (they render white): amber bees, brown wood, a darker straw roof
-  keepOnGPU(templates['cafe/props.glb#cup']); // shared by staff / café / street / hand cups: disposing a worker must not free it
+  keepOnGPU(templates[CUP_MODEL]); // shared by staff / café / street / hand cups: disposing a worker must not free it
   const prefabs = Object.fromEntries(Object.keys(BUILDINGS).map(type => [type, makePrefab(type, templates)]));
   setTableInfo(prefabs.tables?.userData.tableInfo); // customers sit on the Tables prefab's real chairs
 
@@ -202,6 +213,29 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   const staticBlockers = [...world.blockers, ...venues.blockers, ...tierWallRects]; // city houses + venue shops + tier walls (constant)
   const plots = createPlots({ scene, templates, vfx, getActiveCrop: () => activeCrop });
   const buildings = createBuildings({ scene, prefabs, templates, vfx });
+  // Second wave: the other building models, once the land is in (build menu / café only). A building of that type already on
+  // the map (placed meanwhile) is rebuilt with the real model.
+  // Runs after the scenery stream (first played frame, see update), two files at a time so play stays smooth on a phone.
+  let streaming = false;
+  async function loadLaterTypes() {
+    const queue = [...laterTypes];
+    const next = async () => {
+      for (let type; (type = queue.shift()) && !disposed;) {
+        const paths = modelsOf(type).filter(p => !(p in templates));
+        adopt(paths, await Promise.all(paths.map(p => loadModel(p).catch(() => null))));
+        if (disposed) return;
+        prefabs[type] = makePrefab(type, templates);
+        if (type === 'tables') setTableInfo(prefabs.tables?.userData.tableInfo);
+        buildings.refreshType(type, store.state);
+      }
+    };
+    await Promise.all([next(), next()]);
+  }
+  function startStreaming() {
+    if (streaming) return;
+    streaming = true;
+    world.startStreaming().then(() => loadLaterTypes()).catch(e => console.warn('Streamed models not loaded, keeping the stand-ins.', e));
+  }
   const ambient = createAmbient({ scene, farm: scene, vfx, sun, hemi, getTarget: () => cam.cur.target, isFarm: () => view === 'farm', getWalkers: () => [avatar.position, ...staff.farmPositions()] });
   // Grid pathfinding, one navigator per area (nav.js): shared by the player's walks, staff and customers.
   // Agent radius .45 m keeps paths clear of the avatar's own collision margin.
@@ -1466,6 +1500,9 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
   // ---------- frame ----------
   function update(dt, time) {
     if (disposed) return;
+    // First frame with the loading screen gone (the app's loop also runs behind it, during the shader warm-up): the rest of the
+    // farm may stream in now without slowing the loading screen down.
+    if (!streaming && document.getElementById('loading')?.hidden !== false) startStreaming();
     dt = Math.min(dt || 0, .1);
     clock = time ?? clock + dt;
     if (!viewApplied) applyView();
@@ -1506,7 +1543,7 @@ export async function createRealm({ renderer, store, gender, hooks = {} }) {
     placement.update(clock);
     // Plants that need you (ripe / thirsty): blinking rings, refreshed a few times a second.
     alertAcc += dt;
-    if (alertAcc > .35 && !round) { round = true; alertAcc = 0; alertAll = view === 'farm' ? collectAlerts(state, now) : []; markers.setClusters([]); markers.setAlerts([]);
+    if (alertAcc > .35 && !round) { round = true; alertAcc = 0; alertAll = view === 'farm' ? readOnlyPass(state, () => collectAlerts(state, now)) : []; markers.setClusters([]); markers.setAlerts([]); // readOnlyPass: one staff-bonus sum for every plot, not one per plot
       // the plant picked by a to-do chip gets the same rounded-rectangle frame as a tapped plant (no ring any more)
       if (hilite && hiliteUntil > performance.now()) { markers.setFrame([hilite.x - .5, hilite.z - .5, hilite.x + .5, hilite.z + .5], { round: true, color: hilite.kind === 'thirst' ? 0x2f8cff : hilite.kind === 'prune' ? 0x4fc23a : 0xffc21a }); hiliteShown = true; }
       else if (hiliteShown) { hiliteShown = false; if (!selection) markers.setFrame(null); }

@@ -7,7 +7,7 @@
 // Red dot when something is new or affordable. Buttons of the other screen are hidden (never removed: the tutorial and
 // tests can still find them by id).
 import { BUILD_MENU_FARM, BUILD_MENU_CAFE, BUILDINGS, CROPS, CROP_ORDER, DRINK_ORDER, STAFF, STAFF_ORDER, BEANS, ITEM_GOODS } from '../../core/config/economy.js';
-import { ownedPlots, plotState, buildError, countOf, maxCount, useOf, defOf, staffError, unitBlocked, upgradableStats, zoneUnits, unlockedCrops, unlockedDrinks, freeSlots, region, upgradeError, capacity, stored, goodCount, beanBuyQuote, tasksOpen } from '../../core/derive.js';
+import { readOnlyPass, ownedPlots, plotState, buildError, countOf, maxCount, useOf, defOf, staffError, unitBlocked, upgradableStats, zoneUnits, unlockedCrops, unlockedDrinks, freeSlots, region, upgradeError, capacity, stored, goodCount, beanBuyQuote, tasksOpen } from '../../core/derive.js';
 import { h, setText } from './dom.js';
 import { T } from './text.js';
 import { drinkSeenKey } from './sheets.js';
@@ -102,7 +102,7 @@ export function createToolbar(ctx) {
     if (t - harvestPoll < 400) return;
     harvestPoll = t;
     const s = ctx.store.state, now = Date.now();
-    const ripe = view === 'farm' && !ctx.isAuto?.() ? ownedPlots(s).reduce((n, p) => n + (plotState(s, p.id, now).stage === 'ready' ? 1 : 0), 0) : 0;
+    const ripe = view === 'farm' && !ctx.isAuto?.() ? readOnlyPass(s, () => ownedPlots(s).reduce((n, p) => n + (plotState(s, p.id, now).stage === 'ready' ? 1 : 0), 0)) : 0; // one staff-bonus sum for all plots
     harvestBtn.hidden = ripe < 2;
     setText(harvestCount, String(ripe));
   }
