@@ -16,6 +16,7 @@ import { BOUNDS, CAFE_BOUNDS, ROADS, ROAD_ORDER, PARCELS, GATE, RESERVED, rectCe
 import { COUNTRIES, parseRegionId } from '../../core/config/world.js';
 import { region as regionOf, openRoads, frontierParcels, useOf, footprint } from '../../core/derive.js';
 import { t, formatNumber } from '../../i18n/index.js';
+import { instancedMaterial } from '../../shared/three/instanced-material.js';
 import { makeLabel, mulberry32, normalizeModel, paint, valueNoise, tone, freezeStatic } from './util.js';
 import { buildCity } from './city.js';
 import { createBackdrop } from './backdrop.js';
@@ -317,7 +318,7 @@ function isFreeGrass(x, z) {
  */
 function dynamicInstances(geometry, material, statics, groups) {
   const cap = statics.length + Object.values(groups).reduce((n, l) => n + l.length, 0);
-  const mesh = new THREE.InstancedMesh(geometry, material, Math.max(1, cap));
+  const mesh = new THREE.InstancedMesh(geometry, instancedMaterial(material), Math.max(1, cap)); // shared GLB materials also draw plain meshes
   mesh.raycast = () => {};
   mesh.userData.cullable = true;
   let key = null;
@@ -412,7 +413,7 @@ export function createWorld({ scene, templates }) {
   {
     const rnd = mulberry32(404), b = BOUNDS;
     const hillGeo = keep(new THREE.SphereGeometry(1, 40, 16, 0, Math.PI * 2, 0, Math.PI / 2));
-    const hillTex = farmTex('grass').clone(); hillTex.repeat.set(14, 5); hillTex.needsUpdate = true;
+    const hillTex = farmTex('grass').clone(); hillTex.repeat.set(14, 5); // repeat is a uniform: no re-upload
     const hillMat = keep(new THREE.MeshStandardMaterial({ color: 0xc8d0b4, map: hillTex, roughness: 1 }));
     const rowGeo = keep(new THREE.TorusGeometry(1, .018, 4, 40, Math.PI).rotateX(-Math.PI / 2));
     const rowMat = keep(new THREE.MeshStandardMaterial({ color: 0x2f5a2a, roughness: 1 }));
@@ -885,7 +886,7 @@ export function createWorld({ scene, templates }) {
     gedeoForest.loading = Promise.all([
       createPlantInstances('cordia', T(farmBorder.round, .42), { lod: 3, shadows: false }),
       createPlantInstances('albizia', T(farmBorder.pine, .36), { lod: 3, shadows: false }),
-      loadPlant('cordia'), loadPlant('shrub'),
+      loadPlant('cordia', [3]), loadPlant('shrub', [0]),
     ]).then(([a, b, t, sh]) => {
       for (const g of [a, b]) { g.traverse(o => { o.raycast = () => {}; }); gedeoForest.group.add(g); }
       const tpl = t[3]; tpl.updateMatrixWorld(true); // overgrown lots: far LOD3 (mobile), still casting shadows
@@ -918,7 +919,7 @@ export function createWorld({ scene, templates }) {
   const MP = new THREE.Vector3(), MQ = new THREE.Quaternion(), MS = new THREE.Vector3();
   const onGround = k => m => { m.decompose(MP, MQ, MS); MP.y = farmGroundY(MP.x, MP.z); return m.compose(MP, MQ, MS.setScalar(MS.x * k)); };
   function mirrorGedeo(d, key, place, lod = 0, shadows = false) {
-    return loadPlant(key).then(t => {
+    return loadPlant(key, [lod]).then(t => {
       const tpl = t[lod]; tpl.updateMatrixWorld(true);
       const parts = [], white = new THREE.Color(1, 1, 1);
       tpl.traverse(o => { if (o.isMesh) parts.push(o); });
@@ -931,7 +932,7 @@ export function createWorld({ scene, templates }) {
       d.mesh.visible = false;
     }).catch(e => console.warn(`Gedeo ${key} not loaded, keeping the stand-in.`, e));
   }
-  let landLoading = null;
+  let landLoading = null, dressingLoading = null;
   function loadLand() {
     if (landLoading) return landLoading;
     const f = decor.farm, T = (list, k, y = 0) => list.map(it => ({ position: new THREE.Vector3(it.x, y + farmGroundY(it.x, it.z), it.z), rotationY: it.r, scale: it.s * k }));
@@ -943,22 +944,33 @@ export function createWorld({ scene, templates }) {
       mirrorGedeo(orchard.parts.trunks, 'cordia', onGround(.32), 2, true).then(() => { orchard.parts.crowns.mesh.visible = false; orchard.parts.fruits.mesh.visible = false; }),
       createPlantInstances('shrub', T(farmBorder.bushList, 1.1), { lod: 0, shadows: false }).then(g => { g.traverse(o => { o.raycast = () => {}; }); farm.add(g); farmBorder.bushMesh.visible = false; }),
       createPlantInstances('rock', T(farmBorder.rockList, .7), { lod: 0, shadows: false }).then(g => { g.traverse(o => { o.raycast = () => {}; }); farm.add(g); farmBorder.rockMesh.visible = false; }),
-      // the pond lot (PD1): a natural stone-edged pond (Blender stone-pond.glb) instead of a blue rectangle
-      createPlant('stonePond').then(o => { const r = PARCELS.PD1.rect, x = (r[0] + r[2]) / 2, z = (r[1] + r[3]) / 2; o.position.set(x, farmGroundY(x, z), z); o.scale.set(1.3, 1, 1.45); o.traverse(c => { c.raycast = () => {}; }); farm.add(o); }),
       // where the gate stood: only wild daisies now (no lamps, no planted enset — founder 2026-11-08)
       ...[-1, 1].map(side => createPlant('daisyClump').then(o => { o.position.set(GATE.x + side * (PLAZA_R + 1.3), 0, GATE.z + 1.1); farm.add(o); })),
       // gate plaza: Blender flagstones + border stones replace the disc and the cylinder cobbles
       // no gate on the map any more (founder 2026-11-08): no plaza either — the gate ground is plain land
       Promise.resolve().then(() => { plaza.visible = false; if (plazaCobbles) plazaCobbles.visible = false; }),
-      loadHills(),
     ]).then(() => {
       if (plazaProps) plazaProps.visible = false;
-      // the village / stream / people dressing is built DURING the loading screen too (founder 2026-11-08): when the farm
-      // appears everything is already there, nothing streams in and hitches afterwards
-      dressing ??= createMountainDressing({ parent: farm });
-      return dressing.ready;
-    }).then(() => freezeStatic(farm)); // the models above are in place now
+      freezeStatic(farm); // the models above are in place now
+    });
     return landLoading;
+  }
+  // The stream / bridge / mist / tier-sign dressing, the hill country and the pond stream in once the farm is on screen
+  // (founder 2026-11-11: load in steps, not everything at once; replaces the 2026-11-08 rule of building it all behind the
+  // loading screen). Started by the realm on its first played frame, so it never competes with the loading screen's shader
+  // warm-up. Each part has a stand-in until its model arrives (procedural hills, blue pond rectangle, no stream).
+  function startStreaming() {
+    if (dressingLoading) return dressingLoading;
+    dressingLoading = Promise.resolve(landLoading).then(() => {
+      dressing ??= createMountainDressing({ parent: farm });
+      return Promise.all([
+        dressing.ready,
+        loadHills(),
+        // the pond lot (PD1): a natural stone-edged pond (Blender stone-pond.glb) instead of a blue rectangle
+        createPlant('stonePond').then(o => { const r = PARCELS.PD1.rect, x = (r[0] + r[2]) / 2, z = (r[1] + r[3]) / 2; o.position.set(x, farmGroundY(x, z), z); o.scale.set(1.3, 1, 1.45); o.traverse(c => { c.raycast = () => {}; }); farm.add(o); }).catch(() => null),
+      ]);
+    }).then(() => Promise.all([gedeoForest.loading, scenery.loading?.()].filter(Boolean))).then(() => freezeStatic(farm)).catch(() => {});
+    return dressingLoading;
   }
   // Slope forest: each Blender tree spot seeds a small clump (3 trees, jittered on the terrain grid's height), half the
   // spots albizia (odd = cordia). Trees per spot follow quality: high 2, medium 1, low none (bare hills; fog hides them in the play camera).
@@ -1218,8 +1230,11 @@ export function createWorld({ scene, templates }) {
     setView(v) { farm.visible = !v || v === 'farm'; cafe.visible = !v || v === 'cafe'; },
     parcelState: id => parcels[id]?.state || null,
     setLandMode,
-    /** Resolves when every model of the farm (land, forest, tier works, hills, scenery, dressing) is in the scene. */
-    whenLoaded: () => Promise.all([landLoading, gedeoForest.loading, scenery.loading?.()].filter(Boolean)).catch(() => {}),
+    /** Resolves when the land the camera starts on is in the scene (ground props, tier works, hills). The border forest, scenery,
+     *  stream / bridge / mist dressing keep loading after it: each has a low-poly stand-in until its models arrive. */
+    whenLoaded: () => Promise.resolve(landLoading).catch(() => {}),
+    /** Starts the streamed parts (dressing, hills, pond); resolves when they and the forest / scenery are in. */
+    startStreaming,
     dispose() {
       backdrop.dispose(); scenery.dispose(); tierFence.dispose();
       for (const e of Object.values(parcels)) e.label.dispose();

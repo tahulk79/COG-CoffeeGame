@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { gltfLoader } from './models.js';
+import { loadGLTF } from './models.js';
+import { instancedMaterial } from './instanced-material.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
 // Gedeo models (scripts/blender/gedeo_heroes.py + gedeo_buildings.py → public/models/gedeo/<file>-lod<n>.glb, meshopt + WebP).
@@ -55,7 +56,7 @@ const OPTIONAL = new Set([...COFFEE_PARTS, ...BED_PARTS]);
 
 const cache = new Map();
 function loadScene(url) {
-  if (!cache.has(url)) cache.set(url, gltfLoader.loadAsync(url).then(g => tuneMaterials(g.scene)));
+  if (!cache.has(url)) cache.set(url, loadGLTF(url).then(g => tuneMaterials(g.scene)));
   return cache.get(url);
 }
 
@@ -125,9 +126,12 @@ const base = `${import.meta.env.BASE_URL}models/gedeo/`;
 const url = (key, lod) => GEDEO_MODELS[key].single ? `${base}${GEDEO_MODELS[key].file}.glb` : `${base}${GEDEO_MODELS[key].file}-lod${lod}.glb`;
 const lodsOf = key => GEDEO_MODELS[key].lods ?? [[0, 0]];
 
-/** Load every LOD of a model (cached). Resolves { [lod]: templateScene } — clone, don't mutate. */
-export function loadPlant(key) {
-  const lods = lodsOf(key).map(([l]) => l);
+/**
+ * Load LODs of a model (cached per file). Resolves { [lod]: templateScene } — clone, don't mutate. `only`: the LOD indices
+ * the caller uses (an instanced far forest needs LOD3, not the 1 MB LOD0); default every LOD.
+ */
+export function loadPlant(key, only = null) {
+  const lods = lodsOf(key).map(([l]) => l).filter(l => !only || only.includes(l));
   return Promise.all(lods.map(l => loadScene(url(key, l)))).then(scenes => Object.fromEntries(lods.map((l, i) => [l, scenes[i]])));
 }
 
@@ -140,10 +144,20 @@ export function setParts(object, shown = []) {
 
 /** A single placed model with distance LOD. Clones share geometry/materials with the cached template. */
 export async function createPlant(key, { state } = {}) {
-  const tpls = await loadPlant(key);
+  // Progressive: the coarsest level comes first (smallest file) and the object is placed with it; the detailed levels
+  // stream in afterwards and slot into the LOD by distance. One-level models are unchanged.
+  const levels = lodsOf(key), [coarse, coarseDist] = levels[levels.length - 1];
   const lod = new THREE.LOD(); lod.name = `gedeo-${key}`;
-  for (const [l, dist] of lodsOf(key)) lod.addLevel(tpls[l].clone(), dist);
-  if (state) setParts(lod, COFFEE_STATES[state] ?? BED_STATES[state] ?? []);
+  const add = (tpl, dist) => { const o = tpl.clone(); if (state) setParts(o, COFFEE_STATES[state] ?? BED_STATES[state] ?? []); lod.addLevel(o, dist); };
+  add((await loadPlant(key, [coarse]))[coarse], levels.length > 1 ? 0 : coarseDist);
+  if (levels.length > 1) {
+    const finer = levels.slice(0, -1);
+    loadPlant(key, finer.map(([l]) => l)).then(tpls => {
+      lod.levels[0].distance = coarseDist; // the coarse level stood in for every distance until now
+      for (const [l, dist] of finer) add(tpls[l], dist);
+      lod.levels.sort((a, b) => a.distance - b.distance);
+    }).catch(() => {}); // keeps the coarse level
+  }
   return lod;
 }
 export const createModel = createPlant;
@@ -155,13 +169,13 @@ export const createModel = createPlant;
  * Returns a Group; group.userData.setTransform(i, t) updates one copy.
  */
 export async function createPlantInstances(key, transforms, { lod = 1, shadows = true } = {}) {
-  const tpl = (await loadPlant(key))[lod];
+  const tpl = (await loadPlant(key, [lod]))[lod];
   const group = new THREE.Group(); group.name = `gedeo-${key}-instances`;
   const meshes = [];
   tpl.updateMatrixWorld(true);
   tpl.traverse(o => {
     if (!o.isMesh) return;
-    const im = new THREE.InstancedMesh(o.geometry, o.material, transforms.length);
+    const im = new THREE.InstancedMesh(o.geometry, instancedMaterial(o.material), transforms.length); // the template's material also draws plain meshes
     im.name = o.name; im.castShadow = shadows; im.receiveShadow = true; im.userData.local = o.matrixWorld.clone(); im.userData.cullable = true;
     meshes.push(im); group.add(im);
   });
@@ -189,14 +203,14 @@ const actorCache = new Map();
  */
 export async function createActor(key, clip = GEDEO_ACTORS[key].job) {
   const file = `${base}${GEDEO_ACTORS[key].file}.glb`;
-  if (!actorCache.has(file)) actorCache.set(file, gltfLoader.loadAsync(file).then(g => { tuneMaterials(g.scene); return g; }));
+  if (!actorCache.has(file)) actorCache.set(file, loadGLTF(file).then(g => { tuneMaterials(g.scene); return g; }));
   const gltf = await actorCache.get(file);
   const object = SkeletonUtils.clone(gltf.scene); object.name = `gedeo-${key}`;
   object.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = !o.isSkinnedMesh; } });
   const mixer = new THREE.AnimationMixer(object);
   // The farm workers keep their clips in one shared file.
   const clipFile = `${base}worker-anims.glb`;
-  if (!gltf.animations.length && !actorCache.has(clipFile)) actorCache.set(clipFile, gltfLoader.loadAsync(clipFile));
+  if (!gltf.animations.length && !actorCache.has(clipFile)) actorCache.set(clipFile, loadGLTF(clipFile));
   const animations = gltf.animations.length ? gltf.animations : (await actorCache.get(clipFile)).animations;
   const clips = Object.fromEntries(animations.map(a => [a.name, a]));
   let current = null;

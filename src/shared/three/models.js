@@ -1,12 +1,23 @@
 import { MeshBasicMaterial, MeshStandardMaterial } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { ktx2Loader } from './ktx2.js';
 import { markCached, disposeScene } from './dispose-scene.js';
 import { getQuality } from '../vfx/index.js';
 
-// Every GLB is meshopt-compressed (scripts/optimize-models.mjs); load them all through this loader.
-export const gltfLoader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+// Every GLB is meshopt-compressed (scripts/optimize-models.mjs) with KTX2 textures (scripts/ktx2-textures.mjs); load them all through this loader.
+export const gltfLoader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).setKTX2Loader(ktx2Loader);
 const loader = gltfLoader;
+// One download + parse per URL for the whole game. Before, models.js, gedeo-vegetation.js and mountain-dressing.js each kept
+// their own cache, so a file used by two of them (wet mill, warehouse, drying bed, lamp post…) was fetched and parsed twice
+// and held twice in memory. Callers that tune materials do it on this shared scene (the tuning is idempotent).
+const gltfCache = new Map();
+/** Cached GLTF (scene + animations) for a full URL. Rejects on error (callers choose their fallback). */
+export function loadGLTF(url) {
+  // Only the scene and clips are kept: the full result also holds the parser, and with it the whole GLB file (~12 MB measured).
+  if (!gltfCache.has(url)) gltfCache.set(url, loader.loadAsync(url).then(g => ({ scene: g.scene, animations: g.animations })).catch(error => { gltfCache.delete(url); throw error; }));
+  return gltfCache.get(url);
+}
 
 // Low tier: Blender's KHR_materials_specular is the only reason these GLBs parse as MeshPhysicalMaterial; Standard drops just that
 // specular tweak. Swapped during the parse, before any cache or material tuning (wind, alpha cards) sees the file. The tier at
@@ -39,7 +50,7 @@ export function loadModel(path) {
   if (typeof path !== 'string' || !path) return Promise.resolve(null); // no model: caller keeps its placeholder
   const [file, node] = path.split('#');
   const url = `${import.meta.env.BASE_URL}models/${file}`;
-  if (!cache.has(url)) cache.set(url, loader.loadAsync(url).then(gltf => markCached(matteBakedMetal(gltf.scene)), error => { console.warn(`Không tải được ${url}, giữ khối tạm.`, error); return null; }));
+  if (!cache.has(url)) cache.set(url, loadGLTF(url).then(gltf => markCached(matteBakedMetal(gltf.scene)), error => { console.warn(`Không tải được ${url}, giữ khối tạm.`, error); return null; }));
   return cache.get(url).then(scene => {
     const part = node ? scene?.getObjectByName(node) : scene;
     if (scene && !part) console.warn(`${url} thiếu node ${node}, giữ khối tạm.`);
@@ -72,7 +83,7 @@ export function releaseModels(prefix) {
   const base = `${import.meta.env.BASE_URL}models/${prefix}`;
   for (const [url, promise] of cache) {
     if (!url.startsWith(base)) continue;
-    cache.delete(url);
+    cache.delete(url); gltfCache.delete(url);
     promise.then(root => {
       if (!root) return;
       const textures = new Set();

@@ -15,7 +15,7 @@ export function createBackdrop({ parent }) {
   parent.add(group);
   // Realistic pass: smooth, grass-textured hills (the far ring hazes into the fog), no faceted low-poly look.
   const geo = new THREE.IcosahedronGeometry(1, 5);
-  const hillTex = farmTex('grass').clone(); hillTex.repeat.set(10, 10); hillTex.needsUpdate = true;
+  const hillTex = farmTex('grass').clone(); hillTex.repeat.set(10, 10); // repeat is a uniform: no re-upload
   const far = new THREE.MeshLambertMaterial({ color: 0x9fb4ac, map: hillTex });
   const near = new THREE.MeshLambertMaterial({ color: 0xb8c4a2, map: hillTex });
   const rnd = mulberry32(77);

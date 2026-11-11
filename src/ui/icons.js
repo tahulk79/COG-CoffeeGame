@@ -267,23 +267,30 @@ export const iconSvg = name => Object.hasOwn(ICONS, name) ? `<svg class="ui-icon
 export const iconFor = emoji => nameOf(emoji) ? icon(nameOf(emoji)) : document.createTextNode(emoji);
 
 // Canvas copies with a fixed ink colour (canvas has no currentColor): dark ink for paper, light ink for the dark
-// nameplates. Decoded before the game starts.
+// nameplates. Made on first use: decoding all ~200 icons × 2 inks up front held ~400 SVG documents in memory (each SVG
+// <img> is a whole page inside the browser) and delayed the game start, while most of them are never drawn on canvas.
 const INKS = { dark: '#4a3020', light: '#fff6dc' };
 const images = { dark: new Map(), light: new Map() };
 const svgUrl = (name, ink = INKS.dark) => `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="${SVG}" width="96" height="96" ${OPEN} stroke="${ink}">${ICONS[name].replaceAll(I, ink)}</svg>`)}`;
-// typeof guard: node tests import the 3D scene (and this module) without a DOM.
-export const iconsReady = typeof Image === 'undefined' ? Promise.resolve() : Promise.all(Object.keys(ICONS).flatMap(name => Object.entries(INKS).map(([tone, ink]) => {
-  const image = new Image(96, 96);
-  image.src = svgUrl(name, ink);
-  images[tone].set(name, image);
-  return image.decode().catch(() => images[tone].delete(name));
-})));
+export const iconsReady = Promise.resolve(); // kept for callers that wait on it
+/** The canvas image for an icon, or null while it is still decoding (the caller draws the text instead this time). */
+function canvasIcon(name, tone) {
+  if (!name || !ICONS[name] || typeof Image === 'undefined') return null; // typeof guard: node tests have no DOM
+  let image = images[tone].get(name);
+  if (!image) {
+    image = new Image(96, 96);
+    image.src = svgUrl(name, INKS[tone]);
+    images[tone].set(name, image);
+    image.decode().catch(() => {});
+  }
+  return image.complete && image.naturalWidth > 0 ? image : null;
+}
 
 // fillText with emoji drawn as icons. Centre-aligned at (x, y); `size` = font px, used for icon size; `light` for dark plates.
 export function fillRich(ctx, text, x, y, size, maxWidth = Infinity, light = false) {
   // 🪙 stays out of PATTERN (ui/currency.js owns it in the DOM); on canvas it is just the coin icon.
   const parts = String(text).replaceAll('🪙', '💵').split(PATTERN).filter(Boolean).map(part => {
-    const image = images[light ? 'light' : 'dark'].get(nameOf(part)), plain = TEXT[part] ?? part;
+    const image = canvasIcon(nameOf(part), light ? 'light' : 'dark'), plain = TEXT[part] ?? part;
     return image ? { image, width: size * 1.15 } : { text: plain, width: ctx.measureText(plain).width };
   });
   const total = parts.reduce((sum, p) => sum + p.width, 0), k = Math.min(1, maxWidth / total);

@@ -162,14 +162,20 @@ export function createVfx({ scene }) { // camera trong spec chưa cần: kích t
       velocity: new Float32Array(POOL * 3), age: new Float32Array(POOL), life: new Float32Array(POOL), base: new Float32Array(POOL) };
   }
 
-  // Real smoke (scripts/blender/vfx_flipbook.py): 8 × 8 frames. Until it arrives, or if it fails, the drawn puff is used.
-  new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}assets/farm/vfx/smoke-atlas.webp`, atlas => {
-    atlas.flipY = false; atlas.colorSpace = THREE.SRGBColorSpace; atlas.generateMipmaps = false; atlas.minFilter = THREE.LinearFilter; atlas.needsUpdate = true;
-    for (const p of Object.values(pools)) if (p.def.atlas) { p.material.uniforms.map.value.dispose(); p.material.uniforms.map.value = atlas; p.material.uniforms.grid.value = ATLAS_GRID; }
-  });
+  // Real smoke (scripts/blender/vfx_flipbook.py): 8 × 8 frames. Fetched the first time smoke is spawned (335 KB the first load
+  // does not need); until it arrives, or if it fails, the drawn puff is used.
+  let atlasAsked = false;
+  const loadAtlas = () => {
+    atlasAsked = true;
+    new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}assets/farm/vfx/smoke-atlas.webp`, atlas => {
+      atlas.flipY = false; atlas.colorSpace = THREE.SRGBColorSpace; atlas.generateMipmaps = false; atlas.minFilter = THREE.LinearFilter; atlas.needsUpdate = true;
+      for (const p of Object.values(pools)) if (p.def.atlas) { p.material.uniforms.map.value.dispose(); p.material.uniforms.map.value = atlas; p.material.uniforms.grid.value = ATLAS_GRID; }
+    });
+  };
 
   function spawn(kind, pos, color, burstMode, spread = .15) {
     const p = pools[kind], d = p.def;
+    if (d.atlas && !atlasAsked) loadAtlas();
     if (p.n >= POOL || live >= QUALITY[quality].particles) return false;
     const i = p.n++, i3 = i * 3; live++;
     const angle = Math.random() * Math.PI * 2, speed = d.speed * (burstMode ? .4 + Math.random() * .6 : .3 + Math.random() * .4);

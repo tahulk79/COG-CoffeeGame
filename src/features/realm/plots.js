@@ -15,6 +15,7 @@ import { CROPS, gardenStyleOf } from '../../core/config/economy.js';
 import { region as regionOf, plotGrowMs, ownedPlots, climateFit } from '../../core/derive.js';
 import { damp, easeOutBack } from './util.js';
 import { loadPlant } from '../../shared/three/gedeo-vegetation.js';
+import { instancedMaterial } from '../../shared/three/instanced-material.js';
 import { farmMaterial } from '../../shared/three/farm-textures.js';
 import { getQuality, onQuality } from '../../shared/vfx/index.js';
 
@@ -30,12 +31,12 @@ function gedeoInst(group, key, lod, cap, fallback = []) {
     }
   };
   let gone = false;
-  loadPlant(key).then(t => {
+  loadPlant(key, [lod]).then(t => {
     if (gone) return;
     const tpl = t[lod]; tpl.updateMatrixWorld(true);
     tpl.traverse(o => {
       if (!o.isMesh) return;
-      const im = new THREE.InstancedMesh(o.geometry, o.material, cap);
+      const im = new THREE.InstancedMesh(o.geometry, instancedMaterial(o.material), cap); // the template's material also draws plain meshes
       im.userData.local = o.matrixWorld.clone(); im.castShadow = im.receiveShadow = true; im.raycast = () => {}; im.count = 0;
       meshes.push(im); group.add(im);
     });

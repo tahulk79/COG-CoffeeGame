@@ -5,13 +5,13 @@
 // Models are cached per file and shared (keep flags), so a worker leaving never frees the GPU copy others still use.
 import * as THREE from 'three';
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
-import { gltfLoader } from '../shared/three/models.js';
+import { loadGLTF } from '../shared/three/models.js';
 import { tuneGedeoMaterials } from '../shared/three/gedeo-vegetation.js';
 
 const WORKER_ANIMS = 'worker-anims'; // the clips of every worker, downloaded once (scripts/blender/gedeo_chibi_workers.py)
 const cache = new Map();
 function load(file) {
-  if (!cache.has(file)) cache.set(file, gltfLoader.loadAsync(`${import.meta.env.BASE_URL}models/gedeo/${file}.glb`).then(g => {
+  if (!cache.has(file)) cache.set(file, loadGLTF(`${import.meta.env.BASE_URL}models/gedeo/${file}.glb`).then(g => {
     tuneGedeoMaterials(g.scene);
     g.scene.traverse(o => {
       if (o.geometry) o.geometry.userData.keep = true;

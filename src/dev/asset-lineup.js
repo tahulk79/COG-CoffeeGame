@@ -13,10 +13,6 @@ const ROWS = [
   ['☕ Cà phê: cây con · cây tơ · trưởng thành (ra hoa · quả chín)', [
     [`${G}coffea-arabica-seedling-lod0`, 'Arabica · cây con'], [`${G}coffea-arabica-young-lod0`, 'Arabica · cây tơ'],
     [`${G}coffea-arabica-mature-lod0`, 'Arabica · ra hoa', /cherries/], [`${G}coffea-arabica-mature-lod0`, 'Arabica · quả chín', /flowers|green/],
-    [`${G}coffea-robusta-seedling-lod0`, 'Robusta · cây con'], [`${G}coffea-robusta-young-lod0`, 'Robusta · cây tơ'],
-    [`${G}coffea-robusta-mature-lod1`, 'Robusta · quả chín', /flowers|green/],
-    [`${G}coffea-liberica-seedling-lod0`, 'Liberica · cây con'], [`${G}coffea-liberica-young-lod0`, 'Liberica · cây tơ'],
-    [`${G}coffea-liberica-mature-lod0`, 'Liberica · quả chín', /flowers|green/],
   ]],
   ['🌳 Cây che bóng & thiên nhiên', [
     [`${G}albizia-schimperiana-lod0`, 'Albizia (che bóng)'], [`${G}cordia-africana-lod0`, 'Cordia (che bóng)'], [`${G}ensete-ventricosum-lod0`, 'Enset (chuối giả)'],
@@ -40,7 +36,7 @@ const ROWS = [
   ['💧 Nước & địa hình núi', [
     [`${G}irrigation-channel`, 'Mương nước'], [`${G}drip-line`, 'Tưới nhỏ giọt'], [`${G}hill-cistern`, 'Bể chứa trên đồi'],
     [`${G}stream`, 'Suối'], [`${G}wooden-bridge`, 'Cầu gỗ'], [`${G}stone-pond`, 'Ao bờ đá'], [`${G}stone-steps`, 'Bậc đá'],
-    [`${G}dirt-ramp`, 'Dốc đường đất'], [`${G}cliff-face`, 'Vách đá'], [`${G}mist-bank`, 'Sương mù'],
+    [`${G}dirt-ramp`, 'Dốc đường đất'], [`${G}mist-bank`, 'Sương mù'],
   ]],
   ['🧺 Thu hoạch, chở & sơ chế', [
     [`${G}back-basket`, 'Gùi'], [`${G}winnow-tray`, 'Nia & thúng'], [`${G}harvest-tarp`, 'Bạt hứng quả'], [`${G}wheelbarrow`, 'Xe rùa'],

@@ -11,7 +11,7 @@ import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { farmGroundY, TIER_EDGES, ESTATES, ESTATE_ORDER } from '../../core/config/layout.js';
 import { GEDEO_MODELS, createPlant, createPlantInstances, tuneGedeoMaterials } from '../../shared/three/gedeo-vegetation.js';
-import { gltfLoader } from '../../shared/three/models.js';
+import { loadGLTF } from '../../shared/three/models.js';
 import { getQuality } from '../../shared/vfx/index.js';
 
 const N = Math.PI / 2;
@@ -77,7 +77,7 @@ const TIER_NAMES = ['Tầng 1 · Đồng bằng', 'Tầng 2 · Đồi thấp', '
 
 const actorCache = new Map();
 function loadActor(file) {
-  if (!actorCache.has(file)) actorCache.set(file, gltfLoader.loadAsync(`${import.meta.env.BASE_URL}models/gedeo/${file}.glb`).then(g => { tuneGedeoMaterials(g.scene); return g; }));
+  if (!actorCache.has(file)) actorCache.set(file, loadGLTF(`${import.meta.env.BASE_URL}models/gedeo/${file}.glb`).then(g => { tuneGedeoMaterials(g.scene); return g; }));
   return actorCache.get(file);
 }
 // register every file used here as a single-model key (createPlant caches templates and clones them)
