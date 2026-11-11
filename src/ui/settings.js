@@ -35,6 +35,9 @@ function render() {
   const focusOn = settings.autoFocus !== false;
   $('[data-autofocus]').setAttribute('aria-checked', String(focusOn));
   $('[data-autofocus]').textContent = t(focusOn ? 'settings.on' : 'settings.off');
+  const hintsOn = settings.hints !== false;
+  $('[data-hints]').setAttribute('aria-checked', String(hintsOn));
+  $('[data-hints]').textContent = t(hintsOn ? 'settings.on' : 'settings.off');
   for (const b of dialog.querySelectorAll('[data-lang]')) b.setAttribute('aria-pressed', String(b.dataset.lang === getLang()));
   for (const input of dialog.querySelectorAll('[data-vol]')) { const v = Math.round((settings.muted ? 0 : volOf(input.dataset.vol)) * 100); input.value = String(v); input.parentElement.style.setProperty('--v', `${v}%`); }
   for (const tab of dialog.querySelectorAll('[data-quality]')) tab.setAttribute('aria-pressed', String(tab.dataset.quality === getQuality()));
@@ -56,6 +59,7 @@ function template() {
           </div>
           ${VOLUMES.map(([id, label]) => `<label class="set-row"><i class="set-ico set-ico--sound" aria-hidden="true"></i><span class="set-vol"><input type="range" min="0" max="100" step="5" data-vol="${id}" aria-label="${t(label)}"><u></u><b>${t(label)}</b></span></label>`).join('')}
           <div class="set-row"><i class="set-ico set-ico--camera" aria-hidden="true"></i><span class="set-name" id="game-settings-autofocus">${t('settings.autoFocus')}</span><button type="button" class="set-toggle" role="switch" data-autofocus aria-labelledby="game-settings-autofocus"></button></div>
+          <div class="set-row"><i class="set-ico set-ico--hint" aria-hidden="true"></i><span class="set-name" id="game-settings-hints">${t('settings.hints')}</span><button type="button" class="set-toggle" role="switch" data-hints aria-labelledby="game-settings-hints"></button></div>
           <div class="set-row" role="group" aria-label="${t('settings.graphicsQuality')}"><i class="set-ico set-ico--screen" aria-hidden="true"></i>
             ${QUALITY.map(id => `<button type="button" class="set-q" data-quality="${id}">${t(`settings.quality.${id}`)}</button>`).join('')}
           </div>
@@ -80,6 +84,13 @@ function bind() {
     render();
     persist();
     window.dispatchEvent(new CustomEvent('godbean:autofocus', { detail: settings.autoFocus })); // the realm listens
+  });
+  // On again: every hint the player closed with ✕ comes back too.
+  $('[data-hints]').addEventListener('click', () => {
+    settings.hints = settings.hints === false;
+    if (settings.hints) settings.hintsOff = {};
+    render();
+    persist();
   });
   for (const input of dialog.querySelectorAll('[data-vol]')) {
     input.addEventListener('input', () => {
@@ -144,6 +155,18 @@ export function mountSettings({ onOpen, onReset, canReset } = {}) {
   document.body.append(dialog);
   bind();
   document.getElementById('game-settings-toggle')?.addEventListener('click', openSettings);
+}
+
+/** On-screen hints (founder 2026-11-11): kind 'first' (first field), 'early' (level 1–3 next step), 'auto' (Auto narration).
+ * Off when the player turned hints off in Settings or closed that kind with ✕. Kept here: this module owns the saved settings. */
+export function hintOn(kind) {
+  if (!settings) settings = readSettings();
+  return settings.hints !== false && !settings.hintsOff?.[kind];
+}
+export function closeHint(kind) {
+  if (!settings) settings = readSettings();
+  settings.hintsOff = { ...settings.hintsOff, [kind]: true };
+  if (!saveSettings(settings) && dialog) warn('settings.saveFailed');
 }
 
 /** False once the player has picked a level: the frame monitor then changes neither the tier nor the resolution. */

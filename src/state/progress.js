@@ -89,8 +89,9 @@ export function resetProgress(withMemory = false) {
 }
 
 const IS_PHONE = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches; // a first run on a phone starts cooler than on a computer
-const DEFAULT_SETTINGS = { version: 1, master: 0.8, music: 0.6, ambience: 0.7, sfx: 0.8, ui: 0.6, muted: false, quality: IS_PHONE ? 'medium' : 'high', lang: DEFAULT_LANG, analytics: true, autoFocus: true };
+const DEFAULT_SETTINGS = { version: 1, master: 0.8, music: 0.6, ambience: 0.7, sfx: 0.8, ui: 0.6, muted: false, quality: IS_PHONE ? 'medium' : 'high', lang: DEFAULT_LANG, analytics: true, autoFocus: true, hints: true, hintsOff: {} };
 const QUALITIES = ['low', 'medium', 'high'];
+export const HINT_KINDS = ['first', 'early', 'auto'];
 
 export function normalizeSettings(raw) {
   const value = raw && typeof raw === 'object' ? raw : {};
@@ -104,6 +105,10 @@ export function normalizeSettings(raw) {
   if (LANGS.includes(value.lang)) settings.lang = value.lang;
   if (typeof value.analytics === 'boolean') settings.analytics = value.analytics; // F-38: gửi thống kê ẩn danh
   if (typeof value.autoFocus === 'boolean') settings.autoFocus = value.autoFocus; // camera tự tới chỗ có vấn đề
+  // Gợi ý trên màn hình (founder 2026-11-11): hints = tắt/bật tất cả; hintsOff = từng loại người chơi đã bấm ✕ (first / early / auto).
+  if (typeof value.hints === 'boolean') settings.hints = value.hints;
+  settings.hintsOff = {};
+  if (value.hintsOff && typeof value.hintsOff === 'object') for (const k of HINT_KINDS) if (value.hintsOff[k] === true) settings.hintsOff[k] = true;
   return settings;
 }
 

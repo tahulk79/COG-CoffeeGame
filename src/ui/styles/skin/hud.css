@@ -959,3 +959,10 @@ body:has(#intro-controls:not([hidden])) #game-settings-toggle{right:calc(max(12p
   #hud-root .hud-plantbar-fill{min-height:48px!important}
   #hud-root .hud-plantbar .hud-round-btn.is-cancel{right:-8px;top:-26px}
 }
+
+/* Hint ✕ (founder 2026-11-11): on the bubble's top-right corner; a 44 px finger area around a 30 px badge. */
+#hud-root .hud-tip .hud-tip-text{position:relative}
+#hud-root .hud-tip-close{position:absolute;top:-13px;right:-11px;z-index:2;display:grid;place-items:center;width:30px;height:30px;padding:0;border:3px solid var(--line);border-radius:50%;background:#fff;box-shadow:0 2px 0 var(--line);color:var(--line);font:900 14px/1 'Baloo 2',sans-serif;cursor:pointer;pointer-events:auto}
+#hud-root .hud-tip-close::before{content:"";position:absolute;inset:-8px}
+#hud-root .hud-tip-close[hidden]{display:none}
+#hud-root .hud-tip-close:active{transform:translateY(2px);box-shadow:none}
