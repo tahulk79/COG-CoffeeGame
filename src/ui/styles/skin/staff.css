@@ -369,3 +369,40 @@ body:has(#hud-root:is([data-sheet],:has(.hud-sm-host:not([hidden])))) .farm-rewa
   #hud-root .hud-pf-id:not(:has(.hud-pf-facts)) .hud-sm-avatar--big{height:128px}
   #hud-root .hud-pf-id:not(:has(.hud-pf-facts)) .hud-sm-avatar--big img{width:116px;height:116px}
 }
+
+/* the job line comes first in the page box (PC columns need it there); a phone keeps it where it always was, at the end */
+#hud-root .hud-sm-pages>.hud-sm-job{order:99}
+
+/* Staff detail on a PC (2026-11-11): the phone-sized buttons were stretched to the column width (a 480 px Bonus bar),
+   the page spread over 1500 px with a stray job line alone in the third column. One centred desk, desk-sized controls. */
+@media (min-width:1000px){
+  #hud-root .hud-sm-body:has(.hud-sm-detail){max-width:1240px}
+  #hud-root .hud-sm-detail{grid-template-columns:320px minmax(0,1fr);gap:12px 18px}
+  #hud-root .hud-sm-detail>*{grid-column:2}
+  #hud-root .hud-sm-detail>.hud-sm-dhead{grid-column:1;grid-row:1/span 2}
+  /* the page's cards flow down two columns like a newspaper: a tall card never leaves a hole beside a short one */
+  #hud-root .hud-sm-detail>.hud-sm-pages{display:block!important}
+  #hud-root .hud-sm-pages>*{break-inside:avoid;margin:0 0 12px!important}
+  #hud-root .hud-sm-pages>.hud-sm-job{column-span:all}
+  #hud-root .hud-sm-ptabs .hud-tab{width:54px!important;height:48px!important}
+  #hud-root .hud-sm-detail .hud-sm-sec{padding:12px 14px}
+  #hud-root .hud-sm-detail .hud-sm-sec>*+*{margin-top:8px}
+  #hud-root .hud-sm-detail :is(.hud-sm-h,.hud-fold-title,.hud-sm-sec>.hud-sm-h){font-size:16px;line-height:20px}
+  #hud-root .hud-sm-detail .hud-sm-state{font-size:15px}
+  #hud-root .hud-sm-detail .hud-sm-state-ico{font-size:22px}
+  /* buttons as wide as what they say */
+  #hud-root .hud-sm-detail .hud-sm-care{display:flex;flex-wrap:wrap;gap:8px}
+  #hud-root .hud-sm-detail .hud-sm-care .hud-btn{flex:0 0 auto}
+  #hud-root .hud-sm-detail .hud-sm-sec .hud-btn{min-width:0;height:40px;min-height:40px;padding:0 16px 3px;font-size:15px}
+  #hud-root .hud-sm-detail .hud-sm-seg{max-width:320px}
+  #hud-root .hud-sm-detail .hud-sm-seg .hud-tab{height:36px!important;font-size:14px}
+  #hud-root .hud-sm-detail .hud-sm-stat>.hud-btn,#hud-root .hud-sm-detail .hud-sm-part>.hud-btn{min-width:120px}
+  /* a closed fold is one slim row, not an 88 px card */
+  #hud-root .hud-sm-detail .hud-sm-sec.hud-fold{padding:0}
+  #hud-root .hud-sm-detail .hud-fold-head{min-height:44px}
+  @media (min-width:1300px){#hud-root .hud-sm-detail>.hud-sm-pages{column-count:2;column-gap:18px}}
+}
+
+/* No visible scrollbar in the staff screen: it still scrolls (wheel, finger, keys), only the grey bar is gone. */
+#hud-root :is(.hud-sm-body,.hud-sm-pages){scrollbar-width:none;-ms-overflow-style:none}
+#hud-root :is(.hud-sm-body,.hud-sm-pages)::-webkit-scrollbar{display:none}
