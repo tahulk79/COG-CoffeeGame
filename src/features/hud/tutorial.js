@@ -10,6 +10,7 @@ import { h } from './dom.js';
 import { drinkName } from '../../ui/local-menu.js';
 import { T, fmt, clock } from './text.js';
 import { mascot } from './mascot.js';
+import { hintOn, closeHint } from '../../ui/settings.js';
 
 const HAND_SVG = '<svg viewBox="0 0 64 72" width="56" height="63" aria-hidden="true"><path d="M24 6c3.6 0 6.5 2.9 6.5 6.5V31l2.2-.9c3.2-1.3 6.6.6 7.3 3.9l.2.9 1.6-.6c3.3-1.1 6.8 1 7.3 4.4l.1.7 1.5-.4c3.4-.8 6.7 1.6 6.9 5.1l.4 9.4c.4 9.4-6.4 17.5-15.7 18.6l-7 .8c-6.6.8-13-2.6-16-8.6L10.5 50c-1.6-3.2-.4-7 2.7-8.6 2.7-1.4 6-.7 7.9 1.6l-3.2-8V12.5C17.5 8.9 20.4 6 24 6z" fill="#fff" stroke="#3d2a1a" stroke-width="3.2" stroke-linejoin="round"/><path d="M30.5 31v9M41 34v8M51 39v6" stroke="#3d2a1a" stroke-width="2.6" stroke-linecap="round" opacity=".55"/></svg>';
 
@@ -20,10 +21,15 @@ function rich(text) {
 
 export function createTutorial(ctx) {
   const tipText = h('span', { class: 'hud-tip-text' });
+  // ✕ on a hint (founder 2026-11-11: "không tắt được, cứ hiện liên tục"): that kind of hint stays off for good (Settings turns hints back on).
+  // The scripted tutorial keeps its own "Skip tutorial" link instead.
+  let hintKind = null;
+  const close = h('button', { type: 'button', class: 'hud-tip-close', hidden: true, attrs: { 'aria-label': T('common.close') },
+    on: { click: e => { e.stopPropagation(); if (hintKind) closeHint(hintKind); hide(); resolve(); } } }, '✕');
   const skip = h('button', { type: 'button', class: 'hud-tip-skip', on: { click: () => ctx.act('tutorial/set', { done: true, track: track() }) } }, T('hud.tut.skip'));
   // Tapping the tip never reaches the ground (the character would walk there): it glides the camera to the guided target.
   const tip = h('div', { class: 'hud-tip', hidden: true, attrs: { role: 'status', 'aria-live': 'polite' },
-    on: { click: e => { if (!e.target.closest('.hud-tip-skip') && world) ctx.realm?.focus?.(world, { force: true }); } } },
+    on: { click: e => { if (!e.target.closest('.hud-tip-skip, .hud-tip-close') && world) ctx.realm?.focus?.(world, { force: true }); } } },
     mascot('hud-tip-ico'), tipText, skip);
   const hand = h('div', { class: 'hud-hand', hidden: true });
   hand.innerHTML = `<div class="hud-hand-inner">${HAND_SVG}</div>`; // static, trusted markup
@@ -67,7 +73,7 @@ export function createTutorial(ctx) {
   const setTip = text => {
     if (text === tipKey) { placeTip(); return; }
     tipKey = text;
-    tipText.replaceChildren(...(text ? rich(text) : []));
+    tipText.replaceChildren(...(text ? rich(text) : []), close); // the ✕ sits on the bubble's corner
     tip.hidden = !text;
     placeTip();
   };
@@ -91,11 +97,14 @@ export function createTutorial(ctx) {
   function resolve() {
     const s = ctx.store.state;
     tip.classList.remove('is-say');
+    hintKind = null; close.hidden = true;
+    // A hint: shown with a ✕ unless the player already closed its kind.
+    const hint = kind => { if (!hintOn(kind)) return false; hintKind = kind; close.hidden = false; return true; };
     // Auto play: the tutorial pauses; the same tip bubble + tap hand narrate what the autopilot does.
     const auto = ctx.isAuto?.() && ctx.isPlaying() ? ctx.realm?.autoStatus : null;
     skip.hidden = !!auto;
     if (auto) {
-      if (ctx.modals.open) { hide(); return; }
+      if (ctx.modals.open || !hint('auto')) { hide(); return; }
       // Caption = what the autopilot does now ({ key, params }; drink / crop ids translated here).
       const c = auto.caption, p = c?.params ? { ...c.params } : {};
       if (p.drink) p.drink = drinkName(s.world.currentRegion, p.drink, p.item); // the country's local drink name
@@ -109,7 +118,7 @@ export function createTutorial(ctx) {
     // First field (the opening tutorial is gone): a farm with no field at all shows one tip on the Phát triển button,
     // until the first sapling is placed — a new player otherwise lands on empty grass with nothing to tap.
     const fr = region(s);
-    if (ctx.isPlaying() && fr && fr.mode !== 'cafe' && !(fr.fields || []).length && !ctx.modals.open && !ctx.sheet.openId && !ctx.realm?.placement && !ctx.realm?.planting) {
+    if (ctx.isPlaying() && fr && fr.mode !== 'cafe' && !(fr.fields || []).length && !ctx.modals.open && !ctx.sheet.openId && !ctx.realm?.placement && !ctx.realm?.planting && hint('first')) {
       skip.hidden = true; // a one-line hint, not the tutorial: nothing to skip (it goes once the first field is placed)
       tip.classList.add('is-say');
       setTip(T('hud.hint.firstField')); setWorld(null);
@@ -118,7 +127,7 @@ export function createTutorial(ctx) {
     }
     // Same first field, Build open: point at the cheapest seed (the hint used to vanish as soon as the sheet opened, and a new
     // player faced four tabs and three seeds with no idea which to tap).
-    if (ctx.isPlaying() && fr && fr.mode !== 'cafe' && !(fr.fields || []).length && ctx.sheet.openId === 'build' && !ctx.modals.open && !ctx.realm?.placement && !ctx.realm?.planting) {
+    if (ctx.isPlaying() && fr && fr.mode !== 'cafe' && !(fr.fields || []).length && ctx.sheet.openId === 'build' && !ctx.modals.open && !ctx.realm?.placement && !ctx.realm?.planting && hint('first')) {
       const seed = ctx.sheet.query('[data-hud-id="seed-robusta"]') || ctx.sheet.query('.hud-seedtile');
       skip.hidden = true;
       tip.classList.add('is-say');
@@ -127,18 +136,18 @@ export function createTutorial(ctx) {
       return;
     }
     // Level 1, Quests open with a reward waiting: the hand points at the first Claim (it disappeared once the sheet opened).
-    if (ctx.isPlaying() && fr && levelProgress(s).level === 1 && ctx.sheet.openId === 'quests' && questsReady(s) > 0 && !ctx.modals.open) {
+    if (ctx.isPlaying() && fr && levelProgress(s).level === 1 && ctx.sheet.openId === 'quests' && questsReady(s) > 0 && !ctx.modals.open && hintOn('early')) {
       const claim = ctx.sheet.query('[data-hud-id^="questClaim-"]');
-      if (claim) { skip.hidden = true; tip.classList.add('is-say'); setTip(T('hud.hint.claim')); setWorld(null); setUi(claim); return; }
+      if (claim && hint('early')) { skip.hidden = true; tip.classList.add('is-say'); setTip(T('hud.hint.claim')); setWorld(null); setUi(claim); return; }
     }
     const cur = ctx.isPlaying() && !ctx.realm?.switching ? currentStep(s, track()) : null;
     // Level 1, no scripted step running: one line that says what to do next, from what is true on the farm right now.
     // Up to level 3 (level 1 only left a player with a full barn and no idea how to sell, the moment the level-up screen closed).
-    if (!cur && ctx.isPlaying() && fr && fr.mode !== 'cafe' && levelProgress(s).level <= 3 && !ctx.modals.open && !ctx.sheet.openId && !ctx.selection && !ctx.realm?.placement && !ctx.realm?.planting && !ctx.staffModal?.covering) {
+    if (!cur && ctx.isPlaying() && fr && fr.mode !== 'cafe' && levelProgress(s).level <= 3 && !ctx.modals.open && !ctx.sheet.openId && !ctx.selection && !ctx.realm?.placement && !ctx.realm?.planting && !ctx.staffModal?.covering && hintOn('early')) {
       const now = Date.now(), ids = Object.keys(fr.plots || {}).filter(id => plotOf(s, id));
       const ripe = ids.some(id => plotState(s, id, now).stage === 'ready');
       const next = ripe ? ['hud.hint.harvest', '[data-hud-id="harvestAll"]'] : s.inventory.beans > 0 ? ['hud.hint.sell', '#hud-beans'] : questsReady(s) > 0 ? ['hud.hint.quests', '#hud-btn-manage'] : ids.length ? ['hud.hint.growing', null] : null;
-      if (next) {
+      if (next && hint('early')) {
         skip.hidden = true; tip.classList.add('is-say');
         setTip(T(next[0])); setWorld(null);
         setUi(next[1] ? document.querySelector(next[1]) : null);

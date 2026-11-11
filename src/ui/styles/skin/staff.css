@@ -406,3 +406,14 @@ body:has(#hud-root:is([data-sheet],:has(.hud-sm-host:not([hidden])))) .farm-rewa
 /* No visible scrollbar in the staff screen: it still scrolls (wheel, finger, keys), only the grey bar is gone. */
 #hud-root :is(.hud-sm-body,.hud-sm-pages){scrollbar-width:none;-ms-overflow-style:none}
 #hud-root :is(.hud-sm-body,.hud-sm-pages)::-webkit-scrollbar{display:none}
+
+/* --- Responsive pass (founder 2026-11-11: "trên PC rộng quá") --- */
+/* A wide screen gets a centred window, not a sheet from edge to edge: three cards and a report bar ran 1 900 px wide. */
+@media (min-width:1300px){
+  #hud-root .hud-sm{left:max(24px,calc((100vw - 1240px)/2))!important;right:max(24px,calc((100vw - 1240px)/2))!important;bottom:16px!important;border-bottom:4px solid var(--line);border-radius:34px}
+}
+/* Phone: four tabs did not fit their words ("Tổng qu", "Tuyển d"): the icon goes above the word again, in a smaller size. */
+@media (max-width:599px){
+  #hud-root .hud-sm-tabs .hud-tab{height:52px!important;padding:24px 1px 0;background-position:center 4px,0 0!important;background-size:18px,auto!important;font-size:11.5px;line-height:14px;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis}
+  #hud-root .hud-sm-tabs{gap:5px}
+}

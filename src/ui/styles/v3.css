@@ -1828,3 +1828,6 @@ button.hud-card:not(:disabled):active{transform:translateY(2px);box-shadow:0 1px
 .hud-plantbar-fit.is-good{color:var(--h-good)}.hud-plantbar-fit.is-ok{color:var(--h-ink-soft)}.hud-plantbar-fit.is-bad{color:var(--h-bad)}
 .hud-plantbar-care{font:600 11.5px/1.3 var(--h-font);color:var(--h-ink-soft)}
 .hud-plantbar-care[hidden]{display:none}
+/* Heart–Reason marks on two rows: Balanced, Debt and Profit sit 15 % apart and ran into each other on a phone. */
+.hud-fm-marks{height:32px}
+.hud-fm-marks span:nth-child(even){top:15px}

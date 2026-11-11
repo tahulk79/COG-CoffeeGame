@@ -139,6 +139,7 @@ body[data-gender="male"] #caption-box[data-speaker="player"] .dialogue-avatar{ba
 .set-ico{flex:none;width:36px;height:36px;background:center/contain no-repeat}
 .set-ico--sound{background-image:url(../../game-art/ico/sound.svg)}
 .set-ico--camera{background-image:url(../../game-art/ico/camera.svg)}
+.set-ico--hint{background-image:url(../../game-art/ico/tap.svg)}
 .set-ico--screen{background-image:url(../../game-art/ico/screen.svg)}
 .set-name{flex:1;color:#fff;font:400 15px/19px var(--disp);text-shadow:-1.5px 0 var(--line),1.5px 0 var(--line),0 -1.5px var(--line),0 1.5px var(--line),-1.5px -1.5px var(--line),1.5px -1.5px var(--line),-1.5px 1.5px var(--line),1.5px 1.5px var(--line)}
 .set-vol{position:relative;flex:1;display:block;height:30px;box-sizing:border-box;border:2px solid var(--line);border-radius:999px;background:#c98e4b;overflow:hidden;--v:100%}
